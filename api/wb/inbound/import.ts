@@ -23,7 +23,7 @@ function findHeaderRow(data: unknown[][]) {
     const row = data[i] ?? [];
     const normalized = row.map(normalizeHeaderCell);
     const hasBox = normalized.some((c) => c.includes("номер коробки"));
-    const hasShk = normalized.some((c) => c === "шк" || c.includes(" шк"));
+    const hasShk = normalized.some((c) => c === "шк" || c.startsWith("шк") || c.includes(" шк"));
     if (hasBox && hasShk) return i;
   }
   return -1;
@@ -47,28 +47,6 @@ function parseInventoryMeta(data: unknown[][]) {
     }
   }
   return { inventoryNumber, inventoryDate };
-}
-
-function normalizeSheetName(name: string) {
-  return String(name || "")
-    .trim()
-    .toLowerCase()
-    .replace(/ё/g, "е")
-    .replace(/\s+/g, " ");
-}
-
-function pickInboundSheet(workbook: XLSX.WorkBook) {
-  const preferredNames = new Set([
-    "возвратная опись",
-    "возвратнаяопись",
-  ]);
-  for (const sheetName of workbook.SheetNames) {
-    const normalized = normalizeSheetName(sheetName).replace(/\s+/g, "");
-    if (preferredNames.has(normalized) || normalizeSheetName(sheetName) === "возвратная опись") {
-      return workbook.Sheets[sheetName];
-    }
-  }
-  return workbook.Sheets[workbook.SheetNames[0]];
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -114,163 +92,199 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let errorRows = 0;
     const ragQueue: Array<{ sourceId: string; content: string; metadata: Record<string, unknown> }> = [];
     for (const file of inboundFiles) {
-      const wb = XLSX.read(file.buffer, { type: "buffer", cellDates: true });
-      const ws = pickInboundSheet(wb);
-      if (!ws) {
+      let wb: XLSX.WorkBook | null = null;
+      try {
+        wb = XLSX.read(file.buffer, { type: "buffer", cellDates: true });
+      } catch (fileReadError) {
         errorRows++;
-        continue;
-      }
-      const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true }) as unknown[][];
-      if (!data.length) {
-        errorRows++;
-        continue;
-      }
-
-      const headerRowIdx = findHeaderRow(data);
-      if (headerRowIdx < 0) {
-        errorRows++;
-        continue;
-      }
-      const { inventoryNumber: invMeta, inventoryDate } = parseInventoryMeta(data);
-      const header = data[headerRowIdx] ?? [];
-      const headerMap = new Map<string, number>();
-      header.forEach((cell, idx) => headerMap.set(normalizeHeaderCell(cell), idx));
-      const col = (name: string) => headerMap.get(name) ?? -1;
-
-      const idxBox = col("номер коробки");
-      const idxShk = col("шк");
-      if (idxBox < 0 || idxShk < 0) {
-        errorRows++;
-        continue;
-      }
-      const idxSticker = col("стикер");
-      const idxBarcode = col("баркод");
-      const idxPhone = col("контактный номер физ. лица");
-      const idxReceiver = col("фио получателя физ. лица");
-      const idxArticle = col("артикул");
-      const idxBrand = col("бренд");
-      const idxNomenclature = col("номенклатура");
-      const idxSize = col("размер");
-      const idxDescription = col("описание");
-      const idxKit = col("комплектация");
-      const idxPrice = col("цена, rub");
-      const idxTnved = col("тнвэд");
-      const idxMass = col("масса");
-
-      for (let i = headerRowIdx + 1; i < data.length; i++) {
-        const row = data[i] ?? [];
-        const boxNumber = asText(row[idxBox]);
-        const shk = asText(row[idxShk]);
-        if (!boxNumber && !shk) continue;
-        totalRows++;
-        const inventoryNumber = invMeta || asText((row[col("номер ввозной описи")] ?? ""));
-        const invDateRaw = row[col("дата создания ввозной описи")] ?? inventoryDate ?? "";
-        const inventoryCreatedAt = parseDateOnly(invDateRaw);
-        if (!inventoryNumber || !boxNumber || !shk) {
-          errorRows++;
-          if (batchId) {
-            await client.query(
-              `insert into wb_import_row_errors (batch_id, row_number, error_message, row_payload)
-               values ($1, $2, $3, $4)`,
-              [batchId, i + 1, "Пустой ключ (опись/коробка/ШК)", JSON.stringify({ row, file: file.originalFilename })],
-            );
-          }
-          continue;
-        }
-
-        const values = [
-          batchId,
-          inventoryNumber,
-          inventoryCreatedAt,
-          i + 1,
-          boxNumber,
-          shk,
-          idxSticker >= 0 ? asText(row[idxSticker]) : null,
-          idxBarcode >= 0 ? asText(row[idxBarcode]) : null,
-          idxPhone >= 0 ? asText(row[idxPhone]) : null,
-          idxReceiver >= 0 ? asText(row[idxReceiver]) : null,
-          idxArticle >= 0 ? asText(row[idxArticle]) : null,
-          idxBrand >= 0 ? asText(row[idxBrand]) : null,
-          idxNomenclature >= 0 ? asText(row[idxNomenclature]) : null,
-          idxSize >= 0 ? asText(row[idxSize]) : null,
-          idxDescription >= 0 ? asText(row[idxDescription]) : null,
-          idxKit >= 0 ? asText(row[idxKit]) : null,
-          idxPrice >= 0 ? parseNum(row[idxPrice]) : 0,
-          idxTnved >= 0 ? asText(row[idxTnved]) : null,
-          idxMass >= 0 ? parseNum(row[idxMass]) : 0,
-          JSON.stringify({ row, file: file.originalFilename }),
-        ];
-
-        if (mode === "append") {
-          const result = await client.query(
-            `insert into wb_inbound_items (
-               batch_id, inventory_number, inventory_created_at, row_number, box_number, shk,
-               sticker, barcode, phone, receiver_full_name, article, brand, nomenclature, size, description, kit,
-               price_rub, tnv_ed, mass_kg, raw_row
-             ) values (
-               $1, $2, $3::date, $4, $5, $6,
-               $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-               $17, $18, $19, $20::jsonb
-             )
-             on conflict (inventory_number, box_number, shk) do nothing`,
-            values,
-          );
-          if (result.rowCount && result.rowCount > 0) insertedRows++;
-          else skippedRows++;
-        } else {
+        if (batchId) {
           await client.query(
-            `insert into wb_inbound_items (
-               batch_id, inventory_number, inventory_created_at, row_number, box_number, shk,
-               sticker, barcode, phone, receiver_full_name, article, brand, nomenclature, size, description, kit,
-               price_rub, tnv_ed, mass_kg, raw_row, updated_at
-             ) values (
-               $1, $2, $3::date, $4, $5, $6,
-               $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-               $17, $18, $19, $20::jsonb, now()
-             )
-             on conflict (inventory_number, box_number, shk) do update set
-               batch_id = excluded.batch_id,
-               inventory_created_at = excluded.inventory_created_at,
-               row_number = excluded.row_number,
-               sticker = excluded.sticker,
-               barcode = excluded.barcode,
-               phone = excluded.phone,
-               receiver_full_name = excluded.receiver_full_name,
-               article = excluded.article,
-               brand = excluded.brand,
-               nomenclature = excluded.nomenclature,
-               size = excluded.size,
-               description = excluded.description,
-               kit = excluded.kit,
-               price_rub = excluded.price_rub,
-               tnv_ed = excluded.tnv_ed,
-               mass_kg = excluded.mass_kg,
-               raw_row = excluded.raw_row,
-               updated_at = now()`,
-            values,
+            `insert into wb_import_row_errors (batch_id, row_number, error_message, row_payload)
+             values ($1, $2, $3, $4)`,
+            [batchId, null, `Не удалось прочитать файл: ${(fileReadError as Error)?.message || "unknown_error"}`, JSON.stringify({ file: file.originalFilename })],
           );
-          updatedRows++;
         }
+        continue;
+      }
+      const sheetNames = wb.SheetNames || [];
+      if (sheetNames.length === 0) {
+        errorRows++;
+        if (batchId) {
+          await client.query(
+            `insert into wb_import_row_errors (batch_id, row_number, error_message, row_payload)
+             values ($1, $2, $3, $4)`,
+            [batchId, null, "В файле нет доступных листов", JSON.stringify({ file: file.originalFilename })],
+          );
+        }
+        continue;
+      }
 
-        if (ragQueue.length < 1200) {
-          ragQueue.push({
-            sourceId: `${inventoryNumber}:${boxNumber}:${shk}`,
-            content: [
-              `Опись: ${inventoryNumber}`,
-              `Коробка: ${boxNumber}`,
-              `ШК: ${shk}`,
-              `Артикул: ${idxArticle >= 0 ? asText(row[idxArticle]) : ""}`,
-              `Бренд: ${idxBrand >= 0 ? asText(row[idxBrand]) : ""}`,
-              `Номенклатура: ${idxNomenclature >= 0 ? asText(row[idxNomenclature]) : ""}`,
-              `Описание: ${idxDescription >= 0 ? asText(row[idxDescription]) : ""}`,
-            ].join("\n"),
-            metadata: {
-              block: "inbound",
-              inventoryNumber,
-              boxId: boxNumber,
-              shk,
-            },
-          });
+      let fileMatchedAnySheet = false;
+      for (const sheetName of sheetNames) {
+        const ws = wb.Sheets[sheetName];
+        if (!ws) continue;
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true }) as unknown[][];
+        if (!data.length) continue;
+
+        const headerRowIdx = findHeaderRow(data);
+        if (headerRowIdx < 0) continue;
+        const { inventoryNumber: invMeta, inventoryDate } = parseInventoryMeta(data);
+        const header = data[headerRowIdx] ?? [];
+        const headerMap = new Map<string, number>();
+        header.forEach((cell, idx) => headerMap.set(normalizeHeaderCell(cell), idx));
+        const col = (name: string) => headerMap.get(name) ?? -1;
+
+        const idxBox = col("номер коробки");
+        const idxShk = col("шк");
+        if (idxBox < 0 || idxShk < 0) continue;
+
+        fileMatchedAnySheet = true;
+        const idxSticker = col("стикер");
+        const idxBarcode = col("баркод");
+        const idxPhone = col("контактный номер физ. лица");
+        const idxReceiver = col("фио получателя физ. лица");
+        const idxArticle = col("артикул");
+        const idxBrand = col("бренд");
+        const idxNomenclature = col("номенклатура");
+        const idxSize = col("размер");
+        const idxDescription = col("описание");
+        const idxKit = col("комплектация");
+        const idxPrice = col("цена, rub");
+        const idxTnved = col("тнвэд");
+        const idxMass = col("масса");
+
+        for (let i = headerRowIdx + 1; i < data.length; i++) {
+          const row = data[i] ?? [];
+          const boxNumber = asText(row[idxBox]);
+          const shk = asText(row[idxShk]);
+          if (!boxNumber && !shk) continue;
+          totalRows++;
+          const inventoryNumber = invMeta || asText((row[col("номер ввозной описи")] ?? ""));
+          const invDateRaw = row[col("дата создания ввозной описи")] ?? inventoryDate ?? "";
+          const inventoryCreatedAt = parseDateOnly(invDateRaw);
+          if (!inventoryNumber || !boxNumber || !shk) {
+            errorRows++;
+            if (batchId) {
+              await client.query(
+                `insert into wb_import_row_errors (batch_id, row_number, error_message, row_payload)
+                 values ($1, $2, $3, $4)`,
+                [batchId, i + 1, "Пустой ключ (опись/коробка/ШК)", JSON.stringify({ row, file: file.originalFilename, sheet: sheetName })],
+              );
+            }
+            continue;
+          }
+
+          const values = [
+            batchId,
+            inventoryNumber,
+            inventoryCreatedAt,
+            i + 1,
+            boxNumber,
+            shk,
+            idxSticker >= 0 ? asText(row[idxSticker]) : null,
+            idxBarcode >= 0 ? asText(row[idxBarcode]) : null,
+            idxPhone >= 0 ? asText(row[idxPhone]) : null,
+            idxReceiver >= 0 ? asText(row[idxReceiver]) : null,
+            idxArticle >= 0 ? asText(row[idxArticle]) : null,
+            idxBrand >= 0 ? asText(row[idxBrand]) : null,
+            idxNomenclature >= 0 ? asText(row[idxNomenclature]) : null,
+            idxSize >= 0 ? asText(row[idxSize]) : null,
+            idxDescription >= 0 ? asText(row[idxDescription]) : null,
+            idxKit >= 0 ? asText(row[idxKit]) : null,
+            idxPrice >= 0 ? parseNum(row[idxPrice]) : 0,
+            idxTnved >= 0 ? asText(row[idxTnved]) : null,
+            idxMass >= 0 ? parseNum(row[idxMass]) : 0,
+            JSON.stringify({ row, file: file.originalFilename, sheet: sheetName }),
+          ];
+
+          if (mode === "append") {
+            const result = await client.query(
+              `insert into wb_inbound_items (
+                 batch_id, inventory_number, inventory_created_at, row_number, box_number, shk,
+                 sticker, barcode, phone, receiver_full_name, article, brand, nomenclature, size, description, kit,
+                 price_rub, tnv_ed, mass_kg, raw_row
+               ) values (
+                 $1, $2, $3::date, $4, $5, $6,
+                 $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+                 $17, $18, $19, $20::jsonb
+               )
+               on conflict (inventory_number, box_number, shk) do nothing`,
+              values,
+            );
+            if (result.rowCount && result.rowCount > 0) insertedRows++;
+            else skippedRows++;
+          } else {
+            await client.query(
+              `insert into wb_inbound_items (
+                 batch_id, inventory_number, inventory_created_at, row_number, box_number, shk,
+                 sticker, barcode, phone, receiver_full_name, article, brand, nomenclature, size, description, kit,
+                 price_rub, tnv_ed, mass_kg, raw_row, updated_at
+               ) values (
+                 $1, $2, $3::date, $4, $5, $6,
+                 $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+                 $17, $18, $19, $20::jsonb, now()
+               )
+               on conflict (inventory_number, box_number, shk) do update set
+                 batch_id = excluded.batch_id,
+                 inventory_created_at = excluded.inventory_created_at,
+                 row_number = excluded.row_number,
+                 sticker = excluded.sticker,
+                 barcode = excluded.barcode,
+                 phone = excluded.phone,
+                 receiver_full_name = excluded.receiver_full_name,
+                 article = excluded.article,
+                 brand = excluded.brand,
+                 nomenclature = excluded.nomenclature,
+                 size = excluded.size,
+                 description = excluded.description,
+                 kit = excluded.kit,
+                 price_rub = excluded.price_rub,
+                 tnv_ed = excluded.tnv_ed,
+                 mass_kg = excluded.mass_kg,
+                 raw_row = excluded.raw_row,
+                 updated_at = now()`,
+              values,
+            );
+            updatedRows++;
+          }
+
+          if (ragQueue.length < 1200) {
+            ragQueue.push({
+              sourceId: `${inventoryNumber}:${boxNumber}:${shk}`,
+              content: [
+                `Опись: ${inventoryNumber}`,
+                `Коробка: ${boxNumber}`,
+                `ШК: ${shk}`,
+                `Артикул: ${idxArticle >= 0 ? asText(row[idxArticle]) : ""}`,
+                `Бренд: ${idxBrand >= 0 ? asText(row[idxBrand]) : ""}`,
+                `Номенклатура: ${idxNomenclature >= 0 ? asText(row[idxNomenclature]) : ""}`,
+                `Описание: ${idxDescription >= 0 ? asText(row[idxDescription]) : ""}`,
+              ].join("\n"),
+              metadata: {
+                block: "inbound",
+                inventoryNumber,
+                boxId: boxNumber,
+                shk,
+                sheet: sheetName,
+              },
+            });
+          }
+        }
+      }
+
+      if (!fileMatchedAnySheet) {
+        errorRows++;
+        if (batchId) {
+          await client.query(
+            `insert into wb_import_row_errors (batch_id, row_number, error_message, row_payload)
+             values ($1, $2, $3, $4)`,
+            [
+              batchId,
+              null,
+              "Не найдено ни одного листа с колонками 'Номер коробки' и 'ШК'",
+              JSON.stringify({ file: file.originalFilename, sheets: sheetNames }),
+            ],
+          );
         }
       }
     }
@@ -287,6 +301,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         target_type: "wb_inbound_batch",
         target_id: batchId,
         details: { mode, files: inboundFiles.length, totalRows, insertedRows, updatedRows, skippedRows, errorRows, uploadedBy: access.login },
+      });
+    }
+
+    if (totalRows === 0 && insertedRows === 0 && updatedRows === 0) {
+      return res.status(400).json({
+        error: "Не удалось распознать данные в файлах. Проверьте, что в книге есть лист с колонками 'Номер коробки' и 'ШК'.",
+        batchId,
+        files: inboundFiles.length,
+        errorRows,
+        request_id: ctx.requestId,
       });
     }
 
@@ -327,7 +351,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // ignore secondary error
       }
     }
-    return res.status(500).json({ error: "Ошибка импорта описи WB", request_id: ctx.requestId });
+    const message = (error as Error)?.message || "Ошибка импорта описи WB";
+    return res.status(500).json({ error: message, request_id: ctx.requestId });
   } finally {
     client.release();
   }
