@@ -16,7 +16,8 @@ interface ParsedForm {
 
 export function parseMultipart(req: VercelRequest): Promise<ParsedForm> {
   return new Promise((resolve, reject) => {
-    const form = new IncomingForm({ maxFileSize: 50 * 1024 * 1024 });
+    // Высокий потолок для self-hosted; у Vercel тело запроса всё равно обрезается ~4.5 МБ до вызова функции.
+    const form = new IncomingForm({ maxFileSize: 500 * 1024 * 1024 });
     form.parse(req, (err, fields, files) => {
       if (err) return reject(err);
       const parsedFields: Record<string, string> = {};

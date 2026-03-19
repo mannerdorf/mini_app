@@ -41,6 +41,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const q = String(req.query.q ?? "").trim();
     const view = String(req.query.view ?? "").trim().toLowerCase();
 
+    const sortByRaw = String(req.query.sortBy ?? "").trim();
+    const sortDirRaw = String(req.query.sortDir ?? "").trim().toLowerCase();
+    const orderDir = sortDirRaw === "asc" ? "asc" : "desc";
+    const nullsClause = orderDir === "asc" ? "nulls first" : "nulls last";
+
     const where: string[] = [];
     const params: unknown[] = [];
 
@@ -73,6 +78,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       where.push(`(
         i.box_number ilike $${params.length}
         or i.shk ilike $${params.length}
+        or coalesce(i.sticker, '') ilike $${params.length}
+        or coalesce(i.barcode, '') ilike $${params.length}
+        or coalesce(i.phone, '') ilike $${params.length}
         or coalesce(i.article, '') ilike $${params.length}
         or coalesce(i.brand, '') ilike $${params.length}
         or coalesce(i.description, '') ilike $${params.length}
@@ -95,6 +103,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const countRes = await pool.query<{ total: number }>(countSql, params);
       const total = countRes.rows[0]?.total ?? 0;
 
+      const sortKey =
+        sortByRaw === "inventoryNumber" ||
+        sortByRaw === "inventoryCreatedAt" ||
+        sortByRaw === "boxCount" ||
+        sortByRaw === "totalPriceRub"
+          ? sortByRaw
+          : "inventoryCreatedAt";
+      /** Только whitelist — в ORDER BY не подставляем произвольный ввод. */
+      const ORDER_EXPR: Record<string, string> = {
+        inventoryNumber: "b.inventory_number",
+        inventoryCreatedAt: "max(b.inventory_created_at)",
+        boxCount: "count(distinct b.box_number)",
+        totalPriceRub: "coalesce(sum(b.price_rub), 0)",
+      };
+      const orderExpr = ORDER_EXPR[sortKey] ?? ORDER_EXPR.inventoryCreatedAt;
+
       const dataParams = [...params, limit, offset];
       const rowsSql = `
         with base as (
@@ -110,7 +134,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           count(*)::int as "lineCount"
         from base b
         group by b.inventory_number
-        order by max(b.inventory_created_at) desc nulls last, b.inventory_number desc
+        order by ${orderExpr} ${orderDir} ${nullsClause}, b.inventory_number desc
         limit $${dataParams.length - 1}
         offset $${dataParams.length}
       `;

@@ -23,6 +23,10 @@ type WbSearchResult = {
 
 type ColumnDef = { key: string; label: string };
 
+type InboundSummarySortKey = "inventoryNumber" | "inventoryCreatedAt" | "boxCount" | "totalPriceRub";
+
+const INBOUND_SUMMARY_SORT_KEYS = new Set<string>(["inventoryNumber", "inventoryCreatedAt", "boxCount", "totalPriceRub"]);
+
 const INBOUND_DETAIL_COLUMNS: ColumnDef[] = [
   { key: "inventoryNumber", label: "Номер ввозной описи" },
   { key: "inventoryCreatedAt", label: "Дата создания ввозной описи" },
@@ -34,6 +38,28 @@ const INBOUND_DETAIL_COLUMNS: ColumnDef[] = [
   { key: "priceRub", label: "Цена, RUB" },
   { key: "massKg", label: "Масса" },
 ];
+
+/** Совпадение строки детализации с полем «Поиск» / «ID коробки» (подсветка и отбор строк). */
+function inboundDetailRowMatchesNeedle(row: Record<string, unknown>, needleLower: string): boolean {
+  if (!needleLower) return true;
+  const keys = [
+    "boxNumber",
+    "shk",
+    "sticker",
+    "barcode",
+    "article",
+    "brand",
+    "description",
+    "nomenclature",
+    "inventoryNumber",
+    "receiverFullName",
+    "phone",
+  ] as const;
+  for (const k of keys) {
+    if (String(row[k] ?? "").toLowerCase().includes(needleLower)) return true;
+  }
+  return false;
+}
 
 function formatWbCellValue(key: string, value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -87,6 +113,10 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   const [inboundDetailsCache, setInboundDetailsCache] = useState<Record<string, Record<string, unknown>[]>>({});
   const [inboundDetailLoading, setInboundDetailLoading] = useState<string | null>(null);
   const [deletingInventory, setDeletingInventory] = useState<string | null>(null);
+  const [inboundSummarySort, setInboundSummarySort] = useState<{ by: InboundSummarySortKey; dir: "asc" | "desc" }>({
+    by: "inventoryCreatedAt",
+    dir: "desc",
+  });
   const inboundDetailsCacheRef = useRef(inboundDetailsCache);
   inboundDetailsCacheRef.current = inboundDetailsCache;
   const [manualReturned, setManualReturned] = useState({
@@ -109,6 +139,18 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     claimNumber: "",
     q: "",
   });
+
+  /** Нижний регистр: фильтр строк внутри раскрытой ведомости (поиск / ID коробки). */
+  const inboundDetailNeedle = useMemo(() => {
+    if (activeTab !== "inbound") return "";
+    return (filters.boxId.trim() || filters.q.trim()).toLowerCase();
+  }, [activeTab, filters.boxId, filters.q]);
+
+  /** Подсветка строки ведомости в сводке при любом узком фильтре. */
+  const inboundSummaryFilterHit = useMemo(() => {
+    if (activeTab !== "inbound") return false;
+    return Boolean(filters.q.trim() || filters.boxId.trim() || filters.inventoryNumber.trim());
+  }, [activeTab, filters.q, filters.boxId, filters.inventoryNumber]);
 
   const authHeaders = useMemo(
     () => ({
@@ -143,6 +185,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         history: activeTab === "claims" ? "true" : undefined,
         revisionId: activeTab === "claims" && claimsRevisionId ? claimsRevisionId : undefined,
         view: activeTab === "inbound" ? "summary" : undefined,
+        sortBy: activeTab === "inbound" ? inboundSummarySort.by : undefined,
+        sortDir: activeTab === "inbound" ? inboundSummarySort.dir : undefined,
       });
       const res = await fetch(`${dataEndpoint}?${query}`, { headers: authHeaders });
       const data = await res.json().catch(() => ({}));
@@ -161,15 +205,68 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, authHeaders, claimsRevisionId, dataEndpoint, filters.article, filters.boxId, filters.brand, filters.claimNumber, filters.dateFrom, filters.dateTo, filters.inventoryNumber, filters.q, limit, page]);
+  }, [
+    activeTab,
+    authHeaders,
+    claimsRevisionId,
+    dataEndpoint,
+    filters.article,
+    filters.boxId,
+    filters.brand,
+    filters.claimNumber,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.inventoryNumber,
+    filters.q,
+    inboundSummarySort.by,
+    inboundSummarySort.dir,
+    limit,
+    page,
+  ]);
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
 
+  /** Одна ведомость в выдаче + фильтр → сразу раскрыть детали. */
+  useEffect(() => {
+    if (activeTab !== "inbound" || loading) return;
+    const f = filters.q.trim() || filters.boxId.trim() || filters.inventoryNumber.trim();
+    if (!f || items.length !== 1) return;
+    const inv = String(items[0]?.inventoryNumber ?? "");
+    if (inv) setExpandedInboundInv(inv);
+  }, [activeTab, loading, filters.q, filters.boxId, filters.inventoryNumber, items]);
+
   useEffect(() => {
     setExpandedInboundInv(null);
-  }, [activeTab, page, limit, filters.dateFrom, filters.dateTo, filters.inventoryNumber, filters.boxId, filters.article, filters.brand, filters.q]);
+  }, [
+    activeTab,
+    page,
+    limit,
+    inboundSummarySort.by,
+    inboundSummarySort.dir,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.article,
+    filters.brand,
+  ]);
+
+  /** Свернуть, если раскрытая ведомости нет в текущей странице выдачи. */
+  useEffect(() => {
+    if (activeTab !== "inbound" || !expandedInboundInv) return;
+    const still = items.some((r) => String(r.inventoryNumber ?? "") === expandedInboundInv);
+    if (!still) setExpandedInboundInv(null);
+  }, [activeTab, items, expandedInboundInv]);
+
+  const onInboundSummarySortClick = useCallback((key: string) => {
+    if (!INBOUND_SUMMARY_SORT_KEYS.has(key)) return;
+    const sortKey = key as InboundSummarySortKey;
+    setInboundSummarySort((prev) => {
+      if (prev.by === sortKey) return { by: sortKey, dir: prev.dir === "asc" ? "desc" : "asc" };
+      return { by: sortKey, dir: sortKey === "inventoryNumber" ? "asc" : "desc" };
+    });
+    setPage(1);
+  }, []);
 
   const loadInboundDetails = useCallback(
     async (inventoryNumber: string) => {
@@ -247,45 +344,69 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       }
       setUploading(true);
       setUploadError(null);
+      const endpoint =
+        activeTab === "inbound"
+          ? "/api/wb/inbound/import"
+          : activeTab === "returned"
+            ? "/api/wb/returned/import"
+            : "/api/wb/claims/import";
+      const errors: string[] = [];
+      let okCount = 0;
+      let summaryRefreshOnce = false;
       try {
-        const fd = new FormData();
-        for (const file of files) fd.append("file", file);
-        fd.append("mode", importMode);
-        const endpoint =
-          activeTab === "inbound"
-            ? "/api/wb/inbound/import"
-            : activeTab === "returned"
-              ? "/api/wb/returned/import"
-              : "/api/wb/claims/import";
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: authHeaders,
-          body: fd,
-        });
-        const rawText = await res.text();
-        let data: Record<string, unknown> = {};
-        if (rawText) {
-          try {
-            data = JSON.parse(rawText) as Record<string, unknown>;
-          } catch {
-            data = {};
+        // Несколько файлов в одном FormData дают 413 на Vercel (~4.5 МБ на запрос) — шлём по одному файлу.
+        for (const file of files) {
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("mode", importMode);
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: authHeaders,
+            body: fd,
+          });
+          const rawText = await res.text();
+          let data: Record<string, unknown> = {};
+          if (rawText) {
+            try {
+              data = JSON.parse(rawText) as Record<string, unknown>;
+            } catch {
+              data = {};
+            }
           }
+          if (!res.ok) {
+            const apiErr = typeof data.error === "string" ? data.error.trim() : "";
+            const reqId = typeof data.request_id === "string" ? data.request_id : "";
+            const idSuffix = reqId ? ` [${reqId}]` : "";
+            let msg: string;
+            if (res.status === 413) {
+              msg = `«${file.name}»: 413 — тело запроса слишком большое (лимит хостинга Vercel ~4.5 МБ на один POST). Уменьшите файл или используйте свой сервер без этого ограничения.`;
+            } else if (apiErr) {
+              msg = `«${file.name}»: ${apiErr}${idSuffix}`;
+            } else {
+              const snippet = rawText.replace(/\s+/g, " ").trim().slice(0, 280);
+              msg =
+                snippet && !snippet.startsWith("{")
+                  ? `«${file.name}»: ${snippet}${idSuffix}`
+                  : `«${file.name}»: HTTP ${res.status}${idSuffix}`;
+            }
+            errors.push(msg);
+            continue;
+          }
+          okCount += 1;
+          if (data.summaryRebuildAsync === true) summaryRefreshOnce = true;
         }
-        if (!res.ok) {
-          const apiErr = typeof data.error === "string" ? data.error.trim() : "";
-          const reqId = typeof data.request_id === "string" ? data.request_id : "";
-          const idSuffix = reqId ? ` [${reqId}]` : "";
-          if (apiErr) throw new Error(`${apiErr}${idSuffix}`);
-          const snippet = rawText.replace(/\s+/g, " ").trim().slice(0, 280);
-          if (snippet && !snippet.startsWith("{"))
-            throw new Error(`Сервер ответил ${res.status}: ${snippet}${idSuffix}`);
-          throw new Error(`Импорт не выполнен (HTTP ${res.status})${idSuffix || ""}. Попробуйте меньший файл или режим «Обновить по ключу».`);
-        }
-        // Пересчёт сводной в фоне: не блокируем UI; при ошибке refresh таблица «Описи» всё равно обновится.
-        if (data.summaryRebuildAsync === true) {
+
+        if (summaryRefreshOnce && activeTab === "inbound") {
           void fetch("/api/wb/summary/refresh", { method: "POST", headers: authHeaders }).catch(() => {});
         }
-        await loadData();
+        if (okCount > 0) await loadData();
+
+        if (errors.length > 0) {
+          const prefix = okCount > 0 ? `Готово: ${okCount} из ${files.length}. Ошибки:\n` : "";
+          setUploadError(prefix + errors.join("\n"));
+        } else if (okCount === 0 && files.length > 0) {
+          setUploadError("Не удалось импортировать ни одного файла.");
+        }
       } catch (e: unknown) {
         setUploadError((e as Error)?.message || "Ошибка импорта");
       } finally {
@@ -538,7 +659,11 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                 }}
               />
               <FileUp size={16} />
-              <span>{uploading ? "Идет импорт..." : "Перетащите файлы или нажмите для выбора (до 15)"}</span>
+              <span>
+                {uploading
+                  ? "Идет импорт..."
+                  : "До 15 файлов, каждый отдельным запросом. Перетащите или выберите"}
+              </span>
             </label>
           </div>
         )}
@@ -592,7 +717,33 @@ export function WildberriesPage({ auth, canUpload }: Props) {
               <tr>
                 {activeTab === "inbound" && <th className="wb-col-expand" aria-hidden />}
                 {columns.map((col) => (
-                  <th key={col.key}>{col.label}</th>
+                  <th
+                    key={col.key}
+                    aria-sort={
+                      activeTab === "inbound" && inboundSummarySort.by === col.key
+                        ? inboundSummarySort.dir === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : undefined
+                    }
+                  >
+                    {activeTab === "inbound" ? (
+                      <button
+                        type="button"
+                        className="wb-sort-th"
+                        onClick={() => onInboundSummarySortClick(col.key)}
+                      >
+                        <span>{col.label}</span>
+                        {inboundSummarySort.by === col.key ? (
+                          <span className="wb-sort-indicator" aria-hidden>
+                            {inboundSummarySort.dir === "asc" ? " ▲" : " ▼"}
+                          </span>
+                        ) : null}
+                      </button>
+                    ) : (
+                      col.label
+                    )}
+                  </th>
                 ))}
                 {activeTab === "inbound" && canUpload && (
                   <th className="wb-col-actions" title="Удаление ведомости">
@@ -619,11 +770,20 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                 items.map((row, idx) => {
                   const inv = String(row.inventoryNumber ?? idx);
                   const open = expandedInboundInv === inv;
-                  const detailRows = inboundDetailsCache[inv] ?? [];
+                  const detailRowsRaw = inboundDetailsCache[inv] ?? [];
+                  const needle = inboundDetailNeedle;
+                  const detailRows =
+                    needle && detailRowsRaw.length > 0
+                      ? detailRowsRaw.filter((dr) =>
+                          inboundDetailRowMatchesNeedle(dr as Record<string, unknown>, needle),
+                        )
+                      : detailRowsRaw;
                   return (
                     <React.Fragment key={`inbound-${inv}-${idx}`}>
                       <tr
-                        className={`wb-inbound-summary-row ${open ? "wb-inbound-summary-row--open" : ""}`}
+                        className={`wb-inbound-summary-row ${open ? "wb-inbound-summary-row--open" : ""}${
+                          inboundSummaryFilterHit ? " wb-inbound-summary-row--filter-hit" : ""
+                        }`}
                         onClick={() => toggleInboundRow(inv)}
                         role="button"
                         tabIndex={0}
@@ -663,10 +823,14 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                       {open && (
                         <tr className="wb-inbound-detail-row">
                           <td colSpan={columns.length + 1 + (canUpload ? 1 : 0)}>
-                            {inboundDetailLoading === inv && detailRows.length === 0 ? (
+                            {inboundDetailLoading === inv && detailRowsRaw.length === 0 ? (
                               <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>Загрузка строк...</Typography.Body>
-                            ) : detailRows.length === 0 ? (
+                            ) : detailRowsRaw.length === 0 ? (
                               <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>Нет строк по этой ведомости</Typography.Body>
+                            ) : needle && detailRows.length === 0 ? (
+                              <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>
+                                Нет строк с «{filters.boxId.trim() || filters.q.trim()}» в коробке/ШК/стикере и т.д. Очистите поле поиска или «ID коробки», чтобы увидеть все позиции.
+                              </Typography.Body>
                             ) : (
                               <div className="wb-inbound-detail-wrap">
                                 <table className="wb-table wb-table--nested">
@@ -679,7 +843,10 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                                   </thead>
                                   <tbody>
                                     {detailRows.map((dr, dIdx) => (
-                                      <tr key={`${inv}-d-${dIdx}`}>
+                                      <tr
+                                        key={`${inv}-d-${dIdx}`}
+                                        className={needle ? "wb-inbound-detail-line--hit" : undefined}
+                                      >
                                         {INBOUND_DETAIL_COLUMNS.map((c) => (
                                           <td key={c.key}>{formatWbCellValue(c.key, dr[c.key])}</td>
                                         ))}
