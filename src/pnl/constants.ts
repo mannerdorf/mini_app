@@ -74,6 +74,7 @@ export const SUBDIVISIONS = [
   { id: 'mainline', label: 'Магистраль', department: 'LOGISTICS_MSK' as Department, logisticsStage: 'MAINLINE' as LogisticsStage },
   { id: 'warehouse_kgd', label: 'Склад Калининград', department: 'LOGISTICS_KGD' as Department, logisticsStage: 'ARRIVAL_WAREHOUSE' as LogisticsStage },
   { id: 'lastmile_kgd', label: 'Последняя миля Калининград', department: 'LOGISTICS_KGD' as Department, logisticsStage: 'LAST_MILE' as LogisticsStage },
+  { id: 'sales', label: 'Отдел продаж', department: 'SALES' as Department, logisticsStage: null },
   { id: 'administration', label: 'Администрация', department: 'ADMINISTRATION' as Department, logisticsStage: null },
   { id: 'direction', label: 'Дирекция', department: 'DIRECTION' as Department, logisticsStage: null },
 ] as const;
