@@ -34,6 +34,36 @@ function pick(row: unknown[], headerMap: Map<string, number>, keys: string[]) {
   return "";
 }
 
+/** Ячейка как в Excel: row/col с 1 (A1 → 1,1). */
+function cellRC(data: unknown[][], row1: number, col1: number): unknown {
+  const r = data[row1 - 1];
+  if (!r) return undefined;
+  return r[col1 - 1];
+}
+
+/**
+ * Шаблон «Возвратная опись» (в т.ч. Калининград): номер ведомости в F2, дата ведомости в O2.
+ * Используется, если в строках таблицы нет своих значений.
+ */
+function parseVozvratnayaOpisySheetMeta(data: unknown[][]): { docNumber: string; docDate: string | null } {
+  const f2 = cellRC(data, 2, 6); // F = 6
+  const o2 = cellRC(data, 2, 15); // O = 15
+  const rawNum = asText(f2);
+  const docNumber = rawNum.replace(/[^\d]/g, "") || rawNum;
+  let docDate: string | null = parseDateOnly(o2);
+  if (!docDate && typeof o2 === "number" && Number.isFinite(o2)) {
+    try {
+      const p = XLSX.SSF.parse_date_code(o2) as { y: number; m: number; d: number };
+      if (p?.y && p.m && p.d) {
+        docDate = `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return { docNumber, docDate };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "wb_returned_import");
   if (req.method !== "POST") {
@@ -71,6 +101,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const header = data[hIdx] ?? [];
     const hm = new Map<string, number>();
     header.forEach((c, i) => hm.set(norm(c), i));
+    /** «Возвратная опись»: F2 — номер ведомости, O2 — дата (если не в колонках строк). */
+    const sheetMeta = parseVozvratnayaOpisySheetMeta(data);
 
     let totalRows = 0;
     let insertedRows = 0;
@@ -86,8 +118,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       const cargoNumber = asText(pick(row, hm, ["номер груза", "перевозка", "cargo number"]));
       const description = asText(pick(row, hm, ["описание", "комментарий"]));
-      const docNumber = asText(pick(row, hm, ["номер документа", "документ", "номер претензии"]));
-      const docDate = parseDateOnly(pick(row, hm, ["дата", "дата документа"]));
+      let docNumber = asText(
+        pick(row, hm, ["номер документа", "документ", "номер претензии", "номер ведомости", "ведомость"]),
+      );
+      if (!docNumber && sheetMeta.docNumber) docNumber = sheetMeta.docNumber;
+      let docDate = parseDateOnly(pick(row, hm, ["дата", "дата документа", "дата ведомости"]));
+      if (!docDate && sheetMeta.docDate) docDate = sheetMeta.docDate;
       const amount = parseNum(pick(row, hm, ["стоимость", "сумма", "цена"]));
       const hasShk = parseBooleanFlag(pick(row, hm, ["есть шк", "has shk"]), true);
 

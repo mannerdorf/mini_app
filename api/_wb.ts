@@ -35,7 +35,13 @@ export function parseNum(value: unknown): number {
 }
 
 export function parseDateOnly(value: unknown): string | null {
-  const s = String(value ?? "").trim();
+  if (value == null || value === "") return null;
+  if (value instanceof Date) {
+    const t = value.getTime();
+    if (Number.isNaN(t)) return null;
+    return value.toISOString().slice(0, 10);
+  }
+  const s = String(value).trim();
   if (!s) return null;
   // yyyy-mm-dd
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;

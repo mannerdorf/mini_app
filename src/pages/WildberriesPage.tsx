@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { Download, FileUp, RefreshCw, Search, Upload } from "lucide-react";
+import { Download, FileUp, RefreshCw, Search, Trash2, Upload } from "lucide-react";
 import type { AuthData } from "../types";
 
 type WbTab = "inbound" | "returned" | "claims" | "summary";
@@ -86,6 +86,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   const [expandedInboundInv, setExpandedInboundInv] = useState<string | null>(null);
   const [inboundDetailsCache, setInboundDetailsCache] = useState<Record<string, Record<string, unknown>[]>>({});
   const [inboundDetailLoading, setInboundDetailLoading] = useState<string | null>(null);
+  const [deletingInventory, setDeletingInventory] = useState<string | null>(null);
   const inboundDetailsCacheRef = useRef(inboundDetailsCache);
   inboundDetailsCacheRef.current = inboundDetailsCache;
   const [manualReturned, setManualReturned] = useState({
@@ -203,6 +204,37 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       });
     },
     [loadInboundDetails],
+  );
+
+  const handleDeleteInboundInventory = useCallback(
+    async (inventoryNumber: string) => {
+      const inv = String(inventoryNumber).trim();
+      if (!inv) return;
+      if (!window.confirm(`Удалить ведомость «${inv}» и все строки ввозной описи? Действие необратимо.`)) return;
+      setUploadError(null);
+      setDeletingInventory(inv);
+      try {
+        const res = await fetch("/api/wb/inbound/delete-inventory", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders },
+          body: JSON.stringify({ inventoryNumber: inv }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка удаления");
+        setExpandedInboundInv((prev) => (prev === inv ? null : prev));
+        setInboundDetailsCache((prev) => {
+          const next = { ...prev };
+          delete next[inv];
+          return next;
+        });
+        await loadData();
+      } catch (e: unknown) {
+        setUploadError((e as Error)?.message || "Ошибка удаления");
+      } finally {
+        setDeletingInventory(null);
+      }
+    },
+    [authHeaders, loadData],
   );
 
   const handleUpload = useCallback(
@@ -536,12 +568,24 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                 {columns.map((col) => (
                   <th key={col.key}>{col.label}</th>
                 ))}
+                {activeTab === "inbound" && canUpload && (
+                  <th className="wb-col-actions" title="Удаление ведомости">
+                    {/* пустой заголовок — колонка действий */}
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length + (activeTab === "inbound" ? 1 : 0)} style={{ textAlign: "center", color: "var(--color-text-secondary)" }}>
+                  <td
+                    colSpan={
+                      columns.length +
+                      (activeTab === "inbound" ? 1 : 0) +
+                      (activeTab === "inbound" && canUpload ? 1 : 0)
+                    }
+                    style={{ textAlign: "center", color: "var(--color-text-secondary)" }}
+                  >
                     {loading ? "Загрузка..." : "Нет данных"}
                   </td>
                 </tr>
@@ -568,10 +612,31 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                         {columns.map((col) => (
                           <td key={col.key}>{formatWbCellValue(col.key, row[col.key])}</td>
                         ))}
+                        {canUpload && (
+                          <td className="wb-col-actions">
+                            <button
+                              type="button"
+                              className="wb-delete-inventory-btn"
+                              title="Удалить ведомость"
+                              aria-label={`Удалить ведомость ${inv}`}
+                              disabled={deletingInventory === inv}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleDeleteInboundInventory(inv);
+                              }}
+                            >
+                              {deletingInventory === inv ? (
+                                <RefreshCw className="w-4 h-4 animate-spin" aria-hidden />
+                              ) : (
+                                <Trash2 className="w-4 h-4" aria-hidden />
+                              )}
+                            </button>
+                          </td>
+                        )}
                       </tr>
                       {open && (
                         <tr className="wb-inbound-detail-row">
-                          <td colSpan={columns.length + 1}>
+                          <td colSpan={columns.length + 1 + (canUpload ? 1 : 0)}>
                             {inboundDetailLoading === inv && detailRows.length === 0 ? (
                               <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>Загрузка строк...</Typography.Body>
                             ) : detailRows.length === 0 ? (
