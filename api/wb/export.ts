@@ -106,6 +106,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             `select
                s.box_id as box_id,
                s.claim_number as claim_number,
+               c.row_number as claim_row_number,
+               nullif(trim(coalesce(c.description, '')), '') as claim_description,
                i.inventory_number as inventory_number,
                i.row_number as inbound_row_number,
                coalesce(nullif(trim(i.nomenclature), ''), nullif(trim(i.description), '')) as inbound_title,
@@ -113,10 +115,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                (s.inbound_item_id is not null) as has_inbound,
                s.updated_at as updated_at
              from wb_summary s
+             left join wb_claims_items c on c.id = s.claim_item_id
              left join wb_inbound_items i on i.id = s.inbound_item_id
              where s.declared = true
-             ${whereQ ? `and (s.box_id ilike $${whereQ} or coalesce(s.claim_number,'') ilike $${whereQ} or coalesce(s.description,'') ilike $${whereQ} or coalesce(i.inventory_number,'') ilike $${whereQ})` : ""}
-             order by s.box_id
+             ${whereQ ? `and (s.box_id ilike $${whereQ} or coalesce(s.claim_number,'') ilike $${whereQ} or coalesce(s.description,'') ilike $${whereQ} or coalesce(c.description,'') ilike $${whereQ} or coalesce(i.inventory_number,'') ilike $${whereQ})` : ""}
+             order by coalesce(c.row_number, 0), s.box_id
              limit 10000`,
             params,
           )

@@ -156,27 +156,40 @@ function inboundDetailRowMatchesNeedle(row: Record<string, unknown>, needleLower
   return false;
 }
 
-/** Ячейки сводной: коробка из претензии + данные из описи или «нет в описях». */
+const WB_SUMMARY_INBOUND_KEYS = new Set(["inventoryNumber", "inboundRowNumber", "inboundTitle", "inboundPriceRub"]);
+
+/** Ячейки сводной: претензия + поиск коробки в описях или «нет в описях». */
 function formatWbSummaryCell(colKey: string, row: Record<string, unknown>): string {
   const hasInbound = row.hasInbound === true;
   if (colKey === "boxId") return formatWbCellValue("boxId", row.boxId);
-  if (!hasInbound) {
-    if (colKey === "inventoryNumber") return "нет в описях";
-    return "—";
-  }
-  if (colKey === "inboundPriceRub") return formatWbCellValue("priceRub", row.inboundPriceRub);
-  if (colKey === "inboundRowNumber") {
-    const v = row.inboundRowNumber;
+  if (colKey === "claimRowNumber") {
+    const v = row.claimRowNumber;
     if (v === null || v === undefined || v === "") return "—";
     return String(v);
   }
-  if (colKey === "inboundTitle") {
-    const t = String(row.inboundTitle ?? "").trim();
+  if (colKey === "claimDescription") {
+    const t = String(row.claimDescription ?? "").trim();
     return t || "—";
   }
-  if (colKey === "inventoryNumber") {
-    const t = String(row.inventoryNumber ?? "").trim();
-    return t || "—";
+  if (WB_SUMMARY_INBOUND_KEYS.has(colKey)) {
+    if (!hasInbound) {
+      if (colKey === "inventoryNumber") return "нет в описях";
+      return "—";
+    }
+    if (colKey === "inboundPriceRub") return formatWbCellValue("priceRub", row.inboundPriceRub);
+    if (colKey === "inboundRowNumber") {
+      const v = row.inboundRowNumber;
+      if (v === null || v === undefined || v === "") return "—";
+      return String(v);
+    }
+    if (colKey === "inboundTitle") {
+      const t = String(row.inboundTitle ?? "").trim();
+      return t || "—";
+    }
+    if (colKey === "inventoryNumber") {
+      const t = String(row.inventoryNumber ?? "").trim();
+      return t || "—";
+    }
   }
   return formatWbCellValue(colKey, row[colKey]);
 }
@@ -896,10 +909,12 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     }
     return [
       { key: "boxId", label: "Номер коробки" },
+      { key: "claimRowNumber", label: "Номер строки претензии" },
+      { key: "claimDescription", label: "Наименование в претензии" },
       { key: "inventoryNumber", label: "Номер описи" },
-      { key: "inboundRowNumber", label: "№ строки описи" },
-      { key: "inboundTitle", label: "Наименование" },
-      { key: "inboundPriceRub", label: "Стоимость по описи" },
+      { key: "inboundRowNumber", label: "Номер строки в описи" },
+      { key: "inboundTitle", label: "Наименование в описи" },
+      { key: "inboundPriceRub", label: "Стоимость в описи" },
     ];
   }, [activeTab]);
 

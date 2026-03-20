@@ -73,6 +73,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         or coalesce(s.claim_number, '') ilike $${params.length}
         or coalesce(s.source_document_number, '') ilike $${params.length}
         or coalesce(s.description, '') ilike $${params.length}
+        or coalesce(c.description, '') ilike $${params.length}
+        or coalesce(c.all_columns::text, '') ilike $${params.length}
         or coalesce(i.inventory_number, '') ilike $${params.length}
         or coalesce(i.nomenclature, '') ilike $${params.length}
         or coalesce(i.description, '') ilike $${params.length}
@@ -80,6 +82,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const whereSql = `where ${where.join(" and ")}`;
+    const fromJoins = `
+       from wb_summary s
+       left join wb_claims_items c on c.id = s.claim_item_id
+       left join wb_inbound_items i on i.id = s.inbound_item_id`;
 
     const formedRes = await pool.query<{ formed_at: string | null }>(
       `select max(s.updated_at) as formed_at from wb_summary s where s.declared = true`,
@@ -90,8 +96,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `select
          count(*)::int as total,
          coalesce(sum(i.price_rub) filter (where i.id is not null), 0)::numeric as total_inbound_rub
-       from wb_summary s
-       left join wb_inbound_items i on i.id = s.inbound_item_id
+       ${fromJoins}
        ${whereSql}`,
       params,
     );
@@ -102,15 +107,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const rowsRes = await pool.query(
       `select
          s.box_id as "boxId",
+         c.row_number as "claimRowNumber",
+         nullif(trim(coalesce(c.description, '')), '') as "claimDescription",
          (s.inbound_item_id is not null) as "hasInbound",
          i.inventory_number as "inventoryNumber",
          i.row_number as "inboundRowNumber",
          nullif(trim(coalesce(nullif(trim(i.nomenclature), ''), nullif(trim(i.description), ''))), '') as "inboundTitle",
          i.price_rub as "inboundPriceRub"
-       from wb_summary s
-       left join wb_inbound_items i on i.id = s.inbound_item_id
+       ${fromJoins}
        ${whereSql}
-       order by s.box_id
+       order by coalesce(c.row_number, 0), s.box_id
        limit $${dataParams.length - 1}
        offset $${dataParams.length}`,
       dataParams,
