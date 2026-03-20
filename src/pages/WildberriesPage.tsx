@@ -156,6 +156,31 @@ function inboundDetailRowMatchesNeedle(row: Record<string, unknown>, needleLower
   return false;
 }
 
+/** Ячейки сводной: коробка из претензии + данные из описи или «нет в описях». */
+function formatWbSummaryCell(colKey: string, row: Record<string, unknown>): string {
+  const hasInbound = row.hasInbound === true;
+  if (colKey === "boxId") return formatWbCellValue("boxId", row.boxId);
+  if (!hasInbound) {
+    if (colKey === "inventoryNumber") return "нет в описях";
+    return "—";
+  }
+  if (colKey === "inboundPriceRub") return formatWbCellValue("priceRub", row.inboundPriceRub);
+  if (colKey === "inboundRowNumber") {
+    const v = row.inboundRowNumber;
+    if (v === null || v === undefined || v === "") return "—";
+    return String(v);
+  }
+  if (colKey === "inboundTitle") {
+    const t = String(row.inboundTitle ?? "").trim();
+    return t || "—";
+  }
+  if (colKey === "inventoryNumber") {
+    const t = String(row.inventoryNumber ?? "").trim();
+    return t || "—";
+  }
+  return formatWbCellValue(colKey, row[colKey]);
+}
+
 function formatWbCellValue(key: string, value: unknown): string {
   if (value === null || value === undefined) return "";
   if (key === "totalPriceRub" || key === "priceRub" || key === "totalAmountRub") {
@@ -232,6 +257,12 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   const [returnedDetailsCache, setReturnedDetailsCache] = useState<Record<string, Record<string, unknown>[]>>({});
   const [returnedDetailLoading, setReturnedDetailLoading] = useState<string | null>(null);
   const [deletingReturnedGroup, setDeletingReturnedGroup] = useState<string | null>(null);
+  const [summaryHeader, setSummaryHeader] = useState<{
+    formedAt: string | null;
+    placeCount: number;
+    totalInboundRub: string | number;
+  } | null>(null);
+  const [clearingSummary, setClearingSummary] = useState(false);
   const [inboundSummarySort, setInboundSummarySort] = useState<{ by: InboundSummarySortKey; dir: "asc" | "desc" }>({
     by: "inventoryCreatedAt",
     dir: "desc",
@@ -242,6 +273,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   returnedDetailsCacheRef.current = returnedDetailsCache;
   const claimsDetailsCacheRef = useRef(claimsDetailsCache);
   claimsDetailsCacheRef.current = claimsDetailsCache;
+  /** Игнорируем ответ fetch, если уже ушли на другую вкладку / запустили новую загрузку. */
+  const wbLoadGenRef = useRef(0);
   const [manualReturned, setManualReturned] = useState({
     boxId: "",
     cargoNumber: "",
@@ -291,6 +324,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   }, [activeTab]);
 
   const loadData = useCallback(async () => {
+    const gen = ++wbLoadGenRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -319,15 +353,32 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       });
       const res = await fetch(`${dataEndpoint}?${query}`, { headers: authHeaders });
       const data = await res.json().catch(() => ({}));
+      if (gen !== wbLoadGenRef.current) return;
       if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка загрузки");
       setItems(Array.isArray(data?.items) ? data.items : []);
       setTotal(Number(data?.total || 0));
+      if (activeTab === "summary") {
+        const sh = data?.summaryHeader;
+        if (sh && typeof sh === "object") {
+          setSummaryHeader({
+            formedAt: typeof (sh as { formedAt?: unknown }).formedAt === "string" ? (sh as { formedAt: string }).formedAt : null,
+            placeCount: Number((sh as { placeCount?: unknown }).placeCount ?? data?.total ?? 0),
+            totalInboundRub: (sh as { totalInboundRub?: unknown }).totalInboundRub ?? "0",
+          });
+        } else {
+          setSummaryHeader(null);
+        }
+      } else {
+        setSummaryHeader(null);
+      }
     } catch (e: unknown) {
+      if (gen !== wbLoadGenRef.current) return;
       setError((e as Error)?.message || "Ошибка загрузки данных");
       setItems([]);
       setTotal(0);
+      if (activeTab === "summary") setSummaryHeader(null);
     } finally {
-      setLoading(false);
+      if (gen === wbLoadGenRef.current) setLoading(false);
     }
   }, [
     activeTab,
@@ -637,6 +688,26 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     await loadData();
   }, [activeTab, loadData, triggerWbSummaryRefresh]);
 
+  const handleClearWbSummary = useCallback(async () => {
+    if (!window.confirm("Очистить сводную таблицу? Данные можно восстановить кнопкой «Обновить» (пересчёт по претензиям и описям).")) return;
+    setUploadError(null);
+    setClearingSummary(true);
+    try {
+      const res = await fetch("/api/wb/summary/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: "{}",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка очистки");
+      await loadData();
+    } catch (e: unknown) {
+      setUploadError((e as Error)?.message || "Ошибка очистки сводной");
+    } finally {
+      setClearingSummary(false);
+    }
+  }, [authHeaders, loadData]);
+
   const handleUpload = useCallback(
     async (fileList: FileList | null) => {
       if (!fileList || fileList.length === 0) return;
@@ -818,23 +889,17 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       return [
         { key: "uploadedAt", label: "Дата загрузки" },
         { key: "revisionNumber", label: "Ревизия" },
-        { key: "sourceFilename", label: "Файл" },
         { key: "isActive", label: "Сводная" },
         { key: "itemCount", label: "Кол-во мест" },
-        { key: "totalAmountRub", label: "Стоимость (подтвержд.), RUB" },
+        { key: "totalAmountRub", label: "Сумма" },
       ];
     }
     return [
-      { key: "boxId", label: "ID коробки" },
-      { key: "claimNumber", label: "Номер из претензии" },
-      { key: "declared", label: "Заявлено / Не заявлено" },
-      { key: "documentNumber", label: "Номер документа" },
-      { key: "documentDate", label: "Дата" },
-      { key: "rowNumber", label: "Номер строки" },
-      { key: "description", label: "Описание" },
-      { key: "costRub", label: "Стоимость" },
-      { key: "article", label: "Артикул" },
-      { key: "brand", label: "Бренд" },
+      { key: "boxId", label: "Номер коробки" },
+      { key: "inventoryNumber", label: "Номер описи" },
+      { key: "inboundRowNumber", label: "№ строки описи" },
+      { key: "inboundTitle", label: "Наименование" },
+      { key: "inboundPriceRub", label: "Стоимость по описи" },
     ];
   }, [activeTab]);
 
@@ -851,8 +916,14 @@ export function WildberriesPage({ auth, canUpload }: Props) {
               type="button"
               className={`wb-tab-btn ${activeTab === tab.key ? "active" : ""}`}
               onClick={() => {
+                if (activeTab === tab.key) return;
                 setActiveTab(tab.key);
                 setPage(1);
+                setItems([]);
+                setTotal(0);
+                setSummaryHeader(null);
+                setError(null);
+                setLoading(true);
               }}
             >
               {tab.label}
@@ -1002,6 +1073,64 @@ export function WildberriesPage({ auth, canUpload }: Props) {
 
         {uploadError && <Typography.Body style={{ color: "var(--color-error)", marginTop: "0.5rem" }}>{uploadError}</Typography.Body>}
         {error && <Typography.Body style={{ color: "var(--color-error)", marginTop: "0.5rem" }}>{error}</Typography.Body>}
+
+        {activeTab === "summary" && (
+          <div
+            className="wb-summary-strip"
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: "1.25rem",
+              marginTop: "0.75rem",
+              marginBottom: "0.5rem",
+              padding: "0.65rem 1rem",
+              borderRadius: "10px",
+              border: "1px solid var(--color-border)",
+              background: "var(--color-bg-card)",
+            }}
+          >
+            <Typography.Body style={{ margin: 0 }}>
+              <span style={{ color: "var(--color-text-secondary)" }}>Дата формирования сводной: </span>
+              <strong>
+                {summaryHeader?.formedAt
+                  ? (() => {
+                      const d = new Date(summaryHeader.formedAt);
+                      return Number.isNaN(d.getTime())
+                        ? String(summaryHeader.formedAt).slice(0, 19).replace("T", " ")
+                        : d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
+                    })()
+                  : "—"}
+              </strong>
+            </Typography.Body>
+            <Typography.Body style={{ margin: 0 }}>
+              <span style={{ color: "var(--color-text-secondary)" }}>Кол-во мест: </span>
+              <strong>{total}</strong>
+            </Typography.Body>
+            <Typography.Body style={{ margin: 0 }}>
+              <span style={{ color: "var(--color-text-secondary)" }}>Стоимость: </span>
+              <strong>
+                {Number(summaryHeader?.totalInboundRub ?? 0).toLocaleString("ru-RU", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                ₽
+              </strong>
+            </Typography.Body>
+            {canUpload && (
+              <button
+                type="button"
+                className="wb-delete-inventory-btn"
+                title="Очистить сводную таблицу"
+                aria-label="Очистить сводную таблицу"
+                disabled={clearingSummary || loading}
+                onClick={() => void handleClearWbSummary()}
+              >
+                {clearingSummary ? <RefreshCw className="w-4 h-4 animate-spin" aria-hidden /> : <Trash2 className="w-4 h-4" aria-hidden />}
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="wb-table-wrap">
           <table className="wb-table">
@@ -1308,11 +1437,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                       >
                         <td className="wb-col-expand">{open ? "▼" : "▶"}</td>
                         {columns.map((col) => (
-                          <td key={col.key}>
-                            {col.key === "sourceFilename"
-                              ? String(row[col.key] ?? "").replace(/^\s+|\s+$/g, "") || "—"
-                              : formatWbCellValue(col.key, row[col.key])}
-                          </td>
+                          <td key={col.key}>{formatWbCellValue(col.key, row[col.key])}</td>
                         ))}
                         {canUpload && (
                           <td className="wb-col-actions">
@@ -1389,7 +1514,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                 items.map((row, idx) => (
                   <tr key={`${activeTab}-${idx}`}>
                     {columns.map((col) => (
-                      <td key={col.key}>{formatWbCellValue(col.key, row[col.key])}</td>
+                      <td key={col.key}>{formatWbSummaryCell(col.key, row as Record<string, unknown>)}</td>
                     ))}
                   </tr>
                 ))

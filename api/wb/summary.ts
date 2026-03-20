@@ -21,6 +21,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         limit: Number(req.query.limit ?? 50),
         total: 0,
         items: [],
+        summaryHeader: { formedAt: null, placeCount: 0, totalInboundRub: 0 },
         request_id: ctx.requestId,
       });
     }
@@ -33,14 +34,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const boxId = String(req.query.boxId ?? "").trim();
     const claimNumber = String(req.query.claimNumber ?? "").trim();
-    const declaredRaw = String(req.query.declared ?? "").trim().toLowerCase();
     const dateFrom = String(req.query.dateFrom ?? "").trim();
     const dateTo = String(req.query.dateTo ?? "").trim();
     const article = String(req.query.article ?? "").trim();
     const brand = String(req.query.brand ?? "").trim();
     const q = String(req.query.q ?? "").trim();
 
-    const where: string[] = [];
+    const where: string[] = ["s.declared = true"];
     const params: unknown[] = [];
     if (boxId) {
       params.push(pgIlikeContainsPattern(boxId));
@@ -49,10 +49,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (claimNumber) {
       params.push(`%${claimNumber}%`);
       where.push(`coalesce(s.claim_number, '') ilike $${params.length}`);
-    }
-    if (declaredRaw === "true" || declaredRaw === "false") {
-      params.push(declaredRaw === "true");
-      where.push(`s.declared = $${params.length}`);
     }
     if (dateFrom) {
       params.push(dateFrom);
@@ -77,39 +73,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         or coalesce(s.claim_number, '') ilike $${params.length}
         or coalesce(s.source_document_number, '') ilike $${params.length}
         or coalesce(s.description, '') ilike $${params.length}
+        or coalesce(i.inventory_number, '') ilike $${params.length}
+        or coalesce(i.nomenclature, '') ilike $${params.length}
+        or coalesce(i.description, '') ilike $${params.length}
       )`);
     }
 
-    const whereSql = where.length ? `where ${where.join(" and ")}` : "";
-    const countRes = await pool.query<{ total: number }>(
-      `select count(*)::int as total
+    const whereSql = `where ${where.join(" and ")}`;
+
+    const formedRes = await pool.query<{ formed_at: string | null }>(
+      `select max(s.updated_at) as formed_at from wb_summary s where s.declared = true`,
+    );
+    const formedAt = formedRes.rows[0]?.formed_at ?? null;
+
+    const countRes = await pool.query<{ total: number; total_inbound_rub: string }>(
+      `select
+         count(*)::int as total,
+         coalesce(sum(i.price_rub) filter (where i.id is not null), 0)::numeric as total_inbound_rub
        from wb_summary s
        left join wb_inbound_items i on i.id = s.inbound_item_id
        ${whereSql}`,
       params,
     );
     const total = countRes.rows[0]?.total ?? 0;
+    const totalInboundRub = countRes.rows[0]?.total_inbound_rub ?? "0";
 
     const dataParams = [...params, limit, offset];
     const rowsRes = await pool.query(
       `select
          s.box_id as "boxId",
-         s.claim_number as "claimNumber",
-         s.declared as "declared",
-         s.source_document_number as "documentNumber",
-         s.source_document_date as "documentDate",
-         s.source_row_number as "rowNumber",
-         s.description as "description",
-         s.cost_rub as "costRub",
+         (s.inbound_item_id is not null) as "hasInbound",
          i.inventory_number as "inventoryNumber",
-         i.article as "article",
-         i.brand as "brand",
-         i.shk as "shk",
-         s.updated_at as "updatedAt"
+         i.row_number as "inboundRowNumber",
+         nullif(trim(coalesce(nullif(trim(i.nomenclature), ''), nullif(trim(i.description), ''))), '') as "inboundTitle",
+         i.price_rub as "inboundPriceRub"
        from wb_summary s
        left join wb_inbound_items i on i.id = s.inbound_item_id
        ${whereSql}
-       order by s.updated_at desc, s.box_id
+       order by s.box_id
        limit $${dataParams.length - 1}
        offset $${dataParams.length}`,
       dataParams,
@@ -119,6 +120,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       page,
       limit,
       total,
+      summaryHeader: {
+        formedAt,
+        placeCount: total,
+        totalInboundRub,
+      },
       items: rowsRes.rows,
       request_id: ctx.requestId,
     });
@@ -127,4 +133,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: "Ошибка загрузки сводной таблицы", request_id: ctx.requestId });
   }
 }
-

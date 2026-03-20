@@ -157,11 +157,25 @@ export async function rebuildWbSummary(pool: Pool): Promise<{ rows: number; skip
       );
       inboundRows = ir.rows;
     }
+    /** Одна строка описи на номер коробки: приоритет — более новая дата описи, затем больший id. */
     const inboundByBox = new Map<string, InboundRow>();
+    const invTs = (r: InboundRow) => {
+      const d = r.inventory_created_at;
+      if (d == null || d === "") return 0;
+      const t = new Date(d as string).getTime();
+      return Number.isFinite(t) ? t : 0;
+    };
     for (const row of inboundRows) {
       const key = String(row.box_number || "").trim();
       if (!key) continue;
-      if (!inboundByBox.has(key)) inboundByBox.set(key, row);
+      const prev = inboundByBox.get(key);
+      if (!prev) {
+        inboundByBox.set(key, row);
+        continue;
+      }
+      const pt = invTs(prev);
+      const ct = invTs(row);
+      if (ct > pt || (ct === pt && row.id > prev.id)) inboundByBox.set(key, row);
     }
 
     type ReturnedRow = {

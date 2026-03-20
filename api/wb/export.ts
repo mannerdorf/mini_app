@@ -103,10 +103,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (await pgTableExists(pool, "wb_summary")) {
         rows = (
           await pool.query(
-            `select box_id, claim_number, declared, source_document_number, source_document_date, source_row_number, description, cost_rub, updated_at
-             from wb_summary
-             ${whereQ ? `where box_id ilike $${whereQ} or coalesce(claim_number,'') ilike $${whereQ} or coalesce(description,'') ilike $${whereQ}` : ""}
-             order by updated_at desc
+            `select
+               s.box_id as box_id,
+               s.claim_number as claim_number,
+               i.inventory_number as inventory_number,
+               i.row_number as inbound_row_number,
+               coalesce(nullif(trim(i.nomenclature), ''), nullif(trim(i.description), '')) as inbound_title,
+               i.price_rub as inbound_price_rub,
+               (s.inbound_item_id is not null) as has_inbound,
+               s.updated_at as updated_at
+             from wb_summary s
+             left join wb_inbound_items i on i.id = s.inbound_item_id
+             where s.declared = true
+             ${whereQ ? `and (s.box_id ilike $${whereQ} or coalesce(s.claim_number,'') ilike $${whereQ} or coalesce(s.description,'') ilike $${whereQ} or coalesce(i.inventory_number,'') ilike $${whereQ})` : ""}
+             order by s.box_id
              limit 10000`,
             params,
           )
