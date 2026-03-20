@@ -5,6 +5,7 @@ import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { Download, FileDown, FileUp, RefreshCw, Trash2, Upload, ChevronDown, X } from "lucide-react";
 import type { AuthData } from "../types";
 import { DOCUMENT_METHODS } from "../documentMethods";
+import { PROXY_API_DOWNLOAD_URL } from "../constants/config";
 import { normalizeWbPerevozkaHaulzDigits } from "../lib/wbPerevozkaNumber";
 import { downloadBase64File } from "../utils";
 
@@ -1413,8 +1414,10 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     setUploadError(null);
     setWbAppDownloadingKey(loadingKey);
     const metod = DOCUMENT_METHODS["АПП"] ?? "АПП";
-    const requestUrl = "/api/download";
-    const requestBody = {
+    const requestUrl = typeof window !== "undefined" && window.location?.origin
+      ? `${window.location.origin}${PROXY_API_DOWNLOAD_URL}`
+      : PROXY_API_DOWNLOAD_URL;
+    const requestBody: Record<string, unknown> = {
       login: auth.login,
       password: auth.password,
       metod,
