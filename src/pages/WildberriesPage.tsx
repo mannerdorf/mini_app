@@ -209,13 +209,30 @@ function formatWbSummaryCell(colKey: string, row: Record<string, unknown>): stri
   return formatWbCellValue(colKey, row[colKey]);
 }
 
+/** Число из значения API/Excel (запятая, пробелы, NBSP) — для сумм и итогов. */
+function parseWbMoneyNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "bigint") return Number(value);
+  let s = String(value).trim();
+  if (!s) return null;
+  s = s.replace(/\u00a0/g, "").replace(/\u2007|\u202f/g, "").replace(/\s+/g, "");
+  s = s.replace(",", ".");
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatWbMoneyRu(value: unknown): string {
+  const n = parseWbMoneyNumber(value);
+  if (n === null) return value === null || value === undefined ? "" : String(value);
+  return n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function formatWbCellValue(key: string, value: unknown): string {
   if (key === "hasClaim") return value === true || value === "true" ? "Да" : "Нет";
   if (value === null || value === undefined) return "";
   if (key === "totalPriceRub" || key === "priceRub" || key === "totalAmountRub") {
-    const n = Number(value);
-    if (!Number.isFinite(n)) return String(value);
-    return n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return formatWbMoneyRu(value);
   }
   if (key === "inventoryCreatedAt" || key === "createdAt" || key === "documentDate" || key === "uploadedAt") {
     const s = String(value);
@@ -230,8 +247,8 @@ function formatReturnedDetailCell(key: string, value: unknown): string {
   if (key === "inboundTitle" || key === "inboundPriceRub") {
     if (value === null || value === undefined || value === "") return "нет данных";
     if (key === "inboundPriceRub") {
-      const n = Number(value);
-      if (!Number.isFinite(n)) return "нет данных";
+      const n = parseWbMoneyNumber(value);
+      if (n === null) return "нет данных";
       return n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
     return String(value);
@@ -500,7 +517,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       try {
         const query = buildQuery({
           inventoryNumber,
-          limit: 500,
+          /** См. api/wb/inbound.ts INBOUND_DETAIL_SINGLE_INV_MAX_LIMIT — было 500, обрезало ведомости. */
+          limit: 15000,
           page: 1,
         });
         const res = await fetch(`/api/wb/inbound?${query}`, { headers: authHeaders });
@@ -912,7 +930,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         { key: "uploadedAt", label: "Дата загрузки" },
         { key: "boxCount", label: "Кол-во мест" },
         { key: "matchedCount", label: "Кол-во найдено" },
-        { key: "totalAmountRub", label: "Сумма стоимости, RUB" },
+        { key: "totalAmountRub", label: "Сумма" },
       ];
     }
     if (activeTab === "claims") {
@@ -925,6 +943,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       ];
     }
     return [
+      { key: "lineNumber", label: "№" },
       { key: "boxId", label: "Номер коробки" },
       { key: "claimRowNumber", label: "Номер строки претензии" },
       { key: "claimDescription", label: "Наименование в претензии" },
@@ -934,6 +953,17 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       { key: "inboundPriceRub", label: "Стоимость в описи" },
     ];
   }, [activeTab]);
+
+  /** Итог по колонке «Сумма» на текущей странице (возвратный груз). */
+  const returnedPageAmountSum = useMemo(() => {
+    if (activeTab !== "returned") return null;
+    let sum = 0;
+    for (const row of items) {
+      const n = parseWbMoneyNumber((row as Record<string, unknown>).totalAmountRub);
+      if (n !== null) sum += n;
+    }
+    return sum;
+  }, [activeTab, items]);
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
@@ -1547,7 +1577,11 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                 items.map((row, idx) => (
                   <tr key={`${activeTab}-${idx}`}>
                     {columns.map((col) => (
-                      <td key={col.key}>{formatWbSummaryCell(col.key, row as Record<string, unknown>)}</td>
+                      <td key={col.key}>
+                        {col.key === "lineNumber"
+                          ? String((page - 1) * limit + idx + 1)
+                          : formatWbSummaryCell(col.key, row as Record<string, unknown>)}
+                      </td>
                     ))}
                   </tr>
                 ))
@@ -1559,6 +1593,12 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         <Flex align="center" justify="space-between" style={{ marginTop: "0.75rem" }}>
           <Typography.Body style={{ color: "var(--color-text-secondary)" }}>
             {`Страница ${page} из ${totalPages} • записей: ${total}`}
+            {returnedPageAmountSum !== null
+              ? ` • Сумма на странице: ${returnedPageAmountSum.toLocaleString("ru-RU", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })} ₽`
+              : ""}
           </Typography.Body>
           <Flex gap="0.5rem" align="center">
             <Button className="wb-action-btn" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>

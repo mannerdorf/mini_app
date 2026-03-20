@@ -3,6 +3,11 @@ import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgIlikeContainsPattern, pgTableExists, resolveWbAccess } from "../_wb.js";
 
+/** Пагинация сводки «Описи». */
+const INBOUND_SUMMARY_MAX_LIMIT = 500;
+/** Строк одной ведомости при раскрытии (иначе обрезка на 500). */
+const INBOUND_DETAIL_SINGLE_INV_MAX_LIMIT = 15000;
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "wb_inbound_list");
   if (req.method !== "GET") {
@@ -18,7 +23,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!(await pgTableExists(pool, "wb_inbound_items"))) {
       return res.status(200).json({
         page: 1,
-        limit: Math.min(500, Math.max(1, Number(req.query.limit ?? 50) || 50)),
+        limit: Math.min(
+          INBOUND_SUMMARY_MAX_LIMIT,
+          Math.max(1, Number(req.query.limit ?? 50) || 50),
+        ),
         total: 0,
         view: String(req.query.view ?? "").trim().toLowerCase() === "summary" ? "summary" : "detail",
         items: [],
@@ -28,9 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const limitRaw = Number(req.query.limit ?? 50);
     const pageRaw = Number(req.query.page ?? 1);
-    const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(500, Math.trunc(limitRaw))) : 50;
     const page = Number.isFinite(pageRaw) ? Math.max(1, Math.trunc(pageRaw)) : 1;
-    const offset = (page - 1) * limit;
 
     const dateFrom = String(req.query.dateFrom ?? "").trim();
     const dateTo = String(req.query.dateTo ?? "").trim();
@@ -40,6 +46,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const brand = String(req.query.brand ?? "").trim();
     const q = String(req.query.q ?? "").trim();
     const view = String(req.query.view ?? "").trim().toLowerCase();
+
+    const maxLimit =
+      view === "summary"
+        ? INBOUND_SUMMARY_MAX_LIMIT
+        : inventoryNumber
+          ? INBOUND_DETAIL_SINGLE_INV_MAX_LIMIT
+          : INBOUND_SUMMARY_MAX_LIMIT;
+    const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(maxLimit, Math.trunc(limitRaw))) : 50;
+    const offset = (page - 1) * limit;
 
     const sortByRaw = String(req.query.sortBy ?? "").trim();
     const sortDirRaw = String(req.query.sortDir ?? "").trim().toLowerCase();
