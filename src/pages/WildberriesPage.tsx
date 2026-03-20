@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Flex, Panel, Typography, Input, Switch } from "@maxhub/max-ui";
+import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
+import { TapSwitch } from "../components/TapSwitch";
 import { Download, FileDown, FileUp, RefreshCw, Trash2, Upload } from "lucide-react";
 import type { AuthData } from "../types";
 import { downloadBase64File } from "../utils";
@@ -1228,6 +1229,18 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             <Download className="w-4 h-4" />
             XLSX
           </Button>
+          {canUpload && activeTab === "summary" && (
+            <button
+              type="button"
+              className="wb-delete-inventory-btn"
+              title="Очистить сводную таблицу"
+              aria-label="Очистить сводную таблицу"
+              disabled={clearingSummary || loading}
+              onClick={() => void handleClearWbSummary()}
+            >
+              {clearingSummary ? <RefreshCw className="w-4 h-4 animate-spin" aria-hidden /> : <Trash2 className="w-4 h-4" aria-hidden />}
+            </button>
+          )}
         </Flex>
 
         {canUpload && (activeTab === "inbound" || activeTab === "returned" || activeTab === "claims") && (
@@ -1402,37 +1415,24 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                 ₽
               </strong>
             </Typography.Body>
-            <label
+            <div
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "0.5rem",
-                cursor: "pointer",
                 margin: 0,
                 userSelect: "none",
               }}
             >
-              <Switch
+              <TapSwitch
                 checked={summaryOnlyNotInInbound}
-                onChange={(e) => {
-                  setSummaryOnlyNotInInbound(e.currentTarget.checked);
+                onToggle={() => {
+                  setSummaryOnlyNotInInbound((v) => !v);
                   setPage(1);
                 }}
               />
-              <Typography.Body style={{ margin: 0, fontSize: "0.875rem" }}>Только нет в описях</Typography.Body>
-            </label>
-            {canUpload && (
-              <button
-                type="button"
-                className="wb-delete-inventory-btn"
-                title="Очистить сводную таблицу"
-                aria-label="Очистить сводную таблицу"
-                disabled={clearingSummary || loading}
-                onClick={() => void handleClearWbSummary()}
-              >
-                {clearingSummary ? <RefreshCw className="w-4 h-4 animate-spin" aria-hidden /> : <Trash2 className="w-4 h-4" aria-hidden />}
-              </button>
-            )}
+              <Typography.Body style={{ margin: 0, fontSize: "0.875rem" }}>Нет в описях</Typography.Body>
+            </div>
           </div>
         )}
 
@@ -1932,6 +1932,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
               <option value={20}>20</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
+              {activeTab === "summary" ? <option value={1000}>1000</option> : null}
             </select>
           </Flex>
         </Flex>

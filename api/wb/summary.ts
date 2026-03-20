@@ -4,6 +4,16 @@ import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgIlikeContainsPattern, pgTableExists, resolveWbAccess } from "../_wb.js";
 import { resolveWb1cForBoxShk, type Wb1cShkLookupRow } from "../lib/wb1cShkResolve.js";
 
+/** Vercel: query-параметр может быть string | string[] */
+function qsOne(req: VercelRequest, key: string): string {
+  const v = req.query[key];
+  if (v === undefined || v === null) return "";
+  if (Array.isArray(v)) return String(v[0] ?? "").trim();
+  return String(v).trim();
+}
+
+const SUMMARY_MAX_LIMIT = 1000;
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "wb_summary_list");
   if (req.method !== "GET") {
@@ -19,7 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!(await pgTableExists(pool, "wb_summary"))) {
       return res.status(200).json({
         page: 1,
-        limit: Number(req.query.limit ?? 50),
+        limit: Math.min(SUMMARY_MAX_LIMIT, Math.max(1, Number(qsOne(req, "limit") || 50) || 50)),
         total: 0,
         items: [],
         summaryHeader: {
@@ -33,9 +43,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const limitRaw = Number(req.query.limit ?? 50);
-    const pageRaw = Number(req.query.page ?? 1);
-    const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(500, Math.trunc(limitRaw))) : 50;
+    const limitRaw = Number(qsOne(req, "limit") || 50);
+    const pageRaw = Number(qsOne(req, "page") || 1);
+    const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(SUMMARY_MAX_LIMIT, Math.trunc(limitRaw))) : 50;
     const page = Number.isFinite(pageRaw) ? Math.max(1, Math.trunc(pageRaw)) : 1;
     const offset = (page - 1) * limit;
 
@@ -46,10 +56,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const article = String(req.query.article ?? "").trim();
     const brand = String(req.query.brand ?? "").trim();
     const q = String(req.query.q ?? "").trim();
-    const onlyNotInInbound = String(req.query.onlyNotInInbound ?? "").trim().toLowerCase() === "true";
+    const onlyNotInInbound = qsOne(req, "onlyNotInInbound").toLowerCase() === "true";
 
-    const sortByRaw = String(req.query.sortBy ?? "").trim();
-    const sortDirRaw = String(req.query.sortDir ?? "").trim().toLowerCase();
+    const sortByRaw = qsOne(req, "sortBy");
+    const sortDirRaw = qsOne(req, "sortDir").toLowerCase();
     const orderDir = sortDirRaw === "asc" ? "asc" : "desc";
     const nullsClause = orderDir === "asc" ? "nulls first" : "nulls last";
 
@@ -144,14 +154,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       boxId: `s.box_id`,
       inboundBoxShk: `i.box_shk`,
       isReturned: `((coalesce(s.is_returned, false)) or (s.returned_item_id is not null))`,
-      claimRowNumber: `c.row_number`,
-      claimPriceRub: `c.amount_rub`,
+      claimRowNumber: `(c.row_number)::bigint`,
+      /** Явно numeric — иначе при некоторых планах/типах сортировка могла вести себя нестабильно */
+      claimPriceRub: `(c.amount_rub)::numeric`,
       inventoryNumber: `i.inventory_number`,
-      inboundRowNumber: `i.row_number`,
+      inboundRowNumber: `(i.row_number)::bigint`,
       inboundTitle: `coalesce(nullif(trim(i.description), ''), nullif(trim(i.nomenclature), ''))`,
-      inboundPriceRub: `i.price_rub`,
+      inboundPriceRub: `(i.price_rub)::numeric`,
     };
-    const sortKey = sortByRaw in ORDER_EXPR ? sortByRaw : "";
+    const sortKey = Object.prototype.hasOwnProperty.call(ORDER_EXPR, sortByRaw) ? sortByRaw : "";
     const orderTail = `coalesce(c.row_number, 0), coalesce(s.shk, s.box_id, '')`;
     const orderSql = sortKey
       ? `order by ${ORDER_EXPR[sortKey]} ${orderDir} ${nullsClause}, ${orderTail}`
@@ -218,6 +229,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }));
     }
 
+    res.setHeader("Cache-Control", "private, no-store, max-age=0");
     return res.status(200).json({
       page,
       limit,
