@@ -223,6 +223,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   const [expandedClaimsRevisionId, setExpandedClaimsRevisionId] = useState<number | null>(null);
   const [claimsDetailsCache, setClaimsDetailsCache] = useState<Record<string, Record<string, unknown>[]>>({});
   const [claimsDetailLoading, setClaimsDetailLoading] = useState<number | null>(null);
+  const [deletingClaimsRevisionId, setDeletingClaimsRevisionId] = useState<number | null>(null);
   const [expandedInboundInv, setExpandedInboundInv] = useState<string | null>(null);
   const [inboundDetailsCache, setInboundDetailsCache] = useState<Record<string, Record<string, unknown>[]>>({});
   const [inboundDetailLoading, setInboundDetailLoading] = useState<string | null>(null);
@@ -587,6 +588,39 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     [loadClaimsDetails],
   );
 
+  const handleDeleteClaimsRevision = useCallback(
+    async (row: Record<string, unknown>) => {
+      const revisionId = Number(row.revisionId);
+      if (!Number.isFinite(revisionId) || revisionId <= 0) return;
+      const revNum = String(row.revisionNumber ?? revisionId);
+      const fn = String(row.sourceFilename ?? "").trim() || "файл";
+      if (!window.confirm(`Удалить ревизию претензий v${revNum} («${fn}») и все строки? Действие необратимо.`)) return;
+      setUploadError(null);
+      setDeletingClaimsRevisionId(revisionId);
+      try {
+        const res = await fetch("/api/wb/claims/delete-revision", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders },
+          body: JSON.stringify({ revisionId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка удаления");
+        setExpandedClaimsRevisionId((prev) => (prev === revisionId ? null : prev));
+        setClaimsDetailsCache((prev) => {
+          const next = { ...prev };
+          delete next[String(revisionId)];
+          return next;
+        });
+        await loadData();
+      } catch (e: unknown) {
+        setUploadError((e as Error)?.message || "Ошибка удаления");
+      } finally {
+        setDeletingClaimsRevisionId(null);
+      }
+    },
+    [authHeaders, loadData],
+  );
+
   /** Сводная пересобирается на сервере после импорта в фоне — на serverless это часто обрывается; ждём явный POST refresh. */
   const triggerWbSummaryRefresh = useCallback(async () => {
     try {
@@ -776,7 +810,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         { key: "lineNumber", label: "№" },
         { key: "uploadedAt", label: "Дата загрузки" },
         { key: "boxCount", label: "Кол-во мест" },
-        { key: "totalAmountRub", label: "Стоимость, RUB" },
+        { key: "matchedCount", label: "Кол-во найдено" },
+        { key: "totalAmountRub", label: "Сумма стоимости, RUB" },
       ];
     }
     if (activeTab === "claims") {
@@ -786,7 +821,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         { key: "sourceFilename", label: "Файл" },
         { key: "isActive", label: "Сводная" },
         { key: "itemCount", label: "Кол-во мест" },
-        { key: "totalAmountRub", label: "Стоимость, RUB" },
+        { key: "totalAmountRub", label: "Стоимость (подтвержд.), RUB" },
       ];
     }
     return [
@@ -1014,6 +1049,11 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                     {/* пустой заголовок — колонка действий */}
                   </th>
                 )}
+                {activeTab === "claims" && canUpload && (
+                  <th className="wb-col-actions" title="Удаление ревизии претензий">
+                    {/* пустой заголовок — колонка действий */}
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -1024,7 +1064,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                       columns.length +
                       (activeTab === "inbound" || activeTab === "returned" || activeTab === "claims" ? 1 : 0) +
                       (activeTab === "inbound" && canUpload ? 1 : 0) +
-                      (activeTab === "returned" && canUpload ? 1 : 0)
+                      (activeTab === "returned" && canUpload ? 1 : 0) +
+                      (activeTab === "claims" && canUpload ? 1 : 0)
                     }
                     style={{ textAlign: "center", color: "var(--color-text-secondary)" }}
                   >
@@ -1273,10 +1314,31 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                               : formatWbCellValue(col.key, row[col.key])}
                           </td>
                         ))}
+                        {canUpload && (
+                          <td className="wb-col-actions">
+                            <button
+                              type="button"
+                              className="wb-delete-inventory-btn"
+                              title="Удалить ревизию"
+                              aria-label={`Удалить ревизию претензий ${revisionId}`}
+                              disabled={deletingClaimsRevisionId === revisionId}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleDeleteClaimsRevision(row as Record<string, unknown>);
+                              }}
+                            >
+                              {deletingClaimsRevisionId === revisionId ? (
+                                <RefreshCw className="w-4 h-4 animate-spin" aria-hidden />
+                              ) : (
+                                <Trash2 className="w-4 h-4" aria-hidden />
+                              )}
+                            </button>
+                          </td>
+                        )}
                       </tr>
                       {open && (
                         <tr className="wb-inbound-detail-row">
-                          <td colSpan={columns.length + 1}>
+                          <td colSpan={columns.length + 1 + (canUpload ? 1 : 0)}>
                             {claimsDetailLoading === revisionId && detailRowsRaw.length === 0 ? (
                               <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>
                                 Загрузка строк...

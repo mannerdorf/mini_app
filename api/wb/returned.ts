@@ -5,6 +5,28 @@ import { pgIlikeContainsPattern, pgTableExists, resolveWbAccess } from "../_wb.j
 
 const GROUP_DOC_EXPR = `coalesce(nullif(trim(r.document_number), ''), '')`;
 
+/** Совпадение wb_inbound_items с wb_returned_items.box_id (коробка / ШК / баркод / стикер). */
+const INBOUND_MATCH_RETURNED_BOX = `trim(coalesce(i.box_number, '')) = trim(coalesce(r.box_id, ''))
+  or trim(coalesce(i.shk, '')) = trim(coalesce(r.box_id, ''))
+  or trim(coalesce(i.barcode, '')) = trim(coalesce(r.box_id, ''))
+  or trim(coalesce(i.sticker, '')) = trim(coalesce(r.box_id, ''))`;
+
+const INBOUND_SORT_MATCH = `case
+      when trim(coalesce(i.box_number, '')) = trim(coalesce(r.box_id, '')) then 0
+      when trim(coalesce(i.shk, '')) = trim(coalesce(r.box_id, '')) then 1
+      when trim(coalesce(i.barcode, '')) = trim(coalesce(r.box_id, '')) then 2
+      else 3
+    end`;
+
+/** Цена из опися для строки возврата r (если в возврате нет amount_rub — для суммы в склейке). */
+const INBOUND_PRICE_SCALAR_SUBQUERY = `(
+  select i.price_rub
+  from wb_inbound_items i
+  where ${INBOUND_MATCH_RETURNED_BOX}
+  order by ${INBOUND_SORT_MATCH}, i.inventory_created_at desc nulls last, i.id desc
+  limit 1
+)`;
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "wb_returned_list");
   if (req.method !== "GET") {
@@ -99,20 +121,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                nullif(trim(coalesce(i.nomenclature, '')), '') as nomenclature,
                i.price_rub
              from wb_inbound_items i
-             where
-               trim(coalesce(i.box_number, '')) = trim(coalesce(r.box_id, ''))
-               or trim(coalesce(i.shk, '')) = trim(coalesce(r.box_id, ''))
-               or trim(coalesce(i.barcode, '')) = trim(coalesce(r.box_id, ''))
-               or trim(coalesce(i.sticker, '')) = trim(coalesce(r.box_id, ''))
-             order by
-               case
-                 when trim(coalesce(i.box_number, '')) = trim(coalesce(r.box_id, '')) then 0
-                 when trim(coalesce(i.shk, '')) = trim(coalesce(r.box_id, '')) then 1
-                 when trim(coalesce(i.barcode, '')) = trim(coalesce(r.box_id, '')) then 2
-                 else 3
-               end,
-               i.inventory_created_at desc nulls last,
-               i.id desc
+             where ${INBOUND_MATCH_RETURNED_BOX}
+             order by ${INBOUND_SORT_MATCH}, i.inventory_created_at desc nulls last, i.id desc
              limit 1
            ) inv on true`
         : "";
@@ -170,6 +180,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
     const total = countRes.rows[0]?.total ?? 0;
 
+    const hasInboundForSummary = await pgTableExists(pool, "wb_inbound_items");
+    /** Сумма по группе: amount_rub из возврата; если NULL — подставляем цену из опися (та же логика сопоставления). */
+    const totalAmountExpr = hasInboundForSummary
+      ? `coalesce(sum(coalesce(r.amount_rub, ${INBOUND_PRICE_SCALAR_SUBQUERY})), 0)::numeric`
+      : `coalesce(sum(r.amount_rub), 0)::numeric`;
+
+    /** Сколько строк возврата в группе нашли совпадение в «Описи» (коробка / ШК / баркод / стикер). */
+    const matchedCountExpr = hasInboundForSummary
+      ? `count(*) filter (
+           where exists (
+             select 1 from wb_inbound_items i
+             where ${INBOUND_MATCH_RETURNED_BOX}
+           )
+         )::int`
+      : `0::int`;
+
     const dataParams = [...params, limit, offset];
     const rowsRes = await pool.query(
       `select
@@ -177,7 +203,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          r.batch_id as "batchId",
          max(r.created_at) as "uploadedAt",
          count(*)::int as "boxCount",
-         coalesce(sum(r.amount_rub), 0)::numeric as "totalAmountRub"
+         ${matchedCountExpr} as "matchedCount",
+         ${totalAmountExpr} as "totalAmountRub"
        from wb_returned_items r
        ${whereSql}
        group by ${GROUP_DOC_EXPR}, r.batch_id

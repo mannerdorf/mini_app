@@ -57,6 +57,32 @@ function buildClaimsItemFilter(startParam: number, opts: {
   return { sql: parts.length ? parts.join(" and ") : "true", params };
 }
 
+/**
+ * Совпадает с импортом претензий: «Подтверждено» (ё/е).
+ * Нет ключей «статус»/«status»/«состояние» в all_columns — строка считается подтверждённой (старые файлы без колонки).
+ */
+const CLAIMS_ROW_STATUS_CONFIRMED_SQL = `(
+  not exists (
+    select 1
+    from jsonb_each_text(c.all_columns) e(k, v)
+    where lower(trim(both from k)) in ('статус', 'status', 'состояние')
+  )
+  or regexp_replace(
+    lower(trim(coalesce(
+      (
+        select trim(both from v)
+        from jsonb_each_text(c.all_columns) e(k, v)
+        where lower(trim(both from k)) in ('статус', 'status', 'состояние')
+        limit 1
+      ),
+      ''
+    ))),
+    'ё',
+    'е',
+    'g'
+  ) = 'подтверждено'
+)`;
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "wb_claims_list");
   if (req.method !== "GET") {
@@ -201,7 +227,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          r.source_filename as "sourceFilename",
          r.is_active as "isActive",
          count(c.id)::int as "itemCount",
-         coalesce(sum(c.amount_rub), 0)::numeric as "totalAmountRub"
+         coalesce(
+           sum(c.amount_rub) filter (where ${CLAIMS_ROW_STATUS_CONFIRMED_SQL}),
+           0
+         )::numeric as "totalAmountRub"
        from wb_claims_revisions r
        inner join wb_claims_items c on c.revision_id = r.id
        where ${f.sql}
