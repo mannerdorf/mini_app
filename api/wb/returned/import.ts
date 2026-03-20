@@ -195,7 +195,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? null
         : parseDateOnly(pick(row, hm, ["дата", "дата документа", "дата ведомости"]));
       if (!docDate && sheetMeta.docDate) docDate = sheetMeta.docDate;
-      const amount = singleBoxCol != null ? 0 : parseNum(pick(row, hm, ["стоимость", "сумма", "цена"]));
+      /** Одностолбцовый импорт: суммы в файле нет — в БД NULL, чтобы сводка брала цену из «Описей» (не 0, иначе coalesce не срабатывал). */
+      const amount = singleBoxCol != null ? null : parseNum(pick(row, hm, ["стоимость", "сумма", "цена"]));
       const hasShk = parseBooleanFlag(
         singleBoxCol != null ? "" : pick(row, hm, ["есть шк", "has shk"]),
         true,

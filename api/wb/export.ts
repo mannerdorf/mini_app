@@ -88,11 +88,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ) {
         rows = (
           await pool.query(
-            `select c.claim_number, c.box_id, c.doc_number, c.doc_date, c.description, c.amount_rub, c.row_number, r.revision_number, r.uploaded_at
+            `select c.claim_number, c.box_id, c.shk, c.doc_number, c.doc_date, c.description, c.amount_rub, c.row_number, r.revision_number, r.uploaded_at
              from wb_claims_items c
              join wb_claims_revisions r on r.id = c.revision_id
              where r.is_active = true
-             ${whereQ ? `and (coalesce(c.claim_number,'') ilike $${whereQ} or coalesce(c.box_id,'') ilike $${whereQ} or coalesce(c.description,'') ilike $${whereQ} or c.all_columns::text ilike $${whereQ})` : ""}
+             ${whereQ ? `and (coalesce(c.claim_number,'') ilike $${whereQ} or coalesce(c.box_id,'') ilike $${whereQ} or coalesce(c.shk,'') ilike $${whereQ} or coalesce(c.description,'') ilike $${whereQ} or c.all_columns::text ilike $${whereQ})` : ""}
              order by c.id desc
              limit 10000`,
             params,
@@ -104,6 +104,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         rows = (
           await pool.query(
             `select
+               coalesce(s.shk, i.shk) as shk,
                s.box_id as box_id,
                s.claim_number as claim_number,
                c.row_number as claim_row_number,
@@ -113,13 +114,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                coalesce(nullif(trim(i.nomenclature), ''), nullif(trim(i.description), '')) as inbound_title,
                i.price_rub as inbound_price_rub,
                (s.inbound_item_id is not null) as has_inbound,
+               ((coalesce(s.is_returned, false)) or (s.returned_item_id is not null)) as is_returned,
                s.updated_at as updated_at
              from wb_summary s
              left join wb_claims_items c on c.id = s.claim_item_id
              left join wb_inbound_items i on i.id = s.inbound_item_id
              where s.declared = true
-             ${whereQ ? `and (s.box_id ilike $${whereQ} or coalesce(s.claim_number,'') ilike $${whereQ} or coalesce(s.description,'') ilike $${whereQ} or coalesce(c.description,'') ilike $${whereQ} or coalesce(i.inventory_number,'') ilike $${whereQ})` : ""}
-             order by coalesce(c.row_number, 0), s.box_id
+             ${whereQ ? `and (s.box_id ilike $${whereQ} or coalesce(s.shk,'') ilike $${whereQ} or coalesce(s.claim_number,'') ilike $${whereQ} or coalesce(s.description,'') ilike $${whereQ} or coalesce(c.description,'') ilike $${whereQ} or coalesce(i.inventory_number,'') ilike $${whereQ} or coalesce(i.shk,'') ilike $${whereQ})` : ""}
+             order by coalesce(c.row_number, 0), coalesce(s.shk, s.box_id, '')
              limit 10000`,
             params,
           )

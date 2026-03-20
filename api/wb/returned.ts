@@ -18,7 +18,7 @@ const INBOUND_SORT_MATCH = `case
       else 3
     end`;
 
-/** Цена из опися для строки возврата r (если в возврате нет amount_rub — для суммы в склейке). */
+/** Цена из опися для строки возврата r, если в возврате нет суммы (NULL или 0 — импорт одним столбцом писал 0). */
 const INBOUND_PRICE_SCALAR_SUBQUERY = `(
   select i.price_rub
   from wb_inbound_items i
@@ -215,9 +215,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const total = countRes.rows[0]?.total ?? 0;
 
     const hasInboundForSummary = await pgTableExists(pool, "wb_inbound_items");
-    /** Сумма по группе: amount_rub из возврата; если NULL — подставляем цену из опися (та же логика сопоставления). */
+    /** Сумма по группе: amount_rub; если NULL или 0 — цена из опися (та же логика сопоставления, что в детализации). */
     const totalAmountExpr = hasInboundForSummary
-      ? `coalesce(sum(coalesce(r.amount_rub, ${INBOUND_PRICE_SCALAR_SUBQUERY})), 0)::numeric`
+      ? `coalesce(sum(coalesce(nullif(r.amount_rub, 0), ${INBOUND_PRICE_SCALAR_SUBQUERY})), 0)::numeric`
       : `coalesce(sum(r.amount_rub), 0)::numeric`;
 
     /** Сколько строк возврата в группе нашли совпадение в «Описи» (коробка / ШК / баркод / стикер). */

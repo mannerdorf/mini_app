@@ -230,7 +230,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const fromComm = boxIdFromComment(description);
         if (fromComm) boxId = fromComm;
       }
-      if (!boxId && barcodeShk) boxId = barcodeShk;
+      /** ШК храним отдельно — по нему сводная ищет строку в «Описи»; в box_id только реальный номер коробки. */
       const amountRub = parseNum(
         pick(normalizedMap, [
           "цена, руб.",
@@ -244,7 +244,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ]),
       );
 
-      if (!boxId && !claimNumber && !description) {
+      if (!boxId && !claimNumber && !description && !barcodeShk) {
         errorRows++;
         if (batchId) {
           await client.query(
@@ -258,15 +258,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       await client.query(
         `insert into wb_claims_items (
-           revision_id, row_number, claim_number, box_id, doc_number, doc_date, description, amount_rub, all_columns
+           revision_id, row_number, claim_number, box_id, shk, doc_number, doc_date, description, amount_rub, all_columns
          ) values (
-           $1, $2, $3, $4, $5, $6::date, $7, $8, $9::jsonb
+           $1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10::jsonb
          )`,
         [
           revisionId,
           i + 1,
           claimNumber || null,
           boxId || null,
+          barcodeShk || null,
           docNumber || null,
           docDate,
           description || null,

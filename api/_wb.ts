@@ -143,6 +143,7 @@ export async function rebuildWbSummary(pool: Pool): Promise<{ rows: number; skip
     type InboundRow = {
       id: number;
       box_number: string;
+      shk: string | null;
       row_number: number | null;
       description: string | null;
       nomenclature: string | null;
@@ -152,30 +153,35 @@ export async function rebuildWbSummary(pool: Pool): Promise<{ rows: number; skip
     let inboundRows: InboundRow[] = [];
     if (await pgTableExists(pool, "wb_inbound_items")) {
       const ir = await client.query<InboundRow>(
-        `SELECT id, box_number, row_number, description, nomenclature, price_rub, inventory_created_at
+        `SELECT id, box_number, shk, row_number, description, nomenclature, price_rub, inventory_created_at
          FROM wb_inbound_items`,
       );
       inboundRows = ir.rows;
     }
     /** Одна строка описи на номер коробки: приоритет — более новая дата описи, затем больший id. */
     const inboundByBox = new Map<string, InboundRow>();
+    /** Сопоставление с претензией по ШК (wb_inbound_items.shk). */
+    const inboundByShk = new Map<string, InboundRow>();
     const invTs = (r: InboundRow) => {
       const d = r.inventory_created_at;
       if (d == null || d === "") return 0;
       const t = new Date(d as string).getTime();
       return Number.isFinite(t) ? t : 0;
     };
-    for (const row of inboundRows) {
-      const key = String(row.box_number || "").trim();
-      if (!key) continue;
-      const prev = inboundByBox.get(key);
+    const upsertInboundByKey = (map: Map<string, InboundRow>, key: string, row: InboundRow) => {
+      if (!key) return;
+      const prev = map.get(key);
       if (!prev) {
-        inboundByBox.set(key, row);
-        continue;
+        map.set(key, row);
+        return;
       }
       const pt = invTs(prev);
       const ct = invTs(row);
-      if (ct > pt || (ct === pt && row.id > prev.id)) inboundByBox.set(key, row);
+      if (ct > pt || (ct === pt && row.id > prev.id)) map.set(key, row);
+    };
+    for (const row of inboundRows) {
+      upsertInboundByKey(inboundByBox, String(row.box_number || "").trim(), row);
+      upsertInboundByKey(inboundByShk, String(row.shk || "").trim(), row);
     }
 
     type ReturnedRow = {
@@ -197,15 +203,19 @@ export async function rebuildWbSummary(pool: Pool): Promise<{ rows: number; skip
       returnedRows = rr.rows;
     }
     const returnedByBox = new Map<string, ReturnedRow>();
+    /** Возврат: box_id в файле часто совпадает с ШК — тот же ключ, что и inboundByShk. */
+    const returnedByShk = new Map<string, ReturnedRow>();
     for (const row of returnedRows) {
       const key = String(row.box_id || "").trim();
       if (!key) continue;
       if (!returnedByBox.has(key)) returnedByBox.set(key, row);
+      if (!returnedByShk.has(key)) returnedByShk.set(key, row);
     }
 
     type ClaimRow = {
       id: number;
       box_id: string | null;
+      shk: string | null;
       claim_number: string | null;
       doc_number: string | null;
       doc_date: string | null;
@@ -216,7 +226,7 @@ export async function rebuildWbSummary(pool: Pool): Promise<{ rows: number; skip
     let claimRows: ClaimRow[] = [];
     if (activeRevisionId && (await pgTableExists(pool, "wb_claims_items"))) {
       const claims = await client.query<ClaimRow>(
-        `SELECT id, box_id, claim_number, doc_number, doc_date, row_number, description, amount_rub
+        `SELECT id, box_id, shk, claim_number, doc_number, doc_date, row_number, description, amount_rub
          FROM wb_claims_items
          WHERE revision_id = $1`,
         [activeRevisionId],
@@ -230,74 +240,170 @@ export async function rebuildWbSummary(pool: Pool): Promise<{ rows: number; skip
       if (!claimsByBox.has(key)) claimsByBox.set(key, row);
     }
 
+    await client.query("TRUNCATE TABLE wb_summary");
+
+    type SummaryInsertRow = {
+      boxId: string | null;
+      claimNumber: string | null;
+      declared: boolean;
+      docNumber: string | null;
+      docDate: string | null;
+      sourceRow: number | null;
+      description: string | null;
+      cost: number;
+      inboundId: number | null;
+      returnedId: number | null;
+      claimId: number | null;
+      shk: string | null;
+      isReturned: boolean;
+    };
+
+    const insertSummaryBulk = async (slices: SummaryInsertRow[]) => {
+      const CHUNK = 200;
+      for (let c = 0; c < slices.length; c += CHUNK) {
+        const slice = slices.slice(c, c + CHUNK);
+        const rowTuples: string[] = [];
+        const params: unknown[] = [];
+        let p = 1;
+        for (const row of slice) {
+          rowTuples.push(
+            `($${p++}, $${p++}, $${p++}, $${p++}, $${p++}::date, $${p++}, $${p++}, $${p++}::numeric, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, now())`,
+          );
+          params.push(
+            row.boxId,
+            row.claimNumber,
+            row.declared,
+            row.docNumber,
+            row.docDate,
+            row.sourceRow,
+            row.description,
+            row.cost,
+            row.inboundId,
+            row.returnedId,
+            row.claimId,
+            row.shk,
+            row.isReturned,
+          );
+        }
+        await client.query(
+          `INSERT INTO wb_summary (
+            box_id, claim_number, declared, source_document_number, source_document_date, source_row_number,
+            description, cost_rub, inbound_item_id, returned_item_id, claim_item_id, shk, is_returned, updated_at
+         ) VALUES ${rowTuples.join(", ")}`,
+          params,
+        );
+      }
+    };
+
+    /** Активная ревизия претензий: одна строка сводной на каждую строку претензии; опись и возврат — по ШК, затем по номеру коробки. */
+    if (activeRevisionId && claimRows.length > 0) {
+      const rowsOut: SummaryInsertRow[] = [];
+      for (const claim of claimRows) {
+        const claimShkTrim = String(claim.shk ?? "").trim();
+        const claimBoxTrim = String(claim.box_id ?? "").trim();
+        const keyShk = claimShkTrim || claimBoxTrim;
+        if (!keyShk && !claim.claim_number && !claim.description) continue;
+
+        const inboundByShkFirst =
+          (keyShk ? inboundByShk.get(keyShk) : null) ||
+          (claimBoxTrim ? inboundByBox.get(claimBoxTrim) : null) ||
+          null;
+        const returned =
+          (keyShk ? returnedByShk.get(keyShk) : null) ||
+          (claimBoxTrim ? returnedByBox.get(claimBoxTrim) : null) ||
+          null;
+
+        const description =
+          claim.description ||
+          returned?.description ||
+          inboundByShkFirst?.description ||
+          inboundByShkFirst?.nomenclature ||
+          null;
+        const cost = parseNum(claim.amount_rub ?? returned?.amount_rub ?? inboundByShkFirst?.price_rub ?? 0);
+        const docNumber = claim.doc_number || returned?.document_number || null;
+        const rawDocDate = claim.doc_date || returned?.document_date || inboundByShkFirst?.inventory_created_at || null;
+        const docDate = rawDocDate == null || rawDocDate === "" ? null : parseDateOnly(rawDocDate);
+
+        const displayBox =
+          (inboundByShkFirst?.box_number && String(inboundByShkFirst.box_number).trim()) || claimBoxTrim || null;
+        const displayShk =
+          claimShkTrim ||
+          (inboundByShkFirst?.shk && String(inboundByShkFirst.shk).trim()) ||
+          (claimBoxTrim && !claimShkTrim ? claimBoxTrim : null) ||
+          null;
+
+        rowsOut.push({
+          boxId: displayBox,
+          claimNumber: claim.claim_number,
+          declared: true,
+          docNumber,
+          docDate,
+          sourceRow: claim.row_number,
+          description,
+          cost,
+          inboundId: inboundByShkFirst?.id ?? null,
+          returnedId: returned?.id ?? null,
+          claimId: claim.id,
+          shk: displayShk,
+          isReturned: returned != null,
+        });
+      }
+      await insertSummaryBulk(rowsOut);
+      await client.query("commit");
+      return { rows: rowsOut.length };
+    }
+
     const boxes = new Set<string>([
       ...inboundByBox.keys(),
       ...returnedByBox.keys(),
       ...claimsByBox.keys(),
+      ...inboundByShk.keys(),
     ]);
 
     if (boxes.size === 0) {
-      await client.query("TRUNCATE TABLE wb_summary");
       await client.query("commit");
       return { rows: 0 };
     }
 
-    // Раньше: по одному INSERT на коробку → тысячи round-trip и таймаут Vercel на refresh.
-    await client.query("TRUNCATE TABLE wb_summary");
-
     const boxList = [...boxes];
-    const CHUNK = 200;
-    for (let c = 0; c < boxList.length; c += CHUNK) {
-      const slice = boxList.slice(c, c + CHUNK);
-      const rowTuples: string[] = [];
-      const params: unknown[] = [];
-      let p = 1;
-      for (const boxId of slice) {
-        const inbound = inboundByBox.get(boxId);
-        const returned = returnedByBox.get(boxId);
-        const claim = claimsByBox.get(boxId);
-        const description =
-          claim?.description ||
-          returned?.description ||
-          inbound?.description ||
-          inbound?.nomenclature ||
-          null;
-        const cost = parseNum(claim?.amount_rub ?? returned?.amount_rub ?? inbound?.price_rub ?? 0);
-        const docNumber = claim?.doc_number || returned?.document_number || null;
-        // Как при импорте (9a7a1598): dd.mm.yyyy из Excel/БД; иначе $n::date в bulk INSERT даёт 500 на Vercel.
-        const rawDocDate = claim?.doc_date || returned?.document_date || inbound?.inventory_created_at || null;
-        const docDate =
-          rawDocDate == null || rawDocDate === "" ? null : parseDateOnly(rawDocDate);
-        const sourceRow = claim?.row_number ?? inbound?.row_number ?? null;
-
-        rowTuples.push(
-          `($${p++}, $${p++}, $${p++}, $${p++}, $${p++}::date, $${p++}, $${p++}, $${p++}::numeric, $${p++}, $${p++}, $${p++}, now())`,
-        );
-        params.push(
-          boxId,
-          claim?.claim_number || null,
-          !!claim,
-          docNumber,
-          docDate,
-          sourceRow,
-          description,
-          cost,
-          inbound?.id ?? null,
-          returned?.id ?? null,
-          claim?.id ?? null,
-        );
-      }
-      await client.query(
-        `INSERT INTO wb_summary (
-            box_id, claim_number, declared, source_document_number, source_document_date, source_row_number,
-            description, cost_rub, inbound_item_id, returned_item_id, claim_item_id, updated_at
-         ) VALUES ${rowTuples.join(", ")}`,
-        params,
-      );
+    const legacyRows: SummaryInsertRow[] = [];
+    for (const boxId of boxList) {
+      const inbound = inboundByBox.get(boxId) ?? inboundByShk.get(boxId);
+      const returned = returnedByBox.get(boxId) ?? returnedByShk.get(boxId);
+      const claim = claimsByBox.get(boxId);
+      const description =
+        claim?.description ||
+        returned?.description ||
+        inbound?.description ||
+        inbound?.nomenclature ||
+        null;
+      const cost = parseNum(claim?.amount_rub ?? returned?.amount_rub ?? inbound?.price_rub ?? 0);
+      const docNumber = claim?.doc_number || returned?.document_number || null;
+      const rawDocDate = claim?.doc_date || returned?.document_date || inbound?.inventory_created_at || null;
+      const docDate = rawDocDate == null || rawDocDate === "" ? null : parseDateOnly(rawDocDate);
+      const sourceRow = claim?.row_number ?? inbound?.row_number ?? null;
+      const shkVal =
+        (inbound?.shk && String(inbound.shk).trim()) || (String(boxId).trim() || null);
+      legacyRows.push({
+        boxId,
+        claimNumber: claim?.claim_number || null,
+        declared: !!claim,
+        docNumber,
+        docDate,
+        sourceRow,
+        description,
+        cost,
+        inboundId: inbound?.id ?? null,
+        returnedId: returned?.id ?? null,
+        claimId: claim?.id ?? null,
+        shk: shkVal,
+        isReturned: returned != null,
+      });
     }
+    await insertSummaryBulk(legacyRows);
 
     await client.query("commit");
-    return { rows: boxes.size };
+    return { rows: legacyRows.length };
   } catch (error) {
     try {
       await client.query("rollback");

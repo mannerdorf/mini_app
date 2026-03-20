@@ -44,7 +44,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const params: unknown[] = [];
     if (boxId) {
       params.push(pgIlikeContainsPattern(boxId));
-      where.push(`s.box_id ilike $${params.length} escape '\\'`);
+      where.push(
+        `(s.box_id ilike $${params.length} escape '\\' or coalesce(s.shk, '') ilike $${params.length} escape '\\')`,
+      );
     }
     if (claimNumber) {
       params.push(`%${claimNumber}%`);
@@ -70,12 +72,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       params.push(`%${q}%`);
       where.push(`(
         s.box_id ilike $${params.length}
+        or coalesce(s.shk, '') ilike $${params.length}
         or coalesce(s.claim_number, '') ilike $${params.length}
         or coalesce(s.source_document_number, '') ilike $${params.length}
         or coalesce(s.description, '') ilike $${params.length}
         or coalesce(c.description, '') ilike $${params.length}
         or coalesce(c.all_columns::text, '') ilike $${params.length}
         or coalesce(i.inventory_number, '') ilike $${params.length}
+        or coalesce(i.shk, '') ilike $${params.length}
         or coalesce(i.nomenclature, '') ilike $${params.length}
         or coalesce(i.description, '') ilike $${params.length}
       )`);
@@ -106,17 +110,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const dataParams = [...params, limit, offset];
     const rowsRes = await pool.query(
       `select
+         s.shk as "shk",
          s.box_id as "boxId",
          c.row_number as "claimRowNumber",
          nullif(trim(coalesce(c.description, '')), '') as "claimDescription",
          (s.inbound_item_id is not null) as "hasInbound",
+         ((coalesce(s.is_returned, false)) or (s.returned_item_id is not null)) as "isReturned",
          i.inventory_number as "inventoryNumber",
          i.row_number as "inboundRowNumber",
+         i.shk as "inboundShk",
+         i.box_number as "inboundBoxNumber",
          nullif(trim(coalesce(nullif(trim(i.nomenclature), ''), nullif(trim(i.description), ''))), '') as "inboundTitle",
          i.price_rub as "inboundPriceRub"
        ${fromJoins}
        ${whereSql}
-       order by coalesce(c.row_number, 0), s.box_id
+       order by coalesce(c.row_number, 0), coalesce(s.shk, s.box_id, '')
        limit $${dataParams.length - 1}
        offset $${dataParams.length}`,
       dataParams,

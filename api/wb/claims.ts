@@ -180,6 +180,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
            c.row_number as "rowNumber",
            c.claim_number as "claimNumber",
            c.box_id as "boxId",
+           c.shk as "shk",
            c.doc_number as "docNumber",
            c.doc_date as "docDate",
            c.description,

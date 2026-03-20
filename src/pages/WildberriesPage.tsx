@@ -190,6 +190,13 @@ const WB_SUMMARY_INBOUND_KEYS = new Set(["inventoryNumber", "inboundRowNumber", 
 /** Ячейки сводной: претензия + поиск коробки в описях или «нет в описях». */
 function formatWbSummaryCell(colKey: string, row: Record<string, unknown>): string {
   const hasInbound = row.hasInbound === true;
+  if (colKey === "shk") {
+    const t = String(row.shk ?? row.inboundShk ?? "").trim();
+    return t || "—";
+  }
+  if (colKey === "isReturned") {
+    return row.isReturned === true || row.isReturned === "true" ? "Да" : "Нет";
+  }
   if (colKey === "boxId") return formatWbCellValue("boxId", row.boxId);
   if (colKey === "claimRowNumber") {
     const v = row.claimRowNumber;
@@ -974,7 +981,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     }
     return [
       { key: "lineNumber", label: "№" },
+      { key: "shk", label: "ШК" },
       { key: "boxId", label: "Номер коробки" },
+      { key: "isReturned", label: "Возвращена" },
       { key: "claimRowNumber", label: "Номер строки претензии" },
       { key: "claimDescription", label: "Наименование в претензии" },
       { key: "inventoryNumber", label: "Номер описи" },
@@ -1277,7 +1286,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                     {loading
                       ? "Загрузка..."
                       : activeTab === "summary"
-                        ? "Нет данных. Если коробки уже есть в «Описи», «Возвращенный груз» или «Претензии», нажмите «Обновить» — выполнится пересчёт сводной."
+                        ? "Нет данных. Нужна активная ревизия претензий (ШК в файле), «Описи» для сопоставления по ШК и при необходимости «Возвращенный груз». Нажмите «Обновить» — пересчёт сводной."
                         : "Нет данных"}
                   </td>
                 </tr>
