@@ -150,7 +150,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         rows = rawRows.map((r) => {
           const { inbound_box_shk, ...base } = r;
           const resolved = resolveWb1cForBoxShk(String(inbound_box_shk ?? ""), lookup1c);
-          return { ...base, status1c: resolved.status1c };
+          return { ...base, box_shk: inbound_box_shk ?? "", status1c: resolved.status1c };
         });
       }
     }

@@ -22,7 +22,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         limit: Number(req.query.limit ?? 50),
         total: 0,
         items: [],
-        summaryHeader: { formedAt: null, placeCount: 0, totalClaimRub: 0, totalInboundRub: 0 },
+        summaryHeader: {
+          formedAt: null,
+          placeCount: 0,
+          totalClaimRub: 0,
+          totalInboundRub: 0,
+          totalNotInInboundClaimRub: 0,
+        },
         request_id: ctx.requestId,
       });
     }
@@ -40,6 +46,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const article = String(req.query.article ?? "").trim();
     const brand = String(req.query.brand ?? "").trim();
     const q = String(req.query.q ?? "").trim();
+    const onlyNotInInbound = String(req.query.onlyNotInInbound ?? "").trim().toLowerCase() === "true";
+
+    const sortByRaw = String(req.query.sortBy ?? "").trim();
+    const sortDirRaw = String(req.query.sortDir ?? "").trim().toLowerCase();
+    const orderDir = sortDirRaw === "asc" ? "asc" : "desc";
+    const nullsClause = orderDir === "asc" ? "nulls first" : "nulls last";
 
     const where: string[] = ["s.declared = true"];
     const params: unknown[] = [];
@@ -87,7 +99,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       )`);
     }
 
-    const whereSql = `where ${where.join(" and ")}`;
+    const whereBaseSql = `where ${where.join(" and ")}`;
+    const whereFullParts = onlyNotInInbound ? [...where, "s.inbound_item_id is null"] : where;
+    const whereFullSql = `where ${whereFullParts.join(" and ")}`;
+
     const fromJoins = `
        from wb_summary s
        left join wb_claims_items c on c.id = s.claim_item_id
@@ -98,18 +113,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
     const formedAt = formedRes.rows[0]?.formed_at ?? null;
 
+    /** Сумма по претензии по строкам без описи — без учёта тумблера (только фильтры дат/поиска). */
+    const notInInboundRes = await pool.query<{ v: string }>(
+      `select
+         coalesce(
+           sum(c.amount_rub) filter (where c.id is not null and s.inbound_item_id is null),
+           0
+         )::numeric as v
+       ${fromJoins}
+       ${whereBaseSql}`,
+      params,
+    );
+    const totalNotInInboundClaimRub = notInInboundRes.rows[0]?.v ?? "0";
+
     const countRes = await pool.query<{ total: number; total_claim_rub: string; total_inbound_rub: string }>(
       `select
          count(*)::int as total,
          coalesce(sum(c.amount_rub) filter (where c.id is not null), 0)::numeric as total_claim_rub,
          coalesce(sum(i.price_rub) filter (where i.id is not null), 0)::numeric as total_inbound_rub
        ${fromJoins}
-       ${whereSql}`,
+       ${whereFullSql}`,
       params,
     );
     const total = countRes.rows[0]?.total ?? 0;
     const totalClaimRub = countRes.rows[0]?.total_claim_rub ?? "0";
     const totalInboundRub = countRes.rows[0]?.total_inbound_rub ?? "0";
+
+    const ORDER_EXPR: Record<string, string> = {
+      shk: `coalesce(nullif(trim(c.shk), ''), nullif(trim(s.shk), ''), nullif(trim(i.shk), ''))`,
+      boxId: `s.box_id`,
+      inboundBoxShk: `i.box_shk`,
+      isReturned: `((coalesce(s.is_returned, false)) or (s.returned_item_id is not null))`,
+      claimRowNumber: `c.row_number`,
+      claimPriceRub: `c.amount_rub`,
+      inventoryNumber: `i.inventory_number`,
+      inboundRowNumber: `i.row_number`,
+      inboundTitle: `coalesce(nullif(trim(i.description), ''), nullif(trim(i.nomenclature), ''))`,
+      inboundPriceRub: `i.price_rub`,
+    };
+    const sortKey = sortByRaw in ORDER_EXPR ? sortByRaw : "";
+    const orderTail = `coalesce(c.row_number, 0), coalesce(s.shk, s.box_id, '')`;
+    const orderSql = sortKey
+      ? `order by ${ORDER_EXPR[sortKey]} ${orderDir} ${nullsClause}, ${orderTail}`
+      : `order by ${orderTail}`;
 
     const dataParams = [...params, limit, offset];
     const rowsRes = await pool.query(
@@ -128,12 +174,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          i.row_number as "inboundRowNumber",
          i.shk as "inboundShk",
          i.box_number as "inboundBoxNumber",
+         nullif(trim(coalesce(i.box_shk, '')), '') as "inboundBoxShk",
          nullif(trim(coalesce(nullif(trim(i.description), ''), nullif(trim(i.nomenclature), ''))), '') as "inboundTitle",
-         i.price_rub as "inboundPriceRub",
-         nullif(trim(coalesce(i.box_shk, '')), '') as "boxShkFor1c"
+         i.price_rub as "inboundPriceRub"
        ${fromJoins}
-       ${whereSql}
-       order by coalesce(c.row_number, 0), coalesce(s.shk, s.box_id, '')
+       ${whereFullSql}
+       ${orderSql}
        limit $${dataParams.length - 1}
        offset $${dataParams.length}`,
       dataParams,
@@ -154,20 +200,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           cargoNumber: String(row.cargo_number ?? ""),
         }));
         items = items.map((row) => {
-          const { boxShkFor1c, ...rest } = row;
-          const resolved = resolveWb1cForBoxShk(boxShkFor1c as string | null | undefined, lookup);
-          return { ...rest, status1c: resolved.status1c, appCargoNumber: resolved.appCargoNumber };
+          const resolved = resolveWb1cForBoxShk(row.inboundBoxShk as string | null | undefined, lookup);
+          return { ...row, status1c: resolved.status1c, appCargoNumber: resolved.appCargoNumber };
         });
       } catch {
-        items = items.map(({ boxShkFor1c: _b, ...rest }) => ({
-          ...rest,
+        items = items.map((row) => ({
+          ...row,
           status1c: "",
           appCargoNumber: "",
         }));
       }
     } else {
-      items = items.map(({ boxShkFor1c: _b, ...rest }) => ({
-        ...rest,
+      items = items.map((row) => ({
+        ...row,
         status1c: "",
         appCargoNumber: "",
       }));
@@ -182,6 +227,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         placeCount: total,
         totalClaimRub,
         totalInboundRub,
+        totalNotInInboundClaimRub,
       },
       items,
       request_id: ctx.requestId,

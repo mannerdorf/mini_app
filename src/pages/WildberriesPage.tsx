@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
+import { Button, Flex, Panel, Typography, Input, Switch } from "@maxhub/max-ui";
 import { Download, FileDown, FileUp, RefreshCw, Trash2, Upload } from "lucide-react";
 import type { AuthData } from "../types";
 import { downloadBase64File } from "../utils";
@@ -17,6 +17,20 @@ type ColumnDef = { key: string; label: string };
 type InboundSummarySortKey = "inventoryNumber" | "inventoryCreatedAt" | "boxCount" | "totalPriceRub";
 
 const INBOUND_SUMMARY_SORT_KEYS = new Set<string>(["inventoryNumber", "inventoryCreatedAt", "boxCount", "totalPriceRub"]);
+
+/** Сортировка таблицы вкладки «Сводная» (без № и статуса 1С). */
+const WB_SUMMARY_SORT_KEYS = new Set<string>([
+  "shk",
+  "boxId",
+  "inboundBoxShk",
+  "isReturned",
+  "claimRowNumber",
+  "claimPriceRub",
+  "inventoryNumber",
+  "inboundRowNumber",
+  "inboundTitle",
+  "inboundPriceRub",
+]);
 
 /** Номера описей, которые подсвечиваются фиолетовым на вкладке «Описи». */
 const WB_INBOUND_HIGHLIGHT_INVENTORY_NUMBERS = new Set([
@@ -200,7 +214,13 @@ function inboundDetailRowMatchesNeedle(row: Record<string, unknown>, needleLower
   return false;
 }
 
-const WB_SUMMARY_INBOUND_KEYS = new Set(["inventoryNumber", "inboundRowNumber", "inboundTitle", "inboundPriceRub"]);
+const WB_SUMMARY_INBOUND_KEYS = new Set([
+  "inventoryNumber",
+  "inboundRowNumber",
+  "inboundBoxShk",
+  "inboundTitle",
+  "inboundPriceRub",
+]);
 
 /** Ячейки сводной: претензия + поиск короба в описях или «нет в описях». */
 function formatWbSummaryCell(colKey: string, row: Record<string, unknown>): string {
@@ -242,6 +262,10 @@ function formatWbSummaryCell(colKey: string, row: Record<string, unknown>): stri
       const t = String(row.inboundTitle ?? "").trim();
       return t || "—";
     }
+    if (colKey === "inboundBoxShk") {
+      const t = String(row.inboundBoxShk ?? "").trim();
+      return t || "—";
+    }
     if (colKey === "inventoryNumber") {
       const t = String(row.inventoryNumber ?? "").trim();
       return t || "—";
@@ -270,7 +294,6 @@ function formatWbMoneyRu(value: unknown): string {
 }
 
 function formatWbCellValue(key: string, value: unknown): string {
-  if (key === "hasClaim") return value === true || value === "true" ? "Да" : "Нет";
   if (value === null || value === undefined) return "";
   if (
     key === "totalPriceRub" ||
@@ -376,7 +399,10 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     placeCount: number;
     totalClaimRub: string | number;
     totalInboundRub: string | number;
+    totalNotInInboundClaimRub: string | number;
   } | null>(null);
+  const [summaryOnlyNotInInbound, setSummaryOnlyNotInInbound] = useState(false);
+  const [summarySort, setSummarySort] = useState<{ by: string; dir: "asc" | "desc" }>({ by: "", dir: "asc" });
   const [clearingSummary, setClearingSummary] = useState(false);
   /** Текстовый список короб:ШК для вкладки «Описи» ($1:1:3820740543:120762). */
   const [inboundBoxShkText, setInboundBoxShkText] = useState("");
@@ -452,6 +478,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         inventoryNumber: activeTab === "inbound" ? filters.inventoryNumber : undefined,
         boxId: filters.boxId,
         claimNumber: activeTab === "summary" ? filters.claimNumber : undefined,
+        onlyNotInInbound: activeTab === "summary" && summaryOnlyNotInInbound ? "true" : undefined,
+        sortBy: activeTab === "summary" && summarySort.by ? summarySort.by : undefined,
+        sortDir: activeTab === "summary" && summarySort.by ? summarySort.dir : undefined,
         q: filters.q,
         history: activeTab === "claims" ? "true" : undefined,
         view:
@@ -479,6 +508,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             placeCount: Number((sh as { placeCount?: unknown }).placeCount ?? data?.total ?? 0),
             totalClaimRub: (sh as { totalClaimRub?: unknown }).totalClaimRub ?? "0",
             totalInboundRub: (sh as { totalInboundRub?: unknown }).totalInboundRub ?? "0",
+            totalNotInInboundClaimRub: (sh as { totalNotInInboundClaimRub?: unknown }).totalNotInInboundClaimRub ?? "0",
           });
         } else {
           setSummaryHeader(null);
@@ -507,6 +537,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     filters.q,
     inboundSummarySort.by,
     inboundSummarySort.dir,
+    summaryOnlyNotInInbound,
+    summarySort.by,
+    summarySort.dir,
     limit,
     page,
   ]);
@@ -576,6 +609,15 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     setInboundSummarySort((prev) => {
       if (prev.by === sortKey) return { by: sortKey, dir: prev.dir === "asc" ? "desc" : "asc" };
       return { by: sortKey, dir: sortKey === "inventoryNumber" ? "asc" : "desc" };
+    });
+    setPage(1);
+  }, []);
+
+  const onSummarySortClick = useCallback((key: string) => {
+    if (!WB_SUMMARY_SORT_KEYS.has(key)) return;
+    setSummarySort((prev) => {
+      if (prev.by === key) return { by: key, dir: prev.dir === "asc" ? "desc" : "asc" };
+      return { by: key, dir: "asc" };
     });
     setPage(1);
   }, []);
@@ -1051,7 +1093,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         { key: "inventoryCreatedAt", label: "Дата ведомости" },
         { key: "boxCount", label: "Кол-во коробов" },
         { key: "totalPriceRub", label: "Общая стоимость, RUB" },
-        { key: "hasClaim", label: "Претензия" },
       ];
     }
     if (activeTab === "returned") {
@@ -1076,6 +1117,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       { key: "lineNumber", label: "№" },
       { key: "shk", label: "ШК" },
       { key: "boxId", label: "Номер короба" },
+      { key: "inboundBoxShk", label: "ШК короба" },
       { key: "isReturned", label: "Возвращена" },
       { key: "claimRowNumber", label: "Номер строки претензии" },
       { key: "claimPriceRub", label: "Цена из претензии" },
@@ -1350,6 +1392,35 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                 ₽
               </strong>
             </Typography.Body>
+            <Typography.Body style={{ margin: 0 }}>
+              <span style={{ color: "var(--color-text-secondary)" }}>Нет в описях (по претензии): </span>
+              <strong>
+                {Number(summaryHeader?.totalNotInInboundClaimRub ?? 0).toLocaleString("ru-RU", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                ₽
+              </strong>
+            </Typography.Body>
+            <label
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                cursor: "pointer",
+                margin: 0,
+                userSelect: "none",
+              }}
+            >
+              <Switch
+                checked={summaryOnlyNotInInbound}
+                onChange={(e) => {
+                  setSummaryOnlyNotInInbound(e.currentTarget.checked);
+                  setPage(1);
+                }}
+              />
+              <Typography.Body style={{ margin: 0, fontSize: "0.875rem" }}>Только нет в описях</Typography.Body>
+            </label>
             {canUpload && (
               <button
                 type="button"
@@ -1380,7 +1451,11 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                         ? inboundSummarySort.dir === "asc"
                           ? "ascending"
                           : "descending"
-                        : undefined
+                        : activeTab === "summary" && summarySort.by === col.key
+                          ? summarySort.dir === "asc"
+                            ? "ascending"
+                            : "descending"
+                          : undefined
                     }
                   >
                     {activeTab === "inbound" ? (
@@ -1393,6 +1468,15 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                         {inboundSummarySort.by === col.key ? (
                           <span className="wb-sort-indicator" aria-hidden>
                             {inboundSummarySort.dir === "asc" ? " ▲" : " ▼"}
+                          </span>
+                        ) : null}
+                      </button>
+                    ) : activeTab === "summary" && WB_SUMMARY_SORT_KEYS.has(col.key) ? (
+                      <button type="button" className="wb-sort-th" onClick={() => onSummarySortClick(col.key)}>
+                        <span>{col.label}</span>
+                        {summarySort.by === col.key ? (
+                          <span className="wb-sort-indicator" aria-hidden>
+                            {summarySort.dir === "asc" ? " ▲" : " ▼"}
                           </span>
                         ) : null}
                       </button>
