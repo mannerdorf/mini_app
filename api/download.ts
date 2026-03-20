@@ -13,11 +13,31 @@ import { initRequestContext, logError } from "./_lib/observability.js";
 
 const EXTERNAL_API_BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetFile";
+const GETAPI_BASE_URL =
+  "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 
 // Authorization: Basic YWRtaW46anVlYmZueWU= (admin:juebfnye)
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 // Для Договор и АктСверки используется Auth: Basic Info@haulz.pro:Y2ME42XyI_
 const HAULZ_AUTH = "Basic Info@haulz.pro:Y2ME42XyI_";
+// Для АПП в WB: как в Postman (Getperevozka/GetFile) через order@lal-auto.com
+const WB_APP_ORDER_AUTH =
+  process.env.WB_APP_ORDER_AUTH || "Basic order@lal-auto.com:ZakaZ656565";
+
+async function precheckWbAppPerevozka(number: string): Promise<{ ok: boolean; status: number; text: string }> {
+  const u = new URL(GETAPI_BASE_URL);
+  u.searchParams.set("metod", "Getperevozka");
+  u.searchParams.set("Number", number);
+  const r = await fetch(u.toString(), {
+    headers: {
+      Auth: WB_APP_ORDER_AUTH,
+      Authorization: SERVICE_AUTH,
+      Accept: "application/json, text/plain, */*",
+    },
+  });
+  const text = await r.text();
+  return { ok: r.ok, status: r.status, text };
+}
 
 const TRANSLIT: Record<string, string> = {
   а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z",
@@ -174,9 +194,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Invalid inn (expected 10-12 digits)", request_id: ctx.requestId });
     }
 
+    const isWbAppMethod = metod === "АПП";
+
     // Зарегистрированные (CMS) пользователи: проверяем доступ к перевозке, затем запрашиваем файл сервисным аккаунтом
     // РеестрКсчету использует номер счёта — проверка cache_perevozki не применима
-    if (isRegisteredUser && metod !== "РеестрКсчету") {
+    if (isRegisteredUser && metod !== "РеестрКсчету" && !isWbAppMethod) {
       try {
         const pool = getPool();
         const verified = await verifyRegisteredUser(pool, login, password);
@@ -239,8 +261,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       metod === "AktSverki" ||
       metod === "РеестрКсчету" ||
       metod === "ЭР";
+    const useWbOrderAuth = isWbAppMethod;
+
     if (useHaulzAuth) {
       // Auth: Basic Info@haulz.pro:Y2ME42XyI_, Authorization: Basic YWRtaW46anVlYmZueWU=
+      login = "";
+      password = "";
+    } else if (useWbOrderAuth) {
       login = "";
       password = "";
     } else {
@@ -262,6 +289,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (metod === "АПП" || metod === "ЭР") {
       const td = stripToTransportDigits(String(number));
       if (td) number = normalizeWbPerevozkaHaulzDigits(td);
+    }
+
+    if (isWbAppMethod) {
+      const pre = await precheckWbAppPerevozka(number);
+      if (!pre.ok) {
+        return res.status(404).json({
+          error: "Перевозка не найдена или нет доступа (Getperevozka)",
+          upstream_status: pre.status,
+          upstream_snippet: pre.text.slice(0, 500),
+          request_id: ctx.requestId,
+        });
+      }
     }
 
     // Формируем URL ровно как в Postman/curl:
@@ -286,7 +325,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       headers: {
         // Для Договор/АктСверки: Auth: Basic Info@haulz.pro:Y2ME42XyI_
         // Для ЭР и др.: Auth: Basic login:password
-        Auth: useHaulzAuth ? HAULZ_AUTH : `Basic ${login}:${password}`,
+        Auth: useHaulzAuth
+          ? HAULZ_AUTH
+          : useWbOrderAuth
+            ? WB_APP_ORDER_AUTH
+            : `Basic ${login}:${password}`,
         Authorization: SERVICE_AUTH,
         Accept: "*/*",
         "Accept-Encoding": "identity",
