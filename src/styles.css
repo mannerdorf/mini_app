@@ -2026,6 +2026,18 @@ body {
     box-shadow: inset 0 0 0 2px rgba(124, 58, 237, 0.55);
     background: rgba(124, 58, 237, 0.12) !important;
 }
+/** Выделенные номера описей (список на фронте). */
+.wb-inbound-summary-row--inv-highlight {
+    background: rgba(139, 92, 246, 0.26) !important;
+    box-shadow: inset 0 0 0 1px rgba(109, 40, 217, 0.45);
+}
+.wb-inbound-summary-row--inv-highlight:hover {
+    background: rgba(139, 92, 246, 0.34) !important;
+}
+.wb-inbound-summary-row--inv-highlight.wb-inbound-summary-row--filter-hit {
+    box-shadow: inset 0 0 0 2px rgba(91, 33, 182, 0.75);
+    background: rgba(124, 58, 237, 0.22) !important;
+}
 .wb-inbound-detail-line--hit td {
     background: rgba(250, 204, 21, 0.2);
 }

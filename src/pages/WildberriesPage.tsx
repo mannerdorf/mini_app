@@ -27,6 +27,21 @@ type InboundSummarySortKey = "inventoryNumber" | "inventoryCreatedAt" | "boxCoun
 
 const INBOUND_SUMMARY_SORT_KEYS = new Set<string>(["inventoryNumber", "inventoryCreatedAt", "boxCount", "totalPriceRub"]);
 
+/** Номера описей, которые подсвечиваются фиолетовым на вкладке «Описи». */
+const WB_INBOUND_HIGHLIGHT_INVENTORY_NUMBERS = new Set([
+  "208633205",
+  "208359616",
+  "208550564",
+  "208614312",
+  "208630095",
+]);
+
+function normalizeWbInventoryNumberKey(raw: unknown): string {
+  return String(raw ?? "")
+    .replace(/\s+/g, "")
+    .trim();
+}
+
 const INBOUND_DETAIL_COLUMNS: ColumnDef[] = [
   { key: "lineNumber", label: "№" },
   { key: "inventoryNumber", label: "Номер ввозной описи" },
@@ -195,6 +210,7 @@ function formatWbSummaryCell(colKey: string, row: Record<string, unknown>): stri
 }
 
 function formatWbCellValue(key: string, value: unknown): string {
+  if (key === "hasClaim") return value === true || value === "true" ? "Да" : "Нет";
   if (value === null || value === undefined) return "";
   if (key === "totalPriceRub" || key === "priceRub" || key === "totalAmountRub") {
     const n = Number(value);
@@ -887,6 +903,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         { key: "inventoryCreatedAt", label: "Дата ведомости" },
         { key: "boxCount", label: "Кол-во коробов" },
         { key: "totalPriceRub", label: "Общая стоимость, RUB" },
+        { key: "hasClaim", label: "Претензия" },
       ];
     }
     if (activeTab === "returned") {
@@ -1226,12 +1243,13 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                   const open = expandedInboundInv === inv;
                   const detailRowsRaw = inboundDetailsCache[inv] ?? [];
                   const needle = inboundDetailNeedle;
+                  const invHighlight = WB_INBOUND_HIGHLIGHT_INVENTORY_NUMBERS.has(normalizeWbInventoryNumberKey(row.inventoryNumber));
                   return (
                     <React.Fragment key={`inbound-${inv}-${idx}`}>
                       <tr
                         className={`wb-inbound-summary-row ${open ? "wb-inbound-summary-row--open" : ""}${
                           inboundSummaryFilterHit ? " wb-inbound-summary-row--filter-hit" : ""
-                        }`}
+                        }${invHighlight ? " wb-inbound-summary-row--inv-highlight" : ""}`}
                         onClick={() => toggleInboundRow(inv)}
                         role="button"
                         tabIndex={0}

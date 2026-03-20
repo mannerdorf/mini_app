@@ -92,6 +92,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const whereSql = where.length ? `where ${where.join(" and ")}` : "";
 
     if (view === "summary") {
+      const claimsReady =
+        (await pgTableExists(pool, "wb_claims_items")) &&
+        (await pgTableExists(pool, "wb_claims_revisions"));
+      /** Совпадение номера коробки в строке описи с активной претензией. */
+      const hasClaimSql = claimsReady
+        ? `bool_or(
+            exists (
+              select 1 from wb_claims_items ci
+              where ci.revision_id = (
+                select r.id from wb_claims_revisions r
+                where r.is_active = true
+                order by r.uploaded_at desc
+                limit 1
+              )
+              and nullif(trim(b.box_number), '') is not null
+              and nullif(trim(ci.box_id), '') is not null
+              and trim(b.box_number) = trim(ci.box_id)
+            )
+          )`
+        : `false`;
+
       const countSql = `
         select count(*)::int as total from (
           select i.inventory_number
@@ -131,7 +152,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           max(b.inventory_created_at)::date as "inventoryCreatedAt",
           count(distinct b.box_number)::int as "boxCount",
           coalesce(sum(b.price_rub), 0)::numeric as "totalPriceRub",
-          count(*)::int as "lineCount"
+          count(*)::int as "lineCount",
+          ${hasClaimSql} as "hasClaim"
         from base b
         group by b.inventory_number
         order by ${orderExpr} ${orderDir} ${nullsClause}, b.inventory_number desc
