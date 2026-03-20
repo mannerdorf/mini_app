@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
 import { TapSwitch } from "../components/TapSwitch";
-import { Download, FileDown, FileUp, RefreshCw, Trash2, Upload } from "lucide-react";
+import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
+import { Download, FileDown, FileUp, RefreshCw, Trash2, Upload, ChevronDown, X } from "lucide-react";
 import type { AuthData } from "../types";
 import { downloadBase64File } from "../utils";
 
@@ -33,18 +34,14 @@ const WB_SUMMARY_SORT_KEYS = new Set<string>([
   "inboundPriceRub",
 ]);
 
-/** Колонки логистики из импорта возвратной описи (без сортировки по заголовку). */
+/** Колонки логистики из импорта возвратной описи (без сортировки по заголовку). Бейдж «Статус» — отдельно в ячейке. */
 const WB_SUMMARY_LOGISTICS_KEYS = new Set<string>([
   "lvPerevozkaNasha",
   "lvOtchetDostavki",
   "lvOtpavkaAp",
-  "lvStoimost",
-  "lvLogisticsStatus",
-  "lvData",
   "lvDataInfo",
   "lvDataUpakovano",
   "lvDataKonsolidirovano",
-  "lvDataVAeroport",
   "lvDataUletelo",
   "lvDataKVrucheniyu",
   "lvDataDostavleno",
@@ -251,9 +248,6 @@ function formatWbSummaryCell(colKey: string, row: Record<string, unknown>): stri
   if (colKey === "isReturned") {
     return row.isReturned === true || row.isReturned === "true" ? "Да" : "Нет";
   }
-  if (colKey === "status1c") {
-    return String(row.status1c ?? "").trim();
-  }
   if (colKey === "boxId") return formatWbCellValue("boxId", row.boxId);
   if (colKey === "claimRowNumber") {
     const v = row.claimRowNumber;
@@ -370,6 +364,209 @@ function buildQuery(params: Record<string, string | number | undefined>) {
   return query.toString();
 }
 
+/** Код посылки для GetPosilka (справочник 1С / cargo_number; иначе поиск GA… в ШК короба). */
+function wbPostbPosilkaCode(rec: Record<string, unknown>): string {
+  const app = String(rec.appCargoNumber ?? "").trim();
+  if (/^GA[0-9A-Z_-]+$/i.test(app)) return app;
+  let g = app.match(/GA[0-9A-Z_-]+/i);
+  if (g) return g[0];
+  const box = String(rec.inboundBoxShk ?? "").trim();
+  g = box.match(/GA[0-9A-Z_-]+/i);
+  if (g) return g[0];
+  return app;
+}
+
+function wbPerevozkaNumberRaw(rec: Record<string, unknown>): string {
+  return String(rec.lvPerevozkaNasha ?? "").trim();
+}
+
+function tryParseRuOrIsoDate(raw: string): Date | null {
+  const t = raw.trim();
+  if (!t) return null;
+  const iso = /^\d{4}-\d{2}-\d{2}/.test(t) ? new Date(t.slice(0, 10)) : null;
+  if (iso && !Number.isNaN(iso.getTime())) return iso;
+  const m = t.match(/^(\d{1,2})[./](\d{1,2})[./](\d{2,4})/);
+  if (m) {
+    const d = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    let y = Number(m[3]);
+    if (y < 100) y += 2000;
+    const dt = new Date(y, mo, d);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+  const d2 = new Date(t);
+  return Number.isNaN(d2.getTime()) ? null : d2;
+}
+
+function WbPerevozkaTimelineModal(props: {
+  open: boolean;
+  number: string;
+  authHeaders: Record<string, string>;
+  onClose: () => void;
+}) {
+  const { open, number, authHeaders, onClose } = props;
+  const [steps, setSteps] = useState<Array<{ title: string; date: string }>>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open || !number) return;
+    let cancelled = false;
+    setLoading(true);
+    setSteps([]);
+    void (async () => {
+      try {
+        const u = `/api/wb/postb-getapi?kind=perevozka&number=${encodeURIComponent(number)}`;
+        const res = await fetch(u, { headers: authHeaders });
+        const d = (await res.json().catch(() => ({}))) as { steps?: Array<{ title: string; date: string }> };
+        if (!cancelled) setSteps(Array.isArray(d?.steps) ? d.steps : []);
+      } catch {
+        if (!cancelled) setSteps([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, number, authHeaders]);
+
+  if (!open) return null;
+
+  const formatLine = (dateRaw: string) => {
+    if (!dateRaw) return "";
+    const dt = tryParseRuOrIsoDate(dateRaw);
+    if (!dt)
+      return (
+        <span className="wb-timeline-date-muted">{dateRaw}</span>
+      );
+    const wd = dt.toLocaleDateString("ru-RU", { weekday: "short" });
+    const rest = dt.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+    return (
+      <span className="wb-timeline-date-line">
+        <span className="wb-timeline-wd">{wd}</span>
+        <span className="wb-timeline-d">, {rest}</span>
+      </span>
+    );
+  };
+
+  const dotClass = (title: string, idx: number, total: number) => {
+    const low = title.toLowerCase();
+    if (idx === total - 1) return "perevozka-timeline-dot perevozka-timeline-dot-success";
+    if (low.includes("отправлен") && !low.includes("доставлен")) {
+      return "perevozka-timeline-dot perevozka-timeline-dot-warning";
+    }
+    return "perevozka-timeline-dot perevozka-timeline-dot-default";
+  };
+
+  const n = steps.length;
+    const fillPct = n <= 1 ? 100 : Math.min(100, Math.max(8, ((n - 1) / Math.max(n - 1, 1)) * 100));
+
+  return (
+    <div
+      className="wb-perevozka-modal-backdrop"
+      role="presentation"
+      onClick={onClose}
+      onKeyDown={(e) => e.key === "Escape" && onClose()}
+    >
+      <div
+        className="wb-perevozka-modal"
+        role="dialog"
+        aria-labelledby="wb-perevozka-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="wb-perevozka-modal-head">
+          <Typography.Body id="wb-perevozka-title" style={{ fontWeight: 700, fontSize: "1.05rem" }}>
+            Статусы перевозки
+          </Typography.Body>
+          <button type="button" className="wb-perevozka-modal-close" aria-label="Закрыть" onClick={onClose}>
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <Typography.Body style={{ color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+          Перевозка № {number}
+        </Typography.Body>
+        {loading ? (
+          <Typography.Body>Загрузка…</Typography.Body>
+        ) : steps.length === 0 ? (
+          <Typography.Body style={{ color: "var(--color-text-secondary)" }}>
+            Нет данных статусов (проверьте ответ Getperevozka или номер перевозки).
+          </Typography.Body>
+        ) : (
+          <div className="perevozka-timeline-wrap">
+            <div className="perevozka-timeline" style={{ position: "relative" }}>
+              <div className="perevozka-timeline-track-fill" style={{ height: `${fillPct}%` }} />
+              {steps.map((s, idx) => (
+                <div key={`${idx}-${s.title}`} className="perevozka-timeline-item">
+                  <div className={dotClass(s.title, idx, steps.length)} />
+                  <div className="perevozka-timeline-content">
+                    <Typography.Body style={{ fontWeight: 700, marginBottom: 2 }}>{s.title}</Typography.Body>
+                    <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                      {formatLine(s.date)}
+                    </Typography.Body>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WbSummaryPostb1cBadge(props: {
+  authHeaders: Record<string, string>;
+  code: string;
+  fallback1c: string;
+  perevozkaNumber: string;
+  onOpenTimeline: (num: string) => void;
+}) {
+  const { authHeaders, code, fallback1c, perevozkaNumber, onOpenTimeline } = props;
+  const [label, setLabel] = useState<string>(fallback1c || "");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!code) {
+      setLabel(fallback1c || "—");
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    void (async () => {
+      try {
+        const u = `/api/wb/postb-getapi?kind=posilka&code=${encodeURIComponent(code)}`;
+        const res = await fetch(u, { headers: authHeaders });
+        const d = (await res.json().catch(() => ({}))) as { lastStatus?: string };
+        if (cancelled) return;
+        const last = String(d?.lastStatus ?? "").trim();
+        setLabel(last || fallback1c || "—");
+      } catch {
+        if (!cancelled) setLabel(fallback1c || "—");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [code, fallback1c, authHeaders]);
+
+  const display = loading ? "…" : label || "—";
+  return (
+    <button
+      type="button"
+      className="wb-postb-1c-badge"
+      disabled={!perevozkaNumber}
+      title={perevozkaNumber ? "Открыть статусы перевозки" : "Укажите номер перевозки в колонке «Перевозка HAULZ»"}
+      onClick={() => {
+        if (perevozkaNumber) onOpenTimeline(perevozkaNumber);
+      }}
+    >
+      {display}
+    </button>
+  );
+}
+
 type WbInboundListFilters = {
   dateFrom: string;
   dateTo: string;
@@ -451,6 +648,22 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     hasShk: false,
   });
 
+  const [summaryFilterStatus, setSummaryFilterStatus] = useState("");
+  const [summaryFilterBox, setSummaryFilterBox] = useState("");
+  const [summaryFilterInventory, setSummaryFilterInventory] = useState("");
+  const [summaryFilterOpts, setSummaryFilterOpts] = useState<{
+    statuses: string[];
+    boxes: string[];
+    inventories: string[];
+  }>({ statuses: [], boxes: [], inventories: [] });
+  const [summaryDdStatus, setSummaryDdStatus] = useState(false);
+  const [summaryDdBox, setSummaryDdBox] = useState(false);
+  const [summaryDdInv, setSummaryDdInv] = useState(false);
+  const summaryStatusBtnRef = useRef<HTMLDivElement>(null);
+  const summaryBoxBtnRef = useRef<HTMLDivElement>(null);
+  const summaryInvBtnRef = useRef<HTMLDivElement>(null);
+  const [perevozkaModalNumber, setPerevozkaModalNumber] = useState<string | null>(null);
+
   const [filters, setFilters] = useState({
     dateFrom: "",
     dateTo: "",
@@ -487,6 +700,32 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     return "/api/wb/summary";
   }, [activeTab]);
 
+  useEffect(() => {
+    if (activeTab !== "summary") return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/wb/summary/filter-options", { headers: authHeaders });
+        const d = (await res.json().catch(() => ({}))) as {
+          statuses?: string[];
+          boxes?: string[];
+          inventories?: string[];
+        };
+        if (cancelled) return;
+        setSummaryFilterOpts({
+          statuses: Array.isArray(d?.statuses) ? d.statuses : [],
+          boxes: Array.isArray(d?.boxes) ? d.boxes : [],
+          inventories: Array.isArray(d?.inventories) ? d.inventories : [],
+        });
+      } catch {
+        if (!cancelled) setSummaryFilterOpts({ statuses: [], boxes: [], inventories: [] });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, authHeaders]);
+
   const loadData = useCallback(async () => {
     const gen = ++wbLoadGenRef.current;
     setLoading(true);
@@ -501,8 +740,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         boxId: filters.boxId,
         claimNumber: activeTab === "summary" ? filters.claimNumber : undefined,
         onlyNotInInbound: activeTab === "summary" && summaryOnlyNotInInbound ? "true" : undefined,
-        sortBy: activeTab === "summary" && summarySort.by ? summarySort.by : undefined,
-        sortDir: activeTab === "summary" && summarySort.by ? summarySort.dir : undefined,
         q: filters.q,
         history: activeTab === "claims" ? "true" : undefined,
         view:
@@ -513,8 +750,14 @@ export function WildberriesPage({ auth, canUpload }: Props) {
               : activeTab === "claims"
                 ? "summary"
                 : undefined,
-        sortBy: activeTab === "inbound" ? inboundSummarySort.by : undefined,
-        sortDir: activeTab === "inbound" ? inboundSummarySort.dir : undefined,
+        ...(activeTab === "summary" && summarySort.by
+          ? { sortBy: summarySort.by, sortDir: summarySort.dir }
+          : activeTab === "inbound"
+            ? { sortBy: inboundSummarySort.by, sortDir: inboundSummarySort.dir }
+            : {}),
+        ...(activeTab === "summary" && summaryFilterStatus ? { filterLogisticsStatus: summaryFilterStatus } : {}),
+        ...(activeTab === "summary" && summaryFilterBox ? { filterBoxExact: summaryFilterBox } : {}),
+        ...(activeTab === "summary" && summaryFilterInventory ? { filterInventoryExact: summaryFilterInventory } : {}),
       });
       const res = await fetch(`${dataEndpoint}?${query}`, { headers: authHeaders });
       const data = await res.json().catch(() => ({}));
@@ -562,6 +805,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     summaryOnlyNotInInbound,
     summarySort.by,
     summarySort.dir,
+    summaryFilterStatus,
+    summaryFilterBox,
+    summaryFilterInventory,
     limit,
     page,
   ]);
@@ -924,10 +1170,10 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     }
   }, [authHeaders, inboundBoxShkText, loadData]);
 
-  const handleDownloadWbApp = useCallback(async (cargoNumber: string, loadingKey: string) => {
-    const n = String(cargoNumber ?? "").trim();
+  const handleDownloadWbApp = useCallback(async (perevozkaNumber: string, loadingKey: string) => {
+    const n = String(perevozkaNumber ?? "").trim();
     if (!n) {
-      setUploadError("В справочнике 1С не указан номер перевозки для этого ШК");
+      setUploadError("Нет номера перевозки (колонка «Перевозка HAULZ»)");
       return;
     }
     setUploadError(null);
@@ -936,7 +1182,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       const res = await fetch("/api/download", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ metod: "АПП", number: n }),
+        body: JSON.stringify({ metod: "ЭР", number: n }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message || data?.error || "Не удалось получить АПП");
@@ -1106,6 +1352,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         block: activeTab,
         format,
         q: filters.q,
+        ...(activeTab === "summary" && summaryFilterStatus ? { filterLogisticsStatus: summaryFilterStatus } : {}),
+        ...(activeTab === "summary" && summaryFilterBox ? { filterBoxExact: summaryFilterBox } : {}),
+        ...(activeTab === "summary" && summaryFilterInventory ? { filterInventoryExact: summaryFilterInventory } : {}),
       });
       const res = await fetch(`/api/wb/export?${query}`, { headers: authHeaders });
       if (!res.ok) return;
@@ -1117,7 +1366,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       a.click();
       URL.revokeObjectURL(url);
     },
-    [activeTab, authHeaders, filters.q],
+    [activeTab, authHeaders, filters.q, summaryFilterStatus, summaryFilterBox, summaryFilterInventory],
   );
 
   const handleManualReturnedSubmit = useCallback(async () => {
@@ -1188,17 +1437,14 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       { key: "inboundRowNumber", label: "Номер строки в описи" },
       { key: "inboundTitle", label: "Описание в описи" },
       { key: "inboundPriceRub", label: "Стоимость в описи" },
-      { key: "lvPerevozkaNasha", label: "Перевозка наша" },
+      { key: "lvPerevozkaNasha", label: "Перевозка HAULZ" },
       { key: "lvOtchetDostavki", label: "Отчет о доставке" },
-      { key: "lvOtpavkaAp", label: "Отправка в АП" },
-      { key: "lvStoimost", label: "Стоимость" },
+      { key: "lvOtpavkaAp", label: "Отправка" },
       { key: "lvLogisticsStatus", label: "Статус" },
-      { key: "lvData", label: "Дата" },
       { key: "lvDataInfo", label: "Дата получена информация" },
       { key: "lvDataUpakovano", label: "Дата упаковано" },
       { key: "lvDataKonsolidirovano", label: "Дата консолидировано" },
-      { key: "lvDataVAeroport", label: "Дата отправлено в аэропорт" },
-      { key: "lvDataUletelo", label: "Дата Улетело" },
+      { key: "lvDataUletelo", label: "Дата отправки" },
       { key: "lvDataKVrucheniyu", label: "Дата к Вручению" },
       { key: "lvDataDostavleno", label: "Дата Доставлено" },
       { key: "status1c", label: "Статус 1С" },
@@ -1290,6 +1536,136 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             placeholder="Поиск по всем полям"
           />
         </div>
+
+        {activeTab === "summary" && (
+          <Flex gap="0.45rem" wrap="wrap" align="center" style={{ marginTop: "0.5rem" }}>
+            <div ref={summaryStatusBtnRef} style={{ display: "inline-flex" }}>
+              <Button
+                className="filter-button"
+                onClick={() => {
+                  setSummaryDdStatus((v) => !v);
+                  setSummaryDdBox(false);
+                  setSummaryDdInv(false);
+                }}
+              >
+                Статус: {summaryFilterStatus || "Все"} <ChevronDown className="w-4 h-4" />
+              </Button>
+            </div>
+            <FilterDropdownPortal
+              triggerRef={summaryStatusBtnRef}
+              isOpen={summaryDdStatus}
+              onClose={() => setSummaryDdStatus(false)}
+            >
+              <div
+                className="dropdown-item"
+                onClick={() => {
+                  setSummaryFilterStatus("");
+                  setSummaryDdStatus(false);
+                  setPage(1);
+                }}
+              >
+                <Typography.Body>Все</Typography.Body>
+              </div>
+              {summaryFilterOpts.statuses.map((s) => (
+                <div
+                  key={s}
+                  className="dropdown-item"
+                  onClick={() => {
+                    setSummaryFilterStatus(s);
+                    setSummaryDdStatus(false);
+                    setPage(1);
+                  }}
+                >
+                  <Typography.Body>{s}</Typography.Body>
+                </div>
+              ))}
+            </FilterDropdownPortal>
+
+            <div ref={summaryBoxBtnRef} style={{ display: "inline-flex" }}>
+              <Button
+                className="filter-button"
+                onClick={() => {
+                  setSummaryDdBox((v) => !v);
+                  setSummaryDdStatus(false);
+                  setSummaryDdInv(false);
+                }}
+              >
+                Короб: {summaryFilterBox || "Все"} <ChevronDown className="w-4 h-4" />
+              </Button>
+            </div>
+            <FilterDropdownPortal
+              triggerRef={summaryBoxBtnRef}
+              isOpen={summaryDdBox}
+              onClose={() => setSummaryDdBox(false)}
+            >
+              <div
+                className="dropdown-item"
+                onClick={() => {
+                  setSummaryFilterBox("");
+                  setSummaryDdBox(false);
+                  setPage(1);
+                }}
+              >
+                <Typography.Body>Все</Typography.Body>
+              </div>
+              {summaryFilterOpts.boxes.map((s) => (
+                <div
+                  key={s}
+                  className="dropdown-item"
+                  onClick={() => {
+                    setSummaryFilterBox(s);
+                    setSummaryDdBox(false);
+                    setPage(1);
+                  }}
+                >
+                  <Typography.Body>{s}</Typography.Body>
+                </div>
+              ))}
+            </FilterDropdownPortal>
+
+            <div ref={summaryInvBtnRef} style={{ display: "inline-flex" }}>
+              <Button
+                className="filter-button"
+                onClick={() => {
+                  setSummaryDdInv((v) => !v);
+                  setSummaryDdStatus(false);
+                  setSummaryDdBox(false);
+                }}
+              >
+                Опись: {summaryFilterInventory || "Все"} <ChevronDown className="w-4 h-4" />
+              </Button>
+            </div>
+            <FilterDropdownPortal
+              triggerRef={summaryInvBtnRef}
+              isOpen={summaryDdInv}
+              onClose={() => setSummaryDdInv(false)}
+            >
+              <div
+                className="dropdown-item"
+                onClick={() => {
+                  setSummaryFilterInventory("");
+                  setSummaryDdInv(false);
+                  setPage(1);
+                }}
+              >
+                <Typography.Body>Все</Typography.Body>
+              </div>
+              {summaryFilterOpts.inventories.map((s) => (
+                <div
+                  key={s}
+                  className="dropdown-item"
+                  onClick={() => {
+                    setSummaryFilterInventory(s);
+                    setSummaryDdInv(false);
+                    setPage(1);
+                  }}
+                >
+                  <Typography.Body>{s}</Typography.Body>
+                </div>
+              ))}
+            </FilterDropdownPortal>
+          </Flex>
+        )}
 
         <Flex gap="0.5rem" wrap="wrap" align="center" style={{ marginTop: "0.75rem" }}>
           <Button className="wb-action-btn" onClick={() => void handleWbRefreshClick()} disabled={loading}>
@@ -1958,44 +2334,54 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                         <td key={col.key}>
                           {col.key === "lineNumber" ? (
                             String(lineNo)
+                          ) : col.key === "lvLogisticsStatus" ? (
+                            (() => {
+                              const t = String(rec.lvLogisticsStatus ?? "").trim();
+                              if (!t) return "—";
+                              const low = t.toLowerCase();
+                              let cls = "wb-log-badge wb-log-badge--muted";
+                              if (low.includes("доставлен")) cls = "wb-log-badge wb-log-badge--ok";
+                              else if (low.includes("отправлен") || low.includes("улетел")) cls = "wb-log-badge wb-log-badge--warn";
+                              return <span className={cls}>{t}</span>;
+                            })()
                           ) : col.key === "status1c" ? (
                             <div
                               style={{
                                 display: "flex",
-                                flexDirection: "column",
-                                alignItems: "flex-start",
-                                gap: "0.35rem",
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: "0.45rem",
+                                flexWrap: "wrap",
                               }}
                             >
-                              <span>
-                                {(() => {
-                                  const t = formatWbSummaryCell(col.key, rec);
-                                  return t || "—";
-                                })()}
-                              </span>
-                              {(() => {
-                                const st = String(rec.status1c ?? "").trim();
-                                const cargo = String(rec.appCargoNumber ?? "").trim();
-                                const show =
-                                  st.length > 0 && st !== "не найден" && cargo.length > 0;
-                                if (!show) return null;
-                                const busy = wbAppDownloadingKey === appKey;
-                                return (
-                                  <Button
-                                    size="small"
-                                    className="wb-action-btn"
-                                    disabled={busy}
-                                    onClick={() => void handleDownloadWbApp(cargo, appKey)}
-                                  >
-                                    {busy ? (
-                                      <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden />
-                                    ) : (
-                                      <FileDown className="w-3.5 h-3.5" aria-hidden />
-                                    )}
-                                    {busy ? " …" : " Скачать АПП"}
-                                  </Button>
-                                );
-                              })()}
+                              <WbSummaryPostb1cBadge
+                                authHeaders={authHeaders}
+                                code={wbPostbPosilkaCode(rec)}
+                                fallback1c={String(rec.status1c ?? "").trim()}
+                                perevozkaNumber={wbPerevozkaNumberRaw(rec)}
+                                onOpenTimeline={(num) => setPerevozkaModalNumber(num)}
+                              />
+                              {wbPerevozkaNumberRaw(rec) ? (
+                                (() => {
+                                  const busy = wbAppDownloadingKey === appKey;
+                                  return (
+                                    <Button
+                                      size="small"
+                                      className="wb-action-btn"
+                                      disabled={busy}
+                                      title="Скачать АПП (GetFile, ЭР)"
+                                      onClick={() => void handleDownloadWbApp(wbPerevozkaNumberRaw(rec), appKey)}
+                                    >
+                                      {busy ? (
+                                        <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden />
+                                      ) : (
+                                        <FileDown className="w-3.5 h-3.5" aria-hidden />
+                                      )}
+                                      {busy ? " …" : " АПП"}
+                                    </Button>
+                                  );
+                                })()
+                              ) : null}
                             </div>
                           ) : (
                             formatWbSummaryCell(col.key, rec)
@@ -2036,6 +2422,12 @@ export function WildberriesPage({ auth, canUpload }: Props) {
           </Flex>
         </Flex>
 
+        <WbPerevozkaTimelineModal
+          open={perevozkaModalNumber !== null}
+          number={perevozkaModalNumber ?? ""}
+          authHeaders={authHeaders}
+          onClose={() => setPerevozkaModalNumber(null)}
+        />
       </Panel>
     </div>
   );

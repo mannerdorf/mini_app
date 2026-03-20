@@ -59,6 +59,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const brand = String(req.query.brand ?? "").trim();
     const q = String(req.query.q ?? "").trim();
     const onlyNotInInbound = qsOne(req, "onlyNotInInbound").toLowerCase() === "true";
+    const filterLogisticsStatus = qsOne(req, "filterLogisticsStatus");
+    const filterBoxExact = qsOne(req, "filterBoxExact");
+    const filterInventoryExact = qsOne(req, "filterInventoryExact");
 
     const sortByRaw = qsOne(req, "sortBy");
     const sortDirRaw = qsOne(req, "sortDir").toLowerCase();
@@ -93,6 +96,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       params.push(brand.toLowerCase());
       where.push(`lower(coalesce(i.brand, '')) like '%' || $${params.length} || '%'`);
     }
+    if (filterLogisticsStatus && hasLogisticsParcel) {
+      params.push(filterLogisticsStatus);
+      where.push(`coalesce(nullif(trim(lp.logistics_status), ''), '') = $${params.length}`);
+    }
+    if (filterBoxExact) {
+      params.push(filterBoxExact);
+      where.push(`nullif(trim(s.box_id), '') = $${params.length}`);
+    }
+    if (filterInventoryExact) {
+      params.push(filterInventoryExact);
+      where.push(`nullif(trim(i.inventory_number), '') = $${params.length}`);
+    }
     if (q) {
       params.push(`%${q}%`);
       const qp = params.length;
@@ -101,13 +116,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         or coalesce(lp.perevozka_nasha, '') ilike $${qp}
         or coalesce(lp.otchet_dostavki, '') ilike $${qp}
         or coalesce(lp.otpavka_ap, '') ilike $${qp}
-        or coalesce(lp.stoimost, '') ilike $${qp}
         or coalesce(lp.logistics_status, '') ilike $${qp}
-        or coalesce(lp.data_doc, '') ilike $${qp}
         or coalesce(lp.data_info_received, '') ilike $${qp}
         or coalesce(lp.data_packed, '') ilike $${qp}
         or coalesce(lp.data_consolidated, '') ilike $${qp}
-        or coalesce(lp.data_sent_airport, '') ilike $${qp}
         or coalesce(lp.data_departed, '') ilike $${qp}
         or coalesce(lp.data_to_hand, '') ilike $${qp}
         or coalesce(lp.data_delivered, '') ilike $${qp}`
@@ -149,13 +161,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          lp.perevozka_nasha as "lvPerevozkaNasha",
          lp.otchet_dostavki as "lvOtchetDostavki",
          lp.otpavka_ap as "lvOtpavkaAp",
-         lp.stoimost as "lvStoimost",
          lp.logistics_status as "lvLogisticsStatus",
-         lp.data_doc as "lvData",
          lp.data_info_received as "lvDataInfo",
          lp.data_packed as "lvDataUpakovano",
          lp.data_consolidated as "lvDataKonsolidirovano",
-         lp.data_sent_airport as "lvDataVAeroport",
          lp.data_departed as "lvDataUletelo",
          lp.data_to_hand as "lvDataKVrucheniyu",
          lp.data_delivered as "lvDataDostavleno"`
@@ -163,13 +172,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          null::text as "lvPerevozkaNasha",
          null::text as "lvOtchetDostavki",
          null::text as "lvOtpavkaAp",
-         null::text as "lvStoimost",
          null::text as "lvLogisticsStatus",
-         null::text as "lvData",
          null::text as "lvDataInfo",
          null::text as "lvDataUpakovano",
          null::text as "lvDataKonsolidirovano",
-         null::text as "lvDataVAeroport",
          null::text as "lvDataUletelo",
          null::text as "lvDataKVrucheniyu",
          null::text as "lvDataDostavleno"`;

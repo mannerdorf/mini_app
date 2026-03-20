@@ -29,6 +29,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const block = String(req.query.block ?? "summary").trim().toLowerCase();
     const format = String(req.query.format ?? "csv").trim().toLowerCase() === "xlsx" ? "xlsx" : "csv";
     const q = String(req.query.q ?? "").trim();
+    const filterLogisticsStatus = String(req.query.filterLogisticsStatus ?? "").trim();
+    const filterBoxExact = String(req.query.filterBoxExact ?? "").trim();
+    const filterInventoryExact = String(req.query.filterInventoryExact ?? "").trim();
     const params: unknown[] = [];
     const whereQ = q
       ? (() => {
@@ -115,33 +118,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ? `lp.perevozka_nasha as lv_perevozka_nasha,
                lp.otchet_dostavki as lv_otchet_dostavki,
                lp.otpavka_ap as lv_otpavka_ap,
-               lp.stoimost as lv_stoimost,
                lp.logistics_status as lv_logistics_status,
-               lp.data_doc as lv_data,
                lp.data_info_received as lv_data_info,
                lp.data_packed as lv_data_upakovano,
                lp.data_consolidated as lv_data_konsolidirovano,
-               lp.data_sent_airport as lv_data_v_aeroport,
                lp.data_departed as lv_data_uletelo,
                lp.data_to_hand as lv_data_k_vrucheniyu,
                lp.data_delivered as lv_data_dostavleno`
           : `null::text as lv_perevozka_nasha,
                null::text as lv_otchet_dostavki,
                null::text as lv_otpavka_ap,
-               null::text as lv_stoimost,
                null::text as lv_logistics_status,
-               null::text as lv_data,
                null::text as lv_data_info,
                null::text as lv_data_upakovano,
                null::text as lv_data_konsolidirovano,
-               null::text as lv_data_v_aeroport,
                null::text as lv_data_uletelo,
                null::text as lv_data_k_vrucheniyu,
                null::text as lv_data_dostavleno`;
-        const qFilter = whereQ
+
+        const sparams: unknown[] = [];
+        const extraParts: string[] = [];
+        if (filterLogisticsStatus && hasLp) {
+          sparams.push(filterLogisticsStatus);
+          extraParts.push(`coalesce(nullif(trim(lp.logistics_status), ''), '') = $${sparams.length}`);
+        }
+        if (filterBoxExact) {
+          sparams.push(filterBoxExact);
+          extraParts.push(`nullif(trim(s.box_id), '') = $${sparams.length}`);
+        }
+        if (filterInventoryExact) {
+          sparams.push(filterInventoryExact);
+          extraParts.push(`nullif(trim(i.inventory_number), '') = $${sparams.length}`);
+        }
+        let qIdx: number | null = null;
+        if (q) {
+          sparams.push(`%${q}%`);
+          qIdx = sparams.length;
+        }
+        const extraSql = extraParts.length ? ` and ${extraParts.join(" and ")}` : "";
+        const qFilter = qIdx
           ? hasLp
-            ? `and (s.box_id ilike $${whereQ} or coalesce(s.shk,'') ilike $${whereQ} or coalesce(s.claim_number,'') ilike $${whereQ} or coalesce(s.description,'') ilike $${whereQ} or coalesce(c.description,'') ilike $${whereQ} or coalesce(i.inventory_number,'') ilike $${whereQ} or coalesce(i.shk,'') ilike $${whereQ} or coalesce(i.box_shk,'') ilike $${whereQ} or coalesce(lp.perevozka_nasha,'') ilike $${whereQ} or coalesce(lp.otchet_dostavki,'') ilike $${whereQ} or coalesce(lp.otpavka_ap,'') ilike $${whereQ} or coalesce(lp.stoimost,'') ilike $${whereQ} or coalesce(lp.logistics_status,'') ilike $${whereQ} or coalesce(lp.data_doc,'') ilike $${whereQ} or coalesce(lp.data_info_received,'') ilike $${whereQ} or coalesce(lp.data_packed,'') ilike $${whereQ} or coalesce(lp.data_consolidated,'') ilike $${whereQ} or coalesce(lp.data_sent_airport,'') ilike $${whereQ} or coalesce(lp.data_departed,'') ilike $${whereQ} or coalesce(lp.data_to_hand,'') ilike $${whereQ} or coalesce(lp.data_delivered,'') ilike $${whereQ})`
-            : `and (s.box_id ilike $${whereQ} or coalesce(s.shk,'') ilike $${whereQ} or coalesce(s.claim_number,'') ilike $${whereQ} or coalesce(s.description,'') ilike $${whereQ} or coalesce(c.description,'') ilike $${whereQ} or coalesce(i.inventory_number,'') ilike $${whereQ} or coalesce(i.shk,'') ilike $${whereQ} or coalesce(i.box_shk,'') ilike $${whereQ})`
+            ? `and (s.box_id ilike $${qIdx} or coalesce(s.shk,'') ilike $${qIdx} or coalesce(s.claim_number,'') ilike $${qIdx} or coalesce(s.description,'') ilike $${qIdx} or coalesce(c.description,'') ilike $${qIdx} or coalesce(i.inventory_number,'') ilike $${qIdx} or coalesce(i.shk,'') ilike $${qIdx} or coalesce(i.box_shk,'') ilike $${qIdx} or coalesce(lp.perevozka_nasha,'') ilike $${qIdx} or coalesce(lp.otchet_dostavki,'') ilike $${qIdx} or coalesce(lp.otpavka_ap,'') ilike $${qIdx} or coalesce(lp.logistics_status,'') ilike $${qIdx} or coalesce(lp.data_info_received,'') ilike $${qIdx} or coalesce(lp.data_packed,'') ilike $${qIdx} or coalesce(lp.data_consolidated,'') ilike $${qIdx} or coalesce(lp.data_departed,'') ilike $${qIdx} or coalesce(lp.data_to_hand,'') ilike $${qIdx} or coalesce(lp.data_delivered,'') ilike $${qIdx})`
+            : `and (s.box_id ilike $${qIdx} or coalesce(s.shk,'') ilike $${qIdx} or coalesce(s.claim_number,'') ilike $${qIdx} or coalesce(s.description,'') ilike $${qIdx} or coalesce(c.description,'') ilike $${qIdx} or coalesce(i.inventory_number,'') ilike $${qIdx} or coalesce(i.shk,'') ilike $${qIdx} or coalesce(i.box_shk,'') ilike $${qIdx})`
           : "";
         const rawRows = (
           await pool.query(
@@ -162,10 +180,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                ${lvCols}
              ${fromJoins}
              where s.declared = true
+             ${extraSql}
              ${qFilter}
              order by coalesce(c.row_number, 0), coalesce(s.shk, s.box_id, '')
              limit 10000`,
-            params,
+            sparams,
           )
         ).rows as Record<string, unknown>[];
 
