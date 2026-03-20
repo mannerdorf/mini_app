@@ -64,7 +64,7 @@ export function parseDateOnly(value: unknown): string | null {
 }
 
 /**
- * Шаблон для `... ilike $n escape '\\'` — поиск подстроки (номер коробки и т.д.).
+ * Шаблон для `... ilike $n escape '\\'` — поиск подстроки (номер короба и т.д.).
  * Экранирует % и _ во вводе пользователя.
  */
 export function pgIlikeContainsPattern(term: string): string {
@@ -158,7 +158,7 @@ export async function rebuildWbSummary(pool: Pool): Promise<{ rows: number; skip
       );
       inboundRows = ir.rows;
     }
-    /** Одна строка описи на номер коробки: приоритет — более новая дата описи, затем больший id. */
+    /** Одна строка описи на номер короба: приоритет — более новая дата описи, затем больший id. */
     const inboundByBox = new Map<string, InboundRow>();
     /** Сопоставление с претензией по ШК (wb_inbound_items.shk). */
     const inboundByShk = new Map<string, InboundRow>();
@@ -295,7 +295,7 @@ export async function rebuildWbSummary(pool: Pool): Promise<{ rows: number; skip
       }
     };
 
-    /** Активная ревизия претензий: одна строка сводной на каждую строку претензии; опись и возврат — по ШК, затем по номеру коробки. */
+    /** Активная ревизия претензий: одна строка сводной на каждую строку претензии; опись и возврат — по ШК, затем по номеру короба. */
     if (activeRevisionId && claimRows.length > 0) {
       const rowsOut: SummaryInsertRow[] = [];
       for (const claim of claimRows) {

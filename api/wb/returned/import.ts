@@ -34,7 +34,7 @@ function findHeader(data: unknown[][]) {
   return -1;
 }
 
-/** Шаблон: один столбец с ID коробок (только цифры, без шапки «номер коробки»). */
+/** Шаблон: один столбец с ID коробов (только цифры, без шапки «номер короба»). */
 function detectSingleColumnBoxIdCol(data: unknown[][]): number | null {
   let withData = 0;
   let singleDigitCol = 0;
@@ -153,7 +153,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (hIdx < 0 && singleBoxCol == null) {
       return res.status(400).json({
         error:
-          "Не найден заголовок с колонкой коробки. Ожидается таблица с заголовком или один столбец с ID коробок (от 6 цифр).",
+          "Не найден заголовок с колонкой короба. Ожидается таблица с заголовком или один столбец с ID коробов (от 6 цифр).",
         request_id: ctx.requestId,
       });
     }
@@ -180,7 +180,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         boxId = asText(row[singleBoxCol]).replace(/\s+/g, "");
         if (!boxId || !/^\d{6,}$/.test(boxId)) continue;
       } else {
-        boxId = asText(pick(row, hm, ["id коробки", "номер коробки", "коробка"]));
+        boxId = asText(pick(row, hm, ["id коробки", "id короба", "номер коробки", "номер короба", "коробка"]));
       }
       const cargoNumber = singleBoxCol != null ? "" : asText(pick(row, hm, ["номер груза", "перевозка", "cargo number"]));
       const description = singleBoxCol != null ? "" : asText(pick(row, hm, ["описание", "комментарий"]));
@@ -210,7 +210,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           await client.query(
             `insert into wb_import_row_errors (batch_id, row_number, error_message, row_payload)
              values ($1, $2, $3, $4::jsonb)`,
-            [batchId, i + 1, "Не указан ID/номер коробки", JSON.stringify({ row })],
+            [batchId, i + 1, "Не указан ID/номер короба", JSON.stringify({ row })],
           );
         }
         continue;
@@ -268,7 +268,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ragQueue.push({
           sourceId: `${boxId}:${docNumber || "doc"}`,
           content: [
-            `ID коробки: ${boxId}`,
+            `ID короба: ${boxId}`,
             `Номер груза: ${cargoNumber || "-"}`,
             `Документ: ${docNumber || "-"}`,
             `Дата: ${docDate || "-"}`,

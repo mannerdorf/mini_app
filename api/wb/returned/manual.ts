@@ -60,7 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         sourceId: `${boxId}:manual:${id}`,
         title: "WB returned manual",
         content: [
-          `ID коробки: ${boxId}`,
+          `ID короба: ${boxId}`,
           `Номер груза: ${cargoNumber || "-"}`,
           `Документ: ${documentNumber || "-"}`,
           `Дата: ${documentDate || "-"}`,

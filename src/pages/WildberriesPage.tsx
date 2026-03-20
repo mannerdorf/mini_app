@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { Download, FileUp, RefreshCw, Trash2, Upload } from "lucide-react";
+import { Download, FileDown, FileUp, RefreshCw, Trash2, Upload } from "lucide-react";
 import type { AuthData } from "../types";
+import { downloadBase64File } from "../utils";
 
 type WbTab = "inbound" | "returned" | "claims" | "summary";
 type ImportMode = "append" | "upsert";
@@ -36,24 +37,30 @@ const INBOUND_DETAIL_COLUMNS: ColumnDef[] = [
   { key: "lineNumber", label: "№" },
   { key: "inventoryNumber", label: "Номер ввозной описи" },
   { key: "inventoryCreatedAt", label: "Дата создания ввозной описи" },
-  { key: "boxNumber", label: "Номер коробки" },
+  { key: "boxNumber", label: "Номер короба" },
+  { key: "boxShk", label: "ШК короба" },
+  { key: "status1c", label: "Статус 1С" },
   { key: "shk", label: "ШК" },
   { key: "article", label: "Артикул" },
   { key: "brand", label: "Бренд" },
   { key: "description", label: "Описание" },
   { key: "priceRub", label: "Цена, RUB" },
+  { key: "isReturned", label: "Возврат" },
+  { key: "priceRubAfterReturn", label: "Сумма с учётом возврата" },
   { key: "massKg", label: "Масса" },
 ];
 
 const RETURNED_DETAIL_COLUMNS: ColumnDef[] = [
   { key: "inboundInventoryNumber", label: "Номер описи" },
-  { key: "boxId", label: "Номер коробки" },
+  { key: "boxId", label: "Номер короба" },
   { key: "inboundRowNumber", label: "№ строки описи" },
   { key: "inboundTitle", label: "Наименование" },
   { key: "inboundPriceRub", label: "Стоимость по описи" },
 ];
 
-/** Колонки выгрузки WB в раскрытой таблице претензий (по заголовкам из файла). */
+/** Колонки выгрузки WB в раскрытой таблице претензий (по заголовкам из файла). ШК — отдельно вторым столбцом после №. */
+const CLAIMS_DETAIL_SHK_HEADER_KEYS = ["штрихкод", "шк", "баркод", "barcode"];
+
 const CLAIMS_EXCEL_COLUMN_SPEC: { label: string; headerKeys: string[] }[] = [
   { label: "ID", headerKeys: ["id"] },
   { label: "Тип", headerKeys: ["тип"] },
@@ -62,7 +69,6 @@ const CLAIMS_EXCEL_COLUMN_SPEC: { label: string; headerKeys: string[] }[] = [
   { label: "Дата заявки на оплату", headerKeys: ["дата заявки на оплату"] },
   { label: "СЦ", headerKeys: ["сц"] },
   { label: "Дата претензии", headerKeys: ["дата претензии"] },
-  { label: "Штрихкод", headerKeys: ["штрихкод", "шк"] },
   { label: "Цена, руб.", headerKeys: ["цена, руб.", "цена руб.", "цена, руб"] },
   { label: "Комментарий", headerKeys: ["комментарий", "описание"] },
   { label: "Отмена удержания", headerKeys: ["отмена удержания"] },
@@ -90,6 +96,13 @@ function pickClaimsExcelValue(all: Record<string, unknown>, headerKeys: string[]
     }
   }
   return "";
+}
+
+/** ШК строки претензии: поле из БД, иначе из Excel (all_columns). */
+function claimsDetailRowShk(rec: Record<string, unknown>, all: Record<string, unknown>): string {
+  const db = String(rec.shk ?? "").trim();
+  if (db) return db;
+  return pickClaimsExcelValue(all, CLAIMS_DETAIL_SHK_HEADER_KEYS);
 }
 
 type ReturnedGroup = { documentNumber: string | null; batchId: number | null };
@@ -152,11 +165,13 @@ function cellValueForNeedleMatch(v: unknown): string {
   return String(v).trim();
 }
 
-/** Совпадение строки детализации с «Поиск» / «Номер коробки» — только для подсветки (строки не скрываем). */
+/** Совпадение строки детализации с «Поиск» / «Номер короба» — только для подсветки (строки не скрываем). */
 function inboundDetailRowMatchesNeedle(row: Record<string, unknown>, needleLower: string): boolean {
   if (!needleLower) return true;
   const keys = [
     "boxNumber",
+    "boxShk",
+    "status1c",
     "shk",
     "sticker",
     "barcode",
@@ -170,6 +185,8 @@ function inboundDetailRowMatchesNeedle(row: Record<string, unknown>, needleLower
     "kit",
     "size",
     "tnvEd",
+    "isReturned",
+    "priceRubAfterReturn",
   ] as const;
   const parts = keys.map((k) => cellValueForNeedleMatch(row[k]));
   const hay = parts.join(" ").toLowerCase();
@@ -187,11 +204,12 @@ function inboundDetailRowMatchesNeedle(row: Record<string, unknown>, needleLower
 
 const WB_SUMMARY_INBOUND_KEYS = new Set(["inventoryNumber", "inboundRowNumber", "inboundTitle", "inboundPriceRub"]);
 
-/** Ячейки сводной: претензия + поиск коробки в описях или «нет в описях». */
+/** Ячейки сводной: претензия + поиск короба в описях или «нет в описях». */
 function formatWbSummaryCell(colKey: string, row: Record<string, unknown>): string {
   const hasInbound = row.hasInbound === true;
   if (colKey === "shk") {
-    const t = String(row.shk ?? row.inboundShk ?? "").trim();
+    /** API отдаёт shk с приоритетом c.shk (претензия), затем s.shk, i.shk */
+    const t = String(row.shk ?? "").trim() || String(row.inboundShk ?? "").trim();
     return t || "—";
   }
   if (colKey === "isReturned") {
@@ -203,9 +221,10 @@ function formatWbSummaryCell(colKey: string, row: Record<string, unknown>): stri
     if (v === null || v === undefined || v === "") return "—";
     return String(v);
   }
-  if (colKey === "claimDescription") {
-    const t = String(row.claimDescription ?? "").trim();
-    return t || "—";
+  if (colKey === "claimPriceRub") {
+    const v = row.claimPriceRub;
+    if (v === null || v === undefined || v === "") return "—";
+    return formatWbCellValue("claimPriceRub", v);
   }
   if (WB_SUMMARY_INBOUND_KEYS.has(colKey)) {
     if (!hasInbound) {
@@ -252,7 +271,13 @@ function formatWbMoneyRu(value: unknown): string {
 function formatWbCellValue(key: string, value: unknown): string {
   if (key === "hasClaim") return value === true || value === "true" ? "Да" : "Нет";
   if (value === null || value === undefined) return "";
-  if (key === "totalPriceRub" || key === "priceRub" || key === "totalAmountRub") {
+  if (
+    key === "totalPriceRub" ||
+    key === "priceRub" ||
+    key === "priceRubAfterReturn" ||
+    key === "totalAmountRub" ||
+    key === "claimPriceRub"
+  ) {
     return formatWbMoneyRu(value);
   }
   if (key === "inventoryCreatedAt" || key === "createdAt" || key === "documentDate" || key === "uploadedAt") {
@@ -338,6 +363,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   const [expandedInboundInv, setExpandedInboundInv] = useState<string | null>(null);
   const [inboundDetailsCache, setInboundDetailsCache] = useState<Record<string, Record<string, unknown>[]>>({});
   const [inboundDetailLoading, setInboundDetailLoading] = useState<string | null>(null);
+  const [inboundAppDownloadingId, setInboundAppDownloadingId] = useState<number | null>(null);
   const [deletingInventory, setDeletingInventory] = useState<string | null>(null);
   const [expandedReturnedGroup, setExpandedReturnedGroup] = useState<ReturnedGroup | null>(null);
   const [returnedDetailsCache, setReturnedDetailsCache] = useState<Record<string, Record<string, unknown>[]>>({});
@@ -346,9 +372,13 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   const [summaryHeader, setSummaryHeader] = useState<{
     formedAt: string | null;
     placeCount: number;
+    totalClaimRub: string | number;
     totalInboundRub: string | number;
   } | null>(null);
   const [clearingSummary, setClearingSummary] = useState(false);
+  /** Текстовый список короб:ШК для вкладки «Описи» ($1:1:3820740543:120762). */
+  const [inboundBoxShkText, setInboundBoxShkText] = useState("");
+  const [boxShkApplying, setBoxShkApplying] = useState(false);
   const [inboundSummarySort, setInboundSummarySort] = useState<{ by: InboundSummarySortKey; dir: "asc" | "desc" }>({
     by: "inventoryCreatedAt",
     dir: "desc",
@@ -380,7 +410,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     q: "",
   });
 
-  /** Нижний регистр: фильтр строк внутри раскрытой ведомости (поиск / номер коробки). */
+  /** Нижний регистр: фильтр строк внутри раскрытой ведомости (поиск / номер короба). */
   const inboundDetailNeedle = useMemo(() => {
     if (activeTab !== "inbound") return "";
     return (filters.boxId.trim() || filters.q.trim()).toLowerCase();
@@ -445,6 +475,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
           setSummaryHeader({
             formedAt: typeof (sh as { formedAt?: unknown }).formedAt === "string" ? (sh as { formedAt: string }).formedAt : null,
             placeCount: Number((sh as { placeCount?: unknown }).placeCount ?? data?.total ?? 0),
+            totalClaimRub: (sh as { totalClaimRub?: unknown }).totalClaimRub ?? "0",
             totalInboundRub: (sh as { totalInboundRub?: unknown }).totalInboundRub ?? "0",
           });
         } else {
@@ -796,6 +827,66 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     await loadData();
   }, [activeTab, loadData, triggerWbSummaryRefresh]);
 
+  const handleApplyInboundBoxShk = useCallback(async () => {
+    const text = inboundBoxShkText.trim();
+    if (!text) {
+      setUploadError("Вставьте список строк (формат …:номер короба:ШК короба).");
+      return;
+    }
+    setBoxShkApplying(true);
+    setUploadError(null);
+    try {
+      const res = await fetch("/api/wb/inbound/box-shk-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка применения ШК коробов");
+      const n = Number(data?.rowsUpdated ?? 0);
+      const p = Number(data?.pairsInFile ?? 0);
+      setInboundDetailsCache({});
+      await loadData();
+      setUploadError(null);
+      if (typeof window !== "undefined") {
+        window.alert(`Применено пар из файла: ${p}. Обновлено строк в описях: ${n}.`);
+      }
+    } catch (e: unknown) {
+      setUploadError((e as Error)?.message || "Ошибка применения ШК коробов");
+    } finally {
+      setBoxShkApplying(false);
+    }
+  }, [authHeaders, inboundBoxShkText, loadData]);
+
+  const handleDownloadInboundApp = useCallback(async (cargoNumber: string, rowId: number) => {
+    const n = String(cargoNumber ?? "").trim();
+    if (!n) {
+      setUploadError("В справочнике 1С не указан номер перевозки для этого ШК");
+      return;
+    }
+    setUploadError(null);
+    setInboundAppDownloadingId(rowId);
+    try {
+      const res = await fetch("/api/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ metod: "АПП", number: n }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || data?.error || "Не удалось получить АПП");
+      if (!data?.data) throw new Error("Документ АПП не найден");
+      await downloadBase64File({
+        data: String(data.data),
+        name: data?.name || `АПП_${n}.pdf`,
+        isHtml: Boolean(data?.isHtml),
+      });
+    } catch (e: unknown) {
+      setUploadError((e as Error)?.message || "Ошибка скачивания АПП");
+    } finally {
+      setInboundAppDownloadingId(null);
+    }
+  }, []);
+
   const handleClearWbSummary = useCallback(async () => {
     if (!window.confirm("Очистить сводную таблицу? Данные можно восстановить кнопкой «Обновить» (пересчёт по претензиям и описям).")) return;
     setUploadError(null);
@@ -982,13 +1073,13 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     return [
       { key: "lineNumber", label: "№" },
       { key: "shk", label: "ШК" },
-      { key: "boxId", label: "Номер коробки" },
+      { key: "boxId", label: "Номер короба" },
       { key: "isReturned", label: "Возвращена" },
       { key: "claimRowNumber", label: "Номер строки претензии" },
-      { key: "claimDescription", label: "Наименование в претензии" },
+      { key: "claimPriceRub", label: "Цена из претензии" },
       { key: "inventoryNumber", label: "Номер описи" },
       { key: "inboundRowNumber", label: "Номер строки в описи" },
-      { key: "inboundTitle", label: "Наименование в описи" },
+      { key: "inboundTitle", label: "Описание в описи" },
       { key: "inboundPriceRub", label: "Стоимость в описи" },
     ];
   }, [activeTab]);
@@ -1060,8 +1151,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             value={filters.boxId}
             onChange={(e) => setFilters((p) => ({ ...p, boxId: e.target.value }))}
             className="admin-form-input"
-            placeholder="Номер коробки"
-            title="Фильтр по номеру коробки (частичное совпадение)"
+            placeholder="Номер короба"
+            title="Фильтр по номеру короба (частичное совпадение)"
           />
           {activeTab === "summary" && (
             <Input
@@ -1128,13 +1219,56 @@ export function WildberriesPage({ auth, canUpload }: Props) {
           </div>
         )}
 
+        {canUpload && activeTab === "inbound" && (
+          <div
+            className="wb-box-shk-panel"
+            style={{
+              marginTop: "0.75rem",
+              padding: "0.65rem 1rem",
+              borderRadius: "10px",
+              border: "1px dashed rgba(124, 58, 237, 0.45)",
+              background: "var(--color-bg-card)",
+            }}
+          >
+            <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem", display: "block" }}>
+              ШК коробов (текст)
+            </Typography.Body>
+            <Typography.Body style={{ fontSize: "0.8125rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem", display: "block" }}>
+              По каждой строке берутся два последних поля через «:» — номер короба и ШК короба. Пример:{" "}
+              <code style={{ fontSize: "0.8em" }}>$1:1:3820740543:120762</code> → короб{" "}
+              <code style={{ fontSize: "0.8em" }}>3820740543</code>, ШК <code style={{ fontSize: "0.8em" }}>120762</code>. Все строки с этим
+              номером короба в описях получат колонку «ШК короба».
+            </Typography.Body>
+            <textarea
+              className="admin-form-input"
+              value={inboundBoxShkText}
+              onChange={(e) => setInboundBoxShkText(e.target.value)}
+              placeholder={"$1:1:3820740543:120762\n$1:1:3818456844:119900"}
+              rows={6}
+              style={{
+                width: "100%",
+                minHeight: "7rem",
+                resize: "vertical",
+                fontFamily: "ui-monospace, monospace",
+                fontSize: "0.8125rem",
+                marginBottom: "0.5rem",
+                boxSizing: "border-box",
+              }}
+            />
+            <Button className="wb-action-btn" onClick={() => void handleApplyInboundBoxShk()} disabled={boxShkApplying || loading}>
+              {boxShkApplying ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {boxShkApplying ? " Применение…" : "Применить к описям"}
+            </Button>
+          </div>
+        )}
+
         {canUpload && activeTab === "returned" && (
           <div className="wb-manual-panel">
             <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem", color: "var(--color-text-primary)" }}>
               Ручной ввод (грузы без ШК)
             </Typography.Body>
             <div className="wb-filters-grid">
-              <Input className="admin-form-input" placeholder="ID коробки*" value={manualReturned.boxId} onChange={(e) => setManualReturned((p) => ({ ...p, boxId: e.target.value }))} />
+              <Input className="admin-form-input" placeholder="ID короба*" value={manualReturned.boxId} onChange={(e) => setManualReturned((p) => ({ ...p, boxId: e.target.value }))} />
               <Input className="admin-form-input" placeholder="Номер груза" value={manualReturned.cargoNumber} onChange={(e) => setManualReturned((p) => ({ ...p, cargoNumber: e.target.value }))} />
               <Input className="admin-form-input" placeholder="Описание" value={manualReturned.description} onChange={(e) => setManualReturned((p) => ({ ...p, description: e.target.value }))} />
               <Input className="admin-form-input" placeholder="Номер документа" value={manualReturned.documentNumber} onChange={(e) => setManualReturned((p) => ({ ...p, documentNumber: e.target.value }))} />
@@ -1193,7 +1327,17 @@ export function WildberriesPage({ auth, canUpload }: Props) {
               <strong>{total}</strong>
             </Typography.Body>
             <Typography.Body style={{ margin: 0 }}>
-              <span style={{ color: "var(--color-text-secondary)" }}>Стоимость: </span>
+              <span style={{ color: "var(--color-text-secondary)" }}>Стоимость в претензии: </span>
+              <strong>
+                {Number(summaryHeader?.totalClaimRub ?? 0).toLocaleString("ru-RU", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                ₽
+              </strong>
+            </Typography.Body>
+            <Typography.Body style={{ margin: 0 }}>
+              <span style={{ color: "var(--color-text-secondary)" }}>Стоимость в описях: </span>
               <strong>
                 {Number(summaryHeader?.totalInboundRub ?? 0).toLocaleString("ru-RU", {
                   minimumFractionDigits: 2,
@@ -1360,8 +1504,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                                     }}
                                   >
                                     {needle
-                                      ? "Строки с учётом фильтров над таблицей; подсвечены совпадения с полем «Номер коробки» / «Поиск»."
-                                      : "Строки с учётом фильтров над таблицей (номер описи, коробка, даты, поиск)."}
+                                      ? "Строки с учётом фильтров над таблицей; подсвечены совпадения с полем «Номер короба» / «Поиск»."
+                                      : "Строки с учётом фильтров над таблицей (номер описи, короб, даты, поиск)."}
                                   </Typography.Body>
                                 ) : null}
                                 <table className="wb-table wb-table--nested">
@@ -1384,9 +1528,57 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                                       >
                                         {INBOUND_DETAIL_COLUMNS.map((c) => (
                                           <td key={c.key}>
-                                            {c.key === "lineNumber"
-                                              ? String(dIdx + 1)
-                                              : formatWbCellValue(c.key, dr[c.key])}
+                                            {c.key === "lineNumber" ? (
+                                              String(dIdx + 1)
+                                            ) : c.key === "status1c" ? (
+                                              <div
+                                                style={{
+                                                  display: "flex",
+                                                  flexDirection: "column",
+                                                  alignItems: "flex-start",
+                                                  gap: "0.35rem",
+                                                }}
+                                              >
+                                                <span>
+                                                  {(() => {
+                                                    const t = formatWbCellValue(c.key, dr[c.key]);
+                                                    return t || "—";
+                                                  })()}
+                                                </span>
+                                                {(() => {
+                                                  const st = String(dr.status1c ?? "").trim();
+                                                  const cargo = String(dr.appCargoNumber ?? "").trim();
+                                                  const rowId = Number(dr.id);
+                                                  const show =
+                                                    st.length > 0 &&
+                                                    st !== "не найден" &&
+                                                    cargo.length > 0 &&
+                                                    Number.isFinite(rowId);
+                                                  if (!show) return null;
+                                                  const busy = inboundAppDownloadingId === rowId;
+                                                  return (
+                                                    <Button
+                                                      size="small"
+                                                      className="wb-action-btn"
+                                                      disabled={busy}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        void handleDownloadInboundApp(cargo, rowId);
+                                                      }}
+                                                    >
+                                                      {busy ? (
+                                                        <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden />
+                                                      ) : (
+                                                        <FileDown className="w-3.5 h-3.5" aria-hidden />
+                                                      )}
+                                                      {busy ? " …" : " Скачать АПП"}
+                                                    </Button>
+                                                  );
+                                                })()}
+                                              </div>
+                                            ) : (
+                                              formatWbCellValue(c.key, dr[c.key])
+                                            )}
                                           </td>
                                         ))}
                                       </tr>
@@ -1483,8 +1675,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                                   }}
                                 >
                                   {filters.boxId.trim() || filters.q.trim() || filters.dateFrom || filters.dateTo
-                                    ? "Строки группы с учётом фильтров (даты, коробка, поиск). Сопоставление с «Описью» по коробке, ШК, баркоду или стикеру."
-                                    : "Строка ищется в «Описи» по номеру коробки, ШК, баркоду или стикеру."}
+                                    ? "Строки группы с учётом фильтров (даты, короб, поиск). Сопоставление с «Описью» по коробу, ШК, баркоду или стикеру."
+                                    : "Строка ищется в «Описи» по номеру короба, ШК, баркоду или стикеру."}
                                 </Typography.Body>
                                 <table className="wb-table wb-table--nested">
                                   <thead>
@@ -1582,6 +1774,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                                   <thead>
                                     <tr>
                                       <th>№</th>
+                                      <th>ШК</th>
                                       {CLAIMS_EXCEL_COLUMN_SPEC.map((c) => (
                                         <th key={c.label}>{c.label}</th>
                                       ))}
@@ -1598,6 +1791,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                                       return (
                                         <tr key={`${claimsDetailKey}-d-${dIdx}`}>
                                           <td>{dIdx + 1}</td>
+                                          <td>{claimsDetailRowShk(rec, all) || "—"}</td>
                                           {CLAIMS_EXCEL_COLUMN_SPEC.map((c) => (
                                             <td key={c.label}>{pickClaimsExcelValue(all, c.headerKeys)}</td>
                                           ))}

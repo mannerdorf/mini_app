@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgIlikeContainsPattern, pgTableExists, resolveWbAccess } from "../_wb.js";
+import { resolveWb1cForBoxShk, type Wb1cShkLookupRow } from "../lib/wb1cShkResolve.js";
 
 /** Пагинация сводки «Описи». */
 const INBOUND_SUMMARY_MAX_LIMIT = 500;
@@ -101,6 +102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         or coalesce(i.description, '') ilike $${params.length}
         or coalesce(i.nomenclature, '') ilike $${params.length}
         or i.inventory_number ilike $${params.length}
+        or coalesce(i.box_shk, '') ilike $${params.length}
       )`);
     }
 
@@ -110,7 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const claimsReady =
         (await pgTableExists(pool, "wb_claims_items")) &&
         (await pgTableExists(pool, "wb_claims_revisions"));
-      /** Совпадение номера коробки в строке описи с активной претензией. */
+      /** Совпадение номера короба в строке описи с активной претензией. */
       const hasClaimSql = claimsReady
         ? `bool_or(
             exists (
@@ -191,7 +193,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const countRes = await pool.query<{ total: number }>(countSql, params);
     const total = countRes.rows[0]?.total ?? 0;
 
+    const hasReturned = await pgTableExists(pool, "wb_returned_items");
     const dataParams = [...params, limit, offset];
+    /** Возврат: в файле возврата box_id обычно = ШК строки описи (как в api/wb/returned.ts, api/_wb.ts). */
+    const returnJoinSql = hasReturned
+      ? `left join lateral (
+          select r.id as ret_id, r.amount_rub as ret_amount_rub
+          from wb_returned_items r
+          where nullif(trim(coalesce(i.shk, '')), '') is not null
+            and trim(coalesce(i.shk, '')) = trim(coalesce(r.box_id, ''))
+          order by r.created_at desc nulls last, r.id desc
+          limit 1
+        ) ret on true`
+      : "";
+    const returnSelectSql = hasReturned
+      ? `case
+          when nullif(trim(coalesce(i.shk, '')), '') is null then ''
+          when ret.ret_id is not null then 'Да'
+          else 'Нет'
+        end as "isReturned",
+        case
+          when nullif(trim(coalesce(i.shk, '')), '') is null then coalesce(i.price_rub, 0)
+          when ret.ret_id is null then coalesce(i.price_rub, 0)
+          else greatest(
+            0::numeric,
+            coalesce(i.price_rub, 0) - coalesce(nullif(ret.ret_amount_rub, 0), coalesce(i.price_rub, 0))
+          )
+        end as "priceRubAfterReturn",`
+      : `'' as "isReturned",
+        coalesce(i.price_rub, 0) as "priceRubAfterReturn",`;
+
     const rowsSql = `
       select
         i.id,
@@ -199,6 +230,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         i.inventory_created_at as "inventoryCreatedAt",
         i.row_number as "rowNumber",
         i.box_number as "boxNumber",
+        i.box_shk as "boxShk",
         i.shk,
         i.sticker,
         i.barcode,
@@ -211,10 +243,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         i.description,
         i.kit,
         i.price_rub as "priceRub",
+        ${returnSelectSql}
         i.tnv_ed as "tnvEd",
         i.mass_kg as "massKg",
         i.created_at as "createdAt"
       from wb_inbound_items i
+      ${returnJoinSql}
       ${whereSql}
       order by i.inventory_created_at desc nulls last, i.id desc
       limit $${dataParams.length - 1}
@@ -222,12 +256,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     `;
     const dataRes = await pool.query(rowsSql, dataParams);
 
+    let detailItems: Record<string, unknown>[] = dataRes.rows as Record<string, unknown>[];
+    if (await pgTableExists(pool, "wb_1c_shk_status")) {
+      try {
+        const r1c = await pool.query<{
+          shk: string;
+          status_1c: string;
+          cargo_number: string;
+        }>("select shk, status_1c, cargo_number from wb_1c_shk_status");
+        const lookup: Wb1cShkLookupRow[] = r1c.rows.map((row) => ({
+          shk: String(row.shk ?? ""),
+          status1c: String(row.status_1c ?? ""),
+          cargoNumber: String(row.cargo_number ?? ""),
+        }));
+        detailItems = detailItems.map((row) => {
+          const resolved = resolveWb1cForBoxShk(row.boxShk as string | null | undefined, lookup);
+          return { ...row, status1c: resolved.status1c, appCargoNumber: resolved.appCargoNumber };
+        });
+      } catch {
+        detailItems = detailItems.map((row) => ({
+          ...row,
+          status1c: "",
+          appCargoNumber: "",
+        }));
+      }
+    } else {
+      detailItems = detailItems.map((row) => ({
+        ...row,
+        status1c: "",
+        appCargoNumber: "",
+      }));
+    }
+
     return res.status(200).json({
       page,
       limit,
       total,
       view: "detail",
-      items: dataRes.rows,
+      items: detailItems,
       request_id: ctx.requestId,
     });
   } catch (error) {

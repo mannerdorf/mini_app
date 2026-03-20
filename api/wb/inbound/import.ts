@@ -23,7 +23,7 @@ function findHeaderRow(data: unknown[][]) {
   for (let i = 0; i < Math.min(40, data.length); i++) {
     const row = data[i] ?? [];
     const normalized = row.map(normalizeHeaderCell);
-    const hasBox = normalized.some((c) => c.includes("номер коробки"));
+    const hasBox = normalized.some((c) => c.includes("номер коробки") || c.includes("номер короба"));
     const hasShk = normalized.some((c) => c === "шк" || c.startsWith("шк") || c.includes(" шк"));
     if (hasBox && hasShk) return i;
   }
@@ -190,7 +190,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         header.forEach((cell, idx) => headerMap.set(normalizeHeaderCell(cell), idx));
         const col = (name: string) => headerMap.get(name) ?? -1;
 
-        const idxBox = col("номер коробки");
+        const idxBox = col("номер коробки") >= 0 ? col("номер коробки") : col("номер короба");
         const idxShk = col("шк");
         if (idxBox < 0 || idxShk < 0) continue;
 
@@ -344,7 +344,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             [
               batchId,
               null,
-              "Не найдено ни одного листа с колонками 'Номер коробки' и 'ШК'",
+              "Не найдено ни одного листа с колонками «Номер короба» (или «Номер коробки») и «ШК»",
               JSON.stringify({ file: file.originalFilename, sheets: sheetNames }),
             ],
           );
@@ -369,7 +369,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (totalRows === 0 && insertedRows === 0 && updatedRows === 0) {
       return res.status(400).json({
-        error: "Не удалось распознать данные в файлах. Проверьте, что в книге есть лист с колонками 'Номер коробки' и 'ШК'.",
+        error:
+          "Не удалось распознать данные в файлах. Проверьте, что в книге есть лист с колонками «Номер короба» или «Номер коробки» и «ШК».",
         batchId,
         files: inboundFiles.length,
         errorRows,

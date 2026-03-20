@@ -41,7 +41,7 @@ function wbDateCellValue(raw: unknown): unknown {
   return raw;
 }
 
-/** Номер коробки из текста комментария WB («коробка 3427463670»). */
+/** Номер короба из текста комментария WB («коробка 3427463670»). */
 function boxIdFromComment(text: string): string {
   const m = text.match(/короб(?:ка|ки)?\s*[:\s]?\s*(\d{6,})/iu);
   return m?.[1] ? m[1].trim() : "";
@@ -193,11 +193,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let boxId = asText(
         pick(normalizedMap, [
           "id коробки",
+          "id короба",
           "номер коробки",
+          "номер короба",
           "коробка",
           "id короб",
           "box id",
           "идентификатор коробки",
+          "идентификатор короба",
         ]),
       );
       const barcodeShk = asText(
@@ -230,7 +233,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const fromComm = boxIdFromComment(description);
         if (fromComm) boxId = fromComm;
       }
-      /** ШК храним отдельно — по нему сводная ищет строку в «Описи»; в box_id только реальный номер коробки. */
+      /** ШК храним отдельно — по нему сводная ищет строку в «Описи»; в box_id только реальный номер короба. */
       const amountRub = parseNum(
         pick(normalizedMap, [
           "цена, руб.",
@@ -283,7 +286,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           content: [
             `Ревизия: ${revisionNumber}`,
             `Номер удержания: ${claimNumber || "-"}`,
-            `ID коробки: ${boxId || "-"}`,
+            `ID короба: ${boxId || "-"}`,
             `Документ: ${docNumber || "-"}`,
             `Дата: ${docDate || "-"}`,
             `Описание: ${description || "-"}`,

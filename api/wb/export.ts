@@ -41,9 +41,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (await pgTableExists(pool, "wb_inbound_items")) {
         rows = (
           await pool.query(
-            `select inventory_number, inventory_created_at, box_number, shk, sticker, barcode, article, brand, nomenclature, description, kit, price_rub, mass_kg
+            `select inventory_number, inventory_created_at, box_number, box_shk, shk, sticker, barcode, article, brand, nomenclature, description, kit, price_rub, mass_kg
              from wb_inbound_items
-             ${whereQ ? `where box_number ilike $${whereQ} or shk ilike $${whereQ} or coalesce(article,'') ilike $${whereQ} or coalesce(brand,'') ilike $${whereQ} or coalesce(description,'') ilike $${whereQ}` : ""}
+             ${whereQ ? `where box_number ilike $${whereQ} or coalesce(box_shk,'') ilike $${whereQ} or shk ilike $${whereQ} or coalesce(article,'') ilike $${whereQ} or coalesce(brand,'') ilike $${whereQ} or coalesce(description,'') ilike $${whereQ}` : ""}
              order by id desc
              limit 10000`,
             params,
@@ -104,11 +104,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         rows = (
           await pool.query(
             `select
-               coalesce(s.shk, i.shk) as shk,
+               coalesce(nullif(trim(c.shk), ''), nullif(trim(s.shk), ''), nullif(trim(i.shk), '')) as shk,
                s.box_id as box_id,
                s.claim_number as claim_number,
                c.row_number as claim_row_number,
-               nullif(trim(coalesce(c.description, '')), '') as claim_description,
+               c.amount_rub as claim_price_rub,
                i.inventory_number as inventory_number,
                i.row_number as inbound_row_number,
                coalesce(nullif(trim(i.nomenclature), ''), nullif(trim(i.description), '')) as inbound_title,

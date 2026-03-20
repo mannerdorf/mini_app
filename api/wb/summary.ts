@@ -21,7 +21,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         limit: Number(req.query.limit ?? 50),
         total: 0,
         items: [],
-        summaryHeader: { formedAt: null, placeCount: 0, totalInboundRub: 0 },
+        summaryHeader: { formedAt: null, placeCount: 0, totalClaimRub: 0, totalInboundRub: 0 },
         request_id: ctx.requestId,
       });
     }
@@ -96,24 +96,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
     const formedAt = formedRes.rows[0]?.formed_at ?? null;
 
-    const countRes = await pool.query<{ total: number; total_inbound_rub: string }>(
+    const countRes = await pool.query<{ total: number; total_claim_rub: string; total_inbound_rub: string }>(
       `select
          count(*)::int as total,
+         coalesce(sum(c.amount_rub) filter (where c.id is not null), 0)::numeric as total_claim_rub,
          coalesce(sum(i.price_rub) filter (where i.id is not null), 0)::numeric as total_inbound_rub
        ${fromJoins}
        ${whereSql}`,
       params,
     );
     const total = countRes.rows[0]?.total ?? 0;
+    const totalClaimRub = countRes.rows[0]?.total_claim_rub ?? "0";
     const totalInboundRub = countRes.rows[0]?.total_inbound_rub ?? "0";
 
     const dataParams = [...params, limit, offset];
     const rowsRes = await pool.query(
       `select
-         s.shk as "shk",
+         coalesce(
+           nullif(trim(c.shk), ''),
+           nullif(trim(s.shk), ''),
+           nullif(trim(i.shk), '')
+         ) as "shk",
          s.box_id as "boxId",
          c.row_number as "claimRowNumber",
-         nullif(trim(coalesce(c.description, '')), '') as "claimDescription",
+         c.amount_rub as "claimPriceRub",
          (s.inbound_item_id is not null) as "hasInbound",
          ((coalesce(s.is_returned, false)) or (s.returned_item_id is not null)) as "isReturned",
          i.inventory_number as "inventoryNumber",
@@ -137,6 +143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       summaryHeader: {
         formedAt,
         placeCount: total,
+        totalClaimRub,
         totalInboundRub,
       },
       items: rowsRes.rows,
