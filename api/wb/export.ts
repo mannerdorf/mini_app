@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgTableExists, resolveWbAccess } from "../_wb.js";
+import { resolveWb1cForBoxShk, type Wb1cShkLookupRow } from "../lib/wb1cShkResolve.js";
 
 function toCsv(rows: Record<string, unknown>[]) {
   if (rows.length === 0) return "";
@@ -101,7 +102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } else {
       if (await pgTableExists(pool, "wb_summary")) {
-        rows = (
+        const rawRows = (
           await pool.query(
             `select
                coalesce(nullif(trim(c.shk), ''), nullif(trim(s.shk), ''), nullif(trim(i.shk), '')) as shk,
@@ -111,21 +112,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                c.amount_rub as claim_price_rub,
                i.inventory_number as inventory_number,
                i.row_number as inbound_row_number,
-               coalesce(nullif(trim(i.nomenclature), ''), nullif(trim(i.description), '')) as inbound_title,
+               coalesce(nullif(trim(i.description), ''), nullif(trim(i.nomenclature), '')) as inbound_title,
                i.price_rub as inbound_price_rub,
                (s.inbound_item_id is not null) as has_inbound,
                ((coalesce(s.is_returned, false)) or (s.returned_item_id is not null)) as is_returned,
-               s.updated_at as updated_at
+               s.updated_at as updated_at,
+               nullif(trim(coalesce(i.box_shk, '')), '') as inbound_box_shk
              from wb_summary s
              left join wb_claims_items c on c.id = s.claim_item_id
              left join wb_inbound_items i on i.id = s.inbound_item_id
              where s.declared = true
-             ${whereQ ? `and (s.box_id ilike $${whereQ} or coalesce(s.shk,'') ilike $${whereQ} or coalesce(s.claim_number,'') ilike $${whereQ} or coalesce(s.description,'') ilike $${whereQ} or coalesce(c.description,'') ilike $${whereQ} or coalesce(i.inventory_number,'') ilike $${whereQ} or coalesce(i.shk,'') ilike $${whereQ})` : ""}
+             ${whereQ ? `and (s.box_id ilike $${whereQ} or coalesce(s.shk,'') ilike $${whereQ} or coalesce(s.claim_number,'') ilike $${whereQ} or coalesce(s.description,'') ilike $${whereQ} or coalesce(c.description,'') ilike $${whereQ} or coalesce(i.inventory_number,'') ilike $${whereQ} or coalesce(i.shk,'') ilike $${whereQ} or coalesce(i.box_shk,'') ilike $${whereQ})` : ""}
              order by coalesce(c.row_number, 0), coalesce(s.shk, s.box_id, '')
              limit 10000`,
             params,
           )
-        ).rows;
+        ).rows as Record<string, unknown>[];
+
+        let lookup1c: Wb1cShkLookupRow[] = [];
+        if (await pgTableExists(pool, "wb_1c_shk_status")) {
+          try {
+            const r1c = await pool.query<{
+              shk: string;
+              status_1c: string;
+              cargo_number: string;
+            }>("select shk, status_1c, cargo_number from wb_1c_shk_status");
+            lookup1c = r1c.rows.map((row) => ({
+              shk: String(row.shk ?? ""),
+              status1c: String(row.status_1c ?? ""),
+              cargoNumber: String(row.cargo_number ?? ""),
+            }));
+          } catch {
+            lookup1c = [];
+          }
+        }
+
+        rows = rawRows.map((r) => {
+          const { inbound_box_shk, ...base } = r;
+          const resolved = resolveWb1cForBoxShk(String(inbound_box_shk ?? ""), lookup1c);
+          return { ...base, status1c: resolved.status1c };
+        });
       }
     }
 

@@ -18,19 +18,18 @@ function norm(s: string): string {
   return s.trim().toLowerCase();
 }
 
-/**
- * 1) Полное совпадение shk (без учёта регистра, trim).
- * 2) Иначе: средняя часть номера короба содержится в shk из БД (мин. длина средней части 2).
- * 3) Иначе: status1c = «не найден», appCargoNumber пустой.
- */
-export function resolveWb1cForBoxShk(
-  boxShk: string | null | undefined,
+/** Последний сегмент после «:» (короткий код короба), если строка многоуровневая. */
+function tailSegmentAfterColons(raw: string): string {
+  const parts = raw.split(":").map((p) => p.trim()).filter((p) => p.length > 0);
+  return parts.length ? parts[parts.length - 1]! : "";
+}
+
+function resolveAgainstKey(
+  keyRaw: string,
   rows: Wb1cShkLookupRow[],
-): { status1c: string; appCargoNumber: string } {
-  const raw = String(boxShk ?? "").trim();
-  if (!raw) {
-    return { status1c: "", appCargoNumber: "" };
-  }
+): { status1c: string; appCargoNumber: string } | null {
+  const raw = String(keyRaw ?? "").trim();
+  if (!raw) return null;
 
   const exact = rows.find((r) => norm(r.shk) === norm(raw));
   if (exact) {
@@ -52,6 +51,32 @@ export function resolveWb1cForBoxShk(
         appCargoNumber: String(c.cargoNumber ?? "").trim(),
       };
     }
+  }
+  return null;
+}
+
+/**
+ * 1) Полное совпадение shk (без учёта регистра, trim).
+ * 2) Средняя часть полной строки в shk из БД.
+ * 3) То же по последнему сегменту после «:» (если в справочнике короткий код).
+ * 4) Иначе: status1c = «не найден», appCargoNumber пустой.
+ */
+export function resolveWb1cForBoxShk(
+  boxShk: string | null | undefined,
+  rows: Wb1cShkLookupRow[],
+): { status1c: string; appCargoNumber: string } {
+  const raw = String(boxShk ?? "").trim();
+  if (!raw) {
+    return { status1c: "", appCargoNumber: "" };
+  }
+
+  const full = resolveAgainstKey(raw, rows);
+  if (full) return full;
+
+  const tail = tailSegmentAfterColons(raw);
+  if (tail && norm(tail) !== norm(raw)) {
+    const byTail = resolveAgainstKey(tail, rows);
+    if (byTail) return byTail;
   }
 
   return { status1c: "не найден", appCargoNumber: "" };

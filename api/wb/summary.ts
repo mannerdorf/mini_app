@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgIlikeContainsPattern, pgTableExists, resolveWbAccess } from "../_wb.js";
+import { resolveWb1cForBoxShk, type Wb1cShkLookupRow } from "../lib/wb1cShkResolve.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "wb_summary_list");
@@ -82,6 +83,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         or coalesce(i.shk, '') ilike $${params.length}
         or coalesce(i.nomenclature, '') ilike $${params.length}
         or coalesce(i.description, '') ilike $${params.length}
+        or coalesce(i.box_shk, '') ilike $${params.length}
       )`);
     }
 
@@ -126,8 +128,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          i.row_number as "inboundRowNumber",
          i.shk as "inboundShk",
          i.box_number as "inboundBoxNumber",
-         nullif(trim(coalesce(nullif(trim(i.nomenclature), ''), nullif(trim(i.description), ''))), '') as "inboundTitle",
-         i.price_rub as "inboundPriceRub"
+         nullif(trim(coalesce(nullif(trim(i.description), ''), nullif(trim(i.nomenclature), ''))), '') as "inboundTitle",
+         i.price_rub as "inboundPriceRub",
+         nullif(trim(coalesce(i.box_shk, '')), '') as "boxShkFor1c"
        ${fromJoins}
        ${whereSql}
        order by coalesce(c.row_number, 0), coalesce(s.shk, s.box_id, '')
@@ -135,6 +138,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
        offset $${dataParams.length}`,
       dataParams,
     );
+
+    type Row = Record<string, unknown>;
+    let items: Row[] = rowsRes.rows as Row[];
+    if (await pgTableExists(pool, "wb_1c_shk_status")) {
+      try {
+        const r1c = await pool.query<{
+          shk: string;
+          status_1c: string;
+          cargo_number: string;
+        }>("select shk, status_1c, cargo_number from wb_1c_shk_status");
+        const lookup: Wb1cShkLookupRow[] = r1c.rows.map((row) => ({
+          shk: String(row.shk ?? ""),
+          status1c: String(row.status_1c ?? ""),
+          cargoNumber: String(row.cargo_number ?? ""),
+        }));
+        items = items.map((row) => {
+          const { boxShkFor1c, ...rest } = row;
+          const resolved = resolveWb1cForBoxShk(boxShkFor1c as string | null | undefined, lookup);
+          return { ...rest, status1c: resolved.status1c, appCargoNumber: resolved.appCargoNumber };
+        });
+      } catch {
+        items = items.map(({ boxShkFor1c: _b, ...rest }) => ({
+          ...rest,
+          status1c: "",
+          appCargoNumber: "",
+        }));
+      }
+    } else {
+      items = items.map(({ boxShkFor1c: _b, ...rest }) => ({
+        ...rest,
+        status1c: "",
+        appCargoNumber: "",
+      }));
+    }
 
     return res.status(200).json({
       page,
@@ -146,7 +183,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         totalClaimRub,
         totalInboundRub,
       },
-      items: rowsRes.rows,
+      items,
       request_id: ctx.requestId,
     });
   } catch (error) {

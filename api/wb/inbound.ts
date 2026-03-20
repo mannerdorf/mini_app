@@ -2,7 +2,6 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgIlikeContainsPattern, pgTableExists, resolveWbAccess } from "../_wb.js";
-import { resolveWb1cForBoxShk, type Wb1cShkLookupRow } from "../lib/wb1cShkResolve.js";
 
 /** Пагинация сводки «Описи». */
 const INBOUND_SUMMARY_MAX_LIMIT = 500;
@@ -256,44 +255,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     `;
     const dataRes = await pool.query(rowsSql, dataParams);
 
-    let detailItems: Record<string, unknown>[] = dataRes.rows as Record<string, unknown>[];
-    if (await pgTableExists(pool, "wb_1c_shk_status")) {
-      try {
-        const r1c = await pool.query<{
-          shk: string;
-          status_1c: string;
-          cargo_number: string;
-        }>("select shk, status_1c, cargo_number from wb_1c_shk_status");
-        const lookup: Wb1cShkLookupRow[] = r1c.rows.map((row) => ({
-          shk: String(row.shk ?? ""),
-          status1c: String(row.status_1c ?? ""),
-          cargoNumber: String(row.cargo_number ?? ""),
-        }));
-        detailItems = detailItems.map((row) => {
-          const resolved = resolveWb1cForBoxShk(row.boxShk as string | null | undefined, lookup);
-          return { ...row, status1c: resolved.status1c, appCargoNumber: resolved.appCargoNumber };
-        });
-      } catch {
-        detailItems = detailItems.map((row) => ({
-          ...row,
-          status1c: "",
-          appCargoNumber: "",
-        }));
-      }
-    } else {
-      detailItems = detailItems.map((row) => ({
-        ...row,
-        status1c: "",
-        appCargoNumber: "",
-      }));
-    }
-
     return res.status(200).json({
       page,
       limit,
       total,
       view: "detail",
-      items: detailItems,
+      items: dataRes.rows,
       request_id: ctx.requestId,
     });
   } catch (error) {

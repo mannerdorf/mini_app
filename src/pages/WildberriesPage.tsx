@@ -39,7 +39,6 @@ const INBOUND_DETAIL_COLUMNS: ColumnDef[] = [
   { key: "inventoryCreatedAt", label: "Дата создания ввозной описи" },
   { key: "boxNumber", label: "Номер короба" },
   { key: "boxShk", label: "ШК короба" },
-  { key: "status1c", label: "Статус 1С" },
   { key: "shk", label: "ШК" },
   { key: "article", label: "Артикул" },
   { key: "brand", label: "Бренд" },
@@ -171,7 +170,6 @@ function inboundDetailRowMatchesNeedle(row: Record<string, unknown>, needleLower
   const keys = [
     "boxNumber",
     "boxShk",
-    "status1c",
     "shk",
     "sticker",
     "barcode",
@@ -214,6 +212,9 @@ function formatWbSummaryCell(colKey: string, row: Record<string, unknown>): stri
   }
   if (colKey === "isReturned") {
     return row.isReturned === true || row.isReturned === "true" ? "Да" : "Нет";
+  }
+  if (colKey === "status1c") {
+    return String(row.status1c ?? "").trim();
   }
   if (colKey === "boxId") return formatWbCellValue("boxId", row.boxId);
   if (colKey === "claimRowNumber") {
@@ -363,7 +364,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   const [expandedInboundInv, setExpandedInboundInv] = useState<string | null>(null);
   const [inboundDetailsCache, setInboundDetailsCache] = useState<Record<string, Record<string, unknown>[]>>({});
   const [inboundDetailLoading, setInboundDetailLoading] = useState<string | null>(null);
-  const [inboundAppDownloadingId, setInboundAppDownloadingId] = useState<number | null>(null);
+  /** Ключ строки: `in-${id}` в описях (если вернём АПП туда) или `s-${page}-${idx}` на сводной */
+  const [wbAppDownloadingKey, setWbAppDownloadingKey] = useState<string | null>(null);
   const [deletingInventory, setDeletingInventory] = useState<string | null>(null);
   const [expandedReturnedGroup, setExpandedReturnedGroup] = useState<ReturnedGroup | null>(null);
   const [returnedDetailsCache, setReturnedDetailsCache] = useState<Record<string, Record<string, unknown>[]>>({});
@@ -830,7 +832,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   const handleApplyInboundBoxShk = useCallback(async () => {
     const text = inboundBoxShkText.trim();
     if (!text) {
-      setUploadError("Вставьте список строк (формат …:номер короба:ШК короба).");
+      setUploadError("Вставьте список строк (минимум два поля через «:»; предпоследнее — номер короба).");
       return;
     }
     setBoxShkApplying(true);
@@ -858,14 +860,14 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     }
   }, [authHeaders, inboundBoxShkText, loadData]);
 
-  const handleDownloadInboundApp = useCallback(async (cargoNumber: string, rowId: number) => {
+  const handleDownloadWbApp = useCallback(async (cargoNumber: string, loadingKey: string) => {
     const n = String(cargoNumber ?? "").trim();
     if (!n) {
       setUploadError("В справочнике 1С не указан номер перевозки для этого ШК");
       return;
     }
     setUploadError(null);
-    setInboundAppDownloadingId(rowId);
+    setWbAppDownloadingKey(loadingKey);
     try {
       const res = await fetch("/api/download", {
         method: "POST",
@@ -883,7 +885,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     } catch (e: unknown) {
       setUploadError((e as Error)?.message || "Ошибка скачивания АПП");
     } finally {
-      setInboundAppDownloadingId(null);
+      setWbAppDownloadingKey(null);
     }
   }, []);
 
@@ -1081,6 +1083,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       { key: "inboundRowNumber", label: "Номер строки в описи" },
       { key: "inboundTitle", label: "Описание в описи" },
       { key: "inboundPriceRub", label: "Стоимость в описи" },
+      { key: "status1c", label: "Статус 1С" },
     ];
   }, [activeTab]);
 
@@ -1234,10 +1237,11 @@ export function WildberriesPage({ auth, canUpload }: Props) {
               ШК коробов (текст)
             </Typography.Body>
             <Typography.Body style={{ fontSize: "0.8125rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem", display: "block" }}>
-              По каждой строке берутся два последних поля через «:» — номер короба и ШК короба. Пример:{" "}
+              По каждой строке предпоследнее поле через «:» — номер короба; в колонку «ШК короба» записывается{" "}
+              <strong>вся строка целиком</strong> (как в файле). Пример:{" "}
               <code style={{ fontSize: "0.8em" }}>$1:1:3820740543:120762</code> → короб{" "}
-              <code style={{ fontSize: "0.8em" }}>3820740543</code>, ШК <code style={{ fontSize: "0.8em" }}>120762</code>. Все строки с этим
-              номером короба в описях получат колонку «ШК короба».
+              <code style={{ fontSize: "0.8em" }}>3820740543</code>, в БД ШК короба:{" "}
+              <code style={{ fontSize: "0.8em" }}>$1:1:3820740543:120762</code>.
             </Typography.Body>
             <textarea
               className="admin-form-input"
@@ -1528,57 +1532,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                                       >
                                         {INBOUND_DETAIL_COLUMNS.map((c) => (
                                           <td key={c.key}>
-                                            {c.key === "lineNumber" ? (
-                                              String(dIdx + 1)
-                                            ) : c.key === "status1c" ? (
-                                              <div
-                                                style={{
-                                                  display: "flex",
-                                                  flexDirection: "column",
-                                                  alignItems: "flex-start",
-                                                  gap: "0.35rem",
-                                                }}
-                                              >
-                                                <span>
-                                                  {(() => {
-                                                    const t = formatWbCellValue(c.key, dr[c.key]);
-                                                    return t || "—";
-                                                  })()}
-                                                </span>
-                                                {(() => {
-                                                  const st = String(dr.status1c ?? "").trim();
-                                                  const cargo = String(dr.appCargoNumber ?? "").trim();
-                                                  const rowId = Number(dr.id);
-                                                  const show =
-                                                    st.length > 0 &&
-                                                    st !== "не найден" &&
-                                                    cargo.length > 0 &&
-                                                    Number.isFinite(rowId);
-                                                  if (!show) return null;
-                                                  const busy = inboundAppDownloadingId === rowId;
-                                                  return (
-                                                    <Button
-                                                      size="small"
-                                                      className="wb-action-btn"
-                                                      disabled={busy}
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        void handleDownloadInboundApp(cargo, rowId);
-                                                      }}
-                                                    >
-                                                      {busy ? (
-                                                        <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden />
-                                                      ) : (
-                                                        <FileDown className="w-3.5 h-3.5" aria-hidden />
-                                                      )}
-                                                      {busy ? " …" : " Скачать АПП"}
-                                                    </Button>
-                                                  );
-                                                })()}
-                                              </div>
-                                            ) : (
-                                              formatWbCellValue(c.key, dr[c.key])
-                                            )}
+                                            {c.key === "lineNumber"
+                                              ? String(dIdx + 1)
+                                              : formatWbCellValue(c.key, dr[c.key])}
                                           </td>
                                         ))}
                                       </tr>
@@ -1809,17 +1765,63 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                   );
                 })
               ) : (
-                items.map((row, idx) => (
-                  <tr key={`${activeTab}-${idx}`}>
-                    {columns.map((col) => (
-                      <td key={col.key}>
-                        {col.key === "lineNumber"
-                          ? String((page - 1) * limit + idx + 1)
-                          : formatWbSummaryCell(col.key, row as Record<string, unknown>)}
-                      </td>
-                    ))}
-                  </tr>
-                ))
+                items.map((row, idx) => {
+                  const rec = row as Record<string, unknown>;
+                  const lineNo = (page - 1) * limit + idx + 1;
+                  const appKey = `s-${page}-${idx}`;
+                  return (
+                    <tr key={`${activeTab}-${idx}`}>
+                      {columns.map((col) => (
+                        <td key={col.key}>
+                          {col.key === "lineNumber" ? (
+                            String(lineNo)
+                          ) : col.key === "status1c" ? (
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "flex-start",
+                                gap: "0.35rem",
+                              }}
+                            >
+                              <span>
+                                {(() => {
+                                  const t = formatWbSummaryCell(col.key, rec);
+                                  return t || "—";
+                                })()}
+                              </span>
+                              {(() => {
+                                const st = String(rec.status1c ?? "").trim();
+                                const cargo = String(rec.appCargoNumber ?? "").trim();
+                                const show =
+                                  st.length > 0 && st !== "не найден" && cargo.length > 0;
+                                if (!show) return null;
+                                const busy = wbAppDownloadingKey === appKey;
+                                return (
+                                  <Button
+                                    size="small"
+                                    className="wb-action-btn"
+                                    disabled={busy}
+                                    onClick={() => void handleDownloadWbApp(cargo, appKey)}
+                                  >
+                                    {busy ? (
+                                      <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden />
+                                    ) : (
+                                      <FileDown className="w-3.5 h-3.5" aria-hidden />
+                                    )}
+                                    {busy ? " …" : " Скачать АПП"}
+                                  </Button>
+                                );
+                              })()}
+                            </div>
+                          ) : (
+                            formatWbSummaryCell(col.key, rec)
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

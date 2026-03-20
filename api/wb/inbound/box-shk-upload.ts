@@ -5,9 +5,9 @@ import { pgTableExists, resolveWbAccess } from "../../_wb.js";
 import { writeAuditLog } from "../../../lib/adminAuditLog.js";
 
 /**
- * Строка вида `$1:1:3820740543:120762` — берём два последних поля через «:»:
- * предпоследнее = номер короба, последнее = ШК короба.
- * Также поддерживается короткий формат `3820740543:120762`.
+ * Строка вида `$1:1:3820740543:120762` — предпоследнее поле через «:» = номер короба;
+ * в колонку «ШК короба» пишется вся строка целиком (как в файле).
+ * Короткий формат `3820740543:120762` — в БД уйдёт полная строка, короб по-прежнему предпоследний сегмент.
  */
 export function parseInboundBoxShkText(text: string): Map<string, string> {
   const map = new Map<string, string>();
@@ -17,9 +17,8 @@ export function parseInboundBoxShkText(text: string): Map<string, string> {
     const parts = line.split(":").map((p) => p.trim()).filter((p) => p.length > 0);
     if (parts.length < 2) continue;
     const box = parts[parts.length - 2]!;
-    const shk = parts[parts.length - 1]!;
-    if (!box || !shk) continue;
-    map.set(box, shk);
+    if (!box) continue;
+    map.set(box, line);
   }
   return map;
 }
@@ -58,7 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const pairs = parseInboundBoxShkText(text);
     if (pairs.size === 0) {
       return res.status(400).json({
-        error: "Нет строк формата …:номер_короба:шк_короба (минимум два поля через двоеточие в строке).",
+        error: "Нет строк с минимум двумя полями через «:» (предпоследнее — номер короба, в БД пишется вся строка).",
         request_id: ctx.requestId,
       });
     }
