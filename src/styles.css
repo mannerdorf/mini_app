@@ -1861,10 +1861,31 @@ body {
     border-color: #7c3aed;
     box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
 }
+/* Одна строка фильтров WB (все вкладки); на узком экране — горизонтальный скролл */
 .wb-filters-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: stretch;
     gap: 0.5rem;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px; /* тень скролла не режется */
+}
+.wb-filters-grid > * {
+    flex: 1 1 0;
+    min-width: 7.5rem;
+}
+/* Поле «Поиск по всем полям» — чуть шире остальных */
+.wb-filters-grid--main > *:last-child {
+    flex: 2 1 0;
+    min-width: 10rem;
+}
+.wb-filters-grid .admin-form-input {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 /* WB: высота полей на ~20% меньше (0.8 × база 2.5rem) */

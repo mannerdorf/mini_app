@@ -1024,7 +1024,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         </div>
         </div>
 
-        <div className="wb-filters-grid">
+        <div className="wb-filters-grid wb-filters-grid--main">
           <Input
             type="date"
             value={filters.dateFrom}
