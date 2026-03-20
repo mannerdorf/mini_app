@@ -419,6 +419,28 @@ type WbPosilkaCached = {
   posilkaSteps: Array<{ title: string; date: string }>;
 };
 
+type WbAppDebugPayload = {
+  at: string;
+  requestUrl: string;
+  requestBody: Record<string, unknown>;
+  responseStatus: number | null;
+  responseBody: unknown;
+  responseText: string;
+  networkError: string;
+};
+
+function sanitizeWbDebugResponse(payload: unknown): unknown {
+  if (!payload || typeof payload !== "object") return payload;
+  const p = payload as Record<string, unknown>;
+  if (typeof p.data === "string" && p.data.length > 120) {
+    return {
+      ...p,
+      data: `<base64:${p.data.length} chars>`,
+    };
+  }
+  return payload;
+}
+
 const wbPosilkaInflight = new Map<string, Promise<WbPosilkaCached>>();
 const wbPosilkaResolved = new Map<string, WbPosilkaCached>();
 
@@ -633,6 +655,60 @@ function WbPerevozkaTimelineModal(props: {
   );
 }
 
+function WbAppDebugModal(props: {
+  open: boolean;
+  payload: WbAppDebugPayload | null;
+  onClose: () => void;
+}) {
+  const { open, payload, onClose } = props;
+  if (!open || !payload) return null;
+
+  return (
+    <div
+      className="wb-perevozka-modal-backdrop"
+      role="presentation"
+      onClick={onClose}
+      onKeyDown={(e) => e.key === "Escape" && onClose()}
+    >
+      <div
+        className="wb-perevozka-modal"
+        role="dialog"
+        aria-labelledby="wb-app-debug-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="wb-perevozka-modal-head">
+          <Typography.Body id="wb-app-debug-title" style={{ fontWeight: 700, fontSize: "1.05rem" }}>
+            Отладка АПП
+          </Typography.Body>
+          <button type="button" className="wb-perevozka-modal-close" aria-label="Закрыть" onClick={onClose}>
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <Typography.Body style={{ color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+          {payload.at}
+        </Typography.Body>
+        <pre
+          style={{
+            margin: 0,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            fontSize: "0.78rem",
+            lineHeight: 1.45,
+            background: "var(--color-bg-hover)",
+            border: "1px solid var(--color-border)",
+            borderRadius: 10,
+            padding: "0.75rem",
+            maxHeight: "60vh",
+            overflow: "auto",
+          }}
+        >
+{JSON.stringify(payload, null, 2)}
+        </pre>
+      </div>
+    </div>
+  );
+}
+
 /** Бейдж статуса 1С (GetPosilka) + АПП; номер перевозки из ответа или из колонки / импорта. */
 function WbSummaryStatus1cCell(props: {
   rec: Record<string, unknown>;
@@ -815,6 +891,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     number: string;
     stepsFromPosilka?: Array<{ title: string; date: string }>;
   } | null>(null);
+  const [wbAppDebug, setWbAppDebug] = useState<WbAppDebugPayload | null>(null);
+  const [wbAppDebugOpen, setWbAppDebugOpen] = useState(false);
 
   const [filters, setFilters] = useState({
     dateFrom: "",
@@ -1335,19 +1413,45 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     setUploadError(null);
     setWbAppDownloadingKey(loadingKey);
     const metod = DOCUMENT_METHODS["АПП"] ?? "АПП";
+    const requestUrl = "/api/download";
+    const requestBody = {
+      login: auth.login,
+      password: auth.password,
+      metod,
+      number: n,
+      ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
+    };
+    const debugBase: WbAppDebugPayload = {
+      at: new Date().toLocaleString("ru-RU"),
+      requestUrl,
+      requestBody: {
+        ...requestBody,
+        password: "***",
+      },
+      responseStatus: null,
+      responseBody: null,
+      responseText: "",
+      networkError: "",
+    };
     try {
-      const res = await fetch("/api/download", {
+      const res = await fetch(requestUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          login: auth.login,
-          password: auth.password,
-          metod,
-          number: n,
-          ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
-        }),
+        body: JSON.stringify(requestBody),
       });
-      const data = await res.json().catch(() => ({}));
+      const raw = await res.text();
+      let data: Record<string, unknown> = {};
+      try {
+        data = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+      } catch {
+        data = {};
+      }
+      setWbAppDebug({
+        ...debugBase,
+        responseStatus: res.status,
+        responseBody: sanitizeWbDebugResponse(data),
+        responseText: raw.slice(0, 5000),
+      });
       if (!res.ok) throw new Error(data?.message || data?.error || "Не удалось получить АПП");
       if (!data?.data) throw new Error("Документ АПП не найден");
       await downloadBase64File({
@@ -1356,6 +1460,11 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         isHtml: Boolean(data?.isHtml),
       });
     } catch (e: unknown) {
+      setWbAppDebug((prev) =>
+        prev
+          ? { ...prev, networkError: (e as Error)?.message || "Ошибка скачивания АПП" }
+          : { ...debugBase, networkError: (e as Error)?.message || "Ошибка скачивания АПП" },
+      );
       setUploadError((e as Error)?.message || "Ошибка скачивания АПП");
     } finally {
       setWbAppDownloadingKey(null);
@@ -1987,7 +2096,21 @@ export function WildberriesPage({ auth, canUpload }: Props) {
           </Typography.Body>
         )}
 
-        {uploadError && <Typography.Body style={{ color: "var(--color-error)", marginTop: "0.5rem" }}>{uploadError}</Typography.Body>}
+        {uploadError && (
+          <Flex align="center" gap="0.5rem" style={{ marginTop: "0.5rem", flexWrap: "wrap" }}>
+            <Typography.Body style={{ color: "var(--color-error)", margin: 0 }}>{uploadError}</Typography.Body>
+            {wbAppDebug ? (
+              <button
+                type="button"
+                className="wb-postb-app-badge"
+                onClick={() => setWbAppDebugOpen(true)}
+                title="Показать отладку последнего запроса АПП"
+              >
+                Отладка АПП
+              </button>
+            ) : null}
+          </Flex>
+        )}
         {error && <Typography.Body style={{ color: "var(--color-error)", marginTop: "0.5rem" }}>{error}</Typography.Body>}
 
         {activeTab === "summary" && (
@@ -2572,6 +2695,11 @@ export function WildberriesPage({ auth, canUpload }: Props) {
           initialStepsFromPosilka={perevozkaModal?.stepsFromPosilka}
           authHeaders={authHeaders}
           onClose={() => setPerevozkaModal(null)}
+        />
+        <WbAppDebugModal
+          open={wbAppDebugOpen}
+          payload={wbAppDebug}
+          onClose={() => setWbAppDebugOpen(false)}
         />
       </Panel>
     </div>
