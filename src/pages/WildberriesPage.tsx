@@ -4,6 +4,8 @@ import { TapSwitch } from "../components/TapSwitch";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { Download, FileDown, FileUp, RefreshCw, Trash2, Upload, ChevronDown, X } from "lucide-react";
 import type { AuthData } from "../types";
+import { DOCUMENT_METHODS } from "../documentMethods";
+import { normalizeWbPerevozkaHaulzDigits } from "../lib/wbPerevozkaNumber";
 import { downloadBase64File } from "../utils";
 
 type WbTab = "inbound" | "returned" | "claims" | "summary";
@@ -377,7 +379,7 @@ function wbPostbPosilkaCode(rec: Record<string, unknown>): string {
 }
 
 function wbPerevozkaNumberRaw(rec: Record<string, unknown>): string {
-  return String(rec.lvPerevozkaNasha ?? "").trim();
+  return normalizeWbPerevozkaHaulzDigits(String(rec.lvPerevozkaNasha ?? "").trim());
 }
 
 /** Шаги GetPosilka из сводки (jsonb с API). */
@@ -436,7 +438,7 @@ function fetchWbPosilkaOnce(code: string, authHeaders: Record<string, string>): 
         };
         const entry: WbPosilkaCached = {
           lastStatus: String(d?.lastStatus ?? "").trim(),
-          perevozka: String(d?.perevozka ?? "").trim(),
+          perevozka: normalizeWbPerevozkaHaulzDigits(String(d?.perevozka ?? "").trim()),
           posilkaSteps: Array.isArray(d?.posilkaSteps) ? d.posilkaSteps : [],
         };
         wbPosilkaResolved.set(key, entry);
@@ -648,11 +650,11 @@ function WbSummaryStatus1cCell(props: {
   const skipFetch = wbHasPostbServerCache(rec);
   const d = useWbPosilka(skipFetch ? "" : code, authHeaders);
   const lastStatus = (serverStatus || d.lastStatus).trim();
-  const perevozka = (serverPerevozka || d.perevozka).trim();
+  const perevozka = normalizeWbPerevozkaHaulzDigits((serverPerevozka || d.perevozka).trim());
   const posilkaSteps = serverSteps.length > 0 ? serverSteps : d.posilkaSteps;
   const loading = skipFetch ? false : d.loading;
   const lvFb = wbPerevozkaNumberRaw(rec);
-  /** Перевозка: сначала колонка HAULZ, затем кэш GetPosilka */
+  /** Перевозка: сначала колонка HAULZ, затем кэш GetPosilka (ведущие нули для GetFile) */
   const transport = lvFb || perevozka;
   /** Статус только из PostB / кэша БД — без подстановки «адреса РВБ» из status1c */
   const display = !code ? "—" : loading ? "…" : lastStatus || "—";
@@ -706,10 +708,10 @@ function WbSummaryPerevozkaHaulzCell(props: { rec: Record<string, unknown>; auth
   const { rec, authHeaders } = props;
   const code = wbPostbPosilkaCode(rec);
   const lvFallback = wbPerevozkaNumberRaw(rec);
-  const cachedPv = String(rec.postbPerevozka ?? "").trim();
+  const cachedPv = normalizeWbPerevozkaHaulzDigits(String(rec.postbPerevozka ?? "").trim());
   const skipFetch = wbHasPostbServerCache(rec);
   const d = useWbPosilka(skipFetch ? "" : code, authHeaders);
-  const show = lvFallback || cachedPv || d.perevozka;
+  const show = lvFallback || cachedPv || normalizeWbPerevozkaHaulzDigits(d.perevozka);
   if (!show) return "—";
   return show;
 }
@@ -1326,13 +1328,24 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       setUploadError("Нет номера перевозки (колонка «Перевозка HAULZ»)");
       return;
     }
+    if (!auth?.login || !auth?.password) {
+      setUploadError("Требуется авторизация для скачивания АПП");
+      return;
+    }
     setUploadError(null);
     setWbAppDownloadingKey(loadingKey);
+    const metod = DOCUMENT_METHODS["АПП"] ?? "АПП";
     try {
       const res = await fetch("/api/download", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ metod: "АПП", number: n }),
+        body: JSON.stringify({
+          login: auth.login,
+          password: auth.password,
+          metod,
+          number: n,
+          ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message || data?.error || "Не удалось получить АПП");
@@ -1347,7 +1360,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     } finally {
       setWbAppDownloadingKey(null);
     }
-  }, []);
+  }, [auth]);
 
   const handleClearWbSummary = useCallback(async () => {
     if (!window.confirm("Очистить сводную таблицу? Данные можно восстановить кнопкой «Обновить» (пересчёт по претензиям и описям).")) return;

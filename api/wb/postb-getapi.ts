@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { initRequestContext, logError } from "../_lib/observability.js";
 import { getPool } from "../_db.js";
 import { pgTableExists, resolveWbAccess } from "../_wb.js";
+import { normalizeWbPerevozkaHaulzDigits } from "../lib/wbPerevozkaDigits.js";
 import {
   normalizePerevozkaSteps,
   normalizePosilkaLastStatus,
@@ -69,7 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({
               ok: true,
               lastStatus: String(row.last_status ?? "").trim(),
-              perevozka: String(row.perevozka ?? "").trim(),
+              perevozka: normalizeWbPerevozkaHaulzDigits(String(row.perevozka ?? "").trim()),
               posilkaSteps: steps as Array<{ title: string; date: string }>,
               cached: true,
               request_id: ctx.requestId,
@@ -119,7 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const lastStatus = sanitizePosilkaStatusLabel(
         parsedPos.lastStatus || normalizePosilkaLastStatus(parsed),
       );
-      const perevozka = String(parsedPos.perevozka ?? "").trim();
+      const perevozka = normalizeWbPerevozkaHaulzDigits(String(parsedPos.perevozka ?? "").trim());
       const posilkaSteps = parsedPos.posilkaSteps;
 
       if (await pgTableExists(pool, "wb_postb_posilka_cache")) {

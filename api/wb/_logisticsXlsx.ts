@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { normalizeWbPerevozkaHaulzDigits } from "../lib/wbPerevozkaDigits.js";
 import { parseCellDateFlexible } from "./_excelMeta.js";
 
 export type WbLogisticsParsedRow = {
@@ -136,6 +137,33 @@ function pick(row: unknown[], idx: number): string {
   return logisticsCellToText(row[idx]);
 }
 
+/**
+ * Колонка «Перевозка наша»: Excel отдаёт число → теряются ведущие нули.
+ * Даты в этой колонке (редко) обрабатываем как в logisticsCellToText.
+ */
+function perevozkaNashaCellToText(v: unknown): string {
+  if (v === null || v === undefined || v === "") return "";
+  if (v instanceof Date) return logisticsCellToText(v);
+  if (typeof v === "number" && Number.isFinite(v)) {
+    const d = parseCellDateFlexible(v);
+    if (d) return d;
+    if (!Number.isInteger(v)) return logisticsCellToText(v);
+    const s = String(Math.trunc(v));
+    if (!/^\d+$/.test(s)) return logisticsCellToText(v);
+    return normalizeWbPerevozkaHaulzDigits(s);
+  }
+  if (typeof v === "bigint") {
+    const s = v.toString();
+    if (!/^\d+$/.test(s)) return s;
+    return normalizeWbPerevozkaHaulzDigits(s);
+  }
+  const s0 = String(v).trim();
+  const d2 = parseCellDateFlexible(s0);
+  if (d2) return d2;
+  if (/^\d+$/.test(s0)) return normalizeWbPerevozkaHaulzDigits(s0);
+  return s0;
+}
+
 export function parseLogisticsWorksheet(ws: XLSX.WorkSheet): WbLogisticsParsedRow[] {
   const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true }) as unknown[][];
   if (!data.length) return [];
@@ -154,7 +182,7 @@ export function parseLogisticsWorksheet(ws: XLSX.WorkSheet): WbLogisticsParsedRo
 
     out.push({
       parcelKey,
-      perevozkaNasha: pick(row, col.perevozkaNasha),
+      perevozkaNasha: perevozkaNashaCellToText(row[col.perevozkaNasha]),
       otchetDostavki: pick(row, col.otchet),
       otpavkaAp: pick(row, col.ap),
       stoimost: pick(row, col.stoim),
