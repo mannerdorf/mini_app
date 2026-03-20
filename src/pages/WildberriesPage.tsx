@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { Download, FileUp, RefreshCw, Search, Trash2, Upload } from "lucide-react";
+import { Download, FileUp, RefreshCw, Trash2, Upload } from "lucide-react";
 import type { AuthData } from "../types";
 
 type WbTab = "inbound" | "returned" | "claims" | "summary";
@@ -9,16 +9,6 @@ type ImportMode = "append" | "upsert";
 type Props = {
   auth: AuthData;
   canUpload: boolean;
-};
-
-type WbSearchResult = {
-  source: "summary" | "inbound" | "returned" | "claims";
-  id: string;
-  boxId: string | null;
-  title: string;
-  snippet: string;
-  score: number;
-  payload: Record<string, unknown>;
 };
 
 type ColumnDef = { key: string; label: string };
@@ -106,6 +96,30 @@ type ReturnedGroup = { documentNumber: string | null; batchId: number | null };
 
 function returnedGroupCacheKey(g: ReturnedGroup): string {
   return JSON.stringify([String(g.documentNumber ?? "").trim(), g.batchId ?? null]);
+}
+
+function returnedDetailCacheKey(
+  g: ReturnedGroup,
+  f: { dateFrom: string; dateTo: string; boxId: string; q: string },
+): string {
+  return `${returnedGroupCacheKey(g)}\x1f${JSON.stringify({
+    df: f.dateFrom,
+    dt: f.dateTo,
+    box: f.boxId,
+    q: f.q,
+  })}`;
+}
+
+function claimsDetailCacheKey(
+  revisionId: number,
+  f: { dateFrom: string; dateTo: string; boxId: string; q: string },
+): string {
+  return `${revisionId}\x1f${JSON.stringify({
+    df: f.dateFrom,
+    dt: f.dateTo,
+    box: f.boxId,
+    q: f.q,
+  })}`;
 }
 
 function normalizeReturnedGroupRow(row: Record<string, unknown>): ReturnedGroup {
@@ -278,6 +292,27 @@ function buildQuery(params: Record<string, string | number | undefined>) {
   return query.toString();
 }
 
+type WbInboundListFilters = {
+  dateFrom: string;
+  dateTo: string;
+  inventoryNumber: string;
+  boxId: string;
+  q: string;
+};
+
+/** Ключ кэша детализации: те же фильтры, что и у сводки (иначе подгружалась вся ведомость). */
+function inboundDetailCacheKey(inventoryNumber: string, f: WbInboundListFilters): string {
+  const inv = String(inventoryNumber ?? "").trim();
+  const sig = JSON.stringify({
+    df: f.dateFrom,
+    dt: f.dateTo,
+    invF: f.inventoryNumber,
+    box: f.boxId,
+    q: f.q,
+  });
+  return `${inv}\x1f${sig}`;
+}
+
 export function WildberriesPage({ auth, canUpload }: Props) {
   const [activeTab, setActiveTab] = useState<WbTab>("inbound");
   const [loading, setLoading] = useState(false);
@@ -289,11 +324,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   const [importMode, setImportMode] = useState<ImportMode>("append");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchResults, setSearchResults] = useState<WbSearchResult[]>([]);
   const [expandedClaimsRevisionId, setExpandedClaimsRevisionId] = useState<number | null>(null);
   const [claimsDetailsCache, setClaimsDetailsCache] = useState<Record<string, Record<string, unknown>[]>>({});
-  const [claimsDetailLoading, setClaimsDetailLoading] = useState<number | null>(null);
+  const [claimsDetailLoading, setClaimsDetailLoading] = useState<string | null>(null);
   const [deletingClaimsRevisionId, setDeletingClaimsRevisionId] = useState<number | null>(null);
   const [expandedInboundInv, setExpandedInboundInv] = useState<string | null>(null);
   const [inboundDetailsCache, setInboundDetailsCache] = useState<Record<string, Record<string, unknown>[]>>({});
@@ -336,8 +369,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     dateTo: "",
     inventoryNumber: "",
     boxId: "",
-    article: "",
-    brand: "",
     claimNumber: "",
     q: "",
   });
@@ -381,8 +412,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         dateTo: filters.dateTo,
         inventoryNumber: activeTab === "inbound" ? filters.inventoryNumber : undefined,
         boxId: filters.boxId,
-        article: filters.article,
-        brand: filters.brand,
         claimNumber: activeTab === "summary" ? filters.claimNumber : undefined,
         q: filters.q,
         history: activeTab === "claims" ? "true" : undefined,
@@ -430,9 +459,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     activeTab,
     authHeaders,
     dataEndpoint,
-    filters.article,
     filters.boxId,
-    filters.brand,
     filters.claimNumber,
     filters.dateFrom,
     filters.dateTo,
@@ -461,6 +488,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     setExpandedInboundInv(null);
     setExpandedReturnedGroup(null);
     setExpandedClaimsRevisionId(null);
+    setInboundDetailsCache({});
+    setReturnedDetailsCache({});
   }, [
     activeTab,
     page,
@@ -469,8 +498,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     inboundSummarySort.dir,
     filters.dateFrom,
     filters.dateTo,
-    filters.article,
-    filters.brand,
+    filters.boxId,
+    filters.q,
+    filters.inventoryNumber,
   ]);
 
   useEffect(() => {
@@ -491,7 +521,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   useEffect(() => {
     setClaimsDetailsCache({});
     setExpandedClaimsRevisionId(null);
-  }, [filters.dateFrom, filters.dateTo, filters.boxId, filters.article, filters.brand, filters.q]);
+  }, [filters.dateFrom, filters.dateTo, filters.boxId, filters.q]);
 
   /** Свернуть, если раскрытая ведомости нет в текущей странице выдачи. */
   useEffect(() => {
@@ -512,12 +542,17 @@ export function WildberriesPage({ auth, canUpload }: Props) {
 
   const loadInboundDetails = useCallback(
     async (inventoryNumber: string) => {
-      if (Object.prototype.hasOwnProperty.call(inboundDetailsCacheRef.current, inventoryNumber)) return;
-      setInboundDetailLoading(inventoryNumber);
+      const cacheKey = inboundDetailCacheKey(inventoryNumber, filters);
+      if (Object.prototype.hasOwnProperty.call(inboundDetailsCacheRef.current, cacheKey)) return;
+      setInboundDetailLoading(cacheKey);
       try {
         const query = buildQuery({
           inventoryNumber,
-          /** См. api/wb/inbound.ts INBOUND_DETAIL_SINGLE_INV_MAX_LIMIT — было 500, обрезало ведомости. */
+          dateFrom: filters.dateFrom,
+          dateTo: filters.dateTo,
+          boxId: filters.boxId,
+          q: filters.q,
+          /** См. api/wb/inbound.ts INBOUND_DETAIL_SINGLE_INV_MAX_LIMIT */
           limit: 15000,
           page: 1,
         });
@@ -525,14 +560,14 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка загрузки строк");
         const rows = Array.isArray(data?.items) ? data.items : [];
-        setInboundDetailsCache((prev) => ({ ...prev, [inventoryNumber]: rows }));
+        setInboundDetailsCache((prev) => ({ ...prev, [cacheKey]: rows }));
       } catch {
-        setInboundDetailsCache((prev) => ({ ...prev, [inventoryNumber]: [] }));
+        setInboundDetailsCache((prev) => ({ ...prev, [cacheKey]: [] }));
       } finally {
         setInboundDetailLoading(null);
       }
     },
-    [authHeaders],
+    [authHeaders, filters.boxId, filters.dateFrom, filters.dateTo, filters.inventoryNumber, filters.q],
   );
 
   const toggleInboundRow = useCallback(
@@ -564,7 +599,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         setExpandedInboundInv((prev) => (prev === inv ? null : prev));
         setInboundDetailsCache((prev) => {
           const next = { ...prev };
-          delete next[inv];
+          for (const k of Object.keys(next)) {
+            if (k === inv || k.startsWith(`${inv}\x1f`)) delete next[k];
+          }
           return next;
         });
         await loadData();
@@ -579,7 +616,12 @@ export function WildberriesPage({ auth, canUpload }: Props) {
 
   const loadReturnedDetails = useCallback(
     async (group: ReturnedGroup) => {
-      const cacheKey = returnedGroupCacheKey(group);
+      const cacheKey = returnedDetailCacheKey(group, {
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        boxId: filters.boxId,
+        q: filters.q,
+      });
       if (Object.prototype.hasOwnProperty.call(returnedDetailsCacheRef.current, cacheKey)) return;
       setReturnedDetailLoading(cacheKey);
       try {
@@ -587,6 +629,10 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         params.set("view", "detail");
         params.set("gDoc", String(group.documentNumber ?? ""));
         params.set("gBatch", group.batchId === null || group.batchId === undefined ? "" : String(group.batchId));
+        if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
+        if (filters.dateTo) params.set("dateTo", filters.dateTo);
+        if (filters.boxId.trim()) params.set("boxId", filters.boxId.trim());
+        if (filters.q.trim()) params.set("q", filters.q.trim());
         const res = await fetch(`/api/wb/returned?${params.toString()}`, { headers: authHeaders });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка загрузки строк");
@@ -598,7 +644,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         setReturnedDetailLoading(null);
       }
     },
-    [authHeaders],
+    [authHeaders, filters.boxId, filters.dateFrom, filters.dateTo, filters.q],
   );
 
   const toggleReturnedGroupRow = useCallback(
@@ -632,7 +678,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         setExpandedReturnedGroup((prev) => (prev && returnedGroupCacheKey(prev) === cacheKey ? null : prev));
         setReturnedDetailsCache((prev) => {
           const next = { ...prev };
-          delete next[cacheKey];
+          for (const k of Object.keys(next)) {
+            if (k === cacheKey || k.startsWith(`${cacheKey}\x1f`)) delete next[k];
+          }
           return next;
         });
         await loadData();
@@ -647,9 +695,14 @@ export function WildberriesPage({ auth, canUpload }: Props) {
 
   const loadClaimsDetails = useCallback(
     async (revisionId: number) => {
-      const key = String(revisionId);
+      const key = claimsDetailCacheKey(revisionId, {
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        boxId: filters.boxId,
+        q: filters.q,
+      });
       if (Object.prototype.hasOwnProperty.call(claimsDetailsCacheRef.current, key)) return;
-      setClaimsDetailLoading(revisionId);
+      setClaimsDetailLoading(key);
       try {
         const params = new URLSearchParams();
         params.set("view", "detail");
@@ -657,8 +710,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
         if (filters.dateTo) params.set("dateTo", filters.dateTo);
         if (filters.boxId.trim()) params.set("boxId", filters.boxId.trim());
-        if (filters.article.trim()) params.set("article", filters.article.trim());
-        if (filters.brand.trim()) params.set("brand", filters.brand.trim());
         if (filters.q.trim()) params.set("q", filters.q.trim());
         params.set("history", "true");
         const res = await fetch(`/api/wb/claims?${params.toString()}`, { headers: authHeaders });
@@ -672,7 +723,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         setClaimsDetailLoading(null);
       }
     },
-    [authHeaders, filters.article, filters.boxId, filters.brand, filters.dateFrom, filters.dateTo, filters.q],
+    [authHeaders, filters.boxId, filters.dateFrom, filters.dateTo, filters.q],
   );
 
   const toggleClaimsRevisionRow = useCallback(
@@ -706,7 +757,10 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         setExpandedClaimsRevisionId((prev) => (prev === revisionId ? null : prev));
         setClaimsDetailsCache((prev) => {
           const next = { ...prev };
-          delete next[String(revisionId)];
+          const prefix = `${revisionId}\x1f`;
+          for (const k of Object.keys(next)) {
+            if (k === String(revisionId) || k.startsWith(prefix)) delete next[k];
+          }
           return next;
         });
         await loadData();
@@ -890,30 +944,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     }
   }, [authHeaders, loadData, manualReturned]);
 
-  const runHybridSearch = useCallback(async () => {
-    if (!filters.q.trim()) return;
-    setSearchLoading(true);
-    try {
-      const query = buildQuery({
-        q: filters.q,
-        dateFrom: filters.dateFrom,
-        dateTo: filters.dateTo,
-        boxId: filters.boxId,
-        article: filters.article,
-        brand: filters.brand,
-        limit: 30,
-      });
-      const res = await fetch(`/api/wildberries/search?${query}`, { headers: authHeaders });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка поиска");
-      setSearchResults(Array.isArray(data?.items) ? data.items : []);
-    } catch {
-      setSearchResults([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  }, [authHeaders, filters.article, filters.boxId, filters.brand, filters.dateFrom, filters.dateTo, filters.q]);
-
   const columns = useMemo<ColumnDef[]>(() => {
     if (activeTab === "inbound") {
       return [
@@ -1024,18 +1054,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             placeholder="Номер коробки"
             title="Фильтр по номеру коробки (частичное совпадение)"
           />
-          <Input
-            value={filters.article}
-            onChange={(e) => setFilters((p) => ({ ...p, article: e.target.value }))}
-            className="admin-form-input"
-            placeholder="Артикул"
-          />
-          <Input
-            value={filters.brand}
-            onChange={(e) => setFilters((p) => ({ ...p, brand: e.target.value }))}
-            className="admin-form-input"
-            placeholder="Бренд"
-          />
           {activeTab === "summary" && (
             <Input
               value={filters.claimNumber}
@@ -1056,10 +1074,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
           <Button className="wb-action-btn" onClick={() => void handleWbRefreshClick()} disabled={loading}>
             {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             {loading ? " Загрузка..." : "Обновить"}
-          </Button>
-          <Button className="wb-action-btn" onClick={() => void runHybridSearch()} disabled={!filters.q.trim() || searchLoading}>
-            {searchLoading ? <Search className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            Гибридный поиск
           </Button>
           <Button className="wb-action-btn" onClick={() => void handleExport("csv")}>
             <Download className="w-4 h-4" />
@@ -1271,7 +1285,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                 items.map((row, idx) => {
                   const inv = String(row.inventoryNumber ?? idx);
                   const open = expandedInboundInv === inv;
-                  const detailRowsRaw = inboundDetailsCache[inv] ?? [];
+                  const inboundDetailKey = inboundDetailCacheKey(inv, filters);
+                  const detailRowsRaw = inboundDetailsCache[inboundDetailKey] ?? [];
                   const needle = inboundDetailNeedle;
                   const invHighlight = WB_INBOUND_HIGHLIGHT_INVENTORY_NUMBERS.has(normalizeWbInventoryNumberKey(row.inventoryNumber));
                   return (
@@ -1319,13 +1334,15 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                       {open && (
                         <tr className="wb-inbound-detail-row">
                           <td colSpan={columns.length + 1 + (canUpload ? 1 : 0)}>
-                            {inboundDetailLoading === inv && detailRowsRaw.length === 0 ? (
+                            {inboundDetailLoading === inboundDetailKey && detailRowsRaw.length === 0 ? (
                               <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>Загрузка строк...</Typography.Body>
                             ) : detailRowsRaw.length === 0 ? (
                               <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>Нет строк по этой ведомости</Typography.Body>
                             ) : (
                               <div className="wb-inbound-detail-wrap">
-                                {needle ? (
+                                {needle ||
+                                filters.boxId.trim() ||
+                                filters.inventoryNumber.trim() ? (
                                   <Typography.Body
                                     style={{
                                       color: "var(--color-text-secondary)",
@@ -1333,7 +1350,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                                       fontSize: "0.875rem",
                                     }}
                                   >
-                                    Все позиции ведомости; подсвечены строки, где есть совпадение с фильтром.
+                                    {needle
+                                      ? "Строки с учётом фильтров над таблицей; подсвечены совпадения с полем «Номер коробки» / «Поиск»."
+                                      : "Строки с учётом фильтров над таблицей (номер описи, коробка, даты, поиск)."}
                                   </Typography.Body>
                                 ) : null}
                                 <table className="wb-table wb-table--nested">
@@ -1378,10 +1397,16 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                   const rec = row as Record<string, unknown>;
                   const g = normalizeReturnedGroupRow(rec);
                   const cacheKey = returnedGroupCacheKey(g);
+                  const returnedDetailKey = returnedDetailCacheKey(g, {
+                    dateFrom: filters.dateFrom,
+                    dateTo: filters.dateTo,
+                    boxId: filters.boxId,
+                    q: filters.q,
+                  });
                   const open =
                     expandedReturnedGroup !== null &&
                     returnedGroupCacheKey(expandedReturnedGroup) === cacheKey;
-                  const detailRowsRaw = returnedDetailsCache[cacheKey] ?? [];
+                  const detailRowsRaw = returnedDetailsCache[returnedDetailKey] ?? [];
                   return (
                     <React.Fragment key={`returned-${cacheKey}-${idx}`}>
                       <tr
@@ -1431,7 +1456,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                           <td
                             colSpan={columns.length + 1 + (canUpload ? 1 : 0)}
                           >
-                            {returnedDetailLoading === cacheKey && detailRowsRaw.length === 0 ? (
+                            {returnedDetailLoading === returnedDetailKey && detailRowsRaw.length === 0 ? (
                               <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>
                                 Загрузка строк...
                               </Typography.Body>
@@ -1448,7 +1473,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                                     fontSize: "0.875rem",
                                   }}
                                 >
-                                  Строка ищется в «Описи» по номеру коробки, ШК, баркоду или стикеру.
+                                  {filters.boxId.trim() || filters.q.trim() || filters.dateFrom || filters.dateTo
+                                    ? "Строки группы с учётом фильтров (даты, коробка, поиск). Сопоставление с «Описью» по коробке, ШК, баркоду или стикеру."
+                                    : "Строка ищется в «Описи» по номеру коробки, ШК, баркоду или стикеру."}
                                 </Typography.Body>
                                 <table className="wb-table wb-table--nested">
                                   <thead>
@@ -1460,7 +1487,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                                   </thead>
                                   <tbody>
                                     {detailRowsRaw.map((dr, dIdx) => (
-                                      <tr key={`${cacheKey}-d-${dIdx}`}>
+                                      <tr key={`${returnedDetailKey}-d-${dIdx}`}>
                                         {RETURNED_DETAIL_COLUMNS.map((c) => (
                                           <td key={c.key}>{formatReturnedDetailCell(c.key, dr[c.key])}</td>
                                         ))}
@@ -1480,8 +1507,13 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                 items.map((row, idx) => {
                   const revisionId = Number(row.revisionId);
                   const open = expandedClaimsRevisionId === revisionId;
-                  const cacheKey = String(revisionId);
-                  const detailRowsRaw = claimsDetailsCache[cacheKey] ?? [];
+                  const claimsDetailKey = claimsDetailCacheKey(revisionId, {
+                    dateFrom: filters.dateFrom,
+                    dateTo: filters.dateTo,
+                    boxId: filters.boxId,
+                    q: filters.q,
+                  });
+                  const detailRowsRaw = claimsDetailsCache[claimsDetailKey] ?? [];
                   return (
                     <React.Fragment key={`claims-${revisionId}-${idx}`}>
                       <tr
@@ -1527,7 +1559,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                       {open && (
                         <tr className="wb-inbound-detail-row">
                           <td colSpan={columns.length + 1 + (canUpload ? 1 : 0)}>
-                            {claimsDetailLoading === revisionId && detailRowsRaw.length === 0 ? (
+                            {claimsDetailLoading === claimsDetailKey && detailRowsRaw.length === 0 ? (
                               <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>
                                 Загрузка строк...
                               </Typography.Body>
@@ -1555,7 +1587,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                                           ? (allRaw as Record<string, unknown>)
                                           : {};
                                       return (
-                                        <tr key={`${cacheKey}-d-${dIdx}`}>
+                                        <tr key={`${claimsDetailKey}-d-${dIdx}`}>
                                           <td>{dIdx + 1}</td>
                                           {CLAIMS_EXCEL_COLUMN_SPEC.map((c) => (
                                             <td key={c.label}>{pickClaimsExcelValue(all, c.headerKeys)}</td>
@@ -1615,20 +1647,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
           </Flex>
         </Flex>
 
-        {searchResults.length > 0 && (
-          <div className="wb-search-results">
-            <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Результаты гибридного поиска</Typography.Body>
-            {searchResults.map((r) => (
-              <div key={`${r.source}-${r.id}`} className="wb-search-card">
-                <div>
-                  <Typography.Body style={{ fontWeight: 600 }}>{r.title}</Typography.Body>
-                  <Typography.Body style={{ color: "var(--color-text-secondary)" }}>{r.snippet}</Typography.Body>
-                </div>
-                <Typography.Body style={{ color: "var(--color-primary-blue)" }}>{r.source}</Typography.Body>
-              </div>
-            ))}
-          </div>
-        )}
       </Panel>
     </div>
   );

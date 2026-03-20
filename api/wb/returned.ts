@@ -108,8 +108,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: "Некорректный gBatch", request_id: ctx.requestId });
       }
 
+      /** Те же фильтры, что у сводки — иначе в раскрытии показывались все строки группы. */
+      const dWhere: string[] = [
+        `${GROUP_DOC_EXPR} = $1::text`,
+        `r.batch_id is not distinct from $2::bigint`,
+      ];
       const detailParams: unknown[] = [gDoc, gBatchId];
-      const detailWhere = `where ${GROUP_DOC_EXPR} = $1::text and r.batch_id is not distinct from $2::bigint`;
+      if (dateFrom) {
+        detailParams.push(dateFrom);
+        dWhere.push(`coalesce(r.document_date, r.created_at::date) >= $${detailParams.length}::date`);
+      }
+      if (dateTo) {
+        detailParams.push(dateTo);
+        dWhere.push(`coalesce(r.document_date, r.created_at::date) <= $${detailParams.length}::date`);
+      }
+      if (boxId) {
+        detailParams.push(pgIlikeContainsPattern(boxId));
+        dWhere.push(`r.box_id ilike $${detailParams.length} escape '\\'`);
+      }
+      if (cargoNumber) {
+        detailParams.push(cargoNumber);
+        dWhere.push(`coalesce(r.cargo_number, '') ilike $${detailParams.length}`);
+      }
+      if (hasShkRaw === "true" || hasShkRaw === "false") {
+        detailParams.push(hasShkRaw === "true");
+        dWhere.push(`r.has_shk = $${detailParams.length}`);
+      }
+      if (q) {
+        detailParams.push(`%${q}%`);
+        dWhere.push(`(
+          r.box_id ilike $${detailParams.length}
+          or coalesce(r.cargo_number, '') ilike $${detailParams.length}
+          or coalesce(r.description, '') ilike $${detailParams.length}
+          or coalesce(r.document_number, '') ilike $${detailParams.length}
+        )`);
+      }
+      const detailWhere = `where ${dWhere.join(" and ")}`;
 
       const hasInbound = await pgTableExists(pool, "wb_inbound_items");
       const inboundLateral = hasInbound
