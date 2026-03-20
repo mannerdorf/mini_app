@@ -1323,7 +1323,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   }, [authHeaders, inboundBoxShkText, loadData]);
 
   const handleDownloadWbApp = useCallback(async (perevozkaNumber: string, loadingKey: string) => {
-    const n = String(perevozkaNumber ?? "").trim();
+    const n = normalizeWbPerevozkaHaulzDigits(String(perevozkaNumber ?? ""));
     if (!n) {
       setUploadError("Нет номера перевозки (колонка «Перевозка HAULZ»)");
       return;

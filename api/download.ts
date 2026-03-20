@@ -2,6 +2,12 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import https from "https";
 import { URL } from "url";
 import { getPool } from "./_db.js";
+import {
+  cleanTransportNumberInput,
+  normalizeWbPerevozkaHaulzDigits,
+  stripToTransportDigits,
+  transportAccessKeysMatch,
+} from "./lib/wbPerevozkaDigits.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
@@ -123,6 +129,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    number = cleanTransportNumberInput(String(number ?? ""));
     if (!metod || !number) {
       return res.status(400).json({
         error: "Required fields: metod, number",
@@ -182,10 +189,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (cacheRow.rows.length > 0) {
           const data = cacheRow.rows[0].data as any[];
           const list = Array.isArray(data) ? data : [];
-          const norm = String(number).trim();
           const item = list.find((i: any) => {
-            const n = String(i?.Number ?? i?.number ?? "").trim();
-            if (n !== norm) return false;
+            if (!transportAccessKeysMatch(i?.Number ?? i?.number ?? "", number)) return false;
             if (verified.accessAllInns) return true;
             const itemInn = String(i?.INN ?? i?.Inn ?? i?.inn ?? "").trim();
             return itemInn === (verified.inn ?? "");
@@ -251,6 +256,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       login = serviceLogin;
       password = servicePassword;
+    }
+
+    // АПП/ЭР: в Number только цифры с ведущими нулями (после очистки служебных символов).
+    if (metod === "АПП" || metod === "ЭР") {
+      const td = stripToTransportDigits(String(number));
+      if (td) number = normalizeWbPerevozkaHaulzDigits(td);
     }
 
     // Формируем URL ровно как в Postman/curl:

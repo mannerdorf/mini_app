@@ -1,13 +1,23 @@
 /**
- * Номер «Перевозка HAULZ» в Excel часто приходит как number — пропадают ведущие нули.
- * Логика совпадает с api/lib/wbPerevozkaDigits.ts (фронт не импортирует api).
+ * Дублирует api/lib/wbPerevozkaDigits.ts (фронт не импортирует api).
+ * Убираем BOM/zero-width/NBSP и нормализуем ведущие нули для GetFile.
  */
 const DEFAULT_MIN_DIGITS = 9;
+const INVISIBLE_AND_FORMAT = /[\uFEFF\u200B-\u200D\u2060\u00AD]/g;
+
+function cleanTransportNumberInput(raw: string): string {
+  let s = String(raw ?? "").replace(INVISIBLE_AND_FORMAT, "");
+  s = s.replace(/^[\s\u00A0\u2000-\u200A\u202F\u205F\u3000]+|[\s\u00A0\u2000-\u200A\u202F\u205F\u3000]+$/g, "");
+  return s.trim();
+}
+
+function stripToTransportDigits(raw: string): string {
+  return cleanTransportNumberInput(raw).replace(/\D/g, "");
+}
 
 export function normalizeWbPerevozkaHaulzDigits(raw: string, minDigits: number = DEFAULT_MIN_DIGITS): string {
-  const s = String(raw ?? "").trim();
-  if (!s) return "";
-  if (!/^\d+$/.test(s)) return s;
-  if (s.length >= minDigits) return s;
-  return s.padStart(minDigits, "0");
+  const digits = stripToTransportDigits(raw);
+  if (!digits) return cleanTransportNumberInput(raw);
+  if (digits.length >= minDigits) return digits;
+  return digits.padStart(minDigits, "0");
 }
