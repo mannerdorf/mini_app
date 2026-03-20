@@ -27,6 +27,7 @@
     "api/wb/inbound/import.ts": {"maxDuration": 120},
     "api/wb/returned/import.ts": {"maxDuration": 120},
     "api/wb/claims/import.ts": {"maxDuration": 120},
+    "api/wb/logistics-import.ts": {"maxDuration": 120},
     "api/wb/summary/refresh.ts": {"maxDuration": 120}
   },
   "rewrites": [

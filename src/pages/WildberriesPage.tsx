@@ -33,6 +33,23 @@ const WB_SUMMARY_SORT_KEYS = new Set<string>([
   "inboundPriceRub",
 ]);
 
+/** Колонки логистики из импорта возвратной описи (без сортировки по заголовку). */
+const WB_SUMMARY_LOGISTICS_KEYS = new Set<string>([
+  "lvPerevozkaNasha",
+  "lvOtchetDostavki",
+  "lvOtpavkaAp",
+  "lvStoimost",
+  "lvLogisticsStatus",
+  "lvData",
+  "lvDataInfo",
+  "lvDataUpakovano",
+  "lvDataKonsolidirovano",
+  "lvDataVAeroport",
+  "lvDataUletelo",
+  "lvDataKVrucheniyu",
+  "lvDataDostavleno",
+]);
+
 /** Номера описей, которые подсвечиваются фиолетовым на вкладке «Описи». */
 const WB_INBOUND_HIGHLIGHT_INVENTORY_NUMBERS = new Set([
   "208633205",
@@ -247,6 +264,10 @@ function formatWbSummaryCell(colKey: string, row: Record<string, unknown>): stri
     const v = row.claimPriceRub;
     if (v === null || v === undefined || v === "") return "—";
     return formatWbCellValue("claimPriceRub", v);
+  }
+  if (WB_SUMMARY_LOGISTICS_KEYS.has(colKey)) {
+    const t = String(row[colKey] ?? "").trim();
+    return t || "—";
   }
   if (WB_SUMMARY_INBOUND_KEYS.has(colKey)) {
     if (!hasInbound) {
@@ -1038,6 +1059,47 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     [activeTab, authHeaders, importMode, loadData, triggerWbSummaryRefresh],
   );
 
+  /** Импорт колонок логистики из файла возвратной описи (колонка «Посылка» = ШК короба / ключ посылки). */
+  const handleLogisticsImport = useCallback(
+    async (fileList: FileList | null) => {
+      if (!fileList?.length) return;
+      const file = fileList[0];
+      if (!file) return;
+      setUploading(true);
+      setUploadError(null);
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/wb/logistics-import", {
+          method: "POST",
+          headers: authHeaders,
+          body: fd,
+        });
+        const rawText = await res.text();
+        let data: Record<string, unknown> = {};
+        if (rawText) {
+          try {
+            data = JSON.parse(rawText) as Record<string, unknown>;
+          } catch {
+            data = {};
+          }
+        }
+        if (!res.ok) {
+          const apiErr = typeof data.error === "string" ? data.error.trim() : "";
+          const reqId = typeof data.request_id === "string" ? data.request_id : "";
+          const idSuffix = reqId ? ` [${reqId}]` : "";
+          throw new Error(apiErr ? `${apiErr}${idSuffix}` : `HTTP ${res.status}${idSuffix}`);
+        }
+        await loadData();
+      } catch (e: unknown) {
+        setUploadError((e as Error)?.message || "Ошибка импорта логистики");
+      } finally {
+        setUploading(false);
+      }
+    },
+    [authHeaders, loadData],
+  );
+
   const handleExport = useCallback(
     async (format: "csv" | "xlsx") => {
       const query = buildQuery({
@@ -1126,6 +1188,19 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       { key: "inboundRowNumber", label: "Номер строки в описи" },
       { key: "inboundTitle", label: "Описание в описи" },
       { key: "inboundPriceRub", label: "Стоимость в описи" },
+      { key: "lvPerevozkaNasha", label: "Перевозка наша" },
+      { key: "lvOtchetDostavki", label: "Отчет о доставке" },
+      { key: "lvOtpavkaAp", label: "Отправка в АП" },
+      { key: "lvStoimost", label: "Стоимость" },
+      { key: "lvLogisticsStatus", label: "Статус" },
+      { key: "lvData", label: "Дата" },
+      { key: "lvDataInfo", label: "Дата получена информация" },
+      { key: "lvDataUpakovano", label: "Дата упаковано" },
+      { key: "lvDataKonsolidirovano", label: "Дата консолидировано" },
+      { key: "lvDataVAeroport", label: "Дата отправлено в аэропорт" },
+      { key: "lvDataUletelo", label: "Дата Улетело" },
+      { key: "lvDataKVrucheniyu", label: "Дата к Вручению" },
+      { key: "lvDataDostavleno", label: "Дата Доставлено" },
       { key: "status1c", label: "Статус 1С" },
     ];
   }, [activeTab]);
@@ -1242,6 +1317,30 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             </button>
           )}
         </Flex>
+
+        {canUpload && activeTab === "summary" && (
+          <div className="wb-upload-box" style={{ marginTop: "0.75rem" }}>
+            <Typography.Body style={{ marginBottom: "0.35rem" }}>
+              Импорт логистики из возвратной описи (колонка «Посылка» должна совпадать с «ШК короба» в сводной):
+            </Typography.Body>
+            <label className="wb-upload-drop">
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                style={{ display: "none" }}
+                disabled={uploading || loading}
+                onChange={(e) => {
+                  const files = e.target.files;
+                  void handleLogisticsImport(files).finally(() => {
+                    e.target.value = "";
+                  });
+                }}
+              />
+              <FileUp size={16} />
+              <span>{uploading ? "Идёт импорт..." : "Выберите один .xlsx / .xls"}</span>
+            </label>
+          </div>
+        )}
 
         {canUpload && (activeTab === "inbound" || activeTab === "returned" || activeTab === "claims") && (
           <div className="wb-upload-box">

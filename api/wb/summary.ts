@@ -43,6 +43,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    const hasLogisticsParcel = await pgTableExists(pool, "wb_logistics_parcel");
+
     const limitRaw = Number(qsOne(req, "limit") || 50);
     const pageRaw = Number(qsOne(req, "page") || 1);
     const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(SUMMARY_MAX_LIMIT, Math.trunc(limitRaw))) : 50;
@@ -93,19 +95,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     if (q) {
       params.push(`%${q}%`);
+      const qp = params.length;
+      const lpSearch = hasLogisticsParcel
+        ? `
+        or coalesce(lp.perevozka_nasha, '') ilike $${qp}
+        or coalesce(lp.otchet_dostavki, '') ilike $${qp}
+        or coalesce(lp.otpavka_ap, '') ilike $${qp}
+        or coalesce(lp.stoimost, '') ilike $${qp}
+        or coalesce(lp.logistics_status, '') ilike $${qp}
+        or coalesce(lp.data_doc, '') ilike $${qp}
+        or coalesce(lp.data_info_received, '') ilike $${qp}
+        or coalesce(lp.data_packed, '') ilike $${qp}
+        or coalesce(lp.data_consolidated, '') ilike $${qp}
+        or coalesce(lp.data_sent_airport, '') ilike $${qp}
+        or coalesce(lp.data_departed, '') ilike $${qp}
+        or coalesce(lp.data_to_hand, '') ilike $${qp}
+        or coalesce(lp.data_delivered, '') ilike $${qp}`
+        : "";
       where.push(`(
-        s.box_id ilike $${params.length}
-        or coalesce(s.shk, '') ilike $${params.length}
-        or coalesce(s.claim_number, '') ilike $${params.length}
-        or coalesce(s.source_document_number, '') ilike $${params.length}
-        or coalesce(s.description, '') ilike $${params.length}
-        or coalesce(c.description, '') ilike $${params.length}
-        or coalesce(c.all_columns::text, '') ilike $${params.length}
-        or coalesce(i.inventory_number, '') ilike $${params.length}
-        or coalesce(i.shk, '') ilike $${params.length}
-        or coalesce(i.nomenclature, '') ilike $${params.length}
-        or coalesce(i.description, '') ilike $${params.length}
-        or coalesce(i.box_shk, '') ilike $${params.length}
+        s.box_id ilike $${qp}
+        or coalesce(s.shk, '') ilike $${qp}
+        or coalesce(s.claim_number, '') ilike $${qp}
+        or coalesce(s.source_document_number, '') ilike $${qp}
+        or coalesce(s.description, '') ilike $${qp}
+        or coalesce(c.description, '') ilike $${qp}
+        or coalesce(c.all_columns::text, '') ilike $${qp}
+        or coalesce(i.inventory_number, '') ilike $${qp}
+        or coalesce(i.shk, '') ilike $${qp}
+        or coalesce(i.nomenclature, '') ilike $${qp}
+        or coalesce(i.description, '') ilike $${qp}
+        or coalesce(i.box_shk, '') ilike $${qp}
+        ${lpSearch}
       )`);
     }
 
@@ -113,10 +133,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const whereFullParts = onlyNotInInbound ? [...where, "s.inbound_item_id is null"] : where;
     const whereFullSql = `where ${whereFullParts.join(" and ")}`;
 
-    const fromJoins = `
+    const fromJoins = hasLogisticsParcel
+      ? `
+       from wb_summary s
+       left join wb_claims_items c on c.id = s.claim_item_id
+       left join wb_inbound_items i on i.id = s.inbound_item_id
+       left join wb_logistics_parcel lp on lower(trim(lp.parcel_key)) = lower(trim(nullif(coalesce(nullif(trim(i.box_shk), ''), nullif(trim(s.shk), ''), nullif(trim(c.shk), ''), ''), '')))`
+      : `
        from wb_summary s
        left join wb_claims_items c on c.id = s.claim_item_id
        left join wb_inbound_items i on i.id = s.inbound_item_id`;
+
+    const logisticsSelect = hasLogisticsParcel
+      ? `
+         lp.perevozka_nasha as "lvPerevozkaNasha",
+         lp.otchet_dostavki as "lvOtchetDostavki",
+         lp.otpavka_ap as "lvOtpavkaAp",
+         lp.stoimost as "lvStoimost",
+         lp.logistics_status as "lvLogisticsStatus",
+         lp.data_doc as "lvData",
+         lp.data_info_received as "lvDataInfo",
+         lp.data_packed as "lvDataUpakovano",
+         lp.data_consolidated as "lvDataKonsolidirovano",
+         lp.data_sent_airport as "lvDataVAeroport",
+         lp.data_departed as "lvDataUletelo",
+         lp.data_to_hand as "lvDataKVrucheniyu",
+         lp.data_delivered as "lvDataDostavleno"`
+      : `
+         null::text as "lvPerevozkaNasha",
+         null::text as "lvOtchetDostavki",
+         null::text as "lvOtpavkaAp",
+         null::text as "lvStoimost",
+         null::text as "lvLogisticsStatus",
+         null::text as "lvData",
+         null::text as "lvDataInfo",
+         null::text as "lvDataUpakovano",
+         null::text as "lvDataKonsolidirovano",
+         null::text as "lvDataVAeroport",
+         null::text as "lvDataUletelo",
+         null::text as "lvDataKVrucheniyu",
+         null::text as "lvDataDostavleno"`;
 
     const formedRes = await pool.query<{ formed_at: string | null }>(
       `select max(s.updated_at) as formed_at from wb_summary s where s.declared = true`,
@@ -187,7 +243,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          i.box_number as "inboundBoxNumber",
          nullif(trim(coalesce(i.box_shk, '')), '') as "inboundBoxShk",
          nullif(trim(coalesce(nullif(trim(i.description), ''), nullif(trim(i.nomenclature), ''))), '') as "inboundTitle",
-         i.price_rub as "inboundPriceRub"
+         i.price_rub as "inboundPriceRub",
+         ${logisticsSelect}
        ${fromJoins}
        ${whereFullSql}
        ${orderSql}

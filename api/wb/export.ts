@@ -102,6 +102,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } else {
       if (await pgTableExists(pool, "wb_summary")) {
+        const hasLp = await pgTableExists(pool, "wb_logistics_parcel");
+        const fromJoins = hasLp
+          ? `from wb_summary s
+             left join wb_claims_items c on c.id = s.claim_item_id
+             left join wb_inbound_items i on i.id = s.inbound_item_id
+             left join wb_logistics_parcel lp on lower(trim(lp.parcel_key)) = lower(trim(nullif(coalesce(nullif(trim(i.box_shk), ''), nullif(trim(s.shk), ''), nullif(trim(c.shk), ''), ''), '')))`
+          : `from wb_summary s
+             left join wb_claims_items c on c.id = s.claim_item_id
+             left join wb_inbound_items i on i.id = s.inbound_item_id`;
+        const lvCols = hasLp
+          ? `lp.perevozka_nasha as lv_perevozka_nasha,
+               lp.otchet_dostavki as lv_otchet_dostavki,
+               lp.otpavka_ap as lv_otpavka_ap,
+               lp.stoimost as lv_stoimost,
+               lp.logistics_status as lv_logistics_status,
+               lp.data_doc as lv_data,
+               lp.data_info_received as lv_data_info,
+               lp.data_packed as lv_data_upakovano,
+               lp.data_consolidated as lv_data_konsolidirovano,
+               lp.data_sent_airport as lv_data_v_aeroport,
+               lp.data_departed as lv_data_uletelo,
+               lp.data_to_hand as lv_data_k_vrucheniyu,
+               lp.data_delivered as lv_data_dostavleno`
+          : `null::text as lv_perevozka_nasha,
+               null::text as lv_otchet_dostavki,
+               null::text as lv_otpavka_ap,
+               null::text as lv_stoimost,
+               null::text as lv_logistics_status,
+               null::text as lv_data,
+               null::text as lv_data_info,
+               null::text as lv_data_upakovano,
+               null::text as lv_data_konsolidirovano,
+               null::text as lv_data_v_aeroport,
+               null::text as lv_data_uletelo,
+               null::text as lv_data_k_vrucheniyu,
+               null::text as lv_data_dostavleno`;
+        const qFilter = whereQ
+          ? hasLp
+            ? `and (s.box_id ilike $${whereQ} or coalesce(s.shk,'') ilike $${whereQ} or coalesce(s.claim_number,'') ilike $${whereQ} or coalesce(s.description,'') ilike $${whereQ} or coalesce(c.description,'') ilike $${whereQ} or coalesce(i.inventory_number,'') ilike $${whereQ} or coalesce(i.shk,'') ilike $${whereQ} or coalesce(i.box_shk,'') ilike $${whereQ} or coalesce(lp.perevozka_nasha,'') ilike $${whereQ} or coalesce(lp.otchet_dostavki,'') ilike $${whereQ} or coalesce(lp.otpavka_ap,'') ilike $${whereQ} or coalesce(lp.stoimost,'') ilike $${whereQ} or coalesce(lp.logistics_status,'') ilike $${whereQ} or coalesce(lp.data_doc,'') ilike $${whereQ} or coalesce(lp.data_info_received,'') ilike $${whereQ} or coalesce(lp.data_packed,'') ilike $${whereQ} or coalesce(lp.data_consolidated,'') ilike $${whereQ} or coalesce(lp.data_sent_airport,'') ilike $${whereQ} or coalesce(lp.data_departed,'') ilike $${whereQ} or coalesce(lp.data_to_hand,'') ilike $${whereQ} or coalesce(lp.data_delivered,'') ilike $${whereQ})`
+            : `and (s.box_id ilike $${whereQ} or coalesce(s.shk,'') ilike $${whereQ} or coalesce(s.claim_number,'') ilike $${whereQ} or coalesce(s.description,'') ilike $${whereQ} or coalesce(c.description,'') ilike $${whereQ} or coalesce(i.inventory_number,'') ilike $${whereQ} or coalesce(i.shk,'') ilike $${whereQ} or coalesce(i.box_shk,'') ilike $${whereQ})`
+          : "";
         const rawRows = (
           await pool.query(
             `select
@@ -117,12 +158,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                (s.inbound_item_id is not null) as has_inbound,
                ((coalesce(s.is_returned, false)) or (s.returned_item_id is not null)) as is_returned,
                s.updated_at as updated_at,
-               nullif(trim(coalesce(i.box_shk, '')), '') as inbound_box_shk
-             from wb_summary s
-             left join wb_claims_items c on c.id = s.claim_item_id
-             left join wb_inbound_items i on i.id = s.inbound_item_id
+               nullif(trim(coalesce(i.box_shk, '')), '') as inbound_box_shk,
+               ${lvCols}
+             ${fromJoins}
              where s.declared = true
-             ${whereQ ? `and (s.box_id ilike $${whereQ} or coalesce(s.shk,'') ilike $${whereQ} or coalesce(s.claim_number,'') ilike $${whereQ} or coalesce(s.description,'') ilike $${whereQ} or coalesce(c.description,'') ilike $${whereQ} or coalesce(i.inventory_number,'') ilike $${whereQ} or coalesce(i.shk,'') ilike $${whereQ} or coalesce(i.box_shk,'') ilike $${whereQ})` : ""}
+             ${qFilter}
              order by coalesce(c.row_number, 0), coalesce(s.shk, s.box_id, '')
              limit 10000`,
             params,
