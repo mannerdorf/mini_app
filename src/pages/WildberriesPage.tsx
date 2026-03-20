@@ -41,14 +41,51 @@ const INBOUND_DETAIL_COLUMNS: ColumnDef[] = [
 ];
 
 const RETURNED_DETAIL_COLUMNS: ColumnDef[] = [
-  { key: "lineNumber", label: "№" },
-  { key: "boxId", label: "Номер коробки" },
-  { key: "returnDocumentNumber", label: "Документ возврата" },
   { key: "inboundInventoryNumber", label: "Номер описи" },
+  { key: "boxId", label: "Номер коробки" },
   { key: "inboundRowNumber", label: "№ строки описи" },
   { key: "inboundTitle", label: "Наименование" },
   { key: "inboundPriceRub", label: "Стоимость по описи" },
 ];
+
+/** Колонки выгрузки WB в раскрытой таблице претензий (по заголовкам из файла). */
+const CLAIMS_EXCEL_COLUMN_SPEC: { label: string; headerKeys: string[] }[] = [
+  { label: "ID", headerKeys: ["id"] },
+  { label: "Тип", headerKeys: ["тип"] },
+  { label: "ID заявки на оплату", headerKeys: ["id заявки на оплату"] },
+  { label: "Тип брака", headerKeys: ["тип брака"] },
+  { label: "Дата заявки на оплату", headerKeys: ["дата заявки на оплату"] },
+  { label: "СЦ", headerKeys: ["сц"] },
+  { label: "Дата претензии", headerKeys: ["дата претензии"] },
+  { label: "Штрихкод", headerKeys: ["штрихкод", "шк"] },
+  { label: "Цена, руб.", headerKeys: ["цена, руб.", "цена руб.", "цена, руб"] },
+  { label: "Комментарий", headerKeys: ["комментарий", "описание"] },
+  { label: "Отмена удержания", headerKeys: ["отмена удержания"] },
+  { label: "Статус", headerKeys: ["статус", "status"] },
+];
+
+function wbClaimsHeaderNorm(s: string): string {
+  return String(s ?? "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function pickClaimsExcelValue(all: Record<string, unknown>, headerKeys: string[]): string {
+  if (!all || typeof all !== "object") return "";
+  const entries = Object.entries(all);
+  for (const want of headerKeys) {
+    const w = wbClaimsHeaderNorm(want);
+    for (const [k, v] of entries) {
+      if (wbClaimsHeaderNorm(k) === w) {
+        if (v === null || v === undefined) return "";
+        if (v instanceof Date) return v.toISOString().slice(0, 10);
+        return String(v).trim();
+      }
+    }
+  }
+  return "";
+}
 
 type ReturnedGroup = { documentNumber: string | null; batchId: number | null };
 
@@ -131,6 +168,7 @@ function formatWbCellValue(key: string, value: unknown): string {
     if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
     return s;
   }
+  if (key === "isActive") return value === true ? "Да" : "";
   return String(value);
 }
 
@@ -182,8 +220,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState<WbSearchResult[]>([]);
-  const [claimsRevisionId, setClaimsRevisionId] = useState<number | null>(null);
-  const [claimsRevisions, setClaimsRevisions] = useState<Array<{ id: number; revision_number: number; is_active: boolean }>>([]);
+  const [expandedClaimsRevisionId, setExpandedClaimsRevisionId] = useState<number | null>(null);
+  const [claimsDetailsCache, setClaimsDetailsCache] = useState<Record<string, Record<string, unknown>[]>>({});
+  const [claimsDetailLoading, setClaimsDetailLoading] = useState<number | null>(null);
   const [expandedInboundInv, setExpandedInboundInv] = useState<string | null>(null);
   const [inboundDetailsCache, setInboundDetailsCache] = useState<Record<string, Record<string, unknown>[]>>({});
   const [inboundDetailLoading, setInboundDetailLoading] = useState<string | null>(null);
@@ -200,6 +239,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   inboundDetailsCacheRef.current = inboundDetailsCache;
   const returnedDetailsCacheRef = useRef(returnedDetailsCache);
   returnedDetailsCacheRef.current = returnedDetailsCache;
+  const claimsDetailsCacheRef = useRef(claimsDetailsCache);
+  claimsDetailsCacheRef.current = claimsDetailsCache;
   const [manualReturned, setManualReturned] = useState({
     boxId: "",
     cargoNumber: "",
@@ -264,8 +305,14 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         claimNumber: activeTab === "summary" ? filters.claimNumber : undefined,
         q: filters.q,
         history: activeTab === "claims" ? "true" : undefined,
-        revisionId: activeTab === "claims" && claimsRevisionId ? claimsRevisionId : undefined,
-        view: activeTab === "inbound" ? "summary" : activeTab === "returned" ? "summary" : undefined,
+        view:
+          activeTab === "inbound"
+            ? "summary"
+            : activeTab === "returned"
+              ? "summary"
+              : activeTab === "claims"
+                ? "summary"
+                : undefined,
         sortBy: activeTab === "inbound" ? inboundSummarySort.by : undefined,
         sortDir: activeTab === "inbound" ? inboundSummarySort.dir : undefined,
       });
@@ -274,11 +321,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка загрузки");
       setItems(Array.isArray(data?.items) ? data.items : []);
       setTotal(Number(data?.total || 0));
-      if (activeTab === "claims") {
-        setClaimsRevisionId(Number(data?.revisionId || 0) || null);
-        const revisions = Array.isArray(data?.revisions) ? data.revisions : [];
-        setClaimsRevisions(revisions);
-      }
     } catch (e: unknown) {
       setError((e as Error)?.message || "Ошибка загрузки данных");
       setItems([]);
@@ -289,7 +331,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   }, [
     activeTab,
     authHeaders,
-    claimsRevisionId,
     dataEndpoint,
     filters.article,
     filters.boxId,
@@ -321,6 +362,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   useEffect(() => {
     setExpandedInboundInv(null);
     setExpandedReturnedGroup(null);
+    setExpandedClaimsRevisionId(null);
   }, [
     activeTab,
     page,
@@ -341,6 +383,17 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     });
     if (!hit) setExpandedReturnedGroup(null);
   }, [activeTab, items, expandedReturnedGroup]);
+
+  useEffect(() => {
+    if (activeTab !== "claims" || expandedClaimsRevisionId === null) return;
+    const hit = items.some((row) => Number(row.revisionId) === expandedClaimsRevisionId);
+    if (!hit) setExpandedClaimsRevisionId(null);
+  }, [activeTab, items, expandedClaimsRevisionId]);
+
+  useEffect(() => {
+    setClaimsDetailsCache({});
+    setExpandedClaimsRevisionId(null);
+  }, [filters.dateFrom, filters.dateTo, filters.boxId, filters.article, filters.brand, filters.q]);
 
   /** Свернуть, если раскрытая ведомости нет в текущей странице выдачи. */
   useEffect(() => {
@@ -493,6 +546,47 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     [authHeaders, loadData],
   );
 
+  const loadClaimsDetails = useCallback(
+    async (revisionId: number) => {
+      const key = String(revisionId);
+      if (Object.prototype.hasOwnProperty.call(claimsDetailsCacheRef.current, key)) return;
+      setClaimsDetailLoading(revisionId);
+      try {
+        const params = new URLSearchParams();
+        params.set("view", "detail");
+        params.set("revisionId", String(revisionId));
+        if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
+        if (filters.dateTo) params.set("dateTo", filters.dateTo);
+        if (filters.boxId.trim()) params.set("boxId", filters.boxId.trim());
+        if (filters.article.trim()) params.set("article", filters.article.trim());
+        if (filters.brand.trim()) params.set("brand", filters.brand.trim());
+        if (filters.q.trim()) params.set("q", filters.q.trim());
+        params.set("history", "true");
+        const res = await fetch(`/api/wb/claims?${params.toString()}`, { headers: authHeaders });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка загрузки строк");
+        const rows = Array.isArray(data?.items) ? data.items : [];
+        setClaimsDetailsCache((prev) => ({ ...prev, [key]: rows }));
+      } catch {
+        setClaimsDetailsCache((prev) => ({ ...prev, [key]: [] }));
+      } finally {
+        setClaimsDetailLoading(null);
+      }
+    },
+    [authHeaders, filters.article, filters.boxId, filters.brand, filters.dateFrom, filters.dateTo, filters.q],
+  );
+
+  const toggleClaimsRevisionRow = useCallback(
+    (revisionId: number) => {
+      setExpandedClaimsRevisionId((prev) => {
+        if (prev === revisionId) return null;
+        void loadClaimsDetails(revisionId);
+        return revisionId;
+      });
+    },
+    [loadClaimsDetails],
+  );
+
   /** Сводная пересобирается на сервере после импорта в фоне — на serverless это часто обрывается; ждём явный POST refresh. */
   const triggerWbSummaryRefresh = useCallback(async () => {
     try {
@@ -576,6 +670,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         }
         if (okCount > 0) {
           if (activeTab === "returned") setReturnedDetailsCache({});
+          if (activeTab === "claims") setClaimsDetailsCache({});
           await loadData();
         }
 
@@ -678,21 +773,20 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     }
     if (activeTab === "returned") {
       return [
+        { key: "lineNumber", label: "№" },
         { key: "uploadedAt", label: "Дата загрузки" },
-        { key: "documentNumber", label: "Документ возврата" },
         { key: "boxCount", label: "Кол-во мест" },
         { key: "totalAmountRub", label: "Стоимость, RUB" },
       ];
     }
     if (activeTab === "claims") {
       return [
-        { key: "claimNumber", label: "Номер из претензии" },
-        { key: "boxId", label: "ID коробки" },
-        { key: "docNumber", label: "Номер документа" },
-        { key: "docDate", label: "Дата" },
-        { key: "rowNumber", label: "Номер строки" },
-        { key: "description", label: "Описание" },
-        { key: "amountRub", label: "Стоимость" },
+        { key: "uploadedAt", label: "Дата загрузки" },
+        { key: "revisionNumber", label: "Ревизия" },
+        { key: "sourceFilename", label: "Файл" },
+        { key: "isActive", label: "Сводная" },
+        { key: "itemCount", label: "Кол-во мест" },
+        { key: "totalAmountRub", label: "Стоимость, RUB" },
       ];
     }
     return [
@@ -865,22 +959,10 @@ export function WildberriesPage({ auth, canUpload }: Props) {
           </div>
         )}
 
-        {activeTab === "claims" && claimsRevisions.length > 0 && (
-          <Flex align="center" gap="0.5rem" style={{ marginTop: "0.75rem" }}>
-            <Typography.Body>Ревизия:</Typography.Body>
-            <select
-              className="admin-form-input"
-              value={claimsRevisionId ?? ""}
-              onChange={(e) => setClaimsRevisionId(Number(e.target.value) || null)}
-              style={{ maxWidth: 220 }}
-            >
-              {claimsRevisions.map((r) => (
-                <option key={r.id} value={r.id}>
-                  v{r.revision_number} {r.is_active ? "(активная)" : ""}
-                </option>
-              ))}
-            </select>
-          </Flex>
+        {canUpload && activeTab === "claims" && (
+          <Typography.Body style={{ color: "var(--color-text-secondary)", marginTop: "0.5rem", fontSize: "0.875rem" }}>
+            Импорт: в базу попадают только строки со статусом «Подтверждено», если в файле есть колонка «Статус». Остальные строки пропускаются.
+          </Typography.Body>
         )}
 
         {uploadError && <Typography.Body style={{ color: "var(--color-error)", marginTop: "0.5rem" }}>{uploadError}</Typography.Body>}
@@ -890,7 +972,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
           <table className="wb-table">
             <thead>
               <tr>
-                {(activeTab === "inbound" || activeTab === "returned") && (
+                {(activeTab === "inbound" || activeTab === "returned" || activeTab === "claims") && (
                   <th className="wb-col-expand" aria-hidden />
                 )}
                 {columns.map((col) => (
@@ -940,7 +1022,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                   <td
                     colSpan={
                       columns.length +
-                      (activeTab === "inbound" || activeTab === "returned" ? 1 : 0) +
+                      (activeTab === "inbound" || activeTab === "returned" || activeTab === "claims" ? 1 : 0) +
                       (activeTab === "inbound" && canUpload ? 1 : 0) +
                       (activeTab === "returned" && canUpload ? 1 : 0)
                     }
@@ -1084,11 +1166,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                         <td className="wb-col-expand">{open ? "▼" : "▶"}</td>
                         {columns.map((col) => (
                           <td key={col.key}>
-                            {col.key === "documentNumber" &&
-                            (row[col.key] === null ||
-                              row[col.key] === undefined ||
-                              String(row[col.key]).trim() === "")
-                              ? "—"
+                            {col.key === "lineNumber"
+                              ? String((page - 1) * limit + idx + 1)
                               : formatWbCellValue(col.key, row[col.key])}
                           </td>
                         ))}
@@ -1136,7 +1215,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                                     fontSize: "0.875rem",
                                   }}
                                 >
-                                  Данные по описи: поиск коробки в «Описи» (номер описи, строка, наименование, цена).
+                                  Строка ищется в «Описи» по номеру коробки, ШК, баркоду или стикеру.
                                 </Typography.Body>
                                 <table className="wb-table wb-table--nested">
                                   <thead>
@@ -1150,14 +1229,90 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                                     {detailRowsRaw.map((dr, dIdx) => (
                                       <tr key={`${cacheKey}-d-${dIdx}`}>
                                         {RETURNED_DETAIL_COLUMNS.map((c) => (
-                                          <td key={c.key}>
-                                            {c.key === "lineNumber"
-                                              ? String(dIdx + 1)
-                                              : formatReturnedDetailCell(c.key, dr[c.key])}
-                                          </td>
+                                          <td key={c.key}>{formatReturnedDetailCell(c.key, dr[c.key])}</td>
                                         ))}
                                       </tr>
                                     ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })
+              ) : activeTab === "claims" ? (
+                items.map((row, idx) => {
+                  const revisionId = Number(row.revisionId);
+                  const open = expandedClaimsRevisionId === revisionId;
+                  const cacheKey = String(revisionId);
+                  const detailRowsRaw = claimsDetailsCache[cacheKey] ?? [];
+                  return (
+                    <React.Fragment key={`claims-${revisionId}-${idx}`}>
+                      <tr
+                        className={`wb-inbound-summary-row ${open ? "wb-inbound-summary-row--open" : ""}`}
+                        onClick={() => {
+                          if (Number.isFinite(revisionId) && revisionId > 0) toggleClaimsRevisionRow(revisionId);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            if (Number.isFinite(revisionId) && revisionId > 0) toggleClaimsRevisionRow(revisionId);
+                          }
+                        }}
+                      >
+                        <td className="wb-col-expand">{open ? "▼" : "▶"}</td>
+                        {columns.map((col) => (
+                          <td key={col.key}>
+                            {col.key === "sourceFilename"
+                              ? String(row[col.key] ?? "").replace(/^\s+|\s+$/g, "") || "—"
+                              : formatWbCellValue(col.key, row[col.key])}
+                          </td>
+                        ))}
+                      </tr>
+                      {open && (
+                        <tr className="wb-inbound-detail-row">
+                          <td colSpan={columns.length + 1}>
+                            {claimsDetailLoading === revisionId && detailRowsRaw.length === 0 ? (
+                              <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>
+                                Загрузка строк...
+                              </Typography.Body>
+                            ) : detailRowsRaw.length === 0 ? (
+                              <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>
+                                Нет строк (проверьте фильтры)
+                              </Typography.Body>
+                            ) : (
+                              <div className="wb-inbound-detail-wrap">
+                                <table className="wb-table wb-table--nested">
+                                  <thead>
+                                    <tr>
+                                      <th>№</th>
+                                      {CLAIMS_EXCEL_COLUMN_SPEC.map((c) => (
+                                        <th key={c.label}>{c.label}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {detailRowsRaw.map((dr, dIdx) => {
+                                      const rec = dr as Record<string, unknown>;
+                                      const allRaw = rec.allColumns ?? rec.all_columns;
+                                      const all =
+                                        allRaw && typeof allRaw === "object" && !Array.isArray(allRaw)
+                                          ? (allRaw as Record<string, unknown>)
+                                          : {};
+                                      return (
+                                        <tr key={`${cacheKey}-d-${dIdx}`}>
+                                          <td>{dIdx + 1}</td>
+                                          {CLAIMS_EXCEL_COLUMN_SPEC.map((c) => (
+                                            <td key={c.label}>{pickClaimsExcelValue(all, c.headerKeys)}</td>
+                                          ))}
+                                        </tr>
+                                      );
+                                    })}
                                   </tbody>
                                 </table>
                               </div>

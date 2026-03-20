@@ -99,8 +99,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                nullif(trim(coalesce(i.nomenclature, '')), '') as nomenclature,
                i.price_rub
              from wb_inbound_items i
-             where trim(coalesce(i.box_number, '')) = trim(coalesce(r.box_id, ''))
-             order by i.inventory_created_at desc nulls last, i.id desc
+             where
+               trim(coalesce(i.box_number, '')) = trim(coalesce(r.box_id, ''))
+               or trim(coalesce(i.shk, '')) = trim(coalesce(r.box_id, ''))
+               or trim(coalesce(i.barcode, '')) = trim(coalesce(r.box_id, ''))
+               or trim(coalesce(i.sticker, '')) = trim(coalesce(r.box_id, ''))
+             order by
+               case
+                 when trim(coalesce(i.box_number, '')) = trim(coalesce(r.box_id, '')) then 0
+                 when trim(coalesce(i.shk, '')) = trim(coalesce(r.box_id, '')) then 1
+                 when trim(coalesce(i.barcode, '')) = trim(coalesce(r.box_id, '')) then 2
+                 else 3
+               end,
+               i.inventory_created_at desc nulls last,
+               i.id desc
              limit 1
            ) inv on true`
         : "";
@@ -123,11 +135,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         `select
            r.id,
            r.box_id as "boxId",
-           r.document_number as "returnDocumentNumber",
-           row_number() over (
-             partition by ${GROUP_DOC_EXPR}, r.batch_id
-             order by r.source_row_number nulls last, r.id asc
-           )::int as "documentLineNumber",
            ${invSelect}
          from wb_returned_items r
          ${inboundLateral}

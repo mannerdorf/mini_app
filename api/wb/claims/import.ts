@@ -140,8 +140,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const headerRaw = data[hIdx] ?? [];
     const headers = headerRaw.map((h, idx) => asText(h) || `Колонка_${idx + 1}`);
 
+    const fileHasStatusColumn = headers.some((h) => {
+      const n = norm(h);
+      return n === "статус" || n === "status" || n === "состояние";
+    });
+
+    function isConfirmedWbStatus(raw: unknown): boolean {
+      const s = norm(raw).replace(/ё/g, "е").replace(/Ё/g, "е");
+      return s === "подтверждено";
+    }
+
     let totalRows = 0;
     let insertedRows = 0;
+    let skippedRows = 0;
     let errorRows = 0;
     const ragQueue: Array<{ sourceId: string; content: string; metadata: Record<string, unknown> }> = [];
 
@@ -156,6 +167,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
       const normalizedMap = new Map<string, unknown>();
       for (const [k, v] of Object.entries(allColumns)) normalizedMap.set(norm(k), v);
+
+      if (fileHasStatusColumn) {
+        const statusVal = pick(normalizedMap, ["статус", "status", "состояние"]);
+        if (!isConfirmedWbStatus(statusVal)) {
+          skippedRows++;
+          continue;
+        }
+      }
 
       const claimNumber = asText(
         pick(normalizedMap, [
@@ -285,9 +304,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (batchId) {
       await client.query(
         `update wb_inbound_import_batches
-         set total_rows = $2, inserted_rows = $3, updated_rows = 0, skipped_rows = 0, error_rows = $4
+         set total_rows = $2, inserted_rows = $3, updated_rows = 0, skipped_rows = $4, error_rows = $5
          where id = $1`,
-        [batchId, totalRows, insertedRows, errorRows],
+        [batchId, totalRows, insertedRows, skippedRows, errorRows],
       );
     }
 
@@ -309,7 +328,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       action: "wb_claims_import_revision",
       target_type: "wb_claims_revision",
       target_id: revisionId,
-      details: { revisionNumber, batchId, totalRows, insertedRows, errorRows, uploadedBy: access.login },
+      details: { revisionNumber, batchId, totalRows, insertedRows, skippedRows, errorRows, uploadedBy: access.login },
     });
 
     const ragToFlush = ragQueue.slice();
@@ -342,6 +361,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       batchId,
       totalRows,
       insertedRows,
+      skippedRows,
       errorRows,
       summaryRebuildAsync: true,
       request_id: ctx.requestId,
