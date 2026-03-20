@@ -44,6 +44,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const hasLogisticsParcel = await pgTableExists(pool, "wb_logistics_parcel");
+    const hasPostbCache = await pgTableExists(pool, "wb_postb_posilka_cache");
+    const postbParcelKeyExpr = `lower(trim(nullif(coalesce(nullif(trim(i.box_shk), ''), nullif(trim(s.shk), ''), nullif(trim(c.shk), ''), ''), '')))`;
+    const postbJoinSql = hasPostbCache
+      ? `left join wb_postb_posilka_cache ppc on ppc.posilka_code_norm = ${postbParcelKeyExpr}`
+      : "";
 
     const limitRaw = Number(qsOne(req, "limit") || 50);
     const pageRaw = Number(qsOne(req, "page") || 1);
@@ -150,11 +155,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
        from wb_summary s
        left join wb_claims_items c on c.id = s.claim_item_id
        left join wb_inbound_items i on i.id = s.inbound_item_id
-       left join wb_logistics_parcel lp on lower(trim(lp.parcel_key)) = lower(trim(nullif(coalesce(nullif(trim(i.box_shk), ''), nullif(trim(s.shk), ''), nullif(trim(c.shk), ''), ''), '')))`
+       left join wb_logistics_parcel lp on lower(trim(lp.parcel_key)) = ${postbParcelKeyExpr}
+       ${postbJoinSql}`
       : `
        from wb_summary s
        left join wb_claims_items c on c.id = s.claim_item_id
-       left join wb_inbound_items i on i.id = s.inbound_item_id`;
+       left join wb_inbound_items i on i.id = s.inbound_item_id
+       ${postbJoinSql}`;
 
     const logisticsSelect = hasLogisticsParcel
       ? `
@@ -179,6 +186,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          null::text as "lvDataUletelo",
          null::text as "lvDataKVrucheniyu",
          null::text as "lvDataDostavleno"`;
+
+    const postbSelect = hasPostbCache
+      ? `
+         coalesce(nullif(trim(ppc.last_status), ''), '') as "postbLastStatus",
+         coalesce(nullif(trim(ppc.perevozka), ''), '') as "postbPerevozka",
+         coalesce(ppc.posilka_steps, '[]'::jsonb) as "postbPosilkaSteps"`
+      : `
+         ''::text as "postbLastStatus",
+         ''::text as "postbPerevozka",
+         '[]'::jsonb as "postbPosilkaSteps"`;
 
     const formedRes = await pool.query<{ formed_at: string | null }>(
       `select max(s.updated_at) as formed_at from wb_summary s where s.declared = true`,
@@ -250,7 +267,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          nullif(trim(coalesce(i.box_shk, '')), '') as "inboundBoxShk",
          nullif(trim(coalesce(nullif(trim(i.description), ''), nullif(trim(i.nomenclature), ''))), '') as "inboundTitle",
          i.price_rub as "inboundPriceRub",
-         ${logisticsSelect}
+         ${logisticsSelect},
+         ${postbSelect}
        ${fromJoins}
        ${whereFullSql}
        ${orderSql}

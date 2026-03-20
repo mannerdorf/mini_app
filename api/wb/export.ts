@@ -106,14 +106,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } else {
       if (await pgTableExists(pool, "wb_summary")) {
         const hasLp = await pgTableExists(pool, "wb_logistics_parcel");
+        const hasPostbCache = await pgTableExists(pool, "wb_postb_posilka_cache");
+        const postbParcelKeyExpr = `lower(trim(nullif(coalesce(nullif(trim(i.box_shk), ''), nullif(trim(s.shk), ''), nullif(trim(c.shk), ''), ''), '')))`;
+        const postbJoinSql = hasPostbCache
+          ? `left join wb_postb_posilka_cache ppc on ppc.posilka_code_norm = ${postbParcelKeyExpr}`
+          : "";
         const fromJoins = hasLp
           ? `from wb_summary s
              left join wb_claims_items c on c.id = s.claim_item_id
              left join wb_inbound_items i on i.id = s.inbound_item_id
-             left join wb_logistics_parcel lp on lower(trim(lp.parcel_key)) = lower(trim(nullif(coalesce(nullif(trim(i.box_shk), ''), nullif(trim(s.shk), ''), nullif(trim(c.shk), ''), ''), '')))`
+             left join wb_logistics_parcel lp on lower(trim(lp.parcel_key)) = ${postbParcelKeyExpr}
+             ${postbJoinSql}`
           : `from wb_summary s
              left join wb_claims_items c on c.id = s.claim_item_id
-             left join wb_inbound_items i on i.id = s.inbound_item_id`;
+             left join wb_inbound_items i on i.id = s.inbound_item_id
+             ${postbJoinSql}`;
         const lvCols = hasLp
           ? `lp.perevozka_nasha as lv_perevozka_nasha,
                lp.otchet_dostavki as lv_otchet_dostavki,
@@ -135,6 +142,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                null::text as lv_data_uletelo,
                null::text as lv_data_k_vrucheniyu,
                null::text as lv_data_dostavleno`;
+
+        const postbCols = hasPostbCache
+          ? `coalesce(nullif(trim(ppc.last_status), ''), '') as postb_last_status,
+               coalesce(nullif(trim(ppc.perevozka), ''), '') as postb_perevozka,
+               coalesce(ppc.posilka_steps::text, '[]') as postb_posilka_steps`
+          : `''::text as postb_last_status,
+               ''::text as postb_perevozka,
+               '[]'::text as postb_posilka_steps`;
 
         const sparams: unknown[] = [];
         const extraParts: string[] = [];
@@ -177,7 +192,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                ((coalesce(s.is_returned, false)) or (s.returned_item_id is not null)) as is_returned,
                s.updated_at as updated_at,
                nullif(trim(coalesce(i.box_shk, '')), '') as inbound_box_shk,
-               ${lvCols}
+               ${lvCols},
+               ${postbCols}
              ${fromJoins}
              where s.declared = true
              ${extraSql}

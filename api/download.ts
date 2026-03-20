@@ -226,7 +226,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Для Договор, АктСверки и РеестрКсчету используем Info@haulz.pro (Auth) + admin (Authorization), как в Postman
-    const useHaulzAuth = metod === "Договор" || metod === "Dogovor" || metod === "АктСверки" || metod === "AktSverki" || metod === "РеестрКсчету";
+    const useHaulzAuth =
+      metod === "Договор" ||
+      metod === "Dogovor" ||
+      metod === "АктСверки" ||
+      metod === "AktSverki" ||
+      metod === "РеестрКсчету" ||
+      metod === "ЭР" ||
+      metod === "АПП";
     if (useHaulzAuth) {
       // Auth: Basic Info@haulz.pro:Y2ME42XyI_, Authorization: Basic YWRtaW46anVlYmZueWU=
       login = "";

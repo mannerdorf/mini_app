@@ -103,10 +103,21 @@ export type PosilkaParsed = {
   posilkaSteps: Array<{ title: string; date: string }>;
 };
 
+/** Не показывать как статус адреса/наименования из 1С (РВБ, пункты и т.д.). */
+export function sanitizePosilkaStatusLabel(raw: string): string {
+  const t = String(raw ?? "").trim();
+  if (!t) return "";
+  if (t.includes("РВБ") || t.includes("Рвб")) return "";
+  if (/\bООО\s*\(/i.test(t) && (t.includes("улиц") || t.includes("Москва") || t.includes("Калининград"))) return "";
+  if (t.length > 100) return "";
+  return t;
+}
+
 export function parseGetPosilkaResponse(data: unknown): PosilkaParsed {
   const empty: PosilkaParsed = { lastStatus: "", perevozka: "", posilkaSteps: [] };
   if (!isPlainObject(data)) return empty;
   const o = data as Record<string, unknown>;
+  if (o.Success === false) return empty;
   const sverki = o.Сверки;
   if (!Array.isArray(sverki) || sverki.length === 0) return empty;
 
@@ -127,7 +138,8 @@ export function parseGetPosilkaResponse(data: unknown): PosilkaParsed {
     }
   }
 
-  const lastStatus = posilkaSteps.length ? posilkaSteps[posilkaSteps.length - 1]!.title : "";
+  let lastStatus = posilkaSteps.length ? posilkaSteps[posilkaSteps.length - 1]!.title : "";
+  lastStatus = sanitizePosilkaStatusLabel(lastStatus);
   return { lastStatus, perevozka, posilkaSteps };
 }
 

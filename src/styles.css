@@ -1861,6 +1861,55 @@ body {
     text-align: left;
     line-height: 1.3;
 }
+/* Как у грузов / max-badge-success */
+.wb-postb-1c-badge.wb-postb-1c-badge--delivered {
+    background-color: rgba(52, 211, 153, 0.2);
+    color: var(--color-success-status);
+    border: 1px solid rgba(52, 211, 153, 0.5);
+}
+.wb-postb-1c-badge.wb-postb-1c-badge--consolidation {
+    background-color: rgba(250, 204, 21, 0.2);
+    color: var(--color-pending-status);
+    border: 1px solid rgba(250, 204, 21, 0.5);
+}
+.dark-mode .wb-postb-1c-badge.wb-postb-1c-badge--delivered {
+    border-color: rgba(52, 211, 153, 0.6);
+}
+.dark-mode .wb-postb-1c-badge.wb-postb-1c-badge--consolidation {
+    border-color: rgba(250, 204, 21, 0.6);
+}
+/* АПП — тот же масштаб, что и бейдж статуса */
+.wb-postb-app-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.28rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.3;
+    border: 1px solid rgba(124, 58, 237, 0.45);
+    background: rgba(124, 58, 237, 0.1);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    font-family: inherit;
+}
+.wb-postb-app-badge-icon {
+    width: 0.95rem;
+    height: 0.95rem;
+    flex-shrink: 0;
+}
+.wb-postb-app-badge:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+.wb-postb-app-badge:not(:disabled):hover {
+    background: rgba(124, 58, 237, 0.18);
+}
+.wb-postb-app-badge--busy {
+    pointer-events: none;
+}
 .wb-postb-1c-badge:disabled {
     opacity: 0.55;
     cursor: not-allowed;

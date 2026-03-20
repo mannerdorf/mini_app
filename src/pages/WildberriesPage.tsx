@@ -380,6 +380,37 @@ function wbPerevozkaNumberRaw(rec: Record<string, unknown>): string {
   return String(rec.lvPerevozkaNasha ?? "").trim();
 }
 
+/** Шаги GetPosilka из сводки (jsonb с API). */
+function wbPostbStepsFromRec(rec: Record<string, unknown>): Array<{ title: string; date: string }> {
+  const v = rec.postbPosilkaSteps;
+  if (Array.isArray(v)) {
+    return v.map((x) => ({
+      title: String((x as { title?: string })?.title ?? ""),
+      date: String((x as { date?: string })?.date ?? ""),
+    }));
+  }
+  if (typeof v === "string" && v.trim()) {
+    try {
+      const j = JSON.parse(v) as unknown;
+      if (!Array.isArray(j)) return [];
+      return j.map((x) => ({
+        title: String((x as { title?: string })?.title ?? ""),
+        date: String((x as { date?: string })?.date ?? ""),
+      }));
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/** Есть сохранённый ответ PostB в БД — не дёргаем GetPosilka на клиенте. */
+function wbHasPostbServerCache(rec: Record<string, unknown>): boolean {
+  const st = String(rec.postbLastStatus ?? "").trim();
+  const pv = String(rec.postbPerevozka ?? "").trim();
+  return Boolean(st || pv || wbPostbStepsFromRec(rec).length > 0);
+}
+
 type WbPosilkaCached = {
   lastStatus: string;
   perevozka: string;
@@ -611,58 +642,74 @@ function WbSummaryStatus1cCell(props: {
 }) {
   const { rec, authHeaders, appKey, wbAppDownloadingKey, onOpenTimeline, onDownloadApp } = props;
   const code = wbPostbPosilkaCode(rec);
-  const d = useWbPosilka(code, authHeaders);
+  const serverSteps = wbPostbStepsFromRec(rec);
+  const serverStatus = String(rec.postbLastStatus ?? "").trim();
+  const serverPerevozka = String(rec.postbPerevozka ?? "").trim();
+  const skipFetch = wbHasPostbServerCache(rec);
+  const d = useWbPosilka(skipFetch ? "" : code, authHeaders);
+  const lastStatus = (serverStatus || d.lastStatus).trim();
+  const perevozka = (serverPerevozka || d.perevozka).trim();
+  const posilkaSteps = serverSteps.length > 0 ? serverSteps : d.posilkaSteps;
+  const loading = skipFetch ? false : d.loading;
   const lvFb = wbPerevozkaNumberRaw(rec);
-  const transport = d.perevozka || lvFb;
-  const fallback1c = String(rec.status1c ?? "").trim();
-  const display = !code ? fallback1c || "—" : d.loading ? "…" : d.lastStatus || fallback1c || "—";
+  /** Перевозка: сначала колонка HAULZ, затем кэш GetPosilka */
+  const transport = lvFb || perevozka;
+  /** Статус только из PostB / кэша БД — без подстановки «адреса РВБ» из status1c */
+  const display = !code ? "—" : loading ? "…" : lastStatus || "—";
+
+  const low = lastStatus.toLowerCase();
+  let statusTone = "";
+  if (low.includes("доставлен")) statusTone = " wb-postb-1c-badge--delivered";
+  else if (low.includes("консолидац")) statusTone = " wb-postb-1c-badge--consolidation";
+
+  const busy = wbAppDownloadingKey === appKey;
+  const appNumber = lvFb || perevozka;
 
   return (
     <>
       <button
         type="button"
-        className="wb-postb-1c-badge"
+        className={`wb-postb-1c-badge${statusTone}`}
         disabled={!transport}
-        title={transport ? "Открыть статусы перевозки" : "Нет кода посылки (ШК короба) или номера перевозки в ответе GetPosilka"}
+        title={
+          transport
+            ? "Открыть статусы перевозки"
+            : "Нет номера перевозки (колонка «Перевозка HAULZ» или ответ GetPosilka)"
+        }
         onClick={() => {
           if (transport)
             onOpenTimeline({
               number: transport,
-              stepsFromPosilka: d.posilkaSteps.length ? d.posilkaSteps : undefined,
+              stepsFromPosilka: posilkaSteps.length ? posilkaSteps : undefined,
             });
         }}
       >
         {display}
       </button>
-      {transport ? (
-        (() => {
-          const busy = wbAppDownloadingKey === appKey;
-          return (
-            <Button
-              size="small"
-              className="wb-action-btn"
-              disabled={busy}
-              title="Скачать АПП (GetFile, ЭР)"
-              onClick={() => onDownloadApp(transport, appKey)}
-            >
-              {busy ? <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden /> : <FileDown className="w-3.5 h-3.5" aria-hidden />}
-              {busy ? " …" : " АПП"}
-            </Button>
-          );
-        })()
+      {appNumber ? (
+        <button
+          type="button"
+          className={`wb-postb-app-badge${busy ? " wb-postb-app-badge--busy" : ""}`}
+          disabled={busy}
+          title="Скачать АПП (GetFile, metod=АПП, номер из «Перевозка HAULZ»)"
+          onClick={() => onDownloadApp(appNumber, appKey)}
+        >
+          {busy ? <RefreshCw className="wb-postb-app-badge-icon animate-spin" aria-hidden /> : <FileDown className="wb-postb-app-badge-icon" aria-hidden />}
+          {busy ? "…" : "АПП"}
+        </button>
       ) : null}
     </>
   );
 }
 
-function WbSummaryPerevozkaHaulzCell(props: {
-  code: string;
-  lvFallback: string;
-  authHeaders: Record<string, string>;
-}) {
-  const { code, lvFallback, authHeaders } = props;
-  const d = useWbPosilka(code, authHeaders);
-  const show = d.perevozka || lvFallback;
+function WbSummaryPerevozkaHaulzCell(props: { rec: Record<string, unknown>; authHeaders: Record<string, string> }) {
+  const { rec, authHeaders } = props;
+  const code = wbPostbPosilkaCode(rec);
+  const lvFallback = wbPerevozkaNumberRaw(rec);
+  const cachedPv = String(rec.postbPerevozka ?? "").trim();
+  const skipFetch = wbHasPostbServerCache(rec);
+  const d = useWbPosilka(skipFetch ? "" : code, authHeaders);
+  const show = lvFallback || cachedPv || d.perevozka;
   if (!show) return "—";
   return show;
 }
@@ -1285,7 +1332,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       const res = await fetch("/api/download", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ metod: "ЭР", number: n }),
+        body: JSON.stringify({ metod: "АПП", number: n }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message || data?.error || "Не удалось получить АПП");
@@ -2448,19 +2495,14 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                               return <span className={cls}>{t}</span>;
                             })()
                           ) : col.key === "lvPerevozkaNasha" ? (
-                            <WbSummaryPerevozkaHaulzCell
-                              code={wbPostbPosilkaCode(rec)}
-                              lvFallback={wbPerevozkaNumberRaw(rec)}
-                              authHeaders={authHeaders}
-                            />
+                            <WbSummaryPerevozkaHaulzCell rec={rec} authHeaders={authHeaders} />
                           ) : col.key === "status1c" ? (
                             <div
                               style={{
                                 display: "flex",
-                                flexDirection: "row",
-                                alignItems: "center",
-                                gap: "0.45rem",
-                                flexWrap: "wrap",
+                                flexDirection: "column",
+                                alignItems: "flex-start",
+                                gap: "0.35rem",
                               }}
                             >
                               <WbSummaryStatus1cCell
