@@ -3,6 +3,8 @@ import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgIlikeContainsPattern, pgTableExists, resolveWbAccess } from "../_wb.js";
 
+const GROUP_DOC_EXPR = `coalesce(nullif(trim(r.document_number), ''), '')`;
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "wb_returned_list");
   if (req.method !== "GET") {
@@ -20,6 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         page: 1,
         limit: Math.min(500, Math.max(1, Number(req.query.limit ?? 50) || 50)),
         total: 0,
+        view: "summary",
         items: [],
         request_id: ctx.requestId,
       });
@@ -37,6 +40,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const cargoNumber = String(req.query.cargoNumber ?? "").trim();
     const q = String(req.query.q ?? "").trim();
     const hasShkRaw = String(req.query.hasShk ?? "").trim().toLowerCase();
+    const viewRaw = String(req.query.view ?? "summary").trim().toLowerCase();
+    const view = viewRaw === "detail" ? "detail" : "summary";
 
     const where: string[] = [];
     const params: unknown[] = [];
@@ -71,37 +76,105 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const whereSql = where.length ? `where ${where.join(" and ")}` : "";
-    const totalRes = await pool.query<{ total: number }>(
-      `select count(*)::int as total from wb_returned_items r ${whereSql}`,
+
+    if (view === "detail") {
+      const gDoc = String(req.query.gDoc ?? "").trim();
+      const gBatchStr = String(req.query.gBatch ?? "").trim();
+      const gBatchId =
+        gBatchStr === "" || gBatchStr.toLowerCase() === "null" ? null : Number(gBatchStr);
+      if (gBatchId !== null && !Number.isFinite(gBatchId)) {
+        return res.status(400).json({ error: "Некорректный gBatch", request_id: ctx.requestId });
+      }
+
+      const detailParams: unknown[] = [gDoc, gBatchId];
+      const detailWhere = `where ${GROUP_DOC_EXPR} = $1::text and r.batch_id is not distinct from $2::bigint`;
+
+      const hasInbound = await pgTableExists(pool, "wb_inbound_items");
+      const inboundLateral = hasInbound
+        ? `left join lateral (
+             select
+               i.inventory_number,
+               i.row_number,
+               nullif(trim(coalesce(i.description, '')), '') as description,
+               nullif(trim(coalesce(i.nomenclature, '')), '') as nomenclature,
+               i.price_rub
+             from wb_inbound_items i
+             where trim(coalesce(i.box_number, '')) = trim(coalesce(r.box_id, ''))
+             order by i.inventory_created_at desc nulls last, i.id desc
+             limit 1
+           ) inv on true`
+        : "";
+
+      const invSelect = hasInbound
+        ? `inv.inventory_number as "inboundInventoryNumber",
+           inv.row_number as "inboundRowNumber",
+           case
+             when inv.description is not null and inv.description <> '' then inv.description
+             when inv.nomenclature is not null and inv.nomenclature <> '' then inv.nomenclature
+             else null
+           end as "inboundTitle",
+           inv.price_rub as "inboundPriceRub"`
+        : `null::text as "inboundInventoryNumber",
+           null::int as "inboundRowNumber",
+           null::text as "inboundTitle",
+           null::numeric as "inboundPriceRub"`;
+
+      const rowsRes = await pool.query(
+        `select
+           r.id,
+           r.box_id as "boxId",
+           r.document_number as "returnDocumentNumber",
+           row_number() over (
+             partition by ${GROUP_DOC_EXPR}, r.batch_id
+             order by r.source_row_number nulls last, r.id asc
+           )::int as "documentLineNumber",
+           ${invSelect}
+         from wb_returned_items r
+         ${inboundLateral}
+         ${detailWhere}
+         order by r.source_row_number nulls last, r.id asc
+         limit 8000`,
+        detailParams,
+      );
+
+      const countRes = await pool.query<{ total: number }>(
+        `select count(*)::int as total from wb_returned_items r ${detailWhere}`,
+        detailParams,
+      );
+
+      return res.status(200).json({
+        page: 1,
+        limit: rowsRes.rows.length,
+        total: countRes.rows[0]?.total ?? 0,
+        view: "detail",
+        items: rowsRes.rows,
+        request_id: ctx.requestId,
+      });
+    }
+
+    const countRes = await pool.query<{ total: number }>(
+      `select count(*)::int as total from (
+         select 1
+         from wb_returned_items r
+         ${whereSql}
+         group by ${GROUP_DOC_EXPR}, r.batch_id
+       ) t`,
       params,
     );
-    const total = totalRes.rows[0]?.total ?? 0;
+    const total = countRes.rows[0]?.total ?? 0;
 
     const dataParams = [...params, limit, offset];
     const rowsRes = await pool.query(
-      `select * from (
-         select
-           r.id,
-           r.source,
-           r.box_id as "boxId",
-           r.cargo_number as "cargoNumber",
-           r.description,
-           r.has_shk as "hasShk",
-           r.document_number as "documentNumber",
-           r.document_date as "documentDate",
-           r.amount_rub as "amountRub",
-           r.source_row_number as "rowNumber",
-           r.created_at as "createdAt",
-           row_number() over (
-             partition by
-               coalesce(nullif(trim(r.document_number), ''), ''),
-               coalesce(r.batch_id::text, '0')
-             order by r.source_row_number nulls last, r.id asc
-           )::int as "documentLineNumber"
-         from wb_returned_items r
-         ${whereSql}
-       ) sub
-       order by sub."createdAt" desc
+      `select
+         max(r.document_number) as "documentNumber",
+         r.batch_id as "batchId",
+         max(r.created_at) as "uploadedAt",
+         count(*)::int as "boxCount",
+         coalesce(sum(r.amount_rub), 0)::numeric as "totalAmountRub"
+       from wb_returned_items r
+       ${whereSql}
+       group by ${GROUP_DOC_EXPR}, r.batch_id
+       order by max(r.created_at) desc
        limit $${dataParams.length - 1}
        offset $${dataParams.length}`,
       dataParams,
@@ -111,6 +184,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       page,
       limit,
       total,
+      view: "summary",
       items: rowsRes.rows,
       request_id: ctx.requestId,
     });
@@ -119,4 +193,3 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: "Ошибка загрузки возвращенного груза", request_id: ctx.requestId });
   }
 }
-

@@ -28,6 +28,7 @@ type InboundSummarySortKey = "inventoryNumber" | "inventoryCreatedAt" | "boxCoun
 const INBOUND_SUMMARY_SORT_KEYS = new Set<string>(["inventoryNumber", "inventoryCreatedAt", "boxCount", "totalPriceRub"]);
 
 const INBOUND_DETAIL_COLUMNS: ColumnDef[] = [
+  { key: "lineNumber", label: "№" },
   { key: "inventoryNumber", label: "Номер ввозной описи" },
   { key: "inventoryCreatedAt", label: "Дата создания ввозной описи" },
   { key: "boxNumber", label: "Номер коробки" },
@@ -39,7 +40,53 @@ const INBOUND_DETAIL_COLUMNS: ColumnDef[] = [
   { key: "massKg", label: "Масса" },
 ];
 
-/** Совпадение строки детализации с полем «Поиск» / «Номер коробки» (подсветка и отбор строк). */
+const RETURNED_DETAIL_COLUMNS: ColumnDef[] = [
+  { key: "lineNumber", label: "№" },
+  { key: "boxId", label: "Номер коробки" },
+  { key: "returnDocumentNumber", label: "Документ возврата" },
+  { key: "inboundInventoryNumber", label: "Номер описи" },
+  { key: "inboundRowNumber", label: "№ строки описи" },
+  { key: "inboundTitle", label: "Наименование" },
+  { key: "inboundPriceRub", label: "Стоимость по описи" },
+];
+
+type ReturnedGroup = { documentNumber: string | null; batchId: number | null };
+
+function returnedGroupCacheKey(g: ReturnedGroup): string {
+  return JSON.stringify([String(g.documentNumber ?? "").trim(), g.batchId ?? null]);
+}
+
+function normalizeReturnedGroupRow(row: Record<string, unknown>): ReturnedGroup {
+  const documentNumber =
+    row.documentNumber === null || row.documentNumber === undefined
+      ? null
+      : String(row.documentNumber).trim() || null;
+  const rawBatch = row.batchId;
+  const batchId =
+    rawBatch === null || rawBatch === undefined || rawBatch === ""
+      ? null
+      : typeof rawBatch === "number"
+        ? rawBatch
+        : Number(String(rawBatch).trim());
+  return {
+    documentNumber,
+    batchId: batchId !== null && Number.isFinite(batchId) ? Math.trunc(batchId) : null,
+  };
+}
+
+/** Значение ячейки в строку для поиска (числа из API/Excel не теряем в toString). */
+function cellValueForNeedleMatch(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "number") {
+    if (!Number.isFinite(v)) return "";
+    if (Number.isInteger(v) && Math.abs(v) <= Number.MAX_SAFE_INTEGER) return String(v);
+    return String(v);
+  }
+  if (typeof v === "bigint") return v.toString();
+  return String(v).trim();
+}
+
+/** Совпадение строки детализации с «Поиск» / «Номер коробки» — только для подсветки (строки не скрываем). */
 function inboundDetailRowMatchesNeedle(row: Record<string, unknown>, needleLower: string): boolean {
   if (!needleLower) return true;
   const keys = [
@@ -54,26 +101,54 @@ function inboundDetailRowMatchesNeedle(row: Record<string, unknown>, needleLower
     "inventoryNumber",
     "receiverFullName",
     "phone",
+    "kit",
+    "size",
+    "tnvEd",
   ] as const;
-  for (const k of keys) {
-    if (String(row[k] ?? "").toLowerCase().includes(needleLower)) return true;
+  const parts = keys.map((k) => cellValueForNeedleMatch(row[k]));
+  const hay = parts.join(" ").toLowerCase();
+  if (hay.includes(needleLower)) return true;
+  const needleCompact = needleLower.replace(/\s+/g, "").replace(/\u00a0/g, "");
+  const hayCompact = hay.replace(/\s+/g, "").replace(/\u00a0/g, "");
+  if (needleCompact.length >= 2 && hayCompact.includes(needleCompact)) return true;
+  const needleDigits = needleLower.replace(/\D/g, "");
+  if (needleDigits.length >= 4) {
+    const hayDigits = hay.replace(/\D/g, "");
+    if (hayDigits.includes(needleDigits)) return true;
   }
   return false;
 }
 
 function formatWbCellValue(key: string, value: unknown): string {
   if (value === null || value === undefined) return "";
-  if (key === "totalPriceRub" || key === "priceRub") {
+  if (key === "totalPriceRub" || key === "priceRub" || key === "totalAmountRub") {
     const n = Number(value);
     if (!Number.isFinite(n)) return String(value);
     return n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
-  if (key === "inventoryCreatedAt" || key === "createdAt" || key === "documentDate") {
+  if (key === "inventoryCreatedAt" || key === "createdAt" || key === "documentDate" || key === "uploadedAt") {
     const s = String(value);
     if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
     return s;
   }
   return String(value);
+}
+
+function formatReturnedDetailCell(key: string, value: unknown): string {
+  if (key === "inboundTitle" || key === "inboundPriceRub") {
+    if (value === null || value === undefined || value === "") return "нет данных";
+    if (key === "inboundPriceRub") {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return "нет данных";
+      return n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    return String(value);
+  }
+  if (key === "inboundRowNumber" && (value === null || value === undefined || value === "")) return "нет данных";
+  if (key === "inboundInventoryNumber" && (value === null || value === undefined || String(value).trim() === "")) {
+    return "нет данных";
+  }
+  return formatWbCellValue(key, value);
 }
 
 const TAB_LABELS: Array<{ key: WbTab; label: string }> = [
@@ -113,12 +188,18 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   const [inboundDetailsCache, setInboundDetailsCache] = useState<Record<string, Record<string, unknown>[]>>({});
   const [inboundDetailLoading, setInboundDetailLoading] = useState<string | null>(null);
   const [deletingInventory, setDeletingInventory] = useState<string | null>(null);
+  const [expandedReturnedGroup, setExpandedReturnedGroup] = useState<ReturnedGroup | null>(null);
+  const [returnedDetailsCache, setReturnedDetailsCache] = useState<Record<string, Record<string, unknown>[]>>({});
+  const [returnedDetailLoading, setReturnedDetailLoading] = useState<string | null>(null);
+  const [deletingReturnedGroup, setDeletingReturnedGroup] = useState<string | null>(null);
   const [inboundSummarySort, setInboundSummarySort] = useState<{ by: InboundSummarySortKey; dir: "asc" | "desc" }>({
     by: "inventoryCreatedAt",
     dir: "desc",
   });
   const inboundDetailsCacheRef = useRef(inboundDetailsCache);
   inboundDetailsCacheRef.current = inboundDetailsCache;
+  const returnedDetailsCacheRef = useRef(returnedDetailsCache);
+  returnedDetailsCacheRef.current = returnedDetailsCache;
   const [manualReturned, setManualReturned] = useState({
     boxId: "",
     cargoNumber: "",
@@ -184,7 +265,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         q: filters.q,
         history: activeTab === "claims" ? "true" : undefined,
         revisionId: activeTab === "claims" && claimsRevisionId ? claimsRevisionId : undefined,
-        view: activeTab === "inbound" ? "summary" : undefined,
+        view: activeTab === "inbound" ? "summary" : activeTab === "returned" ? "summary" : undefined,
         sortBy: activeTab === "inbound" ? inboundSummarySort.by : undefined,
         sortDir: activeTab === "inbound" ? inboundSummarySort.dir : undefined,
       });
@@ -239,6 +320,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
 
   useEffect(() => {
     setExpandedInboundInv(null);
+    setExpandedReturnedGroup(null);
   }, [
     activeTab,
     page,
@@ -250,6 +332,15 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     filters.article,
     filters.brand,
   ]);
+
+  useEffect(() => {
+    if (activeTab !== "returned" || !expandedReturnedGroup) return;
+    const hit = items.some((row) => {
+      const g = normalizeReturnedGroupRow(row as Record<string, unknown>);
+      return returnedGroupCacheKey(g) === returnedGroupCacheKey(expandedReturnedGroup);
+    });
+    if (!hit) setExpandedReturnedGroup(null);
+  }, [activeTab, items, expandedReturnedGroup]);
 
   /** Свернуть, если раскрытая ведомости нет в текущей странице выдачи. */
   useEffect(() => {
@@ -329,6 +420,74 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         setUploadError((e as Error)?.message || "Ошибка удаления");
       } finally {
         setDeletingInventory(null);
+      }
+    },
+    [authHeaders, loadData],
+  );
+
+  const loadReturnedDetails = useCallback(
+    async (group: ReturnedGroup) => {
+      const cacheKey = returnedGroupCacheKey(group);
+      if (Object.prototype.hasOwnProperty.call(returnedDetailsCacheRef.current, cacheKey)) return;
+      setReturnedDetailLoading(cacheKey);
+      try {
+        const params = new URLSearchParams();
+        params.set("view", "detail");
+        params.set("gDoc", String(group.documentNumber ?? ""));
+        params.set("gBatch", group.batchId === null || group.batchId === undefined ? "" : String(group.batchId));
+        const res = await fetch(`/api/wb/returned?${params.toString()}`, { headers: authHeaders });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка загрузки строк");
+        const rows = Array.isArray(data?.items) ? data.items : [];
+        setReturnedDetailsCache((prev) => ({ ...prev, [cacheKey]: rows }));
+      } catch {
+        setReturnedDetailsCache((prev) => ({ ...prev, [cacheKey]: [] }));
+      } finally {
+        setReturnedDetailLoading(null);
+      }
+    },
+    [authHeaders],
+  );
+
+  const toggleReturnedGroupRow = useCallback(
+    (row: Record<string, unknown>) => {
+      const g = normalizeReturnedGroupRow(row);
+      setExpandedReturnedGroup((prev) => {
+        if (prev && returnedGroupCacheKey(prev) === returnedGroupCacheKey(g)) return null;
+        void loadReturnedDetails(g);
+        return g;
+      });
+    },
+    [loadReturnedDetails],
+  );
+
+  const handleDeleteReturnedGroup = useCallback(
+    async (row: Record<string, unknown>) => {
+      const g = normalizeReturnedGroupRow(row);
+      const cacheKey = returnedGroupCacheKey(g);
+      const docLabel = g.documentNumber || "без номера";
+      if (!window.confirm(`Удалить группу возврата (документ «${docLabel}», партия ${g.batchId ?? "—"}) и все коробки в ней?`)) return;
+      setUploadError(null);
+      setDeletingReturnedGroup(cacheKey);
+      try {
+        const res = await fetch("/api/wb/returned/delete-group", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders },
+          body: JSON.stringify({ documentNumber: g.documentNumber ?? "", batchId: g.batchId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка удаления");
+        setExpandedReturnedGroup((prev) => (prev && returnedGroupCacheKey(prev) === cacheKey ? null : prev));
+        setReturnedDetailsCache((prev) => {
+          const next = { ...prev };
+          delete next[cacheKey];
+          return next;
+        });
+        await loadData();
+      } catch (e: unknown) {
+        setUploadError((e as Error)?.message || "Ошибка удаления");
+      } finally {
+        setDeletingReturnedGroup(null);
       }
     },
     [authHeaders, loadData],
@@ -415,7 +574,10 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         if (summaryRefreshOnce) {
           await triggerWbSummaryRefresh();
         }
-        if (okCount > 0) await loadData();
+        if (okCount > 0) {
+          if (activeTab === "returned") setReturnedDetailsCache({});
+          await loadData();
+        }
 
         if (errors.length > 0) {
           const prefix = okCount > 0 ? `Готово: ${okCount} из ${files.length}. Ошибки:\n` : "";
@@ -474,6 +636,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         amountRub: "",
         hasShk: false,
       });
+      setReturnedDetailsCache({});
       await loadData();
     } catch (e: unknown) {
       setUploadError((e as Error)?.message || "Ошибка сохранения");
@@ -515,17 +678,10 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     }
     if (activeTab === "returned") {
       return [
-        { key: "rowNumber", label: "№ строки (Excel)" },
-        { key: "documentLineNumber", label: "№ в ведомости" },
-        { key: "boxId", label: "ID коробки" },
-        { key: "cargoNumber", label: "Номер груза" },
-        { key: "description", label: "Описание" },
-        { key: "hasShk", label: "Есть ШК" },
-        { key: "documentNumber", label: "Номер документа" },
-        { key: "documentDate", label: "Дата документа" },
-        { key: "amountRub", label: "Стоимость" },
-        { key: "source", label: "Источник" },
-        { key: "createdAt", label: "Создано" },
+        { key: "uploadedAt", label: "Дата загрузки" },
+        { key: "documentNumber", label: "Документ возврата" },
+        { key: "boxCount", label: "Кол-во мест" },
+        { key: "totalAmountRub", label: "Стоимость, RUB" },
       ];
     }
     if (activeTab === "claims") {
@@ -734,7 +890,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
           <table className="wb-table">
             <thead>
               <tr>
-                {activeTab === "inbound" && <th className="wb-col-expand" aria-hidden />}
+                {(activeTab === "inbound" || activeTab === "returned") && (
+                  <th className="wb-col-expand" aria-hidden />
+                )}
                 {columns.map((col) => (
                   <th
                     key={col.key}
@@ -769,6 +927,11 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                     {/* пустой заголовок — колонка действий */}
                   </th>
                 )}
+                {activeTab === "returned" && canUpload && (
+                  <th className="wb-col-actions" title="Удаление группы возврата">
+                    {/* пустой заголовок — колонка действий */}
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -777,8 +940,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                   <td
                     colSpan={
                       columns.length +
-                      (activeTab === "inbound" ? 1 : 0) +
-                      (activeTab === "inbound" && canUpload ? 1 : 0)
+                      (activeTab === "inbound" || activeTab === "returned" ? 1 : 0) +
+                      (activeTab === "inbound" && canUpload ? 1 : 0) +
+                      (activeTab === "returned" && canUpload ? 1 : 0)
                     }
                     style={{ textAlign: "center", color: "var(--color-text-secondary)" }}
                   >
@@ -795,12 +959,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                   const open = expandedInboundInv === inv;
                   const detailRowsRaw = inboundDetailsCache[inv] ?? [];
                   const needle = inboundDetailNeedle;
-                  const detailRows =
-                    needle && detailRowsRaw.length > 0
-                      ? detailRowsRaw.filter((dr) =>
-                          inboundDetailRowMatchesNeedle(dr as Record<string, unknown>, needle),
-                        )
-                      : detailRowsRaw;
                   return (
                     <React.Fragment key={`inbound-${inv}-${idx}`}>
                       <tr
@@ -850,12 +1008,19 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                               <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>Загрузка строк...</Typography.Body>
                             ) : detailRowsRaw.length === 0 ? (
                               <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>Нет строк по этой ведомости</Typography.Body>
-                            ) : needle && detailRows.length === 0 ? (
-                              <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>
-                                Нет строк с «{filters.boxId.trim() || filters.q.trim()}» в коробке/ШК/стикере и т.д. Очистите поиск или фильтр «Номер коробки», чтобы увидеть все позиции.
-                              </Typography.Body>
                             ) : (
                               <div className="wb-inbound-detail-wrap">
+                                {needle ? (
+                                  <Typography.Body
+                                    style={{
+                                      color: "var(--color-text-secondary)",
+                                      padding: "0 0 0.5rem",
+                                      fontSize: "0.875rem",
+                                    }}
+                                  >
+                                    Все позиции ведомости; подсвечены строки, где есть совпадение с фильтром.
+                                  </Typography.Body>
+                                ) : null}
                                 <table className="wb-table wb-table--nested">
                                   <thead>
                                     <tr>
@@ -865,13 +1030,131 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {detailRows.map((dr, dIdx) => (
+                                    {detailRowsRaw.map((dr, dIdx) => (
                                       <tr
                                         key={`${inv}-d-${dIdx}`}
-                                        className={needle ? "wb-inbound-detail-line--hit" : undefined}
+                                        className={
+                                          needle && inboundDetailRowMatchesNeedle(dr as Record<string, unknown>, needle)
+                                            ? "wb-inbound-detail-line--hit"
+                                            : undefined
+                                        }
                                       >
                                         {INBOUND_DETAIL_COLUMNS.map((c) => (
-                                          <td key={c.key}>{formatWbCellValue(c.key, dr[c.key])}</td>
+                                          <td key={c.key}>
+                                            {c.key === "lineNumber"
+                                              ? String(dIdx + 1)
+                                              : formatWbCellValue(c.key, dr[c.key])}
+                                          </td>
+                                        ))}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })
+              ) : activeTab === "returned" ? (
+                items.map((row, idx) => {
+                  const rec = row as Record<string, unknown>;
+                  const g = normalizeReturnedGroupRow(rec);
+                  const cacheKey = returnedGroupCacheKey(g);
+                  const open =
+                    expandedReturnedGroup !== null &&
+                    returnedGroupCacheKey(expandedReturnedGroup) === cacheKey;
+                  const detailRowsRaw = returnedDetailsCache[cacheKey] ?? [];
+                  return (
+                    <React.Fragment key={`returned-${cacheKey}-${idx}`}>
+                      <tr
+                        className={`wb-inbound-summary-row ${open ? "wb-inbound-summary-row--open" : ""}`}
+                        onClick={() => toggleReturnedGroupRow(rec)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleReturnedGroupRow(rec);
+                          }
+                        }}
+                      >
+                        <td className="wb-col-expand">{open ? "▼" : "▶"}</td>
+                        {columns.map((col) => (
+                          <td key={col.key}>
+                            {col.key === "documentNumber" &&
+                            (row[col.key] === null ||
+                              row[col.key] === undefined ||
+                              String(row[col.key]).trim() === "")
+                              ? "—"
+                              : formatWbCellValue(col.key, row[col.key])}
+                          </td>
+                        ))}
+                        {canUpload && (
+                          <td className="wb-col-actions">
+                            <button
+                              type="button"
+                              className="wb-delete-inventory-btn"
+                              title="Удалить группу"
+                              aria-label="Удалить группу возврата"
+                              disabled={deletingReturnedGroup === cacheKey}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleDeleteReturnedGroup(rec);
+                              }}
+                            >
+                              {deletingReturnedGroup === cacheKey ? (
+                                <RefreshCw className="w-4 h-4 animate-spin" aria-hidden />
+                              ) : (
+                                <Trash2 className="w-4 h-4" aria-hidden />
+                              )}
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                      {open && (
+                        <tr className="wb-inbound-detail-row">
+                          <td
+                            colSpan={columns.length + 1 + (canUpload ? 1 : 0)}
+                          >
+                            {returnedDetailLoading === cacheKey && detailRowsRaw.length === 0 ? (
+                              <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>
+                                Загрузка строк...
+                              </Typography.Body>
+                            ) : detailRowsRaw.length === 0 ? (
+                              <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>
+                                Нет строк в этой группе
+                              </Typography.Body>
+                            ) : (
+                              <div className="wb-inbound-detail-wrap">
+                                <Typography.Body
+                                  style={{
+                                    color: "var(--color-text-secondary)",
+                                    padding: "0 0 0.5rem",
+                                    fontSize: "0.875rem",
+                                  }}
+                                >
+                                  Данные по описи: поиск коробки в «Описи» (номер описи, строка, наименование, цена).
+                                </Typography.Body>
+                                <table className="wb-table wb-table--nested">
+                                  <thead>
+                                    <tr>
+                                      {RETURNED_DETAIL_COLUMNS.map((c) => (
+                                        <th key={c.key}>{c.label}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {detailRowsRaw.map((dr, dIdx) => (
+                                      <tr key={`${cacheKey}-d-${dIdx}`}>
+                                        {RETURNED_DETAIL_COLUMNS.map((c) => (
+                                          <td key={c.key}>
+                                            {c.key === "lineNumber"
+                                              ? String(dIdx + 1)
+                                              : formatReturnedDetailCell(c.key, dr[c.key])}
+                                          </td>
                                         ))}
                                       </tr>
                                     ))}
