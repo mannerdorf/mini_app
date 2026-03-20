@@ -5,14 +5,16 @@ import { resolveWbAccess } from "../_wb.js";
 import {
   normalizePerevozkaSteps,
   normalizePosilkaLastStatus,
+  parseGetPosilkaResponse,
   parseJsonLoose,
 } from "../lib/postbGetapiNormalize.js";
 
-/** Как в api/download.ts — доступ к PostB */
+/** Как в api/download.ts — GETAPI: Auth (Haulz) + Authorization (admin) */
 const POSTB_GETAPI_BASE =
   process.env.POSTB_GETAPI_BASE_URL?.replace(/\/$/, "") ||
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const POSTB_SERVICE_AUTH = process.env.POSTB_SERVICE_AUTH || "Basic YWRtaW46anVlYmZueWU=";
+const POSTB_HAULZ_AUTH = process.env.POSTB_HAULZ_AUTH || "Basic Info@haulz.pro:Y2ME42XyI_";
 
 function qsOne(req: VercelRequest, key: string): string {
   const v = req.query[key];
@@ -53,6 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const url = `${POSTB_GETAPI_BASE}?${sp.toString()}`;
     const upstream = await fetch(url, {
       headers: {
+        Auth: POSTB_HAULZ_AUTH,
         Authorization: POSTB_SERVICE_AUTH,
         Accept: "application/json, text/plain, */*",
       },
@@ -66,6 +69,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ok: false,
         httpStatus: upstream.status,
         lastStatus: "",
+        perevozka: "",
+        posilkaSteps: [] as Array<{ title: string; date: string }>,
         steps: [] as Array<{ title: string; date: string }>,
         error: text.slice(0, 500),
         request_id: ctx.requestId,
@@ -73,10 +78,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (kind === "posilka") {
-      const lastStatus = normalizePosilkaLastStatus(parsed);
+      const parsedPos = parseGetPosilkaResponse(parsed);
+      const lastStatus = parsedPos.lastStatus || normalizePosilkaLastStatus(parsed);
       return res.status(200).json({
         ok: true,
         lastStatus,
+        perevozka: parsedPos.perevozka,
+        posilkaSteps: parsedPos.posilkaSteps,
         raw: parsed,
         request_id: ctx.requestId,
       });

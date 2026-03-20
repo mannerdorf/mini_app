@@ -36,7 +36,6 @@ const WB_SUMMARY_SORT_KEYS = new Set<string>([
 
 /** Колонки логистики из импорта возвратной описи (без сортировки по заголовку). Бейдж «Статус» — отдельно в ячейке. */
 const WB_SUMMARY_LOGISTICS_KEYS = new Set<string>([
-  "lvPerevozkaNasha",
   "lvOtchetDostavki",
   "lvOtpavkaAp",
   "lvDataInfo",
@@ -364,20 +363,100 @@ function buildQuery(params: Record<string, string | number | undefined>) {
   return query.toString();
 }
 
-/** Код посылки для GetPosilka (справочник 1С / cargo_number; иначе поиск GA… в ШК короба). */
+/** Код посылки для GetPosilka: ШК короба `$1:1:…:120762` (как в Postman), иначе ШК строки, иначе GA из справочника. */
 function wbPostbPosilkaCode(rec: Record<string, unknown>): string {
+  const box = String(rec.inboundBoxShk ?? "").trim();
+  if (box) return box;
+  const shk = String(rec.shk ?? "").trim();
+  if (shk) return shk;
   const app = String(rec.appCargoNumber ?? "").trim();
   if (/^GA[0-9A-Z_-]+$/i.test(app)) return app;
-  let g = app.match(/GA[0-9A-Z_-]+/i);
+  const g = app.match(/GA[0-9A-Z_-]+/i);
   if (g) return g[0];
-  const box = String(rec.inboundBoxShk ?? "").trim();
-  g = box.match(/GA[0-9A-Z_-]+/i);
-  if (g) return g[0];
-  return app;
+  return "";
 }
 
 function wbPerevozkaNumberRaw(rec: Record<string, unknown>): string {
   return String(rec.lvPerevozkaNasha ?? "").trim();
+}
+
+type WbPosilkaCached = {
+  lastStatus: string;
+  perevozka: string;
+  posilkaSteps: Array<{ title: string; date: string }>;
+};
+
+const wbPosilkaInflight = new Map<string, Promise<WbPosilkaCached>>();
+const wbPosilkaResolved = new Map<string, WbPosilkaCached>();
+
+function fetchWbPosilkaOnce(code: string, authHeaders: Record<string, string>): Promise<WbPosilkaCached> {
+  const key = code.trim();
+  if (!key) return Promise.resolve({ lastStatus: "", perevozka: "", posilkaSteps: [] });
+  if (wbPosilkaResolved.has(key)) return Promise.resolve(wbPosilkaResolved.get(key)!);
+  if (!wbPosilkaInflight.has(key)) {
+    const p = (async () => {
+      try {
+        const u = `/api/wb/postb-getapi?kind=posilka&code=${encodeURIComponent(key)}`;
+        const res = await fetch(u, { headers: authHeaders });
+        const d = (await res.json().catch(() => ({}))) as {
+          lastStatus?: string;
+          perevozka?: string;
+          posilkaSteps?: Array<{ title: string; date: string }>;
+        };
+        const entry: WbPosilkaCached = {
+          lastStatus: String(d?.lastStatus ?? "").trim(),
+          perevozka: String(d?.perevozka ?? "").trim(),
+          posilkaSteps: Array.isArray(d?.posilkaSteps) ? d.posilkaSteps : [],
+        };
+        wbPosilkaResolved.set(key, entry);
+        return entry;
+      } catch {
+        const empty: WbPosilkaCached = { lastStatus: "", perevozka: "", posilkaSteps: [] };
+        wbPosilkaResolved.set(key, empty);
+        return empty;
+      } finally {
+        wbPosilkaInflight.delete(key);
+      }
+    })();
+    wbPosilkaInflight.set(key, p);
+  }
+  return wbPosilkaInflight.get(key)!;
+}
+
+function useWbPosilka(code: string, authHeaders: Record<string, string>): WbPosilkaCached & { loading: boolean } {
+  const empty: WbPosilkaCached = { lastStatus: "", perevozka: "", posilkaSteps: [] };
+  const k0 = code.trim();
+  const [data, setData] = useState<WbPosilkaCached>(() =>
+    k0 && wbPosilkaResolved.has(k0) ? wbPosilkaResolved.get(k0)! : empty,
+  );
+  const [loading, setLoading] = useState(() => Boolean(k0) && !wbPosilkaResolved.has(k0));
+
+  useEffect(() => {
+    const k = code.trim();
+    if (!k) {
+      setData(empty);
+      setLoading(false);
+      return;
+    }
+    if (wbPosilkaResolved.has(k)) {
+      setData(wbPosilkaResolved.get(k)!);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    let cancelled = false;
+    void fetchWbPosilkaOnce(k, authHeaders).then((entry) => {
+      if (!cancelled) {
+        setData(entry);
+        setLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [code, authHeaders]);
+
+  return { ...data, loading };
 }
 
 function tryParseRuOrIsoDate(raw: string): Date | null {
@@ -402,14 +481,21 @@ function WbPerevozkaTimelineModal(props: {
   open: boolean;
   number: string;
   authHeaders: Record<string, string>;
+  /** Статусы из ответа GetPosilka (Сверки[].Статусы) — без второго запроса */
+  initialStepsFromPosilka?: Array<{ title: string; date: string }>;
   onClose: () => void;
 }) {
-  const { open, number, authHeaders, onClose } = props;
+  const { open, number, authHeaders, initialStepsFromPosilka, onClose } = props;
   const [steps, setSteps] = useState<Array<{ title: string; date: string }>>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!open || !number) return;
+    if (initialStepsFromPosilka && initialStepsFromPosilka.length > 0) {
+      setSteps(initialStepsFromPosilka);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setSteps([]);
@@ -428,7 +514,7 @@ function WbPerevozkaTimelineModal(props: {
     return () => {
       cancelled = true;
     };
-  }, [open, number, authHeaders]);
+  }, [open, number, authHeaders, initialStepsFromPosilka]);
 
   if (!open) return null;
 
@@ -459,7 +545,7 @@ function WbPerevozkaTimelineModal(props: {
   };
 
   const n = steps.length;
-    const fillPct = n <= 1 ? 100 : Math.min(100, Math.max(8, ((n - 1) / Math.max(n - 1, 1)) * 100));
+  const fillPct = n <= 1 ? 100 : Math.min(100, Math.max(8, ((n - 1) / Math.max(n - 1, 1)) * 100));
 
   return (
     <div
@@ -514,57 +600,71 @@ function WbPerevozkaTimelineModal(props: {
   );
 }
 
-function WbSummaryPostb1cBadge(props: {
+/** Бейдж статуса 1С (GetPosilka) + АПП; номер перевозки из ответа или из колонки / импорта. */
+function WbSummaryStatus1cCell(props: {
+  rec: Record<string, unknown>;
   authHeaders: Record<string, string>;
-  code: string;
-  fallback1c: string;
-  perevozkaNumber: string;
-  onOpenTimeline: (num: string) => void;
+  appKey: string;
+  wbAppDownloadingKey: string | null;
+  onOpenTimeline: (payload: { number: string; stepsFromPosilka?: Array<{ title: string; date: string }> }) => void;
+  onDownloadApp: (perevozkaNumber: string, loadingKey: string) => void;
 }) {
-  const { authHeaders, code, fallback1c, perevozkaNumber, onOpenTimeline } = props;
-  const [label, setLabel] = useState<string>(fallback1c || "");
-  const [loading, setLoading] = useState(false);
+  const { rec, authHeaders, appKey, wbAppDownloadingKey, onOpenTimeline, onDownloadApp } = props;
+  const code = wbPostbPosilkaCode(rec);
+  const d = useWbPosilka(code, authHeaders);
+  const lvFb = wbPerevozkaNumberRaw(rec);
+  const transport = d.perevozka || lvFb;
+  const fallback1c = String(rec.status1c ?? "").trim();
+  const display = !code ? fallback1c || "—" : d.loading ? "…" : d.lastStatus || fallback1c || "—";
 
-  useEffect(() => {
-    if (!code) {
-      setLabel(fallback1c || "—");
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    void (async () => {
-      try {
-        const u = `/api/wb/postb-getapi?kind=posilka&code=${encodeURIComponent(code)}`;
-        const res = await fetch(u, { headers: authHeaders });
-        const d = (await res.json().catch(() => ({}))) as { lastStatus?: string };
-        if (cancelled) return;
-        const last = String(d?.lastStatus ?? "").trim();
-        setLabel(last || fallback1c || "—");
-      } catch {
-        if (!cancelled) setLabel(fallback1c || "—");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [code, fallback1c, authHeaders]);
-
-  const display = loading ? "…" : label || "—";
   return (
-    <button
-      type="button"
-      className="wb-postb-1c-badge"
-      disabled={!perevozkaNumber}
-      title={perevozkaNumber ? "Открыть статусы перевозки" : "Укажите номер перевозки в колонке «Перевозка HAULZ»"}
-      onClick={() => {
-        if (perevozkaNumber) onOpenTimeline(perevozkaNumber);
-      }}
-    >
-      {display}
-    </button>
+    <>
+      <button
+        type="button"
+        className="wb-postb-1c-badge"
+        disabled={!transport}
+        title={transport ? "Открыть статусы перевозки" : "Нет кода посылки (ШК короба) или номера перевозки в ответе GetPosilka"}
+        onClick={() => {
+          if (transport)
+            onOpenTimeline({
+              number: transport,
+              stepsFromPosilka: d.posilkaSteps.length ? d.posilkaSteps : undefined,
+            });
+        }}
+      >
+        {display}
+      </button>
+      {transport ? (
+        (() => {
+          const busy = wbAppDownloadingKey === appKey;
+          return (
+            <Button
+              size="small"
+              className="wb-action-btn"
+              disabled={busy}
+              title="Скачать АПП (GetFile, ЭР)"
+              onClick={() => onDownloadApp(transport, appKey)}
+            >
+              {busy ? <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden /> : <FileDown className="w-3.5 h-3.5" aria-hidden />}
+              {busy ? " …" : " АПП"}
+            </Button>
+          );
+        })()
+      ) : null}
+    </>
   );
+}
+
+function WbSummaryPerevozkaHaulzCell(props: {
+  code: string;
+  lvFallback: string;
+  authHeaders: Record<string, string>;
+}) {
+  const { code, lvFallback, authHeaders } = props;
+  const d = useWbPosilka(code, authHeaders);
+  const show = d.perevozka || lvFallback;
+  if (!show) return "—";
+  return show;
 }
 
 type WbInboundListFilters = {
@@ -662,7 +762,10 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   const summaryStatusBtnRef = useRef<HTMLDivElement>(null);
   const summaryBoxBtnRef = useRef<HTMLDivElement>(null);
   const summaryInvBtnRef = useRef<HTMLDivElement>(null);
-  const [perevozkaModalNumber, setPerevozkaModalNumber] = useState<string | null>(null);
+  const [perevozkaModal, setPerevozkaModal] = useState<{
+    number: string;
+    stepsFromPosilka?: Array<{ title: string; date: string }>;
+  } | null>(null);
 
   const [filters, setFilters] = useState({
     dateFrom: "",
@@ -2344,6 +2447,12 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                               else if (low.includes("отправлен") || low.includes("улетел")) cls = "wb-log-badge wb-log-badge--warn";
                               return <span className={cls}>{t}</span>;
                             })()
+                          ) : col.key === "lvPerevozkaNasha" ? (
+                            <WbSummaryPerevozkaHaulzCell
+                              code={wbPostbPosilkaCode(rec)}
+                              lvFallback={wbPerevozkaNumberRaw(rec)}
+                              authHeaders={authHeaders}
+                            />
                           ) : col.key === "status1c" ? (
                             <div
                               style={{
@@ -2354,34 +2463,14 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                                 flexWrap: "wrap",
                               }}
                             >
-                              <WbSummaryPostb1cBadge
+                              <WbSummaryStatus1cCell
+                                rec={rec}
                                 authHeaders={authHeaders}
-                                code={wbPostbPosilkaCode(rec)}
-                                fallback1c={String(rec.status1c ?? "").trim()}
-                                perevozkaNumber={wbPerevozkaNumberRaw(rec)}
-                                onOpenTimeline={(num) => setPerevozkaModalNumber(num)}
+                                appKey={appKey}
+                                wbAppDownloadingKey={wbAppDownloadingKey}
+                                onOpenTimeline={setPerevozkaModal}
+                                onDownloadApp={(num, key) => void handleDownloadWbApp(num, key)}
                               />
-                              {wbPerevozkaNumberRaw(rec) ? (
-                                (() => {
-                                  const busy = wbAppDownloadingKey === appKey;
-                                  return (
-                                    <Button
-                                      size="small"
-                                      className="wb-action-btn"
-                                      disabled={busy}
-                                      title="Скачать АПП (GetFile, ЭР)"
-                                      onClick={() => void handleDownloadWbApp(wbPerevozkaNumberRaw(rec), appKey)}
-                                    >
-                                      {busy ? (
-                                        <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden />
-                                      ) : (
-                                        <FileDown className="w-3.5 h-3.5" aria-hidden />
-                                      )}
-                                      {busy ? " …" : " АПП"}
-                                    </Button>
-                                  );
-                                })()
-                              ) : null}
                             </div>
                           ) : (
                             formatWbSummaryCell(col.key, rec)
@@ -2423,10 +2512,11 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         </Flex>
 
         <WbPerevozkaTimelineModal
-          open={perevozkaModalNumber !== null}
-          number={perevozkaModalNumber ?? ""}
+          open={perevozkaModal !== null}
+          number={perevozkaModal?.number ?? ""}
+          initialStepsFromPosilka={perevozkaModal?.stepsFromPosilka}
           authHeaders={authHeaders}
-          onClose={() => setPerevozkaModalNumber(null)}
+          onClose={() => setPerevozkaModal(null)}
         />
       </Panel>
     </div>

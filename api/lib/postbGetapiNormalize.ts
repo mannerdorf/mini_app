@@ -23,6 +23,7 @@ export function rowFromLooseObject(obj: Record<string, unknown>): { title: strin
       date = sv;
     } else if (
       nk.includes("статус") ||
+      nk.includes("состояние") ||
       nk.includes("название") ||
       nk.includes("наименование") ||
       nk.includes("этап") ||
@@ -95,8 +96,46 @@ export function normalizePerevozkaSteps(data: unknown): Array<{ title: string; d
   return [];
 }
 
-/** Последний статус посылки (для бейджа). */
+/** Ответ GetPosilka: { Success, Сверки: [{ Перевозка, Статусы: [{ Период, Состояние }] }] } */
+export type PosilkaParsed = {
+  lastStatus: string;
+  perevozka: string;
+  posilkaSteps: Array<{ title: string; date: string }>;
+};
+
+export function parseGetPosilkaResponse(data: unknown): PosilkaParsed {
+  const empty: PosilkaParsed = { lastStatus: "", perevozka: "", posilkaSteps: [] };
+  if (!isPlainObject(data)) return empty;
+  const o = data as Record<string, unknown>;
+  const sverki = o.Сверки;
+  if (!Array.isArray(sverki) || sverki.length === 0) return empty;
+
+  const first = sverki[0];
+  if (!isPlainObject(first)) return empty;
+  const row = first as Record<string, unknown>;
+  const perevozka = asStr(row.Перевозка ?? row.перевозка);
+
+  const statusy = row.Статусы;
+  const posilkaSteps: Array<{ title: string; date: string }> = [];
+  if (Array.isArray(statusy)) {
+    for (const s of statusy) {
+      if (!isPlainObject(s)) continue;
+      const ss = s as Record<string, unknown>;
+      const title = asStr(ss.Состояние ?? ss.состояние);
+      const date = asStr(ss.Период ?? ss.период);
+      if (title || date) posilkaSteps.push({ title: title || "—", date });
+    }
+  }
+
+  const lastStatus = posilkaSteps.length ? posilkaSteps[posilkaSteps.length - 1]!.title : "";
+  return { lastStatus, perevozka, posilkaSteps };
+}
+
+/** Последний статус посылки (для бейджа): сначала формат Сверки, иначе эвристика. */
 export function normalizePosilkaLastStatus(data: unknown): string {
+  const fromSverki = parseGetPosilkaResponse(data);
+  if (fromSverki.lastStatus) return fromSverki.lastStatus;
+
   const steps = normalizePerevozkaSteps(data);
   if (steps.length) return steps[steps.length - 1]!.title || "";
   if (isPlainObject(data)) {
