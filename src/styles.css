@@ -1910,6 +1910,35 @@ body {
 .wb-postb-app-badge--busy {
     pointer-events: none;
 }
+.wb-postb-status-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: nowrap;
+}
+.wb-postb-refresh-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.95rem;
+    height: 1.95rem;
+    border-radius: 999px;
+    border: 1px solid rgba(124, 58, 237, 0.45);
+    background: rgba(124, 58, 237, 0.1);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    padding: 0;
+}
+.wb-postb-refresh-badge:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+.wb-postb-refresh-badge:not(:disabled):hover {
+    background: rgba(124, 58, 237, 0.18);
+}
+.wb-postb-refresh-badge--busy {
+    pointer-events: none;
+}
 .wb-postb-1c-badge:disabled {
     opacity: 0.55;
     cursor: not-allowed;

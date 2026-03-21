@@ -479,6 +479,25 @@ function fetchWbPosilkaOnce(code: string, authHeaders: Record<string, string>): 
   return wbPosilkaInflight.get(key)!;
 }
 
+async function fetchWbPosilkaForce(code: string, authHeaders: Record<string, string>): Promise<WbPosilkaCached> {
+  const key = code.trim();
+  if (!key) return { lastStatus: "", perevozka: "", posilkaSteps: [] };
+  const u = `/api/wb/postb-getapi?kind=posilka&refresh=1&code=${encodeURIComponent(key)}`;
+  const res = await fetch(u, { headers: authHeaders });
+  const d = (await res.json().catch(() => ({}))) as {
+    lastStatus?: string;
+    perevozka?: string;
+    posilkaSteps?: Array<{ title: string; date: string }>;
+  };
+  const entry: WbPosilkaCached = {
+    lastStatus: String(d?.lastStatus ?? "").trim(),
+    perevozka: normalizeWbPerevozkaHaulzDigits(String(d?.perevozka ?? "").trim()),
+    posilkaSteps: Array.isArray(d?.posilkaSteps) ? d.posilkaSteps : [],
+  };
+  wbPosilkaResolved.set(key, entry);
+  return entry;
+}
+
 function useWbPosilka(code: string, authHeaders: Record<string, string>): WbPosilkaCached & { loading: boolean } {
   const empty: WbPosilkaCached = { lastStatus: "", perevozka: "", posilkaSteps: [] };
   const k0 = code.trim();
@@ -721,14 +740,20 @@ function WbSummaryStatus1cCell(props: {
 }) {
   const { rec, authHeaders, appKey, wbAppDownloadingKey, onOpenTimeline, onDownloadApp } = props;
   const code = wbPostbPosilkaCode(rec);
+  const [manualPosilka, setManualPosilka] = useState<WbPosilkaCached | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const serverSteps = wbPostbStepsFromRec(rec);
   const serverStatus = String(rec.postbLastStatus ?? "").trim();
   const serverPerevozka = String(rec.postbPerevozka ?? "").trim();
   const skipFetch = wbHasPostbServerCache(rec);
   const d = useWbPosilka(skipFetch ? "" : code, authHeaders);
-  const lastStatus = (serverStatus || d.lastStatus).trim();
-  const perevozka = normalizeWbPerevozkaHaulzDigits((serverPerevozka || d.perevozka).trim());
-  const posilkaSteps = serverSteps.length > 0 ? serverSteps : d.posilkaSteps;
+  const lastStatus = (manualPosilka?.lastStatus || serverStatus || d.lastStatus).trim();
+  const perevozka = normalizeWbPerevozkaHaulzDigits((manualPosilka?.perevozka || serverPerevozka || d.perevozka).trim());
+  const posilkaSteps = manualPosilka?.posilkaSteps?.length
+    ? manualPosilka.posilkaSteps
+    : serverSteps.length > 0
+      ? serverSteps
+      : d.posilkaSteps;
   const loading = skipFetch ? false : d.loading;
   const lvFb = wbPerevozkaNumberRaw(rec);
   /** Перевозка: сначала колонка HAULZ, затем кэш GetPosilka (ведущие нули для GetFile) */
@@ -743,28 +768,46 @@ function WbSummaryStatus1cCell(props: {
 
   const busy = wbAppDownloadingKey === appKey;
   const appNumber = lvFb || perevozka;
+  const refreshBusy = refreshing;
 
   return (
     <>
-      <button
-        type="button"
-        className={`wb-postb-1c-badge${statusTone}`}
-        disabled={!transport}
-        title={
-          transport
-            ? "Открыть статусы перевозки"
-            : "Нет номера перевозки (колонка «Перевозка HAULZ» или ответ GetPosilka)"
-        }
-        onClick={() => {
-          if (transport)
-            onOpenTimeline({
-              number: transport,
-              stepsFromPosilka: posilkaSteps.length ? posilkaSteps : undefined,
-            });
-        }}
-      >
-        {display}
-      </button>
+      <div className="wb-postb-status-row">
+        <button
+          type="button"
+          className={`wb-postb-1c-badge${statusTone}`}
+          disabled={!transport}
+          title={
+            transport
+              ? "Открыть статусы перевозки"
+              : "Нет номера перевозки (колонка «Перевозка HAULZ» или ответ GetPosilka)"
+          }
+          onClick={() => {
+            if (transport)
+              onOpenTimeline({
+                number: transport,
+                stepsFromPosilka: posilkaSteps.length ? posilkaSteps : undefined,
+              });
+          }}
+        >
+          {display}
+        </button>
+        <button
+          type="button"
+          className={`wb-postb-refresh-badge${refreshBusy ? " wb-postb-refresh-badge--busy" : ""}`}
+          disabled={!code || refreshBusy}
+          title={code ? "Принудительно обновить статус посылки (GetPosilka, refresh=1)" : "Нет кода посылки"}
+          onClick={() => {
+            if (!code || refreshBusy) return;
+            setRefreshing(true);
+            void fetchWbPosilkaForce(code, authHeaders)
+              .then((entry) => setManualPosilka(entry))
+              .finally(() => setRefreshing(false));
+          }}
+        >
+          <RefreshCw className={`wb-postb-app-badge-icon${refreshBusy ? " animate-spin" : ""}`} aria-hidden />
+        </button>
+      </div>
       {appNumber ? (
         <button
           type="button"
