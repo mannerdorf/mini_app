@@ -9,7 +9,7 @@ import {
   getPaymentKey,
   fetchPerevozkiByInn,
   formatTelegramMessage,
-} from "../lib/notificationPoll";
+} from "../lib/notificationPoll.js";
 
 const CRON_SECRET = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;

@@ -4,7 +4,7 @@ import {
   fetchPerevozkiByInn,
   fetchInvoicesByInn,
   getPaymentKey,
-} from "../lib/notificationPoll";
+} from "../lib/notificationPoll.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
 const CRON_SECRET = process.env.CRON_SECRET;

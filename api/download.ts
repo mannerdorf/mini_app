@@ -174,9 +174,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Invalid inn (expected 10-12 digits)", request_id: ctx.requestId });
     }
 
+    const isWbAppMethod = metod === "АПП";
+
     // Зарегистрированные (CMS) пользователи: проверяем доступ к перевозке, затем запрашиваем файл сервисным аккаунтом
-    // РеестрКсчету использует номер счёта — проверка cache_perevozki не применима
-    if (isRegisteredUser && metod !== "РеестрКсчету") {
+    // РеестрКсчету использует номер счёта — проверка cache_perevozki не применима.
+    // АПП в WB идёт как в Postman (Auth: Info@haulz...) без локальной проверки cache_perevozki.
+    if (isRegisteredUser && metod !== "РеестрКсчету" && !isWbAppMethod) {
       try {
         const pool = getPool();
         const verified = await verifyRegisteredUser(pool, login, password);
@@ -230,15 +233,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Для Договор, АктСверки и РеестрКсчету используем Info@haulz.pro (Auth) + admin (Authorization), как в Postman
-    // АПП и Счет/Акт — как в карточке груза: Auth с PEREVOZKI_SERVICE_*; ЭР — Haulz (как в Postman)
+    // Для Договор, АктСверки, РеестрКсчету, ЭР и АПП используем Info@haulz.pro (Auth) + admin (Authorization).
     const useHaulzAuth =
       metod === "Договор" ||
       metod === "Dogovor" ||
       metod === "АктСверки" ||
       metod === "AktSverki" ||
       metod === "РеестрКсчету" ||
-      metod === "ЭР";
+      metod === "ЭР" ||
+      metod === "АПП";
     if (useHaulzAuth) {
       // Auth: Basic Info@haulz.pro:Y2ME42XyI_, Authorization: Basic YWRtaW46anVlYmZueWU=
       login = "";
