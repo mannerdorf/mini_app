@@ -1,7 +1,7 @@
 import React, { FormEvent, useEffect, useState, useCallback, useMemo, useRef, useLayoutEffect, Suspense, lazy } from "react";
 import {
     LogOut, Truck, Loader2, Check, X, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Users, Scale, RussianRuble, List, Download, Maximize, Minimize2,
-    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, TrendingDown, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship, RefreshCw, Lock
+    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, TrendingDown, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship, RefreshCw, Lock, Moon, Sun
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { Button, Container, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
@@ -133,7 +133,15 @@ const getFileNameFromDisposition = (header: string | null, fallback: string) => 
 // ================== COMPONENTS ==================
 
 export default function App() {
-    // Только светлая тема (тёмный режим отключён)
+    type AppTheme = "light" | "dark";
+    const [theme, setTheme] = useState<AppTheme>(() => {
+        if (typeof window === "undefined") return "light";
+        try {
+            return window.localStorage.getItem("haulz.theme") === "dark" ? "dark" : "light";
+        } catch {
+            return "light";
+        }
+    });
     const [desktopExpanded, setDesktopExpanded] = useState<boolean>(() => {
         if (typeof window === "undefined") return false;
         return window.localStorage.getItem("haulz.desktop.expanded") === "true";
@@ -170,28 +178,13 @@ export default function App() {
                 if (typeof webApp.expand === "function") {
                     webApp.expand();
                 }
-                try {
-                    window.localStorage.setItem("haulz.theme", "light");
-                } catch {
-                    // ignore
-                }
-                document.body.className = "light-mode";
             } catch {
                 // Игнорируем, если WebApp API частично недоступен
             }
 
             const themeHandler = () => {
-                try {
-                    window.localStorage.setItem("haulz.theme", "light");
-                } catch {
-                    // ignore
-                }
-                document.body.className = "light-mode";
-                if (isMaxWebApp()) {
-                    if (typeof webApp.setBackgroundColor === "function") {
-                        webApp.setBackgroundColor("#ffffff");
-                    }
-                }
+                const scheme = String((webApp as any)?.colorScheme || "").toLowerCase();
+                if (scheme === "dark" || scheme === "light") setTheme(scheme as AppTheme);
             };
 
             if (typeof webApp.onEvent === "function") {
@@ -521,19 +514,19 @@ export default function App() {
     }, [activeAccount?.id, activeAccount?.isRegisteredUser, activeAccount?.permissions, activeTab, isWbOnlyUser]);
 
     useEffect(() => {
-        document.body.className = "light-mode";
+        document.body.className = `${theme}-mode`;
         try {
-            window.localStorage.setItem("haulz.theme", "light");
+            window.localStorage.setItem("haulz.theme", theme);
         } catch {
             // ignore
         }
         if (isMaxWebApp()) {
             const webApp = getWebApp();
             if (webApp && typeof webApp.setBackgroundColor === "function") {
-                webApp.setBackgroundColor("#ffffff");
+                webApp.setBackgroundColor(theme === "dark" ? "#000000" : "#ffffff");
             }
         }
-    }, []);
+    }, [theme]);
     useEffect(() => {
         if (typeof window === "undefined") return;
         try {
@@ -2077,6 +2070,14 @@ export default function App() {
                                 {isSearchExpanded ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
                             </Button>
                         )}
+                        <Button
+                            className="search-toggle-button"
+                            onClick={() => setTheme((prev) => (prev === "light" ? "dark" : "light"))}
+                            title={theme === "light" ? "Включить тёмный режим" : "Включить светлый режим"}
+                            aria-label={theme === "light" ? "Включить тёмный режим" : "Включить светлый режим"}
+                        >
+                            {theme === "light" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+                        </Button>
                         <Button className="search-toggle-button" onClick={handleLogout} title="Выход" aria-label="Выйти">
                             <LogOut className="w-5 h-5" />
                         </Button>
