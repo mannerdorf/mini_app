@@ -1759,7 +1759,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       { key: "lvPerevozkaNasha", label: "Перевозка HAULZ" },
       { key: "lvOtchetDostavki", label: "Отчет о доставке" },
       { key: "lvOtpavkaAp", label: "Отправка" },
-      { key: "lvLogisticsStatus", label: "Статус" },
       { key: "lvDataInfo", label: "Дата получена информация" },
       { key: "lvDataUpakovano", label: "Дата упаковано" },
       { key: "lvDataKonsolidirovano", label: "Дата консолидировано" },

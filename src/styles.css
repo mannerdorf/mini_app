@@ -2023,6 +2023,10 @@ body {
     flex-direction: column;
     overflow: hidden;
 }
+.dark-mode .wb-panel {
+    border-color: rgba(124, 58, 237, 0.35);
+    background: linear-gradient(180deg, rgba(124, 58, 237, 0.16) 0%, rgba(16, 16, 22, 0.92) 100%);
+}
 .wb-panel-tabs-section {
     padding: 0.75rem 0;
 }
@@ -2040,6 +2044,10 @@ body {
     padding: 0.4rem 0.8rem;
     font-size: 0.86rem;
     cursor: pointer;
+}
+.dark-mode .wb-tab-btn {
+    background: rgba(124, 58, 237, 0.18);
+    border-color: rgba(124, 58, 237, 0.45);
 }
 .wb-tab-btn.active {
     background: #7c3aed;
@@ -2112,6 +2120,10 @@ body {
     padding: 0.65rem;
     background: rgba(124, 58, 237, 0.04);
 }
+.dark-mode .wb-upload-box {
+    background: rgba(124, 58, 237, 0.12);
+    border-color: rgba(124, 58, 237, 0.48);
+}
 .wb-upload-drop {
     display: flex;
     align-items: center;
@@ -2140,6 +2152,10 @@ body {
     border: 1px solid rgba(124, 58, 237, 0.22);
     background: rgba(124, 58, 237, 0.06);
     color: var(--color-text-primary);
+}
+.dark-mode .wb-manual-panel {
+    background: rgba(124, 58, 237, 0.14);
+    border-color: rgba(124, 58, 237, 0.42);
 }
 .wb-manual-panel .admin-form-input,
 .wb-manual-panel .admin-form-input input {
@@ -2175,6 +2191,9 @@ body {
     position: sticky;
     top: 0;
     z-index: 3;
+}
+.dark-mode .wb-table th {
+    background: rgba(124, 58, 237, 0.22);
 }
 .wb-sort-th {
     display: inline-flex;
