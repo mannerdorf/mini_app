@@ -890,6 +890,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     totalNotInInboundClaimRub: string | number;
   } | null>(null);
   const [summaryOnlyNotInInbound, setSummaryOnlyNotInInbound] = useState(false);
+  const [summaryGroupByPerevozka, setSummaryGroupByPerevozka] = useState(false);
   const [summarySort, setSummarySort] = useState<{ by: string; dir: "asc" | "desc" }>({ by: "", dir: "asc" });
   const [clearingSummary, setClearingSummary] = useState(false);
   /** Текстовый список короб:ШК для вкладки «Описи» ($1:1:3820740543:120762). */
@@ -1780,6 +1781,51 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     return sum;
   }, [activeTab, items]);
 
+  /** Сводная: склеиваем строки до уровня «Перевозка HAULZ» на текущей странице. */
+  const summaryViewItems = useMemo<Record<string, unknown>[]>(() => {
+    if (activeTab !== "summary" || !summaryGroupByPerevozka) return items;
+
+    const groups = new Map<
+      string,
+      { row: Record<string, unknown>; claimSum: number; inboundSum: number; count: number }
+    >();
+
+    for (let idx = 0; idx < items.length; idx += 1) {
+      const rec = items[idx] as Record<string, unknown>;
+      const k = normalizeWbPerevozkaHaulzDigits(String(rec.lvPerevozkaNasha ?? "").trim());
+      const key = k || `__nogroup__${idx}`;
+      const claim = parseWbMoneyNumber(rec.claimPriceRub) ?? 0;
+      const inbound = parseWbMoneyNumber(rec.inboundPriceRub) ?? 0;
+
+      if (!groups.has(key)) {
+        groups.set(key, { row: { ...rec }, claimSum: claim, inboundSum: inbound, count: 1 });
+        continue;
+      }
+
+      const g = groups.get(key)!;
+      g.count += 1;
+      g.claimSum += claim;
+      g.inboundSum += inbound;
+      g.row.isReturned = Boolean(g.row.isReturned) || Boolean(rec.isReturned);
+      g.row.hasInbound = Boolean(g.row.hasInbound) || Boolean(rec.hasInbound);
+      if (String(g.row.lvLogisticsStatus ?? "").trim() !== String(rec.lvLogisticsStatus ?? "").trim()) {
+        g.row.lvLogisticsStatus = "Смешано";
+      }
+      const collapseKeys = ["shk", "boxId", "inboundBoxShk", "inventoryNumber", "claimRowNumber", "inboundRowNumber"];
+      for (const ck of collapseKeys) {
+        const a = String(g.row[ck] ?? "").trim();
+        const b = String(rec[ck] ?? "").trim();
+        if (a && b && a !== b) g.row[ck] = "—";
+      }
+    }
+
+    return Array.from(groups.values()).map((g) => ({
+      ...g.row,
+      claimPriceRub: g.claimSum,
+      inboundPriceRub: g.inboundSum,
+    }));
+  }, [activeTab, items, summaryGroupByPerevozka]);
+
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
@@ -1990,6 +2036,15 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             {loading ? " Загрузка..." : "Обновить"}
           </Button>
+          {activeTab === "summary" ? (
+            <Button
+              className="wb-action-btn"
+              onClick={() => setSummaryGroupByPerevozka((v) => !v)}
+              title="Склеить строки текущей страницы до уровня перевозок HAULZ"
+            >
+              {summaryGroupByPerevozka ? "По перевозкам: ВКЛ" : "По перевозкам"}
+            </Button>
+          ) : null}
           <Button className="wb-action-btn" onClick={() => void handleExport("csv")}>
             <Download className="w-4 h-4" />
             CSV
@@ -2310,7 +2365,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
               </tr>
             </thead>
             <tbody>
-              {items.length === 0 ? (
+              {(activeTab === "summary" ? summaryViewItems.length === 0 : items.length === 0) ? (
                 <tr>
                   <td
                     colSpan={
@@ -2656,7 +2711,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                   );
                 })
               ) : (
-                items.map((row, idx) => {
+                summaryViewItems.map((row, idx) => {
                   const rec = row as Record<string, unknown>;
                   const lineNo = (page - 1) * limit + idx + 1;
                   const appKey = `s-${page}-${idx}`;
@@ -2711,7 +2766,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
 
         <Flex align="center" justify="space-between" style={{ marginTop: "0.75rem" }}>
           <Typography.Body style={{ color: "var(--color-text-secondary)" }}>
-            {`Страница ${page} из ${totalPages} • записей: ${total}`}
+            {`Страница ${page} из ${totalPages} • записей: ${
+              activeTab === "summary" && summaryGroupByPerevozka ? summaryViewItems.length : total
+            }`}
             {returnedPageAmountSum !== null
               ? ` • Сумма на странице: ${returnedPageAmountSum.toLocaleString("ru-RU", {
                   minimumFractionDigits: 2,
