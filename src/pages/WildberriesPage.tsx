@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { TapSwitch } from "../components/TapSwitch";
 import { Download, FileDown, FileUp, RefreshCw, Trash2, Upload, ChevronDown, X } from "lucide-react";
 import type { AuthData } from "../types";
 import { DOCUMENT_METHODS } from "../documentMethods";
@@ -2182,6 +2181,20 @@ export function WildberriesPage({ auth, canUpload }: Props) {
           <div className="wb-summary-compact">
             <div className="wb-summary-compact-head">
               <Typography.Body style={{ margin: 0, fontWeight: 600 }}>Сводные итоги</Typography.Body>
+              <span className="wb-summary-compact-head-spacer" aria-hidden />
+              <div className="wb-summary-formed">
+                <span className="wb-summary-formed-label">Дата формирования</span>
+                <span className="wb-summary-formed-value">
+                  {summaryHeader?.formedAt
+                    ? (() => {
+                        const d = new Date(summaryHeader.formedAt);
+                        return Number.isNaN(d.getTime())
+                          ? String(summaryHeader.formedAt).slice(0, 19).replace("T", " ")
+                          : d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
+                      })()
+                    : "—"}
+                </span>
+              </div>
               <button
                 type="button"
                 className="wb-collapsible-toggle wb-collapsible-toggle--inline"
@@ -2193,129 +2206,119 @@ export function WildberriesPage({ auth, canUpload }: Props) {
               </button>
             </div>
             {summaryCompactExpanded && (
-              <>
-                <div className="wb-summary-compact-grid">
-                  <div className="wb-summary-metric-card">
-                    <span className="wb-summary-metric-label">Дата формирования</span>
-                    <strong className="wb-summary-metric-value">
-                      {summaryHeader?.formedAt
-                        ? (() => {
-                            const d = new Date(summaryHeader.formedAt);
-                            return Number.isNaN(d.getTime())
-                              ? String(summaryHeader.formedAt).slice(0, 19).replace("T", " ")
-                              : d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
-                          })()
-                        : "—"}
-                    </strong>
-                  </div>
-                  <div className="wb-summary-metric-card">
-                    <span className="wb-summary-metric-label">Кол-во мест</span>
-                    <strong className="wb-summary-metric-value">{total}</strong>
-                  </div>
-                  <div className="wb-summary-metric-card">
-                    <span className="wb-summary-metric-label">Стоимость в претензии</span>
-                    <strong className="wb-summary-metric-value">
-                      {Number(summaryHeader?.totalClaimRub ?? 0).toLocaleString("ru-RU", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}{" "}
-                      ₽
-                    </strong>
-                  </div>
-                  <div className="wb-summary-metric-card">
-                    <span className="wb-summary-metric-label">Стоимость в описях</span>
-                    <strong className="wb-summary-metric-value">
-                      {Number(summaryHeader?.totalInboundRub ?? 0).toLocaleString("ru-RU", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}{" "}
-                      ₽
-                    </strong>
-                  </div>
-                  <div className="wb-summary-metric-card wb-summary-metric-card--warn">
-                    <span className="wb-summary-metric-label">Нет в описях (по претензии)</span>
-                    <strong className="wb-summary-metric-value">
+              <div className="wb-summary-status-breakdown">
+                <div className="wb-summary-status-list">
+                  <button
+                    type="button"
+                    className={`wb-summary-status-item wb-summary-status-item--filter wb-summary-status-item--tone-all wb-summary-status-item--all-panel${
+                      !summaryFilterStatus && !summaryOnlyNotInInbound ? " wb-summary-status-item--active" : ""
+                    }`}
+                    onClick={() => {
+                      setSummaryFilterStatus("");
+                      setSummaryOnlyNotInInbound(false);
+                      setPage(1);
+                    }}
+                  >
+                    <div className="wb-summary-all-head">
+                      <span className="wb-summary-status-label">Все</span>
+                      <span className="wb-summary-all-reset">Сбросить фильтр</span>
+                    </div>
+                    <div className="wb-summary-all-metrics">
+                      <div className="wb-summary-all-metric-line">
+                        <span className="wb-summary-all-metric-label">Кол-во мест</span>
+                        <strong className="wb-summary-all-metric-value">{total}</strong>
+                      </div>
+                      <div className="wb-summary-all-metric-line">
+                        <span className="wb-summary-all-metric-label">Стоимость в претензии</span>
+                        <strong className="wb-summary-all-metric-value">
+                          {Number(summaryHeader?.totalClaimRub ?? 0).toLocaleString("ru-RU", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{" "}
+                          ₽
+                        </strong>
+                      </div>
+                      <div className="wb-summary-all-metric-line">
+                        <span className="wb-summary-all-metric-label">Стоимость в описях</span>
+                        <strong className="wb-summary-all-metric-value">
+                          {Number(summaryHeader?.totalInboundRub ?? 0).toLocaleString("ru-RU", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{" "}
+                          ₽
+                        </strong>
+                      </div>
+                    </div>
+                  </button>
+                  {summaryStatusChips.map((chip) => {
+                    const key = chip.filterValue;
+                    const filterValue = chip.filterValue;
+                    const isActive = summaryFilterStatus === filterValue;
+                    return (
+                      <button
+                        type="button"
+                        key={key}
+                        className={`wb-summary-status-item wb-summary-status-item--filter${getSummaryChipToneClass(chip)}${isActive ? " wb-summary-status-item--active" : ""}`}
+                        onClick={() => {
+                          setSummaryOnlyNotInInbound(false);
+                          setSummaryFilterStatus((prev) => (prev === filterValue ? "" : filterValue));
+                          setPage(1);
+                        }}
+                      >
+                        <span className="wb-summary-status-label">{chip.label}</span>
+                        <div className="wb-summary-status-sums">
+                          <span className="wb-summary-status-sum-line">
+                            Претензии:{" "}
+                            <strong>
+                              {Number(chip.totalClaimRub).toLocaleString("ru-RU", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}{" "}
+                              ₽
+                            </strong>
+                          </span>
+                          <span className="wb-summary-status-sum-line">
+                            Описи:{" "}
+                            <strong>
+                              {Number(chip.totalInboundRub).toLocaleString("ru-RU", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}{" "}
+                              ₽
+                            </strong>
+                          </span>
+                        </div>
+                        <span className="wb-summary-status-meta">({chip.rowCount} м.)</span>
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    className={`wb-summary-status-item wb-summary-status-item--filter wb-summary-status-item--inbound-gap wb-summary-status-item--tone-inbound-gap${
+                      summaryOnlyNotInInbound ? " wb-summary-status-item--active" : ""
+                    }`}
+                    title={
+                      summaryOnlyNotInInbound
+                        ? "Снять фильтр «нет в описях»"
+                        : "Показать только строки без описи по претензии"
+                    }
+                    onClick={() => {
+                      setSummaryFilterStatus("");
+                      setSummaryOnlyNotInInbound((v) => !v);
+                      setPage(1);
+                    }}
+                  >
+                    <span className="wb-summary-status-label">Нет в описях (по претензии)</span>
+                    <strong className="wb-summary-inbound-gap-amount">
                       {Number(summaryHeader?.totalNotInInboundClaimRub ?? 0).toLocaleString("ru-RU", {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}{" "}
                       ₽
                     </strong>
-                  </div>
-                  <div className="wb-summary-metric-card wb-summary-metric-card--switch">
-                    <span className="wb-summary-metric-label">Фильтр</span>
-                    <div className="wb-summary-switch-row">
-                      <TapSwitch
-                        checked={summaryOnlyNotInInbound}
-                        onToggle={() => {
-                          setSummaryOnlyNotInInbound((v) => !v);
-                          setPage(1);
-                        }}
-                      />
-                      <Typography.Body style={{ margin: 0, fontSize: "0.84rem" }}>Нет в описях</Typography.Body>
-                    </div>
-                  </div>
+                  </button>
                 </div>
-                {summaryStatusChips.length > 0 && (
-                  <div className="wb-summary-status-breakdown">
-                    <div className="wb-summary-status-list">
-                      <button
-                        type="button"
-                        className={`wb-summary-status-item wb-summary-status-item--filter wb-summary-status-item--tone-all${!summaryFilterStatus ? " wb-summary-status-item--active" : ""}`}
-                        onClick={() => {
-                          setSummaryFilterStatus("");
-                          setPage(1);
-                        }}
-                      >
-                        <span className="wb-summary-status-label">Все</span>
-                        <strong className="wb-summary-status-value">Сбросить</strong>
-                        <span className="wb-summary-status-meta">фильтр</span>
-                      </button>
-                      {summaryStatusChips.map((chip) => {
-                        const key = chip.filterValue;
-                        const filterValue = chip.filterValue;
-                        const isActive = summaryFilterStatus === filterValue;
-                        return (
-                          <button
-                            type="button"
-                            key={key}
-                            className={`wb-summary-status-item wb-summary-status-item--filter${getSummaryChipToneClass(chip)}${isActive ? " wb-summary-status-item--active" : ""}`}
-                            onClick={() => {
-                              setSummaryFilterStatus((prev) => (prev === filterValue ? "" : filterValue));
-                              setPage(1);
-                            }}
-                          >
-                            <span className="wb-summary-status-label">{chip.label}</span>
-                            <div className="wb-summary-status-sums">
-                              <span className="wb-summary-status-sum-line">
-                                Претензии:{" "}
-                                <strong>
-                                  {Number(chip.totalClaimRub).toLocaleString("ru-RU", {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2,
-                                  })}{" "}
-                                  ₽
-                                </strong>
-                              </span>
-                              <span className="wb-summary-status-sum-line">
-                                Описи:{" "}
-                                <strong>
-                                  {Number(chip.totalInboundRub).toLocaleString("ru-RU", {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2,
-                                  })}{" "}
-                                  ₽
-                                </strong>
-                              </span>
-                            </div>
-                            <span className="wb-summary-status-meta">({chip.rowCount} м.)</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </>
+              </div>
             )}
           </div>
         )}
