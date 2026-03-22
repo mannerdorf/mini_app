@@ -302,8 +302,8 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
   }
   if (edoStatusFilterSet.size > 0) {
     res = res.filter((i) => {
-      const edo = getInvoiceBillEdoInfo(i).label;
-      return edo && edoStatusFilterSet.has(edo);
+      const edo = getInvoiceBillEdoInfo(i);
+      return Boolean(edo.raw) && edoStatusFilterSet.has(edo.label);
     });
   }
   const getDate = (r: any) => (r.Date ?? r.date ?? r.Дата ?? r.DateDoc ?? "").toString();

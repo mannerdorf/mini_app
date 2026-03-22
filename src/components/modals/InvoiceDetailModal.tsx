@@ -226,7 +226,7 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                                                 ...edoMiniBadgeStyle(edo.tone),
                                             }}
                                         >
-                                            {edo.raw ? edo.shortLabel : "—"}
+                                            {edo.shortLabel}
                                         </span>
                                     )}
                                 </Button>
@@ -235,12 +235,19 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                     </Flex>
                 )}
                 {auth && (
-                    <Flex gap="0.35rem" wrap="wrap" style={{ marginBottom: '0.75rem', flexShrink: 0 }}>
-                        <Typography.Label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", marginRight: "0.2rem" }}>Легенда ЭДО:</Typography.Label>
-                        <span className="role-badge" style={{ fontSize: "0.62rem", fontWeight: 700, padding: "0.12rem 0.28rem", borderRadius: "999px", ...edoMiniBadgeStyle("warning") }}>Ожидает подписи</span>
-                        <span className="role-badge" style={{ fontSize: "0.62rem", fontWeight: 700, padding: "0.12rem 0.28rem", borderRadius: "999px", ...edoMiniBadgeStyle("success") }}>Принят</span>
-                        <span className="role-badge" style={{ fontSize: "0.62rem", fontWeight: 700, padding: "0.12rem 0.28rem", borderRadius: "999px", ...edoMiniBadgeStyle("danger") }}>Не принят</span>
-                        <span className="role-badge" style={{ fontSize: "0.62rem", fontWeight: 700, padding: "0.12rem 0.28rem", borderRadius: "999px", ...edoMiniBadgeStyle("muted") }}>Нет статуса</span>
+                    <Flex gap="0.35rem" wrap="wrap" align="center" style={{ marginBottom: '0.75rem', flexShrink: 0 }}>
+                        <Typography.Label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", marginRight: "0.15rem" }}>Легенда ЭДО:</Typography.Label>
+                        <span className="role-badge" style={{ fontSize: "0.62rem", fontWeight: 700, padding: "0.12rem 0.28rem", borderRadius: "999px", ...edoMiniBadgeStyle("warning") }}>ОП</span>
+                        <Typography.Label style={{ fontSize: "0.68rem", color: "var(--color-text-secondary)" }}>ожидает подписи</Typography.Label>
+                        <span style={{ color: "var(--color-text-secondary)", fontSize: "0.65rem" }}>·</span>
+                        <span className="role-badge" style={{ fontSize: "0.62rem", fontWeight: 700, padding: "0.12rem 0.28rem", borderRadius: "999px", ...edoMiniBadgeStyle("success") }}>П</span>
+                        <Typography.Label style={{ fontSize: "0.68rem", color: "var(--color-text-secondary)" }}>принят / подписан</Typography.Label>
+                        <span style={{ color: "var(--color-text-secondary)", fontSize: "0.65rem" }}>·</span>
+                        <span className="role-badge" style={{ fontSize: "0.62rem", fontWeight: 700, padding: "0.12rem 0.28rem", borderRadius: "999px", ...edoMiniBadgeStyle("danger") }}>НП</span>
+                        <Typography.Label style={{ fontSize: "0.68rem", color: "var(--color-text-secondary)" }}>не принят</Typography.Label>
+                        <span style={{ color: "var(--color-text-secondary)", fontSize: "0.65rem" }}>·</span>
+                        <span className="role-badge" style={{ fontSize: "0.62rem", fontWeight: 700, padding: "0.12rem 0.28rem", borderRadius: "999px", ...edoMiniBadgeStyle("muted") }}>НС</span>
+                        <Typography.Label style={{ fontSize: "0.68rem", color: "var(--color-text-secondary)" }}>нет статуса</Typography.Label>
                     </Flex>
                 )}
                 {downloadError && (
