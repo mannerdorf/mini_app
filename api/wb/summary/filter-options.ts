@@ -20,26 +20,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const hasLp = await pgTableExists(pool, "wb_logistics_parcel");
+    const hasPostbCache = await pgTableExists(pool, "wb_postb_posilka_cache");
+    const postbParcelKeyExpr = `lower(trim(nullif(coalesce(nullif(trim(i.box_shk), ''), nullif(trim(s.shk), ''), nullif(trim(c.shk), ''), ''), '')))`;
+    const postbJoinSql = hasPostbCache
+      ? `left join wb_postb_posilka_cache ppc on ppc.posilka_code_norm = ${postbParcelKeyExpr}`
+      : "";
     const fromJoins = hasLp
       ? `
        from wb_summary s
        left join wb_claims_items c on c.id = s.claim_item_id
        left join wb_inbound_items i on i.id = s.inbound_item_id
-       left join wb_logistics_parcel lp on lower(trim(lp.parcel_key)) = lower(trim(nullif(coalesce(nullif(trim(i.box_shk), ''), nullif(trim(s.shk), ''), nullif(trim(c.shk), ''), ''), '')))`
+       left join wb_logistics_parcel lp on lower(trim(lp.parcel_key)) = ${postbParcelKeyExpr}
+       ${postbJoinSql}`
       : `
        from wb_summary s
        left join wb_claims_items c on c.id = s.claim_item_id
-       left join wb_inbound_items i on i.id = s.inbound_item_id`;
+       left join wb_inbound_items i on i.id = s.inbound_item_id
+       ${postbJoinSql}`;
 
     const baseWhere = "where s.declared = true";
 
-    const statuses = hasLp
+    const statuses = hasPostbCache
       ? (
           await pool.query<{ v: string }>(
-            `select distinct nullif(trim(lp.logistics_status), '') as v
+            `select distinct nullif(trim(ppc.last_status), '') as v
              ${fromJoins}
              ${baseWhere}
-               and nullif(trim(lp.logistics_status), '') is not null
+               and nullif(trim(ppc.last_status), '') is not null
              order by 1
              limit 500`,
           )

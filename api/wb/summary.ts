@@ -101,9 +101,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       params.push(brand.toLowerCase());
       where.push(`lower(coalesce(i.brand, '')) like '%' || $${params.length} || '%'`);
     }
-    if (filterLogisticsStatus && hasLogisticsParcel) {
+    if (filterLogisticsStatus && hasPostbCache) {
       params.push(filterLogisticsStatus);
-      where.push(`coalesce(nullif(trim(lp.logistics_status), ''), '') = $${params.length}`);
+      where.push(`coalesce(nullif(trim(ppc.last_status), ''), '') = $${params.length}`);
     }
     if (filterBoxExact) {
       params.push(filterBoxExact);

@@ -153,9 +153,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const sparams: unknown[] = [];
         const extraParts: string[] = [];
-        if (filterLogisticsStatus && hasLp) {
+        if (filterLogisticsStatus && hasPostbCache) {
           sparams.push(filterLogisticsStatus);
-          extraParts.push(`coalesce(nullif(trim(lp.logistics_status), ''), '') = $${sparams.length}`);
+          extraParts.push(`coalesce(nullif(trim(ppc.last_status), ''), '') = $${sparams.length}`);
         }
         if (filterBoxExact) {
           sparams.push(filterBoxExact);

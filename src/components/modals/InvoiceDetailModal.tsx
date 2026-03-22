@@ -8,6 +8,7 @@ import { DateText } from "../ui/DateText";
 import { StatusBadge } from "../shared/StatusBadges";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { DOCUMENT_METHODS } from "../../documentMethods";
+import { type EdoTone, getInvoiceEdoInfoByDocLabel } from "../../lib/edoStatus";
 import type { AuthData } from "../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД", "Реестр"] as const;
@@ -50,6 +51,14 @@ function lookupNorm<T>(map: Map<string, T> | undefined, key: string): T | undefi
     if (!map || !key) return undefined;
     const norm = (s: string) => String(s).replace(/^0+/, "") || s;
     return map.get(key) ?? map.get(norm(key));
+}
+
+function edoMiniBadgeStyle(tone: EdoTone): React.CSSProperties {
+    if (tone === "success") return { background: "rgba(34,197,94,0.2)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.35)" };
+    if (tone === "warning") return { background: "rgba(234,179,8,0.2)", color: "#ca8a04", border: "1px solid rgba(202,138,4,0.35)" };
+    if (tone === "danger") return { background: "rgba(239,68,68,0.2)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.35)" };
+    if (tone === "info") return { background: "rgba(59,130,246,0.15)", color: "var(--color-primary-blue)", border: "1px solid rgba(59,130,246,0.35)" };
+    return { background: "var(--color-panel-secondary)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border)" };
 }
 
 export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, cargoStateByNumber, cargoRouteByNumber, perevozkiLoading }: InvoiceDetailModalProps) {
@@ -187,12 +196,13 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                     </Flex>
                 )}
                 {auth && (
-                    <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: '1rem', flexShrink: 0 }}>
+                    <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: '0.5rem', flexShrink: 0 }}>
                         {DOC_BUTTONS.map((label) => {
                             const isReestr = label === "Реестр";
                             const canDownload = isReestr
                                 ? !!(invoiceNumber && formatDateDocForApi(dateDoc))
                                 : !!cargoNumber;
+                            const edo = getInvoiceEdoInfoByDocLabel(item, label);
                             return (
                                 <Button
                                     key={label}
@@ -204,9 +214,33 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                                 >
                                     {downloading === label ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                                     {label}
+                                    {!isReestr && (
+                                        <span
+                                            title={edo.label}
+                                            style={{
+                                                fontSize: "0.62rem",
+                                                fontWeight: 700,
+                                                lineHeight: 1,
+                                                padding: "0.12rem 0.28rem",
+                                                borderRadius: "999px",
+                                                ...edoMiniBadgeStyle(edo.tone),
+                                            }}
+                                        >
+                                            {edo.raw ? edo.shortLabel : "—"}
+                                        </span>
+                                    )}
                                 </Button>
                             );
                         })}
+                    </Flex>
+                )}
+                {auth && (
+                    <Flex gap="0.35rem" wrap="wrap" style={{ marginBottom: '0.75rem', flexShrink: 0 }}>
+                        <Typography.Label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", marginRight: "0.2rem" }}>Легенда ЭДО:</Typography.Label>
+                        <span className="role-badge" style={{ fontSize: "0.62rem", fontWeight: 700, padding: "0.12rem 0.28rem", borderRadius: "999px", ...edoMiniBadgeStyle("warning") }}>Ожидает подписи</span>
+                        <span className="role-badge" style={{ fontSize: "0.62rem", fontWeight: 700, padding: "0.12rem 0.28rem", borderRadius: "999px", ...edoMiniBadgeStyle("success") }}>Принят</span>
+                        <span className="role-badge" style={{ fontSize: "0.62rem", fontWeight: 700, padding: "0.12rem 0.28rem", borderRadius: "999px", ...edoMiniBadgeStyle("danger") }}>Не принят</span>
+                        <span className="role-badge" style={{ fontSize: "0.62rem", fontWeight: 700, padding: "0.12rem 0.28rem", borderRadius: "999px", ...edoMiniBadgeStyle("muted") }}>Нет статуса</span>
                     </Flex>
                 )}
                 {downloadError && (

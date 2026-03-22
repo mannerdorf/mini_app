@@ -1,5 +1,6 @@
 import { cityToCode, normalizeInvoiceStatus, parseCargoNumbersFromText, stripOoo } from "../lib/formatUtils";
 import { getFilterKeyByStatus } from "../lib/statusUtils";
+import { getInvoiceBillEdoInfo } from "../lib/edoStatus";
 import type { StatusFilter } from "../types";
 
 export const INVOICE_FAVORITES_VALUE = "__favorites__";
@@ -301,7 +302,7 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
   }
   if (edoStatusFilterSet.size > 0) {
     res = res.filter((i) => {
-      const edo = getEdoStatus(i);
+      const edo = getInvoiceBillEdoInfo(i).label;
       return edo && edoStatusFilterSet.has(edo);
     });
   }

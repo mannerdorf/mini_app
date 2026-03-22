@@ -1911,7 +1911,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                   setSummaryDdInv(false);
                 }}
               >
-                Статус: {summaryFilterStatus || "Все"} <ChevronDown className="w-4 h-4" />
+                Статус 1С: {summaryFilterStatus || "Все"} <ChevronDown className="w-4 h-4" />
               </Button>
             </div>
             <FilterDropdownPortal
