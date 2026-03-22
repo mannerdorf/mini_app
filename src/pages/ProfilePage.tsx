@@ -1691,20 +1691,20 @@ export function ProfilePage({
                     <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.65rem" }}>
                         Введите ШК посылки или откройте камеру для сканирования. После ввода нажмите «ОК».
                     </Typography.Body>
-                    <Flex gap="0.5rem" wrap="wrap" align="center">
+                    <Flex gap="0.5rem" wrap="wrap" align="center" className="parcel-scanner-row">
                         <Input
                             className="admin-form-input"
                             placeholder="Например: GA0101000178704"
                             value={parcelCode}
                             onChange={(e) => setParcelCode(e.target.value)}
-                            style={{ minWidth: 260, flex: "1 1 320px", height: 46, boxSizing: "border-box" }}
+                            style={{ minWidth: 260, flex: "1 1 320px" }}
                         />
                         <Button
                             type="button"
                             className="button-primary"
                             onClick={() => void handleLookupParcel()}
                             disabled={parcelLookupLoading}
-                            style={{ minWidth: 90, height: 46, boxSizing: "border-box" }}
+                            style={{ minWidth: 90 }}
                         >
                             {parcelLookupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "ОК"}
                         </Button>
@@ -1713,7 +1713,7 @@ export function ProfilePage({
                             className="filter-button"
                             onClick={() => void startParcelScanner()}
                             disabled={scannerOpen}
-                            style={{ minWidth: 170, height: 46, boxSizing: "border-box" }}
+                            style={{ minWidth: 170 }}
                         >
                             <Camera className="w-4 h-4" style={{ marginRight: "0.25rem" }} />
                             Сканировать

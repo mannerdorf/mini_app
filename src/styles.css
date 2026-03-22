@@ -1560,6 +1560,26 @@ body {
     appearance: auto;
 }
 
+/* Сканер посылки: поле и кнопки в одной линии и одной высоты */
+.parcel-scanner-row .admin-form-input,
+.parcel-scanner-row .admin-form-input input,
+.parcel-scanner-row .button-primary,
+.parcel-scanner-row .filter-button {
+    height: 46px !important;
+    min-height: 46px !important;
+    max-height: 46px !important;
+    box-sizing: border-box !important;
+}
+.parcel-scanner-row .button-primary,
+.parcel-scanner-row .filter-button {
+    margin-top: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
 /* Заголовки таблицы «Справочник заказчиков» — сортировка по клику */
 .sortable-th:hover {
     background: var(--color-bg-hover);
