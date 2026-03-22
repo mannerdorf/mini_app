@@ -63,6 +63,24 @@ const WB_SHOW_INBOUND_BOX_SHK_TEXT_PANEL = false;
 /** Фильтр сводной: строки без статуса или с вариантами «не передавал*». */
 const WB_SUMMARY_FILTER_POSTB_NOT_SENT = "__postb_not_sent__";
 
+type WbSummaryHeader = {
+  formedAt: string | null;
+  placeCount: number;
+  totalClaimRub: string | number;
+  totalInboundRub: string | number;
+  totalNotInInboundClaimRub: string | number;
+  /** Стоимость в описи по строкам, у которых в PostB нет last_status (в «Все» учтены, по статусу — нет). */
+  totalInboundRubPostbBlank: string | number;
+  rowCountPostbBlank: number;
+  /** Разбивка сумм по last_status PostB (без учёта фильтра статуса в запросе). */
+  inboundByPostbStatus: Array<{
+    status: string;
+    rowCount: number;
+    totalClaimRub: string | number;
+    totalInboundRub: string | number;
+  }>;
+};
+
 function normalizeWbInventoryNumberKey(raw: unknown): string {
   return String(raw ?? "")
     .replace(/\s+/g, "")
@@ -921,23 +939,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   const [returnedDetailsCache, setReturnedDetailsCache] = useState<Record<string, Record<string, unknown>[]>>({});
   const [returnedDetailLoading, setReturnedDetailLoading] = useState<string | null>(null);
   const [deletingReturnedGroup, setDeletingReturnedGroup] = useState<string | null>(null);
-  const [summaryHeader, setSummaryHeader] = useState<{
-    formedAt: string | null;
-    placeCount: number;
-    totalClaimRub: string | number;
-    totalInboundRub: string | number;
-    totalNotInInboundClaimRub: string | number;
-    /** Стоимость в описи по строкам, у которых в PostB нет last_status (в «Все» учтены, по статусу — нет). */
-    totalInboundRubPostbBlank: string | number;
-    rowCountPostbBlank: number;
-    /** Разбивка сумм по last_status PostB (без учёта фильтра статуса в запросе). */
-    inboundByPostbStatus: Array<{
-      status: string;
-      rowCount: number;
-      totalClaimRub: string | number;
-      totalInboundRub: string | number;
-    }>;
-  } | null>(null);
+  const [summaryHeader, setSummaryHeader] = useState<WbSummaryHeader | null>(null);
+  /** "База" без фильтров статуса/не в описях: карточка "Все" и чипы не пересчитываются при переключении. */
+  const [summaryHeaderAll, setSummaryHeaderAll] = useState<WbSummaryHeader | null>(null);
   const [summaryOnlyNotInInbound, setSummaryOnlyNotInInbound] = useState(false);
   const [summaryGroupByPerevozka, setSummaryGroupByPerevozka] = useState(false);
   const [summarySort, setSummarySort] = useState<{ by: string; dir: "asc" | "desc" }>({ by: "", dir: "asc" });
@@ -1008,6 +1012,28 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     }),
     [auth.login, auth.password],
   );
+  const canAccessReturnedTab = useMemo(() => {
+    const login = String(auth.login ?? "")
+      .trim()
+      .toLowerCase();
+    return login === "wb_админ" || login === "wb_admin";
+  }, [auth.login]);
+  const visibleTabs = useMemo(
+    () => TAB_LABELS.filter((tab) => tab.key !== "returned" || canAccessReturnedTab),
+    [canAccessReturnedTab],
+  );
+
+  useEffect(() => {
+    if (canAccessReturnedTab || activeTab !== "returned") return;
+    setActiveTab("inbound");
+    setPage(1);
+    setItems([]);
+    setTotal(0);
+    setSummaryHeader(null);
+    setSummaryHeaderAll(null);
+    setError(null);
+    setLoading(true);
+  }, [activeTab, canAccessReturnedTab]);
 
   const dataEndpoint = useMemo(() => {
     if (activeTab === "inbound") return "/api/wb/inbound";
@@ -1056,7 +1082,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       if (activeTab === "summary") {
         const sh = data?.summaryHeader;
         if (sh && typeof sh === "object") {
-          setSummaryHeader({
+          const parsedHeader: WbSummaryHeader = {
             formedAt: typeof (sh as { formedAt?: unknown }).formedAt === "string" ? (sh as { formedAt: string }).formedAt : null,
             placeCount: Number((sh as { placeCount?: unknown }).placeCount ?? data?.total ?? 0),
             totalClaimRub: (sh as { totalClaimRub?: unknown }).totalClaimRub ?? "0",
@@ -1079,19 +1105,26 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                 };
               });
             })(),
-          });
+          };
+          setSummaryHeader(parsedHeader);
+          if (!summaryFilterStatus && !summaryOnlyNotInInbound) setSummaryHeaderAll(parsedHeader);
         } else {
           setSummaryHeader(null);
+          if (!summaryFilterStatus && !summaryOnlyNotInInbound) setSummaryHeaderAll(null);
         }
       } else {
         setSummaryHeader(null);
+        setSummaryHeaderAll(null);
       }
     } catch (e: unknown) {
       if (gen !== wbLoadGenRef.current) return;
       setError((e as Error)?.message || "Ошибка загрузки данных");
       setItems([]);
       setTotal(0);
-      if (activeTab === "summary") setSummaryHeader(null);
+      if (activeTab === "summary") {
+        setSummaryHeader(null);
+        if (!summaryFilterStatus && !summaryOnlyNotInInbound) setSummaryHeaderAll(null);
+      }
     } finally {
       if (gen === wbLoadGenRef.current) setLoading(false);
     }
@@ -1807,9 +1840,10 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   }, [activeTab, items]);
 
   const summaryStatusChips = useMemo(() => {
-    if (!summaryHeader) return [] as Array<{ filterValue: string; label: string; rowCount: number; totalClaimRub: number; totalInboundRub: number }>;
+    const header = summaryHeaderAll ?? summaryHeader;
+    if (!header) return [] as Array<{ filterValue: string; label: string; rowCount: number; totalClaimRub: number; totalInboundRub: number }>;
     const grouped = new Map<string, { filterValue: string; label: string; rowCount: number; totalClaimRub: number; totalInboundRub: number }>();
-    for (const row of summaryHeader.inboundByPostbStatus) {
+    for (const row of header.inboundByPostbStatus) {
       const raw = coerceStatusDisplay(row.status).trim();
       const low = raw.toLowerCase();
       const isNotSent =
@@ -1841,15 +1875,16 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       }
     }
     return Array.from(grouped.values()).sort((a, b) => b.totalInboundRub - a.totalInboundRub);
-  }, [summaryHeader]);
+  }, [summaryHeader, summaryHeaderAll]);
 
   const getSummaryChipToneClass = useCallback((chip: { filterValue: string; label: string }) => {
     const low = chip.label.toLowerCase();
     if (chip.filterValue === WB_SUMMARY_FILTER_POSTB_NOT_SENT) return " wb-summary-status-item--tone-not-sent";
-    if (low.includes("доставлен")) return " wb-summary-status-item--tone-delivered";
     if (low.includes("не достав")) return " wb-summary-status-item--tone-undelivered";
+    if (low.includes("доставлен")) return " wb-summary-status-item--tone-delivered";
     return " wb-summary-status-item--tone-neutral";
   }, []);
+  const summaryHeaderDisplay = summaryHeaderAll ?? summaryHeader;
 
   /** Сводная: склеиваем строки до уровня «Перевозка HAULZ» на текущей странице. */
   const summaryViewItems = useMemo<Record<string, unknown>[]>(() => {
@@ -1903,7 +1938,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       <Panel className="wb-panel" mode="secondary">
         <div className="wb-panel-tabs-section">
         <div className="wb-tabs">
-          {TAB_LABELS.map((tab) => (
+          {visibleTabs.map((tab) => (
             <button
               key={tab.key}
               type="button"
@@ -1915,6 +1950,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                 setItems([]);
                 setTotal(0);
                 setSummaryHeader(null);
+                setSummaryHeaderAll(null);
                 setError(null);
                 setLoading(true);
               }}
@@ -2185,11 +2221,11 @@ export function WildberriesPage({ auth, canUpload }: Props) {
               <div className="wb-summary-formed">
                 <span className="wb-summary-formed-label">Дата формирования</span>
                 <span className="wb-summary-formed-value">
-                  {summaryHeader?.formedAt
+                  {summaryHeaderDisplay?.formedAt
                     ? (() => {
-                        const d = new Date(summaryHeader.formedAt);
+                        const d = new Date(summaryHeaderDisplay.formedAt);
                         return Number.isNaN(d.getTime())
-                          ? String(summaryHeader.formedAt).slice(0, 19).replace("T", " ")
+                          ? String(summaryHeaderDisplay.formedAt).slice(0, 19).replace("T", " ")
                           : d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
                       })()
                     : "—"}
@@ -2226,12 +2262,12 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                     <div className="wb-summary-all-metrics">
                       <div className="wb-summary-all-metric-line">
                         <span className="wb-summary-all-metric-label">Кол-во мест</span>
-                        <strong className="wb-summary-all-metric-value">{total}</strong>
+                        <strong className="wb-summary-all-metric-value">{Number(summaryHeaderDisplay?.placeCount ?? 0)}</strong>
                       </div>
                       <div className="wb-summary-all-metric-line">
                         <span className="wb-summary-all-metric-label">Стоимость в претензии</span>
                         <strong className="wb-summary-all-metric-value">
-                          {Number(summaryHeader?.totalClaimRub ?? 0).toLocaleString("ru-RU", {
+                          {Number(summaryHeaderDisplay?.totalClaimRub ?? 0).toLocaleString("ru-RU", {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           })}{" "}
@@ -2241,7 +2277,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                       <div className="wb-summary-all-metric-line">
                         <span className="wb-summary-all-metric-label">Стоимость в описях</span>
                         <strong className="wb-summary-all-metric-value">
-                          {Number(summaryHeader?.totalInboundRub ?? 0).toLocaleString("ru-RU", {
+                          {Number(summaryHeaderDisplay?.totalInboundRub ?? 0).toLocaleString("ru-RU", {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           })}{" "}
@@ -2310,7 +2346,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                   >
                     <span className="wb-summary-status-label">Нет в описях (по претензии)</span>
                     <strong className="wb-summary-inbound-gap-amount">
-                      {Number(summaryHeader?.totalNotInInboundClaimRub ?? 0).toLocaleString("ru-RU", {
+                      {Number(summaryHeaderDisplay?.totalNotInInboundClaimRub ?? 0).toLocaleString("ru-RU", {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}{" "}
