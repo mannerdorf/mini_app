@@ -1061,8 +1061,10 @@ export function WildberriesPage({ auth, canUpload }: Props) {
               if (!Array.isArray(raw)) return [];
               return raw.map((row) => {
                 const r = row as Record<string, unknown>;
+                const statusRaw = coerceStatusDisplay(r.status).trim();
+                const status = statusRaw === "[object Object]" ? "" : statusRaw;
                 return {
-                  status: String(r.status ?? ""),
+                  status,
                   rowCount: Number(r.rowCount ?? 0),
                   totalClaimRub: r.totalClaimRub ?? "0",
                   totalInboundRub: r.totalInboundRub ?? "0",
@@ -2216,9 +2218,11 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                         <span className="wb-summary-status-meta">фильтр</span>
                       </button>
                       {summaryHeader.inboundByPostbStatus.map((row) => {
-                        const label = row.status.trim() ? row.status : "Без статуса (PostB)";
-                        const key = row.status.trim() ? row.status : "__empty__";
-                        const filterValue = row.status.trim() ? row.status.trim() : WB_SUMMARY_FILTER_POSTB_EMPTY;
+                        const rawStatus = row.status.trim();
+                        const isEmptyLike = !rawStatus || rawStatus.toLowerCase() === "без статуса (postb)";
+                        const label = isEmptyLike ? "не передавалось" : rawStatus;
+                        const key = isEmptyLike ? "__empty__" : rawStatus;
+                        const filterValue = isEmptyLike ? WB_SUMMARY_FILTER_POSTB_EMPTY : rawStatus;
                         const isActive = summaryFilterStatus === filterValue;
                         return (
                           <button
