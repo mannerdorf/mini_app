@@ -5,6 +5,9 @@ import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgTableExists, resolveWbAccess } from "../_wb.js";
 import { resolveWb1cForBoxShk, type Wb1cShkLookupRow } from "../lib/wb1cShkResolve.js";
 
+const WB_SUMMARY_FILTER_POSTB_EMPTY = "__postb_empty__";
+const WB_SUMMARY_FILTER_POSTB_NOT_SENT = "__postb_not_sent__";
+
 function toCsv(rows: Record<string, unknown>[]) {
   if (rows.length === 0) return "";
   const headers = Object.keys(rows[0] || {});
@@ -154,8 +157,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const sparams: unknown[] = [];
         const extraParts: string[] = [];
         if (filterLogisticsStatus && hasPostbCache) {
-          if (filterLogisticsStatus === "__postb_empty__") {
+          if (filterLogisticsStatus === WB_SUMMARY_FILTER_POSTB_EMPTY) {
             extraParts.push(`coalesce(nullif(trim(ppc.last_status), ''), '') = ''`);
+          } else if (filterLogisticsStatus === WB_SUMMARY_FILTER_POSTB_NOT_SENT) {
+            extraParts.push(`(
+              coalesce(nullif(trim(ppc.last_status), ''), '') = ''
+              or lower(coalesce(nullif(trim(ppc.last_status), ''), '')) like 'не передава%'
+            )`);
           } else {
             sparams.push(filterLogisticsStatus);
             extraParts.push(`coalesce(nullif(trim(ppc.last_status), ''), '') = $${sparams.length}`);

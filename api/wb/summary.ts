@@ -16,6 +16,8 @@ const SUMMARY_MAX_LIMIT = 1000;
 
 /** Значение filterLogisticsStatus: только строки без last_status в wb_postb_posilka_cache (или пустой). */
 const WB_SUMMARY_FILTER_POSTB_EMPTY = "__postb_empty__";
+/** Значение filterLogisticsStatus: пусто или варианты «не передавал*». */
+const WB_SUMMARY_FILTER_POSTB_NOT_SENT = "__postb_not_sent__";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "wb_summary_list");
@@ -155,6 +157,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (filterLogisticsStatus && hasPostbCache) {
       if (filterLogisticsStatus === WB_SUMMARY_FILTER_POSTB_EMPTY) {
         where.push(`coalesce(nullif(trim(ppc.last_status), ''), '') = ''`);
+      } else if (filterLogisticsStatus === WB_SUMMARY_FILTER_POSTB_NOT_SENT) {
+        where.push(`(
+          coalesce(nullif(trim(ppc.last_status), ''), '') = ''
+          or lower(coalesce(nullif(trim(ppc.last_status), ''), '')) like 'не передава%'
+        )`);
       } else {
         params.push(filterLogisticsStatus);
         where.push(`coalesce(nullif(trim(ppc.last_status), ''), '') = $${params.length}`);

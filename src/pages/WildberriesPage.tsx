@@ -61,8 +61,8 @@ const WB_INBOUND_HIGHLIGHT_INVENTORY_NUMBERS = new Set([
 /** Блок «ШК коробов (текст)» + «Применить к описям» на вкладке «Описи». Включите true, если снова понадобится. */
 const WB_SHOW_INBOUND_BOX_SHK_TEXT_PANEL = false;
 
-/** Фильтр сводной: строки без last_status в кэше PostB (совпадает с api/wb/summary.ts). */
-const WB_SUMMARY_FILTER_POSTB_EMPTY = "__postb_empty__";
+/** Фильтр сводной: строки без статуса или с вариантами «не передавал*». */
+const WB_SUMMARY_FILTER_POSTB_NOT_SENT = "__postb_not_sent__";
 
 function normalizeWbInventoryNumberKey(raw: unknown): string {
   return String(raw ?? "")
@@ -1798,6 +1798,36 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     return sum;
   }, [activeTab, items]);
 
+  const summaryStatusChips = useMemo(() => {
+    if (!summaryHeader) return [] as Array<{ filterValue: string; label: string; rowCount: number; totalInboundRub: number }>;
+    const grouped = new Map<string, { filterValue: string; label: string; rowCount: number; totalInboundRub: number }>();
+    for (const row of summaryHeader.inboundByPostbStatus) {
+      const raw = coerceStatusDisplay(row.status).trim();
+      const low = raw.toLowerCase();
+      const isNotSent =
+        !raw ||
+        raw === "[object Object]" ||
+        low === "без статуса (postb)" ||
+        low.startsWith("не передава");
+      const filterValue = isNotSent ? WB_SUMMARY_FILTER_POSTB_NOT_SENT : raw;
+      const label = isNotSent ? "не передавалось" : raw;
+      const amount = parseWbMoneyNumber(row.totalInboundRub) ?? 0;
+      const prev = grouped.get(filterValue);
+      if (prev) {
+        prev.rowCount += Number(row.rowCount ?? 0);
+        prev.totalInboundRub += amount;
+      } else {
+        grouped.set(filterValue, {
+          filterValue,
+          label,
+          rowCount: Number(row.rowCount ?? 0),
+          totalInboundRub: amount,
+        });
+      }
+    }
+    return Array.from(grouped.values()).sort((a, b) => b.totalInboundRub - a.totalInboundRub);
+  }, [summaryHeader]);
+
   /** Сводная: склеиваем строки до уровня «Перевозка HAULZ» на текущей странице. */
   const summaryViewItems = useMemo<Record<string, unknown>[]>(() => {
     if (activeTab !== "summary" || !summaryGroupByPerevozka) return items;
@@ -2202,7 +2232,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                     </div>
                   </div>
                 </div>
-                {summaryHeader && summaryHeader.inboundByPostbStatus.length > 0 && (
+                {summaryStatusChips.length > 0 && (
                   <div className="wb-summary-status-breakdown">
                     <div className="wb-summary-status-list">
                       <button
@@ -2217,12 +2247,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                         <strong className="wb-summary-status-value">Сбросить</strong>
                         <span className="wb-summary-status-meta">фильтр</span>
                       </button>
-                      {summaryHeader.inboundByPostbStatus.map((row) => {
-                        const rawStatus = row.status.trim();
-                        const isEmptyLike = !rawStatus || rawStatus.toLowerCase() === "без статуса (postb)";
-                        const label = isEmptyLike ? "не передавалось" : rawStatus;
-                        const key = isEmptyLike ? "__empty__" : rawStatus;
-                        const filterValue = isEmptyLike ? WB_SUMMARY_FILTER_POSTB_EMPTY : rawStatus;
+                      {summaryStatusChips.map((chip) => {
+                        const key = chip.filterValue;
+                        const filterValue = chip.filterValue;
                         const isActive = summaryFilterStatus === filterValue;
                         return (
                           <button
@@ -2234,15 +2261,15 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                               setPage(1);
                             }}
                           >
-                            <span className="wb-summary-status-label">{label}</span>
+                            <span className="wb-summary-status-label">{chip.label}</span>
                             <strong className="wb-summary-status-value">
-                              {Number(row.totalInboundRub).toLocaleString("ru-RU", {
+                              {Number(chip.totalInboundRub).toLocaleString("ru-RU", {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2,
                               })}{" "}
                               ₽
                             </strong>
-                            <span className="wb-summary-status-meta">({row.rowCount} м.)</span>
+                            <span className="wb-summary-status-meta">({chip.rowCount} м.)</span>
                           </button>
                         );
                       })}
