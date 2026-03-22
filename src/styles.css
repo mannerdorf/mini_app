@@ -1939,11 +1939,41 @@ body {
     color: var(--color-pending-status);
     border: 1px solid rgba(250, 204, 21, 0.5);
 }
+.wb-postb-1c-badge.wb-postb-1c-badge--transit {
+    background-color: rgba(59, 130, 246, 0.18);
+    color: #1d4ed8;
+    border: 1px solid rgba(59, 130, 246, 0.48);
+}
+.wb-postb-1c-badge.wb-postb-1c-badge--empty {
+    background-color: rgba(148, 163, 184, 0.18);
+    color: var(--color-text-secondary);
+    border: 1px solid rgba(148, 163, 184, 0.42);
+}
+.wb-postb-1c-badge.wb-postb-1c-badge--not-sent {
+    background-color: rgba(107, 114, 128, 0.16);
+    color: var(--color-text-secondary);
+    border: 1px solid rgba(107, 114, 128, 0.42);
+}
+.wb-postb-1c-badge.wb-postb-1c-badge--not-inbound {
+    background-color: rgba(239, 68, 68, 0.12);
+    color: #b91c1c;
+    border: 1px solid rgba(239, 68, 68, 0.42);
+}
 .dark-mode .wb-postb-1c-badge.wb-postb-1c-badge--delivered {
     border-color: rgba(52, 211, 153, 0.6);
 }
 .dark-mode .wb-postb-1c-badge.wb-postb-1c-badge--consolidation {
     border-color: rgba(250, 204, 21, 0.6);
+}
+.dark-mode .wb-postb-1c-badge.wb-postb-1c-badge--transit {
+    border-color: rgba(96, 165, 250, 0.62);
+}
+.dark-mode .wb-postb-1c-badge.wb-postb-1c-badge--empty,
+.dark-mode .wb-postb-1c-badge.wb-postb-1c-badge--not-sent {
+    border-color: rgba(148, 163, 184, 0.55);
+}
+.dark-mode .wb-postb-1c-badge.wb-postb-1c-badge--not-inbound {
+    border-color: rgba(248, 113, 113, 0.62);
 }
 /* АПП — тот же масштаб, что и бейдж статуса */
 .wb-postb-app-badge {
@@ -2334,6 +2364,22 @@ body {
     grid-template-columns: 1fr auto auto;
     gap: 0.35rem;
     align-items: baseline;
+}
+.wb-summary-status-item--filter {
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    color: inherit;
+}
+.wb-summary-status-item--filter:hover {
+    background: var(--color-bg-hover);
+    border-color: rgba(124, 58, 237, 0.45);
+}
+.wb-summary-status-item--active {
+    border-color: rgba(124, 58, 237, 0.6);
+    box-shadow: inset 0 0 0 1px rgba(124, 58, 237, 0.28);
+    background: rgba(124, 58, 237, 0.08);
 }
 .wb-summary-status-label {
     font-size: 0.8rem;

@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
 import { TapSwitch } from "../components/TapSwitch";
-import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { Download, FileDown, FileUp, RefreshCw, Trash2, Upload, ChevronDown, X } from "lucide-react";
 import type { AuthData } from "../types";
 import { DOCUMENT_METHODS } from "../documentMethods";
 import { PROXY_API_DOWNLOAD_URL } from "../constants/config";
+import { coerceStatusDisplay } from "../lib/statusUtils";
 import { normalizeWbPerevozkaHaulzDigits } from "../lib/wbPerevozkaNumber";
 import { downloadBase64File } from "../utils";
 
@@ -63,12 +63,6 @@ const WB_SHOW_INBOUND_BOX_SHK_TEXT_PANEL = false;
 
 /** Фильтр сводной: строки без last_status в кэше PostB (совпадает с api/wb/summary.ts). */
 const WB_SUMMARY_FILTER_POSTB_EMPTY = "__postb_empty__";
-
-function wbSummaryStatusFilterButtonLabel(raw: string): string {
-  if (!raw) return "Все";
-  if (raw === WB_SUMMARY_FILTER_POSTB_EMPTY) return "Без статуса (PostB)";
-  return raw;
-}
 
 function normalizeWbInventoryNumberKey(raw: unknown): string {
   return String(raw ?? "")
@@ -421,7 +415,7 @@ function wbPostbStepsFromRec(rec: Record<string, unknown>): Array<{ title: strin
 
 /** Есть сохранённый ответ PostB в БД — не дёргаем GetPosilka на клиенте. */
 function wbHasPostbServerCache(rec: Record<string, unknown>): boolean {
-  const st = String(rec.postbLastStatus ?? "").trim();
+  const st = coerceStatusDisplay(rec.postbLastStatus);
   const pv = String(rec.postbPerevozka ?? "").trim();
   return Boolean(st || pv || wbPostbStepsFromRec(rec).length > 0);
 }
@@ -755,12 +749,15 @@ function WbSummaryStatus1cCell(props: {
   const [manualPosilka, setManualPosilka] = useState<WbPosilkaCached | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const serverSteps = wbPostbStepsFromRec(rec);
-  const serverStatus = String(rec.postbLastStatus ?? "").trim();
+  const serverStatus = coerceStatusDisplay(rec.postbLastStatus);
   const serverPerevozka = String(rec.postbPerevozka ?? "").trim();
   const skipFetch = wbHasPostbServerCache(rec);
   const d = useWbPosilka(skipFetch ? "" : code, authHeaders);
-  const lastStatus = (manualPosilka?.lastStatus || serverStatus || d.lastStatus).trim();
+  const lastStatus = coerceStatusDisplay(manualPosilka?.lastStatus) || serverStatus || d.lastStatus;
   const perevozka = normalizeWbPerevozkaHaulzDigits((manualPosilka?.perevozka || serverPerevozka || d.perevozka).trim());
+  const inventoryNumber = String(rec.inventoryNumber ?? "").trim();
+  const hasInbound = rec.hasInbound === true || Boolean(inventoryNumber);
+  const noInbound = !hasInbound;
   const posilkaSteps = manualPosilka?.posilkaSteps?.length
     ? manualPosilka.posilkaSteps
     : serverSteps.length > 0
@@ -768,19 +765,37 @@ function WbSummaryStatus1cCell(props: {
       : d.posilkaSteps;
   const loading = skipFetch ? false : d.loading;
   const lvFb = wbPerevozkaNumberRaw(rec);
+  const hasHaulz = Boolean(lvFb);
   /** Перевозка: сначала колонка HAULZ, затем кэш GetPosilka (ведущие нули для GetFile) */
   const transport = lvFb || perevozka;
-  /** Статус только из PostB / кэша БД — без подстановки «адреса РВБ» из status1c */
-  const display = !code ? "—" : loading ? "…" : lastStatus || "—";
+  /** Если в HAULZ нет номера перевозки — считаем, что статус в PostB не передавался. */
+  const display = noInbound
+    ? "нет в описи"
+    : !hasHaulz
+      ? "не передавалась"
+      : !code
+        ? "—"
+        : loading
+          ? "…"
+          : lastStatus || "—";
 
   const low = lastStatus.toLowerCase();
   let statusTone = "";
-  if (low.includes("доставлен")) statusTone = " wb-postb-1c-badge--delivered";
+  if (noInbound) statusTone = " wb-postb-1c-badge--not-inbound";
+  else if (!hasHaulz) statusTone = " wb-postb-1c-badge--not-sent";
+  else if (low.includes("доставлен")) statusTone = " wb-postb-1c-badge--delivered";
   else if (low.includes("консолидац")) statusTone = " wb-postb-1c-badge--consolidation";
+  else if (low.includes("пути") || low.includes("доставк") || low.includes("отправ") || low.includes("упак") || low.includes("сортиров")) {
+    statusTone = " wb-postb-1c-badge--transit";
+  } else if (!low) {
+    statusTone = " wb-postb-1c-badge--empty";
+  }
 
   const busy = wbAppDownloadingKey === appKey;
   const appNumber = lvFb || perevozka;
   const refreshBusy = refreshing;
+  const canOpenTimeline = !noInbound && hasHaulz && Boolean(transport);
+  const canRefresh = !noInbound && hasHaulz && Boolean(code);
 
   return (
     <>
@@ -788,14 +803,18 @@ function WbSummaryStatus1cCell(props: {
         <button
           type="button"
           className={`wb-postb-1c-badge${statusTone}`}
-          disabled={!transport}
+          disabled={!canOpenTimeline}
           title={
-            transport
+            canOpenTimeline
               ? "Открыть статусы перевозки"
-              : "Нет номера перевозки (колонка «Перевозка HAULZ» или ответ GetPosilka)"
+              : noInbound
+                ? "По строке нет данных в описи"
+              : hasHaulz
+                ? "Нет номера перевозки (колонка «Перевозка HAULZ» или ответ GetPosilka)"
+                : "Нет номера в колонке «Перевозка HAULZ»: статус не передавалась"
           }
           onClick={() => {
-            if (transport)
+            if (canOpenTimeline && transport)
               onOpenTimeline({
                 number: transport,
                 stepsFromPosilka: posilkaSteps.length ? posilkaSteps : undefined,
@@ -807,10 +826,10 @@ function WbSummaryStatus1cCell(props: {
         <button
           type="button"
           className={`wb-postb-refresh-badge${refreshBusy ? " wb-postb-refresh-badge--busy" : ""}`}
-          disabled={!code || refreshBusy}
-          title={code ? "Принудительно обновить статус посылки (GetPosilka, refresh=1)" : "Нет кода посылки"}
+          disabled={!canRefresh || refreshBusy}
+          title={canRefresh ? "Принудительно обновить статус посылки (GetPosilka, refresh=1)" : noInbound ? "По строке нет данных в описи" : "Нельзя обновить без номера HAULZ"}
           onClick={() => {
-            if (!code || refreshBusy) return;
+            if (!canRefresh || !code || refreshBusy) return;
             setRefreshing(true);
             void fetchWbPosilkaForce(code, authHeaders)
               .then((entry) => setManualPosilka(entry))
@@ -941,25 +960,11 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   });
 
   const [summaryFilterStatus, setSummaryFilterStatus] = useState("");
-  const [summaryFilterBox, setSummaryFilterBox] = useState("");
-  const [summaryFilterInventory, setSummaryFilterInventory] = useState("");
-  const [summaryFilterOpts, setSummaryFilterOpts] = useState<{
-    statuses: string[];
-    boxes: string[];
-    inventories: string[];
-  }>({ statuses: [], boxes: [], inventories: [] });
-  const [summaryDdStatus, setSummaryDdStatus] = useState(false);
-  const [summaryDdBox, setSummaryDdBox] = useState(false);
-  const [summaryDdInv, setSummaryDdInv] = useState(false);
-  const summaryStatusBtnRef = useRef<HTMLDivElement>(null);
-  const summaryBoxBtnRef = useRef<HTMLDivElement>(null);
-  const summaryInvBtnRef = useRef<HTMLDivElement>(null);
   const [summaryUploadExpanded, setSummaryUploadExpanded] = useState(true);
   const [batchUploadExpanded, setBatchUploadExpanded] = useState(true);
   const [inboundBoxShkExpanded, setInboundBoxShkExpanded] = useState(false);
   const [manualReturnedExpanded, setManualReturnedExpanded] = useState(true);
   const [summaryCompactExpanded, setSummaryCompactExpanded] = useState(true);
-  const [summaryStatusBreakdownExpanded, setSummaryStatusBreakdownExpanded] = useState(false);
   const [perevozkaModal, setPerevozkaModal] = useState<{
     number: string;
     stepsFromPosilka?: Array<{ title: string; date: string }>;
@@ -1003,32 +1008,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     return "/api/wb/summary";
   }, [activeTab]);
 
-  useEffect(() => {
-    if (activeTab !== "summary") return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch("/api/wb/summary/filter-options", { headers: authHeaders });
-        const d = (await res.json().catch(() => ({}))) as {
-          statuses?: string[];
-          boxes?: string[];
-          inventories?: string[];
-        };
-        if (cancelled) return;
-        setSummaryFilterOpts({
-          statuses: Array.isArray(d?.statuses) ? d.statuses : [],
-          boxes: Array.isArray(d?.boxes) ? d.boxes : [],
-          inventories: Array.isArray(d?.inventories) ? d.inventories : [],
-        });
-      } catch {
-        if (!cancelled) setSummaryFilterOpts({ statuses: [], boxes: [], inventories: [] });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTab, authHeaders]);
-
   const loadData = useCallback(async () => {
     const gen = ++wbLoadGenRef.current;
     setLoading(true);
@@ -1059,8 +1038,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             ? { sortBy: inboundSummarySort.by, sortDir: inboundSummarySort.dir }
             : {}),
         ...(activeTab === "summary" && summaryFilterStatus ? { filterLogisticsStatus: summaryFilterStatus } : {}),
-        ...(activeTab === "summary" && summaryFilterBox ? { filterBoxExact: summaryFilterBox } : {}),
-        ...(activeTab === "summary" && summaryFilterInventory ? { filterInventoryExact: summaryFilterInventory } : {}),
       });
       const res = await fetch(`${dataEndpoint}?${query}`, { headers: authHeaders });
       const data = await res.json().catch(() => ({}));
@@ -1124,8 +1101,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     summarySort.by,
     summarySort.dir,
     summaryFilterStatus,
-    summaryFilterBox,
-    summaryFilterInventory,
     limit,
     page,
   ]);
@@ -1715,8 +1690,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         format,
         q: filters.q,
         ...(activeTab === "summary" && summaryFilterStatus ? { filterLogisticsStatus: summaryFilterStatus } : {}),
-        ...(activeTab === "summary" && summaryFilterBox ? { filterBoxExact: summaryFilterBox } : {}),
-        ...(activeTab === "summary" && summaryFilterInventory ? { filterInventoryExact: summaryFilterInventory } : {}),
       });
       const res = await fetch(`/api/wb/export?${query}`, { headers: authHeaders });
       if (!res.ok) return;
@@ -1728,7 +1701,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       a.click();
       URL.revokeObjectURL(url);
     },
-    [activeTab, authHeaders, filters.q, summaryFilterStatus, summaryFilterBox, summaryFilterInventory],
+    [activeTab, authHeaders, filters.q, summaryFilterStatus],
   );
 
   const handleManualReturnedSubmit = useCallback(async () => {
@@ -1942,148 +1915,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             placeholder="Поиск по всем полям"
           />
         </div>
-
-        {activeTab === "summary" && (
-          <Flex gap="0.45rem" wrap="wrap" align="center" style={{ marginTop: "0.5rem" }}>
-            <div ref={summaryStatusBtnRef} style={{ display: "inline-flex" }}>
-              <Button
-                className="filter-button"
-                onClick={() => {
-                  setSummaryDdStatus((v) => !v);
-                  setSummaryDdBox(false);
-                  setSummaryDdInv(false);
-                }}
-              >
-                Статус (PostB): {wbSummaryStatusFilterButtonLabel(summaryFilterStatus)} <ChevronDown className="w-4 h-4" />
-              </Button>
-            </div>
-            <FilterDropdownPortal
-              triggerRef={summaryStatusBtnRef}
-              isOpen={summaryDdStatus}
-              onClose={() => setSummaryDdStatus(false)}
-            >
-              <div
-                className="dropdown-item"
-                onClick={() => {
-                  setSummaryFilterStatus("");
-                  setSummaryDdStatus(false);
-                  setPage(1);
-                }}
-              >
-                <Typography.Body>Все</Typography.Body>
-              </div>
-              <div
-                className="dropdown-item"
-                onClick={() => {
-                  setSummaryFilterStatus(WB_SUMMARY_FILTER_POSTB_EMPTY);
-                  setSummaryDdStatus(false);
-                  setPage(1);
-                }}
-              >
-                <Typography.Body>Без статуса (PostB)</Typography.Body>
-              </div>
-              {summaryFilterOpts.statuses
-                .filter((s) => s !== WB_SUMMARY_FILTER_POSTB_EMPTY)
-                .map((s) => (
-                  <div
-                    key={s}
-                    className="dropdown-item"
-                    onClick={() => {
-                      setSummaryFilterStatus(s);
-                      setSummaryDdStatus(false);
-                      setPage(1);
-                    }}
-                  >
-                    <Typography.Body>{s}</Typography.Body>
-                  </div>
-                ))}
-            </FilterDropdownPortal>
-
-            <div ref={summaryBoxBtnRef} style={{ display: "inline-flex" }}>
-              <Button
-                className="filter-button"
-                onClick={() => {
-                  setSummaryDdBox((v) => !v);
-                  setSummaryDdStatus(false);
-                  setSummaryDdInv(false);
-                }}
-              >
-                Короб: {summaryFilterBox || "Все"} <ChevronDown className="w-4 h-4" />
-              </Button>
-            </div>
-            <FilterDropdownPortal
-              triggerRef={summaryBoxBtnRef}
-              isOpen={summaryDdBox}
-              onClose={() => setSummaryDdBox(false)}
-            >
-              <div
-                className="dropdown-item"
-                onClick={() => {
-                  setSummaryFilterBox("");
-                  setSummaryDdBox(false);
-                  setPage(1);
-                }}
-              >
-                <Typography.Body>Все</Typography.Body>
-              </div>
-              {summaryFilterOpts.boxes.map((s) => (
-                <div
-                  key={s}
-                  className="dropdown-item"
-                  onClick={() => {
-                    setSummaryFilterBox(s);
-                    setSummaryDdBox(false);
-                    setPage(1);
-                  }}
-                >
-                  <Typography.Body>{s}</Typography.Body>
-                </div>
-              ))}
-            </FilterDropdownPortal>
-
-            <div ref={summaryInvBtnRef} style={{ display: "inline-flex" }}>
-              <Button
-                className="filter-button"
-                onClick={() => {
-                  setSummaryDdInv((v) => !v);
-                  setSummaryDdStatus(false);
-                  setSummaryDdBox(false);
-                }}
-              >
-                Опись: {summaryFilterInventory || "Все"} <ChevronDown className="w-4 h-4" />
-              </Button>
-            </div>
-            <FilterDropdownPortal
-              triggerRef={summaryInvBtnRef}
-              isOpen={summaryDdInv}
-              onClose={() => setSummaryDdInv(false)}
-            >
-              <div
-                className="dropdown-item"
-                onClick={() => {
-                  setSummaryFilterInventory("");
-                  setSummaryDdInv(false);
-                  setPage(1);
-                }}
-              >
-                <Typography.Body>Все</Typography.Body>
-              </div>
-              {summaryFilterOpts.inventories.map((s) => (
-                <div
-                  key={s}
-                  className="dropdown-item"
-                  onClick={() => {
-                    setSummaryFilterInventory(s);
-                    setSummaryDdInv(false);
-                    setPage(1);
-                  }}
-                >
-                  <Typography.Body>{s}</Typography.Body>
-                </div>
-              ))}
-            </FilterDropdownPortal>
-          </Flex>
-        )}
 
         <Flex gap="0.5rem" wrap="wrap" align="center" style={{ marginTop: "0.75rem" }}>
           <Button className="wb-action-btn" onClick={() => void handleWbRefreshClick()} disabled={loading}>
@@ -2369,38 +2200,49 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                     </div>
                   </div>
                 </div>
-                {summaryHeader && !summaryFilterStatus && summaryHeader.inboundByPostbStatus.length > 0 && (
+                {summaryHeader && summaryHeader.inboundByPostbStatus.length > 0 && (
                   <div className="wb-summary-status-breakdown">
-                    <button
-                      type="button"
-                      className="wb-collapsible-toggle wb-collapsible-toggle--inline"
-                      onClick={() => setSummaryStatusBreakdownExpanded((v) => !v)}
-                      aria-expanded={summaryStatusBreakdownExpanded}
-                    >
-                      <span>Стоимость в описях по статусам PostB</span>
-                      <ChevronDown className={`w-4 h-4 wb-collapsible-caret${summaryStatusBreakdownExpanded ? " is-open" : ""}`} aria-hidden />
-                    </button>
-                    {summaryStatusBreakdownExpanded && (
-                      <div className="wb-summary-status-list">
-                        {summaryHeader.inboundByPostbStatus.map((row) => {
-                          const label = row.status.trim() ? row.status : "Без статуса (PostB)";
-                          const key = row.status.trim() ? row.status : "__empty__";
-                          return (
-                            <div key={key} className="wb-summary-status-item">
-                              <span className="wb-summary-status-label">{label}</span>
-                              <strong className="wb-summary-status-value">
-                                {Number(row.totalInboundRub).toLocaleString("ru-RU", {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })}{" "}
-                                ₽
-                              </strong>
-                              <span className="wb-summary-status-meta">({row.rowCount} м.)</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                    <div className="wb-summary-status-list">
+                      <button
+                        type="button"
+                        className={`wb-summary-status-item wb-summary-status-item--filter${!summaryFilterStatus ? " wb-summary-status-item--active" : ""}`}
+                        onClick={() => {
+                          setSummaryFilterStatus("");
+                          setPage(1);
+                        }}
+                      >
+                        <span className="wb-summary-status-label">Все</span>
+                        <strong className="wb-summary-status-value">Сбросить</strong>
+                        <span className="wb-summary-status-meta">фильтр</span>
+                      </button>
+                      {summaryHeader.inboundByPostbStatus.map((row) => {
+                        const label = row.status.trim() ? row.status : "Без статуса (PostB)";
+                        const key = row.status.trim() ? row.status : "__empty__";
+                        const filterValue = row.status.trim() ? row.status.trim() : WB_SUMMARY_FILTER_POSTB_EMPTY;
+                        const isActive = summaryFilterStatus === filterValue;
+                        return (
+                          <button
+                            type="button"
+                            key={key}
+                            className={`wb-summary-status-item wb-summary-status-item--filter${isActive ? " wb-summary-status-item--active" : ""}`}
+                            onClick={() => {
+                              setSummaryFilterStatus((prev) => (prev === filterValue ? "" : filterValue));
+                              setPage(1);
+                            }}
+                          >
+                            <span className="wb-summary-status-label">{label}</span>
+                            <strong className="wb-summary-status-value">
+                              {Number(row.totalInboundRub).toLocaleString("ru-RU", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}{" "}
+                              ₽
+                            </strong>
+                            <span className="wb-summary-status-meta">({row.rowCount} м.)</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </>
