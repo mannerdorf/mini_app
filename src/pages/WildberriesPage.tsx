@@ -389,6 +389,15 @@ function wbPerevozkaNumberRaw(rec: Record<string, unknown>): string {
   return normalizeWbPerevozkaHaulzDigits(String(rec.lvPerevozkaNasha ?? "").trim());
 }
 
+/** Единый ключ группировки по перевозке HAULZ для режима "По перевозкам". */
+function wbSummaryHaulzGroupKey(rec: Record<string, unknown>): string {
+  const lv = wbPerevozkaNumberRaw(rec);
+  if (lv) return lv;
+  const cached = normalizeWbPerevozkaHaulzDigits(String(rec.postbPerevozka ?? "").trim());
+  if (cached) return cached;
+  return "";
+}
+
 /** Шаги GetPosilka из сводки (jsonb с API). */
 function wbPostbStepsFromRec(rec: Record<string, unknown>): Array<{ title: string; date: string }> {
   const v = rec.postbPosilkaSteps;
@@ -1810,7 +1819,11 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         low === "без статуса (postb)" ||
         low.startsWith("не передава");
       const filterValue = isNotSent ? WB_SUMMARY_FILTER_POSTB_NOT_SENT : raw;
-      const label = isNotSent ? "не передавалось" : raw;
+      const label = isNotSent
+        ? "не передавалось"
+        : low.includes("консолидац")
+          ? "не доставлено"
+          : raw;
       const amount = parseWbMoneyNumber(row.totalInboundRub) ?? 0;
       const prev = grouped.get(filterValue);
       if (prev) {
@@ -1839,7 +1852,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
 
     for (let idx = 0; idx < items.length; idx += 1) {
       const rec = items[idx] as Record<string, unknown>;
-      const k = normalizeWbPerevozkaHaulzDigits(String(rec.lvPerevozkaNasha ?? "").trim());
+      const k = wbSummaryHaulzGroupKey(rec);
       const key = k || `__nogroup__${idx}`;
       const claim = parseWbMoneyNumber(rec.claimPriceRub) ?? 0;
       const inbound = parseWbMoneyNumber(rec.inboundPriceRub) ?? 0;
