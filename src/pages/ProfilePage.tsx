@@ -79,6 +79,8 @@ export function ProfilePage({
     const scannerVideoRef = useRef<HTMLVideoElement | null>(null);
     const scannerStreamRef = useRef<MediaStream | null>(null);
     const scannerRafRef = useRef<number | null>(null);
+    const scannerZxingReaderRef = useRef<{ reset?: () => void } | null>(null);
+    const scannerZxingControlsRef = useRef<{ stop?: () => void } | null>(null);
     const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
     const [twoFactorMethod, setTwoFactorMethod] = useState<"google" | "telegram">("google");
     const [twoFactorTelegramLinked, setTwoFactorTelegramLinked] = useState(false);
@@ -1041,6 +1043,24 @@ export function ProfilePage({
             window.cancelAnimationFrame(scannerRafRef.current);
             scannerRafRef.current = null;
         }
+        const zxingControls = scannerZxingControlsRef.current;
+        if (zxingControls?.stop) {
+            try {
+                zxingControls.stop();
+            } catch {
+                // ignore
+            }
+        }
+        scannerZxingControlsRef.current = null;
+        const zxingReader = scannerZxingReaderRef.current;
+        if (zxingReader?.reset) {
+            try {
+                zxingReader.reset();
+            } catch {
+                // ignore
+            }
+        }
+        scannerZxingReaderRef.current = null;
         const stream = scannerStreamRef.current;
         if (stream) {
             for (const track of stream.getTracks()) track.stop();
@@ -1138,7 +1158,43 @@ export function ProfilePage({
                 BarcodeDetector?: new (options?: { formats?: string[] }) => { detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue?: string }>> };
             }).BarcodeDetector;
             if (!detectorCtor) {
-                setScannerError("Автосканер недоступен на этом устройстве. Введите ШК вручную и нажмите ОК.");
+                try {
+                    const zxingModule = await import("@zxing/browser");
+                    const ReaderCtor = (zxingModule as { BrowserMultiFormatReader?: new () => {
+                        decodeFromVideoElement?: (
+                            source: HTMLVideoElement,
+                            callback: (result: unknown, error: unknown, controls?: { stop?: () => void }) => void,
+                        ) => Promise<{ stop?: () => void }> | { stop?: () => void };
+                        reset?: () => void;
+                    } }).BrowserMultiFormatReader;
+                    if (!ReaderCtor) {
+                        setScannerError("Автосканер недоступен на этом устройстве. Введите ШК вручную и нажмите ОК.");
+                        return;
+                    }
+                    const reader = new ReaderCtor();
+                    scannerZxingReaderRef.current = reader;
+                    if (!reader.decodeFromVideoElement) {
+                        setScannerError("Автосканер недоступен на этом устройстве. Введите ШК вручную и нажмите ОК.");
+                        return;
+                    }
+                    const controlsMaybe = await Promise.resolve(
+                        reader.decodeFromVideoElement(video, (result, _error, controls) => {
+                            if (controls && !scannerZxingControlsRef.current) scannerZxingControlsRef.current = controls;
+                            const value =
+                                typeof (result as { getText?: unknown })?.getText === "function"
+                                    ? String((result as { getText: () => string }).getText()).trim()
+                                    : String((result as { text?: unknown })?.text ?? "").trim();
+                            if (!value) return;
+                            setScannerDetected(value);
+                            setParcelCode(value);
+                            stopParcelScanner();
+                            void handleLookupParcel(value);
+                        }),
+                    );
+                    if (controlsMaybe) scannerZxingControlsRef.current = controlsMaybe;
+                } catch {
+                    setScannerError("Автосканер недоступен на этом устройстве. Введите ШК вручную и нажмите ОК.");
+                }
                 return;
             }
             const detector = new detectorCtor({ formats: ["code_128", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code"] });
@@ -1622,8 +1678,7 @@ export function ProfilePage({
     }
 
     if (currentView === 'parcelScanner') {
-        const statusLow = String(parcelLookupResult?.lastStatus ?? "").toLowerCase();
-        const canDownloadApp = statusLow.includes("доставлен");
+        const canDownloadApp = normalizeWbPerevozkaHaulzDigits(String(parcelLookupResult?.perevozka ?? "")) !== "";
         return (
             <div className="w-full">
                 <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
