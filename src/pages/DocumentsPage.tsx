@@ -3331,6 +3331,17 @@ useEffect(() => {
                     </div>
                 </div>
                 )}
+                {docSection === 'Заявки' && (
+                    <div className="documents-new-order-bar documents-new-order-bar--in-sticky">
+                        <Button
+                            onClick={() => setNewOrderModalOpen(true)}
+                            disabled={!auth?.login || !auth?.password || !effectiveActiveInn}
+                            title={!effectiveActiveInn ? 'Выберите заказчика в хедере' : !auth?.login || !auth?.password ? 'Требуется авторизация' : undefined}
+                        >
+                            Новая заявка
+                        </Button>
+                    </div>
+                )}
             </div>
             {docSection === 'Счета' && (
             <>
@@ -3800,15 +3811,6 @@ useEffect(() => {
             )}
             {docSection === 'Заявки' && (
             <>
-            <div className="documents-new-order-bar">
-                <Button
-                    onClick={() => setNewOrderModalOpen(true)}
-                    disabled={!auth?.login || !auth?.password || !effectiveActiveInn}
-                    title={!effectiveActiveInn ? 'Выберите заказчика в хедере' : !auth?.login || !auth?.password ? 'Требуется авторизация' : undefined}
-                >
-                    Новая заявка
-                </Button>
-            </div>
             <NewOrderModal
                 isOpen={newOrderModalOpen}
                 onClose={() => setNewOrderModalOpen(false)}

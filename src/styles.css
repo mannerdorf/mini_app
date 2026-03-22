@@ -818,23 +818,33 @@ body {
 /* Документы: дополнительный отступ под таблицы во всех разделах */
 .documents-page-sticky-header {
     margin-bottom: 1.5cm;
+    /* Не даём overflow-x: hidden «схлопнуть» overflow-y в auto — иначе обрезается контент у нижней границы блока */
+    overflow-y: visible;
 }
 
-/* Заявки: кнопка «Новая заявка» — запас снизу, чтобы карточка таблицы не обрезала кнопку */
+/* Заявки: кнопка «Новая заявка» (внутри липкого блока — не уезжает под него при скролле) */
 .documents-new-order-bar {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-bottom: 1.25rem;
-    padding-bottom: 0.65rem;
     position: relative;
-    z-index: 2;
+    z-index: 5;
     overflow: visible;
 }
+.documents-new-order-bar--in-sticky {
+    margin-top: 0.75rem;
+    padding-top: 0.5rem;
+    margin-bottom: 0.35rem;
+    padding-bottom: 0.35rem;
+    /* лёгкий разделитель от строки фильтров */
+    border-top: 1px solid var(--color-border);
+}
 @media (max-width: 768px) {
-    .documents-new-order-bar {
-        margin-bottom: 1.5rem;
-        padding-bottom: 1rem;
+    .documents-new-order-bar--in-sticky {
+        margin-top: 0.85rem;
+        padding-top: 0.65rem;
+        margin-bottom: 0.5rem;
+        padding-bottom: 0.45rem;
     }
 }
 
