@@ -1,12 +1,21 @@
 import type { StatusFilter } from "../types";
 
+function remapPostbStatusLabel(raw: string): string {
+    const s = String(raw ?? "").trim();
+    if (!s) return "";
+    const low = s.toLowerCase();
+    if (low === "отправлена в аэропорт") return "Отправлена";
+    if (low === "улетела") return "В пути";
+    return s;
+}
+
 /**
  * Статус перевозки из API может быть строкой или объектом (1С/JSON).
  * Без нормализации String(object) даёт «[object Object]» в UI.
  */
 export function coerceStatusDisplay(value: unknown): string {
     if (value == null) return "";
-    if (typeof value === "string") return value.trim();
+    if (typeof value === "string") return remapPostbStatusLabel(value);
     if (typeof value === "number" || typeof value === "boolean") return String(value);
     if (Array.isArray(value) && value.length > 0) return coerceStatusDisplay(value[0]);
     if (typeof value === "object") {
@@ -28,10 +37,10 @@ export function coerceStatusDisplay(value: unknown): string {
         ] as const;
         for (const k of keys) {
             const v = o[k];
-            if (v != null && typeof v !== "object") return String(v).trim();
+            if (v != null && typeof v !== "object") return remapPostbStatusLabel(String(v));
         }
         for (const v of Object.values(o)) {
-            if (typeof v === "string" && v.trim()) return v.trim();
+            if (typeof v === "string" && v.trim()) return remapPostbStatusLabel(v);
             if (typeof v === "number" || typeof v === "boolean") return String(v);
         }
     }
@@ -40,11 +49,12 @@ export function coerceStatusDisplay(value: unknown): string {
 
 export const normalizeStatus = (status: string | undefined): string => {
     if (!status) return '-';
-    const lower = status.toLowerCase();
+    const remapped = remapPostbStatusLabel(status);
+    const lower = remapped.toLowerCase();
     if (lower.includes('поставлена на доставку в месте прибытия') || lower.includes('поставлена на доставку')) {
         return 'На доставке';
     }
-    return status;
+    return remapped;
 };
 
 export const getPaymentFilterKey = (stateBill: string | undefined): 'unpaid' | 'cancelled' | 'paid' | 'partial' | 'unknown' => {

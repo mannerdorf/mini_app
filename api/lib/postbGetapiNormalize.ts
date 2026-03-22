@@ -41,6 +41,15 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return Boolean(v) && typeof v === "object" && !Array.isArray(v);
 }
 
+function remapPostbStatusLabel(raw: string): string {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  const low = s.toLowerCase();
+  if (low === "отправлена в аэропорт") return "Отправлена";
+  if (low === "улетела") return "В пути";
+  return s;
+}
+
 /** Ищем массивы объектов с похожими на статус полями. */
 function findStatusArrays(node: unknown, depth: number, out: Record<string, unknown>[][]): void {
   if (depth <= 0 || node === null || node === undefined) return;
@@ -105,7 +114,7 @@ export type PosilkaParsed = {
 
 /** Не показывать как статус адреса/наименования из 1С (РВБ, пункты и т.д.). */
 export function sanitizePosilkaStatusLabel(raw: string): string {
-  const t = String(raw ?? "").trim();
+  const t = remapPostbStatusLabel(String(raw ?? "").trim());
   if (!t) return "";
   if (t.includes("РВБ") || t.includes("Рвб")) return "";
   if (/\bООО\s*\(/i.test(t) && (t.includes("улиц") || t.includes("Москва") || t.includes("Калининград"))) return "";
@@ -125,7 +134,7 @@ export function parseGetPosilkaResponse(data: unknown): PosilkaParsed {
     for (const s of statusy) {
       if (!isPlainObject(s)) continue;
       const ss = s as Record<string, unknown>;
-      const title = asStr(ss.Состояние ?? ss.состояние ?? ss.Status ?? ss.status);
+      const title = remapPostbStatusLabel(asStr(ss.Состояние ?? ss.состояние ?? ss.Status ?? ss.status));
       const date = asStr(ss.Период ?? ss.период ?? ss.Date ?? ss.date);
       if (title || date) out.push({ title: title || "—", date });
     }

@@ -1697,14 +1697,14 @@ export function ProfilePage({
                             placeholder="Например: GA0101000178704"
                             value={parcelCode}
                             onChange={(e) => setParcelCode(e.target.value)}
-                            style={{ minWidth: 260, flex: "1 1 320px" }}
+                            style={{ minWidth: 260, flex: "1 1 320px", height: 46, boxSizing: "border-box" }}
                         />
                         <Button
                             type="button"
                             className="button-primary"
                             onClick={() => void handleLookupParcel()}
                             disabled={parcelLookupLoading}
-                            style={{ minWidth: 90 }}
+                            style={{ minWidth: 90, height: 46, boxSizing: "border-box" }}
                         >
                             {parcelLookupLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "ОК"}
                         </Button>
@@ -1713,7 +1713,7 @@ export function ProfilePage({
                             className="filter-button"
                             onClick={() => void startParcelScanner()}
                             disabled={scannerOpen}
-                            style={{ minWidth: 170 }}
+                            style={{ minWidth: 170, height: 46, boxSizing: "border-box" }}
                         >
                             <Camera className="w-4 h-4" style={{ marginRight: "0.25rem" }} />
                             Сканировать
