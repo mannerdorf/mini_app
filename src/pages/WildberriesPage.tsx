@@ -2043,7 +2043,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
           )}
         </Flex>
 
-        {canUpload && activeTab === "summary" && (
+        {canUpload && canAccessReturnedTab && activeTab === "summary" && (
           <div className="wb-collapsible-block">
             <button
               type="button"
@@ -2080,7 +2080,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
           </div>
         )}
 
-        {canUpload && (activeTab === "inbound" || activeTab === "returned" || activeTab === "claims") && (
+        {canUpload && canAccessReturnedTab && (activeTab === "inbound" || activeTab === "returned" || activeTab === "claims") && (
           <div className="wb-collapsible-block">
             <button
               type="button"
