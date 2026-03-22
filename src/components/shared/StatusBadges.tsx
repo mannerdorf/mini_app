@@ -1,8 +1,9 @@
 import React from "react";
-import { normalizeStatus } from "../../lib/statusUtils";
+import { coerceStatusDisplay, normalizeStatus } from "../../lib/statusUtils";
 
-export const StatusBadge = ({ status }: { status: string | undefined }) => {
-    const normalizedStatus = normalizeStatus(status);
+export const StatusBadge = ({ status }: { status: unknown }) => {
+    const coerced = coerceStatusDisplay(status);
+    const normalizedStatus = normalizeStatus(coerced || undefined);
     const lower = (normalizedStatus || '').toLowerCase();
     let badgeClass = 'max-badge';
     if (lower.includes('доставлен') || lower.includes('заверш')) badgeClass += ' max-badge-success';

@@ -1,5 +1,5 @@
 import { cityToCode, normalizeInvoiceStatus, parseCargoNumbersFromText, stripOoo } from "../lib/formatUtils";
-import { getFilterKeyByStatus } from "../lib/statusUtils";
+import { coerceStatusDisplay, getFilterKeyByStatus } from "../lib/statusUtils";
 import {
   getInvoiceBillEdoInfo,
   getInvoiceEdoInfoByDocLabel,
@@ -216,9 +216,11 @@ export function buildCargoStateByNumber(perevozkiItems: any[]) {
   (perevozkiItems || []).forEach((c: any) => {
     const raw = (c.Number ?? c.number ?? "").toString().replace(/^0000-/, "").trim();
     if (!raw || c.State == null) return;
+    const display = coerceStatusDisplay(c.State);
+    if (!display) return;
     const key = raw.replace(/^0+/, "") || raw;
-    m.set(key, String(c.State));
-    if (key !== raw) m.set(raw, String(c.State));
+    m.set(key, display);
+    if (key !== raw) m.set(raw, display);
   });
   return m;
 }

@@ -954,6 +954,12 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   const summaryStatusBtnRef = useRef<HTMLDivElement>(null);
   const summaryBoxBtnRef = useRef<HTMLDivElement>(null);
   const summaryInvBtnRef = useRef<HTMLDivElement>(null);
+  const [summaryUploadExpanded, setSummaryUploadExpanded] = useState(true);
+  const [batchUploadExpanded, setBatchUploadExpanded] = useState(true);
+  const [inboundBoxShkExpanded, setInboundBoxShkExpanded] = useState(false);
+  const [manualReturnedExpanded, setManualReturnedExpanded] = useState(true);
+  const [summaryCompactExpanded, setSummaryCompactExpanded] = useState(true);
+  const [summaryStatusBreakdownExpanded, setSummaryStatusBreakdownExpanded] = useState(false);
   const [perevozkaModal, setPerevozkaModal] = useState<{
     number: string;
     stepsFromPosilka?: Array<{ title: string; date: string }>;
@@ -2116,126 +2122,289 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         </Flex>
 
         {canUpload && activeTab === "summary" && (
-          <div className="wb-upload-box" style={{ marginTop: "0.75rem" }}>
-            <Typography.Body style={{ marginBottom: "0.35rem" }}>
-              Импорт логистики из возвратной описи (колонка «Посылка» должна совпадать с «ШК короба» в сводной):
-            </Typography.Body>
-            <label className="wb-upload-drop">
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                style={{ display: "none" }}
-                disabled={uploading || loading}
-                onChange={(e) => {
-                  const files = e.target.files;
-                  void handleLogisticsImport(files).finally(() => {
-                    e.target.value = "";
-                  });
-                }}
-              />
-              <FileUp size={16} />
-              <span>{uploading ? "Идёт импорт..." : "Выберите один .xlsx / .xls"}</span>
-            </label>
+          <div className="wb-collapsible-block">
+            <button
+              type="button"
+              className="wb-collapsible-toggle"
+              onClick={() => setSummaryUploadExpanded((v) => !v)}
+              aria-expanded={summaryUploadExpanded}
+            >
+              <span>Импорт логистики (сводная)</span>
+              <ChevronDown className={`w-4 h-4 wb-collapsible-caret${summaryUploadExpanded ? " is-open" : ""}`} aria-hidden />
+            </button>
+            {summaryUploadExpanded && (
+              <div className="wb-upload-box" style={{ marginTop: "0.5rem" }}>
+                <Typography.Body style={{ marginBottom: "0.35rem" }}>
+                  Импорт логистики из возвратной описи (колонка «Посылка» должна совпадать с «ШК короба» в сводной):
+                </Typography.Body>
+                <label className="wb-upload-drop">
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    style={{ display: "none" }}
+                    disabled={uploading || loading}
+                    onChange={(e) => {
+                      const files = e.target.files;
+                      void handleLogisticsImport(files).finally(() => {
+                        e.target.value = "";
+                      });
+                    }}
+                  />
+                  <FileUp size={16} />
+                  <span>{uploading ? "Идёт импорт..." : "Выберите один .xlsx / .xls"}</span>
+                </label>
+              </div>
+            )}
           </div>
         )}
 
         {canUpload && (activeTab === "inbound" || activeTab === "returned" || activeTab === "claims") && (
-          <div className="wb-upload-box">
-            <Flex align="center" gap="0.5rem" wrap="wrap">
-              <Typography.Body style={{ marginRight: "0.25rem" }}>Режим импорта:</Typography.Body>
-              <button type="button" className={`wb-mode-btn ${importMode === "append" ? "active" : ""}`} onClick={() => setImportMode("append")}>
-                Добавить новые
-              </button>
-              <button type="button" className={`wb-mode-btn ${importMode === "upsert" ? "active" : ""}`} onClick={() => setImportMode("upsert")}>
-                Обновить по ключу
-              </button>
-            </Flex>
-            <label className="wb-upload-drop">
-              <input
-                type="file"
-                multiple
-                accept=".xlsx,.xls,.csv"
-                style={{ display: "none" }}
-                onChange={(e) => {
-                  const files = e.target.files;
-                  void handleUpload(files).finally(() => {
-                    e.target.value = "";
-                  });
-                }}
-              />
-              <FileUp size={16} />
-              <span>
-                {uploading
-                  ? "Идет импорт..."
-                  : "До 15 файлов, каждый отдельным запросом. Перетащите или выберите"}
-              </span>
-            </label>
+          <div className="wb-collapsible-block">
+            <button
+              type="button"
+              className="wb-collapsible-toggle"
+              onClick={() => setBatchUploadExpanded((v) => !v)}
+              aria-expanded={batchUploadExpanded}
+            >
+              <span>Импорт файлов</span>
+              <ChevronDown className={`w-4 h-4 wb-collapsible-caret${batchUploadExpanded ? " is-open" : ""}`} aria-hidden />
+            </button>
+            {batchUploadExpanded && (
+              <div className="wb-upload-box" style={{ marginTop: "0.5rem" }}>
+                <Flex align="center" gap="0.5rem" wrap="wrap">
+                  <Typography.Body style={{ marginRight: "0.25rem" }}>Режим импорта:</Typography.Body>
+                  <button type="button" className={`wb-mode-btn ${importMode === "append" ? "active" : ""}`} onClick={() => setImportMode("append")}>
+                    Добавить новые
+                  </button>
+                  <button type="button" className={`wb-mode-btn ${importMode === "upsert" ? "active" : ""}`} onClick={() => setImportMode("upsert")}>
+                    Обновить по ключу
+                  </button>
+                </Flex>
+                <label className="wb-upload-drop">
+                  <input
+                    type="file"
+                    multiple
+                    accept=".xlsx,.xls,.csv"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const files = e.target.files;
+                      void handleUpload(files).finally(() => {
+                        e.target.value = "";
+                      });
+                    }}
+                  />
+                  <FileUp size={16} />
+                  <span>
+                    {uploading
+                      ? "Идет импорт..."
+                      : "До 15 файлов, каждый отдельным запросом. Перетащите или выберите"}
+                  </span>
+                </label>
+              </div>
+            )}
           </div>
         )}
 
         {WB_SHOW_INBOUND_BOX_SHK_TEXT_PANEL && canUpload && activeTab === "inbound" && (
-          <div
-            className="wb-box-shk-panel"
-            style={{
-              marginTop: "0.75rem",
-              padding: "0.65rem 1rem",
-              borderRadius: "10px",
-              border: "1px dashed rgba(124, 58, 237, 0.45)",
-              background: "var(--color-bg-card)",
-            }}
-          >
-            <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem", display: "block" }}>
-              ШК коробов (текст)
-            </Typography.Body>
-            <Typography.Body style={{ fontSize: "0.8125rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem", display: "block" }}>
-              По каждой строке предпоследнее поле через «:» — номер короба; в колонку «ШК короба» записывается{" "}
-              <strong>вся строка целиком</strong> (как в файле). Пример:{" "}
-              <code style={{ fontSize: "0.8em" }}>$1:1:3820740543:120762</code> → короб{" "}
-              <code style={{ fontSize: "0.8em" }}>3820740543</code>, в БД ШК короба:{" "}
-              <code style={{ fontSize: "0.8em" }}>$1:1:3820740543:120762</code>.
-            </Typography.Body>
-            <textarea
-              className="admin-form-input"
-              value={inboundBoxShkText}
-              onChange={(e) => setInboundBoxShkText(e.target.value)}
-              placeholder={"$1:1:3820740543:120762\n$1:1:3818456844:119900"}
-              rows={6}
-              style={{
-                width: "100%",
-                minHeight: "7rem",
-                resize: "vertical",
-                fontFamily: "ui-monospace, monospace",
-                fontSize: "0.8125rem",
-                marginBottom: "0.5rem",
-                boxSizing: "border-box",
-              }}
-            />
-            <Button className="wb-action-btn" onClick={() => void handleApplyInboundBoxShk()} disabled={boxShkApplying || loading}>
-              {boxShkApplying ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              {boxShkApplying ? " Применение…" : "Применить к описям"}
-            </Button>
+          <div className="wb-collapsible-block">
+            <button
+              type="button"
+              className="wb-collapsible-toggle"
+              onClick={() => setInboundBoxShkExpanded((v) => !v)}
+              aria-expanded={inboundBoxShkExpanded}
+            >
+              <span>ШК коробов (текст)</span>
+              <ChevronDown className={`w-4 h-4 wb-collapsible-caret${inboundBoxShkExpanded ? " is-open" : ""}`} aria-hidden />
+            </button>
+            {inboundBoxShkExpanded && (
+              <div
+                className="wb-box-shk-panel"
+                style={{
+                  marginTop: "0.5rem",
+                  padding: "0.65rem 1rem",
+                  borderRadius: "10px",
+                  border: "1px dashed rgba(124, 58, 237, 0.45)",
+                  background: "var(--color-bg-card)",
+                }}
+              >
+                <Typography.Body style={{ fontSize: "0.8125rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem", display: "block" }}>
+                  По каждой строке предпоследнее поле через «:» — номер короба; в колонку «ШК короба» записывается{" "}
+                  <strong>вся строка целиком</strong> (как в файле). Пример:{" "}
+                  <code style={{ fontSize: "0.8em" }}>$1:1:3820740543:120762</code> → короб{" "}
+                  <code style={{ fontSize: "0.8em" }}>3820740543</code>, в БД ШК короба:{" "}
+                  <code style={{ fontSize: "0.8em" }}>$1:1:3820740543:120762</code>.
+                </Typography.Body>
+                <textarea
+                  className="admin-form-input"
+                  value={inboundBoxShkText}
+                  onChange={(e) => setInboundBoxShkText(e.target.value)}
+                  placeholder={"$1:1:3820740543:120762\n$1:1:3818456844:119900"}
+                  rows={6}
+                  style={{
+                    width: "100%",
+                    minHeight: "7rem",
+                    resize: "vertical",
+                    fontFamily: "ui-monospace, monospace",
+                    fontSize: "0.8125rem",
+                    marginBottom: "0.5rem",
+                    boxSizing: "border-box",
+                  }}
+                />
+                <Button className="wb-action-btn" onClick={() => void handleApplyInboundBoxShk()} disabled={boxShkApplying || loading}>
+                  {boxShkApplying ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {boxShkApplying ? " Применение…" : "Применить к описям"}
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
         {canUpload && activeTab === "returned" && (
-          <div className="wb-manual-panel">
-            <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem", color: "var(--color-text-primary)" }}>
-              Ручной ввод (грузы без ШК)
-            </Typography.Body>
-            <div className="wb-filters-grid">
-              <Input className="admin-form-input" placeholder="ID короба*" value={manualReturned.boxId} onChange={(e) => setManualReturned((p) => ({ ...p, boxId: e.target.value }))} />
-              <Input className="admin-form-input" placeholder="Номер груза" value={manualReturned.cargoNumber} onChange={(e) => setManualReturned((p) => ({ ...p, cargoNumber: e.target.value }))} />
-              <Input className="admin-form-input" placeholder="Описание" value={manualReturned.description} onChange={(e) => setManualReturned((p) => ({ ...p, description: e.target.value }))} />
-              <Input className="admin-form-input" placeholder="Номер документа" value={manualReturned.documentNumber} onChange={(e) => setManualReturned((p) => ({ ...p, documentNumber: e.target.value }))} />
-              <Input className="admin-form-input" type="date" placeholder="Дата документа" value={manualReturned.documentDate} onChange={(e) => setManualReturned((p) => ({ ...p, documentDate: e.target.value }))} />
-              <Input className="admin-form-input" placeholder="Стоимость" value={manualReturned.amountRub} onChange={(e) => setManualReturned((p) => ({ ...p, amountRub: e.target.value }))} />
+          <div className="wb-collapsible-block">
+            <button
+              type="button"
+              className="wb-collapsible-toggle"
+              onClick={() => setManualReturnedExpanded((v) => !v)}
+              aria-expanded={manualReturnedExpanded}
+            >
+              <span>Ручной ввод (грузы без ШК)</span>
+              <ChevronDown className={`w-4 h-4 wb-collapsible-caret${manualReturnedExpanded ? " is-open" : ""}`} aria-hidden />
+            </button>
+            {manualReturnedExpanded && (
+              <div className="wb-manual-panel" style={{ marginTop: "0.5rem" }}>
+                <div className="wb-filters-grid">
+                  <Input className="admin-form-input" placeholder="ID короба*" value={manualReturned.boxId} onChange={(e) => setManualReturned((p) => ({ ...p, boxId: e.target.value }))} />
+                  <Input className="admin-form-input" placeholder="Номер груза" value={manualReturned.cargoNumber} onChange={(e) => setManualReturned((p) => ({ ...p, cargoNumber: e.target.value }))} />
+                  <Input className="admin-form-input" placeholder="Описание" value={manualReturned.description} onChange={(e) => setManualReturned((p) => ({ ...p, description: e.target.value }))} />
+                  <Input className="admin-form-input" placeholder="Номер документа" value={manualReturned.documentNumber} onChange={(e) => setManualReturned((p) => ({ ...p, documentNumber: e.target.value }))} />
+                  <Input className="admin-form-input" type="date" placeholder="Дата документа" value={manualReturned.documentDate} onChange={(e) => setManualReturned((p) => ({ ...p, documentDate: e.target.value }))} />
+                  <Input className="admin-form-input" placeholder="Стоимость" value={manualReturned.amountRub} onChange={(e) => setManualReturned((p) => ({ ...p, amountRub: e.target.value }))} />
+                </div>
+                <Flex gap="0.5rem" style={{ marginTop: "0.5rem" }}>
+                  <Button className="wb-action-btn" onClick={() => void handleManualReturnedSubmit()}>
+                    <Upload className="w-4 h-4" />
+                    Сохранить запись
+                  </Button>
+                </Flex>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "summary" && (
+          <div className="wb-summary-compact">
+            <div className="wb-summary-compact-head">
+              <Typography.Body style={{ margin: 0, fontWeight: 600 }}>Сводные итоги</Typography.Body>
+              <button
+                type="button"
+                className="wb-collapsible-toggle wb-collapsible-toggle--inline"
+                onClick={() => setSummaryCompactExpanded((v) => !v)}
+                aria-expanded={summaryCompactExpanded}
+              >
+                <span>{summaryCompactExpanded ? "Свернуть" : "Развернуть"}</span>
+                <ChevronDown className={`w-4 h-4 wb-collapsible-caret${summaryCompactExpanded ? " is-open" : ""}`} aria-hidden />
+              </button>
             </div>
-            <Flex gap="0.5rem" style={{ marginTop: "0.5rem" }}>
-              <Button className="wb-action-btn" onClick={() => void handleManualReturnedSubmit()}>
-                <Upload className="w-4 h-4" />
-                Сохранить запись
-              </Button>
-            </Flex>
+            {summaryCompactExpanded && (
+              <>
+                <div className="wb-summary-compact-grid">
+                  <div className="wb-summary-metric-card">
+                    <span className="wb-summary-metric-label">Дата формирования</span>
+                    <strong className="wb-summary-metric-value">
+                      {summaryHeader?.formedAt
+                        ? (() => {
+                            const d = new Date(summaryHeader.formedAt);
+                            return Number.isNaN(d.getTime())
+                              ? String(summaryHeader.formedAt).slice(0, 19).replace("T", " ")
+                              : d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
+                          })()
+                        : "—"}
+                    </strong>
+                  </div>
+                  <div className="wb-summary-metric-card">
+                    <span className="wb-summary-metric-label">Кол-во мест</span>
+                    <strong className="wb-summary-metric-value">{total}</strong>
+                  </div>
+                  <div className="wb-summary-metric-card">
+                    <span className="wb-summary-metric-label">Стоимость в претензии</span>
+                    <strong className="wb-summary-metric-value">
+                      {Number(summaryHeader?.totalClaimRub ?? 0).toLocaleString("ru-RU", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      ₽
+                    </strong>
+                  </div>
+                  <div className="wb-summary-metric-card">
+                    <span className="wb-summary-metric-label">Стоимость в описях</span>
+                    <strong className="wb-summary-metric-value">
+                      {Number(summaryHeader?.totalInboundRub ?? 0).toLocaleString("ru-RU", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      ₽
+                    </strong>
+                  </div>
+                  <div className="wb-summary-metric-card wb-summary-metric-card--warn">
+                    <span className="wb-summary-metric-label">Нет в описях (по претензии)</span>
+                    <strong className="wb-summary-metric-value">
+                      {Number(summaryHeader?.totalNotInInboundClaimRub ?? 0).toLocaleString("ru-RU", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      ₽
+                    </strong>
+                  </div>
+                  <div className="wb-summary-metric-card wb-summary-metric-card--switch">
+                    <span className="wb-summary-metric-label">Фильтр</span>
+                    <div className="wb-summary-switch-row">
+                      <TapSwitch
+                        checked={summaryOnlyNotInInbound}
+                        onToggle={() => {
+                          setSummaryOnlyNotInInbound((v) => !v);
+                          setPage(1);
+                        }}
+                      />
+                      <Typography.Body style={{ margin: 0, fontSize: "0.84rem" }}>Нет в описях</Typography.Body>
+                    </div>
+                  </div>
+                </div>
+                {summaryHeader && !summaryFilterStatus && summaryHeader.inboundByPostbStatus.length > 0 && (
+                  <div className="wb-summary-status-breakdown">
+                    <button
+                      type="button"
+                      className="wb-collapsible-toggle wb-collapsible-toggle--inline"
+                      onClick={() => setSummaryStatusBreakdownExpanded((v) => !v)}
+                      aria-expanded={summaryStatusBreakdownExpanded}
+                    >
+                      <span>Стоимость в описях по статусам PostB</span>
+                      <ChevronDown className={`w-4 h-4 wb-collapsible-caret${summaryStatusBreakdownExpanded ? " is-open" : ""}`} aria-hidden />
+                    </button>
+                    {summaryStatusBreakdownExpanded && (
+                      <div className="wb-summary-status-list">
+                        {summaryHeader.inboundByPostbStatus.map((row) => {
+                          const label = row.status.trim() ? row.status : "Без статуса (PostB)";
+                          const key = row.status.trim() ? row.status : "__empty__";
+                          return (
+                            <div key={key} className="wb-summary-status-item">
+                              <span className="wb-summary-status-label">{label}</span>
+                              <strong className="wb-summary-status-value">
+                                {Number(row.totalInboundRub).toLocaleString("ru-RU", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}{" "}
+                                ₽
+                              </strong>
+                              <span className="wb-summary-status-meta">({row.rowCount} м.)</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
 
@@ -2261,141 +2430,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
           </Flex>
         )}
         {error && <Typography.Body style={{ color: "var(--color-error)", marginTop: "0.5rem" }}>{error}</Typography.Body>}
-
-        {activeTab === "summary" && (
-          <div
-            className="wb-summary-strip"
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              alignItems: "center",
-              gap: "1.25rem",
-              marginTop: "0.75rem",
-              marginBottom: "0.5rem",
-              padding: "0.65rem 1rem",
-              borderRadius: "10px",
-              border: "1px solid var(--color-border)",
-              background: "var(--color-bg-card)",
-            }}
-          >
-            <Typography.Body style={{ margin: 0 }}>
-              <span style={{ color: "var(--color-text-secondary)" }}>Дата формирования сводной: </span>
-              <strong>
-                {summaryHeader?.formedAt
-                  ? (() => {
-                      const d = new Date(summaryHeader.formedAt);
-                      return Number.isNaN(d.getTime())
-                        ? String(summaryHeader.formedAt).slice(0, 19).replace("T", " ")
-                        : d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
-                    })()
-                  : "—"}
-              </strong>
-            </Typography.Body>
-            <Typography.Body style={{ margin: 0 }}>
-              <span style={{ color: "var(--color-text-secondary)" }}>Кол-во мест: </span>
-              <strong>{total}</strong>
-            </Typography.Body>
-            <Typography.Body style={{ margin: 0 }}>
-              <span style={{ color: "var(--color-text-secondary)" }}>Стоимость в претензии: </span>
-              <strong>
-                {Number(summaryHeader?.totalClaimRub ?? 0).toLocaleString("ru-RU", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{" "}
-                ₽
-              </strong>
-            </Typography.Body>
-            <Typography.Body style={{ margin: 0 }}>
-              <span style={{ color: "var(--color-text-secondary)" }}>Стоимость в описях: </span>
-              <strong>
-                {Number(summaryHeader?.totalInboundRub ?? 0).toLocaleString("ru-RU", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{" "}
-                ₽
-              </strong>
-            </Typography.Body>
-            {summaryHeader &&
-            !summaryFilterStatus &&
-            summaryHeader.inboundByPostbStatus.length > 0 && (
-              <div
-                style={{
-                  flex: "1 1 100%",
-                  marginTop: "0.15rem",
-                  paddingTop: "0.55rem",
-                  borderTop: "1px dashed var(--color-border)",
-                }}
-              >
-                <Typography.Body
-                  style={{
-                    margin: "0 0 0.4rem 0",
-                    fontSize: "0.8125rem",
-                    color: "var(--color-text-secondary)",
-                  }}
-                >
-                  Стоимость в описях по статусам (PostB, <strong>last_status</strong>):
-                </Typography.Body>
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "0.35rem 1.1rem",
-                    alignItems: "baseline",
-                  }}
-                >
-                  {summaryHeader.inboundByPostbStatus.map((row) => {
-                    const label = row.status.trim() ? row.status : "Без статуса (PostB)";
-                    const key = row.status.trim() ? row.status : "__empty__";
-                    return (
-                      <Typography.Body key={key} style={{ margin: 0, fontSize: "0.875rem" }}>
-                        <span style={{ color: "var(--color-text-secondary)" }}>{label}: </span>
-                        <strong>
-                          {Number(row.totalInboundRub).toLocaleString("ru-RU", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}{" "}
-                          ₽
-                        </strong>
-                        <span style={{ color: "var(--color-text-secondary)", fontSize: "0.8125rem" }}>
-                          {" "}
-                          ({row.rowCount} м.)
-                        </span>
-                      </Typography.Body>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            <Typography.Body style={{ margin: 0 }}>
-              <span style={{ color: "var(--color-text-secondary)" }}>Нет в описях (по претензии): </span>
-              <strong>
-                {Number(summaryHeader?.totalNotInInboundClaimRub ?? 0).toLocaleString("ru-RU", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{" "}
-                ₽
-              </strong>
-            </Typography.Body>
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                margin: 0,
-                userSelect: "none",
-              }}
-            >
-              <TapSwitch
-                checked={summaryOnlyNotInInbound}
-                onToggle={() => {
-                  setSummaryOnlyNotInInbound((v) => !v);
-                  setPage(1);
-                }}
-              />
-              <Typography.Body style={{ margin: 0, fontSize: "0.875rem" }}>Нет в описях</Typography.Body>
-            </div>
-          </div>
-        )}
 
         <div className="wb-table-wrap">
           <table className="wb-table">

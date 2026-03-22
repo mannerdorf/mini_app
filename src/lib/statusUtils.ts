@@ -1,5 +1,43 @@
 import type { StatusFilter } from "../types";
 
+/**
+ * Статус перевозки из API может быть строкой или объектом (1С/JSON).
+ * Без нормализации String(object) даёт «[object Object]» в UI.
+ */
+export function coerceStatusDisplay(value: unknown): string {
+    if (value == null) return "";
+    if (typeof value === "string") return value.trim();
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    if (Array.isArray(value) && value.length > 0) return coerceStatusDisplay(value[0]);
+    if (typeof value === "object") {
+        const o = value as Record<string, unknown>;
+        const keys = [
+            "Name",
+            "name",
+            "Value",
+            "value",
+            "label",
+            "Title",
+            "title",
+            "Статус",
+            "Наименование",
+            "State",
+            "state",
+            "Description",
+            "description",
+        ] as const;
+        for (const k of keys) {
+            const v = o[k];
+            if (v != null && typeof v !== "object") return String(v).trim();
+        }
+        for (const v of Object.values(o)) {
+            if (typeof v === "string" && v.trim()) return v.trim();
+            if (typeof v === "number" || typeof v === "boolean") return String(v);
+        }
+    }
+    return "";
+}
+
 export const normalizeStatus = (status: string | undefined): string => {
     if (!status) return '-';
     const lower = status.toLowerCase();
