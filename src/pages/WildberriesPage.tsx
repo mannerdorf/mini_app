@@ -69,6 +69,7 @@ type WbSummaryHeader = {
   totalClaimRub: string | number;
   totalInboundRub: string | number;
   totalNotInInboundClaimRub: string | number;
+  rowCountNotInInbound: number;
   /** Стоимость в описи по строкам, у которых в PostB нет last_status (в «Все» учтены, по статусу — нет). */
   totalInboundRubPostbBlank: string | number;
   rowCountPostbBlank: number;
@@ -1088,6 +1089,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             totalClaimRub: (sh as { totalClaimRub?: unknown }).totalClaimRub ?? "0",
             totalInboundRub: (sh as { totalInboundRub?: unknown }).totalInboundRub ?? "0",
             totalNotInInboundClaimRub: (sh as { totalNotInInboundClaimRub?: unknown }).totalNotInInboundClaimRub ?? "0",
+            rowCountNotInInbound: Number((sh as { rowCountNotInInbound?: unknown }).rowCountNotInInbound ?? 0),
             totalInboundRubPostbBlank: (sh as { totalInboundRubPostbBlank?: unknown }).totalInboundRubPostbBlank ?? "0",
             rowCountPostbBlank: Number((sh as { rowCountPostbBlank?: unknown }).rowCountPostbBlank ?? 0),
             inboundByPostbStatus: (() => {
@@ -2246,7 +2248,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                 <div className="wb-summary-status-list">
                   <button
                     type="button"
-                    className={`wb-summary-status-item wb-summary-status-item--filter wb-summary-status-item--tone-all wb-summary-status-item--all-panel${
+                    className={`wb-summary-status-item wb-summary-status-item--filter wb-summary-status-item--tone-all${
                       !summaryFilterStatus && !summaryOnlyNotInInbound ? " wb-summary-status-item--active" : ""
                     }`}
                     onClick={() => {
@@ -2255,35 +2257,34 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                       setPage(1);
                     }}
                   >
-                    <div className="wb-summary-all-head">
+                    <div className="wb-summary-status-head">
                       <span className="wb-summary-status-label">Все</span>
-                      <span className="wb-summary-all-reset">Сбросить фильтр</span>
+                      <span className="wb-summary-status-hint">Сбросить фильтры</span>
                     </div>
-                    <div className="wb-summary-all-metrics">
-                      <div className="wb-summary-all-metric-line">
-                        <span className="wb-summary-all-metric-label">Кол-во мест</span>
-                        <strong className="wb-summary-all-metric-value">{Number(summaryHeaderDisplay?.placeCount ?? 0)}</strong>
-                      </div>
-                      <div className="wb-summary-all-metric-line">
-                        <span className="wb-summary-all-metric-label">Стоимость в претензии</span>
-                        <strong className="wb-summary-all-metric-value">
+                    <div className="wb-summary-status-sums">
+                      <span className="wb-summary-status-sum-line">
+                        Кол-во мест: <strong>{Number(summaryHeaderDisplay?.placeCount ?? 0)}</strong>
+                      </span>
+                      <span className="wb-summary-status-sum-line">
+                        Претензии:{" "}
+                        <strong>
                           {Number(summaryHeaderDisplay?.totalClaimRub ?? 0).toLocaleString("ru-RU", {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           })}{" "}
                           ₽
                         </strong>
-                      </div>
-                      <div className="wb-summary-all-metric-line">
-                        <span className="wb-summary-all-metric-label">Стоимость в описях</span>
-                        <strong className="wb-summary-all-metric-value">
+                      </span>
+                      <span className="wb-summary-status-sum-line">
+                        Описи:{" "}
+                        <strong>
                           {Number(summaryHeaderDisplay?.totalInboundRub ?? 0).toLocaleString("ru-RU", {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           })}{" "}
                           ₽
                         </strong>
-                      </div>
+                      </span>
                     </div>
                   </button>
                   {summaryStatusChips.map((chip) => {
@@ -2301,8 +2302,13 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                           setPage(1);
                         }}
                       >
-                        <span className="wb-summary-status-label">{chip.label}</span>
+                        <div className="wb-summary-status-head">
+                          <span className="wb-summary-status-label">{chip.label}</span>
+                        </div>
                         <div className="wb-summary-status-sums">
+                          <span className="wb-summary-status-sum-line">
+                            Кол-во мест: <strong>{chip.rowCount}</strong>
+                          </span>
                           <span className="wb-summary-status-sum-line">
                             Претензии:{" "}
                             <strong>
@@ -2324,13 +2330,12 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                             </strong>
                           </span>
                         </div>
-                        <span className="wb-summary-status-meta">({chip.rowCount} м.)</span>
                       </button>
                     );
                   })}
                   <button
                     type="button"
-                    className={`wb-summary-status-item wb-summary-status-item--filter wb-summary-status-item--inbound-gap wb-summary-status-item--tone-inbound-gap${
+                    className={`wb-summary-status-item wb-summary-status-item--filter wb-summary-status-item--tone-inbound-gap${
                       summaryOnlyNotInInbound ? " wb-summary-status-item--active" : ""
                     }`}
                     title={
@@ -2344,14 +2349,27 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                       setPage(1);
                     }}
                   >
-                    <span className="wb-summary-status-label">Нет в описях (по претензии)</span>
-                    <strong className="wb-summary-inbound-gap-amount">
-                      {Number(summaryHeaderDisplay?.totalNotInInboundClaimRub ?? 0).toLocaleString("ru-RU", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}{" "}
-                      ₽
-                    </strong>
+                    <div className="wb-summary-status-head">
+                      <span className="wb-summary-status-label">Нет в описях (по претензии)</span>
+                    </div>
+                    <div className="wb-summary-status-sums">
+                      <span className="wb-summary-status-sum-line">
+                        Кол-во мест: <strong>{Number(summaryHeaderDisplay?.rowCountNotInInbound ?? 0)}</strong>
+                      </span>
+                      <span className="wb-summary-status-sum-line">
+                        Претензии:{" "}
+                        <strong>
+                          {Number(summaryHeaderDisplay?.totalNotInInboundClaimRub ?? 0).toLocaleString("ru-RU", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{" "}
+                          ₽
+                        </strong>
+                      </span>
+                      <span className="wb-summary-status-sum-line">
+                        Описи: <strong>0,00 ₽</strong>
+                      </span>
+                    </div>
                   </button>
                 </div>
               </div>

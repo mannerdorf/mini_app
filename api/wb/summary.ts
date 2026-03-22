@@ -43,6 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           totalClaimRub: 0,
           totalInboundRub: 0,
           totalNotInInboundClaimRub: 0,
+          rowCountNotInInbound: 0,
           totalInboundRubPostbBlank: 0,
           rowCountPostbBlank: 0,
           inboundByPostbStatus: [],
@@ -225,17 +226,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const formedAt = formedRes.rows[0]?.formed_at ?? null;
 
     /** Сумма по претензии по строкам без описи — без учёта тумблера (только фильтры дат/поиска). */
-    const notInInboundRes = await pool.query<{ v: string }>(
+    const notInInboundRes = await pool.query<{ v: string; row_count: number }>(
       `select
          coalesce(
            sum(c.amount_rub) filter (where c.id is not null and s.inbound_item_id is null),
            0
-         )::numeric as v
+         )::numeric as v,
+         count(*) filter (where s.inbound_item_id is null)::int as row_count
        ${fromJoins}
        ${whereBaseSql}`,
       params,
     );
     const totalNotInInboundClaimRub = notInInboundRes.rows[0]?.v ?? "0";
+    const rowCountNotInInbound = Number(notInInboundRes.rows[0]?.row_count ?? 0);
 
     const countSelectPostbBlank = hasPostbCache
       ? `,
@@ -402,6 +405,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         totalClaimRub,
         totalInboundRub,
         totalNotInInboundClaimRub,
+        rowCountNotInInbound,
         totalInboundRubPostbBlank,
         rowCountPostbBlank,
         inboundByPostbStatus,
