@@ -1,6 +1,6 @@
 import { cityToCode, normalizeInvoiceStatus, parseCargoNumbersFromText, stripOoo } from "../lib/formatUtils";
 import { getFilterKeyByStatus } from "../lib/statusUtils";
-import { getInvoiceBillEdoInfo } from "../lib/edoStatus";
+import { getInvoiceBillEdoInfo, getInvoiceEdoInfoByDocLabel } from "../lib/edoStatus";
 import type { StatusFilter } from "../types";
 
 export const INVOICE_FAVORITES_VALUE = "__favorites__";
@@ -122,6 +122,44 @@ export function getOrderSearchText(order: any): string {
 export function getEdoStatus(item: any): string {
   const v = item?.EdoStatus ?? item?.edoStatus ?? item?.EdoState ?? item?.EDO ?? item?.StatusEDO ?? item?.ЭДО ?? item?.DocumentStatus ?? item?.documentStatus ?? "";
   return String(v ?? "").trim() || "";
+}
+
+/** Числовая часть номера счёта для сопоставления УПД ↔ счёт (как в ActDetailModal) */
+function normInvoiceNumForActLink(s: string | undefined | null): string {
+  return String(s ?? "").trim().replace(/^0000-/, "").replace(/^0+/, "") || "0";
+}
+
+function actInvoiceLinkMatches(actNum: string, invNum: string): boolean {
+  const a = String(actNum ?? "").trim();
+  const b = String(invNum ?? "").trim();
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const na = normInvoiceNumForActLink(a);
+  const nb = normInvoiceNumForActLink(b);
+  if (na === nb) return true;
+  const ia = parseInt(na, 10);
+  const ib = parseInt(nb, 10);
+  return !isNaN(ia) && !isNaN(ib) && ia === ib;
+}
+
+export function findInvoiceLinkedToAct(act: any, invoices: any[] | undefined | null): any | null {
+  const link = String(act?.Invoice ?? act?.invoice ?? act?.Счёт ?? act?.Счет ?? "").trim();
+  if (!link || !invoices?.length) return null;
+  for (const inv of invoices) {
+    const num = String(inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? inv?.numberDoc ?? "").trim();
+    if (actInvoiceLinkMatches(link, num)) return inv;
+  }
+  return null;
+}
+
+/**
+ * ЭДО для УПД: `DDRecipientResponseStatus_UPD` из связанного счёта (список из раздела «Счета»),
+ * иначе то же поле на объекте УПД, если API его отдаёт.
+ */
+export function getActUpdEdoInfo(act: any, invoices: any[] | undefined | null) {
+  const inv = findInvoiceLinkedToAct(act, invoices);
+  if (inv) return getInvoiceEdoInfoByDocLabel(inv, "УПД");
+  return getInvoiceEdoInfoByDocLabel(act, "УПД");
 }
 
 export function normCargoKey(num: string | null | undefined): string {
@@ -328,6 +366,8 @@ type FilterActsParams = {
   transportFilter: string;
   getFirstCargoNumberFromInvoice: (inv: any) => string | null;
   cargoTransportByNumber: Map<string, string>;
+  /** Счета из того же периода — для статуса ЭДО УПД по `DDRecipientResponseStatus_UPD` */
+  invoices?: any[];
 };
 
 export function buildFilteredActs(params: FilterActsParams) {
@@ -341,6 +381,7 @@ export function buildFilteredActs(params: FilterActsParams) {
     transportFilter,
     getFirstCargoNumberFromInvoice,
     cargoTransportByNumber,
+    invoices,
   } = params;
 
   let res = sortedActs;
@@ -358,8 +399,8 @@ export function buildFilteredActs(params: FilterActsParams) {
   }
   if (edoStatusFilterSet.size > 0) {
     res = res.filter((a) => {
-      const edo = getEdoStatus(a);
-      return edo && edoStatusFilterSet.has(edo);
+      const edo = getActUpdEdoInfo(a, invoices);
+      return Boolean(edo.raw) && edoStatusFilterSet.has(edo.label);
     });
   }
   if (transportFilter) {

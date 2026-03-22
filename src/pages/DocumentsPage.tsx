@@ -38,9 +38,9 @@ import {
     buildCargoTransportByNumber,
     buildDocsSummary,
     buildFilteredActs,
+    getActUpdEdoInfo,
     buildFilteredInvoices,
     buildFilteredOrders,
-    getEdoStatus,
     getFirstCargoNumberFromInvoice,
 } from "./documentsPipeline";
 import { DocumentsSummaryCard, DocumentsStateBlocks } from "./documentsViewBlocks";
@@ -1729,9 +1729,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 if (edo.raw) set.add(edo.label);
             });
         } else if (docSection === 'УПД') {
-            (actsItems || []).forEach((i: any) => {
-                const s = getEdoStatus(i);
-                if (s) set.add(s);
+            (actsItems || []).forEach((a: any) => {
+                const edo = getActUpdEdoInfo(a, items);
+                if (edo.raw) set.add(edo.label);
             });
         }
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
@@ -1973,8 +1973,9 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             transportFilter,
             getFirstCargoNumberFromInvoice,
             cargoTransportByNumber,
+            invoices: items,
         });
-    }, [sortedActs, effectiveActiveInn, effectiveServiceMode, actCustomerFilter, effectiveSearchText, edoStatusFilterSet, transportFilter, getFirstCargoNumberFromInvoice, cargoTransportByNumber, normCargoKey]);
+    }, [sortedActs, effectiveActiveInn, effectiveServiceMode, actCustomerFilter, effectiveSearchText, edoStatusFilterSet, transportFilter, getFirstCargoNumberFromInvoice, cargoTransportByNumber, normCargoKey, items]);
 
     const actsSummary = useMemo(() => buildActsSummary(filteredActs), [filteredActs]);
     const filteredOrders = useMemo(() => {
@@ -3582,6 +3583,7 @@ useEffect(() => {
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('number'); }} title="Сортировка">Номер {innerTableActSortColumn === 'number' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} className="doc-inner-table-date" onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('date'); }} title="Сортировка">Дата {innerTableActSortColumn === 'date' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('invoice'); }} title="Сортировка">Счёт {innerTableActSortColumn === 'invoice' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }} title="ЭДО по УПД из связанного счёта">ЭДО</th>
                                                                 {showSums && <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('sum'); }} title="Сортировка">Сумма {innerTableActSortColumn === 'sum' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
                                                             </tr>
                                                         </thead>
@@ -3591,11 +3593,15 @@ useEffect(() => {
                                                                 const adt = act.DateDoc ?? act.Date ?? act.date ?? '';
                                                                 const ainv = act.Invoice ?? act.invoice ?? act.Счёт ?? '';
                                                                 const asum = act.SumDoc ?? act.Sum ?? act.sum ?? 0;
+                                                                const updEdo = getActUpdEdoInfo(act, items);
                                                                 return (
                                                                     <tr key={anum || j} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={(ev) => { ev.stopPropagation(); setSelectedAct(act); }} title="Открыть УПД">
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{formatInvoiceNumber(String(anum))}</td>
                                                                         <td className="doc-inner-table-date" style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof adt === 'string' ? adt : adt ? String(adt) : undefined} /></td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{ainv ? formatInvoiceNumber(String(ainv)) : '—'}</td>
+                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>
+                                                                            <span className="role-badge" title={updEdo.label} style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', whiteSpace: 'nowrap', display: 'inline-block', ...edoBadgeStyle(updEdo.tone) }}>{updEdo.shortLabel}</span>
+                                                                        </td>
                                                                         {showSums && <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{asum != null ? formatCurrency(asum) : '—'}</td>}
                                                                     </tr>
                                                                 );
@@ -3620,6 +3626,7 @@ useEffect(() => {
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Счёт</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }} title="ЭДО по УПД из связанного счёта">ЭДО</th>
                                 {showSums && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>}
                             </tr>
                         </thead>
@@ -3629,11 +3636,15 @@ useEffect(() => {
                                 const adt = act.DateDoc ?? act.Date ?? act.date ?? '';
                                 const ainv = act.Invoice ?? act.invoice ?? act.Счёт ?? '';
                                 const asum = act.SumDoc ?? act.Sum ?? act.sum ?? 0;
+                                const updEdo = getActUpdEdoInfo(act, items);
                                 return (
                                     <tr key={anum || i} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={() => setSelectedAct(act)} title="Открыть УПД">
                                         <td style={{ padding: '0.5rem 0.4rem' }}>{formatInvoiceNumber(String(anum))}</td>
                                         <td style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof adt === 'string' ? adt : adt ? String(adt) : undefined} /></td>
                                         <td style={{ padding: '0.5rem 0.4rem' }}>{ainv ? formatInvoiceNumber(String(ainv)) : '—'}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem' }}>
+                                            <span className="role-badge" title={updEdo.label} style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', whiteSpace: 'nowrap', display: 'inline-block', ...edoBadgeStyle(updEdo.tone) }}>{updEdo.shortLabel}</span>
+                                        </td>
                                         {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{asum != null ? formatCurrency(asum) : '—'}</td>}
                                     </tr>
                                 );
@@ -3650,6 +3661,7 @@ useEffect(() => {
                         const sumDoc = act.SumDoc ?? act.Sum ?? act.sum ?? 0;
                         const cust = act.Customer ?? act.customer ?? act.Контрагент ?? act.Contractor ?? act.Organization ?? '';
                         const invoiceNum = act.Invoice ?? act.invoice ?? '';
+                        const updEdo = getActUpdEdoInfo(act, items);
                         return (
                             <Panel key={num || idx} className="cargo-card" onClick={() => setSelectedAct(act)} style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}>
                                 <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
@@ -3678,8 +3690,14 @@ useEffect(() => {
                                 </Flex>
                                 {showSums && (
                                 <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
-                                    <span />
+                                    <span className="role-badge" title={updEdo.label} style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.35rem', borderRadius: '999px', whiteSpace: 'nowrap', ...edoBadgeStyle(updEdo.tone) }}>{updEdo.shortLabel}</span>
                                     <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{sumDoc != null ? formatCurrency(sumDoc) : '—'}</Typography.Body>
+                                </Flex>
+                                )}
+                                {!showSums && (
+                                <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
+                                    <span className="role-badge" title={updEdo.label} style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.35rem', borderRadius: '999px', whiteSpace: 'nowrap', ...edoBadgeStyle(updEdo.tone) }}>{updEdo.shortLabel}</span>
+                                    <span />
                                 </Flex>
                                 )}
                                 <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>

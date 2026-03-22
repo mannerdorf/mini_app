@@ -59,10 +59,11 @@ function edoSlug(s: string): string {
 /** Синонимы / человекочитаемые строки от API → ключ EDO_STATUS_MAP */
 const SLUG_TO_CANONICAL: Record<string, keyof typeof EDO_STATUS_MAP> = {
   waitingforrecipientsignature: "WaitingForRecipientSignature",
-  /** «with recipient signature» */
-  withrecipientsignature: "WaitingForRecipientSignature",
-  /** «with recipients signature» (мн. ч.) */
-  withrecipientssignature: "WaitingForRecipientSignature",
+  /**
+   * «with recipient(s) signature» — по смыслу «есть подпись получателя» (подписан), не «ожидает».
+   */
+  withrecipientsignature: "RecipientResponseStatusSigned",
+  withrecipientssignature: "RecipientResponseStatusSigned",
   awaitingrecipientsignature: "WaitingForRecipientSignature",
   waitingforrecipientsign: "WaitingForRecipientSignature",
   recipientresponsenotacceptable: "RecipientResponseStatusNotAcceptable",
@@ -85,9 +86,9 @@ function resolveCanonicalKey(raw: string): keyof typeof EDO_STATUS_MAP | null {
   const slug = edoSlug(trimmed);
   if (SLUG_TO_CANONICAL[slug]) return SLUG_TO_CANONICAL[slug];
 
-  // Фразы вида "with recipient signature" / "with recipients signature"
+  // «With … signature» = подпись уже есть → подписан (П), не ожидание (ОП)
   if (/with\s+recipients?\s+signature/i.test(trimmed)) {
-    return "WaitingForRecipientSignature";
+    return "RecipientResponseStatusSigned";
   }
   if (/waiting\s+for\s+recipient/i.test(trimmed) && /signature/i.test(trimmed)) {
     return "WaitingForRecipientSignature";
