@@ -1808,8 +1808,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   }, [activeTab, items]);
 
   const summaryStatusChips = useMemo(() => {
-    if (!summaryHeader) return [] as Array<{ filterValue: string; label: string; rowCount: number; totalInboundRub: number }>;
-    const grouped = new Map<string, { filterValue: string; label: string; rowCount: number; totalInboundRub: number }>();
+    if (!summaryHeader) return [] as Array<{ filterValue: string; label: string; rowCount: number; totalClaimRub: number; totalInboundRub: number }>;
+    const grouped = new Map<string, { filterValue: string; label: string; rowCount: number; totalClaimRub: number; totalInboundRub: number }>();
     for (const row of summaryHeader.inboundByPostbStatus) {
       const raw = coerceStatusDisplay(row.status).trim();
       const low = raw.toLowerCase();
@@ -1824,22 +1824,33 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         : low.includes("консолидац")
           ? "не доставлено"
           : raw;
+      const claimAmount = parseWbMoneyNumber(row.totalClaimRub) ?? 0;
       const amount = parseWbMoneyNumber(row.totalInboundRub) ?? 0;
       const prev = grouped.get(filterValue);
       if (prev) {
         prev.rowCount += Number(row.rowCount ?? 0);
+        prev.totalClaimRub += claimAmount;
         prev.totalInboundRub += amount;
       } else {
         grouped.set(filterValue, {
           filterValue,
           label,
           rowCount: Number(row.rowCount ?? 0),
+          totalClaimRub: claimAmount,
           totalInboundRub: amount,
         });
       }
     }
     return Array.from(grouped.values()).sort((a, b) => b.totalInboundRub - a.totalInboundRub);
   }, [summaryHeader]);
+
+  const getSummaryChipToneClass = useCallback((chip: { filterValue: string; label: string }) => {
+    const low = chip.label.toLowerCase();
+    if (chip.filterValue === WB_SUMMARY_FILTER_POSTB_NOT_SENT) return " wb-summary-status-item--tone-not-sent";
+    if (low.includes("доставлен")) return " wb-summary-status-item--tone-delivered";
+    if (low.includes("не достав")) return " wb-summary-status-item--tone-undelivered";
+    return " wb-summary-status-item--tone-neutral";
+  }, []);
 
   /** Сводная: склеиваем строки до уровня «Перевозка HAULZ» на текущей странице. */
   const summaryViewItems = useMemo<Record<string, unknown>[]>(() => {
@@ -2250,7 +2261,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                     <div className="wb-summary-status-list">
                       <button
                         type="button"
-                        className={`wb-summary-status-item wb-summary-status-item--filter${!summaryFilterStatus ? " wb-summary-status-item--active" : ""}`}
+                        className={`wb-summary-status-item wb-summary-status-item--filter wb-summary-status-item--tone-all${!summaryFilterStatus ? " wb-summary-status-item--active" : ""}`}
                         onClick={() => {
                           setSummaryFilterStatus("");
                           setPage(1);
@@ -2268,20 +2279,35 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                           <button
                             type="button"
                             key={key}
-                            className={`wb-summary-status-item wb-summary-status-item--filter${isActive ? " wb-summary-status-item--active" : ""}`}
+                            className={`wb-summary-status-item wb-summary-status-item--filter${getSummaryChipToneClass(chip)}${isActive ? " wb-summary-status-item--active" : ""}`}
                             onClick={() => {
                               setSummaryFilterStatus((prev) => (prev === filterValue ? "" : filterValue));
                               setPage(1);
                             }}
                           >
                             <span className="wb-summary-status-label">{chip.label}</span>
-                            <strong className="wb-summary-status-value">
-                              {Number(chip.totalInboundRub).toLocaleString("ru-RU", {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              })}{" "}
-                              ₽
-                            </strong>
+                            <div className="wb-summary-status-sums">
+                              <span className="wb-summary-status-sum-line">
+                                Претензии:{" "}
+                                <strong>
+                                  {Number(chip.totalClaimRub).toLocaleString("ru-RU", {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}{" "}
+                                  ₽
+                                </strong>
+                              </span>
+                              <span className="wb-summary-status-sum-line">
+                                Описи:{" "}
+                                <strong>
+                                  {Number(chip.totalInboundRub).toLocaleString("ru-RU", {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}{" "}
+                                  ₽
+                                </strong>
+                              </span>
+                            </div>
                             <span className="wb-summary-status-meta">({chip.rowCount} м.)</span>
                           </button>
                         );
