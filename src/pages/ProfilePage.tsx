@@ -1111,21 +1111,28 @@ export function ProfilePage({
             return;
         }
         try {
+            setScannerOpen(true);
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: { ideal: "environment" } },
                 audio: false,
             });
             scannerStreamRef.current = stream;
-            const video = scannerVideoRef.current;
+            let video = scannerVideoRef.current;
+            if (!video) {
+                for (let i = 0; i < 12 && !video; i += 1) {
+                    await new Promise((resolve) => window.setTimeout(resolve, 25));
+                    video = scannerVideoRef.current;
+                }
+            }
             if (!video) {
                 for (const track of stream.getTracks()) track.stop();
                 scannerStreamRef.current = null;
                 setScannerError("Не удалось открыть окно сканера");
+                setScannerOpen(false);
                 return;
             }
             (video as HTMLVideoElement & { srcObject?: MediaStream | null }).srcObject = stream;
             await video.play().catch(() => undefined);
-            setScannerOpen(true);
 
             const detectorCtor = (window as Window & {
                 BarcodeDetector?: new (options?: { formats?: string[] }) => { detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue?: string }>> };

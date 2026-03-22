@@ -118,29 +118,51 @@ export function parseGetPosilkaResponse(data: unknown): PosilkaParsed {
   if (!isPlainObject(data)) return empty;
   const o = data as Record<string, unknown>;
   if (o.Success === false) return empty;
-  const sverki = o.Сверки;
-  if (!Array.isArray(sverki) || sverki.length === 0) return empty;
-
-  const first = sverki[0];
-  if (!isPlainObject(first)) return empty;
-  const row = first as Record<string, unknown>;
-  const perevozka = asStr(row.Перевозка ?? row.перевозка);
-
-  const statusy = row.Статусы;
-  const posilkaSteps: Array<{ title: string; date: string }> = [];
-  if (Array.isArray(statusy)) {
+  const getRowStatuses = (row: Record<string, unknown>): Array<{ title: string; date: string }> => {
+    const statusy = row.Статусы ?? row.статусы ?? row.Statuses ?? row.statuses;
+    const out: Array<{ title: string; date: string }> = [];
+    if (!Array.isArray(statusy)) return out;
     for (const s of statusy) {
       if (!isPlainObject(s)) continue;
       const ss = s as Record<string, unknown>;
-      const title = asStr(ss.Состояние ?? ss.состояние);
-      const date = asStr(ss.Период ?? ss.период);
-      if (title || date) posilkaSteps.push({ title: title || "—", date });
+      const title = asStr(ss.Состояние ?? ss.состояние ?? ss.Status ?? ss.status);
+      const date = asStr(ss.Период ?? ss.период ?? ss.Date ?? ss.date);
+      if (title || date) out.push({ title: title || "—", date });
+    }
+    return out;
+  };
+
+  // Формат 1: { Сверки: [ ... ] }
+  const sverki = o.Сверки;
+  if (Array.isArray(sverki) && sverki.length > 0) {
+    const first = sverki[0];
+    if (isPlainObject(first)) {
+      const row = first as Record<string, unknown>;
+      const perevozka = asStr(row.Перевозка ?? row.перевозка ?? row.Number ?? row.number);
+      const posilkaSteps = getRowStatuses(row);
+      let lastStatus = posilkaSteps.length ? posilkaSteps[posilkaSteps.length - 1]!.title : "";
+      if (!lastStatus) lastStatus = asStr(row.Состояние ?? row.состояние ?? row.Status ?? row.status);
+      lastStatus = sanitizePosilkaStatusLabel(lastStatus);
+      return { lastStatus, perevozka, posilkaSteps };
     }
   }
 
-  let lastStatus = posilkaSteps.length ? posilkaSteps[posilkaSteps.length - 1]!.title : "";
-  lastStatus = sanitizePosilkaStatusLabel(lastStatus);
-  return { lastStatus, perevozka, posilkaSteps };
+  // Формат 2: { Посылка: [ { Перевозка, Статусы: [...] } ] }
+  const posilka = o.Посылка;
+  if (Array.isArray(posilka) && posilka.length > 0) {
+    const first = posilka[0];
+    if (isPlainObject(first)) {
+      const row = first as Record<string, unknown>;
+      const perevozka = asStr(row.Перевозка ?? row.перевозка ?? row.Number ?? row.number);
+      const posilkaSteps = getRowStatuses(row);
+      let lastStatus = posilkaSteps.length ? posilkaSteps[posilkaSteps.length - 1]!.title : "";
+      if (!lastStatus) lastStatus = asStr(row.Состояние ?? row.состояние ?? row.Status ?? row.status);
+      lastStatus = sanitizePosilkaStatusLabel(lastStatus);
+      return { lastStatus, perevozka, posilkaSteps };
+    }
+  }
+
+  return empty;
 }
 
 /** Последний статус посылки (для бейджа): сначала формат Сверки, иначе эвристика. */
