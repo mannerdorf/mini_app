@@ -1,6 +1,13 @@
 import { cityToCode, normalizeInvoiceStatus, parseCargoNumbersFromText, stripOoo } from "../lib/formatUtils";
 import { getFilterKeyByStatus } from "../lib/statusUtils";
-import { getInvoiceBillEdoInfo, getInvoiceEdoInfoByDocLabel } from "../lib/edoStatus";
+import {
+  getInvoiceBillEdoInfo,
+  getInvoiceEdoInfoByDocLabel,
+  INVOICE_EDO_MERGED_COLUMNS,
+  isInvoiceEdoSigned,
+  type InvoiceEdoDocAgg,
+  type InvoiceEdoMergedDocLabel,
+} from "../lib/edoStatus";
 import type { StatusFilter } from "../types";
 
 export const INVOICE_FAVORITES_VALUE = "__favorites__";
@@ -160,6 +167,30 @@ export function getActUpdEdoInfo(act: any, invoices: any[] | undefined | null) {
   const inv = findInvoiceLinkedToAct(act, invoices);
   if (inv) return getInvoiceEdoInfoByDocLabel(inv, "УПД");
   return getInvoiceEdoInfoByDocLabel(act, "УПД");
+}
+
+/** ЭДО по строкам УПД: статусы берём из связанного счёта, иначе с объекта УПД (как в склеенных счетах). */
+export function aggregateActsEdoDocStats(
+  acts: any[] | undefined | null,
+  invoices: any[] | undefined | null,
+): Record<InvoiceEdoMergedDocLabel, InvoiceEdoDocAgg> {
+  const out: Record<InvoiceEdoMergedDocLabel, InvoiceEdoDocAgg> = {
+    ЭР: { signed: 0, total: 0 },
+    АПП: { signed: 0, total: 0 },
+    УПД: { signed: 0, total: 0 },
+    СЧЕТ: { signed: 0, total: 0 },
+  };
+  for (const act of acts || []) {
+    const inv = findInvoiceLinkedToAct(act, invoices);
+    const source = inv ?? act;
+    for (const label of INVOICE_EDO_MERGED_COLUMNS) {
+      const info = getInvoiceEdoInfoByDocLabel(source, label);
+      if (!info.raw) continue;
+      out[label].total += 1;
+      if (isInvoiceEdoSigned(info)) out[label].signed += 1;
+    }
+  }
+  return out;
 }
 
 export function normCargoKey(num: string | null | undefined): string {
