@@ -58,6 +58,18 @@ const WB_INBOUND_HIGHLIGHT_INVENTORY_NUMBERS = new Set([
   "208630095",
 ]);
 
+/** Блок «ШК коробов (текст)» + «Применить к описям» на вкладке «Описи». Включите true, если снова понадобится. */
+const WB_SHOW_INBOUND_BOX_SHK_TEXT_PANEL = false;
+
+/** Фильтр сводной: строки без last_status в кэше PostB (совпадает с api/wb/summary.ts). */
+const WB_SUMMARY_FILTER_POSTB_EMPTY = "__postb_empty__";
+
+function wbSummaryStatusFilterButtonLabel(raw: string): string {
+  if (!raw) return "Все";
+  if (raw === WB_SUMMARY_FILTER_POSTB_EMPTY) return "Без статуса (PostB)";
+  return raw;
+}
+
 function normalizeWbInventoryNumberKey(raw: unknown): string {
   return String(raw ?? "")
     .replace(/\s+/g, "")
@@ -888,6 +900,16 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     totalClaimRub: string | number;
     totalInboundRub: string | number;
     totalNotInInboundClaimRub: string | number;
+    /** Стоимость в описи по строкам, у которых в PostB нет last_status (в «Все» учтены, по статусу — нет). */
+    totalInboundRubPostbBlank: string | number;
+    rowCountPostbBlank: number;
+    /** Разбивка сумм по last_status PostB (без учёта фильтра статуса в запросе). */
+    inboundByPostbStatus: Array<{
+      status: string;
+      rowCount: number;
+      totalClaimRub: string | number;
+      totalInboundRub: string | number;
+    }>;
   } | null>(null);
   const [summaryOnlyNotInInbound, setSummaryOnlyNotInInbound] = useState(false);
   const [summaryGroupByPerevozka, setSummaryGroupByPerevozka] = useState(false);
@@ -1049,6 +1071,21 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             totalClaimRub: (sh as { totalClaimRub?: unknown }).totalClaimRub ?? "0",
             totalInboundRub: (sh as { totalInboundRub?: unknown }).totalInboundRub ?? "0",
             totalNotInInboundClaimRub: (sh as { totalNotInInboundClaimRub?: unknown }).totalNotInInboundClaimRub ?? "0",
+            totalInboundRubPostbBlank: (sh as { totalInboundRubPostbBlank?: unknown }).totalInboundRubPostbBlank ?? "0",
+            rowCountPostbBlank: Number((sh as { rowCountPostbBlank?: unknown }).rowCountPostbBlank ?? 0),
+            inboundByPostbStatus: (() => {
+              const raw = (sh as { inboundByPostbStatus?: unknown }).inboundByPostbStatus;
+              if (!Array.isArray(raw)) return [];
+              return raw.map((row) => {
+                const r = row as Record<string, unknown>;
+                return {
+                  status: String(r.status ?? ""),
+                  rowCount: Number(r.rowCount ?? 0),
+                  totalClaimRub: r.totalClaimRub ?? "0",
+                  totalInboundRub: r.totalInboundRub ?? "0",
+                };
+              });
+            })(),
           });
         } else {
           setSummaryHeader(null);
@@ -1765,7 +1802,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       { key: "lvDataUletelo", label: "Дата отправки" },
       { key: "lvDataKVrucheniyu", label: "Дата к Вручению" },
       { key: "lvDataDostavleno", label: "Дата Доставлено" },
-      { key: "status1c", label: "Статус 1С" },
+      { key: "status1c", label: "Статус (PostB)" },
     ];
   }, [activeTab]);
 
@@ -1911,7 +1948,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                   setSummaryDdInv(false);
                 }}
               >
-                Статус 1С: {summaryFilterStatus || "Все"} <ChevronDown className="w-4 h-4" />
+                Статус (PostB): {wbSummaryStatusFilterButtonLabel(summaryFilterStatus)} <ChevronDown className="w-4 h-4" />
               </Button>
             </div>
             <FilterDropdownPortal
@@ -1929,19 +1966,31 @@ export function WildberriesPage({ auth, canUpload }: Props) {
               >
                 <Typography.Body>Все</Typography.Body>
               </div>
-              {summaryFilterOpts.statuses.map((s) => (
-                <div
-                  key={s}
-                  className="dropdown-item"
-                  onClick={() => {
-                    setSummaryFilterStatus(s);
-                    setSummaryDdStatus(false);
-                    setPage(1);
-                  }}
-                >
-                  <Typography.Body>{s}</Typography.Body>
-                </div>
-              ))}
+              <div
+                className="dropdown-item"
+                onClick={() => {
+                  setSummaryFilterStatus(WB_SUMMARY_FILTER_POSTB_EMPTY);
+                  setSummaryDdStatus(false);
+                  setPage(1);
+                }}
+              >
+                <Typography.Body>Без статуса (PostB)</Typography.Body>
+              </div>
+              {summaryFilterOpts.statuses
+                .filter((s) => s !== WB_SUMMARY_FILTER_POSTB_EMPTY)
+                .map((s) => (
+                  <div
+                    key={s}
+                    className="dropdown-item"
+                    onClick={() => {
+                      setSummaryFilterStatus(s);
+                      setSummaryDdStatus(false);
+                      setPage(1);
+                    }}
+                  >
+                    <Typography.Body>{s}</Typography.Body>
+                  </div>
+                ))}
             </FilterDropdownPortal>
 
             <div ref={summaryBoxBtnRef} style={{ display: "inline-flex" }}>
@@ -2124,7 +2173,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
           </div>
         )}
 
-        {canUpload && activeTab === "inbound" && (
+        {WB_SHOW_INBOUND_BOX_SHK_TEXT_PANEL && canUpload && activeTab === "inbound" && (
           <div
             className="wb-box-shk-panel"
             style={{
@@ -2266,6 +2315,57 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                 ₽
               </strong>
             </Typography.Body>
+            {summaryHeader &&
+            !summaryFilterStatus &&
+            summaryHeader.inboundByPostbStatus.length > 0 && (
+              <div
+                style={{
+                  flex: "1 1 100%",
+                  marginTop: "0.15rem",
+                  paddingTop: "0.55rem",
+                  borderTop: "1px dashed var(--color-border)",
+                }}
+              >
+                <Typography.Body
+                  style={{
+                    margin: "0 0 0.4rem 0",
+                    fontSize: "0.8125rem",
+                    color: "var(--color-text-secondary)",
+                  }}
+                >
+                  Стоимость в описях по статусам (PostB, <strong>last_status</strong>):
+                </Typography.Body>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "0.35rem 1.1rem",
+                    alignItems: "baseline",
+                  }}
+                >
+                  {summaryHeader.inboundByPostbStatus.map((row) => {
+                    const label = row.status.trim() ? row.status : "Без статуса (PostB)";
+                    const key = row.status.trim() ? row.status : "__empty__";
+                    return (
+                      <Typography.Body key={key} style={{ margin: 0, fontSize: "0.875rem" }}>
+                        <span style={{ color: "var(--color-text-secondary)" }}>{label}: </span>
+                        <strong>
+                          {Number(row.totalInboundRub).toLocaleString("ru-RU", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{" "}
+                          ₽
+                        </strong>
+                        <span style={{ color: "var(--color-text-secondary)", fontSize: "0.8125rem" }}>
+                          {" "}
+                          ({row.rowCount} м.)
+                        </span>
+                      </Typography.Body>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <Typography.Body style={{ margin: 0 }}>
               <span style={{ color: "var(--color-text-secondary)" }}>Нет в описях (по претензии): </span>
               <strong>

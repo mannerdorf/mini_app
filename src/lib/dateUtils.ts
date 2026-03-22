@@ -2,6 +2,12 @@ import type { DateFilter } from "../types";
 
 export const getTodayDate = () => new Date().toISOString().split('T')[0];
 
+/** Год-месяц для `input type="month"` (локальная дата). */
+export const getCurrentMonthYm = () => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+};
+
 export const isDateToday = (dateStr: string | undefined): boolean => {
     if (!dateStr) return false;
     const d = dateStr.split('T')[0];

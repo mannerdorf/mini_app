@@ -9,6 +9,7 @@ import { PnlSection } from "../pnl/PnlSection";
 import { RefSubdivisionsView } from "../pnl/RefSubdivisionsView";
 import { SUBDIVISIONS } from "../pnl/constants";
 import { stripOoo } from "../lib/formatUtils";
+import { getCurrentMonthYm } from "../lib/dateUtils";
 import { downloadBase64File } from "../utils";
 
 const PERMISSION_KEYS = [
@@ -7030,6 +7031,15 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: "0.4rem 0.6rem", background: "var(--color-bg)" }}
                   aria-label="Месяц табеля"
                 />
+                <Button
+                  type="button"
+                  className="filter-button"
+                  title="Текущий месяц"
+                  style={{ padding: "0.4rem 0.55rem", whiteSpace: "nowrap" }}
+                  onClick={() => setTimesheetMonth(getCurrentMonthYm())}
+                >
+                  Сегодня
+                </Button>
                 <Button
                   type="button"
                   className="filter-button"

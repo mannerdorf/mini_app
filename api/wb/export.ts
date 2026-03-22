@@ -154,8 +154,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const sparams: unknown[] = [];
         const extraParts: string[] = [];
         if (filterLogisticsStatus && hasPostbCache) {
-          sparams.push(filterLogisticsStatus);
-          extraParts.push(`coalesce(nullif(trim(ppc.last_status), ''), '') = $${sparams.length}`);
+          if (filterLogisticsStatus === "__postb_empty__") {
+            extraParts.push(`coalesce(nullif(trim(ppc.last_status), ''), '') = ''`);
+          } else {
+            sparams.push(filterLogisticsStatus);
+            extraParts.push(`coalesce(nullif(trim(ppc.last_status), ''), '') = $${sparams.length}`);
+          }
         }
         if (filterBoxExact) {
           sparams.push(filterBoxExact);

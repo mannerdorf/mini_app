@@ -17,6 +17,7 @@ import { ExpenseRequestsPage } from "./ExpenseRequestsPage";
 import { AboutCompanyPage } from "./AboutCompanyPage";
 import { NotificationsPage } from "./NotificationsPage";
 import { AisStreamPage } from "./AisStreamPage";
+import { getCurrentMonthYm } from "../lib/dateUtils";
 export function ProfilePage({
     accounts,
     activeAccountId,
@@ -1943,6 +1944,15 @@ export function ProfilePage({
                                 onChange={(e) => setDepartmentTimesheetMonth(e.target.value)}
                                 style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.4rem 0.6rem', background: 'var(--color-bg)' }}
                             />
+                            <Button
+                                type="button"
+                                className="filter-button"
+                                title="Текущий месяц"
+                                style={{ padding: '0.4rem 0.55rem', whiteSpace: 'nowrap' }}
+                                onClick={() => setDepartmentTimesheetMonth(getCurrentMonthYm())}
+                            >
+                                Сегодня
+                            </Button>
                             <Button type="button" className="filter-button" onClick={() => void fetchDepartmentTimesheet()}>
                                 Обновить
                             </Button>

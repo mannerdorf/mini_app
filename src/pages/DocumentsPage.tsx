@@ -13,8 +13,8 @@ import { downloadBase64File } from "../utils";
 import { normalizeStatus, STATUS_MAP, getFilterKeyByStatus } from "../lib/statusUtils";
 import { StatusBadge } from "../components/shared/StatusBadges";
 import {
-    type EdoTone,
     aggregateInvoiceEdoDocStats,
+    edoTableCellBadgeStyle,
     formatEdoSignedRatio,
     getInvoiceBillEdoInfo,
     INVOICE_EDO_MERGED_COLUMNS,
@@ -1744,14 +1744,6 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
     }, [docSection, items, actsItems]);
 
-    const edoBadgeStyle = useCallback((tone: EdoTone): React.CSSProperties => {
-        if (tone === "success") return { background: "rgba(34,197,94,0.2)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.35)" };
-        if (tone === "warning") return { background: "rgba(234,179,8,0.2)", color: "#ca8a04", border: "1px solid rgba(202,138,4,0.35)" };
-        if (tone === "danger") return { background: "rgba(239,68,68,0.2)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.35)" };
-        if (tone === "info") return { background: "rgba(59,130,246,0.15)", color: "var(--color-primary-blue)", border: "1px solid rgba(59,130,246,0.35)" };
-        return { background: "var(--color-panel-secondary)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border)" };
-    }, []);
-
     const uniqueTransportVehicles = useMemo(() => {
         const set = new Set<string>();
         cargoTransportByNumber.forEach((v) => {
@@ -3420,7 +3412,7 @@ useEffect(() => {
                                                                         <td className="doc-inner-table-date" style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} /></td>
                                                                         <td className="doc-inner-table-status" style={{ padding: '0.35rem 0.3rem' }}>{ist ? <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: istBadgeStyle.bg, color: istBadgeStyle.color, border: '1px solid var(--color-border)', whiteSpace: 'nowrap', display: 'inline-block' }}>{ist}</span> : '—'}</td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>
-                                                                            <span className="role-badge" title={edo.label} style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', whiteSpace: 'nowrap', display: 'inline-block', ...edoBadgeStyle(edo.tone) }}>{edo.shortLabel}</span>
+                                                                            <span className="role-badge" title={edo.label} style={edoTableCellBadgeStyle(edo.tone)}>{edo.shortLabel}</span>
                                                                         </td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>
                                                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
@@ -3486,7 +3478,7 @@ useEffect(() => {
                                         <td style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} /></td>
                                         <td style={{ padding: '0.5rem 0.4rem' }}>{ist ? <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: istBadgeStyle.bg, color: istBadgeStyle.color, border: '1px solid var(--color-border)', whiteSpace: 'nowrap', display: 'inline-block' }}>{ist}</span> : '—'}</td>
                                         <td style={{ padding: '0.5rem 0.4rem' }}>
-                                            <span className="role-badge" title={edo.label} style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', whiteSpace: 'nowrap', display: 'inline-block', ...edoBadgeStyle(edo.tone) }}>{edo.shortLabel}</span>
+                                            <span className="role-badge" title={edo.label} style={edoTableCellBadgeStyle(edo.tone)}>{edo.shortLabel}</span>
                                         </td>
                                         <td style={{ padding: '0.5rem 0.4rem' }}>
                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
@@ -3539,7 +3531,7 @@ useEffect(() => {
                                 <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
                                     <Flex align="center" gap="0.35rem" style={{ minWidth: 0 }}>
                                         {st && <span className="role-badge" style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.4rem', borderRadius: '999px', background: badgeStyle.bg, color: badgeStyle.color, border: '1px solid var(--color-border)', whiteSpace: 'nowrap' }}>{st}</span>}
-                                        <span className="role-badge" title={edo.label} style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.35rem', borderRadius: '999px', whiteSpace: 'nowrap', ...edoBadgeStyle(edo.tone) }}>{edo.shortLabel}</span>
+                                        <span className="role-badge" title={edo.label} style={edoTableCellBadgeStyle(edo.tone)}>{edo.shortLabel}</span>
                                     </Flex>
                                     <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{sum != null ? formatCurrency(sum) : '—'}</Typography.Body>
                                 </Flex>
@@ -3656,7 +3648,7 @@ useEffect(() => {
                                                                         <td className="doc-inner-table-date" style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof adt === 'string' ? adt : adt ? String(adt) : undefined} /></td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{ainv ? formatInvoiceNumber(String(ainv)) : '—'}</td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>
-                                                                            <span className="role-badge" title={updEdo.label} style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', whiteSpace: 'nowrap', display: 'inline-block', ...edoBadgeStyle(updEdo.tone) }}>{updEdo.shortLabel}</span>
+                                                                            <span className="role-badge" title={updEdo.label} style={edoTableCellBadgeStyle(updEdo.tone)}>{updEdo.shortLabel}</span>
                                                                         </td>
                                                                         {showSums && <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{asum != null ? formatCurrency(asum) : '—'}</td>}
                                                                     </tr>
@@ -3711,7 +3703,7 @@ useEffect(() => {
                                         <td style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof adt === 'string' ? adt : adt ? String(adt) : undefined} /></td>
                                         <td style={{ padding: '0.5rem 0.4rem' }}>{ainv ? formatInvoiceNumber(String(ainv)) : '—'}</td>
                                         <td style={{ padding: '0.5rem 0.4rem' }}>
-                                            <span className="role-badge" title={updEdo.label} style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', whiteSpace: 'nowrap', display: 'inline-block', ...edoBadgeStyle(updEdo.tone) }}>{updEdo.shortLabel}</span>
+                                            <span className="role-badge" title={updEdo.label} style={edoTableCellBadgeStyle(updEdo.tone)}>{updEdo.shortLabel}</span>
                                         </td>
                                         {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{asum != null ? formatCurrency(asum) : '—'}</td>}
                                     </tr>
@@ -3758,13 +3750,13 @@ useEffect(() => {
                                 </Flex>
                                 {showSums && (
                                 <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
-                                    <span className="role-badge" title={updEdo.label} style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.35rem', borderRadius: '999px', whiteSpace: 'nowrap', ...edoBadgeStyle(updEdo.tone) }}>{updEdo.shortLabel}</span>
+                                    <span className="role-badge" title={updEdo.label} style={edoTableCellBadgeStyle(updEdo.tone)}>{updEdo.shortLabel}</span>
                                     <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{sumDoc != null ? formatCurrency(sumDoc) : '—'}</Typography.Body>
                                 </Flex>
                                 )}
                                 {!showSums && (
                                 <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
-                                    <span className="role-badge" title={updEdo.label} style={{ fontSize: '0.62rem', fontWeight: 700, padding: '0.12rem 0.35rem', borderRadius: '999px', whiteSpace: 'nowrap', ...edoBadgeStyle(updEdo.tone) }}>{updEdo.shortLabel}</span>
+                                    <span className="role-badge" title={updEdo.label} style={edoTableCellBadgeStyle(updEdo.tone)}>{updEdo.shortLabel}</span>
                                     <span />
                                 </Flex>
                                 )}
@@ -3808,7 +3800,7 @@ useEffect(() => {
             )}
             {docSection === 'Заявки' && (
             <>
-            <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div className="documents-new-order-bar">
                 <Button
                     onClick={() => setNewOrderModalOpen(true)}
                     disabled={!auth?.login || !auth?.password || !effectiveActiveInn}
@@ -3843,7 +3835,7 @@ useEffect(() => {
             />
             {(ordersLoading || !!ordersError) && <DocumentsStateBlocks loading={ordersLoading} error={ordersError} emptyText="" />}
             {!ordersLoading && !ordersError && tableModeEffective && orderRowsSorted.length > 0 && (
-                <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
+                <div className="cargo-card documents-zayavki-below-new-order" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
@@ -4065,7 +4057,7 @@ useEffect(() => {
                 </div>
             )}
             {!ordersLoading && !ordersError && !tableModeEffective && orderRowsSorted.length > 0 && (
-                <div className="cargo-list">
+                <div className="cargo-list documents-zayavki-below-new-order">
                     {orderRowsSorted.map((row: any, idx: number) => {
                         const rawDate = row?.Дата ?? row?.DateZayavki ?? row?.Date ?? row?.date ?? '';
                         const requestNumber = String(row?.НомерЗаявки ?? row?.Номер ?? row?.Number ?? row?.number ?? row?.N ?? '');

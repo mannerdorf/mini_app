@@ -14,6 +14,9 @@ function qsOne(req: VercelRequest, key: string): string {
 
 const SUMMARY_MAX_LIMIT = 1000;
 
+/** Значение filterLogisticsStatus: только строки без last_status в wb_postb_posilka_cache (или пустой). */
+const WB_SUMMARY_FILTER_POSTB_EMPTY = "__postb_empty__";
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "wb_summary_list");
   if (req.method !== "GET") {
@@ -38,6 +41,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           totalClaimRub: 0,
           totalInboundRub: 0,
           totalNotInInboundClaimRub: 0,
+          totalInboundRubPostbBlank: 0,
+          rowCountPostbBlank: 0,
+          inboundByPostbStatus: [],
         },
         request_id: ctx.requestId,
       });
@@ -101,10 +107,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       params.push(brand.toLowerCase());
       where.push(`lower(coalesce(i.brand, '')) like '%' || $${params.length} || '%'`);
     }
-    if (filterLogisticsStatus && hasPostbCache) {
-      params.push(filterLogisticsStatus);
-      where.push(`coalesce(nullif(trim(ppc.last_status), ''), '') = $${params.length}`);
-    }
     if (filterBoxExact) {
       params.push(filterBoxExact);
       where.push(`nullif(trim(s.box_id), '') = $${params.length}`);
@@ -144,6 +146,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         or coalesce(i.box_shk, '') ilike $${qp}
         ${lpSearch}
       )`);
+    }
+
+    /** Без фильтра по статусу PostB — для разбивки сумм по статусам. */
+    const paramsBeforeStatus = [...params];
+    const whereBeforeStatus = [...where];
+
+    if (filterLogisticsStatus && hasPostbCache) {
+      if (filterLogisticsStatus === WB_SUMMARY_FILTER_POSTB_EMPTY) {
+        where.push(`coalesce(nullif(trim(ppc.last_status), ''), '') = ''`);
+      } else {
+        params.push(filterLogisticsStatus);
+        where.push(`coalesce(nullif(trim(ppc.last_status), ''), '') = $${params.length}`);
+      }
     }
 
     const whereBaseSql = `where ${where.join(" and ")}`;
@@ -215,11 +230,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
     const totalNotInInboundClaimRub = notInInboundRes.rows[0]?.v ?? "0";
 
-    const countRes = await pool.query<{ total: number; total_claim_rub: string; total_inbound_rub: string }>(
+    const countSelectPostbBlank = hasPostbCache
+      ? `,
+         coalesce(sum(i.price_rub) filter (
+           where i.id is not null
+             and coalesce(nullif(trim(ppc.last_status), ''), '') = ''
+         ), 0)::numeric as total_inbound_rub_postb_blank,
+         count(*) filter (where coalesce(nullif(trim(ppc.last_status), ''), '') = '')::int as row_count_postb_blank`
+      : `,
+         0::numeric as total_inbound_rub_postb_blank,
+         0::int as row_count_postb_blank`;
+
+    const countRes = await pool.query<{
+      total: number;
+      total_claim_rub: string;
+      total_inbound_rub: string;
+      total_inbound_rub_postb_blank: string;
+      row_count_postb_blank: number;
+    }>(
       `select
          count(*)::int as total,
          coalesce(sum(c.amount_rub) filter (where c.id is not null), 0)::numeric as total_claim_rub,
          coalesce(sum(i.price_rub) filter (where i.id is not null), 0)::numeric as total_inbound_rub
+         ${countSelectPostbBlank}
        ${fromJoins}
        ${whereFullSql}`,
       params,
@@ -227,6 +260,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const total = countRes.rows[0]?.total ?? 0;
     const totalClaimRub = countRes.rows[0]?.total_claim_rub ?? "0";
     const totalInboundRub = countRes.rows[0]?.total_inbound_rub ?? "0";
+    const totalInboundRubPostbBlank = countRes.rows[0]?.total_inbound_rub_postb_blank ?? "0";
+    const rowCountPostbBlank = countRes.rows[0]?.row_count_postb_blank ?? 0;
+
+    type StatusAggRow = {
+      postb_status: string;
+      row_count: number;
+      total_claim_rub: string;
+      total_inbound_rub: string;
+    };
+    let inboundByPostbStatus: {
+      status: string;
+      rowCount: number;
+      totalClaimRub: string;
+      totalInboundRub: string;
+    }[] = [];
+    if (hasPostbCache) {
+      const whereBreakdownParts = onlyNotInInbound
+        ? [...whereBeforeStatus, "s.inbound_item_id is null"]
+        : whereBeforeStatus;
+      const whereBreakdownSql = `where ${whereBreakdownParts.join(" and ")}`;
+      const br = await pool.query<StatusAggRow>(
+        `select
+           coalesce(nullif(trim(ppc.last_status), ''), '') as postb_status,
+           count(*)::int as row_count,
+           coalesce(sum(c.amount_rub) filter (where c.id is not null), 0)::numeric as total_claim_rub,
+           coalesce(sum(i.price_rub) filter (where i.id is not null), 0)::numeric as total_inbound_rub
+         ${fromJoins}
+         ${whereBreakdownSql}
+         group by 1
+         order by
+           (case when min(coalesce(nullif(trim(ppc.last_status), ''), '')) = '' then 1 else 0 end),
+           coalesce(sum(i.price_rub) filter (where i.id is not null), 0) desc nulls last`,
+        paramsBeforeStatus,
+      );
+      inboundByPostbStatus = br.rows.map((r) => ({
+        status: String(r.postb_status ?? ""),
+        rowCount: Number(r.row_count ?? 0),
+        totalClaimRub: String(r.total_claim_rub ?? "0"),
+        totalInboundRub: String(r.total_inbound_rub ?? "0"),
+      }));
+    }
 
     const ORDER_EXPR: Record<string, string> = {
       shk: `coalesce(nullif(trim(c.shk), ''), nullif(trim(s.shk), ''), nullif(trim(i.shk), ''))`,
@@ -321,6 +395,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         totalClaimRub,
         totalInboundRub,
         totalNotInInboundClaimRub,
+        totalInboundRubPostbBlank,
+        rowCountPostbBlank,
+        inboundByPostbStatus,
       },
       items,
       request_id: ctx.requestId,

@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 export type EdoTone = "success" | "warning" | "danger" | "muted" | "info";
 
 export type EdoStatusInfo = {
@@ -216,4 +218,54 @@ export function aggregateInvoiceEdoDocStats(invoices: any[] | undefined | null):
 export function formatEdoSignedRatio(signed: number, total: number): string {
   if (total <= 0) return "—";
   return `${signed}/${total}`;
+}
+
+/** Фон/бордер мини-бейджа ЭДО по тону */
+export function edoToneSurfaceStyle(tone: EdoTone): CSSProperties {
+  if (tone === "success") return { background: "rgba(34,197,94,0.2)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.35)" };
+  if (tone === "warning") return { background: "rgba(234,179,8,0.2)", color: "#ca8a04", border: "1px solid rgba(202,138,4,0.35)" };
+  if (tone === "danger") return { background: "rgba(239,68,68,0.2)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.35)" };
+  if (tone === "info") return { background: "rgba(59,130,246,0.15)", color: "var(--color-primary-blue)", border: "1px solid rgba(59,130,246,0.35)" };
+  return { background: "var(--color-panel-secondary)", color: "var(--color-text-secondary)", border: "1px solid var(--color-border)" };
+}
+
+/**
+ * Мини-бейдж ОП/П/НП/ОТ/НС внутри кнопок скачивания ЭР/АПП/СЧЕТ/УПД.
+ * Класс `edo-doc-download-btn` на кнопке — уменьшенные отступы и иконка (см. styles.css).
+ */
+export function edoDocButtonMiniBadgeStyle(tone: EdoTone): CSSProperties {
+  return {
+    fontSize: "0.54rem",
+    fontWeight: 700,
+    lineHeight: 1,
+    padding: "0.04rem 0.16rem",
+    borderRadius: "999px",
+    whiteSpace: "nowrap",
+    ...edoToneSurfaceStyle(tone),
+  };
+}
+
+/** Легенда ЭДО под кнопками в модалках */
+export function edoLegendBadgeStyle(tone: EdoTone): CSSProperties {
+  return {
+    fontSize: "0.58rem",
+    fontWeight: 700,
+    lineHeight: 1,
+    padding: "0.06rem 0.2rem",
+    borderRadius: "999px",
+    ...edoToneSurfaceStyle(tone),
+  };
+}
+
+/** Колонка «ЭДО» в таблицах раздела Документы */
+export function edoTableCellBadgeStyle(tone: EdoTone): CSSProperties {
+  return {
+    fontSize: "0.58rem",
+    fontWeight: 600,
+    padding: "0.06rem 0.2rem",
+    borderRadius: "999px",
+    whiteSpace: "nowrap",
+    display: "inline-block",
+    ...edoToneSurfaceStyle(tone),
+  };
 }

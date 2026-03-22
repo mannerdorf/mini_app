@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Button, Input, Typography } from "@maxhub/max-ui";
 import { X } from "lucide-react";
+import { getTodayDate } from "../../lib/dateUtils";
 
 type CustomPeriodModalProps = {
     isOpen: boolean;
@@ -45,6 +46,20 @@ export function CustomPeriodModal({ isOpen, onClose, dateFrom, dateTo, onApply }
                         Дата по
                         <Input type="date" className="modal-input" value={localTo} onChange={(e) => setLocalTo(e.target.value)} />
                     </label>
+                    <div className="calendar-quick-today-mobile-only" style={{ marginTop: "0.35rem" }}>
+                        <Button
+                            type="button"
+                            className="filter-button"
+                            style={{ padding: "0.35rem 0.65rem", fontSize: "0.85rem" }}
+                            onClick={() => {
+                                const t = getTodayDate();
+                                setLocalFrom(t);
+                                setLocalTo(t);
+                            }}
+                        >
+                            Сегодня
+                        </Button>
+                    </div>
                 </div>
                 <div className="modal-footer">
                     <Button className="primary-button" onClick={handleApply}>Применить</Button>

@@ -3916,6 +3916,18 @@ export function DashboardPage({
                                     {['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'][paymentCalendarMonth.month - 1]} {paymentCalendarMonth.year}
                                 </Typography.Body>
                                 <Button className="filter-button" style={{ padding: '0.35rem 0.5rem' }} onClick={() => setPaymentCalendarMonth((m) => (m.month === 12 ? { year: m.year + 1, month: 1 } : { year: m.year, month: m.month + 1 }))}>→</Button>
+                                <Button
+                                    type="button"
+                                    className="filter-button"
+                                    style={{ padding: '0.35rem 0.55rem' }}
+                                    title="Текущий месяц"
+                                    onClick={() => {
+                                        const n = new Date();
+                                        setPaymentCalendarMonth({ year: n.getFullYear(), month: n.getMonth() + 1 });
+                                    }}
+                                >
+                                    Сегодня
+                                </Button>
                                 <Button className="filter-button" style={{ padding: '0.35rem 0.5rem', marginLeft: '0.25rem' }} onClick={() => mutateCalendarInvoices()} title="Обновить счета с начала текущего года" aria-label="Обновить счета">
                                     <RefreshCw className="w-4 h-4" />
                                 </Button>
@@ -4834,6 +4846,18 @@ export function DashboardPage({
                                     {['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'][paymentCalendarMonth.month - 1]} {paymentCalendarMonth.year}
                                 </Typography.Body>
                                 <Button className="filter-button" style={{ padding: '0.35rem 0.5rem' }} onClick={() => setPaymentCalendarMonth((m) => (m.month === 12 ? { year: m.year + 1, month: 1 } : { year: m.year, month: m.month + 1 }))}>→</Button>
+                                <Button
+                                    type="button"
+                                    className="filter-button"
+                                    style={{ padding: '0.35rem 0.55rem' }}
+                                    title="Текущий месяц"
+                                    onClick={() => {
+                                        const n = new Date();
+                                        setPaymentCalendarMonth({ year: n.getFullYear(), month: n.getMonth() + 1 });
+                                    }}
+                                >
+                                    Сегодня
+                                </Button>
                                 <Button className="filter-button" style={{ padding: '0.35rem 0.5rem', marginLeft: '0.25rem' }} onClick={() => mutateCalendarInvoices()} title="Обновить счета с начала текущего года" aria-label="Обновить счета">
                                     <RefreshCw className="w-4 h-4" />
                                 </Button>

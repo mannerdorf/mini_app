@@ -820,6 +820,29 @@ body {
     margin-bottom: 1.5cm;
 }
 
+/* Заявки: кнопка «Новая заявка» — запас снизу, чтобы карточка таблицы не обрезала кнопку */
+.documents-new-order-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.65rem;
+    position: relative;
+    z-index: 2;
+    overflow: visible;
+}
+@media (max-width: 768px) {
+    .documents-new-order-bar {
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+    }
+}
+
+/* Контент заявок (таблица / карточки): зазор от кнопки «Новая заявка» */
+.documents-zayavki-below-new-order {
+    margin-top: 0.35rem;
+}
+
 /* Панель bulk-действий в "Отправках" остаётся закреплённой при скролле */
 .sendings-bulk-actions-sticky {
     position: sticky;
@@ -924,6 +947,24 @@ body {
     transition: background-color 0.2s, border-color 0.2s;
 }
 .filter-button:hover { background-color: var(--color-bg-hover); }
+
+/* Компактные кнопки ЭР/АПП/СЧЕТ/УПД/Реестр в модалках счёта и УПД */
+.filter-button.edo-doc-download-btn {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 0.2rem !important;
+    padding: 0.14rem 0.36rem !important;
+    font-size: 0.7rem !important;
+    font-weight: 600 !important;
+    min-height: unset !important;
+    line-height: 1.15 !important;
+}
+.filter-button.edo-doc-download-btn svg {
+    width: 0.72rem !important;
+    height: 0.72rem !important;
+    flex-shrink: 0;
+}
+
 .doc-section-tab:hover { opacity: 0.92; }
 .doc-section-tab:active { transform: scale(0.98); }
 .filter-button:active { opacity: 0.85; }
@@ -1104,6 +1145,22 @@ body {
 
 .details-item-modal { padding: var(--space-2, 8px); background-color: var(--color-bg-hover); border-radius: var(--radius-md, 12px); }
 .login-input.date-input { margin-bottom: 0; }
+
+/**
+ * Кнопка «Сегодня» у полей дат: на широком экране часто дублирует нативный picker;
+ * на мобильном (≤768px) нативный календарь без быстрого перехода — показываем явно.
+ */
+.calendar-quick-today-mobile-only {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+@media (min-width: 769px) {
+    .calendar-quick-today-mobile-only {
+        display: none !important;
+    }
+}
 .modal-button-container { margin-top: var(--element-gap, 16px); }
 
 /* --- TABBAR --- */

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Button, Input, Typography } from "@maxhub/max-ui";
 import { X } from "lucide-react";
+import { getTodayDate } from "../../lib/dateUtils";
 
 type FilterDialogProps = {
     isOpen: boolean;
@@ -24,7 +25,21 @@ export function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply }: Fil
                 </div>
                 <form onSubmit={e => { e.preventDefault(); onApply(tempFrom, tempTo); onClose(); }}>
                     <div style={{ marginBottom: '1rem' }}><Typography.Label className="detail-item-label">Дата начала:</Typography.Label><Input type="date" className="login-input date-input" value={tempFrom} onChange={e => setTempFrom(e.target.value)} required /></div>
-                    <div style={{ marginBottom: '1.5rem' }}><Typography.Label className="detail-item-label">Дата окончания:</Typography.Label><Input type="date" className="login-input date-input" value={tempTo} onChange={e => setTempTo(e.target.value)} required /></div>
+                    <div style={{ marginBottom: '1rem' }}><Typography.Label className="detail-item-label">Дата окончания:</Typography.Label><Input type="date" className="login-input date-input" value={tempTo} onChange={e => setTempTo(e.target.value)} required /></div>
+                    <div className="calendar-quick-today-mobile-only" style={{ marginBottom: '1rem' }}>
+                        <Button
+                            type="button"
+                            className="filter-button"
+                            style={{ padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}
+                            onClick={() => {
+                                const t = getTodayDate();
+                                setTempFrom(t);
+                                setTempTo(t);
+                            }}
+                        >
+                            Сегодня
+                        </Button>
+                    </div>
                     <Button className="button-primary" type="submit">Применить</Button>
                 </form>
             </div>
