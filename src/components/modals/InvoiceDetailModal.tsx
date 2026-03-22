@@ -244,7 +244,10 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                         <Typography.Label style={{ fontSize: "0.68rem", color: "var(--color-text-secondary)" }}>принят / подписан</Typography.Label>
                         <span style={{ color: "var(--color-text-secondary)", fontSize: "0.65rem" }}>·</span>
                         <span className="role-badge" style={{ fontSize: "0.62rem", fontWeight: 700, padding: "0.12rem 0.28rem", borderRadius: "999px", ...edoMiniBadgeStyle("danger") }}>НП</span>
-                        <Typography.Label style={{ fontSize: "0.68rem", color: "var(--color-text-secondary)" }}>не принят</Typography.Label>
+                        <Typography.Label style={{ fontSize: "0.68rem", color: "var(--color-text-secondary)" }}>не принят (ЭР, АПП, УПД)</Typography.Label>
+                        <span style={{ color: "var(--color-text-secondary)", fontSize: "0.65rem" }}>·</span>
+                        <span className="role-badge" style={{ fontSize: "0.62rem", fontWeight: 700, padding: "0.12rem 0.28rem", borderRadius: "999px", ...edoMiniBadgeStyle("info") }}>ОТ</span>
+                        <Typography.Label style={{ fontSize: "0.68rem", color: "var(--color-text-secondary)" }}>отправлен (счёт)</Typography.Label>
                         <span style={{ color: "var(--color-text-secondary)", fontSize: "0.65rem" }}>·</span>
                         <span className="role-badge" style={{ fontSize: "0.62rem", fontWeight: 700, padding: "0.12rem 0.28rem", borderRadius: "999px", ...edoMiniBadgeStyle("muted") }}>НС</span>
                         <Typography.Label style={{ fontSize: "0.68rem", color: "var(--color-text-secondary)" }}>нет статуса</Typography.Label>

@@ -12,7 +12,13 @@ import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, 
 import { downloadBase64File } from "../utils";
 import { normalizeStatus, STATUS_MAP, getFilterKeyByStatus } from "../lib/statusUtils";
 import { StatusBadge } from "../components/shared/StatusBadges";
-import { type EdoTone, getInvoiceBillEdoInfo } from "../lib/edoStatus";
+import {
+    type EdoTone,
+    aggregateInvoiceEdoDocStats,
+    formatEdoSignedRatio,
+    getInvoiceBillEdoInfo,
+    INVOICE_EDO_MERGED_COLUMNS,
+} from "../lib/edoStatus";
 import {
     loadDateFilterState,
     saveDateFilterState,
@@ -1952,6 +1958,9 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
 
     const documentsSummary = useMemo(() => buildDocsSummary(filteredItems), [filteredItems]);
 
+    /** ЭДО по типам документа для итоговой строки склеенной таблицы счетов (подписано / с непустым статусом) */
+    const mergedInvoicesEdoTotals = useMemo(() => aggregateInvoiceEdoDocStats(filteredItems), [filteredItems]);
+
     const sortedActs = useMemo(() => {
         const list = [...(actsItems || [])];
         const getDate = (a: any) => (a.DateDoc ?? a.Date ?? a.date ?? '').toString();
@@ -3347,19 +3356,39 @@ useEffect(() => {
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка">Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 {showSums && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка">Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('count')} title="Сортировка">Счетов {tableSortColumn === 'count' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
+                                    <th
+                                        key={k}
+                                        style={{ padding: '0.5rem 0.35rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}
+                                        title="ЭДО: подписано / всего (счета с непустым статусом по этому документу)"
+                                    >
+                                        {k === "СЧЕТ" ? "СЧЕТА" : k}
+                                    </th>
+                                ))}
                             </tr>
                         </thead>
                         <tbody>
-                            {sortedGroupedByCustomer.map((row, i) => (
+                            {sortedGroupedByCustomer.map((row, i) => {
+                                const rowEdoAgg = aggregateInvoiceEdoDocStats(row.items);
+                                return (
                                 <React.Fragment key={i}>
                                     <tr style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expandedTableCustomer === row.customer ? 'var(--color-bg-hover)' : undefined }} onClick={() => setExpandedTableCustomer(prev => prev === row.customer ? null : row.customer)} title={expandedTableCustomer === row.customer ? 'Свернуть' : 'Показать счета'}>
                                         <td style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
                                         {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>}
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
+                                        {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
+                                            <td
+                                                key={k}
+                                                style={{ padding: '0.5rem 0.35rem', textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: "tabular-nums" }}
+                                                title="Подписано / всего по ЭДО для этого типа документа"
+                                            >
+                                                {formatEdoSignedRatio(rowEdoAgg[k].signed, rowEdoAgg[k].total)}
+                                            </td>
+                                        ))}
                                     </tr>
                                     {expandedTableCustomer === row.customer && (
                                         <tr key={`${i}-detail`}>
-                                            <td colSpan={showSums ? 3 : 2} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                            <td colSpan={showSums ? 7 : 6} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                 <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                     <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                         <thead>
@@ -3408,13 +3437,18 @@ useEffect(() => {
                                         </tr>
                                     )}
                                 </React.Fragment>
-                            ))}
+                            );})}
                         </tbody>
                         <tfoot>
                             <tr style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                                 <td style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
                                 {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrency(documentsSummary.sum)}</td>}
                                 <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700 }}>{documentsSummary.count}</td>
+                                {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
+                                    <td key={k} style={{ padding: '0.5rem 0.35rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', fontVariantNumeric: "tabular-nums" }} title="Итого по всем счетам в таблице">
+                                        {formatEdoSignedRatio(mergedInvoicesEdoTotals[k].signed, mergedInvoicesEdoTotals[k].total)}
+                                    </td>
+                                ))}
                             </tr>
                         </tfoot>
                     </table>

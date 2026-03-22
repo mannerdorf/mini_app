@@ -24,6 +24,7 @@ const EDO_STATUS_MAP: Record<string, Omit<EdoStatusInfo, "raw">> = {
     shortLabel: "П",
     tone: "success",
   },
+  /** Для счёта (`СЧЕТ` / bill) тот же код API показываем как «Отправлен» — см. getInvoiceEdoInfoByDocLabel */
   RecipientResponseStatusNotAcceptable: {
     label: "Не принят получателем",
     shortLabel: "НП",
@@ -158,9 +159,61 @@ export function getInvoiceEdoInfoByDocLabel(
   item: any,
   docLabel: "ЭР" | "АПП" | "УПД" | "СЧЕТ" | "Реестр",
 ): EdoStatusInfo {
-  return getEdoStatusInfo(getInvoiceEdoRawByDocLabel(item, docLabel));
+  const raw = getInvoiceEdoRawByDocLabel(item, docLabel);
+  const trimmed = String(raw ?? "").trim();
+  if (!trimmed) return getEdoStatusInfo(raw);
+
+  if (docLabel === "СЧЕТ") {
+    const canonical = resolveCanonicalKey(trimmed);
+    if (canonical === "RecipientResponseStatusNotAcceptable") {
+      return {
+        raw: trimmed,
+        label: "Отправлен",
+        shortLabel: "ОТ",
+        tone: "info",
+      };
+    }
+  }
+
+  return getEdoStatusInfo(raw);
 }
 
 export function getInvoiceBillEdoInfo(item: any): EdoStatusInfo {
   return getInvoiceEdoInfoByDocLabel(item, "СЧЕТ");
+}
+
+/** Типы документов в счёте с полями DDRecipientResponseStatus_* */
+export const INVOICE_EDO_MERGED_COLUMNS = ["ЭР", "АПП", "УПД", "СЧЕТ"] as const;
+export type InvoiceEdoMergedDocLabel = (typeof INVOICE_EDO_MERGED_COLUMNS)[number];
+
+/** Подписан по ЭДО: зелёный бейдж «П» (success) */
+export function isInvoiceEdoSigned(info: EdoStatusInfo): boolean {
+  return Boolean(info.raw) && info.tone === "success";
+}
+
+export type InvoiceEdoDocAgg = { signed: number; total: number };
+
+/** По списку счетов: для каждого типа документа — сколько с непустым статусом ЭДО и сколько из них подписаны (success). */
+export function aggregateInvoiceEdoDocStats(invoices: any[] | undefined | null): Record<InvoiceEdoMergedDocLabel, InvoiceEdoDocAgg> {
+  const out: Record<InvoiceEdoMergedDocLabel, InvoiceEdoDocAgg> = {
+    ЭР: { signed: 0, total: 0 },
+    АПП: { signed: 0, total: 0 },
+    УПД: { signed: 0, total: 0 },
+    СЧЕТ: { signed: 0, total: 0 },
+  };
+  for (const inv of invoices || []) {
+    for (const label of INVOICE_EDO_MERGED_COLUMNS) {
+      const info = getInvoiceEdoInfoByDocLabel(inv, label);
+      if (!info.raw) continue;
+      out[label].total += 1;
+      if (isInvoiceEdoSigned(info)) out[label].signed += 1;
+    }
+  }
+  return out;
+}
+
+/** Отображение «3/10» — подписано / всего с известным статусом ЭДО по этому типу документа */
+export function formatEdoSignedRatio(signed: number, total: number): string {
+  if (total <= 0) return "—";
+  return `${signed}/${total}`;
 }
