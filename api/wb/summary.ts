@@ -18,6 +18,8 @@ const SUMMARY_MAX_LIMIT = 1000;
 const WB_SUMMARY_FILTER_POSTB_EMPTY = "__postb_empty__";
 /** Значение filterLogisticsStatus: пусто или варианты «не передавал*». */
 const WB_SUMMARY_FILTER_POSTB_NOT_SENT = "__postb_not_sent__";
+/** В сводке считаем «нет в описях», когда в строке нет номера описи. */
+const WB_SUMMARY_NO_INBOUND_EXPR = `coalesce(nullif(trim(i.inventory_number), ''), '') = ''`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "wb_summary_list");
@@ -170,7 +172,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const whereBaseSql = `where ${where.join(" and ")}`;
-    const whereFullParts = onlyNotInInbound ? [...where, "s.inbound_item_id is null"] : where;
+    const whereFullParts = onlyNotInInbound ? [...where, WB_SUMMARY_NO_INBOUND_EXPR] : where;
     const whereFullSql = `where ${whereFullParts.join(" and ")}`;
 
     const fromJoins = hasLogisticsParcel
@@ -229,10 +231,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const notInInboundRes = await pool.query<{ v: string; row_count: number }>(
       `select
          coalesce(
-           sum(c.amount_rub) filter (where c.id is not null and s.inbound_item_id is null),
+           sum(c.amount_rub) filter (where c.id is not null and ${WB_SUMMARY_NO_INBOUND_EXPR}),
            0
          )::numeric as v,
-         count(*) filter (where s.inbound_item_id is null)::int as row_count
+         count(*) filter (where ${WB_SUMMARY_NO_INBOUND_EXPR})::int as row_count
        ${fromJoins}
        ${whereBaseSql}`,
       params,
@@ -287,7 +289,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }[] = [];
     if (hasPostbCache) {
       const whereBreakdownParts = onlyNotInInbound
-        ? [...whereBeforeStatus, "s.inbound_item_id is null"]
+        ? [...whereBeforeStatus, WB_SUMMARY_NO_INBOUND_EXPR]
         : whereBeforeStatus;
       const whereBreakdownSql = `where ${whereBreakdownParts.join(" and ")}`;
       const br = await pool.query<StatusAggRow>(

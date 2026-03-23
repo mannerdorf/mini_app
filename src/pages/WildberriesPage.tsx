@@ -1810,7 +1810,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       { key: "shk", label: "ШК" },
       { key: "boxId", label: "Номер короба" },
       { key: "inboundBoxShk", label: "ШК короба" },
-      { key: "isReturned", label: "Возвращена" },
+      ...(canAccessReturnedTab ? [{ key: "isReturned", label: "Возвращена" } as const] : []),
       { key: "claimRowNumber", label: "Номер строки претензии" },
       { key: "claimPriceRub", label: "Цена из претензии" },
       { key: "inventoryNumber", label: "Номер описи" },
@@ -1828,7 +1828,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       { key: "lvDataDostavleno", label: "Дата Доставлено" },
       { key: "status1c", label: "Статус (PostB)" },
     ];
-  }, [activeTab]);
+  }, [activeTab, canAccessReturnedTab]);
 
   /** Итог по колонке «Сумма» на текущей странице (возвратный груз). */
   const returnedPageAmountSum = useMemo(() => {
@@ -2245,6 +2245,46 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             </div>
             {summaryCompactExpanded && (
               <div className="wb-summary-status-breakdown">
+                <div className="wb-summary-special-tile">
+                  <button
+                    type="button"
+                    className={`wb-summary-status-item wb-summary-status-item--filter wb-summary-status-item--tone-inbound-gap${
+                      summaryOnlyNotInInbound ? " wb-summary-status-item--active" : ""
+                    }`}
+                    title={
+                      summaryOnlyNotInInbound
+                        ? "Снять фильтр «нет в описях»"
+                        : "Показать только строки без описи"
+                    }
+                    onClick={() => {
+                      setSummaryFilterStatus("");
+                      setSummaryOnlyNotInInbound((v) => !v);
+                      setPage(1);
+                    }}
+                  >
+                    <div className="wb-summary-status-head">
+                      <span className="wb-summary-status-label">Нет в описях</span>
+                    </div>
+                    <div className="wb-summary-status-sums">
+                      <span className="wb-summary-status-sum-line">
+                        Кол-во мест: <strong>{Number(summaryHeaderDisplay?.rowCountNotInInbound ?? 0)}</strong>
+                      </span>
+                      <span className="wb-summary-status-sum-line">
+                        Претензии:{" "}
+                        <strong>
+                          {Number(summaryHeaderDisplay?.totalNotInInboundClaimRub ?? 0).toLocaleString("ru-RU", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{" "}
+                          ₽
+                        </strong>
+                      </span>
+                      <span className="wb-summary-status-sum-line">
+                        Описи: <strong>0,00 ₽</strong>
+                      </span>
+                    </div>
+                  </button>
+                </div>
                 <div className="wb-summary-status-list">
                   <button
                     type="button"
@@ -2333,44 +2373,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                       </button>
                     );
                   })}
-                  <button
-                    type="button"
-                    className={`wb-summary-status-item wb-summary-status-item--filter wb-summary-status-item--tone-inbound-gap${
-                      summaryOnlyNotInInbound ? " wb-summary-status-item--active" : ""
-                    }`}
-                    title={
-                      summaryOnlyNotInInbound
-                        ? "Снять фильтр «нет в описях»"
-                        : "Показать только строки без описи по претензии"
-                    }
-                    onClick={() => {
-                      setSummaryFilterStatus("");
-                      setSummaryOnlyNotInInbound((v) => !v);
-                      setPage(1);
-                    }}
-                  >
-                    <div className="wb-summary-status-head">
-                      <span className="wb-summary-status-label">Нет в описях (по претензии)</span>
-                    </div>
-                    <div className="wb-summary-status-sums">
-                      <span className="wb-summary-status-sum-line">
-                        Кол-во мест: <strong>{Number(summaryHeaderDisplay?.rowCountNotInInbound ?? 0)}</strong>
-                      </span>
-                      <span className="wb-summary-status-sum-line">
-                        Претензии:{" "}
-                        <strong>
-                          {Number(summaryHeaderDisplay?.totalNotInInboundClaimRub ?? 0).toLocaleString("ru-RU", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}{" "}
-                          ₽
-                        </strong>
-                      </span>
-                      <span className="wb-summary-status-sum-line">
-                        Описи: <strong>0,00 ₽</strong>
-                      </span>
-                    </div>
-                  </button>
                 </div>
               </div>
             )}
