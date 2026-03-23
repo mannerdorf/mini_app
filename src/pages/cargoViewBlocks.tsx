@@ -24,7 +24,7 @@ export function CargoSummaryCard({
   useServiceRequest,
 }: CargoSummaryCardProps) {
   return (
-    <div className="cargo-card mb-4" style={{ padding: "0.75rem" }}>
+    <div className="cargo-card mb-4" style={{ padding: "0.75rem", marginBottom: "0.85rem" }}>
       <div className="summary-metrics">
         {showSums && (
           <Flex direction="column" align="center">
