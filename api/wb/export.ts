@@ -163,6 +163,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             extraParts.push(`(
               coalesce(nullif(trim(ppc.last_status), ''), '') = ''
               or lower(coalesce(nullif(trim(ppc.last_status), ''), '')) like 'не передава%'
+              or replace(lower(coalesce(nullif(trim(ppc.last_status), ''), '')), ' ', '') = 'полученаинформация'
             )`);
           } else {
             sparams.push(filterLogisticsStatus);

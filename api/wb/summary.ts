@@ -16,7 +16,7 @@ const SUMMARY_MAX_LIMIT = 1000;
 
 /** Значение filterLogisticsStatus: только строки без last_status в wb_postb_posilka_cache (или пустой). */
 const WB_SUMMARY_FILTER_POSTB_EMPTY = "__postb_empty__";
-/** Значение filterLogisticsStatus: пусто или варианты «не передавал*». */
+/** Значение filterLogisticsStatus: пусто, «не передавал*», «получена информация». */
 const WB_SUMMARY_FILTER_POSTB_NOT_SENT = "__postb_not_sent__";
 /** В сводке считаем «нет в описях», когда в строке нет номера описи. */
 const WB_SUMMARY_NO_INBOUND_EXPR = `coalesce(nullif(trim(i.inventory_number), ''), '') = ''`;
@@ -164,6 +164,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         where.push(`(
           coalesce(nullif(trim(ppc.last_status), ''), '') = ''
           or lower(coalesce(nullif(trim(ppc.last_status), ''), '')) like 'не передава%'
+          or replace(lower(coalesce(nullif(trim(ppc.last_status), ''), '')), ' ', '') = 'полученаинформация'
         )`);
       } else {
         params.push(filterLogisticsStatus);

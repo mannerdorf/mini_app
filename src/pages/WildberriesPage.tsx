@@ -1852,7 +1852,9 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         !raw ||
         raw === "[object Object]" ||
         low === "без статуса (postb)" ||
-        low.startsWith("не передава");
+        low.startsWith("не передава") ||
+        low.includes("получена информация") ||
+        low.replace(/\s+/g, "") === "полученаинформация";
       const filterValue = isNotSent ? WB_SUMMARY_FILTER_POSTB_NOT_SENT : raw;
       const label = isNotSent
         ? "не передавалось"
