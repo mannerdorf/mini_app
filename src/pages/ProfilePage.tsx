@@ -1680,7 +1680,15 @@ export function ProfilePage({
     if (currentView === 'parcelScanner') {
         const canDownloadApp = normalizeWbPerevozkaHaulzDigits(String(parcelLookupResult?.perevozka ?? "")) !== "";
         return (
-            <div className="w-full">
+            <div
+                className="w-full"
+                style={{
+                    maxHeight: "calc(100vh - 120px)",
+                    overflowY: "auto",
+                    WebkitOverflowScrolling: "touch",
+                    paddingBottom: "1rem",
+                }}
+            >
                 <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
                     <Button className="filter-button" onClick={() => setCurrentView("haulz")} style={{ padding: "0.5rem" }}>
                         <ArrowLeft className="w-4 h-4" />
