@@ -2247,7 +2247,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             </div>
             {summaryCompactExpanded && (
               <div className="wb-summary-status-breakdown">
-                <div className="wb-summary-special-tile">
+                <div className="wb-summary-status-list">
                   <button
                     type="button"
                     className={`wb-summary-status-item wb-summary-status-item--filter wb-summary-status-item--tone-inbound-gap${
@@ -2286,8 +2286,6 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                       </span>
                     </div>
                   </button>
-                </div>
-                <div className="wb-summary-status-list">
                   <button
                     type="button"
                     className={`wb-summary-status-item wb-summary-status-item--filter wb-summary-status-item--tone-all${
