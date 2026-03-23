@@ -251,6 +251,12 @@ export function CargoCustomerTable({
           </tr>
         </thead>
         <tbody>
+          <tr aria-hidden>
+            <td
+              colSpan={showSums ? 7 : 6}
+              style={{ height: "0.5rem", padding: 0, border: "none", background: "transparent" }}
+            />
+          </tr>
           {sortedGroupedByCustomer.map((row, i) => (
             <React.Fragment key={i}>
               <tr
