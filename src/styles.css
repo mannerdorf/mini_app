@@ -811,6 +811,8 @@ body {
     background-color: var(--color-bg-primary);
     min-width: 0;
     overflow-x: hidden;
+    /* Не обрезать верх/низ внутренних карточек и таблиц */
+    overflow-y: visible;
     padding-bottom: 0.5rem;
     margin-bottom: 0.6rem;
 }
