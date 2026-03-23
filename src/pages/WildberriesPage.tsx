@@ -820,6 +820,7 @@ function WbSummaryStatus1cCell(props: {
 
   const busy = wbAppDownloadingKey === appKey;
   const appNumber = lvFb || perevozka;
+  const isConsolidationStatus = low.includes("консолидац");
   const refreshBusy = refreshing;
   const canOpenTimeline = !noInbound && hasHaulz && Boolean(transport);
   const canRefresh = !noInbound && hasHaulz && Boolean(code);
@@ -866,7 +867,7 @@ function WbSummaryStatus1cCell(props: {
           <RefreshCw className={`wb-postb-app-badge-icon${refreshBusy ? " animate-spin" : ""}`} aria-hidden />
         </button>
       </div>
-      {appNumber ? (
+      {appNumber && !isConsolidationStatus ? (
         <button
           type="button"
           className={`wb-postb-app-badge${busy ? " wb-postb-app-badge--busy" : ""}`}

@@ -3670,7 +3670,7 @@ export function DashboardPage({
                 <Panel className="cargo-card sla-monitor-panel" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.5rem' }}>
                     <Flex align="center" justify="space-between" className="sla-monitor-header" style={{ marginBottom: '0.2rem' }}>
                         <Typography.Headline style={{ fontSize: '0.95rem', fontWeight: 600 }}>
-                            мониотор срока доставки
+                            монитор срока доставки
                         </Typography.Headline>
                         {slaStats.total > 0 && slaTrend === 'up' && <TrendingUp className="w-5 h-5" style={{ color: 'var(--color-success-status)' }} title="Динамика SLA улучшается" />}
                         {slaStats.total > 0 && slaTrend === 'down' && <TrendingDown className="w-5 h-5" style={{ color: '#ef4444' }} title="Динамика SLA ухудшается" />}
