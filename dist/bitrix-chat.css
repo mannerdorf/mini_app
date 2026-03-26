@@ -1,0 +1,11 @@
+/* Bitrix24 Public Chat custom CSS (optional) */
+/* You can paste this file URL into Bitrix24 "Путь к CSS-файлу" */
+
+/* Make chat take full width on mobile */
+body {
+  background: transparent !important;
+}
+
+/* Optional: hide Bitrix branding/footer if allowed by your plan/settings */
+/* .b24-widget-copyright { display: none !important; } */
+
