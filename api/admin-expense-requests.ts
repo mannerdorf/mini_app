@@ -49,6 +49,7 @@ type RequestForPnlRow = {
 };
 
 const STATUSES = new Set(["draft", "pending_approval", "sent", "approved", "rejected", "paid"]);
+const REQUEST_SYNC_STATUSES = new Set(["approved", "sent", "paid", "согласовано", "оплачено"]);
 
 function normalizeOperationType(raw?: string | null): "COGS" | "OPEX" | "CAPEX" {
   const v = String(raw ?? "").trim().toUpperCase();
@@ -143,6 +144,98 @@ function normalizeTransportType(value: unknown, categoryId?: string | null): "au
   const categoryRaw = String(categoryId ?? "").trim().toLowerCase();
   if (categoryRaw === "ferry" || categoryRaw.includes("паром")) return "ferry";
   return "auto";
+}
+
+function isRequestStatusSyncedToPnl(status: unknown): boolean {
+  return REQUEST_SYNC_STATUSES.has(String(status ?? "").trim().toLowerCase());
+}
+
+function buildRequestOperationPayload(row: RequestForPnlRow) {
+  const operationType = normalizeOperationType(row.category_cost_type);
+  const deptMap = mapDepartmentToPnl(row.department);
+  const opDate = row.doc_date ? new Date(String(row.doc_date)) : new Date();
+  const amountAbs = Math.abs(Number(row.amount) || 0);
+  const logisticsStage = operationType === "COGS" ? deptMap.logisticsStage : null;
+  const purpose = `Согласование заявки ${row.doc_number || row.uid}${row.category_name ? ` (${row.category_name})` : ""}`;
+  return {
+    amountAbs,
+    opDate,
+    operationType,
+    logisticsStage,
+    purpose,
+    counterparty: row.employee_name || row.login || "expense_request",
+    department: deptMap.department || "GENERAL",
+    transportType: normalizeTransportType(row.transport_type, row.category_name),
+  };
+}
+
+async function syncRequestOperationInPnl(client: any, row: RequestForPnlRow): Promise<void> {
+  const payload = buildRequestOperationPayload(row);
+  if (payload.amountAbs <= 0) return;
+
+  const docPattern = row.doc_number ? `Согласование заявки ${row.doc_number}%` : "";
+  const uidPattern = `Согласование заявки ${row.uid}%`;
+  const updateRes = await client.query(
+    `WITH target AS (
+       SELECT id
+       FROM pnl_operations
+       WHERE source_request_uid = $1
+          OR ($10 <> '' AND purpose ILIKE $10)
+          OR purpose ILIKE $11
+       ORDER BY
+         CASE
+           WHEN source_request_uid = $1 THEN 0
+           WHEN ($10 <> '' AND purpose ILIKE $10) THEN 1
+           ELSE 2
+         END,
+         id DESC
+       LIMIT 1
+     )
+     UPDATE pnl_operations p
+     SET date = $2,
+         counterparty = $3,
+         purpose = $4,
+         amount = $5,
+         operation_type = $6,
+         department = $7,
+         logistics_stage = $8,
+         direction = NULL,
+         transport_type = $9,
+         source_request_uid = $1
+     FROM target
+     WHERE p.id = target.id`,
+    [
+      row.uid,
+      payload.opDate,
+      payload.counterparty,
+      payload.purpose,
+      -payload.amountAbs,
+      payload.operationType,
+      payload.department,
+      payload.logisticsStage,
+      payload.transportType,
+      docPattern,
+      uidPattern,
+    ]
+  );
+
+  if ((updateRes.rowCount || 0) > 0) return;
+
+  await client.query(
+    `INSERT INTO pnl_operations (date, counterparty, purpose, amount, operation_type, department, logistics_stage, direction, transport_type, source_request_uid)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, $8, $9)`,
+    [
+      payload.opDate,
+      payload.counterparty,
+      payload.purpose,
+      -payload.amountAbs,
+      payload.operationType,
+      payload.department,
+      payload.logisticsStage,
+      payload.transportType,
+      row.uid,
+    ]
+  );
 }
 
 async function resolveExpenseCategoryIdForUpdate(pool: any, uid: string, rawValue: unknown): Promise<string | null> {
@@ -327,8 +420,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (amountAbs > 0) {
             const logisticsStage = operationType === "COGS" ? deptMap.logisticsStage : null;
             await client.query(
-              `INSERT INTO pnl_operations (date, counterparty, purpose, amount, operation_type, department, logistics_stage, direction, transport_type)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, $8)`,
+              `INSERT INTO pnl_operations (date, counterparty, purpose, amount, operation_type, department, logistics_stage, direction, transport_type, source_request_uid)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, $8, $9)`,
               [
                 opDate,
                 requestRow.employee_name || requestRow.login || "expense_request",
@@ -338,6 +431,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 deptMap.department || "GENERAL",
                 logisticsStage,
                 normalizeTransportType(requestRow.transport_type, requestRow.category_name),
+                requestRow.uid,
               ]
             );
           }
@@ -386,6 +480,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       const cols = new Set(colsRes.rows.map((r) => String(r.column_name || "").trim()));
       const has = (n: string) => cols.has(n);
+      const empSel = has("employee_name") ? "er.employee_name" : "''::text AS employee_name";
+      const transportSel = has("transport_type") ? "er.transport_type" : "NULL::text AS transport_type";
       const sets: string[] = [];
       const values: unknown[] = [];
       let i = 0;
@@ -420,12 +516,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         sets.push("updated_at = now()");
       }
       if (sets.length === 0) return res.status(400).json({ error: "Нет полей для обновления", request_id: ctx.requestId });
-      values.push(uid);
-      const { rowCount } = await pool.query(
-        `UPDATE expense_requests SET ${sets.join(", ")} WHERE uid = $${i + 1}`,
-        values
-      );
-      if (rowCount === 0) return res.status(404).json({ error: "Заявка не найдена", request_id: ctx.requestId });
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        values.push(uid);
+        const { rowCount } = await client.query(
+          `UPDATE expense_requests SET ${sets.join(", ")} WHERE uid = $${i + 1}`,
+          values
+        );
+        if (rowCount === 0) {
+          await client.query("ROLLBACK");
+          return res.status(404).json({ error: "Заявка не найдена", request_id: ctx.requestId });
+        }
+
+        const { rows } = await client.query<RequestForPnlRow>(
+          `SELECT er.id, er.uid, er.status, er.amount, er.department, er.doc_number, er.doc_date, er.period, er.login, ${empSel}, er.comment,
+                  ${transportSel},
+                  ec.name AS category_name, ec.cost_type AS category_cost_type
+           FROM expense_requests er
+           LEFT JOIN expense_categories ec ON ec.id = er.category_id
+           WHERE er.uid = $1
+           LIMIT 1`,
+          [uid]
+        );
+        const updatedRow = rows[0];
+        if (updatedRow && isRequestStatusSyncedToPnl(updatedRow.status)) {
+          await ensurePnlTransportColumns(pool);
+          await syncRequestOperationInPnl(client, updatedRow);
+        }
+
+        await client.query("COMMIT");
+      } catch (txErr) {
+        try {
+          await client.query("ROLLBACK");
+        } catch {
+          // no-op
+        }
+        throw txErr;
+      } finally {
+        client.release();
+      }
       return res.json({ ok: true, request_id: ctx.requestId });
     } catch (e) {
       const err = e as Error & { code?: string };

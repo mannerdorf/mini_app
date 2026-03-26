@@ -77,7 +77,7 @@ async function parseResponse<T>(res: Response): Promise<T> {
 }
 
 export async function pnlGet<T = unknown>(path: string, params?: Record<string, string>): Promise<T> {
-  const res = await fetch(pnlUrl(path, params));
+  const res = await fetch(pnlUrl(path, params), { cache: 'no-store' });
   return parseResponse<T>(res);
 }
 
