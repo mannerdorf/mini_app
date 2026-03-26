@@ -9,7 +9,7 @@ type FilterDropdownPortalProps = {
 };
 
 export function FilterDropdownPortal({ triggerRef, isOpen, onClose, children }: FilterDropdownPortalProps) {
-    const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
+    const [rect, setRect] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const ignoreNextOutsideRef = useRef(false);
 
@@ -18,9 +18,37 @@ export function FilterDropdownPortal({ triggerRef, isOpen, onClose, children }: 
             setRect(null);
             return;
         }
-        const el = triggerRef.current;
-        const r = el.getBoundingClientRect();
-        setRect({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 160) });
+        const updatePosition = () => {
+            if (!triggerRef.current) return;
+            const el = triggerRef.current;
+            const r = el.getBoundingClientRect();
+            const viewportHeight = window.innerHeight;
+            const margin = 8;
+            const gap = 4;
+            const desiredMaxHeight = Math.floor(viewportHeight * 0.7);
+            const spaceBelow = Math.max(0, viewportHeight - r.bottom - margin - gap);
+            const spaceAbove = Math.max(0, r.top - margin - gap);
+
+            // Keep dropdown fully visible: open to the side with more space.
+            const openDown = spaceBelow >= 220 || spaceBelow >= spaceAbove;
+            const maxHeight = Math.max(160, Math.min(desiredMaxHeight, openDown ? spaceBelow : spaceAbove));
+            const top = openDown ? (r.bottom + gap) : Math.max(margin, r.top - gap - maxHeight);
+
+            setRect({
+                top,
+                left: r.left,
+                width: Math.max(r.width, 160),
+                maxHeight,
+            });
+        };
+
+        updatePosition();
+        window.addEventListener("resize", updatePosition);
+        window.addEventListener("scroll", updatePosition, true);
+        return () => {
+            window.removeEventListener("resize", updatePosition);
+            window.removeEventListener("scroll", updatePosition, true);
+        };
     }, [isOpen, triggerRef]);
 
     useEffect(() => {
@@ -50,7 +78,11 @@ export function FilterDropdownPortal({ triggerRef, isOpen, onClose, children }: 
 
     if (!isOpen || !rect || typeof document === "undefined") return null;
     return createPortal(
-        <div ref={containerRef} className="filter-dropdown filter-dropdown-portal" style={{ top: rect.top, left: rect.left, minWidth: rect.width }}>
+        <div
+            ref={containerRef}
+            className="filter-dropdown filter-dropdown-portal"
+            style={{ top: rect.top, left: rect.left, minWidth: rect.width, maxHeight: rect.maxHeight }}
+        >
             {children}
         </div>,
         document.body

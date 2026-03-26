@@ -37,6 +37,11 @@ const EDO_STATUS_MAP: Record<string, Omit<EdoStatusInfo, "raw">> = {
     shortLabel: "НП",
     tone: "danger",
   },
+  RecipientSignatureRequestRejected: {
+    label: "Запрос подписи отклонен получателем",
+    shortLabel: "НП",
+    tone: "danger",
+  },
   RecipientResponseStatusPartlySigned: {
     label: "Подписан частично",
     shortLabel: "П",
@@ -75,6 +80,7 @@ const SLUG_TO_CANONICAL: Record<string, keyof typeof EDO_STATUS_MAP> = {
   recipientresponsestatusaccepted: "RecipientResponseStatusAccepted",
   recipientresponsestatussigned: "RecipientResponseStatusSigned",
   recipientresponsestatusrejected: "RecipientResponseStatusRejected",
+  recipientsignaturerequestrejected: "RecipientSignatureRequestRejected",
   recipientresponsestatuspartlysigned: "RecipientResponseStatusPartlySigned",
 };
 
