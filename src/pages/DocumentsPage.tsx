@@ -1777,14 +1777,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 ''
             );
             if (direct) set.add(direct);
-            const cargoNum = getFirstCargoNumberFromInvoice(row);
-            if (cargoNum) {
-                const byCargo = normalizeTransportDisplay(cargoTransportByNumber.get(normCargoKey(cargoNum)));
-                if (byCargo) set.add(byCargo);
-            }
         });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [items, getFirstCargoNumberFromInvoice, cargoTransportByNumber, normCargoKey, normalizeTransportDisplay]);
+    }, [items, normalizeTransportDisplay]);
     const uniqueActsTransportVehicles = useMemo(() => {
         const set = new Set<string>();
         (actsItems || []).forEach((row: any) => {

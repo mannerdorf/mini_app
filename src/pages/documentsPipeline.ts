@@ -338,33 +338,14 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
   if (transportFilter) {
     res = res.filter((i) => {
       const selected = normalizeTransportName(transportFilter);
-      const direct = normalizeTransportName(
+      return normalizeTransportName(
         i?.AutoReg ??
           i?.autoReg ??
           i?.АвтомобильCMRНаименование ??
           i?.Transport ??
           i?.transport ??
           i?.AutoType
-      );
-      if (direct && direct === selected) return true;
-
-      const cargoNums = new Set<string>();
-      const firstCargoNum = getFirstCargoNumberFromInvoice(i);
-      if (firstCargoNum) cargoNums.add(firstCargoNum);
-      const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(i?.List) ? i.List : [];
-      list.forEach((row) => {
-        const text = String(row?.Operation ?? row?.Name ?? "").trim();
-        if (!text) return;
-        parseCargoNumbersFromText(text)
-          .filter((p) => p.type === "cargo" && p.value)
-          .forEach((p) => cargoNums.add(p.value));
-      });
-
-      for (const cargoNum of cargoNums) {
-        const transport = normalizeTransportName(cargoTransportByNumber.get(normCargoKey(cargoNum)));
-        if (transport && transport === selected) return true;
-      }
-      return false;
+      ) === selected;
     });
   }
   if (searchText.trim()) {
