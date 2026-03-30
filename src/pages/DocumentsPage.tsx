@@ -5616,7 +5616,7 @@ useEffect(() => {
                         <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по тарифам</Typography.Body>
                     ) : tableModeEffective ? (
                         <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
-                            <table className="doc-tariffs-table doc-table-no-header" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                            <table className="doc-tariffs-table doc-table-header-inline" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                 <thead>
                                     <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
                                         <th
@@ -5955,7 +5955,7 @@ useEffect(() => {
                     ) : tableModeEffective ? (
                         <div className="doc-contracts-table-offset-desktop">
                             <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
-                            <table className="doc-section-table doc-table-no-header" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                            <table className="doc-section-table doc-table-header-inline" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                 <thead>
                                     <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
                                         <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
@@ -6097,7 +6097,7 @@ useEffect(() => {
                     ) : tableModeEffective ? (
                         <div className="doc-contracts-table-offset-desktop">
                             <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
-                                <table className="doc-section-table doc-table-no-header" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                                <table className="doc-section-table doc-table-header-inline" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                 <thead>
                                     <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
                                         <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>

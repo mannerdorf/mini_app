@@ -936,9 +936,11 @@ body {
     }
 }
 
-/* Документы: скрытая шапка таблицы для выбранных разделов */
-.doc-table-no-header thead {
-    display: none;
+/* Документы: шапка остаётся внутри таблицы (без sticky) для выбранных разделов */
+.doc-table-header-inline thead th {
+    position: static !important;
+    top: auto !important;
+    box-shadow: none;
 }
 
 /* --- FILTERS --- */
