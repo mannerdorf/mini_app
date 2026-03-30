@@ -697,6 +697,23 @@ body {
 }
 .light-mode .cargo-card:hover { box-shadow: 0 4px 16px rgba(0, 113, 227, 0.12); }
 
+/* Документы: явная верхняя граница суммирующего поля */
+.documents-summary-card {
+    position: relative;
+}
+.documents-summary-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 1px;
+    right: 1px;
+    height: 1px;
+    background: var(--color-border);
+    border-top-left-radius: var(--radius-lg, 18px);
+    border-top-right-radius: var(--radius-lg, 18px);
+    pointer-events: none;
+}
+
 /* Мобильная версия: карточка груза — номер, шеринг, сообщение, избранное и дата в одну строку; маршрут и заказчик в одну строку */
 @media (max-width: 768px) {
     .cargo-list-item .cargo-item-row-1 {

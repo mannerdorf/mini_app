@@ -11,7 +11,7 @@ type SummaryProps = {
 
 export function DocumentsSummaryCard({ sum, count, showSums }: SummaryProps) {
   return (
-    <div className="cargo-card mb-4" style={{ padding: "0.75rem", marginBottom: "1rem" }}>
+    <div className="cargo-card documents-summary-card mb-4" style={{ padding: "0.75rem", marginBottom: "1rem" }}>
       <div className="summary-metrics">
         {showSums && (
           <Flex direction="column" align="center">
