@@ -823,7 +823,7 @@ body {
 }
 @media (min-width: 769px) {
     .cargo-table-offset-desktop {
-        margin-top: 1cm;
+        margin-top: 2cm;
     }
 }
 
