@@ -936,6 +936,11 @@ body {
     }
 }
 
+/* Документы: скрытая шапка таблицы для выбранных разделов */
+.doc-table-no-header thead {
+    display: none;
+}
+
 /* --- FILTERS --- */
 .filters-container {
     display: flex;
