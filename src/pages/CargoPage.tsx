@@ -631,21 +631,23 @@ useEffect(() => {
             />
 
             {!loading && !error && tableModeByCustomer && groupedByCustomer.length > 0 && (
-                <CargoCustomerTable
-                    showSums={showSums}
-                    tableSortColumn={tableSortColumn}
-                    tableSortOrder={tableSortOrder}
-                    sortedGroupedByCustomer={sortedGroupedByCustomer}
-                    expandedTableCustomer={expandedTableCustomer}
-                    innerTableSortColumn={innerTableSortColumn}
-                    innerTableSortOrder={innerTableSortOrder}
-                    workScheduleByInn={workScheduleByInn}
-                    onTableSort={handleTableSort}
-                    onInnerTableSort={handleInnerTableSort}
-                    sortInnerItems={sortInnerItems}
-                    onToggleExpandedCustomer={(customer) => setExpandedTableCustomer(prev => prev === customer ? null : customer)}
-                    onSelectCargo={setSelectedCargo}
-                />
+                <div className="cargo-table-offset-desktop">
+                    <CargoCustomerTable
+                        showSums={showSums}
+                        tableSortColumn={tableSortColumn}
+                        tableSortOrder={tableSortOrder}
+                        sortedGroupedByCustomer={sortedGroupedByCustomer}
+                        expandedTableCustomer={expandedTableCustomer}
+                        innerTableSortColumn={innerTableSortColumn}
+                        innerTableSortOrder={innerTableSortOrder}
+                        workScheduleByInn={workScheduleByInn}
+                        onTableSort={handleTableSort}
+                        onInnerTableSort={handleInnerTableSort}
+                        sortInnerItems={sortInnerItems}
+                        onToggleExpandedCustomer={(customer) => setExpandedTableCustomer(prev => prev === customer ? null : customer)}
+                        onSelectCargo={setSelectedCargo}
+                    />
+                </div>
             )}
 
             {filteredItems.length > 0 && !tableModeByCustomer && (

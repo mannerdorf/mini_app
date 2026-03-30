@@ -817,6 +817,16 @@ body {
     margin-bottom: 0.6rem;
 }
 
+/* Грузы: смещаем таблицу ниже суммирующего блока на экранах больше телефона */
+.cargo-table-offset-desktop {
+    margin-top: 0;
+}
+@media (min-width: 769px) {
+    .cargo-table-offset-desktop {
+        margin-top: 1cm;
+    }
+}
+
 /* Документы: дополнительный отступ под таблицы во всех разделах */
 .documents-page-sticky-header {
     margin-bottom: 1.5cm;
