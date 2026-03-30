@@ -1777,9 +1777,14 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 ''
             );
             if (direct) set.add(direct);
+            if (direct) return;
+            const cargoNum = getFirstCargoNumberFromInvoice(row);
+            if (!cargoNum) return;
+            const byCargo = normalizeTransportDisplay(cargoTransportByNumber.get(normCargoKey(cargoNum)));
+            if (byCargo) set.add(byCargo);
         });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [items, normalizeTransportDisplay]);
+    }, [items, getFirstCargoNumberFromInvoice, cargoTransportByNumber, normCargoKey, normalizeTransportDisplay]);
     const uniqueActsTransportVehicles = useMemo(() => {
         const set = new Set<string>();
         (actsItems || []).forEach((row: any) => {
@@ -5948,7 +5953,8 @@ useEffect(() => {
                     ) : filteredSverki.length === 0 ? (
                         <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по актам сверок</Typography.Body>
                     ) : tableModeEffective ? (
-                        <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
+                        <div className="doc-contracts-table-offset-desktop">
+                            <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
                             <table className="doc-section-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                 <thead>
                                     <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
@@ -5993,6 +5999,7 @@ useEffect(() => {
                                     })}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     ) : (
                         <div className="cargo-list">
@@ -6088,8 +6095,9 @@ useEffect(() => {
                     ) : filteredDogovors.length === 0 ? (
                         <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по договорам</Typography.Body>
                     ) : tableModeEffective ? (
-                        <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
-                            <table className="doc-section-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                        <div className="doc-contracts-table-offset-desktop">
+                            <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
+                                <table className="doc-section-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                 <thead>
                                     <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
                                         <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
@@ -6129,7 +6137,8 @@ useEffect(() => {
                                         );
                                     })}
                                 </tbody>
-                            </table>
+                                </table>
+                            </div>
                         </div>
                     ) : (
                         <div className="cargo-list">

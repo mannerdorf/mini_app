@@ -834,6 +834,15 @@ body {
     overflow-y: visible;
 }
 
+.doc-contracts-table-offset-desktop {
+    margin-top: 0;
+}
+@media (min-width: 769px) {
+    .doc-contracts-table-offset-desktop {
+        margin-top: 2cm;
+    }
+}
+
 /* Заявки: кнопка «Новая заявка» (внутри липкого блока — не уезжает под него при скролле) */
 .documents-new-order-bar {
     display: flex;
