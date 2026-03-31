@@ -2596,7 +2596,7 @@ export function DashboardPage({
     }
 
     return (
-        <div className="w-full">
+        <div className="w-full dashboard-page-offset">
             {/* === ВИДЖЕТ 1: Фильтры (включить: WIDGET_1_FILTERS = true) === */}
             {WIDGET_1_FILTERS && (
             <div className="cargo-page-sticky-header dashboard-sticky-filters" style={{ marginBottom: 0 }}>
