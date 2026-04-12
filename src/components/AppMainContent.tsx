@@ -1,4 +1,4 @@
-import React, { Suspense } from "react";
+import React, { Suspense, useCallback, useState } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { Loader2, Package } from "lucide-react";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -6,6 +6,16 @@ import { CargoPage } from "../pages/CargoPage";
 import { ExpenseRequestsPage } from "../pages/ExpenseRequestsPage";
 import { WildberriesPage } from "../pages/WildberriesPage";
 import type { Account, AuthData, Tab } from "../types";
+
+const PROFILE_SAAS_UI_KEY = "haulz.profileSaasUi";
+
+function readProfileSaasUiEnabled(): boolean {
+  try {
+    return localStorage.getItem(PROFILE_SAAS_UI_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
 
 type Props = {
   showDashboard: boolean;
@@ -153,6 +163,19 @@ export function AppMainContent({
   const ProfilePage = ProfilePageComponent;
   const DocumentsPage = DocumentsPageComponent;
 
+  const [profileSaasUiEnabled, setProfileSaasUiEnabled] = useState(readProfileSaasUiEnabled);
+  const toggleProfileSaasUi = useCallback(() => {
+    setProfileSaasUiEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(PROFILE_SAAS_UI_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+
   return (
     <>
       {showDashboard && activeTab === "dashboard" && auth && (
@@ -243,6 +266,7 @@ export function AppMainContent({
 
       {showDashboard && activeTab === "profile" && (
         <SectionBoundary section="Профиль">
+        <div className={profileSaasUiEnabled ? "profile-saas-shell w-full" : "w-full"}>
         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
           <ProfilePage
             accounts={accounts}
@@ -261,8 +285,11 @@ export function AppMainContent({
             onOpenMaxBot={undefined}
             onUpdateAccount={handleUpdateAccount}
             onOpenWildberries={openWildberries}
+            profileSaasUiEnabled={profileSaasUiEnabled}
+            onToggleProfileSaasUi={toggleProfileSaasUi}
           />
         </Suspense>
+        </div>
         </SectionBoundary>
       )}
 
@@ -284,6 +311,7 @@ export function AppMainContent({
 
       {!showDashboard && activeTab === "profile" && (
         <SectionBoundary section="Профиль">
+        <div className={profileSaasUiEnabled ? "profile-saas-shell w-full" : "w-full"}>
         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
           <ProfilePage
             accounts={accounts}
@@ -302,8 +330,11 @@ export function AppMainContent({
             onOpenMaxBot={undefined}
             onUpdateAccount={handleUpdateAccount}
             onOpenWildberries={openWildberries}
+            profileSaasUiEnabled={profileSaasUiEnabled}
+            onToggleProfileSaasUi={toggleProfileSaasUi}
           />
         </Suspense>
+        </div>
         </SectionBoundary>
       )}
     </>

@@ -2,7 +2,9 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import {
     LogOut, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, User as UserIcon, Users, ChevronDown,
     Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MessageCircle, FileText, LayoutGrid, Mic, Lock, Receipt, ScanLine, Camera, FileDown,
+    Package, BarChart3, Table2,
 } from "lucide-react";
+import { Area, AreaChart, ResponsiveContainer } from "recharts";
 import { Button, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
 import type { Account, AuthData, ProfileView } from "../types";
 import { getWebApp } from "../webApp";
@@ -38,7 +40,9 @@ export function ProfilePage({
     onOpenTelegramBot,
     onOpenMaxBot,
     onUpdateAccount,
-    onOpenWildberries
+    onOpenWildberries,
+    profileSaasUiEnabled = true,
+    onToggleProfileSaasUi,
 }: {
     accounts: Account[];
     activeAccountId: string | null;
@@ -56,9 +60,23 @@ export function ProfilePage({
     onOpenMaxBot?: () => Promise<void>;
     onUpdateAccount: (accountId: string, patch: Partial<Account>) => void;
     onOpenWildberries?: () => void;
+    /** Включает токены и карточки раздела «Профиль» (Linear / Vercel). Управляется из AppMainContent + localStorage. */
+    profileSaasUiEnabled?: boolean;
+    onToggleProfileSaasUi?: () => void;
 }) {
     const [currentView, setCurrentView] = useState<ProfileView>('main');
     const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
+    const profileDemoSpark = useMemo(
+        () => [
+            { i: 0, v: 14 },
+            { i: 1, v: 22 },
+            { i: 2, v: 18 },
+            { i: 3, v: 28 },
+            { i: 4, v: 24 },
+            { i: 5, v: 32 },
+        ],
+        []
+    );
     useEffect(() => {
         if (aisOpenWithMmsi) {
             setCurrentView('ais');
@@ -3997,16 +4015,49 @@ export function ProfilePage({
     }
     
     return (
-        <div className="w-full">
+        <div className={profileSaasUiEnabled ? "w-full profile-saas-layout" : "w-full"}>
+            <header className={profileSaasUiEnabled ? "profile-saas-page-header" : "profile-saas-page-header profile-saas-page-header--legacy"}>
+                <div className="profile-saas-page-header-text">
+                    <h1 className="profile-saas-h1">Профиль</h1>
+                    {activeAccount ? (
+                        <p className="profile-saas-caption">
+                            {activeAccount.customer?.trim() || activeAccount.login || "Аккаунт"}
+                        </p>
+                    ) : (
+                        <p className="profile-saas-caption">Выберите компанию в шапке</p>
+                    )}
+                </div>
+            </header>
+
+            {onToggleProfileSaasUi && (
+                <Panel
+                    className={profileSaasUiEnabled ? "cargo-card profile-saas-row-card profile-saas-appearance-card" : "cargo-card"}
+                    style={{ padding: "1rem", cursor: "default" }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <Flex align="center" justify="space-between" style={{ gap: "0.75rem" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <Typography.Body style={{ fontSize: "0.9rem", fontWeight: 600 }}>Новый стиль профиля</Typography.Body>
+                            <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.125rem" }}>
+                                Оформление в духе Linear и Vercel
+                            </Typography.Body>
+                        </div>
+                        <TapSwitch checked={profileSaasUiEnabled} onToggle={onToggleProfileSaasUi} />
+                    </Flex>
+                </Panel>
+            )}
+
             {/* Настройки */}
-            <div style={{ marginBottom: '1.5rem' }}>
-                <Typography.Body style={{ marginBottom: '1.25rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Настройки</Typography.Body>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <section className="profile-saas-section" aria-labelledby="profile-settings-heading">
+                <h2 id="profile-settings-heading" className="profile-saas-h2">
+                    Настройки
+                </h2>
+                <div className="profile-saas-stack">
                     {settingsItems
                         .map((item) => (
                         <Panel
                             key={item.id}
-                            className="cargo-card"
+                            className="cargo-card profile-saas-row-card"
                             onClick={item.onClick}
                             style={{
                                 display: 'flex',
@@ -4016,30 +4067,32 @@ export function ProfilePage({
                             }}
                         >
                             <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
-                                <div style={{ color: 'var(--color-primary)' }}>{item.icon}</div>
-                                <Typography.Body style={{ fontSize: '0.9rem' }}>{item.label}</Typography.Body>
+                                <div className="profile-saas-row-icon" style={{ color: 'var(--color-primary)' }}>{item.icon}</div>
+                                <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>{item.label}</Typography.Body>
                             </Flex>
                         </Panel>
                     ))}
                 </div>
-            </div>
+            </section>
 
             {/* Безопасность */}
-            <div style={{ marginBottom: '1.5rem' }}>
-                <Typography.Body style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Безопасность</Typography.Body>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <section className="profile-saas-section" aria-labelledby="profile-security-heading">
+                <h2 id="profile-security-heading" className="profile-saas-h2">
+                    Безопасность
+                </h2>
+                <div className="profile-saas-stack">
                     {/* 2FA — переход на отдельную страницу */}
                     {activeAccountId && activeAccount && (
                         <Panel
-                            className="cargo-card"
+                            className="cargo-card profile-saas-row-card"
                             onClick={() => setCurrentView('2fa')}
                             style={{ display: 'flex', alignItems: 'center', padding: '1rem', cursor: 'pointer' }}
                         >
                             <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
-                                <div style={{ color: 'var(--color-primary)' }}>
+                                <div className="profile-saas-row-icon" style={{ color: 'var(--color-primary)' }}>
                                     <Shield className="w-5 h-5" />
                                 </div>
-                                <Typography.Body style={{ fontSize: '0.9rem' }}>Двухфакторная аутентификация (2FA)</Typography.Body>
+                                <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>Двухфакторная аутентификация (2FA)</Typography.Body>
                             </Flex>
                         </Panel>
                     )}
@@ -4047,20 +4100,20 @@ export function ProfilePage({
                     {activeAccountId && activeAccount?.isRegisteredUser && (
                         <>
                             <Panel
-                                className="cargo-card"
+                                className="cargo-card profile-saas-row-card"
                                 onClick={() => setShowPasswordForm((v) => !v)}
                                 style={{ display: 'flex', alignItems: 'center', padding: '1rem', cursor: 'pointer' }}
                             >
                                 <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
-                                    <div style={{ color: 'var(--color-primary)' }}>
+                                    <div className="profile-saas-row-icon" style={{ color: 'var(--color-primary)' }}>
                                         <Lock className="w-5 h-5" />
                                     </div>
-                                    <Typography.Body style={{ fontSize: '0.9rem' }}>Пароль</Typography.Body>
+                                    <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>Пароль</Typography.Body>
                                 </Flex>
                             </Panel>
                             {showPasswordForm && (
-                                <Panel className="cargo-card" style={{ padding: '1rem' }} onClick={(e) => e.stopPropagation()}>
-                                    <Typography.Body style={{ marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: 600 }}>Смена пароля</Typography.Body>
+                                <Panel className="cargo-card profile-saas-nested-card" style={{ padding: '1rem' }} onClick={(e) => e.stopPropagation()}>
+                                    <Typography.Body className="profile-saas-h3" style={{ marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: 600 }}>Смена пароля</Typography.Body>
                                     <form
                                         onSubmit={async (e) => {
                                             e.preventDefault();
@@ -4160,16 +4213,18 @@ export function ProfilePage({
                         </>
                     )}
                 </div>
-            </div>
+            </section>
 
             {/* Информация */}
-            <div>
-                <Typography.Body style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Информация</Typography.Body>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <section className="profile-saas-section" aria-labelledby="profile-info-heading">
+                <h2 id="profile-info-heading" className="profile-saas-h2">
+                    Информация
+                </h2>
+                <div className="profile-saas-stack">
                     {infoItems.map((item) => (
                         <Panel
                             key={item.id}
-                            className="cargo-card"
+                            className="cargo-card profile-saas-row-card"
                             onClick={item.onClick}
                             style={{
                                 display: 'flex',
@@ -4179,13 +4234,99 @@ export function ProfilePage({
                             }}
                         >
                             <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
-                                <div style={{ color: 'var(--color-primary)' }}>{item.icon}</div>
-                                <Typography.Body style={{ fontSize: '0.9rem' }}>{item.label}</Typography.Body>
+                                <div className="profile-saas-row-icon" style={{ color: 'var(--color-primary)' }}>{item.icon}</div>
+                                <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>{item.label}</Typography.Body>
                             </Flex>
                         </Panel>
                     ))}
                 </div>
-            </div>
+            </section>
+
+            {/* Образцы стиля — только при включённом новом оформлении */}
+            {profileSaasUiEnabled && (
+            <section className="profile-saas-section profile-saas-demo" aria-labelledby="profile-demo-heading">
+                <h2 id="profile-demo-heading" className="profile-saas-h2">
+                    Образцы интерфейса
+                </h2>
+                <p className="profile-saas-caption profile-saas-demo-lead">
+                    Единая система карточек и таблиц для остальных разделов приложения.
+                </p>
+                <div className="profile-saas-demo-grid">
+                    <Panel className="cargo-card profile-saas-cargo-demo">
+                        <div className="profile-saas-cargo-demo-top">
+                            <span className="profile-saas-badge profile-saas-badge--muted">
+                                <Package className="w-3.5 h-3.5" aria-hidden />
+                                Перевозка
+                            </span>
+                            <span className="profile-saas-caption">Сегодня</span>
+                        </div>
+                        <p className="profile-saas-cargo-demo-number">№ 135702</p>
+                        <p className="profile-saas-cargo-demo-route">Москва — Казань</p>
+                        <div className="profile-saas-cargo-demo-meta">
+                            <span>ООО «Пример»</span>
+                            <span className="profile-saas-badge profile-saas-badge--primary">В пути</span>
+                        </div>
+                    </Panel>
+                    <Panel className="cargo-card profile-saas-widget-demo">
+                        <div className="profile-saas-widget-demo-head">
+                            <span className="profile-saas-widget-demo-title">
+                                <BarChart3 className="w-4 h-4" aria-hidden />
+                                Активность
+                            </span>
+                            <span className="profile-saas-widget-demo-value">32</span>
+                        </div>
+                        <p className="profile-saas-caption profile-saas-widget-demo-delta">+12% к прошлой неделе</p>
+                        <div className="profile-saas-widget-chart">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={profileDemoSpark} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="profileSaasSpark" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor="var(--saas-color-primary)" stopOpacity={0.35} />
+                                            <stop offset="100%" stopColor="var(--saas-color-primary)" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <Area type="monotone" dataKey="v" stroke="var(--saas-color-primary)" strokeWidth={2} fill="url(#profileSaasSpark)" isAnimationActive={false} />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </Panel>
+                    <Panel className="cargo-card profile-saas-table-demo-wrap">
+                        <div className="profile-saas-table-demo-head">
+                            <Table2 className="w-4 h-4" aria-hidden />
+                            <span className="profile-saas-h3" style={{ margin: 0, fontSize: '0.9rem' }}>Таблица</span>
+                        </div>
+                        <div className="profile-saas-table-scroll">
+                            <table className="profile-saas-table">
+                                <thead>
+                                    <tr>
+                                        <th>Документ</th>
+                                        <th>Статус</th>
+                                        <th className="profile-saas-table-num">Сумма</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Счёт №1042</td>
+                                        <td><span className="profile-saas-badge profile-saas-badge--success">Оплачен</span></td>
+                                        <td className="profile-saas-table-num">128 400 ₽</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Акт сверки</td>
+                                        <td><span className="profile-saas-badge profile-saas-badge--muted">Черновик</span></td>
+                                        <td className="profile-saas-table-num">—</td>
+                                    </tr>
+                                    <tr>
+                                        <td>УПД</td>
+                                        <td><span className="profile-saas-badge profile-saas-badge--primary">В работе</span></td>
+                                        <td className="profile-saas-table-num">42 000 ₽</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </Panel>
+                </div>
+            </section>
+            )}
         </div>
     );
 }

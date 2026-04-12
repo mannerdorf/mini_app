@@ -2720,3 +2720,410 @@ body {
 .wb-action-btn:disabled {
     opacity: 0.6;
 }
+
+/* =============================================================================
+   Profile section — Linear / Vercel / Stripe–style SaaS UI (scoped)
+   Охватывает только дерево внутри .profile-saas-shell (см. AppMainContent).
+   ============================================================================= */
+.profile-saas-shell {
+    /* Токены палитры (имена из ТЗ + внутренние saas-*) */
+    --color-bg: #0f172a;
+    --color-surface: #111827;
+    --color-card: #1f2937;
+    --color-border: #374151;
+    --color-text: #e5e7eb;
+    --color-text-muted: #9ca3af;
+    --saas-color-primary: #3b82f6;
+    --saas-color-primary-soft: rgba(59, 130, 246, 0.14);
+    --radius-md: 12px;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(148, 163, 184, 0.06);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(148, 163, 184, 0.05);
+
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
+
+    /* Мост к существующим CSS-переменным приложения (max-ui / inline styles) */
+    --color-bg-primary: var(--color-bg);
+    --color-bg-secondary: var(--color-surface);
+    --color-bg-card: var(--color-card);
+    --color-bg-hover: #273549;
+    --color-bg-input: #1e293b;
+    --color-text-primary: var(--color-text);
+    --color-text-secondary: var(--color-text-muted);
+    --color-primary-blue: var(--saas-color-primary);
+    --color-primary: var(--saas-color-primary);
+    --color-tumbler-bg-on: var(--saas-color-primary);
+    --color-accepted-status: var(--saas-color-primary);
+    --radius-lg: 12px;
+    --pad-card: 20px;
+
+    box-sizing: border-box;
+    min-height: 100%;
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    padding: var(--space-4, 16px) max(var(--space-4, 16px), env(safe-area-inset-right)) var(--space-8, 32px)
+        max(var(--space-4, 16px), env(safe-area-inset-left));
+}
+
+.light-mode .profile-saas-shell {
+    --color-bg: #f8fafc;
+    --color-surface: #ffffff;
+    --color-card: #ffffff;
+    --color-border: #e2e8f0;
+    --color-text: #0f172a;
+    --color-text-muted: #64748b;
+    --saas-color-primary-soft: rgba(59, 130, 246, 0.1);
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(15, 23, 42, 0.05);
+    --shadow-md: 0 12px 40px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.04);
+
+    --color-bg-hover: #f1f5f9;
+    --color-bg-input: #f8fafc;
+}
+
+.profile-saas-layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6, 24px);
+    max-width: 42rem;
+    margin: 0 auto;
+}
+
+.profile-saas-page-header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2, 8px);
+    padding-bottom: var(--space-2, 8px);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.profile-saas-page-header--legacy {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.profile-saas-page-header-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1, 4px);
+}
+
+.profile-saas-h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    color: var(--color-text-primary);
+}
+
+.profile-saas-h2 {
+    margin: 0 0 var(--space-3, 12px);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+}
+
+.profile-saas-h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--color-text-primary);
+}
+
+.profile-saas-body {
+    color: var(--color-text-primary);
+}
+
+.profile-saas-caption {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--color-text-secondary);
+}
+
+.profile-saas-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.profile-saas-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3, 12px);
+}
+
+.profile-saas-row-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 10px;
+    /* Работает и без .profile-saas-shell (fallback на глобальный primary) */
+    background: var(--saas-color-primary-soft, color-mix(in srgb, var(--color-primary-blue) 14%, transparent));
+    flex-shrink: 0;
+}
+
+.profile-saas-shell .cargo-card {
+    background-color: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: var(--space-4, 16px) var(--space-5, 20px);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.profile-saas-shell .cargo-card:hover {
+    border-color: color-mix(in srgb, var(--color-border) 65%, var(--saas-color-primary) 35%);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.profile-saas-shell .profile-saas-row-card {
+    padding: var(--space-4, 16px) var(--space-4, 16px);
+}
+
+.profile-saas-shell .profile-saas-nested-card {
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--color-border) 80%, transparent);
+}
+
+.profile-saas-shell .button-primary {
+    background-color: var(--saas-color-primary);
+    border-radius: var(--radius-md);
+    margin-top: 0;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+}
+
+.profile-saas-shell .button-primary:hover:not(:disabled) {
+    background-color: #2563eb;
+    opacity: 1;
+}
+
+.profile-saas-shell .filter-button {
+    background-color: transparent;
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: none;
+}
+
+.profile-saas-shell .filter-button:hover {
+    background-color: var(--color-bg-hover);
+    border-color: var(--color-border);
+}
+
+.profile-saas-shell .login-input,
+.profile-saas-shell input.login-input {
+    border-radius: var(--radius-md) !important;
+    border: 1px solid var(--color-border) !important;
+    background-color: var(--color-bg-input) !important;
+    color: var(--color-text-primary) !important;
+}
+
+/* --- Демо-блоки на экране «Профиль» --- */
+.profile-saas-demo {
+    padding-top: var(--space-2, 8px);
+}
+
+.profile-saas-demo-lead {
+    margin: calc(var(--space-2, 8px) * -1) 0 var(--space-4, 16px);
+}
+
+.profile-saas-demo-grid {
+    display: grid;
+    gap: var(--space-4, 16px);
+    grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+    .profile-saas-demo-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .profile-saas-demo-grid .profile-saas-table-demo-wrap {
+        grid-column: 1 / -1;
+    }
+}
+
+.profile-saas-cargo-demo {
+    cursor: default;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3, 12px);
+}
+
+.profile-saas-cargo-demo-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2, 8px);
+}
+
+.profile-saas-cargo-demo-number {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--color-text-primary);
+}
+
+.profile-saas-cargo-demo-route {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+}
+
+.profile-saas-cargo-demo-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2, 8px);
+    font-size: 0.8125rem;
+    color: var(--color-text-secondary);
+}
+
+.profile-saas-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+
+.profile-saas-badge--primary {
+    background: var(--saas-color-primary-soft);
+    color: var(--saas-color-primary);
+    border-color: color-mix(in srgb, var(--saas-color-primary) 35%, transparent);
+}
+
+.profile-saas-badge--muted {
+    background: color-mix(in srgb, var(--color-text-secondary) 12%, transparent);
+    color: var(--color-text-secondary);
+    border-color: var(--color-border);
+}
+
+.profile-saas-badge--success {
+    background: color-mix(in srgb, var(--color-success-status) 16%, transparent);
+    color: var(--color-success-status);
+    border-color: color-mix(in srgb, var(--color-success-status) 35%, transparent);
+}
+
+.profile-saas-widget-demo {
+    cursor: default;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2, 8px);
+    min-height: 11rem;
+}
+
+.profile-saas-widget-demo-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-2, 8px);
+}
+
+.profile-saas-widget-demo-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
+.profile-saas-widget-demo-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    color: var(--color-text-primary);
+}
+
+.profile-saas-widget-demo-delta {
+    margin: 0;
+}
+
+.profile-saas-widget-chart {
+    flex: 1;
+    min-height: 5.5rem;
+    margin-top: var(--space-1, 4px);
+}
+
+.profile-saas-shell .profile-saas-widget-chart .recharts-wrapper {
+    font-family: inherit;
+}
+
+.profile-saas-shell .profile-saas-widget-chart .recharts-cartesian-axis-tick-value {
+    fill: var(--color-text-secondary);
+}
+
+.profile-saas-shell .profile-saas-widget-chart .recharts-area-curve {
+    stroke: var(--saas-color-primary);
+}
+
+.profile-saas-table-demo-wrap {
+    cursor: default;
+    padding: var(--space-4, 16px);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3, 12px);
+}
+
+.profile-saas-table-demo-head {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--color-text-secondary);
+}
+
+.profile-saas-table-scroll {
+    overflow-x: auto;
+    border-radius: 10px;
+    border: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-bg-secondary) 92%, transparent);
+}
+
+.profile-saas-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+}
+
+.profile-saas-table th,
+.profile-saas-table td {
+    padding: var(--space-3, 12px) var(--space-4, 16px);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.profile-saas-table th {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+    background: color-mix(in srgb, var(--color-bg) 55%, var(--color-card));
+}
+
+.profile-saas-table tr:last-child td {
+    border-bottom: none;
+}
+
+.profile-saas-table tbody tr:hover td {
+    background: var(--color-bg-hover);
+}
+
+.profile-saas-table-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
