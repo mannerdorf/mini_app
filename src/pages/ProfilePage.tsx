@@ -41,7 +41,9 @@ export function ProfilePage({
     onOpenMaxBot,
     onUpdateAccount,
     onOpenWildberries,
-    profileSaasUiEnabled = true,
+    profileSaasShellActive = false,
+    showProfileSaasUiToggle = false,
+    profileSaasUiToggleOn = false,
     onToggleProfileSaasUi,
 }: {
     accounts: Account[];
@@ -60,8 +62,12 @@ export function ProfilePage({
     onOpenMaxBot?: () => Promise<void>;
     onUpdateAccount: (accountId: string, patch: Partial<Account>) => void;
     onOpenWildberries?: () => void;
-    /** Включает токены и карточки раздела «Профиль» (Linear / Vercel). Управляется из AppMainContent + localStorage. */
-    profileSaasUiEnabled?: boolean;
+    /** Активна оболочка «мягкая панель» (только суперадмин + включённый переключатель). */
+    profileSaasShellActive?: boolean;
+    /** Показывать переключатель стиля (только суперадминистратор). */
+    showProfileSaasUiToggle?: boolean;
+    /** Состояние переключателя (сохраняется в localStorage). */
+    profileSaasUiToggleOn?: boolean;
     onToggleProfileSaasUi?: () => void;
 }) {
     const [currentView, setCurrentView] = useState<ProfileView>('main');
@@ -4015,8 +4021,8 @@ export function ProfilePage({
     }
     
     return (
-        <div className={profileSaasUiEnabled ? "w-full profile-saas-layout" : "w-full"}>
-            <header className={profileSaasUiEnabled ? "profile-saas-page-header" : "profile-saas-page-header profile-saas-page-header--legacy"}>
+        <div className={profileSaasShellActive ? "w-full profile-saas-layout" : "w-full"}>
+            <header className={profileSaasShellActive ? "profile-saas-page-header" : "profile-saas-page-header profile-saas-page-header--legacy"}>
                 <div className="profile-saas-page-header-text">
                     <h1 className="profile-saas-h1">Профиль</h1>
                     {activeAccount ? (
@@ -4029,9 +4035,9 @@ export function ProfilePage({
                 </div>
             </header>
 
-            {onToggleProfileSaasUi && (
+            {showProfileSaasUiToggle && onToggleProfileSaasUi && (
                 <Panel
-                    className={profileSaasUiEnabled ? "cargo-card profile-saas-row-card profile-saas-appearance-card" : "cargo-card"}
+                    className={profileSaasShellActive ? "cargo-card profile-saas-row-card profile-saas-appearance-card" : "cargo-card"}
                     style={{ padding: "1rem", cursor: "default" }}
                     onClick={(e) => e.stopPropagation()}
                 >
@@ -4039,10 +4045,10 @@ export function ProfilePage({
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <Typography.Body style={{ fontSize: "0.9rem", fontWeight: 600 }}>Новый стиль профиля</Typography.Body>
                             <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.125rem" }}>
-                                Оформление в духе Linear и Vercel
+                                Панель как на главной: светлый фон, объёмные белые карточки
                             </Typography.Body>
                         </div>
-                        <TapSwitch checked={profileSaasUiEnabled} onToggle={onToggleProfileSaasUi} />
+                        <TapSwitch checked={profileSaasUiToggleOn} onToggle={onToggleProfileSaasUi} />
                     </Flex>
                 </Panel>
             )}
@@ -4067,7 +4073,7 @@ export function ProfilePage({
                             }}
                         >
                             <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
-                                <div className="profile-saas-row-icon" style={{ color: 'var(--color-primary)' }}>{item.icon}</div>
+                                <div className="profile-saas-row-icon">{item.icon}</div>
                                 <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>{item.label}</Typography.Body>
                             </Flex>
                         </Panel>
@@ -4089,7 +4095,7 @@ export function ProfilePage({
                             style={{ display: 'flex', alignItems: 'center', padding: '1rem', cursor: 'pointer' }}
                         >
                             <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
-                                <div className="profile-saas-row-icon" style={{ color: 'var(--color-primary)' }}>
+                                <div className="profile-saas-row-icon">
                                     <Shield className="w-5 h-5" />
                                 </div>
                                 <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>Двухфакторная аутентификация (2FA)</Typography.Body>
@@ -4105,7 +4111,7 @@ export function ProfilePage({
                                 style={{ display: 'flex', alignItems: 'center', padding: '1rem', cursor: 'pointer' }}
                             >
                                 <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
-                                    <div className="profile-saas-row-icon" style={{ color: 'var(--color-primary)' }}>
+                                    <div className="profile-saas-row-icon">
                                         <Lock className="w-5 h-5" />
                                     </div>
                                     <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>Пароль</Typography.Body>
@@ -4234,7 +4240,7 @@ export function ProfilePage({
                             }}
                         >
                             <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
-                                <div className="profile-saas-row-icon" style={{ color: 'var(--color-primary)' }}>{item.icon}</div>
+                                <div className="profile-saas-row-icon">{item.icon}</div>
                                 <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>{item.label}</Typography.Body>
                             </Flex>
                         </Panel>
@@ -4243,7 +4249,7 @@ export function ProfilePage({
             </section>
 
             {/* Образцы стиля — только при включённом новом оформлении */}
-            {profileSaasUiEnabled && (
+            {profileSaasShellActive && (
             <section className="profile-saas-section profile-saas-demo" aria-labelledby="profile-demo-heading">
                 <h2 id="profile-demo-heading" className="profile-saas-h2">
                     Образцы интерфейса

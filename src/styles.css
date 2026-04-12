@@ -2722,58 +2722,58 @@ body {
 }
 
 /* =============================================================================
-   Profile section — Linear / Vercel / Stripe–style SaaS UI (scoped)
-   Охватывает только дерево внутри .profile-saas-shell (см. AppMainContent).
+   Profile — «soft elevation» панель (как главная HAULZ): светлый холст, белые
+   карточки с глубокими мягкими тенями, крупный радиус. Только .profile-saas-shell.
    ============================================================================= */
 .profile-saas-shell {
-    /* Токены палитры (имена из ТЗ + внутренние saas-*) */
-    --color-bg: #0f172a;
+    --color-bg: #0c1222;
     --color-surface: #111827;
-    --color-card: #1f2937;
-    --color-border: #374151;
+    --color-card: #1a2234;
+    --color-border: rgba(148, 163, 184, 0.14);
     --color-text: #e5e7eb;
-    --color-text-muted: #9ca3af;
+    --color-text-muted: #94a3b8;
     --saas-color-primary: #3b82f6;
-    --saas-color-primary-soft: rgba(59, 130, 246, 0.14);
-    --radius-md: 12px;
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(148, 163, 184, 0.06);
-    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(148, 163, 184, 0.05);
+    --saas-color-primary-soft: rgba(59, 130, 246, 0.18);
+    --radius-md: 18px;
+    --radius-lg: 20px;
+    --shadow-sm: 0 22px 50px -18px rgba(0, 0, 0, 0.55), 0 10px 24px -14px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04);
+    --shadow-md: 0 28px 60px -16px rgba(0, 0, 0, 0.6), 0 14px 28px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(96, 165, 250, 0.12);
 
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
 
-    /* Мост к существующим CSS-переменным приложения (max-ui / inline styles) */
     --color-bg-primary: var(--color-bg);
     --color-bg-secondary: var(--color-surface);
     --color-bg-card: var(--color-card);
-    --color-bg-hover: #273549;
-    --color-bg-input: #1e293b;
+    --color-bg-hover: #243047;
+    --color-bg-input: #151c2c;
     --color-text-primary: var(--color-text);
     --color-text-secondary: var(--color-text-muted);
     --color-primary-blue: var(--saas-color-primary);
     --color-primary: var(--saas-color-primary);
     --color-tumbler-bg-on: var(--saas-color-primary);
     --color-accepted-status: var(--saas-color-primary);
-    --radius-lg: 12px;
-    --pad-card: 20px;
+    --pad-card: 22px;
 
     box-sizing: border-box;
     min-height: 100%;
     background-color: var(--color-bg-primary);
     color: var(--color-text-primary);
-    padding: var(--space-4, 16px) max(var(--space-4, 16px), env(safe-area-inset-right)) var(--space-8, 32px)
+    padding: var(--space-5, 20px) max(var(--space-4, 16px), env(safe-area-inset-right)) var(--space-8, 32px)
         max(var(--space-4, 16px), env(safe-area-inset-left));
 }
 
 .light-mode .profile-saas-shell {
-    --color-bg: #f8fafc;
+    /* Холст как на референсе главной панели */
+    --color-bg: #f8f9fb;
     --color-surface: #ffffff;
     --color-card: #ffffff;
-    --color-border: #e2e8f0;
+    --color-border: rgba(15, 23, 42, 0.07);
     --color-text: #0f172a;
     --color-text-muted: #64748b;
-    --saas-color-primary-soft: rgba(59, 130, 246, 0.1);
-    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(15, 23, 42, 0.05);
-    --shadow-md: 0 12px 40px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.04);
+    --saas-color-primary: #2563eb;
+    --saas-color-primary-soft: rgba(37, 99, 235, 0.12);
+    --shadow-sm: 0 22px 50px -20px rgba(15, 23, 42, 0.16), 0 10px 24px -12px rgba(15, 23, 42, 0.1), 0 0 0 1px rgba(15, 23, 42, 0.04);
+    --shadow-md: 0 28px 64px -18px rgba(15, 23, 42, 0.2), 0 14px 32px -10px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(37, 99, 235, 0.08);
 
     --color-bg-hover: #f1f5f9;
     --color-bg-input: #f8fafc;
@@ -2787,11 +2787,16 @@ body {
     margin: 0 auto;
 }
 
+.profile-saas-shell .profile-saas-layout {
+    max-width: 50rem;
+    gap: 28px;
+}
+
 .profile-saas-page-header {
     display: flex;
     flex-direction: column;
     gap: var(--space-2, 8px);
-    padding-bottom: var(--space-2, 8px);
+    padding-bottom: var(--space-3, 12px);
     border-bottom: 1px solid var(--color-border);
 }
 
@@ -2808,11 +2813,15 @@ body {
 
 .profile-saas-h1 {
     margin: 0;
-    font-size: 1.5rem;
-    font-weight: 600;
-    letter-spacing: -0.02em;
+    font-size: 1.625rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
     line-height: 1.2;
     color: var(--color-text-primary);
+}
+
+.light-mode .profile-saas-shell .profile-saas-h1 {
+    font-size: 1.75rem;
 }
 
 .profile-saas-h2 {
@@ -2859,27 +2868,67 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2.25rem;
-    height: 2.25rem;
-    border-radius: 10px;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 12px;
+    color: var(--color-primary-blue);
     /* Работает и без .profile-saas-shell (fallback на глобальный primary) */
     background: var(--saas-color-primary-soft, color-mix(in srgb, var(--color-primary-blue) 14%, transparent));
     flex-shrink: 0;
 }
 
+/* KPI-плитки: разноцветные контейнеры иконок в списках (как на главной панели) */
+.profile-saas-shell .profile-saas-stack .profile-saas-row-card:nth-child(4n + 1) .profile-saas-row-icon {
+    color: #2563eb;
+    background: rgba(37, 99, 235, 0.14);
+}
+.profile-saas-shell .profile-saas-stack .profile-saas-row-card:nth-child(4n + 2) .profile-saas-row-icon {
+    color: #059669;
+    background: rgba(5, 150, 105, 0.14);
+}
+.profile-saas-shell .profile-saas-stack .profile-saas-row-card:nth-child(4n + 3) .profile-saas-row-icon {
+    color: #7c3aed;
+    background: rgba(124, 58, 237, 0.14);
+}
+.profile-saas-shell .profile-saas-stack .profile-saas-row-card:nth-child(4n + 4) .profile-saas-row-icon {
+    color: #ea580c;
+    background: rgba(234, 88, 12, 0.14);
+}
+
+.light-mode .profile-saas-shell .profile-saas-stack .profile-saas-row-card:nth-child(4n + 1) .profile-saas-row-icon {
+    color: #1d4ed8;
+    background: rgba(37, 99, 235, 0.16);
+}
+.light-mode .profile-saas-shell .profile-saas-stack .profile-saas-row-card:nth-child(4n + 2) .profile-saas-row-icon {
+    color: #047857;
+    background: rgba(5, 150, 105, 0.16);
+}
+.light-mode .profile-saas-shell .profile-saas-stack .profile-saas-row-card:nth-child(4n + 3) .profile-saas-row-icon {
+    color: #6d28d9;
+    background: rgba(124, 58, 237, 0.16);
+}
+.light-mode .profile-saas-shell .profile-saas-stack .profile-saas-row-card:nth-child(4n + 4) .profile-saas-row-icon {
+    color: #c2410c;
+    background: rgba(234, 88, 12, 0.16);
+}
+
 .profile-saas-shell .cargo-card {
     background-color: var(--color-bg-card);
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
     padding: var(--space-4, 16px) var(--space-5, 20px);
-    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+    transition: border-color 0.22s ease, box-shadow 0.22s ease, transform 0.18s ease;
 }
 
 .profile-saas-shell .cargo-card:hover {
-    border-color: color-mix(in srgb, var(--color-border) 65%, var(--saas-color-primary) 35%);
+    border-color: color-mix(in srgb, var(--color-border) 55%, var(--saas-color-primary) 45%);
     box-shadow: var(--shadow-md);
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+}
+
+.light-mode .profile-saas-shell .cargo-card {
+    border-color: rgba(15, 23, 42, 0.06);
 }
 
 .profile-saas-shell .profile-saas-row-card {

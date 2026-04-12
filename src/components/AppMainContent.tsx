@@ -176,6 +176,9 @@ export function AppMainContent({
     });
   }, []);
 
+  const isSuperAdminUser = activeAccount?.isSuperAdmin === true;
+  const profileSaasShellActive = isSuperAdminUser && profileSaasUiEnabled;
+
   return (
     <>
       {showDashboard && activeTab === "dashboard" && auth && (
@@ -266,7 +269,7 @@ export function AppMainContent({
 
       {showDashboard && activeTab === "profile" && (
         <SectionBoundary section="Профиль">
-        <div className={profileSaasUiEnabled ? "profile-saas-shell w-full" : "w-full"}>
+        <div className={profileSaasShellActive ? "profile-saas-shell w-full" : "w-full"}>
         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
           <ProfilePage
             accounts={accounts}
@@ -285,7 +288,9 @@ export function AppMainContent({
             onOpenMaxBot={undefined}
             onUpdateAccount={handleUpdateAccount}
             onOpenWildberries={openWildberries}
-            profileSaasUiEnabled={profileSaasUiEnabled}
+            profileSaasShellActive={profileSaasShellActive}
+            showProfileSaasUiToggle={isSuperAdminUser}
+            profileSaasUiToggleOn={profileSaasUiEnabled}
             onToggleProfileSaasUi={toggleProfileSaasUi}
           />
         </Suspense>
@@ -311,7 +316,7 @@ export function AppMainContent({
 
       {!showDashboard && activeTab === "profile" && (
         <SectionBoundary section="Профиль">
-        <div className={profileSaasUiEnabled ? "profile-saas-shell w-full" : "w-full"}>
+        <div className={profileSaasShellActive ? "profile-saas-shell w-full" : "w-full"}>
         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
           <ProfilePage
             accounts={accounts}
@@ -330,7 +335,9 @@ export function AppMainContent({
             onOpenMaxBot={undefined}
             onUpdateAccount={handleUpdateAccount}
             onOpenWildberries={openWildberries}
-            profileSaasUiEnabled={profileSaasUiEnabled}
+            profileSaasShellActive={profileSaasShellActive}
+            showProfileSaasUiToggle={isSuperAdminUser}
+            profileSaasUiToggleOn={profileSaasUiEnabled}
             onToggleProfileSaasUi={toggleProfileSaasUi}
           />
         </Suspense>
