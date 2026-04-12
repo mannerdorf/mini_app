@@ -176,8 +176,10 @@ export function AppMainContent({
     });
   }, []);
 
-  const isSuperAdminUser = activeAccount?.isSuperAdmin === true;
-  const profileSaasShellActive = isSuperAdminUser && profileSaasUiEnabled;
+  /** Новый стиль профиля: суперадмин или право на раздел HAULZ в профиле */
+  const profileSaasUiUnlocked =
+    activeAccount?.isSuperAdmin === true || activeAccount?.permissions?.haulz === true;
+  const profileSaasShellActive = profileSaasUiUnlocked && profileSaasUiEnabled;
 
   return (
     <>
@@ -289,7 +291,7 @@ export function AppMainContent({
             onUpdateAccount={handleUpdateAccount}
             onOpenWildberries={openWildberries}
             profileSaasShellActive={profileSaasShellActive}
-            showProfileSaasUiToggle={isSuperAdminUser}
+            showProfileSaasUiToggle={profileSaasUiUnlocked}
             profileSaasUiToggleOn={profileSaasUiEnabled}
             onToggleProfileSaasUi={toggleProfileSaasUi}
           />
@@ -336,7 +338,7 @@ export function AppMainContent({
             onUpdateAccount={handleUpdateAccount}
             onOpenWildberries={openWildberries}
             profileSaasShellActive={profileSaasShellActive}
-            showProfileSaasUiToggle={isSuperAdminUser}
+            showProfileSaasUiToggle={profileSaasUiUnlocked}
             profileSaasUiToggleOn={profileSaasUiEnabled}
             onToggleProfileSaasUi={toggleProfileSaasUi}
           />

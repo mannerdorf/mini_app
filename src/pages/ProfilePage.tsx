@@ -62,9 +62,9 @@ export function ProfilePage({
     onOpenMaxBot?: () => Promise<void>;
     onUpdateAccount: (accountId: string, patch: Partial<Account>) => void;
     onOpenWildberries?: () => void;
-    /** Активна оболочка «мягкая панель» (только суперадмин + включённый переключатель). */
+    /** Активна оболочка «мягкая панель» (суперадмин или право haulz + включённый переключатель). */
     profileSaasShellActive?: boolean;
-    /** Показывать переключатель стиля (только суперадминистратор). */
+    /** Показывать переключатель стиля (суперадмин или право haulz на раздел в профиле). */
     showProfileSaasUiToggle?: boolean;
     /** Состояние переключателя (сохраняется в localStorage). */
     profileSaasUiToggleOn?: boolean;
