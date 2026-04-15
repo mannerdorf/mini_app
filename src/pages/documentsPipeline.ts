@@ -338,14 +338,35 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
   if (transportFilter) {
     res = res.filter((i) => {
       const selected = normalizeTransportName(transportFilter);
-      return normalizeTransportName(
+      const direct = normalizeTransportName(
         i?.AutoReg ??
           i?.autoReg ??
           i?.АвтомобильCMRНаименование ??
           i?.Transport ??
           i?.transport ??
           i?.AutoType
-      ) === selected;
+      );
+      if (direct && direct === selected) return true;
+      // Fallback for invoices that don't carry transport directly in row fields.
+      // In such cases, use linked cargo transport to keep filter usable.
+      if (direct) return false;
+
+      const cargoNums = new Set<string>();
+      const firstCargoNum = getFirstCargoNumberFromInvoice(i);
+      if (firstCargoNum) cargoNums.add(firstCargoNum);
+      const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(i?.List) ? i.List : [];
+      list.forEach((row) => {
+        const text = String(row?.Operation ?? row?.Name ?? "").trim();
+        if (!text) return;
+        parseCargoNumbersFromText(text)
+          .filter((p) => p.type === "cargo" && p.value)
+          .forEach((p) => cargoNums.add(p.value));
+      });
+      for (const cargoNum of cargoNums) {
+        const byCargo = normalizeTransportName(cargoTransportByNumber.get(normCargoKey(cargoNum)));
+        if (byCargo && byCargo === selected) return true;
+      }
+      return false;
     });
   }
   if (searchText.trim()) {
