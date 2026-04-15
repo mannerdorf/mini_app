@@ -90,6 +90,64 @@ function DashboardMotionItem({ enabled, children }: { enabled: boolean; children
     );
 }
 
+const CHART_BAR_FILL_DURATION = 0.72;
+const CHART_BAR_FILL_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+/** Горизонтальная полоса: ширина 0% → целевая (наполнение при монтировании). */
+function DashboardChartBarH({
+    enabled,
+    widthPercent,
+    delay = 0,
+    style,
+    title,
+}: {
+    enabled: boolean;
+    widthPercent: number;
+    delay?: number;
+    style?: React.CSSProperties;
+    title?: string;
+}) {
+    const w = Math.max(0, Math.min(100, Number.isFinite(widthPercent) ? widthPercent : 0));
+    if (!enabled) {
+        return <div title={title} style={{ height: "100%", width: `${w}%`, boxSizing: "border-box", ...style }} />;
+    }
+    return (
+        <motion.div
+            title={title}
+            initial={{ width: "0%" }}
+            animate={{ width: `${w}%` }}
+            transition={{ duration: CHART_BAR_FILL_DURATION, ease: CHART_BAR_FILL_EASE, delay }}
+            style={{ height: "100%", boxSizing: "border-box", ...style }}
+        />
+    );
+}
+
+/** Высота столбца в px (мини-графики). */
+function DashboardChartBarPixelHeight({
+    enabled,
+    heightPx,
+    delay = 0,
+    style,
+}: {
+    enabled: boolean;
+    heightPx: number;
+    delay?: number;
+    style?: React.CSSProperties;
+}) {
+    const h = Math.max(0, Math.round(heightPx));
+    if (!enabled) {
+        return <div style={{ width: "100%", height: Math.max(h, 2), ...style }} />;
+    }
+    return (
+        <motion.div
+            initial={{ height: 0 }}
+            animate={{ height: Math.max(h, 2) }}
+            transition={{ duration: CHART_BAR_FILL_DURATION, ease: CHART_BAR_FILL_EASE, delay }}
+            style={{ width: "100%", boxSizing: "border-box", overflow: "hidden", ...style }}
+        />
+    );
+}
+
 export type DashboardPageProps = {
     auth: AuthData;
     onClose: () => void;
@@ -114,6 +172,8 @@ export function DashboardPage({
 }: DashboardPageProps) {
     const prefersReducedMotion = useReducedMotion();
     const dashboardMotionEnabled = !!saasDashboardMotion && prefersReducedMotion !== true;
+    /** Наполнение полос графиков — для всех, кроме prefers-reduced-motion. */
+    const chartBarFillEnabled = prefersReducedMotion !== true;
     const normalizeTimelineErrorMessage = (message?: string | null) => {
         const raw = String(message || "").trim();
         if (!raw) return "Не удалось загрузить статусы";
@@ -1887,7 +1947,7 @@ export function DashboardPage({
                         <div key={`bb-${i}`} style={{ display: 'grid', gridTemplateColumns: '24px 1fr 34px', alignItems: 'center', gap: 4 }}>
                             <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>d{i + 1}</span>
                             <div style={{ height: 6, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                <div style={{ width: `${(v / maxTop) * 100}%`, height: '100%', background: color }} />
+                                <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={(v / maxTop) * 100} delay={i * 0.04} style={{ background: color }} />
                             </div>
                             <span style={{ fontSize: 10, textAlign: 'right' }}>{Math.round(v)}</span>
                         </div>
@@ -2960,7 +3020,7 @@ export function DashboardPage({
                                     <Typography.Body style={{ flexShrink: 0, width: 56 }}>{row.label}</Typography.Body>
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                            <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4, transition: 'width 0.3s' }} />
+                                            <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={row.percent} delay={i * 0.045} style={{ background: row.color, borderRadius: 4 }} />
                                         </div>
                                     </div>
                                     {row.dynamics != null && (
@@ -2989,7 +3049,7 @@ export function DashboardPage({
                                     <Typography.Body style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }} title={row.name}>{row.name}</Typography.Body>
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                            <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4, transition: 'width 0.3s' }} />
+                                            <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={row.percent} delay={i * 0.045} style={{ background: row.color, borderRadius: 4 }} />
                                         </div>
                                     </div>
                                     {row.dynamics != null && (
@@ -3018,7 +3078,7 @@ export function DashboardPage({
                                     <Typography.Body style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }} title={row.name}>{row.name}</Typography.Body>
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                            <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4, transition: 'width 0.3s' }} />
+                                            <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={row.percent} delay={i * 0.045} style={{ background: row.color, borderRadius: 4 }} />
                                         </div>
                                     </div>
                                     {row.dynamics != null && (
@@ -3047,7 +3107,7 @@ export function DashboardPage({
                                     <Typography.Body style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }} title={row.name}>{row.name}</Typography.Body>
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                            <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4, transition: 'width 0.3s' }} />
+                                            <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={row.percent} delay={i * 0.045} style={{ background: row.color, borderRadius: 4 }} />
                                         </div>
                                     </div>
                                     {row.dynamics != null && (
@@ -3185,7 +3245,7 @@ export function DashboardPage({
                                 <Typography.Body style={{ flexShrink: 0, width: 140 }}>{row.label}</Typography.Body>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                        <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4 }} />
+                                        <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={row.percent} delay={i * 0.045} style={{ background: row.color, borderRadius: 4 }} />
                                     </div>
                                 </div>
                                 <Typography.Body component="span" style={{ flexShrink: 0, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); setDeliveryStripShowAsPercent(p => !p); }} title={deliveryStripShowAsPercent ? 'Показать в рублях' : 'Показать в процентах'}>
@@ -3199,7 +3259,7 @@ export function DashboardPage({
                                 <Typography.Body style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }} title={row.name}>{row.name}</Typography.Body>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                        <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4 }} />
+                                        <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={row.percent} delay={i * 0.045} style={{ background: row.color, borderRadius: 4 }} />
                                     </div>
                                 </div>
                                 <Typography.Body component="span" style={{ flexShrink: 0, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); setDeliveryStripShowAsPercent(p => !p); }}>
@@ -3213,7 +3273,7 @@ export function DashboardPage({
                                 <Typography.Body style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }} title={row.name}>{row.name}</Typography.Body>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                        <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4 }} />
+                                        <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={row.percent} delay={i * 0.045} style={{ background: row.color, borderRadius: 4 }} />
                                     </div>
                                 </div>
                                 <Typography.Body component="span" style={{ flexShrink: 0, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); setDeliveryStripShowAsPercent(p => !p); }}>
@@ -3373,15 +3433,23 @@ export function DashboardPage({
                         Количество приёмок и платный вес в разрезе дня недели
                     </Typography.Body>
                     <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'flex-end', height: 100, marginBottom: '0.4rem' }}>
-                        {weekdayDistribution.map((d) => (
+                        {weekdayDistribution.map((d, idx) => {
+                            const colH = d.count === 0 ? 0 : Math.max(d.percent, 4);
+                            return (
                             <div key={d.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
-                                <div style={{ width: '100%', maxWidth: 38, display: 'flex', flexDirection: 'column', borderRadius: '5px 5px 0 0', overflow: 'hidden', height: `${Math.max(d.percent, 4)}%`, transition: 'height 0.3s' }}>
+                                <motion.div
+                                    style={{ width: '100%', maxWidth: 38, display: 'flex', flexDirection: 'column', borderRadius: '5px 5px 0 0', overflow: 'hidden' }}
+                                    initial={chartBarFillEnabled ? { height: '0%' } : false}
+                                    animate={{ height: `${colH}%` }}
+                                    transition={chartBarFillEnabled ? { duration: CHART_BAR_FILL_DURATION, ease: CHART_BAR_FILL_EASE, delay: idx * 0.05 } : { duration: 0 }}
+                                >
                                     {d.ferry > 0 && <div style={{ flex: d.ferry, background: '#3b82f6' }} title={`Паром: ${d.ferry}`} />}
                                     {d.auto > 0 && <div style={{ flex: d.auto, background: '#f59e0b' }} title={`Авто: ${d.auto}`} />}
                                     {d.count === 0 && <div style={{ flex: 1, background: 'var(--color-bg-hover)' }} />}
-                                </div>
+                                </motion.div>
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
                     <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.35rem' }}>
                         {weekdayDistribution.map((d) => (
@@ -3463,7 +3531,7 @@ export function DashboardPage({
                         {(() => {
                             const maxC = Math.max(...statusFunnel.map((s) => s.count), 1);
                             const totalC = statusFunnel.reduce((a, s) => a + s.count, 0) || 1;
-                            return statusFunnel.map((stage) => {
+                            return statusFunnel.map((stage, fi) => {
                                 const isActive = selectedFunnelStatusKey === stage.key;
                                 return (
                                     <button
@@ -3475,7 +3543,7 @@ export function DashboardPage({
                                     >
                                         <Typography.Body style={{ fontSize: '0.78rem', width: 110, flexShrink: 0, color: 'var(--color-text-secondary)' }}>{stage.label}</Typography.Body>
                                         <div style={{ flex: 1, height: 14, borderRadius: 7, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                            <div style={{ width: `${Math.round((stage.count / maxC) * 100)}%`, height: '100%', background: stage.color, borderRadius: 7, transition: 'width 0.3s' }} />
+                                            <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={Math.round((stage.count / maxC) * 100)} delay={fi * 0.04} style={{ background: stage.color, borderRadius: 7 }} />
                                         </div>
                                         <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, minWidth: 44, textAlign: 'right' }}>{stage.count}</Typography.Body>
                                         <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', minWidth: 36, textAlign: 'right' }}>{Math.round((stage.count / totalC) * 100)}%</Typography.Body>
@@ -3680,13 +3748,13 @@ export function DashboardPage({
                             </Typography.Body>
                             <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                                 <div style={{ display: 'grid', gridTemplateColumns: `repeat(${planVsFactDashboard.trend.length}, minmax(86px, 1fr))`, gap: '0.4rem', minWidth: `${Math.max(560, planVsFactDashboard.trend.length * 92)}px` }}>
-                                    {planVsFactDashboard.trend.map((row) => (
+                                    {planVsFactDashboard.trend.map((row, ti) => (
                                         <div key={`pvf-${row.key}`} style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.38rem 0.42rem', background: 'var(--color-bg-hover)' }}>
                                             <Typography.Body style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginBottom: '0.18rem' }}>
                                                 <DateText value={row.key} />
                                             </Typography.Body>
                                             <div style={{ height: 7, borderRadius: 4, background: 'rgba(148,163,184,0.25)', overflow: 'hidden', marginBottom: '0.2rem' }}>
-                                                <div style={{ width: `${Math.round((row.total / planVsFactDashboard.maxTotal) * 100)}%`, height: '100%', background: 'rgba(99,102,241,0.7)' }} />
+                                                <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={Math.round((row.total / planVsFactDashboard.maxTotal) * 100)} delay={ti * 0.035} style={{ background: 'rgba(99,102,241,0.7)', borderRadius: 4 }} />
                                             </div>
                                             <Typography.Body style={{ fontSize: '0.68rem', display: 'block' }}>Всего: {row.total}</Typography.Body>
                                             <Typography.Body style={{ fontSize: '0.68rem', color: '#16a34a', display: 'block' }}>В срок: {row.onTime}</Typography.Body>
@@ -3782,13 +3850,13 @@ export function DashboardPage({
                         title={slaDetailsOpen ? 'Свернуть' : 'Подробности по типу перевозки'}
                     >
                         <div style={{ height: 12, borderRadius: 6, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                            <div
+                            <DashboardChartBarH
+                                enabled={chartBarFillEnabled}
+                                widthPercent={slaStats.percentOnTime}
+                                delay={0.08}
                                 style={{
-                                    width: `${slaStats.percentOnTime}%`,
-                                    height: '100%',
                                     borderRadius: 6,
                                     background: `linear-gradient(90deg, var(--color-success-status) 0%, #f59e0b 50%, #ef4444 100%)`,
-                                    transition: 'width 0.3s ease',
                                 }}
                             />
                         </div>
@@ -4144,8 +4212,15 @@ export function DashboardPage({
                         ))}
                     </div>
                     <div style={{ height: 10, borderRadius: 5, background: 'var(--color-bg-hover)', overflow: 'hidden', display: 'flex' }}>
-                        {invoiceAging.buckets.map((b) => (
-                            <div key={`aging-bar-${b.label}`} style={{ width: `${invoiceAging.total > 0 ? (b.sum / invoiceAging.total) * 100 : 0}%`, height: '100%', background: b.color, transition: 'width 0.3s' }} title={`${b.label}: ${formatCurrency(b.sum, true)}`} />
+                        {invoiceAging.buckets.map((b, bi) => (
+                            <DashboardChartBarH
+                                key={`aging-bar-${b.label}`}
+                                enabled={chartBarFillEnabled}
+                                widthPercent={invoiceAging.total > 0 ? (b.sum / invoiceAging.total) * 100 : 0}
+                                delay={bi * 0.06}
+                                style={{ background: b.color }}
+                                title={`${b.label}: ${formatCurrency(b.sum, true)}`}
+                            />
                         ))}
                     </div>
                     {expandedAgingBucket && (() => {
@@ -4315,8 +4390,8 @@ export function DashboardPage({
                         </div>
                     </Flex>
                     <div style={{ height: 12, borderRadius: 6, background: 'var(--color-bg-hover)', overflow: 'hidden', display: 'flex' }}>
-                        <div style={{ width: `${repeatCustomers.repeatPercent}%`, height: '100%', background: '#10b981', borderRadius: '6px 0 0 6px', transition: 'width 0.3s' }} />
-                        <div style={{ width: `${100 - repeatCustomers.repeatPercent}%`, height: '100%', background: '#f59e0b', borderRadius: '0 6px 6px 0', transition: 'width 0.3s' }} />
+                        <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={repeatCustomers.repeatPercent} delay={0.05} style={{ background: '#10b981', borderRadius: '6px 0 0 6px' }} />
+                        <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={100 - repeatCustomers.repeatPercent} delay={0.12} style={{ background: '#f59e0b', borderRadius: '0 6px 6px 0' }} />
                     </div>
                     <Flex gap="0.75rem" style={{ marginTop: '0.3rem' }}>
                         <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }} /><Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Повторные</Typography.Body></Flex>
@@ -4366,7 +4441,7 @@ export function DashboardPage({
                                     <Typography.Body style={{ fontSize: '0.75rem', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</Typography.Body>
                                     <div style={{ width: '30%', flexShrink: 0 }}>
                                         <div style={{ height: 10, borderRadius: 5, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                            <div style={{ width: `${Math.round((c.sum / maxSum) * 100)}%`, height: '100%', background: i < 3 ? '#f59e0b' : '#3b82f6', borderRadius: 5, transition: 'width 0.3s' }} />
+                                            <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={Math.round((c.sum / maxSum) * 100)} delay={i * 0.04} style={{ background: i < 3 ? '#f59e0b' : '#3b82f6', borderRadius: 5 }} />
                                         </div>
                                     </div>
                                     <Typography.Body style={{ fontSize: '0.72rem', fontWeight: 600, minWidth: 72, textAlign: 'right' }}>{Math.round(c.sum).toLocaleString('ru-RU')} ₽</Typography.Body>
@@ -4464,7 +4539,7 @@ export function DashboardPage({
                         Recency (давность) × Frequency (частота) × Monetary (сумма). Всего клиентов: {rfmSegments.total}. Нажмите на сегмент — список заказчиков.
                     </Typography.Body>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        {rfmSegments.segments.map(seg => {
+                        {rfmSegments.segments.map((seg, ri) => {
                             const pct = rfmSegments.total > 0 ? Math.round((seg.count / rfmSegments.total) * 100) : 0;
                             const isExpanded = expandedRfmSegment === seg.name;
                             return (
@@ -4472,7 +4547,7 @@ export function DashboardPage({
                                     <button type="button" onClick={() => setExpandedRfmSegment(isExpanded ? null : seg.name)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0', background: isExpanded ? 'var(--color-bg-hover)' : 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', textAlign: 'left' }}>
                                         <Typography.Body style={{ fontSize: '0.75rem', width: 130, flexShrink: 0, fontWeight: 600 }}>{seg.name}</Typography.Body>
                                         <div style={{ flex: 1, height: 16, borderRadius: 8, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                            <div style={{ width: `${pct}%`, height: '100%', background: seg.color, borderRadius: 8, transition: 'width 0.3s', minWidth: pct > 0 ? 4 : 0 }} />
+                                            <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={pct} delay={ri * 0.04} style={{ background: seg.color, borderRadius: 8, minWidth: pct > 0 ? 4 : 0 }} />
                                         </div>
                                         <Typography.Body style={{ fontSize: '0.75rem', fontWeight: 600, minWidth: 36, textAlign: 'right' }}>{seg.count}</Typography.Body>
                                         <Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)', minWidth: 30, textAlign: 'right' }}>{pct}%</Typography.Body>
@@ -4549,7 +4624,7 @@ export function DashboardPage({
                                         else cmp = a.paidRate - b.paidRate;
                                         return paymentDisciplineSortAsc ? cmp : -cmp;
                                     })
-                                    .map(c => {
+                                    .map((c, pi) => {
                                     const color = c.paidRate >= 80 ? '#10b981' : c.paidRate >= 50 ? '#f59e0b' : '#ef4444';
                                     return (
                                         <tr key={c.name}>
@@ -4560,7 +4635,7 @@ export function DashboardPage({
                                             <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'center' }}>
                                                     <div style={{ width: 40, height: 6, borderRadius: 3, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                                        <div style={{ width: `${c.paidRate}%`, height: '100%', background: color, borderRadius: 3 }} />
+                                                        <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={c.paidRate} delay={Math.min(pi * 0.012, 0.35)} style={{ background: color, borderRadius: 3 }} />
                                                     </div>
                                                     <span style={{ fontWeight: 600, color }}>{c.paidRate}%</span>
                                                 </div>
@@ -4589,7 +4664,7 @@ export function DashboardPage({
                                     <Typography.Body style={{ fontSize: '0.75rem', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</Typography.Body>
                                     <div style={{ width: '25%', flexShrink: 0 }}>
                                         <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                            <div style={{ width: `${Math.round((c.perKg / maxPerKg) * 100)}%`, height: '100%', background: i < 3 ? '#10b981' : '#3b82f6', borderRadius: 4 }} />
+                                            <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={Math.round((c.perKg / maxPerKg) * 100)} delay={i * 0.025} style={{ background: i < 3 ? '#10b981' : '#3b82f6', borderRadius: 4 }} />
                                         </div>
                                     </div>
                                     <Typography.Body style={{ fontSize: '0.72rem', fontWeight: 600, minWidth: 55, textAlign: 'right' }}>{c.perKg.toFixed(1)} ₽/кг</Typography.Body>
@@ -4617,7 +4692,7 @@ export function DashboardPage({
                                     <Typography.Body style={{ fontSize: '0.72rem', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.route}</Typography.Body>
                                     <div style={{ width: '25%', flexShrink: 0 }}>
                                         <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                            <div style={{ width: `${Math.round((r.count / maxC) * 100)}%`, height: '100%', background: '#8b5cf6', borderRadius: 4 }} />
+                                            <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={Math.round((r.count / maxC) * 100)} delay={i * 0.035} style={{ background: '#8b5cf6', borderRadius: 4 }} />
                                         </div>
                                     </div>
                                     <Typography.Body style={{ fontSize: '0.72rem', fontWeight: 600, minWidth: 40, textAlign: 'right' }}>{r.count}</Typography.Body>
@@ -4628,14 +4703,14 @@ export function DashboardPage({
                     </div>
                     <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.3rem' }}>Топ городов</Typography.Body>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                        {clientGeography.topCities.map(c => {
+                        {clientGeography.topCities.map((c, ci) => {
                             const maxC = clientGeography.topCities[0]?.total || 1;
                             return (
                                 <div key={c.city} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                     <Typography.Body style={{ fontSize: '0.72rem', width: 90, flexShrink: 0, fontWeight: 600 }}>{c.city}</Typography.Body>
                                     <div style={{ flex: 1, height: 10, borderRadius: 5, background: 'var(--color-bg-hover)', overflow: 'hidden', display: 'flex' }}>
-                                        <div style={{ width: `${Math.round((c.sent / maxC) * 100)}%`, height: '100%', background: '#3b82f6' }} />
-                                        <div style={{ width: `${Math.round((c.received / maxC) * 100)}%`, height: '100%', background: '#f59e0b' }} />
+                                        <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={Math.round((c.sent / maxC) * 100)} delay={ci * 0.05} style={{ background: '#3b82f6' }} />
+                                        <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={Math.round((c.received / maxC) * 100)} delay={ci * 0.05 + 0.06} style={{ background: '#f59e0b' }} />
                                     </div>
                                     <Typography.Body style={{ fontSize: '0.68rem', minWidth: 70, textAlign: 'right' }}>
                                         <span style={{ color: '#3b82f6' }}>↑{c.sent}</span>{' '}<span style={{ color: '#f59e0b' }}>↓{c.received}</span>
@@ -4708,7 +4783,7 @@ export function DashboardPage({
                             return (
                                 <div key={m.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                                     <Typography.Body style={{ fontSize: '0.58rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>{m.avgPw}</Typography.Body>
-                                    <div style={{ width: '100%', height: h, background: '#3b82f6', borderRadius: '4px 4px 0 0', minHeight: 2 }} />
+                                    <DashboardChartBarPixelHeight enabled={chartBarFillEnabled} heightPx={h} delay={i * 0.05} style={{ background: '#3b82f6', borderRadius: '4px 4px 0 0' }} />
                                 </div>
                             );
                         })}
@@ -4744,12 +4819,12 @@ export function DashboardPage({
                         Доля паром vs авто по клиентам. Помогает выявить предпочтения и потенциал для переключения на другой тип.
                     </Typography.Body>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        {deliveryPreferences.map(c => (
+                        {deliveryPreferences.map((c, di) => (
                             <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 <Typography.Body style={{ fontSize: '0.72rem', width: 100, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</Typography.Body>
                                 <div style={{ flex: 1, height: 14, borderRadius: 7, background: 'var(--color-bg-hover)', overflow: 'hidden', display: 'flex' }}>
-                                    {c.ferry > 0 && <div style={{ width: `${c.ferryPct}%`, height: '100%', background: '#3b82f6', transition: 'width 0.3s' }} />}
-                                    {c.auto > 0 && <div style={{ width: `${100 - c.ferryPct}%`, height: '100%', background: '#f59e0b', transition: 'width 0.3s' }} />}
+                                    {c.ferry > 0 && <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={c.ferryPct} delay={di * 0.04} style={{ background: '#3b82f6' }} />}
+                                    {c.auto > 0 && <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={100 - c.ferryPct} delay={di * 0.04 + 0.07} style={{ background: '#f59e0b' }} />}
                                 </div>
                                 <Typography.Body style={{ fontSize: '0.65rem', minWidth: 60, textAlign: 'right' }}>
                                     <span style={{ color: '#3b82f6' }}>{c.ferry}</span>/<span style={{ color: '#f59e0b' }}>{c.auto}</span>
