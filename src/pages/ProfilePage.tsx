@@ -4038,17 +4038,22 @@ export function ProfilePage({
             {showProfileSaasUiToggle && onToggleProfileSaasUi && (
                 <Panel
                     className={profileSaasShellActive ? "cargo-card profile-saas-row-card profile-saas-appearance-card" : "cargo-card"}
-                    style={{ padding: "1rem", cursor: "default" }}
+                    style={{ padding: profileSaasShellActive ? undefined : "1rem", cursor: "default" }}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <Flex align="center" justify="space-between" style={{ gap: "0.75rem" }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                            <Typography.Body style={{ fontSize: "0.9rem", fontWeight: 600 }}>Новый стиль профиля</Typography.Body>
-                            <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.125rem" }}>
+                    <Flex align="center" justify="space-between" style={{ gap: "1rem" }}>
+                        <div className="profile-saas-appearance-text" style={{ flex: 1, minWidth: 0 }}>
+                            <p className="profile-saas-appearance-title">Новый стиль профиля</p>
+                            <p className="profile-saas-appearance-desc">
                                 Панель как на главной: светлый фон, объёмные белые карточки
-                            </Typography.Body>
+                            </p>
                         </div>
-                        <TapSwitch checked={profileSaasUiToggleOn} onToggle={onToggleProfileSaasUi} />
+                        <TapSwitch
+                            variant="comfortable"
+                            checked={profileSaasUiToggleOn}
+                            onToggle={onToggleProfileSaasUi}
+                            aria-label="Переключить новый стиль профиля"
+                        />
                     </Flex>
                 </Panel>
             )}

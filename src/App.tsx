@@ -130,6 +130,17 @@ const getFileNameFromDisposition = (header: string | null, fallback: string) => 
     return fallback;
 };
 
+const PROFILE_SAAS_UI_KEY = "haulz.profileSaasUi";
+
+function readProfileSaasUiEnabled(): boolean {
+    if (typeof window === "undefined") return true;
+    try {
+        return window.localStorage.getItem(PROFILE_SAAS_UI_KEY) !== "0";
+    } catch {
+        return true;
+    }
+}
+
 // ================== COMPONENTS ==================
 
 export default function App() {
@@ -243,6 +254,24 @@ export default function App() {
         if (!activeAccountId) return null;
         return accounts.find(acc => acc.id === activeAccountId) || null;
     }, [accounts, activeAccountId]);
+
+    const profileSaasUiUnlocked = useMemo(
+        () => activeAccount?.isSuperAdmin === true || activeAccount?.permissions?.haulz === true,
+        [activeAccount?.isSuperAdmin, activeAccount?.permissions?.haulz],
+    );
+    const [profileSaasUiEnabled, setProfileSaasUiEnabled] = useState(readProfileSaasUiEnabled);
+    const toggleProfileSaasUi = useCallback(() => {
+        setProfileSaasUiEnabled((prev) => {
+            const next = !prev;
+            try {
+                window.localStorage.setItem(PROFILE_SAAS_UI_KEY, next ? "1" : "0");
+            } catch {
+                /* ignore */
+            }
+            return next;
+        });
+    }, []);
+    const profileSaasShellActive = profileSaasUiUnlocked && profileSaasUiEnabled;
 
     /** Аккаунты для отображения перевозок (один или несколько). У сотрудников без доступа ко всем заказчикам всегда передаём ИНН — фильтрация по компании. */
     const selectedAuths = useMemo((): AuthData[] => {
@@ -1884,7 +1913,11 @@ export default function App() {
 
     if (isWbOnlyUser) {
         return (
-            <WbOnlyAppLayout desktopExpanded={desktopExpanded} onLogout={handleLogout}>
+            <WbOnlyAppLayout
+                desktopExpanded={desktopExpanded}
+                onLogout={handleLogout}
+                saasShellClassName={profileSaasShellActive ? "profile-saas-shell" : ""}
+            >
                 <AppRuntimeProvider
                     value={{
                         useServiceRequest: false,
@@ -1928,6 +1961,10 @@ export default function App() {
                         DashboardPageComponent={DashboardPage}
                         ProfilePageComponent={ProfilePage}
                         DocumentsPageComponent={DocumentsPage}
+                        profileSaasShellActive={profileSaasShellActive}
+                        profileSaasUiUnlocked={profileSaasUiUnlocked}
+                        profileSaasUiEnabled={profileSaasUiEnabled}
+                        onToggleProfileSaasUi={toggleProfileSaasUi}
                     />
                 </AppRuntimeProvider>
             </WbOnlyAppLayout>
@@ -1936,7 +1973,7 @@ export default function App() {
 
     return (
         <>
-            <Container className={`app-container`}>
+            <Container className={`app-container${profileSaasShellActive ? " profile-saas-shell" : ""}`}>
             <header className={`app-header${desktopExpanded ? " app-header-wide" : ""}`}>
                     <Flex align="center" justify="space-between" className="header-top-row">
                     <Flex align="center" className="header-auth-info" style={{ position: 'relative', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -2136,6 +2173,10 @@ export default function App() {
                             DashboardPageComponent={DashboardPage}
                             ProfilePageComponent={ProfilePage}
                             DocumentsPageComponent={DocumentsPage}
+                            profileSaasShellActive={profileSaasShellActive}
+                            profileSaasUiUnlocked={profileSaasUiUnlocked}
+                            profileSaasUiEnabled={profileSaasUiEnabled}
+                            onToggleProfileSaasUi={toggleProfileSaasUi}
                         />
                     </AppRuntimeProvider>
             </div>

@@ -1,4 +1,4 @@
-import React, { Suspense, useCallback, useState } from "react";
+import React, { Suspense } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { Loader2, Package } from "lucide-react";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -6,16 +6,6 @@ import { CargoPage } from "../pages/CargoPage";
 import { ExpenseRequestsPage } from "../pages/ExpenseRequestsPage";
 import { WildberriesPage } from "../pages/WildberriesPage";
 import type { Account, AuthData, Tab } from "../types";
-
-const PROFILE_SAAS_UI_KEY = "haulz.profileSaasUi";
-
-function readProfileSaasUiEnabled(): boolean {
-  try {
-    return localStorage.getItem(PROFILE_SAAS_UI_KEY) !== "0";
-  } catch {
-    return true;
-  }
-}
 
 type Props = {
   showDashboard: boolean;
@@ -53,6 +43,10 @@ type Props = {
   DashboardPageComponent: React.ComponentType<any>;
   ProfilePageComponent: React.ComponentType<any>;
   DocumentsPageComponent: React.ComponentType<any>;
+  profileSaasShellActive: boolean;
+  profileSaasUiUnlocked: boolean;
+  profileSaasUiEnabled: boolean;
+  onToggleProfileSaasUi: () => void;
 };
 
 function EmptyCargoState({
@@ -158,28 +152,14 @@ export function AppMainContent({
   DashboardPageComponent,
   ProfilePageComponent,
   DocumentsPageComponent,
+  profileSaasShellActive,
+  profileSaasUiUnlocked,
+  profileSaasUiEnabled,
+  onToggleProfileSaasUi,
 }: Props) {
   const DashboardPage = DashboardPageComponent;
   const ProfilePage = ProfilePageComponent;
   const DocumentsPage = DocumentsPageComponent;
-
-  const [profileSaasUiEnabled, setProfileSaasUiEnabled] = useState(readProfileSaasUiEnabled);
-  const toggleProfileSaasUi = useCallback(() => {
-    setProfileSaasUiEnabled((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(PROFILE_SAAS_UI_KEY, next ? "1" : "0");
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }, []);
-
-  /** Новый стиль профиля: суперадмин или право на раздел HAULZ в профиле */
-  const profileSaasUiUnlocked =
-    activeAccount?.isSuperAdmin === true || activeAccount?.permissions?.haulz === true;
-  const profileSaasShellActive = profileSaasUiUnlocked && profileSaasUiEnabled;
 
   return (
     <>
@@ -271,7 +251,7 @@ export function AppMainContent({
 
       {showDashboard && activeTab === "profile" && (
         <SectionBoundary section="Профиль">
-        <div className={profileSaasShellActive ? "profile-saas-shell w-full" : "w-full"}>
+        <div className="w-full">
         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
           <ProfilePage
             accounts={accounts}
@@ -293,7 +273,7 @@ export function AppMainContent({
             profileSaasShellActive={profileSaasShellActive}
             showProfileSaasUiToggle={profileSaasUiUnlocked}
             profileSaasUiToggleOn={profileSaasUiEnabled}
-            onToggleProfileSaasUi={toggleProfileSaasUi}
+            onToggleProfileSaasUi={onToggleProfileSaasUi}
           />
         </Suspense>
         </div>
@@ -318,7 +298,7 @@ export function AppMainContent({
 
       {!showDashboard && activeTab === "profile" && (
         <SectionBoundary section="Профиль">
-        <div className={profileSaasShellActive ? "profile-saas-shell w-full" : "w-full"}>
+        <div className="w-full">
         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
           <ProfilePage
             accounts={accounts}
@@ -340,7 +320,7 @@ export function AppMainContent({
             profileSaasShellActive={profileSaasShellActive}
             showProfileSaasUiToggle={profileSaasUiUnlocked}
             profileSaasUiToggleOn={profileSaasUiEnabled}
-            onToggleProfileSaasUi={toggleProfileSaasUi}
+            onToggleProfileSaasUi={onToggleProfileSaasUi}
           />
         </Suspense>
         </div>

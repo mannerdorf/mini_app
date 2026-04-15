@@ -82,13 +82,15 @@ type WbOnlyAppLayoutProps = {
   desktopExpanded: boolean;
   onLogout: () => void;
   children: React.ReactNode;
+  /** Глобальный SaaS-стиль (те же токены, что и профиль). */
+  saasShellClassName?: string;
 };
 
 /** Упрощённая оболочка для пользователя только с доступом WB. */
-export function WbOnlyAppLayout({ desktopExpanded, onLogout, children }: WbOnlyAppLayoutProps) {
+export function WbOnlyAppLayout({ desktopExpanded, onLogout, children, saasShellClassName = "" }: WbOnlyAppLayoutProps) {
   return (
     <>
-      <Container className="app-container">
+      <Container className={`app-container${saasShellClassName ? ` ${saasShellClassName}` : ""}`}>
         <header className={`app-header${desktopExpanded ? " app-header-wide" : ""}`}>
           <Flex align="center" justify="flex-end" className="header-top-row">
             <Flex align="center" className="space-x-3">
