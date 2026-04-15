@@ -5,7 +5,7 @@ import { fetchPerevozkaDetails, getTimelineStepColor } from "../../lib/perevozka
 import { getWebApp, isMaxWebApp } from "../../webApp";
 import { DOCUMENT_METHODS } from "../../documentMethods";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
-import { formatCurrency, stripOoo, cityToCode, transliterateFilename } from "../../lib/formatUtils";
+import { formatCurrency, formatInvoiceNumber, stripOoo, cityToCode, transliterateFilename } from "../../lib/formatUtils";
 import { normalizeStatus, getFilterKeyByStatus, getSumColorByPaymentStatus } from "../../lib/statusUtils";
 import { formatDate } from "../../lib/dateUtils";
 import { getPlanDays } from "../../lib/cargoUtils";
@@ -219,7 +219,7 @@ export function CargoDetailsModal({
         }
     };
 
-    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', '_role', 'Driver', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel'];
+    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'BillNumber', 'UpdNumber', 'NomerScheta', 'NomerUPD', 'NomerUpd', 'NumberBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', '_role', 'Driver', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel'];
     const isCustomerRole = item._role === "Customer";
     const FIELD_LABELS: Record<string, string> = {
         CitySender: 'Место отправления',
@@ -277,6 +277,10 @@ export function CargoDetailsModal({
                                             if (item.PW !== undefined) lines.push(`Плат. вес: ${item.PW} кг`);
                                             if (item.Sum !== undefined) lines.push(`Стоимость: ${formatCurrency(item.Sum as any)}`);
                                             if (item.StateBill) lines.push(`Статус счета: ${item.StateBill}`);
+                                            const bn = String(item.BillNumber ?? (item as any).NomerScheta ?? "").trim();
+                                            const un = String(item.UpdNumber ?? (item as any).NomerUPD ?? "").trim();
+                                            if (bn) lines.push(`Номер счёта: ${bn}`);
+                                            if (un) lines.push(`Номер УПД: ${un}`);
                                         }
                                         const text = lines.join("\n");
                                         if (typeof navigator !== "undefined" && (navigator as any).share) {
@@ -357,6 +361,20 @@ export function CargoDetailsModal({
                             <DetailItem label="Объем" value={renderValue(item.Value, 'м³')} icon={<List className="w-4 h-4 mr-1 text-theme-primary" />} />
                             {showSums && <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />}
                             {showSums && <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />}
+                            <DetailItem
+                                label="Номер счёта"
+                                value={(() => {
+                                    const s = String(item.BillNumber ?? (item as any).NomerScheta ?? "").trim();
+                                    return s ? formatInvoiceNumber(s) : '—';
+                                })()}
+                            />
+                            <DetailItem
+                                label="Номер УПД"
+                                value={(() => {
+                                    const s = String(item.UpdNumber ?? (item as any).NomerUPD ?? "").trim();
+                                    return s ? formatInvoiceNumber(s) : '—';
+                                })()}
+                            />
                         </>
                     )}
                 </div>

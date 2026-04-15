@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { upsertDocument } from "../lib/rag.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { mergeBillUpdIntoItems } from "../lib/perevozkaBillUpdDb.js";
 import { dispatchWebPushCargoEvents } from "./_lib/webpushEventDispatch.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
@@ -132,7 +133,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const d = itemDate(item);
           return d >= dateFrom && d <= dateTo;
         });
-        return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+        const out = Array.isArray(filtered) ? filtered : [];
+        return res.status(200).json(await withBillUpdFromDb(out));
       }
       return res.status(200).json([]);
     } catch (e) {
@@ -174,7 +176,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const d = itemDate(item);
             return d >= dateFrom && d <= dateTo;
           });
-          return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+          const out = Array.isArray(filtered) ? filtered : [];
+          return res.status(200).json(await withBillUpdFromDb(out));
         }
       }
     } catch {
@@ -232,7 +235,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const errorText = typeof message === "string" && message.trim() ? message.trim() : "Ошибка авторизации";
         return res.status(401).json({ error: errorText, request_id: ctx.requestId });
       }
-      const list = Array.isArray(json) ? json : json.items || [];
+      let responsePayload: any = json;
+      try {
+        const pool = getPool();
+        if (Array.isArray(json)) {
+          responsePayload = await cloneWithBillUpd(pool, json);
+        } else if (json && typeof json === "object" && Array.isArray((json as { items?: unknown }).items)) {
+          const j = json as { items: any[]; [k: string]: unknown };
+          const enrichedItems = await cloneWithBillUpd(pool, j.items);
+          responsePayload = { ...j, items: enrichedItems };
+        }
+      } catch {
+        responsePayload = json;
+      }
+      const list = Array.isArray(responsePayload) ? responsePayload : responsePayload.items || [];
       if (Array.isArray(list) && list.length > 0) {
         ingestCargoItems(list, login).catch((error) => {
           console.error("RAG cargo ingest error:", error?.message || error);
@@ -249,7 +265,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           console.error("webpush event dispatch from perevozki failed:", error?.message || error);
         }
       }
-      return res.status(200).json(json);
+      return res.status(200).json(responsePayload);
     } catch {
       return res.status(200).send(text);
     }
@@ -277,6 +293,8 @@ function formatCargoContent(item: any) {
     `Объем: ${item?.Value ?? ""}`,
     `Сумма: ${item?.Sum ?? ""}`,
     `Статус счета: ${item?.StateBill ?? ""}`,
+    ...(item?.BillNumber ? [`Номер счёта: ${item.BillNumber}`] : []),
+    ...(item?.UpdNumber ? [`Номер УПД: ${item.UpdNumber}`] : []),
   ];
 
   return lines.filter((line) => !line.endsWith(": ")).join("\n");

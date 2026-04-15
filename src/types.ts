@@ -83,6 +83,10 @@ export type CargoItem = {
     Value?: number | string;
     Sum?: number | string;
     StateBill?: string;
+    /** Номер счёта (из БД perevozka_bill_upd или 1С) */
+    BillNumber?: string;
+    /** Номер УПД (из БД perevozka_bill_upd или 1С) */
+    UpdNumber?: string;
     Sender?: string;
     Customer?: string;
     /** Роль авторизованного лица по этой перевозке (для бейджа и скрытия финансов) */

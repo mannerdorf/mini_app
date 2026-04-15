@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { mergeBillUpdIntoItems } from "../lib/perevozkaBillUpdDb.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
 const GETAPI_BASE =
@@ -161,7 +162,12 @@ export default async function handler(
         const text = upstream.text;
         try {
           const json = JSON.parse(text);
-          return res.status(200).json(json);
+          try {
+            const pool = getPool();
+            return res.status(200).json(await enrichGetPerevozkaPayload(pool, json));
+          } catch {
+            return res.status(200).json(json);
+          }
         } catch {
           return res.status(200).send(text);
         }
@@ -169,7 +175,14 @@ export default async function handler(
       if (!item) {
         return res.status(404).json({ error: "Перевозка не найдена", request_id: ctx.requestId });
       }
-      return res.status(200).json(item);
+      try {
+        const pool = getPool();
+        const copy = { ...item };
+        await mergeBillUpdIntoItems(pool, [copy]);
+        return res.status(200).json(copy);
+      } catch {
+        return res.status(200).json(item);
+      }
     } catch (e) {
       logError(ctx, "getperevozka_registered_user_failed", e);
       return res.status(500).json({ error: "Ошибка запроса", request_id: ctx.requestId });
@@ -213,7 +226,12 @@ export default async function handler(
 
     try {
       const json = JSON.parse(text);
-      return res.status(200).json(json);
+      try {
+        const pool = getPool();
+        return res.status(200).json(await enrichGetPerevozkaPayload(pool, json));
+      } catch {
+        return res.status(200).json(json);
+      }
     } catch {
       return res.status(200).send(text);
     }
