@@ -160,6 +160,8 @@ export function AppMainContent({
   const DashboardPage = DashboardPageComponent;
   const ProfilePage = ProfilePageComponent;
   const DocumentsPage = DocumentsPageComponent;
+  const canAccessHaulzDispatch =
+    activeAccount?.permissions?.haulz === true || activeAccount?.isSuperAdmin === true;
 
   return (
     <>
@@ -175,6 +177,8 @@ export function AppMainContent({
             hasAnalytics={true}
             hasDashboard={true}
             saasDashboardMotion={profileSaasShellActive}
+            canAccessHaulzDispatch={canAccessHaulzDispatch}
+            onOpenCargo={openCargoFromChat}
           />
         </Suspense>
         </SectionBoundary>
@@ -293,6 +297,8 @@ export function AppMainContent({
             hasAnalytics={activeAccount?.permissions?.analytics === true}
             hasDashboard={true}
             saasDashboardMotion={profileSaasShellActive}
+            canAccessHaulzDispatch={canAccessHaulzDispatch}
+            onOpenCargo={openCargoFromChat}
           />
         </Suspense>
         </SectionBoundary>

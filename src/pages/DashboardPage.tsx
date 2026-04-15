@@ -27,6 +27,7 @@ import { fetchPerevozkaTimeline } from "../lib/perevozkaDetails";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { DateText } from "../components/ui/DateText";
 import { FilterDialog } from "../components/shared/FilterDialog";
+import { HaulzDispatchSummary } from "../components/HaulzDispatchSummary";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
 import { getWebApp, isMaxWebApp } from "../webApp";
 import type { AuthData, CargoItem, DateFilter, PerevozkaTimelineStep, StatusFilter } from "../types";
@@ -158,6 +159,9 @@ export type DashboardPageProps = {
     hasDashboard?: boolean;
     /** Stagger + spring по блокам (только при глобальном SaaS-стиле). */
     saasDashboardMotion?: boolean;
+    /** Сводка «Выдача грузов» на главной при праве haulz (данные с фильтрами дашборда). */
+    canAccessHaulzDispatch?: boolean;
+    onOpenCargo?: (cargoNumber: string) => void;
 };
 
 export function DashboardPage({
@@ -169,6 +173,8 @@ export function DashboardPage({
     hasAnalytics = false,
     hasDashboard = true,
     saasDashboardMotion = false,
+    canAccessHaulzDispatch = false,
+    onOpenCargo,
 }: DashboardPageProps) {
     const prefersReducedMotion = useReducedMotion();
     const dashboardMotionEnabled = !!saasDashboardMotion && prefersReducedMotion !== true;
@@ -821,6 +827,7 @@ export function DashboardPage({
         if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
         return res;
     }, [items, statusFilter, senderFilter, receiverFilter, billStatusFilter, typeFilter, routeFilter]);
+
     const parseDashboardDateOnly = useCallback((value: unknown): Date | null => {
         const raw = String(value ?? '').trim();
         if (!raw) return null;
@@ -2936,6 +2943,17 @@ export function DashboardPage({
                 </div>
             </div>
             </div>
+            )}
+
+            {canAccessHaulzDispatch && onOpenCargo && (
+                <HaulzDispatchSummary
+                    auth={auth}
+                    useServiceRequest={useServiceRequest}
+                    onOpenCargo={onOpenCargo}
+                    title="Выдача грузов"
+                    subtitle="Период — кнопками ниже; плитки и таблица по этому периоду"
+                    showRefreshButton
+                />
             )}
 
             <DashboardMotionGroup enabled={dashboardMotionEnabled}>
