@@ -23,14 +23,6 @@ const mapNumber = (value: unknown): number => {
     return isNaN(parsed) ? 0 : parsed;
 };
 
-const pickStr = (...vals: unknown[]): string | undefined => {
-    for (const v of vals) {
-        const s = String(v ?? "").trim();
-        if (s) return s;
-    }
-    return undefined;
-};
-
 const mapCargoItem = (item: Record<string, unknown>, role?: PerevozkiRole): CargoItem => ({
     ...item,
     Number: item.Number as string,
@@ -43,8 +35,6 @@ const mapCargoItem = (item: Record<string, unknown>, role?: PerevozkiRole): Carg
     Value: mapNumber(item.Value),
     Sum: mapNumber(item.Sum),
     StateBill: item.StateBill as string,
-    BillNumber: pickStr(item.BillNumber, item.NomerScheta, item.NumberBill),
-    UpdNumber: pickStr(item.UpdNumber, item.NomerUPD, item.NomerUpd),
     Sender: item.Sender as string,
     Customer: (item.Customer ?? item.customer) as string,
     ...(role ? { _role: role } : {}),

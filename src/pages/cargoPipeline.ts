@@ -188,8 +188,6 @@ export function buildFilteredCargoItems(
         cityToCode(i.CitySender),
         cityToCode(i.CityReceiver),
         i.StateBill,
-        i.BillNumber,
-        i.UpdNumber,
       ].join(" ");
     res = res.filter((i) => searchable(i).toLowerCase().includes(lower));
   }

@@ -1069,8 +1069,6 @@ export default function App() {
                     Value: raw?.Value ?? raw?.value,
                     Sum: raw?.Sum ?? raw?.sum,
                     StateBill: raw?.StateBill ?? raw?.stateBill,
-                    BillNumber: raw?.BillNumber ?? raw?.NomerScheta ?? raw?.NumberBill,
-                    UpdNumber: raw?.UpdNumber ?? raw?.NomerUPD ?? raw?.NomerUpd,
                     Sender: raw?.Sender ?? raw?.sender,
                     Customer: raw?.Customer ?? raw?.customer,
                     Receiver: raw?.Receiver ?? raw?.receiver,
