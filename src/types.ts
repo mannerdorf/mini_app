@@ -112,6 +112,7 @@ export type ProfileView =
     | "main"
     | "companies"
     | "haulz"
+    | "haulzDispatch"
     | "parcelScanner"
     | "roles"
     | "employees"

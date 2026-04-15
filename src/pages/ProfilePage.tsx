@@ -19,6 +19,7 @@ import { ExpenseRequestsPage } from "./ExpenseRequestsPage";
 import { AboutCompanyPage } from "./AboutCompanyPage";
 import { NotificationsPage } from "./NotificationsPage";
 import { AisStreamPage } from "./AisStreamPage";
+import { HaulzDispatchDashboardPage } from "./HaulzDispatchDashboardPage";
 import { getCurrentMonthYm } from "../lib/dateUtils";
 import { DOCUMENT_METHODS } from "../documentMethods";
 import { PROXY_API_DOWNLOAD_URL } from "../constants/config";
@@ -1640,6 +1641,21 @@ export function ProfilePage({
         );
     }
 
+    if (currentView === 'haulzDispatch' && activeAccount && (activeAccount.permissions?.haulz === true || activeAccount.isSuperAdmin === true)) {
+        const dispatchAuth: AuthData = {
+            login: activeAccount.login,
+            password: activeAccount.password,
+            ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true as const } : {}),
+        };
+        return (
+            <HaulzDispatchDashboardPage
+                auth={dispatchAuth}
+                onBack={() => setCurrentView('haulz')}
+                onOpenCargo={onOpenCargo}
+            />
+        );
+    }
+
     if (currentView === 'haulz') {
         return (
             <div className="w-full">
@@ -1653,6 +1669,12 @@ export function ProfilePage({
                     {activeAccount?.permissions?.supervisor === true && activeAccount?.permissions?.haulz === true && (
                         <Button type="button" className="button-primary" onClick={() => setCurrentView('departmentTimesheet')}>
                             Табель учета рабочего времени
+                        </Button>
+                    )}
+                    {(activeAccount?.permissions?.haulz === true || activeAccount?.isSuperAdmin === true) && (
+                        <Button type="button" className="button-primary" onClick={() => setCurrentView('haulzDispatch')}>
+                            <BarChart3 className="w-4 h-4" style={{ marginRight: 6, verticalAlign: 'middle', display: 'inline-block' }} />
+                            Дашборд выдачи грузов
                         </Button>
                     )}
                     {activeAccount?.permissions?.haulz === true && (
