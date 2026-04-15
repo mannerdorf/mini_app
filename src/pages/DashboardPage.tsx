@@ -2,6 +2,7 @@
  * Секретный дашборд: виджеты перевозок, SLA, платёжный календарь, таймшит.
  */
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { motion, MotionConfig, useReducedMotion } from "motion/react";
 import {
     Loader2, X, ChevronDown, Calendar, Filter, Package, Scale, Weight, Maximize, CreditCard, Check,
     AlertTriangle, Info, Ship, Truck, ArrowDown, ArrowUp, ArrowLeft, TrendingUp, TrendingDown, Minus, RussianRuble, List, RefreshCw,
@@ -48,6 +49,47 @@ const {
 } = dateUtils;
 const MONTH_NAMES = dateUtils.MONTH_NAMES;
 
+const DASHBOARD_MOTION_CONTAINER = {
+    hidden: {},
+    visible: {
+        transition: { staggerChildren: 0.055, delayChildren: 0.05 },
+    },
+};
+
+const DASHBOARD_MOTION_ITEM = {
+    hidden: { opacity: 0, y: 14 },
+    visible: {
+        opacity: 1,
+        y: 0,
+        transition: { type: "spring", stiffness: 380, damping: 30 },
+    },
+};
+
+function DashboardMotionGroup({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
+    if (!enabled) return <>{children}</>;
+    return (
+        <MotionConfig reduced="user">
+            <motion.div
+                variants={DASHBOARD_MOTION_CONTAINER}
+                initial="hidden"
+                animate="visible"
+                style={{ display: "flex", flexDirection: "column", width: "100%", gap: 0 }}
+            >
+                {children}
+            </motion.div>
+        </MotionConfig>
+    );
+}
+
+function DashboardMotionItem({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
+    if (!enabled) return <>{children}</>;
+    return (
+        <motion.div variants={DASHBOARD_MOTION_ITEM} style={{ width: "100%" }}>
+            {children}
+        </motion.div>
+    );
+}
+
 export type DashboardPageProps = {
     auth: AuthData;
     onClose: () => void;
@@ -56,6 +98,8 @@ export type DashboardPageProps = {
     useServiceRequest?: boolean;
     hasAnalytics?: boolean;
     hasDashboard?: boolean;
+    /** Stagger + spring по блокам (только при глобальном SaaS-стиле). */
+    saasDashboardMotion?: boolean;
 };
 
 export function DashboardPage({
@@ -66,7 +110,10 @@ export function DashboardPage({
     useServiceRequest = false,
     hasAnalytics = false,
     hasDashboard = true,
+    saasDashboardMotion = false,
 }: DashboardPageProps) {
+    const prefersReducedMotion = useReducedMotion();
+    const dashboardMotionEnabled = !!saasDashboardMotion && prefersReducedMotion !== true;
     const normalizeTimelineErrorMessage = (message?: string | null) => {
         const raw = String(message || "").trim();
         if (!raw) return "Не удалось загрузить статусы";
@@ -2793,8 +2840,10 @@ export function DashboardPage({
             </div>
             )}
 
+            <DashboardMotionGroup enabled={dashboardMotionEnabled}>
             {/* === ВИДЖЕТ 2: Полоска с периодом и типом графика (включить: WIDGET_2_STRIP = true) === */}
             {WIDGET_2_STRIP && showSums && (
+            <DashboardMotionItem enabled={dashboardMotionEnabled}>
             <>
             {useServiceRequest && (
                 <Typography.Body style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>Приемка</Typography.Body>
@@ -3178,8 +3227,10 @@ export function DashboardPage({
             </>
             )}
             </>
+            </DashboardMotionItem>
             )}
 
+            <DashboardMotionItem enabled={dashboardMotionEnabled}>
             {loading && (
                 <Flex justify="center" className="text-center py-8">
                     <Loader2 className="animate-spin w-6 h-6 mx-auto text-theme-primary" />
@@ -3665,6 +3716,8 @@ export function DashboardPage({
                 </Panel>
             )}
 
+            </DashboardMotionItem>
+            <DashboardMotionItem enabled={dashboardMotionEnabled}>
             {/* === ВИДЖЕТ 4: Монитор SLA (включить: WIDGET_4_SLA = true); в режиме "только SLA" показываем даже при 0 перевозок === */}
             {WIDGET_4_SLA && !loading && !error && (slaStats.total > 0 || showOnlySla) && (
                 <Panel className="cargo-card sla-monitor-panel" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.5rem' }}>
@@ -3897,6 +3950,8 @@ export function DashboardPage({
                 </Panel>
             )}
 
+            </DashboardMotionItem>
+            <DashboardMotionItem enabled={dashboardMotionEnabled}>
             {/* ═══════ ГРУППА 4: ФИНАНСЫ И КЛИЕНТЫ ═══════ */}
 
             {/* === ВИДЖЕТ 5: Платёжный календарь (включить: WIDGET_5_PAYMENT_CALENDAR = true) === */}
@@ -4828,6 +4883,9 @@ export function DashboardPage({
                     )}
                 </Panel>
             )}
+
+            </DashboardMotionItem>
+            </DashboardMotionGroup>
 
             {/* === ВИДЖЕТ 5: Платёжный календарь (включить: WIDGET_5_PAYMENT_CALENDAR = true) === */}
             {false && WIDGET_5_PAYMENT_CALENDAR && showPaymentCalendar && !loading && !error && (

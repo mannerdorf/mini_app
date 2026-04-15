@@ -23,6 +23,7 @@
     "formidable": "^3.5.4",
     "html2pdf.js": "^0.14.0",
     "lucide-react": "^0.395.0",
+    "motion": "^12.38.0",
     "nodemailer": "^8.0.1",
     "openai": "^6.16.0",
     "otplib": "^13.2.1",

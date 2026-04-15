@@ -174,6 +174,7 @@ export function AppMainContent({
             useServiceRequest={useServiceRequest}
             hasAnalytics={true}
             hasDashboard={true}
+            saasDashboardMotion={profileSaasShellActive}
           />
         </Suspense>
         </SectionBoundary>
@@ -291,6 +292,7 @@ export function AppMainContent({
             useServiceRequest={useServiceRequest}
             hasAnalytics={activeAccount?.permissions?.analytics === true}
             hasDashboard={true}
+            saasDashboardMotion={profileSaasShellActive}
           />
         </Suspense>
         </SectionBoundary>
