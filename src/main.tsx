@@ -123,15 +123,8 @@ const rewriteNativeApiUrl = (url: string, apiOrigin: string): string => {
   return url;
 };
 
-const installNativeApiFetchRewrite = () => {
+const installFetchRewrite = (apiOrigin: string) => {
   if (typeof window === "undefined") return;
-  const protocol = String(window.location?.protocol || "").toLowerCase();
-  const nativeByProtocol = protocol === "capacitor:" || protocol === "ionic:";
-  const nativeByBridge = typeof window.Capacitor?.isNativePlatform === "function"
-    ? !!window.Capacitor.isNativePlatform()
-    : false;
-  if (!nativeByProtocol && !nativeByBridge) return;
-  const apiOrigin = resolveApiOrigin();
   const originalFetch = window.fetch.bind(window);
 
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
@@ -145,7 +138,22 @@ const installNativeApiFetchRewrite = () => {
   };
 };
 
-installNativeApiFetchRewrite();
+const isCapacitorNative = (): boolean => {
+  if (typeof window === "undefined") return false;
+  const protocol = String(window.location?.protocol || "").toLowerCase();
+  if (protocol === "capacitor:" || protocol === "ionic:") return true;
+  return typeof window.Capacitor?.isNativePlatform === "function" ? !!window.Capacitor.isNativePlatform() : false;
+};
+
+/** Нативное приложение — всегда переписываем /api на resolveApiOrigin(). Веб при явном VITE_API_ORIGIN — только его (статика на другом домене, API на Vercel). */
+if (typeof window !== "undefined") {
+  if (isCapacitorNative()) {
+    installFetchRewrite(resolveApiOrigin());
+  } else {
+    const explicitApiOrigin = normalizeOrigin(String(import.meta.env.VITE_API_ORIGIN || ""));
+    if (explicitApiOrigin) installFetchRewrite(explicitApiOrigin);
+  }
+}
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

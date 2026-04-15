@@ -1,2 +1,7 @@
 .npm-cache/
 node_modules
+.vercel
+.env*.local
+.env
+.env.vercel
+.env.timeweb
