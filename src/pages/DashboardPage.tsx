@@ -1,7 +1,7 @@
 /**
  * Секретный дашборд: виджеты перевозок, SLA, платёжный календарь, таймшит.
  */
-import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { motion, MotionConfig, useReducedMotion } from "motion/react";
 import {
     Loader2, X, ChevronDown, Calendar, Filter, Package, Scale, Weight, Maximize, CreditCard, Check,
@@ -265,6 +265,10 @@ export function DashboardPage({
     const receiverButtonRef = useRef<HTMLDivElement>(null);
     const billStatusButtonRef = useRef<HTMLDivElement>(null);
     const typeButtonRef = useRef<HTMLDivElement>(null);
+    const mainChartWrapRef = useRef<HTMLDivElement | null>(null);
+    const [mainChartOuterWidthPx, setMainChartOuterWidthPx] = useState(800);
+    const maChartWrapRef = useRef<HTMLDivElement | null>(null);
+    const [maChartOuterWidthPx, setMaChartOuterWidthPx] = useState(800);
     const routeButtonRef = useRef<HTMLDivElement>(null);
     const [slaDetailsOpen, setSlaDetailsOpen] = useState(false);
     
@@ -1676,7 +1680,8 @@ export function DashboardPage({
         title: string,
         color: string,
         formatValue: (val: number) => string,
-        variant: MainChartVariant
+        variant: MainChartVariant,
+        outerWidthPx: number,
     ) => {
         if (data.length === 0) {
             return (
@@ -1717,10 +1722,13 @@ export function DashboardPage({
         const paddingRight = 30;
         const paddingTop = 16;
         const paddingBottom = 45;
-        const availableWidth = 350;
+        const chartWidth = Math.max(280, Math.floor(outerWidthPx));
+        const innerPlotW = Math.max(80, chartWidth - paddingLeft - paddingRight);
+        const n = roundedData.length;
         const barSpacing = 6;
-        const barWidth = Math.max(12, (availableWidth - paddingLeft - paddingRight - (roundedData.length - 1) * barSpacing) / roundedData.length);
-        const chartWidth = paddingLeft + paddingRight + roundedData.length * (barWidth + barSpacing) - barSpacing;
+        const barWidth = n > 0
+            ? Math.max(4, (innerPlotW - Math.max(0, n - 1) * barSpacing) / n)
+            : 12;
         const availableHeight = chartHeight - paddingTop - paddingBottom;
         const points = roundedData.map((d, idx) => {
             const barHeight = (d.value / scaleMax) * availableHeight;
@@ -1750,11 +1758,13 @@ export function DashboardPage({
         
         return (
             <div>
-                <div style={{ overflowX: 'auto', width: '100%' }}>
-                    <svg 
-                        width={Math.max(chartWidth, '100%')} 
+                <div style={{ overflowX: 'auto', width: '100%', minWidth: 0 }}>
+                    <svg
+                        viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                        width="100%"
                         height={chartHeight}
-                        style={{ minWidth: `${chartWidth}px`, display: 'block' }}
+                        preserveAspectRatio="xMinYMid meet"
+                        style={{ display: 'block', maxWidth: '100%' }}
                     >
                         {/* Определение градиента */}
                         <defs>
@@ -2128,6 +2138,20 @@ export function DashboardPage({
         }
         return { data, title, color, formatValue };
     }, [chartData, chartType]);
+
+    useLayoutEffect(() => {
+        if (!WIDGET_3_CHART || showOnlySla || !showSums) return;
+        const el = mainChartWrapRef.current;
+        if (!el) return;
+        const measure = () => {
+            const w = el.getBoundingClientRect().width;
+            if (w > 0) setMainChartOuterWidthPx(Math.max(280, Math.floor(w)));
+        };
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [WIDGET_3_CHART, showOnlySla, showSums, loading, error, chartData.length, mainChartVariant, chartType]);
     
     const formatStripValue = (): string => {
         if (chartType === 'money') return `${Math.round(stripTotals.sum || 0).toLocaleString('ru-RU')} ₽`;
@@ -2366,6 +2390,20 @@ export function DashboardPage({
         }
         return ma;
     }, [chartData, maChartType, useServiceRequest]);
+
+    useLayoutEffect(() => {
+        if (!useServiceRequest || loading || error || showOnlySla || !movingAverage7 || movingAverage7.length <= 2) return;
+        const el = maChartWrapRef.current;
+        if (!el) return;
+        const measure = () => {
+            const rw = el.getBoundingClientRect().width;
+            if (rw > 0) setMaChartOuterWidthPx(Math.max(280, Math.floor(rw)));
+        };
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [useServiceRequest, loading, error, showOnlySla, movingAverage7, maChartType]);
 
     const repeatCustomers = useMemo(() => {
         if (!useServiceRequest || filteredPrevPeriodItems.length === 0) return null;
@@ -3326,7 +3364,9 @@ export function DashboardPage({
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>
                         Динамика показателя по дням за выбранный период. Выберите стиль отображения ниже.
                     </Typography.Body>
-                    {renderChart(selectedChartConfig.data, selectedChartConfig.title, selectedChartConfig.color, selectedChartConfig.formatValue, mainChartVariant)}
+                    <div ref={mainChartWrapRef} style={{ width: '100%', minWidth: 0 }}>
+                        {renderChart(selectedChartConfig.data, selectedChartConfig.title, selectedChartConfig.color, selectedChartConfig.formatValue, mainChartVariant, mainChartOuterWidthPx)}
+                    </div>
                     <div style={{ marginTop: '0.85rem', borderTop: '1px dashed var(--color-border)', paddingTop: '0.7rem' }}>
                         <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.5rem' }}>
                             Стиль графика (нажми на миниатюру)
@@ -3387,7 +3427,7 @@ export function DashboardPage({
                     {(() => {
                         const pts = movingAverage7;
                         const maxVal = Math.max(...pts.map((p) => p.value), 1);
-                        const w = Math.max(400, pts.length * 28);
+                        const w = Math.max(280, Math.floor(maChartOuterWidthPx));
                         const h = 100;
                         const pad = { l: 50, r: 16, t: 10, b: 26 };
                         const plotW = w - pad.l - pad.r;
@@ -3401,8 +3441,14 @@ export function DashboardPage({
                             ? `M ${pad.l} ${pad.t + plotH} L ${pts.map((p, i) => { const x = pad.l + (i * plotW) / (pts.length - 1); const y = pad.t + plotH - (p.value / maxVal) * plotH; return `${x} ${y}`; }).join(' L ')} L ${pad.l + plotW} ${pad.t + plotH} Z`
                             : '';
                         return (
-                            <div style={{ overflowX: 'auto' }}>
-                                <svg width={w} height={h} style={{ display: 'block', minWidth: `${w}px` }}>
+                            <div ref={maChartWrapRef} style={{ width: '100%', minWidth: 0, overflowX: 'auto' }}>
+                                <svg
+                                    viewBox={`0 0 ${w} ${h}`}
+                                    width="100%"
+                                    height={h}
+                                    preserveAspectRatio="xMinYMid meet"
+                                    style={{ display: 'block', maxWidth: '100%' }}
+                                >
                                     <line x1={pad.l} y1={pad.t + plotH} x2={w - pad.r} y2={pad.t + plotH} stroke="var(--color-border)" strokeWidth="1" opacity="0.5" />
                                     {areaD && <path d={areaD} fill="#7c3aed" opacity="0.12" />}
                                     <polyline points={polyPts} fill="none" stroke="#7c3aed" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
