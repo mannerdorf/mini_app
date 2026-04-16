@@ -145,13 +145,36 @@ const isCapacitorNative = (): boolean => {
   return typeof window.Capacitor?.isNativePlatform === "function" ? !!window.Capacitor.isNativePlatform() : false;
 };
 
-/** Нативное приложение — всегда переписываем /api на resolveApiOrigin(). Веб при явном VITE_API_ORIGIN — только его (статика на другом домене, API на Vercel). */
+const isLikelyLocalDev = (): boolean => {
+  if (typeof window === "undefined") return false;
+  const h = window.location.hostname;
+  return h === "localhost" || h === "127.0.0.1" || h === "[::1]" || h.endsWith(".local");
+};
+
+const apiOriginHostMatchesPage = (apiOrigin: string): boolean => {
+  try {
+    return new URL(apiOrigin).hostname === window.location.hostname;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Нативное приложение: всегда /api → resolveApiOrigin().
+ * Веб: при VITE_API_ORIGIN — на указанный хост;
+ * иначе в production, если страница не на том же хосте, что API (статика haulz.ru, API на Vercel) — переписываем на FALLBACK/VITE.
+ * Локальная разработка (localhost) без VITE_API_ORIGIN — без перепривязки.
+ */
 if (typeof window !== "undefined") {
   if (isCapacitorNative()) {
     installFetchRewrite(resolveApiOrigin());
   } else {
+    const apiOrigin = resolveApiOrigin();
     const explicitApiOrigin = normalizeOrigin(String(import.meta.env.VITE_API_ORIGIN || ""));
-    if (explicitApiOrigin) installFetchRewrite(explicitApiOrigin);
+    const shouldRewrite =
+      !!explicitApiOrigin ||
+      (import.meta.env.PROD && !isLikelyLocalDev() && !apiOriginHostMatchesPage(apiOrigin));
+    if (shouldRewrite) installFetchRewrite(explicitApiOrigin || apiOrigin);
   }
 }
 
