@@ -44,9 +44,6 @@ type Props = {
   ProfilePageComponent: React.ComponentType<any>;
   DocumentsPageComponent: React.ComponentType<any>;
   profileSaasShellActive: boolean;
-  profileSaasUiUnlocked: boolean;
-  profileSaasUiEnabled: boolean;
-  onToggleProfileSaasUi: () => void;
 };
 
 function EmptyCargoState({
@@ -153,9 +150,6 @@ export function AppMainContent({
   ProfilePageComponent,
   DocumentsPageComponent,
   profileSaasShellActive,
-  profileSaasUiUnlocked,
-  profileSaasUiEnabled,
-  onToggleProfileSaasUi,
 }: Props) {
   const DashboardPage = DashboardPageComponent;
   const ProfilePage = ProfilePageComponent;
@@ -276,9 +270,6 @@ export function AppMainContent({
             onUpdateAccount={handleUpdateAccount}
             onOpenWildberries={openWildberries}
             profileSaasShellActive={profileSaasShellActive}
-            showProfileSaasUiToggle={profileSaasUiUnlocked}
-            profileSaasUiToggleOn={profileSaasUiEnabled}
-            onToggleProfileSaasUi={onToggleProfileSaasUi}
           />
         </Suspense>
         </div>
@@ -326,9 +317,6 @@ export function AppMainContent({
             onUpdateAccount={handleUpdateAccount}
             onOpenWildberries={openWildberries}
             profileSaasShellActive={profileSaasShellActive}
-            showProfileSaasUiToggle={profileSaasUiUnlocked}
-            profileSaasUiToggleOn={profileSaasUiEnabled}
-            onToggleProfileSaasUi={onToggleProfileSaasUi}
           />
         </Suspense>
         </div>

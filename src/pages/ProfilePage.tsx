@@ -2,9 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import {
     LogOut, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, User as UserIcon, Users, ChevronDown,
     Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MessageCircle, FileText, LayoutGrid, Mic, Lock, Receipt, ScanLine, Camera, FileDown,
-    Package, BarChart3, Table2,
 } from "lucide-react";
-import { Area, AreaChart, ResponsiveContainer } from "recharts";
 import { Button, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
 import type { Account, AuthData, ProfileView } from "../types";
 import { getWebApp } from "../webApp";
@@ -42,9 +40,6 @@ export function ProfilePage({
     onUpdateAccount,
     onOpenWildberries,
     profileSaasShellActive = false,
-    showProfileSaasUiToggle = false,
-    profileSaasUiToggleOn = false,
-    onToggleProfileSaasUi,
 }: {
     accounts: Account[];
     activeAccountId: string | null;
@@ -62,27 +57,11 @@ export function ProfilePage({
     onOpenMaxBot?: () => Promise<void>;
     onUpdateAccount: (accountId: string, patch: Partial<Account>) => void;
     onOpenWildberries?: () => void;
-    /** Активна оболочка «мягкая панель» (суперадмин или право haulz + включённый переключатель). */
+    /** Активна оболочка «мягкая панель» (суперадмин или право haulz). */
     profileSaasShellActive?: boolean;
-    /** Показывать переключатель стиля (суперадмин или право haulz на раздел в профиле). */
-    showProfileSaasUiToggle?: boolean;
-    /** Состояние переключателя (сохраняется в localStorage). */
-    profileSaasUiToggleOn?: boolean;
-    onToggleProfileSaasUi?: () => void;
 }) {
     const [currentView, setCurrentView] = useState<ProfileView>('main');
     const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
-    const profileDemoSpark = useMemo(
-        () => [
-            { i: 0, v: 14 },
-            { i: 1, v: 22 },
-            { i: 2, v: 18 },
-            { i: 3, v: 28 },
-            { i: 4, v: 24 },
-            { i: 5, v: 32 },
-        ],
-        []
-    );
     useEffect(() => {
         if (aisOpenWithMmsi) {
             setCurrentView('ais');
@@ -4035,29 +4014,6 @@ export function ProfilePage({
                 </div>
             </header>
 
-            {showProfileSaasUiToggle && onToggleProfileSaasUi && (
-                <Panel
-                    className={profileSaasShellActive ? "cargo-card profile-saas-row-card profile-saas-appearance-card" : "cargo-card"}
-                    style={{ padding: profileSaasShellActive ? undefined : "1rem", cursor: "default" }}
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <Flex align="center" justify="space-between" style={{ gap: "1rem" }}>
-                        <div className="profile-saas-appearance-text" style={{ flex: 1, minWidth: 0 }}>
-                            <p className="profile-saas-appearance-title">Новый стиль профиля</p>
-                            <p className="profile-saas-appearance-desc">
-                                Панель как на главной: светлый фон, объёмные белые карточки
-                            </p>
-                        </div>
-                        <TapSwitch
-                            variant="comfortable"
-                            checked={profileSaasUiToggleOn}
-                            onToggle={onToggleProfileSaasUi}
-                            aria-label="Переключить новый стиль профиля"
-                        />
-                    </Flex>
-                </Panel>
-            )}
-
             {/* Настройки */}
             <section className="profile-saas-section" aria-labelledby="profile-settings-heading">
                 <h2 id="profile-settings-heading" className="profile-saas-h2">
@@ -4253,91 +4209,6 @@ export function ProfilePage({
                 </div>
             </section>
 
-            {/* Образцы стиля — только при включённом новом оформлении */}
-            {profileSaasShellActive && (
-            <section className="profile-saas-section profile-saas-demo" aria-labelledby="profile-demo-heading">
-                <h2 id="profile-demo-heading" className="profile-saas-h2">
-                    Образцы интерфейса
-                </h2>
-                <p className="profile-saas-caption profile-saas-demo-lead">
-                    Единая система карточек и таблиц для остальных разделов приложения.
-                </p>
-                <div className="profile-saas-demo-grid">
-                    <Panel className="cargo-card profile-saas-cargo-demo">
-                        <div className="profile-saas-cargo-demo-top">
-                            <span className="profile-saas-badge profile-saas-badge--muted">
-                                <Package className="w-3.5 h-3.5" aria-hidden />
-                                Перевозка
-                            </span>
-                            <span className="profile-saas-caption">Сегодня</span>
-                        </div>
-                        <p className="profile-saas-cargo-demo-number">№ 135702</p>
-                        <p className="profile-saas-cargo-demo-route">Москва — Казань</p>
-                        <div className="profile-saas-cargo-demo-meta">
-                            <span>ООО «Пример»</span>
-                            <span className="profile-saas-badge profile-saas-badge--primary">В пути</span>
-                        </div>
-                    </Panel>
-                    <Panel className="cargo-card profile-saas-widget-demo">
-                        <div className="profile-saas-widget-demo-head">
-                            <span className="profile-saas-widget-demo-title">
-                                <BarChart3 className="w-4 h-4" aria-hidden />
-                                Активность
-                            </span>
-                            <span className="profile-saas-widget-demo-value">32</span>
-                        </div>
-                        <p className="profile-saas-caption profile-saas-widget-demo-delta">+12% к прошлой неделе</p>
-                        <div className="profile-saas-widget-chart">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={profileDemoSpark} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="profileSaasSpark" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor="var(--saas-color-primary)" stopOpacity={0.35} />
-                                            <stop offset="100%" stopColor="var(--saas-color-primary)" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <Area type="monotone" dataKey="v" stroke="var(--saas-color-primary)" strokeWidth={2} fill="url(#profileSaasSpark)" isAnimationActive={false} />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </Panel>
-                    <Panel className="cargo-card profile-saas-table-demo-wrap">
-                        <div className="profile-saas-table-demo-head">
-                            <Table2 className="w-4 h-4" aria-hidden />
-                            <span className="profile-saas-h3" style={{ margin: 0, fontSize: '0.9rem' }}>Таблица</span>
-                        </div>
-                        <div className="profile-saas-table-scroll">
-                            <table className="profile-saas-table">
-                                <thead>
-                                    <tr>
-                                        <th>Документ</th>
-                                        <th>Статус</th>
-                                        <th className="profile-saas-table-num">Сумма</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>Счёт №1042</td>
-                                        <td><span className="profile-saas-badge profile-saas-badge--success">Оплачен</span></td>
-                                        <td className="profile-saas-table-num">128 400 ₽</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Акт сверки</td>
-                                        <td><span className="profile-saas-badge profile-saas-badge--muted">Черновик</span></td>
-                                        <td className="profile-saas-table-num">—</td>
-                                    </tr>
-                                    <tr>
-                                        <td>УПД</td>
-                                        <td><span className="profile-saas-badge profile-saas-badge--primary">В работе</span></td>
-                                        <td className="profile-saas-table-num">42 000 ₽</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </Panel>
-                </div>
-            </section>
-            )}
         </div>
     );
 }
