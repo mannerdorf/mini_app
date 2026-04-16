@@ -651,17 +651,19 @@ useEffect(() => {
             )}
 
             {filteredItems.length > 0 && !tableModeByCustomer && (
-                <CargoCardsList
-                    filteredItems={filteredItems}
-                    workScheduleByInn={workScheduleByInn}
-                    useServiceRequest={effectiveServiceMode}
-                    showSums={showSums}
-                    isFavorite={isFavorite}
-                    onToggleFavorite={toggleFavorite}
-                    onShare={handleShareCargo}
-                    onCreateClaim={onOpenClaim}
-                    onSelectCargo={setSelectedCargo}
-                />
+                <div className="cargo-cards-offset-desktop">
+                    <CargoCardsList
+                        filteredItems={filteredItems}
+                        workScheduleByInn={workScheduleByInn}
+                        useServiceRequest={effectiveServiceMode}
+                        showSums={showSums}
+                        isFavorite={isFavorite}
+                        onToggleFavorite={toggleFavorite}
+                        onShare={handleShareCargo}
+                        onCreateClaim={onOpenClaim}
+                        onSelectCargo={setSelectedCargo}
+                    />
+                </div>
             )}
 
             {selectedCargo && primaryAuth && (

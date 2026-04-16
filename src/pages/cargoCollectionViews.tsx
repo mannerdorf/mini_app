@@ -677,20 +677,19 @@ export function CargoCardsList({
             <Flex
               className="cargo-item-row-1"
               justify="space-between"
-              align="center"
+              align="flex-start"
               style={{
                 marginBottom: "0.5rem",
                 minWidth: 0,
-                overflow: "hidden",
                 gap: "0.5rem",
-                flexWrap: "wrap",
+                flexWrap: "nowrap",
               }}
             >
               <Flex
                 direction="column"
                 align="flex-start"
                 gap="0.25rem"
-                style={{ flex: "0 1 auto", minWidth: 0 }}
+                style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden" }}
                 className="cargo-item-number-wrap"
               >
                 <Typography.Body
@@ -711,6 +710,7 @@ export function CargoCardsList({
                       color: "var(--color-text-secondary)",
                       border: "1px solid var(--color-border)",
                       flexShrink: 0,
+                      alignSelf: "flex-start",
                     }}
                   >
                     {item._role === "Customer"
@@ -721,27 +721,53 @@ export function CargoCardsList({
                   </span>
                 )}
               </Flex>
-              <Flex align="center" gap="0.25rem" style={{ flexShrink: 0 }}>
-                <Button
-                  style={{
-                    padding: "0.25rem",
-                    minWidth: "auto",
-                    background: "transparent",
-                    border: "none",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    await onShare(item);
-                  }}
-                  title="Поделиться"
-                >
-                  <Share2 className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
-                </Button>
-                {onCreateClaim && item.Number ? (
+              <Flex
+                align="center"
+                gap="0.5rem"
+                style={{ flexShrink: 0, marginLeft: "auto" }}
+                className="cargo-item-row-1-actions"
+              >
+                <Flex align="center" gap="0.25rem" style={{ flexShrink: 0 }}>
+                  <Button
+                    style={{
+                      padding: "0.25rem",
+                      minWidth: "auto",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      await onShare(item);
+                    }}
+                    title="Поделиться"
+                  >
+                    <Share2 className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
+                  </Button>
+                  {onCreateClaim && item.Number ? (
+                    <Button
+                      style={{
+                        padding: "0.25rem",
+                        minWidth: "auto",
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCreateClaim(item.Number as string);
+                      }}
+                      title="Создать претензию"
+                    >
+                      <ClipboardList className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
+                    </Button>
+                  ) : null}
                   <Button
                     style={{
                       padding: "0.25rem",
@@ -755,52 +781,33 @@ export function CargoCardsList({
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      onCreateClaim(item.Number as string);
+                      onToggleFavorite(item.Number);
                     }}
-                    title="Создать претензию"
+                    title={isFavorite(item.Number) ? "Удалить из избранного" : "Добавить в избранное"}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.opacity = "0.7";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.opacity = "1";
+                    }}
                   >
-                    <ClipboardList className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
+                    <Heart
+                      className="w-4 h-4"
+                      style={{
+                        fill: isFavorite(item.Number) ? "#ef4444" : "transparent",
+                        color: isFavorite(item.Number) ? "#ef4444" : "var(--color-text-secondary)",
+                        transition: "all 0.2s",
+                      }}
+                    />
                   </Button>
-                ) : null}
-                <Button
-                  style={{
-                    padding: "0.25rem",
-                    minWidth: "auto",
-                    background: "transparent",
-                    border: "none",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleFavorite(item.Number);
-                  }}
-                  title={isFavorite(item.Number) ? "Удалить из избранного" : "Добавить в избранное"}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.opacity = "0.7";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.opacity = "1";
-                  }}
+                </Flex>
+                <Typography.Label
+                  className="text-theme-secondary"
+                  style={{ fontSize: "0.85rem", whiteSpace: "nowrap", flexShrink: 0 }}
                 >
-                  <Heart
-                    className="w-4 h-4"
-                    style={{
-                      fill: isFavorite(item.Number) ? "#ef4444" : "transparent",
-                      color: isFavorite(item.Number) ? "#ef4444" : "var(--color-text-secondary)",
-                      transition: "all 0.2s",
-                    }}
-                  />
-                </Button>
+                  <DateText value={item.DatePrih} />
+                </Typography.Label>
               </Flex>
-              <Typography.Label
-                className="text-theme-secondary"
-                style={{ fontSize: "0.85rem", whiteSpace: "nowrap" }}
-              >
-                <DateText value={item.DatePrih} />
-              </Typography.Label>
             </Flex>
             <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem" }}>
               <StatusBadge status={item.State} />

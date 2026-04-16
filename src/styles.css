@@ -729,6 +729,17 @@ body {
     pointer-events: none;
 }
 
+/* У .cargo-card стоит overflow-x: hidden — по правилам overflow тогда перестраивается ось Y (часто в auto) и верх подписей вроде «Сумма» визуально подрезается */
+.documents-summary-card.cargo-card,
+.cargo-summary-totals.cargo-card {
+    overflow: visible;
+}
+
+/* Плитки в списках «Документы» (счета, УПД, заявки, отправки…): общий .cargo-card с overflow-x:hidden подрезает верх первой строки */
+.documents-page .cargo-list > .cargo-card {
+    overflow: visible;
+}
+
 /* Мобильная версия: карточка груза — номер, шеринг, сообщение, избранное и дата в одну строку; маршрут и заказчик в одну строку */
 @media (max-width: 768px) {
     .cargo-list-item .cargo-item-row-1 {
@@ -849,12 +860,21 @@ body {
     margin-bottom: 0.6rem;
 }
 
-/* Грузы: смещаем таблицу ниже суммирующего блока на экранах больше телефона */
-.cargo-table-offset-desktop {
+@media (min-width: 769px) {
+    /* У .app-main задано padding-top: 0 — липкий блок заголовка/фильтров без зазора «подрезан» сверху */
+    .cargo-page-sticky-header {
+        padding-top: 0.65rem;
+    }
+}
+
+/* Грузы: смещаем таблицу и карточки ниже суммирующего блока на экранах больше телефона (липкий хедер не перекрывает первую строку / первую плитку при скролле) */
+.cargo-table-offset-desktop,
+.cargo-cards-offset-desktop {
     margin-top: 0;
 }
 @media (min-width: 769px) {
-    .cargo-table-offset-desktop {
+    .cargo-table-offset-desktop,
+    .cargo-cards-offset-desktop {
         margin-top: 2cm;
     }
 }
@@ -864,6 +884,13 @@ body {
     margin-bottom: 1.5cm;
     /* Не даём overflow-x: hidden «схлопнуть» overflow-y в auto — иначе обрезается контент у нижней границы блока */
     overflow-y: visible;
+    /* Строка вкладок и фильтров скроллится в .doc-sections-row / .filters-container — родителю не нужен hidden по X, иначе подрезается верх текста */
+    overflow-x: visible;
+}
+
+/* У .button-primary задан margin-top для форм логина; в «Документах» верх кнопки (скругление) визуально подрезается у контейнеров с overflow */
+.documents-page .button-primary {
+    margin-top: 0;
 }
 
 .doc-contracts-table-offset-desktop {

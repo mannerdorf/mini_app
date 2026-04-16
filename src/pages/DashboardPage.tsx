@@ -2950,8 +2950,11 @@ export function DashboardPage({
                     auth={auth}
                     useServiceRequest={useServiceRequest}
                     onOpenCargo={onOpenCargo}
+                    perevozkiItems={items}
+                    perevozkiLoading={loading}
+                    perevozkiError={error}
+                    perevozkiMutate={mutatePerevozki}
                     title="Выдача грузов"
-                    subtitle="Период — кнопками ниже; плитки и таблица по этому периоду"
                     showRefreshButton
                 />
             )}

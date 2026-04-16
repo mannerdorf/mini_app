@@ -1,33 +1,33 @@
 /**
- * Сводка по выдаче грузов: период (сегодня / вчера / 7 дней / 30 дней / произвольный), плитки и таблица.
- * Блок на главном дашборде (при праве haulz).
+ * Сводка по выдаче грузов: плитки и таблица по датам верхнего фильтра дашборда.
  */
 import React, { useMemo, useCallback, useState, useEffect } from "react";
-import { ArrowDown, ArrowUp, Loader2, RefreshCw } from "lucide-react";
+import { ArrowDown, ArrowUp, List, Loader2, RefreshCw, Scale, Weight } from "lucide-react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
-import type { AuthData, CargoItem, DateFilter, PerevozkaTimelineStep } from "../types";
-import { formatTimelineDate, formatTimelineTime, getDateRange, getTodayDate, parseDateOnly } from "../lib/dateUtils";
+import type { AuthData, CargoItem, PerevozkaTimelineStep } from "../types";
+import { formatTimelineDate, formatTimelineTime, parseDateOnly } from "../lib/dateUtils";
 import { getFilterKeyByStatus, isReceivedInfoStatus } from "../lib/statusUtils";
 import { formatCurrency, formatInvoiceNumber, stripOoo } from "../lib/formatUtils";
 import { getPlanDays, getSlaInfo } from "../lib/cargoUtils";
 import { fetchPerevozkaTimeline } from "../lib/perevozkaDetails";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
-import { usePerevozki } from "../hooks/useApi";
-import { CustomPeriodModal } from "./modals/CustomPeriodModal";
+import type { KeyedMutator } from "swr";
 
 export type HaulzDispatchSummaryProps = {
     auth: AuthData;
     useServiceRequest?: boolean;
     onOpenCargo: (cargoNumber: string) => void;
+    /** Те же перевозки, что уже загружены дашбордом по верхнему фильтру дат (без второго запроса). */
+    perevozkiItems: CargoItem[];
+    perevozkiLoading: boolean;
+    perevozkiError: string | null;
+    perevozkiMutate: KeyedMutator<CargoItem[]>;
     title?: string;
     subtitle?: string;
     showRefreshButton?: boolean;
 };
 
-/** Быстрый период блока (кнопки + «Период» через модалку). */
-type HaulzPeriodQuick = Exclude<DateFilter, "все" | "год">;
-
-type DispatchTileKey = "ready" | "delivering" | "transit" | "delivered" | "arrived_today" | "total";
+type DispatchTileKey = "ready" | "delivering" | "transit" | "delivered" | "total";
 
 const TABLE_MAX_ROWS = 60;
 
@@ -88,7 +88,6 @@ const QUEUE_TITLE: Record<DispatchTileKey, string> = {
     delivering: "Перевозки «На доставке»",
     transit: "Перевозки «В пути»",
     delivered: "Перевозки «Доставлено»",
-    arrived_today: "Перевозки «Прибыло сегодня»",
     total: "Все перевозки в выборке",
 };
 
@@ -101,13 +100,6 @@ function normalizeDispatchTimelineError(message?: string | null): string {
     }
     return raw;
 }
-
-const QUICK_FILTERS: { key: HaulzPeriodQuick; label: string }[] = [
-    { key: "сегодня", label: "Сегодня" },
-    { key: "вчера", label: "Вчера" },
-    { key: "неделя", label: "7 дней" },
-    { key: "месяц", label: "30 дней" },
-];
 
 function sumPw(items: CargoItem[]): number {
     return items.reduce((acc, it) => {
@@ -127,16 +119,59 @@ function sumVol(items: CargoItem[]): number {
     }, 0);
 }
 
+function sumW(items: CargoItem[]): number {
+    return items.reduce((acc, it) => {
+        const v = typeof it.W === "string" ? parseFloat(String(it.W).replace(",", ".")) || 0 : Number(it.W) || 0;
+        return acc + v;
+    }, 0);
+}
+
 function formatVolumeM3(vol: number): string {
     const n = Number(vol) || 0;
     return n.toFixed(2).replace(".", ",");
 }
 
-/** Подпись под числом на плитке: платный вес и объём груза. */
-function tilePwVolCaption(items: CargoItem[]): string {
+const TILE_ICON_SIZE = 13;
+const tileIconStyle: React.CSSProperties = {
+    flexShrink: 0,
+    color: "var(--color-text-secondary)",
+    opacity: 0.92,
+};
+
+/** Строка под числом на плитке: иконки платного веса, веса и объёма (как на полоске графика дашборда). */
+function TileMetricsFooter({ items }: { items: CargoItem[] }) {
     const pw = Math.round(sumPw(items));
+    const w = Math.round(sumW(items));
     const vol = sumVol(items);
-    return `платный вес ${pw.toLocaleString("ru-RU")} кг · объём ${formatVolumeM3(vol)} м³`;
+    const volStr = formatVolumeM3(vol);
+    return (
+        <Flex align="center" wrap="wrap" gap="0.35rem" style={{ marginTop: "0.2rem", rowGap: "0.15rem" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem" }} title="Платный вес">
+                <Scale width={TILE_ICON_SIZE} height={TILE_ICON_SIZE} style={tileIconStyle} aria-hidden />
+                <Typography.Body style={{ fontSize: "0.62rem", color: "var(--color-text-secondary)", lineHeight: 1.25 }}>
+                    {pw.toLocaleString("ru-RU")} кг
+                </Typography.Body>
+            </span>
+            <span style={{ fontSize: "0.62rem", color: "var(--color-text-secondary)", opacity: 0.45 }} aria-hidden>
+                ·
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem" }} title="Вес">
+                <Weight width={TILE_ICON_SIZE} height={TILE_ICON_SIZE} style={tileIconStyle} aria-hidden />
+                <Typography.Body style={{ fontSize: "0.62rem", color: "var(--color-text-secondary)", lineHeight: 1.25 }}>
+                    {w.toLocaleString("ru-RU")} кг
+                </Typography.Body>
+            </span>
+            <span style={{ fontSize: "0.62rem", color: "var(--color-text-secondary)", opacity: 0.45 }} aria-hidden>
+                ·
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem" }} title="Объём">
+                <List width={TILE_ICON_SIZE} height={TILE_ICON_SIZE} style={tileIconStyle} aria-hidden />
+                <Typography.Body style={{ fontSize: "0.62rem", color: "var(--color-text-secondary)", lineHeight: 1.25 }}>
+                    {volStr} м³
+                </Typography.Body>
+            </span>
+        </Flex>
+    );
 }
 
 function sortByArrivalDesc(list: CargoItem[]): CargoItem[] {
@@ -208,13 +243,16 @@ export function HaulzDispatchSummary({
     auth,
     useServiceRequest = false,
     onOpenCargo,
+    perevozkiItems: rawItems,
+    perevozkiLoading: loading,
+    perevozkiError: error,
+    perevozkiMutate: mutate,
     title,
     subtitle,
     showRefreshButton,
 }: HaulzDispatchSummaryProps) {
-    const todayKey = getTodayDate();
     const [workScheduleByInn, setWorkScheduleByInn] = useState<Record<string, WorkSchedule>>({});
-    const [selectedTile, setSelectedTile] = useState<DispatchTileKey>("ready");
+    const [selectedTile, setSelectedTile] = useState<DispatchTileKey>("total");
     const [dispatchTableSort, setDispatchTableSort] = useState<{
         column: DispatchTableSortCol | null;
         order: "asc" | "desc";
@@ -224,32 +262,6 @@ export function HaulzDispatchSummary({
     const [dispatchTimelineSteps, setDispatchTimelineSteps] = useState<PerevozkaTimelineStep[]>([]);
     const [dispatchTimelineLoading, setDispatchTimelineLoading] = useState(false);
     const [dispatchTimelineError, setDispatchTimelineError] = useState<string | null>(null);
-    const [periodQuick, setPeriodQuick] = useState<HaulzPeriodQuick>("неделя");
-    const [customDateFrom, setCustomDateFrom] = useState(() => getDateRange("неделя").dateFrom);
-    const [customDateTo, setCustomDateTo] = useState(() => getDateRange("неделя").dateTo);
-    const [periodModalOpen, setPeriodModalOpen] = useState(false);
-
-    const apiRange = useMemo(() => {
-        if (periodQuick === "период") {
-            return { dateFrom: customDateFrom, dateTo: customDateTo };
-        }
-        return getDateRange(periodQuick);
-    }, [periodQuick, customDateFrom, customDateTo]);
-
-    const { items: rawItems, error, loading, mutate } = usePerevozki({
-        auth,
-        dateFrom: apiRange.dateFrom,
-        dateTo: apiRange.dateTo,
-        useServiceRequest,
-        inn: !useServiceRequest ? auth.inn : undefined,
-    });
-
-    useEffect(() => {
-        if (!useServiceRequest) return;
-        const handler = () => void mutate(undefined, { revalidate: true });
-        window.addEventListener("haulz-service-refresh", handler);
-        return () => window.removeEventListener("haulz-service-refresh", handler);
-    }, [useServiceRequest, mutate]);
 
     const items = useMemo(() => rawItems.filter((i) => !isReceivedInfoStatus(i.State)), [rawItems]);
 
@@ -296,7 +308,6 @@ export function HaulzDispatchSummary({
         const delivering: CargoItem[] = [];
         const transit: CargoItem[] = [];
         const delivered: CargoItem[] = [];
-        const arrivedToday: CargoItem[] = [];
 
         for (const it of items) {
             const k = getFilterKeyByStatus(it.State);
@@ -304,9 +315,6 @@ export function HaulzDispatchSummary({
             else if (k === "delivering") delivering.push(it);
             else if (k === "in_transit") transit.push(it);
             else if (k === "delivered") delivered.push(it);
-
-            const dk = String(it.DatePrih ?? "").trim().split("T")[0];
-            if (dk && dk === todayKey) arrivedToday.push(it);
         }
 
         return {
@@ -314,10 +322,9 @@ export function HaulzDispatchSummary({
             delivering,
             transit,
             delivered,
-            arrivedToday,
             total: items.length,
         };
-    }, [items, todayKey]);
+    }, [items]);
 
     const listByTile: Record<DispatchTileKey, CargoItem[]> = useMemo(
         () => ({
@@ -325,10 +332,9 @@ export function HaulzDispatchSummary({
             delivering: sortByArrivalDesc(stats.delivering),
             transit: sortByArrivalDesc(stats.transit),
             delivered: sortByArrivalDesc(stats.delivered),
-            arrived_today: sortByArrivalDesc(stats.arrivedToday),
             total: sortByArrivalDesc(items),
         }),
-        [stats.ready, stats.delivering, stats.transit, stats.delivered, stats.arrivedToday, items],
+        [stats.ready, stats.delivering, stats.transit, stats.delivered, items],
     );
 
     useEffect(() => {
@@ -391,26 +397,17 @@ export function HaulzDispatchSummary({
         }
     }, [mutate]);
 
-    const modalSeed = useMemo(() => {
-        if (periodQuick === "период") return { from: customDateFrom, to: customDateTo };
-        return getDateRange(periodQuick);
-    }, [periodQuick, customDateFrom, customDateTo]);
-
-    const openPeriodModal = useCallback(() => {
-        setPeriodModalOpen(true);
-    }, []);
-
     const StatCard = ({
         tileKey,
         cardTitle,
         count,
-        sub,
+        footer,
         accent,
     }: {
         tileKey: DispatchTileKey;
         cardTitle: string;
         count: number;
-        sub: string;
+        footer: React.ReactNode;
         accent: string;
     }) => {
         const selected = selectedTile === tileKey;
@@ -443,16 +440,7 @@ export function HaulzDispatchSummary({
             >
                 <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", marginBottom: "0.25rem" }}>{cardTitle}</Typography.Body>
                 <Typography.Headline style={{ fontSize: "1.35rem", fontWeight: 700, lineHeight: 1.2 }}>{count.toLocaleString("ru-RU")}</Typography.Headline>
-                <Typography.Body
-                    style={{
-                        fontSize: "0.62rem",
-                        color: "var(--color-text-secondary)",
-                        marginTop: "0.2rem",
-                        lineHeight: 1.25,
-                    }}
-                >
-                    {sub}
-                </Typography.Body>
+                {footer}
             </Panel>
         );
     };
@@ -461,19 +449,6 @@ export function HaulzDispatchSummary({
 
     return (
         <div className="w-full" style={{ maxWidth: "100%", marginBottom: "1rem" }}>
-            <CustomPeriodModal
-                isOpen={periodModalOpen}
-                onClose={() => setPeriodModalOpen(false)}
-                dateFrom={modalSeed.from}
-                dateTo={modalSeed.to}
-                onApply={(from, to) => {
-                    setCustomDateFrom(from);
-                    setCustomDateTo(to);
-                    setPeriodQuick("период");
-                    setPeriodModalOpen(false);
-                }}
-            />
-
             {showHeader && (
                 <Flex align="flex-start" justify="space-between" wrap="wrap" gap="0.5rem" style={{ marginBottom: "0.75rem" }}>
                     <div>
@@ -494,46 +469,6 @@ export function HaulzDispatchSummary({
                 </Flex>
             )}
 
-            <Flex gap="0.4rem" wrap="wrap" style={{ marginBottom: "1rem" }}>
-                {QUICK_FILTERS.map(({ key, label }) => (
-                    <Button
-                        key={key}
-                        type="button"
-                        className="filter-button"
-                        onClick={() => {
-                            setPeriodQuick(key);
-                            setPeriodModalOpen(false);
-                        }}
-                        style={{
-                            padding: "0.35rem 0.75rem",
-                            fontSize: "0.82rem",
-                            background: periodQuick === key ? "var(--color-primary-blue)" : "var(--color-bg-hover)",
-                            color: periodQuick === key ? "white" : "var(--color-text-primary)",
-                            border: periodQuick === key ? "1px solid var(--color-primary-blue)" : "1px solid var(--color-border)",
-                        }}
-                    >
-                        {label}
-                    </Button>
-                ))}
-                <Button
-                    type="button"
-                    className="filter-button"
-                    onClick={openPeriodModal}
-                    style={{
-                        padding: "0.35rem 0.75rem",
-                        fontSize: "0.82rem",
-                        background: periodQuick === "период" ? "var(--color-primary-blue)" : "var(--color-bg-hover)",
-                        color: periodQuick === "период" ? "white" : "var(--color-text-primary)",
-                        border: periodQuick === "период" ? "1px solid var(--color-primary-blue)" : "1px solid var(--color-border)",
-                    }}
-                >
-                    Период
-                </Button>
-                <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", alignSelf: "center" }}>
-                    {apiRange.dateFrom} — {apiRange.dateTo}
-                </Typography.Body>
-            </Flex>
-
             {loading && rawItems.length === 0 && (
                 <Flex justify="center" style={{ padding: "1.5rem" }}>
                     <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--color-primary-blue)" }} />
@@ -551,42 +486,35 @@ export function HaulzDispatchSummary({
             {!loading && !error && (
                 <>
                     <Flex gap="0.55rem" wrap="wrap" style={{ marginBottom: "1rem" }}>
+                        <StatCard tileKey="total" cardTitle="Всего в выборке" count={stats.total} footer={<TileMetricsFooter items={items} />} accent="#64748b" />
+                        <StatCard
+                            tileKey="transit"
+                            cardTitle="В пути"
+                            count={stats.transit.length}
+                            footer={<TileMetricsFooter items={stats.transit} />}
+                            accent="#f59e0b"
+                        />
                         <StatCard
                             tileKey="ready"
                             cardTitle="Готов к выдаче"
                             count={stats.ready.length}
-                            sub={tilePwVolCaption(stats.ready)}
+                            footer={<TileMetricsFooter items={stats.ready} />}
                             accent="#8b5cf6"
                         />
                         <StatCard
                             tileKey="delivering"
                             cardTitle="На доставке"
                             count={stats.delivering.length}
-                            sub={tilePwVolCaption(stats.delivering)}
+                            footer={<TileMetricsFooter items={stats.delivering} />}
                             accent="#06b6d4"
-                        />
-                        <StatCard
-                            tileKey="transit"
-                            cardTitle="В пути"
-                            count={stats.transit.length}
-                            sub={tilePwVolCaption(stats.transit)}
-                            accent="#f59e0b"
                         />
                         <StatCard
                             tileKey="delivered"
                             cardTitle="Доставлено"
                             count={stats.delivered.length}
-                            sub={tilePwVolCaption(stats.delivered)}
+                            footer={<TileMetricsFooter items={stats.delivered} />}
                             accent="#10b981"
                         />
-                        <StatCard
-                            tileKey="arrived_today"
-                            cardTitle="Прибыло сегодня"
-                            count={stats.arrivedToday.length}
-                            sub={tilePwVolCaption(stats.arrivedToday)}
-                            accent="#6366f1"
-                        />
-                        <StatCard tileKey="total" cardTitle="Всего в выборке" count={stats.total} sub={tilePwVolCaption(items)} accent="#64748b" />
                     </Flex>
 
                     <Panel className="cargo-card" style={{ padding: "1rem 1.1rem", borderRadius: 12, background: "var(--color-bg-card)" }}>

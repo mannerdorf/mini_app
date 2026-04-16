@@ -2866,7 +2866,7 @@ useEffect(() => {
     }, [auth?.login, auth?.password, ferriesList]);
 
     return (
-        <div className="w-full">
+        <div className="w-full documents-page">
             <div className="cargo-page-sticky-header documents-page-sticky-header">
                 <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Документы</Typography.Headline>
@@ -3525,7 +3525,7 @@ useEffect(() => {
                         const badgeStyle = st === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : st === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : st === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
                         return (
                             <Panel key={num || idx} className="cargo-card" onClick={() => setSelectedInvoice(row)} style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}>
-                                <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
+                                <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'visible' }}>
                                     <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '60%' }}>
                                         <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: badgeStyle.color }}>{formatInvoiceNumber(num)}</Typography.Body>
                                     </Flex>
@@ -3735,7 +3735,7 @@ useEffect(() => {
                         const updEdo = getActUpdEdoInfo(act, items);
                         return (
                             <Panel key={num || idx} className="cargo-card" onClick={() => setSelectedAct(act)} style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}>
-                                <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
+                                <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'visible' }}>
                                     <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '60%' }}>
                                         <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{formatInvoiceNumber(String(num))}</Typography.Body>
                                     </Flex>
@@ -4095,7 +4095,7 @@ useEffect(() => {
                                 style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}
                                 title={expanded ? 'Свернуть детали заявки' : 'Показать детали заявки'}
                             >
-                                <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
+                                <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'visible' }}>
                                     <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '65%' }}>
                                         <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>
                                             {requestNumber ? formatInvoiceNumber(requestNumber) : '—'}
@@ -5481,7 +5481,7 @@ useEffect(() => {
                                             />
                                         </div>
                                     )}
-                                    <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
+                                    <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'visible' }}>
                                         <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>
                                             {number ? formatInvoiceNumber(number) : '—'}
                                         </Typography.Body>
@@ -5802,7 +5802,7 @@ useEffect(() => {
             )}
             {docSection === 'Акты сверок' && (
                 <>
-                    <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.75rem' }}>
+                    <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.75rem', paddingTop: '0.2rem' }}>
                         <Button
                             className="button-primary"
                             disabled={!effectiveActiveInn || !auth?.login || !auth?.password}

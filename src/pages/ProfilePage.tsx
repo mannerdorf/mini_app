@@ -1306,7 +1306,7 @@ export function ProfilePage({
             onClick: () => setCurrentView('haulz')
         }] : []),
         ...(activeAccount?.isRegisteredUser && activeAccount?.inCustomerDirectory === true ? [
-        ...(activeAccount?.permissions?.supervisor === true && activeAccount?.permissions?.haulz === true ? [{
+        ...(activeAccount?.permissions?.supervisor === true ? [{
             id: 'employees',
             label: 'Справочник сотрудников',
             icon: <Users className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
