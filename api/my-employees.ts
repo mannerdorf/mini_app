@@ -118,9 +118,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!fullName) {
         return res.status(400).json({ error: "Укажите ФИО", request_id: ctx.requestId });
       }
-      if (!department) {
-        return res.status(400).json({ error: "Укажите структурное подразделение", request_id: ctx.requestId });
-      }
       try {
       const pool = getPool();
       const colsRes = await pool.query<{ column_name: string }>(

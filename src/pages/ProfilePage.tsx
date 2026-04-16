@@ -114,8 +114,6 @@ export function ProfilePage({
     const [rolePresets, setRolePresets] = useState<{ id: string; label: string }[]>([]);
     const [inviteEmail, setInviteEmail] = useState('');
     const [inviteFullName, setInviteFullName] = useState('');
-    const [inviteDepartment, setInviteDepartment] = useState('');
-    const [inviteEmployeeRole, setInviteEmployeeRole] = useState<'employee' | 'department_head'>('employee');
     const [invitePresetId, setInvitePresetId] = useState('');
     const [inviteLoading, setInviteLoading] = useState(false);
     const [inviteError, setInviteError] = useState<string | null>(null);
@@ -324,18 +322,11 @@ export function ProfilePage({
         });
     }, []);
 
-    const DEPARTMENT_OPTIONS = [
-        'Склад Москва',
-        'Склад Калининград',
-        'Отдел продаж',
-        'Управляющая компания',
-    ] as const;
     const COOPERATION_TYPE_OPTIONS = [
         { value: "self_employed", label: "Самозанятость" },
         { value: "ip", label: "ИП" },
         { value: "staff", label: "Штатный сотрудник" },
     ] as const;
-    const employeeRoleLabel = (value?: string) => value === 'department_head' ? 'Руководитель подразделения' : 'Сотрудник';
     const cooperationTypeLabel = (value?: string) => {
         if (value === "self_employed") return "Самозанятость";
         if (value === "ip") return "ИП";
@@ -3167,7 +3158,7 @@ export function ProfilePage({
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Справочник сотрудников</Typography.Headline>
                 </Flex>
                 <Typography.Body style={{ marginBottom: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
-                    Регистрируйте сотрудников с указанием ФИО, структурного подразделения и роли. Пароль для входа отправляется на email.
+                    Регистрируйте сотрудников компании: укажите ФИО и пресет роли. Пароль для входа отправляется на email.
                 </Typography.Body>
                 {!activeAccount?.isRegisteredUser ? (
                     <Panel className="cargo-card" style={{ padding: '1rem' }}>
@@ -3202,7 +3193,7 @@ export function ProfilePage({
                                             <div>
                                                 <Typography.Body style={{ fontWeight: 600 }}>{emp.fullName || emp.login}</Typography.Body>
                                                 <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                                    {employeeRoleLabel(emp.employeeRole)} · {emp.department || '—'} · {emp.presetLabel} · {emp.active ? 'Доступ включён' : 'Отключён'}
+                                                    {emp.department ? `${emp.department} · ` : ''}{emp.presetLabel} · {emp.active ? 'Доступ включён' : 'Отключён'}
                                                 </Typography.Body>
                                             </div>
                                             <Flex align="center" gap="0.5rem" wrap="wrap">
@@ -3336,26 +3327,6 @@ export function ProfilePage({
                                 />
                                 <select
                                     className="admin-form-input invite-role-select"
-                                    value={inviteDepartment}
-                                    onChange={(e) => { setInviteDepartment(e.target.value); setInviteError(null); }}
-                                    style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.5rem', boxSizing: 'border-box', minWidth: '12rem' }}
-                                    aria-label="Структурное подразделение"
-                                >
-                                    <option value="">Структурное подразделение</option>
-                                    {DEPARTMENT_OPTIONS.map((dep) => <option key={dep} value={dep}>{dep}</option>)}
-                                </select>
-                                <select
-                                    className="admin-form-input invite-role-select"
-                                    value={inviteEmployeeRole}
-                                    onChange={(e) => setInviteEmployeeRole(e.target.value as 'employee' | 'department_head')}
-                                    style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.5rem', boxSizing: 'border-box', minWidth: '12rem' }}
-                                    aria-label="Роль сотрудника"
-                                >
-                                    <option value="employee">Сотрудник</option>
-                                    <option value="department_head">Руководитель подразделения</option>
-                                </select>
-                                <select
-                                    className="admin-form-input invite-role-select"
                                     value={invitePresetId}
                                     onChange={(e) => { setInvitePresetId(e.target.value); setInviteError(null); }}
                                     style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.5rem', boxSizing: 'border-box', minWidth: '10rem' }}
@@ -3372,7 +3343,7 @@ export function ProfilePage({
                                     type="button"
                                     className="button-primary"
                                     style={{ height: '2.5rem', padding: '0 1rem', boxSizing: 'border-box' }}
-                                    disabled={inviteLoading || !inviteEmail.trim() || !inviteFullName.trim() || !inviteDepartment || !invitePresetId}
+                                    disabled={inviteLoading || !inviteEmail.trim() || !inviteFullName.trim() || !invitePresetId}
                                     onClick={async () => {
                                         setInviteError(null); setInviteSuccess(null); setInviteLoading(true);
                                         try {
@@ -3384,15 +3355,15 @@ export function ProfilePage({
                                                     password: activeAccount.password,
                                                     email: inviteEmail.trim(),
                                                     fullName: inviteFullName.trim(),
-                                                    department: inviteDepartment,
-                                                    employeeRole: inviteEmployeeRole,
+                                                    department: '',
+                                                    employeeRole: 'employee',
                                                     presetId: invitePresetId
                                                 }),
                                             });
                                             const data = await res.json().catch(() => ({}));
                                             if (!res.ok) throw new Error(data.error || 'Ошибка');
                                             setInviteSuccess(data.message || 'Готово');
-                                            setInviteEmail(''); setInviteFullName(''); setInviteDepartment(''); setInviteEmployeeRole('employee'); setInvitePresetId('');
+                                            setInviteEmail(''); setInviteFullName(''); setInvitePresetId('');
                                             fetchEmployeesAndPresets();
                                         } catch (e) {
                                             setInviteError((e as Error)?.message || 'Ошибка приглашения');
@@ -3428,7 +3399,7 @@ export function ProfilePage({
                                             <div>
                                                 <Typography.Body style={{ fontWeight: 600 }}>{emp.fullName || emp.login}</Typography.Body>
                                                 <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                                    {employeeRoleLabel(emp.employeeRole)} · {emp.department || '—'} · {emp.presetLabel} · {emp.active ? 'Доступ включён' : 'Отключён'}
+                                                    {emp.department ? `${emp.department} · ` : ''}{emp.presetLabel} · {emp.active ? 'Доступ включён' : 'Отключён'}
                                                 </Typography.Body>
                                             </div>
                                             <Flex align="center" gap="0.5rem" wrap="wrap">

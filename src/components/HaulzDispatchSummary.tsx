@@ -2,7 +2,7 @@
  * Сводка по выдаче грузов: плитки и таблица по датам верхнего фильтра дашборда.
  */
 import React, { useMemo, useCallback, useState, useEffect } from "react";
-import { ArrowDown, ArrowUp, List, Loader2, RefreshCw, Scale, Weight } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, List, Loader2, RefreshCw, Scale, Weight } from "lucide-react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import type { AuthData, CargoItem, PerevozkaTimelineStep } from "../types";
 import { formatTimelineDate, formatTimelineTime, parseDateOnly } from "../lib/dateUtils";
@@ -82,14 +82,6 @@ function compareDispatchRows(
             return 0;
     }
 }
-
-const QUEUE_TITLE: Record<DispatchTileKey, string> = {
-    ready: "Очередь «Готов к выдаче»",
-    delivering: "Перевозки «На доставке»",
-    transit: "Перевозки «В пути»",
-    delivered: "Перевозки «Доставлено»",
-    total: "Все перевозки в выборке",
-};
 
 function normalizeDispatchTimelineError(message?: string | null): string {
     const raw = String(message || "").trim();
@@ -239,6 +231,11 @@ function rowIsOutsideSla(item: CargoItem, workScheduleByInn: Record<string, Work
     return sla != null && !sla.onTime;
 }
 
+function cargoCustomerGroupKey(row: CargoItem): string {
+    const cust = stripOoo(String(row.Customer ?? (row as { customer?: string }).customer ?? "—")).trim();
+    return cust || "—";
+}
+
 export function HaulzDispatchSummary({
     auth,
     useServiceRequest = false,
@@ -262,6 +259,8 @@ export function HaulzDispatchSummary({
     const [dispatchTimelineSteps, setDispatchTimelineSteps] = useState<PerevozkaTimelineStep[]>([]);
     const [dispatchTimelineLoading, setDispatchTimelineLoading] = useState(false);
     const [dispatchTimelineError, setDispatchTimelineError] = useState<string | null>(null);
+    /** Свернутая таблица по заказчику; по клику — строки перевозок этого заказчика. */
+    const [expandedCustomerKey, setExpandedCustomerKey] = useState<string | null>(null);
 
     const items = useMemo(() => rawItems.filter((i) => !isReceivedInfoStatus(i.State)), [rawItems]);
 
@@ -341,7 +340,13 @@ export function HaulzDispatchSummary({
         setDispatchTableSort({ column: null, order: "desc" });
         setExpandedDispatchNumber(null);
         setExpandedDispatchItem(null);
+        setExpandedCustomerKey(null);
     }, [selectedTile]);
+
+    useEffect(() => {
+        setExpandedDispatchNumber(null);
+        setExpandedDispatchItem(null);
+    }, [expandedCustomerKey]);
 
     useEffect(() => {
         if (!expandedDispatchNumber || !expandedDispatchItem || !auth?.login || !auth?.password) {
@@ -387,6 +392,20 @@ export function HaulzDispatchSummary({
     }, [listByTile, selectedTile, dispatchTableSort]);
 
     const tableRows = useMemo(() => sortedTableSource.slice(0, TABLE_MAX_ROWS), [sortedTableSource]);
+
+    const customerGroups = useMemo(() => {
+        const order: string[] = [];
+        const map = new Map<string, CargoItem[]>();
+        for (const row of tableRows) {
+            const key = cargoCustomerGroupKey(row);
+            if (!map.has(key)) {
+                order.push(key);
+                map.set(key, []);
+            }
+            map.get(key)!.push(row);
+        }
+        return order.map((customerKey) => ({ customerKey, rows: map.get(customerKey)! }));
+    }, [tableRows]);
 
     const refresh = useCallback(() => {
         void mutate(undefined, { revalidate: true });
@@ -518,12 +537,6 @@ export function HaulzDispatchSummary({
                     </Flex>
 
                     <Panel className="cargo-card" style={{ padding: "1rem 1.1rem", borderRadius: 12, background: "var(--color-bg-card)" }}>
-                        <Typography.Headline style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.35rem" }}>
-                            {QUEUE_TITLE[selectedTile]}
-                        </Typography.Headline>
-                        <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginBottom: "0.65rem" }}>
-                            Нажмите на строку — раскроются статусы перевозки (как в мониторе SLA). Карточку можно открыть кнопкой под таблицей статусов.
-                        </Typography.Body>
                         {tableRows.length === 0 ? (
                             <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет перевозок в этом разделе за период.</Typography.Body>
                         ) : (
@@ -576,172 +589,253 @@ export function HaulzDispatchSummary({
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {tableRows.map((row, ridx) => {
-                                            const num = String(row.Number ?? "").trim();
-                                            const cust = stripOoo(String(row.Customer ?? (row as { customer?: string }).customer ?? "—"));
-                                            const statusDateCell = formatDispatchFilterDateCell(row);
-                                            const dp = String(row.DatePrih ?? "").trim().split("T")[0];
-                                            const pw = typeof row.PW === "string" ? parseFloat(row.PW) || 0 : Number(row.PW) || 0;
-                                            const sum = typeof row.Sum === "string" ? parseFloat(row.Sum) || 0 : Number(row.Sum) || 0;
-                                            const slaLate = rowIsOutsideSla(row, workScheduleByInn);
-                                            const expanded = !!num && expandedDispatchNumber === num;
-                                            const rowBg = expanded
-                                                ? "var(--color-bg-hover)"
-                                                : slaLate
-                                                  ? "rgba(254, 226, 226, 0.85)"
-                                                  : undefined;
+                                        {customerGroups.map(({ customerKey, rows }) => {
+                                            const groupOpen = expandedCustomerKey === customerKey;
+                                            const totalPw = rows.reduce((acc, row) => {
+                                                const p = typeof row.PW === "string" ? parseFloat(row.PW) || 0 : Number(row.PW) || 0;
+                                                return acc + p;
+                                            }, 0);
+                                            const totalSum = rows.reduce((acc, row) => {
+                                                const s = typeof row.Sum === "string" ? parseFloat(row.Sum) || 0 : Number(row.Sum) || 0;
+                                                return acc + s;
+                                            }, 0);
+                                            const groupSlaLate = rows.some((row) => rowIsOutsideSla(row, workScheduleByInn));
                                             return (
-                                                <React.Fragment key={num ? `${selectedTile}-${num}` : `${selectedTile}-i-${ridx}`}>
+                                                <React.Fragment key={`${selectedTile}-grp-${customerKey}`}>
                                                     <tr
-                                                        onClick={() => {
-                                                            if (!num) return;
-                                                            if (expandedDispatchNumber === num) {
-                                                                setExpandedDispatchNumber(null);
-                                                                setExpandedDispatchItem(null);
-                                                            } else {
-                                                                setExpandedDispatchNumber(num);
-                                                                setExpandedDispatchItem(row);
-                                                            }
-                                                        }}
+                                                        onClick={() => setExpandedCustomerKey(groupOpen ? null : customerKey)}
                                                         style={{
                                                             borderBottom: "1px solid var(--color-border)",
-                                                            cursor: num ? "pointer" : "default",
-                                                            background: rowBg,
+                                                            cursor: "pointer",
+                                                            background: groupSlaLate
+                                                                ? "rgba(254, 226, 226, 0.45)"
+                                                                : "var(--color-bg-hover)",
                                                         }}
-                                                        title={num ? (expanded ? "Свернуть статусы" : "Показать статусы перевозки") : undefined}
+                                                        aria-expanded={groupOpen}
+                                                        title={groupOpen ? "Свернуть список перевозок" : "Показать перевозки заказчика"}
                                                     >
-                                                        <td style={{ padding: "0.35rem", whiteSpace: "nowrap" }}>{formatInvoiceNumber(num)}</td>
-                                                        <td style={{ padding: "0.35rem", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={cust}>
-                                                            {cust}
+                                                        <td style={{ padding: "0.35rem", whiteSpace: "nowrap", verticalAlign: "middle" }}>
+                                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                                                {groupOpen ? (
+                                                                    <ChevronDown className="w-4 h-4" style={{ flexShrink: 0, opacity: 0.85 }} aria-hidden />
+                                                                ) : (
+                                                                    <ChevronRight className="w-4 h-4" style={{ flexShrink: 0, opacity: 0.85 }} aria-hidden />
+                                                                )}
+                                                                <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>
+                                                                    {rows.length}
+                                                                </Typography.Body>
+                                                            </span>
+                                                        </td>
+                                                        <td
+                                                            style={{
+                                                                padding: "0.35rem",
+                                                                maxWidth: 220,
+                                                                overflow: "hidden",
+                                                                textOverflow: "ellipsis",
+                                                                whiteSpace: "nowrap",
+                                                                fontWeight: 600,
+                                                            }}
+                                                            title={customerKey}
+                                                        >
+                                                            {customerKey}
                                                         </td>
                                                         <td style={{ padding: "0.35rem", fontSize: "0.72rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>
-                                                            {statusDateCell}
+                                                            —
                                                         </td>
-                                                        <td style={{ padding: "0.35rem", whiteSpace: "nowrap" }}>{dp || "—"}</td>
-                                                        <td style={{ padding: "0.35rem", textAlign: "right" }}>{Math.round(pw).toLocaleString("ru-RU")}</td>
-                                                        <td style={{ padding: "0.35rem", textAlign: "right" }}>{formatCurrency(sum, true)}</td>
+                                                        <td style={{ padding: "0.35rem", whiteSpace: "nowrap", color: "var(--color-text-secondary)" }}>—</td>
+                                                        <td style={{ padding: "0.35rem", textAlign: "right" }}>{Math.round(totalPw).toLocaleString("ru-RU")}</td>
+                                                        <td style={{ padding: "0.35rem", textAlign: "right" }}>{formatCurrency(totalSum, true)}</td>
                                                     </tr>
-                                                    {expanded && expandedDispatchItem && (
-                                                        <tr>
-                                                            <td
-                                                                colSpan={6}
-                                                                style={{
-                                                                    padding: "0.5rem",
-                                                                    borderBottom: "1px solid var(--color-border)",
-                                                                    verticalAlign: "top",
-                                                                    background: "var(--color-bg-primary)",
-                                                                }}
-                                                                onClick={(e) => e.stopPropagation()}
-                                                            >
-                                                                <Typography.Body style={{ fontSize: "0.75rem", fontWeight: 600, marginBottom: "0.35rem" }}>
-                                                                    Статусы перевозки
-                                                                </Typography.Body>
-                                                                {dispatchTimelineLoading && (
-                                                                    <Flex align="center" gap="0.5rem" style={{ padding: "0.35rem 0" }}>
-                                                                        <Loader2 className="w-3 h-3 animate-spin" style={{ color: "var(--color-primary-blue)" }} />
-                                                                        <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                                                                            Загрузка…
-                                                                        </Typography.Body>
-                                                                    </Flex>
-                                                                )}
-                                                                {dispatchTimelineError && (
-                                                                    <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                                                                        {dispatchTimelineError}
-                                                                    </Typography.Body>
-                                                                )}
-                                                                {!dispatchTimelineLoading &&
-                                                                    dispatchTimelineSteps &&
-                                                                    dispatchTimelineSteps.length > 0 &&
-                                                                    (() => {
-                                                                        const item = expandedDispatchItem;
-                                                                        const planEndMs =
-                                                                            item?.DatePrih
-                                                                                ? new Date(item.DatePrih).getTime() +
-                                                                                  getPlanDays(item) * 24 * 60 * 60 * 1000
-                                                                                : 0;
-                                                                        return (
-                                                                            <table
-                                                                                style={{
-                                                                                    width: "100%",
-                                                                                    borderCollapse: "collapse",
-                                                                                    fontSize: "0.8rem",
-                                                                                }}
-                                                                            >
-                                                                                <thead>
-                                                                                    <tr
-                                                                                        style={{
-                                                                                            borderBottom: "1px solid var(--color-border)",
-                                                                                            background: "var(--color-bg-hover)",
-                                                                                        }}
-                                                                                    >
-                                                                                        <th style={{ padding: "0.35rem 0.3rem", textAlign: "left", fontWeight: 600 }}>
-                                                                                            Статус
-                                                                                        </th>
-                                                                                        <th style={{ padding: "0.35rem 0.3rem", textAlign: "left", fontWeight: 600 }}>
-                                                                                            Дата доставки
-                                                                                        </th>
-                                                                                        <th style={{ padding: "0.35rem 0.3rem", textAlign: "left", fontWeight: 600 }}>
-                                                                                            Время доставки
-                                                                                        </th>
-                                                                                    </tr>
-                                                                                </thead>
-                                                                                <tbody>
-                                                                                    {dispatchTimelineSteps.map((step, i) => {
-                                                                                        const stepMs = step.date ? new Date(step.date).getTime() : 0;
-                                                                                        const outOfSlaFromThisStep =
-                                                                                            planEndMs > 0 && stepMs > planEndMs;
-                                                                                        const dateColor = outOfSlaFromThisStep
-                                                                                            ? "#ef4444"
-                                                                                            : planEndMs > 0 && stepMs > 0
-                                                                                              ? "#22c55e"
-                                                                                              : "var(--color-text-secondary)";
-                                                                                        return (
-                                                                                            <tr key={i} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                                                                                                <td
-                                                                                                    style={{
-                                                                                                        padding: "0.35rem 0.3rem",
-                                                                                                        color: outOfSlaFromThisStep ? "#ef4444" : undefined,
-                                                                                                    }}
-                                                                                                >
-                                                                                                    {step.label}
-                                                                                                </td>
-                                                                                                <td style={{ padding: "0.35rem 0.3rem", color: dateColor }}>
-                                                                                                    {formatTimelineDate(step.date)}
-                                                                                                </td>
-                                                                                                <td style={{ padding: "0.35rem 0.3rem", color: dateColor }}>
-                                                                                                    {formatTimelineTime(step.date)}
-                                                                                                </td>
-                                                                                            </tr>
-                                                                                        );
-                                                                                    })}
-                                                                                </tbody>
-                                                                            </table>
-                                                                        );
-                                                                    })()}
-                                                                {!dispatchTimelineLoading &&
-                                                                    dispatchTimelineSteps &&
-                                                                    dispatchTimelineSteps.length === 0 &&
-                                                                    !dispatchTimelineError && (
-                                                                        <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                                                                            Нет шагов статуса.
-                                                                        </Typography.Body>
-                                                                    )}
-                                                                <div style={{ marginTop: "0.45rem" }}>
-                                                                    <Button
-                                                                        type="button"
-                                                                        className="filter-button"
-                                                                        style={{ fontSize: "0.78rem", padding: "0.35rem 0.65rem" }}
+                                                    {groupOpen &&
+                                                        rows.map((row, ridx) => {
+                                                            const num = String(row.Number ?? "").trim();
+                                                            const cust = stripOoo(String(row.Customer ?? (row as { customer?: string }).customer ?? "—"));
+                                                            const statusDateCell = formatDispatchFilterDateCell(row);
+                                                            const dp = String(row.DatePrih ?? "").trim().split("T")[0];
+                                                            const pw = typeof row.PW === "string" ? parseFloat(row.PW) || 0 : Number(row.PW) || 0;
+                                                            const sum = typeof row.Sum === "string" ? parseFloat(row.Sum) || 0 : Number(row.Sum) || 0;
+                                                            const slaLate = rowIsOutsideSla(row, workScheduleByInn);
+                                                            const expanded = !!num && expandedDispatchNumber === num;
+                                                            const rowBg = expanded
+                                                                ? "var(--color-bg-hover)"
+                                                                : slaLate
+                                                                  ? "rgba(254, 226, 226, 0.85)"
+                                                                  : undefined;
+                                                            return (
+                                                                <React.Fragment key={num ? `${selectedTile}-${customerKey}-${num}` : `${selectedTile}-${customerKey}-i-${ridx}`}>
+                                                                    <tr
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
-                                                                            onOpenCargo(num);
+                                                                            if (!num) return;
+                                                                            if (expandedDispatchNumber === num) {
+                                                                                setExpandedDispatchNumber(null);
+                                                                                setExpandedDispatchItem(null);
+                                                                            } else {
+                                                                                setExpandedDispatchNumber(num);
+                                                                                setExpandedDispatchItem(row);
+                                                                            }
                                                                         }}
+                                                                        style={{
+                                                                            borderBottom: "1px solid var(--color-border)",
+                                                                            cursor: num ? "pointer" : "default",
+                                                                            background: rowBg,
+                                                                        }}
+                                                                        title={num ? (expanded ? "Свернуть статусы" : "Показать статусы перевозки") : undefined}
                                                                     >
-                                                                        Открыть карточку перевозки
-                                                                    </Button>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    )}
+                                                                        <td style={{ padding: "0.35rem 0.35rem 0.35rem 1.5rem", whiteSpace: "nowrap" }}>
+                                                                            {formatInvoiceNumber(num)}
+                                                                        </td>
+                                                                        <td
+                                                                            style={{
+                                                                                padding: "0.35rem",
+                                                                                maxWidth: 200,
+                                                                                overflow: "hidden",
+                                                                                textOverflow: "ellipsis",
+                                                                                whiteSpace: "nowrap",
+                                                                                fontSize: "0.78rem",
+                                                                                color: "var(--color-text-secondary)",
+                                                                            }}
+                                                                            title={cust}
+                                                                        >
+                                                                            {cust}
+                                                                        </td>
+                                                                        <td
+                                                                            style={{
+                                                                                padding: "0.35rem",
+                                                                                fontSize: "0.72rem",
+                                                                                color: "var(--color-text-secondary)",
+                                                                                whiteSpace: "nowrap",
+                                                                            }}
+                                                                        >
+                                                                            {statusDateCell}
+                                                                        </td>
+                                                                        <td style={{ padding: "0.35rem", whiteSpace: "nowrap" }}>{dp || "—"}</td>
+                                                                        <td style={{ padding: "0.35rem", textAlign: "right" }}>{Math.round(pw).toLocaleString("ru-RU")}</td>
+                                                                        <td style={{ padding: "0.35rem", textAlign: "right" }}>{formatCurrency(sum, true)}</td>
+                                                                    </tr>
+                                                                    {expanded && expandedDispatchItem && (
+                                                                        <tr>
+                                                                            <td
+                                                                                colSpan={6}
+                                                                                style={{
+                                                                                    padding: "0.5rem",
+                                                                                    borderBottom: "1px solid var(--color-border)",
+                                                                                    verticalAlign: "top",
+                                                                                    background: "var(--color-bg-primary)",
+                                                                                }}
+                                                                                onClick={(e) => e.stopPropagation()}
+                                                                            >
+                                                                                <Typography.Body style={{ fontSize: "0.75rem", fontWeight: 600, marginBottom: "0.35rem" }}>
+                                                                                    Статусы перевозки
+                                                                                </Typography.Body>
+                                                                                {dispatchTimelineLoading && (
+                                                                                    <Flex align="center" gap="0.5rem" style={{ padding: "0.35rem 0" }}>
+                                                                                        <Loader2 className="w-3 h-3 animate-spin" style={{ color: "var(--color-primary-blue)" }} />
+                                                                                        <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                                                                                            Загрузка…
+                                                                                        </Typography.Body>
+                                                                                    </Flex>
+                                                                                )}
+                                                                                {dispatchTimelineError && (
+                                                                                    <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                                                                                        {dispatchTimelineError}
+                                                                                    </Typography.Body>
+                                                                                )}
+                                                                                {!dispatchTimelineLoading &&
+                                                                                    dispatchTimelineSteps &&
+                                                                                    dispatchTimelineSteps.length > 0 &&
+                                                                                    (() => {
+                                                                                        const item = expandedDispatchItem;
+                                                                                        const planEndMs =
+                                                                                            item?.DatePrih
+                                                                                                ? new Date(item.DatePrih).getTime() +
+                                                                                                  getPlanDays(item) * 24 * 60 * 60 * 1000
+                                                                                                : 0;
+                                                                                        return (
+                                                                                            <table
+                                                                                                style={{
+                                                                                                    width: "100%",
+                                                                                                    borderCollapse: "collapse",
+                                                                                                    fontSize: "0.8rem",
+                                                                                                }}
+                                                                                            >
+                                                                                                <thead>
+                                                                                                    <tr
+                                                                                                        style={{
+                                                                                                            borderBottom: "1px solid var(--color-border)",
+                                                                                                            background: "var(--color-bg-hover)",
+                                                                                                        }}
+                                                                                                    >
+                                                                                                        <th style={{ padding: "0.35rem 0.3rem", textAlign: "left", fontWeight: 600 }}>
+                                                                                                            Статус
+                                                                                                        </th>
+                                                                                                        <th style={{ padding: "0.35rem 0.3rem", textAlign: "left", fontWeight: 600 }}>
+                                                                                                            Дата доставки
+                                                                                                        </th>
+                                                                                                        <th style={{ padding: "0.35rem 0.3rem", textAlign: "left", fontWeight: 600 }}>
+                                                                                                            Время доставки
+                                                                                                        </th>
+                                                                                                    </tr>
+                                                                                                </thead>
+                                                                                                <tbody>
+                                                                                                    {dispatchTimelineSteps.map((step, i) => {
+                                                                                                        const stepMs = step.date ? new Date(step.date).getTime() : 0;
+                                                                                                        const outOfSlaFromThisStep = planEndMs > 0 && stepMs > planEndMs;
+                                                                                                        const dateColor = outOfSlaFromThisStep
+                                                                                                            ? "#ef4444"
+                                                                                                            : planEndMs > 0 && stepMs > 0
+                                                                                                              ? "#22c55e"
+                                                                                                              : "var(--color-text-secondary)";
+                                                                                                        return (
+                                                                                                            <tr key={i} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                                                                                                                <td
+                                                                                                                    style={{
+                                                                                                                        padding: "0.35rem 0.3rem",
+                                                                                                                        color: outOfSlaFromThisStep ? "#ef4444" : undefined,
+                                                                                                                    }}
+                                                                                                                >
+                                                                                                                    {step.label}
+                                                                                                                </td>
+                                                                                                                <td style={{ padding: "0.35rem 0.3rem", color: dateColor }}>
+                                                                                                                    {formatTimelineDate(step.date)}
+                                                                                                                </td>
+                                                                                                                <td style={{ padding: "0.35rem 0.3rem", color: dateColor }}>
+                                                                                                                    {formatTimelineTime(step.date)}
+                                                                                                                </td>
+                                                                                                            </tr>
+                                                                                                        );
+                                                                                                    })}
+                                                                                                </tbody>
+                                                                                            </table>
+                                                                                        );
+                                                                                    })()}
+                                                                                {!dispatchTimelineLoading &&
+                                                                                    dispatchTimelineSteps &&
+                                                                                    dispatchTimelineSteps.length === 0 &&
+                                                                                    !dispatchTimelineError && (
+                                                                                        <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                                                                                            Нет шагов статуса.
+                                                                                        </Typography.Body>
+                                                                                    )}
+                                                                                <div style={{ marginTop: "0.45rem" }}>
+                                                                                    <Button
+                                                                                        type="button"
+                                                                                        className="filter-button"
+                                                                                        style={{ fontSize: "0.78rem", padding: "0.35rem 0.65rem" }}
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            onOpenCargo(num);
+                                                                                        }}
+                                                                                    >
+                                                                                        Открыть карточку перевозки
+                                                                                    </Button>
+                                                                                </div>
+                                                                            </td>
+                                                                        </tr>
+                                                                    )}
+                                                                </React.Fragment>
+                                                            );
+                                                        })}
                                                 </React.Fragment>
                                             );
                                         })}

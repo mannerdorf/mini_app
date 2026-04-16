@@ -2954,7 +2954,6 @@ export function DashboardPage({
                     perevozkiLoading={loading}
                     perevozkiError={error}
                     perevozkiMutate={mutatePerevozki}
-                    title="Выдача грузов"
                     showRefreshButton
                 />
             )}

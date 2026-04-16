@@ -2778,6 +2778,14 @@ useEffect(() => {
         const hasPlate = /[A-ZА-Я][0-9]{3}[A-ZА-Я]{2}(?:\s*\/?\s*[0-9]{2,3})?/u.test(s);
         return hasPlate ? 'auto' : 'ferry';
     }, []);
+    /** Тип ТС в отправках: флаг AK из API имеет приоритет над эвристикой по номеру прицепа (иначе «ПРИЦЕП …» ошибочно даёт авто). */
+    const getSendingRowTransportMode = useCallback(
+        (row: any, vehicleText: string): 'ferry' | 'auto' | '' => {
+            if (row?.AK === true || row?.AK === 'true' || row?.AK === '1' || row?.AK === 1) return 'ferry';
+            return getSendingTransportType(vehicleText);
+        },
+        [getSendingTransportType],
+    );
     const getSendingsFerryEntry = useCallback((rowKey: string, number: string) => {
         const withNormalized = (raw: string) => {
             const base = String(raw ?? '').trim();
@@ -2794,8 +2802,9 @@ useEffect(() => {
     }, [sendingsFerryMap]);
     const handleFerrySelect = useCallback(async (rowKey: string, ferryIdStr: string, effectiveInn: string | null) => {
         setSendingsFerryActionError(null);
-        const ferryId = ferryIdStr ? parseInt(ferryIdStr, 10) : null;
-        const ferry = ferriesList.find((f) => f.id === ferryId);
+        const parsed = ferryIdStr.trim() ? parseInt(ferryIdStr, 10) : NaN;
+        const ferryId = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+        const ferry = ferryId != null ? ferriesList.find((f) => Number(f.id) === ferryId) : null;
         if (!ferry && ferryId != null) return;
 
         const keys = [rowKey, rowKey.replace(/\D/g, '')].filter(Boolean);
@@ -2863,7 +2872,7 @@ useEffect(() => {
                 return next;
             });
         }
-    }, [auth?.login, auth?.password, ferriesList]);
+    }, [auth?.login, auth?.password, ferriesList, effectiveActiveInn]);
 
     return (
         <div className="w-full documents-page">
@@ -4423,7 +4432,7 @@ useEffect(() => {
                                 const parcelMatches = searchLower ? parcels.filter((parcel: any) => getParcelSearchText(parcel).includes(searchLower)) : [];
                                 const hasParcelSearchMatches = !!searchLower && parcelMatches.length > 0;
                                 const parcelsToRender = hasParcelSearchMatches ? parcelMatches : parcels;
-                                const transportType = getSendingTransportType(vehicle);
+                                const transportType = getSendingRowTransportMode(row, vehicle);
                                 const sendingStatusKey = getSendingStatusKey(row);
                                 const sendingStatusLabel = sendingStatusKey === 'all' ? '' : STATUS_MAP[sendingStatusKey];
                                 const transitHours = getSendingTransitHours(row);
@@ -4439,7 +4448,13 @@ useEffect(() => {
                                         <tr
                                             style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expanded ? 'var(--color-bg-hover)' : undefined }}
                                             onClick={(e) => {
-                                                if ((e.target as Element)?.closest?.('select') || (e.target as Element)?.closest?.('[data-ferry-cell]')) return;
+                                                const el = e.target as Element | null;
+                                                if (
+                                                    el?.closest?.('select') ||
+                                                    el?.closest?.('[data-ferry-cell]') ||
+                                                    el?.closest?.('option')
+                                                )
+                                                    return;
                                                 setExpandedSendingRow((prev) => (prev === rowKey ? null : rowKey));
                                             }}
                                             title={expanded ? 'Свернуть посылки' : 'Показать посылки'}
@@ -4497,17 +4512,22 @@ useEffect(() => {
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
                                             <td
                                                 data-ferry-cell
-                                                style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle', position: 'relative', zIndex: 1, touchAction: 'manipulation' }}
+                                                style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle', position: 'relative', zIndex: 2, touchAction: 'manipulation' }}
                                                 onClick={(e) => e.stopPropagation()}
+                                                onMouseDown={(e) => e.stopPropagation()}
+                                                onPointerDown={(e) => e.stopPropagation()}
                                             >
                                                 {transportType === 'ferry' ? (
                                                     canEditPlanDate && ferriesList.length > 0 ? (
                                                         <div
                                                             style={{ display: 'inline-block', minWidth: 140 }}
                                                             onClick={(e) => e.stopPropagation()}
+                                                            onMouseDown={(e) => e.stopPropagation()}
+                                                            onPointerDown={(e) => e.stopPropagation()}
                                                         >
                                                             <select
                                                                 className="admin-form-input"
+                                                                data-ferry-select
                                                                 value={String(getSendingsFerryEntry(rowKey, number)?.ferry_id ?? '')}
                                                                 onChange={(e) => {
                                                                     const v = e.target.value;
@@ -4515,12 +4535,14 @@ useEffect(() => {
                                                                 }}
                                                                 disabled={ferryEtaLoadingByRow[rowKey]}
                                                                 onClick={(e) => e.stopPropagation()}
+                                                                onMouseDown={(e) => e.stopPropagation()}
+                                                                onPointerDown={(e) => e.stopPropagation()}
                                                                 style={{ padding: '0.4rem 0.5rem', fontSize: '0.85rem', minWidth: 140, maxWidth: 200, minHeight: 36, cursor: 'pointer' }}
                                                                 aria-label="Выберите паром"
                                                             >
                                                                 <option value="">— Выберите паром —</option>
                                                                 {ferriesList.map((f) => (
-                                                                    <option key={f.id} value={f.id}>{f.name}</option>
+                                                                    <option key={f.id} value={String(f.id)}>{f.name}</option>
                                                                 ))}
                                                             </select>
                                                         </div>
@@ -4534,7 +4556,9 @@ useEffect(() => {
                                                     ) : (() => {
                                                         const entry = getSendingsFerryEntry(rowKey, number);
                                                         const etaVal = entry?.eta;
-                                                        const mmsiForLink = entry ? ferriesList.find((f) => f.id === entry.ferry_id)?.mmsi : undefined;
+                                                        const mmsiForLink = entry
+                                                            ? ferriesList.find((f) => Number(f.id) === Number(entry.ferry_id))?.mmsi
+                                                            : undefined;
                                                         const canOpenAis = mmsiForLink && onOpenAisWithMmsi;
                                                         const content = etaVal ? <DateText value={etaVal} /> : (entry ? '—' : '—');
                                                         return canOpenAis ? (
@@ -5444,7 +5468,7 @@ useEffect(() => {
                             const parcelMatches = searchLower ? parcels.filter((parcel: any) => getParcelSearchText(parcel).includes(searchLower)) : [];
                             const hasParcelSearchMatches = !!searchLower && parcelMatches.length > 0;
                             const parcelsToRender = hasParcelSearchMatches ? parcelMatches : parcels;
-                            const transportType = getSendingTransportType(vehicle);
+                            const transportType = getSendingRowTransportMode(row, vehicle);
                             const sendingStatusKey = getSendingStatusKey(row);
                             const sendingStatusLabel = sendingStatusKey === 'all' ? '' : STATUS_MAP[sendingStatusKey];
                             const transitHours = getSendingTransitHours(row);
