@@ -534,9 +534,6 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const rate = Number(employee.accrual_rate || 0);
     const cooperationType = normalizeCooperationType(employee.cooperation_type);
 
-    await ensureEmployeeAccrualRateHistoryTable(pool);
-    const rateByDate = await getAccrualRatesForDates(pool, employeeId, markedDates, employee.accrual_rate);
-
     const marksRes = await pool.query<{ work_date: string }>(
       `SELECT work_date::text as work_date
        FROM employee_timesheet_payment_marks
@@ -548,6 +545,10 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     );
     if (marksRes.rows.length === 0) return res.status(400).json({ error: "Не выбраны дни к выплате" });
     const markedDates = marksRes.rows.map((r) => r.work_date);
+
+    await ensureEmployeeAccrualRateHistoryTable(pool);
+    const rateByDate = await getAccrualRatesForDates(pool, employeeId, markedDates, employee.accrual_rate);
+
     const duplicatePaidRes = await pool.query<{ work_date: string }>(
       `SELECT DISTINCT d.value as work_date
        FROM employee_timesheet_payouts p
