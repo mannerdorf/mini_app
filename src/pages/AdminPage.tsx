@@ -171,6 +171,21 @@ type EmployeeDirectoryRow = {
   created_at: string;
 };
 
+type EmployeeRateHistoryRow = {
+  effective_from: string;
+  accrual_rate: number;
+  created_at: string;
+};
+
+function todayIsoDateMoscow(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 type AccrualType = "hour" | "shift" | "month";
 
 /** Fallback при пустом справочнике подразделений */
@@ -974,6 +989,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [employeeDirectoryEditAccrualRate, setEmployeeDirectoryEditAccrualRate] = useState("0");
   const [employeeDirectoryEditCooperationType, setEmployeeDirectoryEditCooperationType] = useState<CooperationType>("staff");
   const [employeeDirectoryEditRole, setEmployeeDirectoryEditRole] = useState<"employee" | "department_head">("employee");
+  const [employeeDirectoryEditRateEffectiveFrom, setEmployeeDirectoryEditRateEffectiveFrom] = useState("");
+  const [employeeDirectoryRateHistory, setEmployeeDirectoryRateHistory] = useState<EmployeeRateHistoryRow[]>([]);
   const [employeeDirectoryEditSaving, setEmployeeDirectoryEditSaving] = useState(false);
   const [timesheetMonth, setTimesheetMonth] = useState<string>(() => {
     const now = new Date();
@@ -2737,6 +2754,23 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       reloadAllExpenseRequests();
     } catch { /* skip */ }
   }, [adminToken, expenseEditDocNumber, expenseEditDocDate, expenseEditPeriod, expenseEditDepartment, expenseEditCategory, expenseEditAmount, expenseEditVatRate, expenseEditComment, expenseEditVehicle, expenseEditTransportType, expenseEditEmployee, expenseEditSupplierName, expenseEditSupplierInn, reloadAllExpenseRequests, expenseCategories]);
+
+  const loadEmployeeRateHistory = useCallback(
+    async (employeeId: number) => {
+      if (!adminToken || !isSuperAdmin) return;
+      try {
+        const res = await fetch(`/api/admin-employee-directory?rate_history_for=${employeeId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || "Ошибка загрузки истории ставки");
+        setEmployeeDirectoryRateHistory(Array.isArray(data?.rate_history) ? data.rate_history : []);
+      } catch {
+        setEmployeeDirectoryRateHistory([]);
+      }
+    },
+    [adminToken, isSuperAdmin]
+  );
 
   const fetchEmployeeDirectory = useCallback(async (monthForTimesheet?: string) => {
     if (!adminToken || !isSuperAdmin) return;
@@ -8827,6 +8861,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     setEmployeeDirectoryEditCooperationType(normalizeCooperationType(emp.cooperation_type || "staff"));
                     setEmployeeDirectoryEditAccrualType(normalizeAccrualType(emp.accrual_type));
                     setEmployeeDirectoryEditAccrualRate(String(emp.accrual_rate ?? 0));
+                    setEmployeeDirectoryEditRateEffectiveFrom(todayIsoDateMoscow());
+                    void loadEmployeeRateHistory(emp.id);
                     setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
                   }}
                   onKeyDown={(e) => {
@@ -8846,6 +8882,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       setEmployeeDirectoryEditCooperationType(normalizeCooperationType(emp.cooperation_type || "staff"));
                       setEmployeeDirectoryEditAccrualType(normalizeAccrualType(emp.accrual_type));
                       setEmployeeDirectoryEditAccrualRate(String(emp.accrual_rate ?? 0));
+                      setEmployeeDirectoryEditRateEffectiveFrom(todayIsoDateMoscow());
+                      void loadEmployeeRateHistory(emp.id);
                       setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
                     }
                   }}
@@ -9018,6 +9056,17 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           style={{ width: "100%" }}
                           autoComplete="off"
                         />
+                        <div style={{ minWidth: 160 }}>
+                          <label style={{ fontSize: "0.7rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Ставка с даты</label>
+                          <input
+                            type="date"
+                            className="admin-form-input"
+                            value={employeeDirectoryEditRateEffectiveFrom}
+                            onChange={(e) => setEmployeeDirectoryEditRateEffectiveFrom(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ width: "100%" }}
+                          />
+                        </div>
                         <select
                           className="admin-form-input"
                           value={employeeDirectoryEditRole}
@@ -9044,6 +9093,27 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         За {employeeDirectoryEditAccrualType === "month" ? "месяц" : (employeeDirectoryEditAccrualType === "shift" ? "смену" : "час")}: {Number(employeeDirectoryEditAccrualRate || 0).toLocaleString("ru-RU")} ₽ ·
                         За месяц ({WORK_DAYS_IN_MONTH} раб. дн.): {Math.round(employeeDirectoryEditMonthlyEstimate).toLocaleString("ru-RU")} ₽
                       </Typography.Body>
+                      {employeeDirectoryRateHistory.length > 0 ? (
+                        <div style={{ marginTop: "0.5rem", overflowX: "auto" }}>
+                          <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginBottom: "0.25rem" }}>История ставок</Typography.Body>
+                          <table style={{ width: "100%", fontSize: "0.8rem", borderCollapse: "collapse" }}>
+                            <thead>
+                              <tr style={{ textAlign: "left", borderBottom: "1px solid var(--color-border)" }}>
+                                <th style={{ padding: "0.25rem 0.35rem" }}>С даты</th>
+                                <th style={{ padding: "0.25rem 0.35rem" }}>Ставка</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {employeeDirectoryRateHistory.map((h) => (
+                                <tr key={`${h.effective_from}-${h.created_at}`} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                                  <td style={{ padding: "0.25rem 0.35rem" }}>{h.effective_from}</td>
+                                  <td style={{ padding: "0.25rem 0.35rem" }}>{Number(h.accrual_rate).toLocaleString("ru-RU")} ₽</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : null}
                       <Flex align="center" gap="0.5rem" style={{ marginTop: "0.55rem" }}>
                         <Button
                           type="button"
@@ -9066,11 +9136,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                   cooperation_type: employeeDirectoryEditCooperationType,
                                   accrual_type: employeeDirectoryEditAccrualType,
                                   accrual_rate: Number(employeeDirectoryEditAccrualRate),
+                                  accrual_rate_effective_from: employeeDirectoryEditRateEffectiveFrom || todayIsoDateMoscow(),
                                   employee_role: employeeDirectoryEditRole,
                                 }),
                               });
                               const data = await res.json().catch(() => ({}));
                               if (!res.ok) throw new Error(data?.error || "Ошибка сохранения атрибутов");
+                              const savedRate =
+                                typeof data?.accrual_rate === "number" && Number.isFinite(data.accrual_rate)
+                                  ? data.accrual_rate
+                                  : Number(employeeDirectoryEditAccrualRate);
                               setEmployeeDirectoryItems((prev) =>
                                 prev.map((x) =>
                                   x.id === emp.id
@@ -9083,13 +9158,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                         position: employeeDirectoryEditPosition.trim(),
                                         cooperation_type: employeeDirectoryEditCooperationType,
                                         accrual_type: employeeDirectoryEditAccrualType,
-                                        accrual_rate: Number(employeeDirectoryEditAccrualRate),
+                                        accrual_rate: savedRate,
                                         employee_role: employeeDirectoryEditRole,
                                       }
                                     : x
                                 )
                               );
                               setEmployeeDirectoryEditingId(null);
+                              setEmployeeDirectoryRateHistory([]);
                             } catch (e: unknown) {
                               setError((e as Error)?.message || "Ошибка сохранения атрибутов");
                             } finally {
@@ -9103,7 +9179,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           type="button"
                           className="filter-button"
                           disabled={employeeDirectoryEditSaving}
-                          onClick={() => setEmployeeDirectoryEditingId(null)}
+                          onClick={() => {
+                            setEmployeeDirectoryEditingId(null);
+                            setEmployeeDirectoryRateHistory([]);
+                          }}
                         >
                           Отмена
                         </Button>

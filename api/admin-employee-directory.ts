@@ -4,6 +4,13 @@ import { verifyAdminToken, getAdminTokenFromRequest, getAdminTokenPayload } from
 import { hashPassword, generatePassword } from "../lib/passwordUtils.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
 import { initRequestContext } from "./_lib/observability.js";
+import {
+  ensureEmployeeAccrualRateHistoryTable,
+  getAccrualRateAtDate,
+  parseIsoDateOnly,
+  syncRegisteredUserAccrualRateFromHistory,
+  todayDateMoscow,
+} from "./_employee-accrual-rate-history.js";
 
 const EMPLOYEE_ROLES = new Set(["employee", "department_head"]);
 const ACCRUAL_TYPES = new Set(["hour", "shift", "month"]);
@@ -41,6 +48,24 @@ function normalizeCooperationType(value: unknown): "self_employed" | "ip" | "sta
   return "staff";
 }
 
+async function upsertEmployeeRateHistoryRow(
+  pool: ReturnType<typeof getPool>,
+  employeeId: number,
+  effectiveFrom: string,
+  newRate: number,
+  legacyFallback: number | null
+): Promise<boolean> {
+  const prior = await getAccrualRateAtDate(pool, employeeId, effectiveFrom, legacyFallback);
+  if (Math.abs(prior - newRate) < 0.005) return false;
+  await pool.query(
+    `INSERT INTO employee_accrual_rate_history (employee_id, effective_from, accrual_rate)
+     VALUES ($1, $2::date, $3::numeric)
+     ON CONFLICT (employee_id, effective_from) DO UPDATE SET accrual_rate = EXCLUDED.accrual_rate`,
+    [employeeId, effectiveFrom, Number(newRate.toFixed(2))]
+  );
+  return true;
+}
+
 async function ensureEmployeeColumns(pool: ReturnType<typeof getPool>) {
   const readCols = async () => {
     const { rows } = await pool.query<ColumnName>(
@@ -74,6 +99,7 @@ async function ensureEmployeeColumns(pool: ReturnType<typeof getPool>) {
     )
   `);
   await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_month_exclusions_month_idx ON employee_timesheet_month_exclusions(month_key)");
+  await ensureEmployeeAccrualRateHistoryTable(pool);
   cols = await readCols();
   const has = cols.has("full_name") && cols.has("department") && cols.has("employee_role");
   const hasPosition = cols.has("position");
@@ -100,6 +126,30 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === "GET") {
+    const rateHistoryFor = parseInt(String(req.query?.rate_history_for || "0"), 10);
+    if (rateHistoryFor > 0) {
+      const { rows } = await pool.query<{
+        effective_from: string;
+        accrual_rate: string;
+        created_at: string;
+      }>(
+        `SELECT effective_from::text, accrual_rate::text, created_at::text
+         FROM employee_accrual_rate_history
+         WHERE employee_id = $1
+         ORDER BY effective_from DESC, id DESC`,
+        [rateHistoryFor]
+      );
+      return res.status(200).json({
+        ok: true,
+        rate_history: rows.map((r) => ({
+          effective_from: String(r.effective_from || "").slice(0, 10),
+          accrual_rate: Number(r.accrual_rate || 0),
+          created_at: r.created_at,
+        })),
+        request_id: ctx.requestId,
+      });
+    }
+
     const monthInfo = parseMonth(req.query?.month);
     const monthFilterSql = monthInfo
       ? `AND id NOT IN (
@@ -171,14 +221,20 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       // If email is provided, assign attributes to an existing account.
       if (email) {
-        const existingUser = await pool.query<{ id: number; permissions: Record<string, boolean> | null }>(
-          "SELECT id, permissions FROM registered_users WHERE lower(trim(login)) = $1",
+        const existingUser = await pool.query<{
+          id: number;
+          permissions: Record<string, boolean> | null;
+          accrual_rate: number | null;
+        }>(
+          `SELECT id, permissions${columnsInfo.hasAccrualRate ? ", accrual_rate" : ", null::numeric as accrual_rate"}
+           FROM registered_users WHERE lower(trim(login)) = $1`,
           [email]
         );
         const user = existingUser.rows[0];
         if (!user) {
           return res.status(400).json({ error: "Пользователь с таким email не найден" });
         }
+        const userRowAccrualRate = columnsInfo.hasAccrualRate ? user.accrual_rate : null;
 
         const currentPermissions =
           user.permissions && typeof user.permissions === "object" ? user.permissions : {};
@@ -210,6 +266,10 @@ async function handler(req: VercelRequest, res: VercelResponse) {
            WHERE id = ${addParam(user.id)}`,
           params
         );
+
+        const eff = parseIsoDateOnly(body?.accrual_rate_effective_from) ?? todayDateMoscow();
+        await upsertEmployeeRateHistoryRow(pool, user.id, eff, Number(accrualRate.toFixed(2)), userRowAccrualRate);
+        await syncRegisteredUserAccrualRateFromHistory(pool, user.id, userRowAccrualRate);
 
         return res.status(200).json({ ok: true, id: user.id, mode: "assign_existing", request_id: ctx.requestId });
       }
@@ -293,7 +353,13 @@ async function handler(req: VercelRequest, res: VercelResponse) {
          RETURNING id`,
         params
       );
-      return res.status(200).json({ ok: true, id: rows[0]?.id, mode: "create_internal", request_id: ctx.requestId });
+      const newId = rows[0]?.id;
+      if (newId) {
+        const eff = parseIsoDateOnly(body?.accrual_rate_effective_from) ?? todayDateMoscow();
+        await upsertEmployeeRateHistoryRow(pool, newId, eff, Number(accrualRate.toFixed(2)), null);
+        await syncRegisteredUserAccrualRateFromHistory(pool, newId, Number(accrualRate.toFixed(2)));
+      }
+      return res.status(200).json({ ok: true, id: newId, mode: "create_internal", request_id: ctx.requestId });
     } catch (e: any) {
       return res.status(500).json({ error: e?.message || "Ошибка сохранения атрибутов сотрудника", request_id: ctx.requestId });
     }
@@ -402,7 +468,10 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     if (hasDepartmentUpdate) setParts.push(`department = ${addParam(department)}`);
     if (hasPositionUpdate && columnsInfo.hasPosition) setParts.push(`position = ${addParam(position)}`);
     if (hasAccrualTypeUpdate && columnsInfo.hasAccrualType) setParts.push(`accrual_type = ${addParam(accrualType)}`);
-    if (hasAccrualRateUpdate && columnsInfo.hasAccrualRate) setParts.push(`accrual_rate = ${addParam(Number(accrualRate.toFixed(2)))}`);
+    if (hasAccrualRateUpdate && columnsInfo.hasAccrualRate) {
+      const eff = parseIsoDateOnly(body?.accrual_rate_effective_from) ?? todayDateMoscow();
+      await upsertEmployeeRateHistoryRow(pool, id, eff, Number(accrualRate.toFixed(2)), row.accrual_rate);
+    }
     if (hasCooperationTypeUpdate && columnsInfo.hasCooperationType) setParts.push(`cooperation_type = ${addParam(cooperationType)}`);
     if (hasRoleUpdate) setParts.push(`employee_role = ${addParam(employeeRole)}`);
     if (hasUpdatedAt) setParts.push("updated_at = now()");
@@ -413,7 +482,20 @@ async function handler(req: VercelRequest, res: VercelResponse) {
        WHERE id = ${addParam(id)}`,
       params
     );
-    return res.status(200).json({ ok: true, request_id: ctx.requestId });
+    let nextAccrualRate: number | undefined;
+    if (hasAccrualRateUpdate && columnsInfo.hasAccrualRate) {
+      await syncRegisteredUserAccrualRateFromHistory(pool, id, row.accrual_rate);
+      const cur = await pool.query<{ accrual_rate: string | null }>(
+        "SELECT accrual_rate::text FROM registered_users WHERE id = $1",
+        [id]
+      );
+      nextAccrualRate = cur.rows[0]?.accrual_rate == null ? undefined : Number(cur.rows[0].accrual_rate);
+    }
+    return res.status(200).json({
+      ok: true,
+      ...(nextAccrualRate !== undefined ? { accrual_rate: nextAccrualRate } : {}),
+      request_id: ctx.requestId,
+    });
   }
 
   if (req.method === "DELETE") {
@@ -425,6 +507,8 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     );
     const row = existing.rows[0];
     if (!row) return res.status(404).json({ error: "Сотрудник не найден" });
+
+    await pool.query("DELETE FROM employee_accrual_rate_history WHERE employee_id = $1", [id]);
 
     const currentPermissions =
       row.permissions && typeof row.permissions === "object" ? row.permissions : {};

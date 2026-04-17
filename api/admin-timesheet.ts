@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { ensureEmployeeAccrualRateHistoryTable, getAccrualRatesForDates } from "./_employee-accrual-rate-history.js";
 import { ensurePnlTransportColumns } from "./_pnl-ensure.js";
 import { verifyAdminToken, getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
@@ -116,6 +117,7 @@ async function ensureTimesheetTable(pool: ReturnType<typeof getPool>) {
   `);
   await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_shift_rate_overrides_work_date_idx ON employee_timesheet_shift_rate_overrides(work_date)");
   await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_shift_rate_overrides_employee_id_idx ON employee_timesheet_shift_rate_overrides(employee_id)");
+  await ensureEmployeeAccrualRateHistoryTable(pool);
 }
 
 type DbQuery = {
@@ -532,6 +534,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const rate = Number(employee.accrual_rate || 0);
     const cooperationType = normalizeCooperationType(employee.cooperation_type);
 
+    await ensureEmployeeAccrualRateHistoryTable(pool);
+    const rateByDate = await getAccrualRatesForDates(pool, employeeId, markedDates, employee.accrual_rate);
+
     const marksRes = await pool.query<{ work_date: string }>(
       `SELECT work_date::text as work_date
        FROM employee_timesheet_payment_marks
@@ -583,28 +588,36 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       shiftRateByDate.set(row.work_date, Number(row.shift_rate || 0));
     }
 
-    let units = 0;
     let shiftAmountWithOverrides = 0;
+    let monthProratedSum = 0;
     if (accrualType === "shift" || accrualType === "month") {
       for (const date of markedDates) {
         if (normalizeShiftMark(entryByDate.get(date) || "") === "Я") {
-          units += 1;
+          const baseRate = rateByDate.get(date) ?? rate;
           if (accrualType === "shift") {
             const override = Number(shiftRateByDate.get(date));
-            const dayRate = Number.isFinite(override) ? override : rate;
+            const dayRate = Number.isFinite(override) && override > 0 ? override : baseRate;
             shiftAmountWithOverrides += dayRate;
+          } else {
+            monthProratedSum += baseRate / 21;
           }
         }
       }
-    } else {
-      for (const date of markedDates) {
-        units += parseHoursValue(entryByDate.get(date) || "");
-      }
     }
-    const unitRate = accrualType === "month" ? rate / 21 : rate;
-    const amount = accrualType === "shift"
-      ? Number(shiftAmountWithOverrides.toFixed(2))
-      : Number((units * unitRate).toFixed(2));
+    let amount = 0;
+    if (accrualType === "shift") {
+      amount = Number(shiftAmountWithOverrides.toFixed(2));
+    } else if (accrualType === "month") {
+      amount = Number(monthProratedSum.toFixed(2));
+    } else {
+      let hourSum = 0;
+      for (const date of markedDates) {
+        const hrs = parseHoursValue(entryByDate.get(date) || "");
+        const dayRate = rateByDate.get(date) ?? rate;
+        hourSum += hrs * dayRate;
+      }
+      amount = Number(hourSum.toFixed(2));
+    }
     const taxAmount = cooperationType === "ip" || cooperationType === "self_employed"
       ? Number((amount / 0.94 - amount).toFixed(2))
       : 0;

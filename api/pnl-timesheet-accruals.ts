@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { ensureEmployeeAccrualRateHistoryTable } from "./_employee-accrual-rate-history.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
 function mapDepartmentToPnl(raw?: string | null): { department: string; logisticsStage: string | null } {
@@ -90,6 +91,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const pool = getPool();
+    await ensureEmployeeAccrualRateHistoryTable(pool);
     const payoutResult = await pool.query(
       `SELECT p.employee_id AS "employeeId",
               p.payout_date::text AS "payoutDate",
@@ -108,10 +110,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               ru.department AS "employeeDepartment",
               coalesce(ru.full_name, ru.login, '') AS "employeeName",
               ru.accrual_type AS "accrualType",
-              ru.accrual_rate AS "accrualRate",
+              COALESCE(hist.accrual_rate, ru.accrual_rate) AS "accrualRate",
               sro.shift_rate AS "shiftRateOverride"
        FROM employee_timesheet_entries e
        JOIN registered_users ru ON ru.id = e.employee_id
+       LEFT JOIN LATERAL (
+         SELECT h.accrual_rate
+         FROM employee_accrual_rate_history h
+         WHERE h.employee_id = ru.id AND h.effective_from <= e.work_date
+         ORDER BY h.effective_from DESC
+         LIMIT 1
+       ) hist ON true
        LEFT JOIN employee_timesheet_shift_rate_overrides sro
          ON sro.employee_id = e.employee_id
         AND sro.work_date = e.work_date
