@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Calendar, AlertCircle, Download, Clock, Receipt, BarChart3, Calculator, ClipboardList, FileText, Ship, MapPin } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Pencil, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Calendar, AlertCircle, Download, Clock, Receipt, BarChart3, Calculator, ClipboardList, FileText, Ship, MapPin } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 import type { ExpenseRequestItem } from "./ExpenseRequestsPage";
@@ -172,6 +172,7 @@ type EmployeeDirectoryRow = {
 };
 
 type EmployeeRateHistoryRow = {
+  id: number;
   effective_from: string;
   accrual_rate: number;
   created_at: string;
@@ -991,6 +992,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [employeeDirectoryEditRole, setEmployeeDirectoryEditRole] = useState<"employee" | "department_head">("employee");
   const [employeeDirectoryEditRateEffectiveFrom, setEmployeeDirectoryEditRateEffectiveFrom] = useState("");
   const [employeeDirectoryRateHistory, setEmployeeDirectoryRateHistory] = useState<EmployeeRateHistoryRow[]>([]);
+  const [employeeDirectoryHistoryEditingId, setEmployeeDirectoryHistoryEditingId] = useState<number | null>(null);
+  const [employeeDirectoryHistoryEditDate, setEmployeeDirectoryHistoryEditDate] = useState("");
+  const [employeeDirectoryHistoryEditRate, setEmployeeDirectoryHistoryEditRate] = useState("");
+  const [employeeDirectoryHistorySaving, setEmployeeDirectoryHistorySaving] = useState(false);
   const [employeeDirectoryEditSaving, setEmployeeDirectoryEditSaving] = useState(false);
   const [timesheetMonth, setTimesheetMonth] = useState<string>(() => {
     const now = new Date();
@@ -2764,7 +2769,15 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.error || "Ошибка загрузки истории ставки");
-        setEmployeeDirectoryRateHistory(Array.isArray(data?.rate_history) ? data.rate_history : []);
+        const raw = Array.isArray(data?.rate_history) ? data.rate_history : [];
+        setEmployeeDirectoryRateHistory(
+          raw.map((r: { id?: number; effective_from?: string; accrual_rate?: number; created_at?: string }) => ({
+            id: Number(r.id),
+            effective_from: String(r.effective_from || "").slice(0, 10),
+            accrual_rate: Number(r.accrual_rate ?? 0),
+            created_at: String(r.created_at || ""),
+          })).filter((r) => Number.isFinite(r.id) && r.id > 0)
+        );
       } catch {
         setEmployeeDirectoryRateHistory([]);
       }
@@ -8862,6 +8875,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     setEmployeeDirectoryEditAccrualType(normalizeAccrualType(emp.accrual_type));
                     setEmployeeDirectoryEditAccrualRate(String(emp.accrual_rate ?? 0));
                     setEmployeeDirectoryEditRateEffectiveFrom(todayIsoDateMoscow());
+                    setEmployeeDirectoryHistoryEditingId(null);
                     void loadEmployeeRateHistory(emp.id);
                     setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
                   }}
@@ -8883,6 +8897,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       setEmployeeDirectoryEditAccrualType(normalizeAccrualType(emp.accrual_type));
                       setEmployeeDirectoryEditAccrualRate(String(emp.accrual_rate ?? 0));
                       setEmployeeDirectoryEditRateEffectiveFrom(todayIsoDateMoscow());
+                      setEmployeeDirectoryHistoryEditingId(null);
                       void loadEmployeeRateHistory(emp.id);
                       setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
                     }
@@ -9094,20 +9109,159 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         За месяц ({WORK_DAYS_IN_MONTH} раб. дн.): {Math.round(employeeDirectoryEditMonthlyEstimate).toLocaleString("ru-RU")} ₽
                       </Typography.Body>
                       {employeeDirectoryRateHistory.length > 0 ? (
-                        <div style={{ marginTop: "0.5rem", overflowX: "auto" }}>
+                        <div style={{ marginTop: "0.5rem", overflowX: "auto" }} onClick={(e) => e.stopPropagation()}>
                           <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginBottom: "0.25rem" }}>История ставок</Typography.Body>
                           <table style={{ width: "100%", fontSize: "0.8rem", borderCollapse: "collapse" }}>
                             <thead>
                               <tr style={{ textAlign: "left", borderBottom: "1px solid var(--color-border)" }}>
                                 <th style={{ padding: "0.25rem 0.35rem" }}>С даты</th>
                                 <th style={{ padding: "0.25rem 0.35rem" }}>Ставка</th>
+                                <th style={{ padding: "0.25rem 0.35rem", width: 100 }}> </th>
                               </tr>
                             </thead>
                             <tbody>
                               {employeeDirectoryRateHistory.map((h) => (
-                                <tr key={`${h.effective_from}-${h.created_at}`} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                                  <td style={{ padding: "0.25rem 0.35rem" }}>{h.effective_from}</td>
-                                  <td style={{ padding: "0.25rem 0.35rem" }}>{Number(h.accrual_rate).toLocaleString("ru-RU")} ₽</td>
+                                <tr key={h.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                                  <td style={{ padding: "0.25rem 0.35rem", verticalAlign: "middle" }}>
+                                    {employeeDirectoryHistoryEditingId === h.id ? (
+                                      <input
+                                        type="date"
+                                        className="admin-form-input"
+                                        value={employeeDirectoryHistoryEditDate}
+                                        onChange={(e) => setEmployeeDirectoryHistoryEditDate(e.target.value)}
+                                        style={{ width: "100%", maxWidth: 160 }}
+                                      />
+                                    ) : (
+                                      h.effective_from
+                                    )}
+                                  </td>
+                                  <td style={{ padding: "0.25rem 0.35rem", verticalAlign: "middle" }}>
+                                    {employeeDirectoryHistoryEditingId === h.id ? (
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        step={0.01}
+                                        className="admin-form-input"
+                                        value={employeeDirectoryHistoryEditRate}
+                                        onChange={(e) => setEmployeeDirectoryHistoryEditRate(e.target.value)}
+                                        style={{ width: "100%", maxWidth: 140 }}
+                                      />
+                                    ) : (
+                                      `${Number(h.accrual_rate).toLocaleString("ru-RU")} ₽`
+                                    )}
+                                  </td>
+                                  <td style={{ padding: "0.25rem 0.35rem", verticalAlign: "middle" }}>
+                                    <Flex align="center" gap="0.25rem" wrap="wrap">
+                                      {employeeDirectoryHistoryEditingId === h.id ? (
+                                        <>
+                                          <Button
+                                            type="button"
+                                            className="button-primary"
+                                            style={{ padding: "0.25rem 0.45rem", fontSize: "0.75rem", minHeight: 28 }}
+                                            disabled={
+                                              employeeDirectoryHistorySaving
+                                              || !Number.isFinite(Number(employeeDirectoryHistoryEditRate))
+                                              || Number(employeeDirectoryHistoryEditRate) < 0
+                                            }
+                                            onClick={async () => {
+                                              setEmployeeDirectoryHistorySaving(true);
+                                              setError(null);
+                                              try {
+                                                const res = await fetch(`/api/admin-employee-directory?rate_history_id=${h.id}`, {
+                                                  method: "PATCH",
+                                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                                                  body: JSON.stringify({
+                                                    accrual_rate: Number(employeeDirectoryHistoryEditRate),
+                                                    effective_from: employeeDirectoryHistoryEditDate || h.effective_from,
+                                                  }),
+                                                });
+                                                const data = await res.json().catch(() => ({}));
+                                                if (!res.ok) throw new Error(data?.error || "Ошибка сохранения");
+                                                setEmployeeDirectoryHistoryEditingId(null);
+                                                void loadEmployeeRateHistory(emp.id);
+                                                if (Number.isFinite(data?.accrual_rate)) {
+                                                  const nr = Number(data.accrual_rate);
+                                                  setEmployeeDirectoryItems((prev) =>
+                                                    prev.map((x) => (x.id === emp.id ? { ...x, accrual_rate: nr } : x))
+                                                  );
+                                                  setEmployeeDirectoryEditAccrualRate(String(nr));
+                                                }
+                                              } catch (e: unknown) {
+                                                setError((e as Error)?.message || "Ошибка сохранения записи истории");
+                                              } finally {
+                                                setEmployeeDirectoryHistorySaving(false);
+                                              }
+                                            }}
+                                          >
+                                            {employeeDirectoryHistorySaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "OK"}
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            className="filter-button"
+                                            style={{ padding: "0.25rem 0.45rem", fontSize: "0.75rem", minHeight: 28 }}
+                                            disabled={employeeDirectoryHistorySaving}
+                                            onClick={() => setEmployeeDirectoryHistoryEditingId(null)}
+                                          >
+                                            Отмена
+                                          </Button>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <button
+                                            type="button"
+                                            className="filter-button"
+                                            style={{ padding: "0.3rem" }}
+                                            title="Изменить"
+                                            aria-label="Изменить запись истории ставки"
+                                            disabled={employeeDirectoryHistorySaving}
+                                            onClick={() => {
+                                              setEmployeeDirectoryHistoryEditingId(h.id);
+                                              setEmployeeDirectoryHistoryEditDate(h.effective_from);
+                                              setEmployeeDirectoryHistoryEditRate(String(h.accrual_rate));
+                                            }}
+                                          >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="filter-button"
+                                            style={{ padding: "0.3rem" }}
+                                            title="Удалить"
+                                            aria-label="Удалить запись истории ставки"
+                                            disabled={employeeDirectoryHistorySaving}
+                                            onClick={async () => {
+                                              if (!window.confirm("Удалить эту запись из истории ставок?")) return;
+                                              setEmployeeDirectoryHistorySaving(true);
+                                              setError(null);
+                                              try {
+                                                const res = await fetch(
+                                                  `/api/admin-employee-directory?rate_history_id=${h.id}&employee_id=${emp.id}`,
+                                                  { method: "DELETE", headers: { Authorization: `Bearer ${adminToken}` } }
+                                                );
+                                                const data = await res.json().catch(() => ({}));
+                                                if (!res.ok) throw new Error(data?.error || "Ошибка удаления");
+                                                if (employeeDirectoryHistoryEditingId === h.id) setEmployeeDirectoryHistoryEditingId(null);
+                                                void loadEmployeeRateHistory(emp.id);
+                                                if (Number.isFinite(data?.accrual_rate)) {
+                                                  const nr = Number(data.accrual_rate);
+                                                  setEmployeeDirectoryItems((prev) =>
+                                                    prev.map((x) => (x.id === emp.id ? { ...x, accrual_rate: nr } : x))
+                                                  );
+                                                  setEmployeeDirectoryEditAccrualRate(String(nr));
+                                                }
+                                              } catch (e: unknown) {
+                                                setError((e as Error)?.message || "Ошибка удаления записи истории");
+                                              } finally {
+                                                setEmployeeDirectoryHistorySaving(false);
+                                              }
+                                            }}
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" style={{ color: "var(--color-error)" }} />
+                                          </button>
+                                        </>
+                                      )}
+                                    </Flex>
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
@@ -9182,6 +9336,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           onClick={() => {
                             setEmployeeDirectoryEditingId(null);
                             setEmployeeDirectoryRateHistory([]);
+                            setEmployeeDirectoryHistoryEditingId(null);
                           }}
                         >
                           Отмена

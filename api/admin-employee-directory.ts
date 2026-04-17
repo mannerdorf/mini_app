@@ -129,11 +129,12 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const rateHistoryFor = parseInt(String(req.query?.rate_history_for || "0"), 10);
     if (rateHistoryFor > 0) {
       const { rows } = await pool.query<{
+        id: string;
         effective_from: string;
         accrual_rate: string;
         created_at: string;
       }>(
-        `SELECT effective_from::text, accrual_rate::text, created_at::text
+        `SELECT id::text, effective_from::text, accrual_rate::text, created_at::text
          FROM employee_accrual_rate_history
          WHERE employee_id = $1
          ORDER BY effective_from DESC, id DESC`,
@@ -142,6 +143,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({
         ok: true,
         rate_history: rows.map((r) => ({
+          id: Number(r.id),
           effective_from: String(r.effective_from || "").slice(0, 10),
           accrual_rate: Number(r.accrual_rate || 0),
           created_at: r.created_at,
@@ -366,6 +368,79 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === "PATCH") {
+    const rateHistoryId = parseInt(String(req.query?.rate_history_id || "0"), 10);
+    if (rateHistoryId > 0) {
+      let rateHistBody: any = req.body;
+      if (typeof rateHistBody === "string") {
+        try {
+          rateHistBody = JSON.parse(rateHistBody);
+        } catch {
+          return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
+        }
+      }
+      const newRate = Number(rateHistBody?.accrual_rate);
+      if (!Number.isFinite(newRate) || newRate < 0) {
+        return res.status(400).json({ error: "Укажите корректную ставку", request_id: ctx.requestId });
+      }
+      const histRow = await pool.query<{ id: number; employee_id: number; effective_from: string }>(
+        `SELECT id, employee_id, effective_from::text
+         FROM employee_accrual_rate_history WHERE id = $1`,
+        [rateHistoryId]
+      );
+      const h = histRow.rows[0];
+      if (!h) return res.status(404).json({ error: "Запись истории не найдена", request_id: ctx.requestId });
+
+      const oldEff = String(h.effective_from || "").slice(0, 10);
+      let newEff = oldEff;
+      if (typeof rateHistBody?.effective_from === "string" && String(rateHistBody.effective_from).trim() !== "") {
+        const parsed = parseIsoDateOnly(rateHistBody.effective_from);
+        if (!parsed) {
+          return res.status(400).json({ error: "Дата должна быть в формате YYYY-MM-DD", request_id: ctx.requestId });
+        }
+        newEff = parsed;
+      }
+
+      if (newEff !== oldEff) {
+        const clash = await pool.query<{ id: number }>(
+          `SELECT id FROM employee_accrual_rate_history
+           WHERE employee_id = $1 AND effective_from = $2::date AND id <> $3`,
+          [h.employee_id, newEff, rateHistoryId]
+        );
+        if (clash.rows.length > 0) {
+          return res.status(409).json({
+            error: "Уже есть ставка с этой датой начала. Удалите или измените другую запись.",
+            request_id: ctx.requestId,
+          });
+        }
+      }
+
+      await pool.query(
+        `UPDATE employee_accrual_rate_history
+         SET effective_from = $1::date, accrual_rate = $2::numeric
+         WHERE id = $3`,
+        [newEff, Number(newRate.toFixed(2)), rateHistoryId]
+      );
+
+      const ruBefore = await pool.query<{ accrual_rate: string | null }>(
+        "SELECT accrual_rate::text FROM registered_users WHERE id = $1",
+        [h.employee_id]
+      );
+      const legacy = ruBefore.rows[0]?.accrual_rate == null ? null : Number(ruBefore.rows[0].accrual_rate);
+      await syncRegisteredUserAccrualRateFromHistory(pool, h.employee_id, legacy);
+
+      const cur = await pool.query<{ accrual_rate: string | null }>(
+        "SELECT accrual_rate::text FROM registered_users WHERE id = $1",
+        [h.employee_id]
+      );
+      const nextAccrual = cur.rows[0]?.accrual_rate == null ? null : Number(cur.rows[0].accrual_rate);
+      return res.status(200).json({
+        ok: true,
+        employee_id: h.employee_id,
+        accrual_rate: nextAccrual,
+        request_id: ctx.requestId,
+      });
+    }
+
     const id = parseInt(String(req.query?.id || "0"), 10);
     if (!id) return res.status(400).json({ error: "id обязателен" });
     let body: any = req.body;
@@ -499,6 +574,41 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === "DELETE") {
+    const rateHistoryId = parseInt(String(req.query?.rate_history_id || "0"), 10);
+    if (rateHistoryId > 0) {
+      const employeeIdFromQuery = parseInt(String(req.query?.employee_id || "0"), 10);
+      const histRow = await pool.query<{ employee_id: number }>(
+        "SELECT employee_id FROM employee_accrual_rate_history WHERE id = $1",
+        [rateHistoryId]
+      );
+      const h = histRow.rows[0];
+      if (!h) return res.status(404).json({ error: "Запись истории не найдена", request_id: ctx.requestId });
+      if (employeeIdFromQuery > 0 && employeeIdFromQuery !== h.employee_id) {
+        return res.status(400).json({ error: "Несовпадение сотрудника", request_id: ctx.requestId });
+      }
+
+      const ruBefore = await pool.query<{ accrual_rate: string | null }>(
+        "SELECT accrual_rate::text FROM registered_users WHERE id = $1",
+        [h.employee_id]
+      );
+      const legacy = ruBefore.rows[0]?.accrual_rate == null ? null : Number(ruBefore.rows[0].accrual_rate);
+
+      await pool.query("DELETE FROM employee_accrual_rate_history WHERE id = $1", [rateHistoryId]);
+      await syncRegisteredUserAccrualRateFromHistory(pool, h.employee_id, legacy);
+
+      const cur = await pool.query<{ accrual_rate: string | null }>(
+        "SELECT accrual_rate::text FROM registered_users WHERE id = $1",
+        [h.employee_id]
+      );
+      const nextAccrual = cur.rows[0]?.accrual_rate == null ? null : Number(cur.rows[0].accrual_rate);
+      return res.status(200).json({
+        ok: true,
+        employee_id: h.employee_id,
+        accrual_rate: nextAccrual,
+        request_id: ctx.requestId,
+      });
+    }
+
     const id = parseInt(String(req.query?.id || "0"), 10);
     if (!id) return res.status(400).json({ error: "id обязателен" });
     const existing = await pool.query<{ permissions: Record<string, boolean> | null }>(
