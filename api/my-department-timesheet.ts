@@ -39,6 +39,27 @@ function normalizeCooperationType(value: unknown): "self_employed" | "ip" | "sta
   return "staff";
 }
 
+function parsePaidDatesJson(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((x) => String(x || ""));
+  if (value && typeof value === "object") {
+    try {
+      const arr = Object.values(value as Record<string, unknown>);
+      return arr.map((x) => String(x ?? ""));
+    } catch {
+      return [];
+    }
+  }
+  if (typeof value === "string") {
+    try {
+      const p = JSON.parse(value);
+      return Array.isArray(p) ? p.map((x: unknown) => String(x || "")) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 function parseMonth(value: unknown): { month: string; start: string; next: string } | null {
   const month = String(value ?? "").trim();
   if (!/^\d{4}-\d{2}$/.test(month)) return null;
@@ -551,6 +572,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    const payoutsDetailByEmployee: Record<
+      string,
+      Array<{
+        id: number;
+        payoutDate: string;
+        periodFrom: string;
+        periodTo: string;
+        amount: number;
+        taxAmount: number;
+        cooperationType: string;
+        paidDates: string[];
+        createdAt: string;
+      }>
+    > = {};
+    if (employeeIds.length > 0) {
+      const payoutDetailRes = await pool.query<{
+        id: number;
+        employee_id: number;
+        payout_date: string;
+        period_from: string;
+        period_to: string;
+        amount: string | number;
+        tax_amount: string | number;
+        cooperation_type: string | null;
+        paid_dates: unknown;
+        created_at: string;
+      }>(
+        `SELECT id, employee_id, payout_date::text as payout_date, period_from::text as period_from, period_to::text as period_to,
+                amount, tax_amount, cooperation_type, paid_dates, created_at::text as created_at
+         FROM employee_timesheet_payouts
+         WHERE period_month = $1::date
+           AND employee_id = ANY($2::int[])
+         ORDER BY employee_id, created_at DESC`,
+        [monthInfo.start, employeeIds]
+      );
+      for (const row of payoutDetailRes.rows) {
+        const k = String(row.employee_id);
+        payoutsDetailByEmployee[k] = payoutsDetailByEmployee[k] || [];
+        payoutsDetailByEmployee[k].push({
+          id: row.id,
+          payoutDate: row.payout_date,
+          periodFrom: row.period_from,
+          periodTo: row.period_to,
+          amount: Number(row.amount || 0),
+          taxAmount: Number(row.tax_amount || 0),
+          cooperationType: normalizeCooperationType(row.cooperation_type),
+          paidDates: parsePaidDatesJson(row.paid_dates),
+          createdAt: row.created_at,
+        });
+      }
+    }
+
     return res.status(200).json({
       month: monthInfo.month,
       department,
@@ -576,6 +649,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })),
       entries,
       payoutsByEmployee,
+      payoutsDetailByEmployee,
       paidDatesByEmployee,
       shiftRateOverrides,
       request_id: ctx.requestId,

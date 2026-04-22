@@ -22,6 +22,20 @@ import { DOCUMENT_METHODS } from "../documentMethods";
 import { PROXY_API_DOWNLOAD_URL } from "../constants/config";
 import { normalizeWbPerevozkaHaulzDigits } from "../lib/wbPerevozkaNumber";
 import { downloadBase64File } from "../utils";
+
+/** Строка истории выплат в табеле подразделения (ответ /api/my-department-timesheet). */
+type DepartmentTimesheetPayoutRow = {
+    id: number;
+    payoutDate: string;
+    periodFrom: string;
+    periodTo: string;
+    amount: number;
+    taxAmount: number;
+    cooperationType: string;
+    paidDates: string[];
+    createdAt: string;
+};
+
 export function ProfilePage({
     accounts,
     activeAccountId,
@@ -157,6 +171,10 @@ export function ProfilePage({
     const [departmentTimesheetHours, setDepartmentTimesheetHours] = useState<Record<string, string>>({});
     const [departmentTimesheetPayoutsByEmployee, setDepartmentTimesheetPayoutsByEmployee] = useState<Record<string, number>>({});
     const [departmentTimesheetPaidDayMarks, setDepartmentTimesheetPaidDayMarks] = useState<Record<string, boolean>>({});
+    const [departmentTimesheetPayoutsDetailByEmployee, setDepartmentTimesheetPayoutsDetailByEmployee] = useState<
+        Record<string, DepartmentTimesheetPayoutRow[]>
+    >({});
+    const [departmentTimesheetExpandedEmployeeId, setDepartmentTimesheetExpandedEmployeeId] = useState<number | null>(null);
     const [departmentTimesheetShiftRateOverrides, setDepartmentTimesheetShiftRateOverrides] = useState<Record<string, number>>({});
     const [departmentTimesheetMobilePicker, setDepartmentTimesheetMobilePicker] = useState(false);
     const [departmentTimesheetWideMode, setDepartmentTimesheetWideMode] = useState<boolean>(() => {
@@ -539,6 +557,8 @@ export function ProfilePage({
                 setDepartmentTimesheetAvailableEmployees([]);
                 setDepartmentTimesheetHours({});
                 setDepartmentTimesheetPayoutsByEmployee({});
+                setDepartmentTimesheetPayoutsDetailByEmployee({});
+                setDepartmentTimesheetExpandedEmployeeId(null);
                 setDepartmentTimesheetPaidDayMarks({});
                 setDepartmentTimesheetShiftRateOverrides({});
                 return;
@@ -565,6 +585,35 @@ export function ProfilePage({
                     ? (data.payoutsByEmployee as Record<string, number>)
                     : {}
             );
+            if (data?.payoutsDetailByEmployee && typeof data.payoutsDetailByEmployee === "object") {
+                const raw = data.payoutsDetailByEmployee as Record<string, unknown>;
+                const next: Record<string, DepartmentTimesheetPayoutRow[]> = {};
+                for (const [empId, rows] of Object.entries(raw)) {
+                    if (!Array.isArray(rows)) continue;
+                    next[empId] = rows
+                        .map((r) => {
+                            const o = r as Record<string, unknown>;
+                            const id = Number(o.id);
+                            if (!Number.isFinite(id)) return null;
+                            return {
+                                id,
+                                payoutDate: String(o.payoutDate ?? ""),
+                                periodFrom: String(o.periodFrom ?? ""),
+                                periodTo: String(o.periodTo ?? ""),
+                                amount: Number(o.amount) || 0,
+                                taxAmount: Number(o.taxAmount) || 0,
+                                cooperationType: String(o.cooperationType ?? ""),
+                                paidDates: Array.isArray(o.paidDates) ? o.paidDates.map((x) => String(x)) : [],
+                                createdAt: String(o.createdAt ?? ""),
+                            };
+                        })
+                        .filter((x): x is DepartmentTimesheetPayoutRow => x !== null);
+                }
+                setDepartmentTimesheetPayoutsDetailByEmployee(next);
+            } else {
+                setDepartmentTimesheetPayoutsDetailByEmployee({});
+            }
+            setDepartmentTimesheetExpandedEmployeeId(null);
             const paidDayMarks: Record<string, boolean> = {};
             if (data?.paidDatesByEmployee && typeof data.paidDatesByEmployee === "object") {
                 for (const [employeeId, dates] of Object.entries(data.paidDatesByEmployee as Record<string, string[]>)) {
@@ -599,6 +648,8 @@ export function ProfilePage({
             setDepartmentTimesheetAvailableEmployees([]);
             setDepartmentTimesheetHours({});
             setDepartmentTimesheetPayoutsByEmployee({});
+            setDepartmentTimesheetPayoutsDetailByEmployee({});
+            setDepartmentTimesheetExpandedEmployeeId(null);
             setDepartmentTimesheetPaidDayMarks({});
             setDepartmentTimesheetShiftRateOverrides({});
         } finally {
@@ -2536,6 +2587,9 @@ export function ProfilePage({
                     </Panel>
                 ) : (
                     <>
+                    <Typography.Body style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem', display: 'block' }}>
+                        Нажмите на ФИО сотрудника, чтобы открыть таблицу выплат за выбранный месяц.
+                    </Typography.Body>
                     <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '70vh', WebkitOverflowScrolling: 'touch', paddingLeft: 'max(0.5rem, env(safe-area-inset-left))', paddingRight: 'max(0.5rem, env(safe-area-inset-right))' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: `${340 + departmentTimesheetDays.length * 44 + SHIFT_MARK_CODES.length * 52}px` }}>
                             <thead>
@@ -2603,15 +2657,37 @@ export function ProfilePage({
                                         if (mark) legendCounts[mark] = (legendCounts[mark] || 0) + 1;
                                     }
 
+                                    const employeePayouts = departmentTimesheetPayoutsDetailByEmployee[String(emp.id)] || [];
+                                    const showPayoutTaxColumns = emp.cooperationType === "ip" || emp.cooperationType === "self_employed";
+                                    const deptTimesheetColSpan = 1 + departmentTimesheetDays.length + 1 + SHIFT_MARK_CODES.length;
+
                                     return (
-                                    <tr key={emp.id}>
+                                    <React.Fragment key={emp.id}>
+                                    <tr>
                                         <td style={{ position: 'sticky', left: 0, zIndex: 30, minWidth: '220px', background: 'var(--color-bg-card, #fff)', borderBottom: '1px solid var(--color-border)', padding: '0.5rem', boxShadow: '2px 0 0 var(--color-border)' }}>
                                             <Flex align="center" justify="space-between" gap="0.35rem" style={{ alignItems: 'flex-start' }}>
-                                                <div>
+                                                <div
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={() => setDepartmentTimesheetExpandedEmployeeId((prev) => (prev === emp.id ? null : emp.id))}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === "Enter" || e.key === " ") {
+                                                            e.preventDefault();
+                                                            setDepartmentTimesheetExpandedEmployeeId((prev) => (prev === emp.id ? null : emp.id));
+                                                        }
+                                                    }}
+                                                    style={{ flex: 1, minWidth: 0, cursor: "pointer" }}
+                                                    aria-expanded={departmentTimesheetExpandedEmployeeId === emp.id}
+                                                >
                                                     <Typography.Body style={{ display: 'block', fontWeight: 600 }}>{emp.fullName || emp.login}</Typography.Body>
                                                     <Typography.Body style={{ display: 'block', fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '0.1rem' }}>
                                                         {cooperationTypeLabel(emp.cooperationType)}
                                                     </Typography.Body>
+                                                    {emp.position ? (
+                                                        <Typography.Body style={{ display: 'block', fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginTop: '0.06rem' }}>
+                                                            {emp.position}
+                                                        </Typography.Body>
+                                                    ) : null}
                                                     <Typography.Body style={{ display: 'block', fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>
                                                         {accrualType === "month" ? "Месяц" : (isShift ? 'Смена' : 'Часы')}
                                                     </Typography.Body>
@@ -2623,7 +2699,10 @@ export function ProfilePage({
                                                     style={{ padding: '0.25rem' }}
                                                     aria-label="Удалить сотрудника из выбранного месяца"
                                                     title="Удалить из выбранного месяца"
-                                                    onClick={() => void removeDepartmentEmployeeFromMonth(emp.id)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        void removeDepartmentEmployeeFromMonth(emp.id);
+                                                    }}
                                                 >
                                                     <Trash2 className="w-4 h-4" style={{ color: 'var(--color-error)' }} />
                                                 </Button>
@@ -2997,6 +3076,72 @@ export function ProfilePage({
                                             </td>
                                         ))}
                                     </tr>
+                                    {departmentTimesheetExpandedEmployeeId === emp.id ? (
+                                        <tr>
+                                            <td
+                                                colSpan={deptTimesheetColSpan}
+                                                style={{
+                                                    padding: "0.55rem",
+                                                    borderBottom: "1px solid var(--color-border)",
+                                                    background: "var(--color-bg-hover)",
+                                                }}
+                                            >
+                                                <Typography.Body style={{ fontSize: "0.82rem", fontWeight: 600, marginBottom: "0.35rem", display: "block" }}>
+                                                    Выплаты сотрудника
+                                                </Typography.Body>
+                                                <Typography.Body style={{ fontSize: "0.74rem", color: "var(--color-text-secondary)", marginBottom: "0.45rem", display: "block" }}>
+                                                    Просмотр за {departmentTimesheetMonth}. Создание и правка выплат — в админке.
+                                                </Typography.Body>
+                                                {employeePayouts.length === 0 ? (
+                                                    <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>
+                                                        Выплат за этот месяц пока нет.
+                                                    </Typography.Body>
+                                                ) : (
+                                                    <div style={{ overflowX: "auto" }}>
+                                                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                                                            <thead>
+                                                                <tr>
+                                                                    <th style={{ textAlign: "left", padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>Дата выплаты</th>
+                                                                    <th style={{ textAlign: "left", padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>За период</th>
+                                                                    <th style={{ textAlign: "right", padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>Сумма</th>
+                                                                    {showPayoutTaxColumns ? (
+                                                                        <th style={{ textAlign: "right", padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>Налог</th>
+                                                                    ) : null}
+                                                                    {showPayoutTaxColumns ? (
+                                                                        <th style={{ textAlign: "right", padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>Сумма с налогом</th>
+                                                                    ) : null}
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {employeePayouts.map((payout) => (
+                                                                    <tr key={`dept-ts-payout-${emp.id}-${payout.id}`}>
+                                                                        <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>{payout.payoutDate}</td>
+                                                                        <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>
+                                                                            {payout.periodFrom} — {payout.periodTo}
+                                                                        </td>
+                                                                        <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)", textAlign: "right", fontWeight: 600 }}>
+                                                                            {Number(payout.amount || 0).toLocaleString("ru-RU")} ₽
+                                                                        </td>
+                                                                        {showPayoutTaxColumns ? (
+                                                                            <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)", textAlign: "right", color: "#b45309" }}>
+                                                                                {Number(payout.taxAmount || 0).toLocaleString("ru-RU")} ₽
+                                                                            </td>
+                                                                        ) : null}
+                                                                        {showPayoutTaxColumns ? (
+                                                                            <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)", textAlign: "right", fontWeight: 700, color: "#92400e" }}>
+                                                                                {Number(Number(payout.amount || 0) + Number(payout.taxAmount || 0)).toLocaleString("ru-RU")} ₽
+                                                                            </td>
+                                                                        ) : null}
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ) : null}
+                                    </React.Fragment>
                                     );
                                 })}
                             </tbody>
