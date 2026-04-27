@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { ChevronDown, X, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
@@ -21,6 +22,7 @@ import {
 import { CargoSummaryCard, CargoStateBlocks } from "./cargoViewBlocks";
 import { CargoCustomerTable, CargoCardsList } from "./cargoCollectionViews";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
+import { cargoModeSwitchMotion, cargoSummaryMotion } from "./cargoMotion";
 
 const { loadDateFilterState, saveDateFilterState, getDateRange, getWeekRange, getWeeksList, getYearsList, MONTH_NAMES, DEFAULT_DATE_FROM, DEFAULT_DATE_TO, formatDate } = dateUtils;
 type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;
@@ -76,6 +78,8 @@ export function CargoPage({
     showSums = true,
     CargoDetailsModal,
 }: CargoPageProps) {
+    const prefersReducedMotion = useReducedMotion();
+    const cargoMotionEnabled = prefersReducedMotion !== true;
     const runtime = useAppRuntime();
     const effectiveSearchText = searchText ?? runtime.searchText;
     const effectiveServiceMode = useServiceRequest ?? runtime.useServiceRequest;
@@ -625,12 +629,14 @@ export function CargoPage({
                 </div>
             </div>
 
-            <CargoSummaryCard
-                summary={summary}
-                showSums={showSums}
-                useServiceRequest={effectiveServiceMode}
-                saasAnalytics={cargoServiceSaasUi}
-            />
+            <motion.div {...(cargoMotionEnabled ? cargoSummaryMotion : { initial: false })}>
+                <CargoSummaryCard
+                    summary={summary}
+                    showSums={showSums}
+                    useServiceRequest={effectiveServiceMode}
+                    saasAnalytics={cargoServiceSaasUi}
+                />
+            </motion.div>
             </div>
 
             <CargoStateBlocks
@@ -641,41 +647,51 @@ export function CargoPage({
                 onSetDateFilter={setDateFilter}
             />
 
-            {!loading && !error && tableModeByCustomer && groupedByCustomer.length > 0 && (
-                <div className="cargo-table-offset-desktop">
-                    <CargoCustomerTable
-                        showSums={showSums}
-                        tableSortColumn={tableSortColumn}
-                        tableSortOrder={tableSortOrder}
-                        sortedGroupedByCustomer={sortedGroupedByCustomer}
-                        expandedTableCustomer={expandedTableCustomer}
-                        innerTableSortColumn={innerTableSortColumn}
-                        innerTableSortOrder={innerTableSortOrder}
-                        workScheduleByInn={workScheduleByInn}
-                        onTableSort={handleTableSort}
-                        onInnerTableSort={handleInnerTableSort}
-                        sortInnerItems={sortInnerItems}
-                        onToggleExpandedCustomer={(customer) => setExpandedTableCustomer(prev => prev === customer ? null : customer)}
-                        onSelectCargo={setSelectedCargo}
-                    />
-                </div>
-            )}
-
-            {filteredItems.length > 0 && !tableModeByCustomer && (
-                <div className="cargo-cards-offset-desktop">
-                    <CargoCardsList
-                        filteredItems={filteredItems}
-                        workScheduleByInn={workScheduleByInn}
-                        useServiceRequest={effectiveServiceMode}
-                        showSums={showSums}
-                        isFavorite={isFavorite}
-                        onToggleFavorite={toggleFavorite}
-                        onShare={handleShareCargo}
-                        onCreateClaim={onOpenClaim}
-                        onSelectCargo={setSelectedCargo}
-                    />
-                </div>
-            )}
+            <AnimatePresence mode="wait">
+                {!loading && !error && tableModeByCustomer && groupedByCustomer.length > 0 ? (
+                    <motion.div
+                        key="cargo-view-table"
+                        className="cargo-table-offset-desktop"
+                        {...(cargoMotionEnabled ? cargoModeSwitchMotion : { initial: false })}
+                    >
+                        <CargoCustomerTable
+                            showSums={showSums}
+                            tableSortColumn={tableSortColumn}
+                            tableSortOrder={tableSortOrder}
+                            sortedGroupedByCustomer={sortedGroupedByCustomer}
+                            expandedTableCustomer={expandedTableCustomer}
+                            innerTableSortColumn={innerTableSortColumn}
+                            innerTableSortOrder={innerTableSortOrder}
+                            workScheduleByInn={workScheduleByInn}
+                            onTableSort={handleTableSort}
+                            onInnerTableSort={handleInnerTableSort}
+                            sortInnerItems={sortInnerItems}
+                            onToggleExpandedCustomer={(customer) => setExpandedTableCustomer(prev => prev === customer ? null : customer)}
+                            onSelectCargo={setSelectedCargo}
+                            motionEnabled={cargoMotionEnabled}
+                        />
+                    </motion.div>
+                ) : filteredItems.length > 0 && !tableModeByCustomer ? (
+                    <motion.div
+                        key="cargo-view-cards"
+                        className="cargo-cards-offset-desktop"
+                        {...(cargoMotionEnabled ? cargoModeSwitchMotion : { initial: false })}
+                    >
+                        <CargoCardsList
+                            filteredItems={filteredItems}
+                            workScheduleByInn={workScheduleByInn}
+                            useServiceRequest={effectiveServiceMode}
+                            showSums={showSums}
+                            isFavorite={isFavorite}
+                            onToggleFavorite={toggleFavorite}
+                            onShare={handleShareCargo}
+                            onCreateClaim={onOpenClaim}
+                            onSelectCargo={setSelectedCargo}
+                            motionEnabled={cargoMotionEnabled}
+                        />
+                    </motion.div>
+                ) : null}
+            </AnimatePresence>
 
             {selectedCargo && primaryAuth && (
                 <CargoDetailsModal

@@ -1,4 +1,5 @@
 import React from "react";
+import { motion } from "motion/react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import {
   ArrowDown,
@@ -17,6 +18,12 @@ import { getSumColorByPaymentStatus } from "../lib/statusUtils";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
 import type { CargoItem } from "../types";
 import type { CargoGroupedRow } from "./cargoPipeline";
+import {
+  cargoExpandMotionProps,
+  cargoListContainerVariants,
+  cargoListItemVariants,
+  cargoTableGroupRowVariants,
+} from "./cargoMotion";
 
 type InnerTableSortCol = "number" | "datePrih" | "status" | "mest" | "pw" | "sum";
 
@@ -34,6 +41,8 @@ type CargoCustomerTableProps = {
   sortInnerItems: (items: CargoItem[]) => CargoItem[];
   onToggleExpandedCustomer: (customer: string) => void;
   onSelectCargo: (item: CargoItem) => void;
+  /** Анимации Motion (отключены при prefers-reduced-motion на странице). */
+  motionEnabled?: boolean;
 };
 
 export function CargoCustomerTable({
@@ -50,6 +59,7 @@ export function CargoCustomerTable({
   sortInnerItems,
   onToggleExpandedCustomer,
   onSelectCargo,
+  motionEnabled = false,
 }: CargoCustomerTableProps) {
   return (
     <div
@@ -258,8 +268,12 @@ export function CargoCustomerTable({
             />
           </tr>
           {sortedGroupedByCustomer.map((row, i) => (
-            <React.Fragment key={i}>
-              <tr
+            <React.Fragment key={row.customer || `row-${i}`}>
+              <motion.tr
+                custom={i}
+                variants={cargoTableGroupRowVariants}
+                initial={motionEnabled ? "initial" : false}
+                animate={motionEnabled ? "animate" : undefined}
                 style={{
                   borderBottom: "1px solid var(--color-border)",
                   cursor: "pointer",
@@ -310,7 +324,7 @@ export function CargoCustomerTable({
                   {Math.round(row.vol)} м³
                 </td>
                 <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>{row.items.length}</td>
-              </tr>
+              </motion.tr>
               {expandedTableCustomer === row.customer && (
                 <tr key={`${i}-detail`}>
                   <td
@@ -322,7 +336,10 @@ export function CargoCustomerTable({
                       background: "var(--color-bg-primary)",
                     }}
                   >
-                    <div style={{ padding: "0.5rem", overflowX: "auto" }}>
+                    <motion.div
+                      {...(motionEnabled ? cargoExpandMotionProps : { initial: false })}
+                      style={{ padding: "0.5rem", overflowX: "auto" }}
+                    >
                       <table
                         style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}
                       >
@@ -627,7 +644,7 @@ export function CargoCustomerTable({
                           ))}
                         </tbody>
                       </table>
-                    </div>
+                    </motion.div>
                   </td>
                 </tr>
               )}
@@ -649,6 +666,7 @@ type CargoCardsListProps = {
   onShare: (item: CargoItem) => Promise<void>;
   onCreateClaim?: (cargoNumber: string) => void;
   onSelectCargo: (item: CargoItem) => void;
+  motionEnabled?: boolean;
 };
 
 export function CargoCardsList({
@@ -661,15 +679,26 @@ export function CargoCardsList({
   onShare,
   onCreateClaim,
   onSelectCargo,
+  motionEnabled = false,
 }: CargoCardsListProps) {
   return (
-    <div className="cargo-list">
+    <motion.div
+      className="cargo-list"
+      variants={motionEnabled ? cargoListContainerVariants : undefined}
+      initial={motionEnabled ? "hidden" : false}
+      animate={motionEnabled ? "visible" : undefined}
+    >
       {filteredItems.map((item: CargoItem, idx: number) => {
         const sla = getSlaInfo(item, workScheduleByInn);
         const numberColor = sla ? (sla.onTime ? "#22c55e" : "#ef4444") : undefined;
         return (
-          <Panel
+          <motion.div
             key={item.Number || idx}
+            variants={motionEnabled ? cargoListItemVariants : undefined}
+            initial={motionEnabled ? "hidden" : false}
+            animate={motionEnabled ? "visible" : undefined}
+          >
+          <Panel
             className="cargo-card cargo-list-item"
             onClick={() => onSelectCargo(item)}
             style={{ cursor: "pointer", marginBottom: "0.75rem", position: "relative" }}
@@ -901,8 +930,9 @@ export function CargoCardsList({
               )}
             </Flex>
           </Panel>
+          </motion.div>
         );
       })}
-    </div>
+    </motion.div>
   );
 }
