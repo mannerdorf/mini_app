@@ -14,7 +14,6 @@
   ],
   "functions": {
     "api/ais-stream.ts": {"maxDuration": 60},
-    "api/chat.ts": {"maxDuration": 60},
     "api/tg-webhook.ts": {"maxDuration": 60},
     "api/cron/refresh-cache.ts": {"maxDuration": 300},
     "api/cron/backfill-sendings-metrics.ts": {"maxDuration": 300},
