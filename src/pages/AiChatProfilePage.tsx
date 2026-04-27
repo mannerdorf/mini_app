@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from "react";
-import { ArrowLeft } from "lucide-react";
+import React, { useState, useRef, useEffect, lazy, Suspense } from "react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import type { AuthData } from "../types";
 import { stripOoo } from "../lib/formatUtils";
-import { ChatPage } from "./ChatPage";
+
+const ChatPage = lazy(() => import("./ChatPage").then((m) => ({ default: m.ChatPage })));
 
 export function AiChatProfilePage({
     onBack,
@@ -121,17 +122,25 @@ export function AiChatProfilePage({
             )}
             <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
                 {auth ? (
-                    <ChatPage
-                        auth={auth}
-                        sessionOverride={`ai_${customer || accountId || "anon"}_${chatId || "anon"}`}
-                        userIdOverride={chatId || customer || accountId || "anon"}
-                        customerOverride={customer || undefined}
-                        prefillMessage={prefillMessage}
-                        onClearPrefill={() => setPrefillMessage(undefined)}
-                        onOpenCargo={onOpenCargo}
-                        clearChatRef={chatClearRef}
-                        onChatCustomerState={setChatCustomerState}
-                    />
+                    <Suspense
+                        fallback={
+                            <Panel className="cargo-card" style={{ padding: "1rem", width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--color-text-secondary)" }} />
+                            </Panel>
+                        }
+                    >
+                        <ChatPage
+                            auth={auth}
+                            sessionOverride={`ai_${customer || accountId || "anon"}_${chatId || "anon"}`}
+                            userIdOverride={chatId || customer || accountId || "anon"}
+                            customerOverride={customer || undefined}
+                            prefillMessage={prefillMessage}
+                            onClearPrefill={() => setPrefillMessage(undefined)}
+                            onOpenCargo={onOpenCargo}
+                            clearChatRef={chatClearRef}
+                            onChatCustomerState={setChatCustomerState}
+                        />
+                    </Suspense>
                 ) : (
                     <Panel className="cargo-card" style={{ padding: "1rem", width: "100%" }}>
                         <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>

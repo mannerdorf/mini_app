@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import {
-    LogOut, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, User as UserIcon, Users, ChevronDown,
-    Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MessageCircle, FileText, LayoutGrid, Mic, Lock, Receipt, ScanLine, Camera, FileDown,
+    LogOut, Loader2, Check, X, Moon, Sun, Eye, EyeOff, User as UserIcon, Users, ChevronDown,
+    Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MessageCircle, FileText, LayoutGrid, Mic, Receipt, ScanLine, Camera, FileDown,
 } from "lucide-react";
 import { Button, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
 import type { Account, AuthData, ProfileView } from "../types";
@@ -22,19 +22,12 @@ import { DOCUMENT_METHODS } from "../documentMethods";
 import { PROXY_API_DOWNLOAD_URL } from "../constants/config";
 import { normalizeWbPerevozkaHaulzDigits } from "../lib/wbPerevozkaNumber";
 import { downloadBase64File } from "../utils";
-
-/** Строка истории выплат в табеле подразделения (ответ /api/my-department-timesheet). */
-type DepartmentTimesheetPayoutRow = {
-    id: number;
-    payoutDate: string;
-    periodFrom: string;
-    periodTo: string;
-    amount: number;
-    taxAmount: number;
-    cooperationType: string;
-    paidDates: string[];
-    createdAt: string;
-};
+import type { DepartmentTimesheetPayoutRow } from "./profile/departmentTimesheetTypes";
+import { ProfileTwoFactorSection } from "../components/profile/ProfileTwoFactorSection";
+import { ProfilePasswordSection } from "../components/profile/ProfilePasswordSection";
+import { ProfileVoiceAssistantsSection } from "../components/profile/ProfileVoiceAssistantsSection";
+import { ProfileFaqSection } from "../components/profile/ProfileFaqSection";
+import { ProfileRolesSection } from "../components/profile/ProfileRolesSection";
 
 export function ProfilePage({
     accounts,
@@ -98,30 +91,6 @@ export function ProfilePage({
     const scannerRafRef = useRef<number | null>(null);
     const scannerZxingReaderRef = useRef<{ reset?: () => void } | null>(null);
     const scannerZxingControlsRef = useRef<{ stop?: () => void } | null>(null);
-    const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-    const [twoFactorMethod, setTwoFactorMethod] = useState<"google" | "telegram">("google");
-    const [twoFactorTelegramLinked, setTwoFactorTelegramLinked] = useState(false);
-    const [tgLinkLoading, setTgLinkLoading] = useState(false);
-    const [tgLinkError, setTgLinkError] = useState<string | null>(null);
-    const [tgLinkChecking, setTgLinkChecking] = useState(false);
-    const [aliceCode, setAliceCode] = useState<string | null>(null);
-    const [aliceExpiresAt, setAliceExpiresAt] = useState<number | null>(null);
-    const [aliceLoading, setAliceLoading] = useState(false);
-    const [aliceError, setAliceError] = useState<string | null>(null);
-    const [aliceSuccess, setAliceSuccess] = useState<string | null>(null);
-    const [googleSetupData, setGoogleSetupData] = useState<{ otpauthUrl: string; secret: string } | null>(null);
-    const [googleSetupStep, setGoogleSetupStep] = useState<'idle' | 'qr' | 'verify'>('idle');
-    const [googleSetupLoading, setGoogleSetupLoading] = useState(false);
-    const [googleSetupError, setGoogleSetupError] = useState<string | null>(null);
-    const [googleVerifyCode, setGoogleVerifyCode] = useState('');
-    const [showPasswordForm, setShowPasswordForm] = useState(false);
-    const [passwordCurrent, setPasswordCurrent] = useState('');
-    const [passwordNew, setPasswordNew] = useState('');
-    const [passwordConfirm, setPasswordConfirm] = useState('');
-    const [passwordLoading, setPasswordLoading] = useState(false);
-    const [passwordError, setPasswordError] = useState<string | null>(null);
-    const [passwordSuccess, setPasswordSuccess] = useState(false);
-
     const [employeesList, setEmployeesList] = useState<{ id: number; login: string; active: boolean; createdAt: string; presetLabel: string; fullName?: string; department?: string; employeeRole?: "employee" | "department_head" }[]>([]);
     const [employeesLoading, setEmployeesLoading] = useState(false);
     const [employeesError, setEmployeesError] = useState<string | null>(null);
@@ -1034,51 +1003,6 @@ export function ProfilePage({
         fetchDepartmentTimesheet,
     ]);
 
-    const checkTelegramLinkStatus = useCallback(async () => {
-        if (!activeAccount?.login || !activeAccountId) return false;
-        try {
-            const res = await fetch(`/api/2fa?login=${encodeURIComponent(activeAccount.login)}`);
-            if (!res.ok) return false;
-            const data = await res.json();
-            const linked = !!data?.settings?.telegramLinked;
-            setTwoFactorTelegramLinked(linked);
-            onUpdateAccount(activeAccountId, { twoFactorTelegramLinked: linked });
-            return linked;
-        } catch {
-            return false;
-        }
-    }, [activeAccount?.login, activeAccountId, onUpdateAccount]);
-
-    const pollTelegramLink = useCallback(async () => {
-        if (tgLinkChecking) return;
-        setTgLinkChecking(true);
-        try {
-            let attempts = 0;
-            let linked = false;
-            while (attempts < 10 && !linked) {
-                linked = await checkTelegramLinkStatus();
-                if (linked) break;
-                await new Promise((r) => setTimeout(r, 2000));
-                attempts += 1;
-            }
-        } finally {
-            setTgLinkChecking(false);
-        }
-    }, [checkTelegramLinkStatus, tgLinkChecking]);
-
-    useEffect(() => {
-        if (!activeAccount) return;
-        setTwoFactorEnabled(!!activeAccount.twoFactorEnabled);
-        setTwoFactorMethod(activeAccount.twoFactorMethod ?? "google");
-        setTwoFactorTelegramLinked(!!activeAccount.twoFactorTelegramLinked);
-    }, [activeAccount?.id]);
-
-    useEffect(() => {
-        if (!twoFactorEnabled || twoFactorMethod !== "telegram") return;
-        if (twoFactorTelegramLinked) return;
-        void checkTelegramLinkStatus();
-    }, [twoFactorEnabled, twoFactorMethod, twoFactorTelegramLinked, checkTelegramLinkStatus]);
-
     useEffect(() => {
         if ((currentView === 'employees' || currentView === 'haulz') && activeAccount?.login) void fetchEmployeesAndPresets();
     }, [currentView, activeAccount?.login, fetchEmployeesAndPresets]);
@@ -1377,160 +1301,7 @@ export function ProfilePage({
         },
     ];
 
-    const faqItems = [
-        // ——— Вход ———
-        {
-            q: "Как войти в приложение?",
-            a: "Есть два способа. 1) Вход по email и паролю: введите логин (ваш email) и пароль от личного кабинета HAULZ. Перед первым входом нужно принять публичную оферту и согласие на обработку персональных данных. 2) Вход по логину и паролю от 1С: на экране входа нажмите «По логину и паролю» и введите учётные данные от системы 1С — после входа будут доступны компании, привязанные к этому логину. Выбор способа зависит от того, как вас зарегистрировали (email в HAULZ или доступ через 1С).",
-            img: "/faq-account.svg",
-            alt: "Вход в приложение"
-        },
-        {
-            q: "Забыли пароль?",
-            a: "На экране входа нажмите ссылку «Забыли пароль?». На вашу почту (email, указанный при регистрации) придёт письмо со ссылкой для восстановления. Перейдите по ссылке, задайте новый пароль на сайте HAULZ. После этого войдите в приложение с новым паролем. Если письмо не пришло — проверьте папку «Спам» или напишите в поддержку.",
-            img: "/faq-account.svg",
-            alt: "Восстановление пароля"
-        },
-        // ——— Присоединение компаний ———
-        {
-            q: "Где управлять списком компаний?",
-            a: "Откройте вкладку «Профиль» внизу экрана, затем пункт «Мои компании». Там отображаются все добавленные компании (аккаунты). Чтобы добавить новую — нажмите «Добавить компанию» и выберите способ: по ИНН или по логину и паролю. Из этого же списка можно переключать активную компанию или удалить аккаунт, если он больше не нужен.",
-            img: "/faq-account.svg",
-            alt: "Мои компании"
-        },
-        {
-            q: "Как добавить компанию по ИНН? (пошагово)",
-            a: "Добавление по ИНН доступно только если вы вошли по email и паролю (зарегистрированный пользователь). Шаги: 1) Профиль → Мои компании → Добавить компанию. 2) Выберите «По ИНН». 3) Введите ИНН организации (10 или 12 цифр). 4) Нажмите отправить запрос — мы отправим письмо на контакты этой организации. 5) Ответственный в организации должен подтвердить доступ: в письме будет пин-код из 6 цифр. 6) Введите этот пин-код в приложении в поле «Введите пин-код из письма». 7) После успешной проверки компания появится в «Мои компании». Если организация не ответила или пин-код не пришёл — свяжитесь с ней отдельно или используйте способ «По логину и паролю», если у вас есть доступ в 1С.",
-            img: "/faq-account.svg",
-            alt: "Добавление по ИНН"
-        },
-        {
-            q: "Как добавить компанию по логину и паролю?",
-            a: "Подходит, если у вас есть логин и пароль от системы 1С (или личного кабинета) для нужной организации. Шаги: 1) Профиль → Мои компании → Добавить компанию. 2) Выберите «По логину и паролю». 3) Введите логин и пароль от 1С/ЛК. 4) Нажмите войти. После проверки приложение подтянет список заказчиков (компаний), привязанных к этому логину. Они появятся в «Мои компании», и вы сможете переключаться между ними в шапке экрана. Можно добавить несколько таких аккаунтов, если у вас доступ к разным организациям.",
-            img: "/faq-account.svg",
-            alt: "Добавление по логину и паролю"
-        },
-        {
-            q: "Сколько компаний можно добавить?",
-            a: "Ограничений по количеству компаний в списке нет. Вы можете добавить несколько организаций по ИНН (после подтверждения каждой) и несколько аккаунтов по логину и паролю. В шапке экрана в переключателе компаний выбирается одна или несколько активных — от этого зависят грузы и документы, которые вы видите.",
-            img: "/faq-account.svg",
-            alt: "Несколько компаний"
-        },
-        {
-            q: "Как сменить активную компанию или выбрать несколько?",
-            a: "В верхней части экрана «Грузы» или «Документы» отображается переключатель компаний (название текущей компании или «Выберите компанию»). Нажмите на него — откроется список всех ваших компаний. Выберите одну или отметьте несколько галочками — данные на экране обновятся под выбранный набор. Сотрудники, привязанные к одной компании, переключателя не видят: у них всегда отображается только их компания.",
-            img: "/faq-account.svg",
-            alt: "Переключение компаний"
-        },
-        {
-            q: "Как удалить компанию из списка?",
-            a: "Профиль → Мои компании. В списке найдите нужный аккаунт (компанию) и нажмите кнопку удаления (корзина) или «Удалить аккаунт». После подтверждения компания исчезнет из списка, грузы и документы по ней в приложении больше отображаться не будут. Данные в 1С и у HAULZ при этом не удаляются — при необходимости компанию можно добавить снова.",
-            img: "/faq-account.svg",
-            alt: "Удаление компании"
-        },
-        // ——— Сотрудники ———
-        {
-            q: "Кто может приглашать сотрудников?",
-            a: "Приглашать сотрудников могут только пользователи, которые вошли по email и паролю (зарегистрированные в HAULZ). Если вы вошли «по логину и паролю» от 1С без отдельной регистрации email — раздел «Сотрудники» будет недоступен. Зарегистрируйте аккаунт по email в HAULZ (через админку или по приглашению), войдите им — тогда в Профиле появится пункт «Сотрудники» и форма приглашения.",
-            img: "/faq-account.svg",
-            alt: "Кто может приглашать"
-        },
-        {
-            q: "Как пригласить сотрудника? (пошагово)",
-            a: "1) Войдите по email и паролю. 2) Профиль → Сотрудники. 3) В блоке «Пригласить сотрудника» введите email будущего сотрудника (на него придёт пароль). 4) Выберите роль в выпадающем списке (Логист, Менеджер и т.д. — список ролей настраивается в админке). Если ролей нет — нажмите «Обновить» или попросите администратора создать пресеты в разделе «Пресеты ролей». 5) Нажмите «Пригласить». 6) На почту сотрудника отправится письмо с паролем для входа. 7) Сотрудник входит в приложение по этому email и паролю и видит только вашу компанию (без переключателя компаний). При необходимости вы можете отключить доступ переключателем «Вкл/Выкл» или удалить сотрудника из списка.",
-            img: "/faq-account.svg",
-            alt: "Приглашение сотрудника"
-        },
-        {
-            q: "Что видит приглашённый сотрудник?",
-            a: "Приглашённый сотрудник входит по email и паролю из письма. Ему доступна одна компания — та, к которой привязан пригласивший (ваш аккаунт). В шапке экрана отображается название этой компании, переключателя компаний нет. Сотрудник видит грузы и документы только по этой компании, в соответствии с выданной ролью (права на разделы и действия задаются пресетом). Дашборд, счета, УПД, поддержка — по тем же правилам, что и у вас, но в рамках одной организации.",
-            img: "/faq-account.svg",
-            alt: "Права сотрудника"
-        },
-        {
-            q: "Что такое «роль» при приглашении сотрудника?",
-            a: "Роль — это набор прав (пресет): какие разделы доступны (грузы, документы, дашборд, поддержка и т.д.) и есть ли, например, служебный режим или доступ в админку. Список ролей (пресетов) настраивается в админ-панели HAULZ в разделе «Пресеты ролей». При приглашении вы выбираете одну из этих ролей — сотрудник получает соответствующие права. Чтобы изменить права уже приглашённого — это делается в админке (редактирование пользователя) или путём отключения и повторного приглашения с другой ролью, если так предусмотрено у вас.",
-            img: "/faq-account.svg",
-            alt: "Роли сотрудников"
-        },
-        {
-            q: "Как отключить или снова включить доступ сотрудника?",
-            a: "Профиль → Сотрудники. В списке приглашённых найдите нужного человека. Рядом с ним переключатель «Вкл» / «Выкл». При выключении сотрудник не сможет войти в приложение (логин и пароль перестанут действовать). Его запись и привязка к компании сохраняются — вы можете снова включить доступ тем же переключателем, не приглашая заново.",
-            img: "/faq-account.svg",
-            alt: "Отключение доступа"
-        },
-        {
-            q: "Как удалить сотрудника из списка?",
-            a: "Профиль → Сотрудники → найдите сотрудника в списке и нажмите кнопку с иконкой корзины. Подтвердите удаление. Сотрудник будет полностью удалён из системы: он не сможет войти, запись в базе и привязки удалятся. Восстановить такого пользователя можно только новым приглашением.",
-            img: "/faq-account.svg",
-            alt: "Удаление сотрудника"
-        },
-        {
-            q: "Сотрудник забыл пароль — что делать?",
-            a: "Сотрудник может восстановить пароль сам: на экране входа в приложении нажать «Забыли пароль?» и указать свой email (тот, на который пришло приглашение). На почту придёт ссылка для смены пароля. После смены войти с новым паролем. Альтернатива — вы можете отключить его доступ и пригласить заново (ему придёт новый пароль), но тогда старый пароль перестанет действовать.",
-            img: "/faq-account.svg",
-            alt: "Пароль сотрудника"
-        },
-        // ——— Грузы ———
-        {
-            q: "Почему не вижу часть грузов или список пустой?",
-            a: "Проверьте по порядку: 1) Выбранная компания в шапке — грузы показываются только по тем компаниям, которые выбраны. 2) Период дат — фильтр «Дата» может ограничивать диапазон; расширьте период или выберите «Все». 3) Остальные фильтры: Статус, Отправитель, Получатель — сбросьте на «Все» при необходимости. 4) Роли (Заказчик / Отправитель / Получатель) в Профиле → Роли — если отключена роль «Заказчик», части грузов может не быть. 5) Убедитесь, что перевозка действительно относится к выбранному заказчику в 1С. Если всё проверено и груза по-прежнему нет — напишите в поддержку с номером груза и периодом.",
-            img: "/faq-troubleshoot.svg",
-            alt: "Поиск грузов"
-        },
-        {
-            q: "Как найти груз по номеру?",
-            a: "На экране «Грузы» вверху есть строка поиска (иконка лупы). Введите номер перевозки полностью или часть номера — список отфильтруется автоматически. Поиск идёт по номерам грузов в выбранном периоде и по выбранным компаниям.",
-            img: "/faq-troubleshoot.svg",
-            alt: "Поиск по номеру"
-        },
-        {
-            q: "Как настроить фильтры по датам, статусу, отправителю и получателю?",
-            a: "На экране «Грузы» над списком расположены кнопки фильтров: Дата, Статус, Отправитель, Получатель и др. Нажмите нужный фильтр — откроется список значений. Выберите период дат, статус (например, «В пути») или конкретного отправителя/получателя. Данные на экране обновятся. Чтобы сбросить: снова откройте фильтр и выберите «Все» или другой период. Выбранные значения обычно отображаются на кнопке (например, «Дата: 09.02 – 15.02»).",
-            img: "/faq-troubleshoot.svg",
-            alt: "Фильтры грузов"
-        },
-        {
-            q: "Что такое «служебный режим» и когда он доступен?",
-            a: "Служебный режим — это возможность запрашивать перевозки без привязки к одной компании (по сути, по всем заказчикам). Он нужен логистам, которые работают с несколькими организациями. Включается переключателем «Служ.» в шапке экрана «Грузы». Доступен только если у вашего аккаунта есть соответствующее право (настраивается в админке в пресете роли). В служебном режиме фильтр по компании не применяется, отображаются перевозки по выбранному периоду и другим фильтрам.",
-            img: "/faq-troubleshoot.svg",
-            alt: "Служебный режим"
-        },
-        // ——— Документы ———
-        {
-            q: "Где взять счёт, УПД, АПП или ЭР по перевозке?",
-            a: "Два способа. 1) Карточка груза: откройте нужную перевозку из списка «Грузы», нажмите кнопку «Поделиться» — в меню появятся пункты для скачивания или отправки документов (счёт, УПД и т.д.). 2) Раздел «Документы»: выберите тип документа (Счета, УПД и т.п.), при необходимости отфильтруйте по дате или номеру, найдите перевозку и откройте или скачайте документ. Если нужного документа нет в списке — напишите в поддержку, укажите номер груза и тип документа.",
-            img: "/faq-docs.svg",
-            alt: "Документы по перевозке"
-        },
-        {
-            q: "Документ по ссылке не открывается",
-            a: "Проверьте подключение к интернету и попробуйте открыть ссылку ещё раз. Часть документов открывается в браузере или в Telegram, если вы перешли из мессенджера. Если ссылка не работает — откройте раздел «Поддержка», напишите в чат и укажите номер груза и какой документ нужен (счёт, УПД и т.д.); оператор подскажет или пришлёт документ альтернативным способом.",
-            img: "/faq-docs.svg",
-            alt: "Открытие документов"
-        },
-        // ——— Роли и отображение грузов ———
-        {
-            q: "Как настроить роли «Заказчик», «Отправитель», «Получатель»?",
-            a: "В «Профиле» откройте раздел «Роли». Там три переключателя: Заказчик, Отправитель, Получатель. Они определяют, в качестве кого вы хотите видеть перевозки. «Заказчик» — полные данные, включая стоимость и финансовую информацию. «Отправитель» и «Получатель» — перевозки, где вы указаны отправителем или получателем, без финансовых деталей. Включите нужные роли — список грузов обновится. Если какую-то роль отключить, соответствующие перевозки из списка исчезнут.",
-            img: "/faq-troubleshoot.svg",
-            alt: "Роли заказчик отправитель получатель"
-        },
-        // ——— Прочее ———
-        {
-            q: "Ошибка сети, пустой экран или приложение «висит»",
-            a: "Проверьте подключение к интернету (Wi‑Fi или мобильная сеть). Закройте приложение полностью и откройте снова. Если ошибка повторяется — откройте раздел «Поддержка» и опишите, что произошло: в какое время, на каком экране (Грузы, Документы, Профиль и т.д.) и какое сообщение об ошибке видели. Это поможет быстрее найти причину.",
-            img: "/faq-troubleshoot.svg",
-            alt: "Ошибки и сеть"
-        },
-        {
-            q: "Где контакты и информация о HAULZ?",
-            a: "В «Профиле» откройте раздел «О компании». Там указаны контакты, адреса и краткая информация о компании HAULZ.",
-            img: "/faq-account.svg",
-            alt: "Информация о компании"
-        },
-    ];
-    
+
     // Информация
     const infoItems = [
         { 
@@ -1597,67 +1368,12 @@ export function ProfilePage({
 
     if (currentView === 'roles') {
         return (
-            <div className="w-full">
-                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
-                    <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
-                        <ArrowLeft className="w-4 h-4" />
-                    </Button>
-                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Роли</Typography.Headline>
-                </Flex>
-                <Typography.Body style={{ marginBottom: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
-                    Включите роли, если хотите видеть перевозки, где вы выступаете в качестве заказчика, отправителя или получателя.
-                </Typography.Body>
-                {!activeAccountId || !activeAccount ? (
-                    <Panel className="cargo-card" style={{ padding: '1rem', textAlign: 'center' }}>
-                        <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Сначала добавьте аккаунт в «Мои компании».</Typography.Body>
-                    </Panel>
-                ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        <Panel className="cargo-card" style={{ padding: '1rem' }} onClick={(e) => e.stopPropagation()}>
-                            <Flex align="center" justify="space-between" style={{ marginBottom: '0.25rem' }}>
-                                <Typography.Body style={{ fontWeight: 600 }}>Заказчик</Typography.Body>
-                                <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
-                                    <TapSwitch
-                                        checked={activeAccount.roleCustomer ?? true}
-                                        onToggle={() => onUpdateAccount(activeAccountId, { roleCustomer: !(activeAccount.roleCustomer ?? true) })}
-                                    />
-                                </span>
-                            </Flex>
-                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                Включите, если хотите видеть перевозки, где вы выступаете в качестве заказчика (полные данные, включая стоимость).
-                            </Typography.Body>
-                        </Panel>
-                        <Panel className="cargo-card" style={{ padding: '1rem' }} onClick={(e) => e.stopPropagation()}>
-                            <Flex align="center" justify="space-between" style={{ marginBottom: '0.25rem' }}>
-                                <Typography.Body style={{ fontWeight: 600 }}>Отправитель</Typography.Body>
-                                <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
-                                    <TapSwitch
-                                        checked={activeAccount.roleSender ?? true}
-                                        onToggle={() => onUpdateAccount(activeAccountId, { roleSender: !(activeAccount.roleSender ?? true) })}
-                                    />
-                                </span>
-                            </Flex>
-                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                Включите, если хотите видеть перевозки, где вы выступаете в качестве отправителя (без финансовой информации).
-                            </Typography.Body>
-                        </Panel>
-                        <Panel className="cargo-card" style={{ padding: '1rem' }} onClick={(e) => e.stopPropagation()}>
-                            <Flex align="center" justify="space-between" style={{ marginBottom: '0.25rem' }}>
-                                <Typography.Body style={{ fontWeight: 600 }}>Получатель</Typography.Body>
-                                <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
-                                    <TapSwitch
-                                        checked={activeAccount.roleReceiver ?? true}
-                                        onToggle={() => onUpdateAccount(activeAccountId, { roleReceiver: !(activeAccount.roleReceiver ?? true) })}
-                                    />
-                                </span>
-                            </Flex>
-                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                Включите, если хотите видеть перевозки, где вы выступаете в качестве получателя (без финансовой информации).
-                            </Typography.Body>
-                        </Panel>
-                    </div>
-                )}
-            </div>
+            <ProfileRolesSection
+                activeAccount={activeAccount}
+                activeAccountId={activeAccountId}
+                onBack={() => setCurrentView('main')}
+                onUpdateAccount={onUpdateAccount}
+            />
         );
     }
 
@@ -3700,154 +3416,8 @@ export function ProfilePage({
     }
 
     if (currentView === 'voiceAssistants') {
-        const serviceModeAllowed = !!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true;
-        if (!serviceModeAllowed) {
-            return (
-                <div className="w-full">
-                    <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
-                        <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
-                            <ArrowLeft className="w-4 h-4" />
-                        </Button>
-                        <Typography.Headline style={{ fontSize: '1.25rem' }}>Голосовые помощники</Typography.Headline>
-                    </Flex>
-                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
-                        <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Доступно только при включённом служебном режиме.</Typography.Body>
-                    </Panel>
-                </div>
-            );
-        }
         return (
-            <div className="w-full">
-                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
-                    <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
-                        <ArrowLeft className="w-4 h-4" />
-                    </Button>
-                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Голосовые помощники</Typography.Headline>
-                </Flex>
-                <Typography.Body style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Алиса</Typography.Body>
-                <Panel
-                    className="cargo-card"
-                    style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
-                >
-                    <Typography.Body style={{ fontSize: '0.9rem' }}>
-                        Скажите Алисе: «Запусти навык Холз» и назовите код ниже. После привязки Алиса подтвердит компанию. Голосом можно узнавать перевозки в пути, счета на оплату, краткий статус «что в работе», сводку за день или за период, статус по номеру перевозки; при ответе «подробнее» Алиса скажет «Написал в чат» и отправит таблицу в чат мини‑приложения (номер / дата / кол-во / плат вес / сумма). Номера перевозок произносятся по три цифры (135200 — «сто тридцать пять двести»). Если привязано несколько компаний — можно переключиться голосом или отвязать навык фразой «Отвяжи компанию».
-                    </Typography.Body>
-                    <Button
-                        className="button-primary"
-                        type="button"
-                        disabled={!activeAccount?.login || !activeAccount?.password || aliceLoading}
-                        onClick={async () => {
-                            if (!activeAccount?.login || !activeAccount?.password) return;
-                            try {
-                                setAliceError(null);
-                                setAliceSuccess(null);
-                                setAliceLoading(true);
-                                const res = await fetch("/api/alice-link", {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({
-                                        login: activeAccount.login,
-                                        password: activeAccount.password,
-                                        customer: activeAccount.customer || null,
-                                        inn: activeAccount.activeCustomerInn ?? undefined,
-                                    }),
-                                });
-                                if (!res.ok) {
-                                    const err = await res.json().catch(() => ({}));
-                                    throw new Error(err?.error || "Не удалось получить код");
-                                }
-                                const data = await res.json();
-                                setAliceCode(String(data?.code || ""));
-                                setAliceExpiresAt(Date.now() + (Number(data?.ttl || 0) * 1000));
-                            } catch (e: any) {
-                                setAliceError(e?.message || "Не удалось получить код");
-                            } finally {
-                                setAliceLoading(false);
-                            }
-                        }}
-                    >
-                        {aliceLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Получить код для Алисы"}
-                    </Button>
-                    {aliceCode && (
-                        <Typography.Body style={{ fontSize: '0.9rem', fontWeight: 600 }}>
-                            Код: {aliceCode}
-                        </Typography.Body>
-                    )}
-                    {aliceExpiresAt && (
-                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                            Код действует до {new Date(aliceExpiresAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                        </Typography.Body>
-                    )}
-                    {aliceError && (
-                        <Flex align="center" className="login-error">
-                            <AlertTriangle className="w-4 h-4 mr-2" />
-                            <Typography.Body style={{ fontSize: '0.85rem' }}>{aliceError}</Typography.Body>
-                        </Flex>
-                    )}
-                    {aliceSuccess && (
-                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-success, #22c55e)' }}>
-                            {aliceSuccess}
-                        </Typography.Body>
-                    )}
-                    <Typography.Body style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                        Чтобы отключить навык от аккаунта, нажмите кнопку ниже.
-                    </Typography.Body>
-                    <Button
-                        className="filter-button"
-                        type="button"
-                        disabled={!activeAccount?.login}
-                        onClick={async () => {
-                            if (!activeAccount?.login) return;
-                            try {
-                                setAliceError(null);
-                                setAliceSuccess(null);
-                                const res = await fetch("/api/alice-unlink", {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ login: activeAccount.login.trim().toLowerCase() }),
-                                });
-                                const data = await res.json().catch(() => ({}));
-                                if (res.ok && data?.ok) {
-                                    setAliceCode(null);
-                                    setAliceExpiresAt(null);
-                                    setAliceSuccess(data?.message || "Алиса отвязана от аккаунта.");
-                                } else {
-                                    setAliceError(data?.error || "Не удалось отвязать.");
-                                }
-                            } catch (e: any) {
-                                setAliceError(e?.message || "Ошибка сети.");
-                            }
-                        }}
-                        style={{ marginTop: '0.25rem' }}
-                    >
-                        Отвязать от Алисы
-                    </Button>
-                </Panel>
-
-                <Typography.Body style={{ marginTop: '1.25rem', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Описание навыков</Typography.Body>
-                <Panel className="cargo-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                        «Запусти навык Холз» → назовите код из приложения → Алиса подтвердит компанию. Ниже — фразы и сценарии.
-                    </Typography.Body>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>Перевозки и оплаты</Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Какие перевозки в пути?» — кратко номера (по три цифры). «Подробнее» — Алиса скажет «Написал в чат» и отправит таблицу в чат (номер / дата / кол-во / плат вес / сумма).</Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Какие счета на оплату?» — то же: кратко, по «подробнее» — таблица в чат.</Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Что в работе?» / «Что у меня в работе?» — одна фраза: в пути N перевозок, к оплате M.</Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Сводка за день» / «Сводка за сегодня» / «Сводка на сегодня» — ответ принято, в пути, на доставке, доставлено, счета на оплату (кол-во и сумма).</Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Сколько перевозок за сегодня?» / «на этой неделе?» / «за неделю?» — число перевозок за период.</Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Статус перевозки 135702» / «Консолидация 135702» / «Груз 135702» — детали по одной перевозке.</Typography.Body>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>Управление</Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Работай от имени компании [название]» / «Переключись на компанию [название]» — переключить компанию (если привязано несколько).</Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Отвяжи компанию» / «Отвяжи заказчика» / «Отвяжи» — отвязать навык; новый код — в приложении.</Typography.Body>
-                    </div>
-                    <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                        Другие вопросы (контакты, груз по номеру) Алиса передаёт в чат поддержки с контекстом вашей компании.
-                    </Typography.Body>
-                </Panel>
-            </div>
+            <ProfileVoiceAssistantsSection activeAccount={activeAccount} onBack={() => setCurrentView('main')} />
         );
     }
 
@@ -3866,255 +3436,21 @@ export function ProfilePage({
     }
 
     if (currentView === 'faq') {
-        return (
-            <div className="w-full">
-                <Flex align="center" style={{ marginBottom: '0.5rem', gap: '0.75rem' }}>
-                    <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
-                        <ArrowLeft className="w-4 h-4" />
-                    </Button>
-                    <Typography.Headline style={{ fontSize: '1.25rem' }}>FAQ</Typography.Headline>
-                </Flex>
-                <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
-                    Подробные ответы: вход и пароль, присоединение компаний (по ИНН и по логину/паролю), приглашение и управление сотрудниками, грузы, фильтры, документы и поддержка.
-                </Typography.Body>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {faqItems.map((item, idx) => (
-                        <Panel
-                            key={`${item.q}-${idx}`}
-                            className="cargo-card"
-                            style={{
-                                padding: '1rem',
-                                display: 'flex',
-                                gap: '0.75rem',
-                                alignItems: 'flex-start'
-                            }}
-                        >
-                            <img
-                                src={item.img}
-                                alt={item.alt}
-                                style={{ width: '44px', height: '44px', borderRadius: '10px', objectFit: 'cover', flexShrink: 0 }}
-                                loading="lazy"
-                            />
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                <Typography.Body style={{ fontSize: '0.9rem', fontWeight: 600 }}>
-                                    {item.q}
-                                </Typography.Body>
-                                <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                    {item.a}
-                                </Typography.Body>
-                            </div>
-                        </Panel>
-                    ))}
-                </div>
-            </div>
-        );
+        return <ProfileFaqSection onBack={() => setCurrentView('main')} />;
     }
 
     if (currentView === '2fa' && activeAccountId && activeAccount) {
-        const googleSecretSet = !!activeAccount.twoFactorGoogleSecretSet;
-        const showGoogleSetup = twoFactorEnabled && twoFactorMethod === 'google' && !googleSecretSet;
         return (
-            <div className="w-full">
-                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
-                    <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
-                        <ArrowLeft className="w-4 h-4" />
-                    </Button>
-                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Двухфакторная аутентификация (2FA)</Typography.Headline>
-                </Flex>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
-                        <Flex align="center" justify="space-between">
-                            <Typography.Body style={{ fontSize: '0.9rem' }}>Google Authenticator</Typography.Body>
-                            <TapSwitch
-                                checked={twoFactorEnabled && twoFactorMethod === 'google'}
-                                onToggle={() => {
-                                    if (twoFactorEnabled && twoFactorMethod === 'google') {
-                                        setTwoFactorEnabled(false);
-                                        setTwoFactorMethod('telegram');
-                                        setGoogleSetupData(null);
-                                        setGoogleSetupStep('idle');
-                                        onUpdateAccount(activeAccountId, { twoFactorMethod: 'telegram', twoFactorEnabled: false });
-                                    } else {
-                                        setTwoFactorMethod('google');
-                                        setTwoFactorEnabled(true);
-                                        onUpdateAccount(activeAccountId, { twoFactorMethod: 'google', twoFactorEnabled: true });
-                                    }
-                                }}
-                            />
-                        </Flex>
-                        {showGoogleSetup && (
-                            <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                {googleSetupStep === 'idle' && !googleSetupData && (
-                                    <>
-                                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                            Отсканируйте QR-код в приложении Google Authenticator или введите ключ вручную.
-                                        </Typography.Body>
-                                        <Button
-                                            className="filter-button"
-                                            size="small"
-                                            disabled={googleSetupLoading}
-                                            onClick={async () => {
-                                                if (!activeAccount?.login) return;
-                                                setGoogleSetupError(null);
-                                                setGoogleSetupLoading(true);
-                                                try {
-                                                    const res = await fetch('/api/2fa-google', {
-                                                        method: 'POST',
-                                                        headers: { 'Content-Type': 'application/json' },
-                                                        body: JSON.stringify({ login: activeAccount.login, action: 'setup' }),
-                                                    });
-                                                    const data = await res.json();
-                                                    if (!res.ok) throw new Error(data?.error || 'Ошибка настройки');
-                                                    setGoogleSetupData({ otpauthUrl: data.otpauthUrl, secret: data.secret });
-                                                    setGoogleSetupStep('qr');
-                                                } catch (e: any) {
-                                                    setGoogleSetupError(e?.message || 'Не удалось начать настройку');
-                                                } finally {
-                                                    setGoogleSetupLoading(false);
-                                                }
-                                            }}
-                                            style={{ fontSize: '0.85rem', alignSelf: 'flex-start' }}
-                                        >
-                                            {googleSetupLoading ? 'Загрузка…' : 'Настроить Google Authenticator'}
-                                        </Button>
-                                    </>
-                                )}
-                                {(googleSetupStep === 'qr' || googleSetupData) && googleSetupData && googleSetupStep !== 'verify' && (
-                                    <>
-                                        <div style={{ display: 'flex', justifyContent: 'center' }}>
-                                            <img
-                                                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(googleSetupData.otpauthUrl)}`}
-                                                alt="QR для Google Authenticator"
-                                                style={{ width: 200, height: 200 }}
-                                            />
-                                        </div>
-                                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                            Ключ для ручного ввода: <code style={{ wordBreak: 'break-all', fontSize: '0.8rem' }}>{googleSetupData.secret}</code>
-                                        </Typography.Body>
-                                        <Button
-                                            className="filter-button"
-                                            size="small"
-                                            onClick={() => { setGoogleSetupStep('verify'); setGoogleVerifyCode(''); setGoogleSetupError(null); }}
-                                            style={{ fontSize: '0.85rem', alignSelf: 'flex-start' }}
-                                        >
-                                            Добавил в приложение
-                                        </Button>
-                                    </>
-                                )}
-                                {googleSetupStep === 'verify' && googleSetupData && (
-                                    <form
-                                        onSubmit={async (e) => {
-                                            e.preventDefault();
-                                            if (!activeAccount?.login || !googleVerifyCode.trim()) return;
-                                            setGoogleSetupError(null);
-                                            setGoogleSetupLoading(true);
-                                            try {
-                                                const res = await fetch('/api/2fa-google', {
-                                                    method: 'POST',
-                                                    headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({ login: activeAccount.login, action: 'verify', code: googleVerifyCode.trim() }),
-                                                });
-                                                const data = await res.json();
-                                                if (!res.ok) throw new Error(data?.error || 'Неверный код');
-                                                await fetch('/api/2fa', {
-                                                    method: 'POST',
-                                                    headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({ login: activeAccount.login, enabled: true, method: 'google', telegramLinked: false }),
-                                                });
-                                                onUpdateAccount(activeAccountId, { twoFactorEnabled: true, twoFactorMethod: 'google', twoFactorGoogleSecretSet: true });
-                                                setGoogleSetupData(null);
-                                                setGoogleSetupStep('idle');
-                                                setGoogleVerifyCode('');
-                                            } catch (err: any) {
-                                                setGoogleSetupError(err?.message || 'Неверный код');
-                                            } finally {
-                                                setGoogleSetupLoading(false);
-                                            }
-                                        }}
-                                        style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}
-                                    >
-                                        <Typography.Body style={{ fontSize: '0.85rem' }}>Введите 6-значный код из приложения</Typography.Body>
-                                        <input
-                                            type="text"
-                                            inputMode="numeric"
-                                            autoComplete="one-time-code"
-                                            maxLength={6}
-                                            placeholder="000000"
-                                            value={googleVerifyCode}
-                                            onChange={(e) => setGoogleVerifyCode(e.target.value.replace(/\D/g, ''))}
-                                            style={{ padding: '0.5rem', fontSize: '1rem', textAlign: 'center', letterSpacing: '0.25em' }}
-                                        />
-                                        <Button type="submit" className="button-primary" disabled={googleVerifyCode.length !== 6 || googleSetupLoading} style={{ alignSelf: 'flex-start' }}>
-                                            {googleSetupLoading ? 'Проверка…' : 'Подтвердить'}
-                                        </Button>
-                                        {googleSetupError && (
-                                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-error-status)' }}>{googleSetupError}</Typography.Body>
-                                        )}
-                                    </form>
-                                )}
-                            </div>
-                        )}
-                        {twoFactorEnabled && twoFactorMethod === 'google' && googleSecretSet && (
-                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-success-status)', marginTop: '0.5rem' }}>
-                                Google Authenticator настроен
-                            </Typography.Body>
-                        )}
-                    </Panel>
-                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
-                        <Flex align="center" justify="space-between" style={{ marginBottom: twoFactorMethod === 'telegram' && !twoFactorTelegramLinked && onOpenTelegramBot ? '0.5rem' : 0 }}>
-                            <Typography.Body style={{ fontSize: '0.9rem' }}>Telegram</Typography.Body>
-                            <TapSwitch
-                                checked={twoFactorEnabled && twoFactorMethod === 'telegram'}
-                                onToggle={() => {
-                                    if (twoFactorEnabled && twoFactorMethod === 'telegram') {
-                                        setTwoFactorEnabled(false);
-                                        setTwoFactorMethod('google');
-                                        onUpdateAccount(activeAccountId, { twoFactorMethod: 'google', twoFactorEnabled: false });
-                                    } else {
-                                        setTwoFactorMethod('telegram');
-                                        setTwoFactorEnabled(true);
-                                        onUpdateAccount(activeAccountId, { twoFactorMethod: 'telegram', twoFactorEnabled: true });
-                                    }
-                                }}
-                            />
-                        </Flex>
-                        {twoFactorEnabled && twoFactorMethod === 'telegram' && (
-                            <>
-                                {twoFactorTelegramLinked ? (
-                                    <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-success-status)' }}>
-                                        Telegram привязан
-                                    </Typography.Body>
-                                ) : onOpenTelegramBot ? (
-                                    <Button
-                                        className="filter-button"
-                                        size="small"
-                                        disabled={tgLinkChecking}
-                                        onClick={async () => {
-                                            setTgLinkError(null);
-                                            try {
-                                                await onOpenTelegramBot();
-                                                void pollTelegramLink();
-                                            } catch (e: any) {
-                                                setTgLinkError(e?.message || 'Не удалось открыть бота.');
-                                            }
-                                        }}
-                                        style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}
-                                    >
-                                        {tgLinkChecking ? 'Проверка…' : 'Привязать Telegram'}
-                                    </Button>
-                                ) : (
-                                    <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                        Откройте бота для привязки
-                                    </Typography.Body>
-                                )}
-                            </>
-                        )}
-                    </Panel>
-                </div>
-            </div>
+            <ProfileTwoFactorSection
+                activeAccount={activeAccount}
+                activeAccountId={activeAccountId}
+                onBack={() => setCurrentView('main')}
+                onUpdateAccount={onUpdateAccount}
+                onOpenTelegramBot={onOpenTelegramBot}
+            />
         );
     }
-    
+
     return (
         <div className={profileSaasShellActive ? "w-full profile-saas-layout" : "w-full"}>
             <header className={profileSaasShellActive ? "profile-saas-page-header" : "profile-saas-page-header profile-saas-page-header--legacy"}>
@@ -4180,120 +3516,12 @@ export function ProfilePage({
                         </Panel>
                     )}
                     {/* Пароль — смена пароля для входа по email/паролю */}
-                    {activeAccountId && activeAccount?.isRegisteredUser && (
-                        <>
-                            <Panel
-                                className="cargo-card profile-saas-row-card"
-                                onClick={() => setShowPasswordForm((v) => !v)}
-                                style={{ display: 'flex', alignItems: 'center', padding: '1rem', cursor: 'pointer' }}
-                            >
-                                <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
-                                    <div className="profile-saas-row-icon">
-                                        <Lock className="w-5 h-5" />
-                                    </div>
-                                    <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>Пароль</Typography.Body>
-                                </Flex>
-                            </Panel>
-                            {showPasswordForm && (
-                                <Panel className="cargo-card profile-saas-nested-card" style={{ padding: '1rem' }} onClick={(e) => e.stopPropagation()}>
-                                    <Typography.Body className="profile-saas-h3" style={{ marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: 600 }}>Смена пароля</Typography.Body>
-                                    <form
-                                        onSubmit={async (e) => {
-                                            e.preventDefault();
-                                            if (!activeAccount?.login || !passwordNew || passwordNew !== passwordConfirm) {
-                                                setPasswordError(passwordNew !== passwordConfirm ? 'Пароли не совпадают' : 'Заполните все поля');
-                                                return;
-                                            }
-                                            if (passwordNew.length < 8) {
-                                                setPasswordError('Новый пароль не менее 8 символов');
-                                                return;
-                                            }
-                                            setPasswordError(null);
-                                            setPasswordLoading(true);
-                                            try {
-                                                const res = await fetch('/api/change-password', {
-                                                    method: 'POST',
-                                                    headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({
-                                                        login: activeAccount.login,
-                                                        currentPassword: passwordCurrent,
-                                                        newPassword: passwordNew,
-                                                    }),
-                                                });
-                                                const data = await res.json().catch(() => ({}));
-                                                if (!res.ok) throw new Error((data?.error as string) || 'Ошибка смены пароля');
-                                                setPasswordSuccess(true);
-                                                onUpdateAccount(activeAccountId, { password: passwordNew });
-                                                setPasswordCurrent('');
-                                                setPasswordNew('');
-                                                setPasswordConfirm('');
-                                                setTimeout(() => { setShowPasswordForm(false); setPasswordSuccess(false); }, 1500);
-                                            } catch (err: unknown) {
-                                                setPasswordError((err as Error)?.message || 'Ошибка смены пароля');
-                                            } finally {
-                                                setPasswordLoading(false);
-                                            }
-                                        }}
-                                        style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
-                                    >
-                                        <div>
-                                            <Typography.Body style={{ marginBottom: '0.25rem', fontSize: '0.85rem' }}>Текущий пароль</Typography.Body>
-                                            <Input
-                                                type="password"
-                                                className="login-input"
-                                                placeholder="Текущий пароль"
-                                                value={passwordCurrent}
-                                                onChange={(e) => setPasswordCurrent(e.target.value)}
-                                                autoComplete="current-password"
-                                                style={{ width: '100%' }}
-                                            />
-                                        </div>
-                                        <div>
-                                            <Typography.Body style={{ marginBottom: '0.25rem', fontSize: '0.85rem' }}>Новый пароль</Typography.Body>
-                                            <Input
-                                                type="password"
-                                                className="login-input"
-                                                placeholder="Не менее 8 символов"
-                                                value={passwordNew}
-                                                onChange={(e) => setPasswordNew(e.target.value)}
-                                                autoComplete="new-password"
-                                                style={{ width: '100%' }}
-                                            />
-                                        </div>
-                                        <div>
-                                            <Typography.Body style={{ marginBottom: '0.25rem', fontSize: '0.85rem' }}>Подтвердите новый пароль</Typography.Body>
-                                            <Input
-                                                type="password"
-                                                className="login-input"
-                                                placeholder="Повторите новый пароль"
-                                                value={passwordConfirm}
-                                                onChange={(e) => setPasswordConfirm(e.target.value)}
-                                                autoComplete="new-password"
-                                                style={{ width: '100%' }}
-                                            />
-                                        </div>
-                                        {passwordError && (
-                                            <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem' }}>{passwordError}</Typography.Body>
-                                        )}
-                                        {passwordSuccess && (
-                                            <Typography.Body style={{ color: 'var(--color-success-status, #22c55e)', fontSize: '0.85rem' }}>Пароль успешно изменён.</Typography.Body>
-                                        )}
-                                        <Flex gap="0.5rem">
-                                            <Button type="submit" className="button-primary" disabled={passwordLoading}>
-                                                {passwordLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Сохранить'}
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                className="filter-button"
-                                                onClick={() => { setShowPasswordForm(false); setPasswordError(null); setPasswordCurrent(''); setPasswordNew(''); setPasswordConfirm(''); }}
-                                            >
-                                                Отмена
-                                            </Button>
-                                        </Flex>
-                                    </form>
-                                </Panel>
-                            )}
-                        </>
+                    {activeAccountId && activeAccount?.isRegisteredUser && activeAccount && (
+                        <ProfilePasswordSection
+                            activeAccount={activeAccount}
+                            activeAccountId={activeAccountId}
+                            onUpdateAccount={onUpdateAccount}
+                        />
                     )}
                 </div>
             </section>

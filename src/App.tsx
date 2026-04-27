@@ -52,7 +52,7 @@ import { AddCompanyByINNPage } from "./pages/AddCompanyByINNPage";
 import { AddCompanyByLoginPage } from "./pages/AddCompanyByLoginPage";
 import { CompaniesListPage } from "./pages/CompaniesListPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
-import { CargoPage } from "./pages/CargoPage";
+const CargoPage = lazy(() => import("./pages/CargoPage").then((m) => ({ default: m.CargoPage })));
 const ProfilePage = lazy(() => import("./pages/ProfilePage").then((m) => ({ default: m.ProfilePage })));
 import { ExpenseRequestsPage } from "./pages/ExpenseRequestsPage";
 import { AppRuntimeProvider } from "./contexts/AppRuntimeContext";
@@ -68,10 +68,24 @@ import {
     TABS_ALLOWED_ON_RESTORE,
 } from "./wb/appWb";
 import { PUBLIC_OFFER_TEXT, PERSONAL_DATA_CONSENT_TEXT } from "./constants/legalTexts";
+import { HAULZ_MAX_SUPPORT_BOT_URL, HAULZ_TG_SUPPORT_BOT_URL } from "./constants/brand";
+import {
+    loadAuthMethodsConfig,
+    postAuthRegisteredLogin,
+    type AuthMethodsConfig,
+} from "./api/client/auth";
+import {
+    fetchTwoFaSettings,
+    persistTwoFaSettingsSilent,
+    sendTelegramTwoFaCode,
+    verifyTwoFactorCode,
+} from "./api/client/twoFa";
+import { postCompaniesSave } from "./api/client/companies";
+import { createMaxAuthDeepLinkToken } from "./api/client/maxLink";
+import { postGetPerevozkaJson, postGetCustomers, postPerevozkiList } from "./api/client/perevozkiClient";
 import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry } from "./lib/cargoUtils";
 import * as dateUtils from "./lib/dateUtils";
 import { formatCurrency, stripOoo, formatInvoiceNumber, cityToCode, transliterateFilename, normalizeInvoiceStatus, parseCargoNumbersFromText } from "./lib/formatUtils";
-import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_DOWNLOAD_URL, PROXY_API_SEND_DOC_URL, PROXY_API_GETPEREVOZKA_URL, PROXY_API_INVOICES_URL } from "./constants/config";
 import { usePerevozki, usePerevozkiMulti, usePerevozkiMultiAccounts, usePrevPeriodPerevozki, useInvoices } from "./hooks/useApi";
 import type {
     Account, AccountPermissions, ApiError, AuthData, CargoItem, CompanyRow, CustomerOption,
@@ -79,11 +93,6 @@ import type {
 } from "./types";
 
 const { getDateRange } = dateUtils;
-type AuthMethodsConfig = {
-    api_v1: boolean;
-    api_v2: boolean;
-    cms: boolean;
-};
 
 const resolveChecked = (value: unknown): boolean => {
     if (typeof value === "boolean") return value;
@@ -294,22 +303,13 @@ export default function App() {
     useEffect(() => {
         let cancelled = false;
         const loadConfig = async () => {
-            try {
-                const res = await fetch("/api/auth-config");
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok) throw new Error(data?.error || "Ошибка загрузки способов авторизации");
-                if (cancelled) return;
-                const config = data?.config || {};
-                setAuthMethods({
-                    api_v1: config.api_v1 ?? true,
-                    api_v2: config.api_v2 ?? true,
-                    cms: config.cms ?? true,
-                });
-            } catch (err) {
-                if (!cancelled) {
-                    console.warn("Failed to load auth config", err);
-                }
+            const cfg = await loadAuthMethodsConfig();
+            if (cancelled) return;
+            if (!cfg) {
+                console.warn("Failed to load auth config");
+                return;
             }
+            setAuthMethods(cfg);
         };
         loadConfig();
         return () => {
@@ -322,15 +322,7 @@ export default function App() {
         const enabled = patch.twoFactorEnabled ?? account.twoFactorEnabled ?? false;
         const method = patch.twoFactorMethod ?? account.twoFactorMethod ?? "google";
         const telegramLinked = patch.twoFactorTelegramLinked ?? account.twoFactorTelegramLinked ?? false;
-        try {
-            await fetch("/api/2fa", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ login, enabled, method, telegramLinked })
-            });
-        } catch {
-            // silent: server storage is best-effort
-        }
+        await persistTwoFaSettingsSilent({ login, enabled, method, telegramLinked });
     }, []);
 
     useEffect(() => {
@@ -338,9 +330,7 @@ export default function App() {
         let cancelled = false;
         const load = async () => {
             try {
-                const res = await fetch(`/api/2fa?login=${encodeURIComponent(activeAccount.login)}`);
-                if (!res.ok) return;
-                const data = await res.json();
+                const data = await fetchTwoFaSettings(activeAccount.login);
                 const settings = data?.settings;
                 if (!settings || cancelled) return;
                 setAccounts(prev =>
@@ -742,29 +732,27 @@ export default function App() {
                 const updates: { id: string; customers: CustomerOption[]; activeCustomerInn: string | null; customer: string | null; accessAllInns: boolean; inCustomerDirectory?: boolean; permissions?: Record<string, boolean>; financialAccess?: boolean }[] = [];
                 for (const acc of needRefresh) {
                     try {
-                        const res = await fetch("/api/auth-registered-login", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ email: acc.login.trim().toLowerCase(), password: acc.password }),
-                    });
-                    const data = await res.json().catch(() => ({}));
-                    if (cancelled || !res.ok || !data?.ok || !data?.user) continue;
-                    const u = data.user;
-                    const customers: CustomerOption[] = u.inn ? [{ name: u.companyName || u.inn, inn: u.inn }] : [];
-                    updates.push({
-                        id: acc.id,
-                        customers,
-                        activeCustomerInn: u.inn ?? null,
-                        customer: u.companyName ?? null,
-                        accessAllInns: !!u.accessAllInns,
-                        inCustomerDirectory: !!u.inCustomerDirectory,
-                        permissions: normalizePermissions(u.permissions),
-                        financialAccess: u.financialAccess,
-                    });
-                } catch {
-                    // ignore
+                        const { ok, data } = await postAuthRegisteredLogin({
+                            email: acc.login.trim().toLowerCase(),
+                            password: acc.password,
+                        });
+                        if (cancelled || !ok || !data?.ok || !data?.user) continue;
+                        const u = data.user as Record<string, unknown>;
+                        const customers: CustomerOption[] = u.inn ? [{ name: u.companyName || u.inn, inn: u.inn }] : [];
+                        updates.push({
+                            id: acc.id,
+                            customers,
+                            activeCustomerInn: u.inn ?? null,
+                            customer: u.companyName ?? null,
+                            accessAllInns: !!u.accessAllInns,
+                            inCustomerDirectory: !!u.inCustomerDirectory,
+                            permissions: normalizePermissions(u.permissions),
+                            financialAccess: u.financialAccess,
+                        });
+                    } catch {
+                        // ignore
+                    }
                 }
-            }
                 if (cancelled || updates.length === 0) return;
                 setAccounts((prev) =>
                     prev.map((a) => {
@@ -798,14 +786,12 @@ export default function App() {
         let cancelled = false;
         (async () => {
             try {
-                const res = await fetch("/api/auth-registered-login", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email: activeAccount.login.trim().toLowerCase(), password: activeAccount.password }),
+                const { ok, data } = await postAuthRegisteredLogin({
+                    email: activeAccount.login.trim().toLowerCase(),
+                    password: activeAccount.password,
                 });
-                const data = await res.json().catch(() => ({}));
-                if (cancelled || !res.ok || !data?.ok || !data?.user) return;
-                const user = data.user;
+                if (cancelled || !ok || !data?.ok || !data?.user) return;
+                const user = data.user as Record<string, unknown>;
                 const customers: CustomerOption[] = user.inn ? [{ name: user.companyName || user.inn, inn: user.inn }] : [];
                 setAccounts((prev) =>
                     prev.map((acc) =>
@@ -840,14 +826,12 @@ export default function App() {
         let cancelled = false;
         (async () => {
             try {
-                const res = await fetch("/api/auth-registered-login", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email: activeAccount.login.trim().toLowerCase(), password: activeAccount.password }),
+                const { ok, data } = await postAuthRegisteredLogin({
+                    email: activeAccount.login.trim().toLowerCase(),
+                    password: activeAccount.password,
                 });
-                const data = await res.json().catch(() => ({}));
-                if (cancelled || !res.ok || !data?.ok || !data?.user) return;
-                const user = data.user;
+                if (cancelled || !ok || !data?.ok || !data?.user) return;
+                const user = data.user as Record<string, unknown>;
                 setAccounts((prev) =>
                     prev.map((acc) =>
                         acc.id !== activeAccount.id
@@ -871,9 +855,6 @@ export default function App() {
 
     const handleSearch = (text: string) => setSearchText(text.toLowerCase().trim());
 
-    const MAX_SUPPORT_BOT_URL = "https://max.ru/id9706037094_bot";
-    const TG_SUPPORT_BOT_URL = "https://t.me/HAULZinfobot";
-
     const openExternalLink = (url: string) => {
         const webApp = getWebApp();
         if (webApp && typeof (webApp as any).openLink === "function") {
@@ -884,7 +865,7 @@ export default function App() {
     };
 
     const openTelegramBotWithAccount = async () => {
-        const url = new URL(TG_SUPPORT_BOT_URL);
+        const url = new URL(HAULZ_TG_SUPPORT_BOT_URL);
         const webApp = getWebApp();
         if (webApp && typeof webApp.openTelegramLink === "function") {
             webApp.openTelegramLink(url.toString());
@@ -898,23 +879,15 @@ export default function App() {
         if (!activeAccount) {
             throw new Error("Сначала выберите компанию.");
         }
-        const res = await fetch("/api/max-link", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+        const data = await createMaxAuthDeepLinkToken({
                 login: activeAccount.login,
                 password: activeAccount.password,
                 customer: activeAccount.customer || null,
                 inn: activeAccount.activeCustomerInn ?? null,
                 accountId: activeAccount.id,
-            }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data?.token) {
-            throw new Error(data?.error || "Не удалось создать ссылку для MAX.");
-        }
+            });
         // По доке MAX диплинк бота: https://max.ru/<botName>?start=<payload> (именно start, не startapp)
-        const url = new URL(MAX_SUPPORT_BOT_URL);
+        const url = new URL(HAULZ_MAX_SUPPORT_BOT_URL);
         url.searchParams.set("start", `haulz_auth_${data.token}`);
         openMaxBotLink(url.toString());
     };
@@ -951,18 +924,13 @@ export default function App() {
             );
             if (activeAccount?.login && activeAccount?.password) {
                 const inn = activeAccount.activeCustomerInn ?? activeAccount.customers?.[0]?.inn ?? undefined;
-                fetch(PROXY_API_GETPEREVOZKA_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
+                postGetPerevozkaJson({
                         login: activeAccount.login,
                         password: activeAccount.password,
                         number: cargoNumber,
                         ...(inn ? { inn } : {}),
                         ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}),
-                    }),
-                })
-                    .then((r) => r.json())
+                    })
                     .then((data) => {
                         try {
                             window.sessionStorage.setItem("haulz.chat.cargoPreload", JSON.stringify(data));
@@ -1044,18 +1012,13 @@ export default function App() {
         const inn = overlayCargoInn ?? activeAccount.activeCustomerInn ?? activeAccount.customers?.[0]?.inn ?? undefined;
         const numberRaw = String(overlayCargoNumber).replace(/^0+/, '') || overlayCargoNumber;
         const numberForApi = /^\d{5,9}$/.test(numberRaw) ? numberRaw.padStart(9, '0') : overlayCargoNumber;
-        fetch(PROXY_API_GETPEREVOZKA_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+        postGetPerevozkaJson({
                 login: activeAccount.login,
                 password: activeAccount.password,
                 number: numberForApi,
                 ...(inn ? { inn } : {}),
                 ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}),
-            }),
-        })
-            .then((r) => r.json())
+            })
             .then((data) => {
                 if (cancelled) return;
                 const raw = Array.isArray(data) ? data[0] : data;
@@ -1176,17 +1139,12 @@ export default function App() {
             const loginKey = login.trim().toLowerCase();
 
             const attemptCmsAuth = async (): Promise<true | string> => {
-                const regRes = await fetch("/api/auth-registered-login", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email: loginKey, password }),
-                });
-                const regData = await regRes.json().catch(() => ({}));
-                if (!regRes.ok) {
+                const { ok: regOk, data: regData } = await postAuthRegisteredLogin({ email: loginKey, password });
+                if (!regOk) {
                     return (typeof regData?.error === "string" ? regData.error : null) || "Неверный email или пароль";
                 }
                 if (regData?.ok && regData?.user) {
-                    const u = regData.user;
+                    const u = regData.user as Record<string, unknown>;
                     const existingAccount = accounts.find((acc) => acc.login === loginKey);
                     const customers: CustomerOption[] = u.inn ? [{ name: u.companyName || u.inn, inn: u.inn }] : [];
                     const accessAllInns = !!u.accessAllInns;
@@ -1235,13 +1193,8 @@ export default function App() {
             };
 
             const attemptApiV2Auth = async (): Promise<boolean> => {
-                const customersRes = await fetch(PROXY_API_GETCUSTOMERS_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ login, password }),
-                });
-                if (!customersRes.ok) return false;
-                const customersData = await customersRes.json().catch(() => ({}));
+                const { ok: customersOk, data: customersData } = await postGetCustomers(login, password);
+                if (!customersOk) return false;
                 const rawList = Array.isArray(customersData?.customers)
                     ? customersData.customers
                     : Array.isArray(customersData?.Customers)
@@ -1262,23 +1215,14 @@ export default function App() {
                     setError("Компания уже в списке");
                     return true;
                 }
-                const twoFaRes = await fetch(`/api/2fa?login=${encodeURIComponent(loginKey)}`);
-                const twoFaJson = twoFaRes.ok ? await twoFaRes.json() : null;
+                const twoFaJson = await fetchTwoFaSettings(loginKey);
                 const twoFaSettings = twoFaJson?.settings;
                 const twoFaEnabled = !!twoFaSettings?.enabled;
                 const twoFaMethod = twoFaSettings?.method === "telegram" ? "telegram" : "google";
                 const twoFaLinked = !!twoFaSettings?.telegramLinked;
                 const twoFaGoogleSecretSet = !!twoFaSettings?.googleSecretSet;
                 if (twoFaEnabled && twoFaMethod === "telegram" && twoFaLinked) {
-                    const sendRes = await fetch("/api/2fa-telegram", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ login: loginKey, action: "send" }),
-                    });
-                    if (!sendRes.ok) {
-                        const err = await readJsonOrText(sendRes);
-                        throw new Error(err?.error || "Не удалось отправить код");
-                    }
+                    await sendTelegramTwoFaCode(loginKey);
                     setPendingLogin({ login, password, customer: undefined, loginKey, customers, twoFaMethod: "telegram" });
                     setTwoFactorPending(true);
                     setTwoFactorCode("");
@@ -1310,14 +1254,10 @@ export default function App() {
                     setActiveAccountId(accountId);
                 }
                 setActiveTab((prev) => prev || "cargo");
-                fetch("/api/companies-save", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ login: loginKey, customers }),
-                })
-                    .then((r) => r.json())
-                    .then((data) => {
-                        if (data?.saved !== undefined && data.saved === 0 && data.warning) console.warn("companies-save:", data.warning);
+                postCompaniesSave({ login: loginKey, customers })
+                    .then((data: unknown) => {
+                        const d = data as { saved?: number; warning?: string };
+                        if (d?.saved !== undefined && d.saved === 0 && d.warning) console.warn("companies-save:", d.warning);
                     })
                     .catch((err) => console.warn("companies-save error:", err));
                 return true;
@@ -1325,11 +1265,7 @@ export default function App() {
 
             const attemptApiV1Auth = async (): Promise<boolean> => {
                 const { dateFrom, dateTo } = getDateRange("все");
-                const res = await fetch(PROXY_API_BASE_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ login, password, dateFrom, dateTo }),
-                });
+                const res = await postPerevozkiList({ login, password, dateFrom, dateTo });
                 await ensureOk(res, "Ошибка авторизации");
                 const payload = await readJsonOrText(res);
                 const detectedCustomer = extractCustomerFromPerevozki(payload);
@@ -1339,23 +1275,14 @@ export default function App() {
                     setError("Компания уже в списке");
                     return true;
                 }
-                const twoFaRes = await fetch(`/api/2fa?login=${encodeURIComponent(loginKey)}`);
-                const twoFaJson = twoFaRes.ok ? await twoFaRes.json() : null;
+                const twoFaJson = await fetchTwoFaSettings(loginKey);
                 const twoFaSettings = twoFaJson?.settings;
                 const twoFaEnabled = !!twoFaSettings?.enabled;
                 const twoFaMethod = twoFaSettings?.method === "telegram" ? "telegram" : "google";
                 const twoFaLinked = !!twoFaSettings?.telegramLinked;
                 const twoFaGoogleSecretSet = !!twoFaSettings?.googleSecretSet;
                 if (twoFaEnabled && twoFaMethod === "telegram" && twoFaLinked) {
-                    const sendRes = await fetch("/api/2fa-telegram", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ login: loginKey, action: "send" }),
-                    });
-                    if (!sendRes.ok) {
-                        const err = await readJsonOrText(sendRes);
-                        throw new Error(err?.error || "Не удалось отправить код");
-                    }
+                    await sendTelegramTwoFaCode(loginKey);
                     setPendingLogin({ login, password, customer: detectedCustomer, loginKey, perevozkiInn: detectedInn ?? undefined, twoFaMethod: "telegram" });
                     setTwoFactorPending(true);
                     setTwoFactorCode("");
@@ -1395,11 +1322,7 @@ export default function App() {
                 }
                 const companyInn = detectedInn ?? "";
                 const companyName = detectedCustomer || login.trim() || "Компания";
-                fetch("/api/companies-save", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }),
-                }).catch(() => {});
+                postCompaniesSave({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }).catch(() => {});
                 setActiveTab((prev) => prev || "cargo");
                 return true;
             };
@@ -1432,19 +1355,7 @@ export default function App() {
         try {
             setTwoFactorLoading(true);
             const isGoogle = pendingLogin.twoFaMethod === "google";
-            const res = await fetch(isGoogle ? "/api/2fa-google" : "/api/2fa-telegram", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(
-                    isGoogle
-                        ? { login: pendingLogin.loginKey, action: "verify", code: twoFactorCode.trim() }
-                        : { login: pendingLogin.loginKey, action: "verify", code: twoFactorCode.trim() }
-                ),
-            });
-            if (!res.ok) {
-                const err = await readJsonOrText(res);
-                throw new Error(err?.error || "Неверный код");
-            }
+            await verifyTwoFactorCode(isGoogle ? "google" : "telegram", pendingLogin.loginKey, twoFactorCode);
 
             const detectedCustomer = pendingLogin.customer;
             const customers = pendingLogin.customers;
@@ -1489,21 +1400,18 @@ export default function App() {
 
             if (customersToSave?.length) {
                 // Способ 2 (Getcustomers): сохраняем список заказчиков в БД
-                fetch("/api/companies-save", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ login: loginKeyToSave, customers: customersToSave }),
-                })
-                    .then((r) => r.json())
-                    .then((data) => { if (data?.saved !== undefined && data.saved === 0 && data.warning) console.warn("companies-save:", data.warning); })
+                postCompaniesSave({ login: loginKeyToSave, customers: customersToSave })
+                    .then((data: unknown) => {
+                        const d = data as { saved?: number; warning?: string };
+                        if (d?.saved !== undefined && d.saved === 0 && d.warning) console.warn("companies-save:", d.warning);
+                    })
                     .catch((err) => console.warn("companies-save error:", err));
             } else {
                 // Способ 1 (GetPerevozki): одна компания с ИНН из ответа API
                 const perevozkiInn = pendingLogin.perevozkiInn ?? "";
-                fetch("/api/companies-save", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ login: loginKeyToSave, customers: [{ name: (detectedCustomer ?? loginDisplay) || "Компания", inn: perevozkiInn }] }),
+                postCompaniesSave({
+                    login: loginKeyToSave,
+                    customers: [{ name: (detectedCustomer ?? loginDisplay) || "Компания", inn: perevozkiInn }],
                 }).catch(() => {});
             }
         } catch (err: any) {
@@ -1593,13 +1501,8 @@ export default function App() {
         const loginKey = login.trim().toLowerCase();
 
         // Сначала пробуем способ 2 (Getcustomers)
-        const customersRes = await fetch(PROXY_API_GETCUSTOMERS_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ login, password }),
-        });
-        if (customersRes.ok) {
-            const customersData = await customersRes.json().catch(() => ({}));
+        const { ok: customersOk, data: customersData } = await postGetCustomers(login, password);
+        if (customersOk) {
             const rawList = Array.isArray(customersData?.customers) ? customersData.customers : Array.isArray(customersData?.Customers) ? customersData.Customers : [];
             const customers: CustomerOption[] = dedupeCustomersByInn(
                 rawList.map((c: any) => ({
@@ -1617,13 +1520,11 @@ export default function App() {
                 const newAccount: Account = { login, password, id: accountId, customers, activeCustomerInn: customers[0].inn, customer: customers[0].name };
                 setAccounts(prev => [...prev, newAccount]);
                 setActiveAccountId(accountId);
-                fetch("/api/companies-save", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ login: loginKey, customers }),
-                })
-                    .then((r) => r.json())
-                    .then((data) => { if (data?.saved !== undefined && data.saved === 0 && data.warning) console.warn("companies-save:", data.warning); })
+                postCompaniesSave({ login: loginKey, customers })
+                    .then((data: unknown) => {
+                        const d = data as { saved?: number; warning?: string };
+                        if (d?.saved !== undefined && d.saved === 0 && d.warning) console.warn("companies-save:", d.warning);
+                    })
                     .catch((err) => console.warn("companies-save error:", err));
                 return;
             }
@@ -1631,11 +1532,7 @@ export default function App() {
 
         // Способ 1 (GetPerevozki)
         const { dateFrom, dateTo } = getDateRange("все");
-        const res = await fetch(PROXY_API_BASE_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ login, password, dateFrom, dateTo }),
-        });
+        const res = await postPerevozkiList({ login, password, dateFrom, dateTo });
         if (!res.ok) {
             let message = `Ошибка авторизации`;
             try {
@@ -1664,11 +1561,7 @@ export default function App() {
         setActiveAccountId(accountId);
         const companyInn = detectedInn ?? "";
         const companyName = detectedCustomer || login.trim() || "Компания";
-        fetch("/api/companies-save", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }),
-        }).catch(() => {});
+        postCompaniesSave({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }).catch(() => {});
     };
 
     // 404 для неизвестного path (не "/", "/admin", "/cms")
@@ -1744,15 +1637,7 @@ export default function App() {
                                         try {
                                             setTwoFactorError(null);
                                             setTwoFactorLoading(true);
-                                            const resend = await fetch("/api/2fa-telegram", {
-                                                method: "POST",
-                                                headers: { "Content-Type": "application/json" },
-                                                body: JSON.stringify({ login: pendingLogin.loginKey, action: "send" }),
-                                            });
-                                            if (!resend.ok) {
-                                                const err = await readJsonOrText(resend);
-                                                throw new Error(err?.error || "Не удалось отправить код");
-                                            }
+                                            await sendTelegramTwoFaCode(pendingLogin.loginKey);
                                         } catch (err: any) {
                                             setTwoFactorError(err?.message || "Не удалось отправить код");
                                         } finally {
@@ -1934,6 +1819,7 @@ export default function App() {
                         openSecretPinModal={openSecretPinModal}
                         openWildberries={() => setActiveTab(WB_TAB)}
                         CargoDetailsModal={CargoDetailsModal}
+                        CargoPageComponent={CargoPage}
                         DashboardPageComponent={DashboardPage}
                         ProfilePageComponent={ProfilePage}
                         DocumentsPageComponent={DocumentsPage}
@@ -2143,6 +2029,7 @@ export default function App() {
                             openSecretPinModal={openSecretPinModal}
                             openWildberries={() => setActiveTab(WB_TAB)}
                             CargoDetailsModal={CargoDetailsModal}
+                            CargoPageComponent={CargoPage}
                             DashboardPageComponent={DashboardPage}
                             ProfilePageComponent={ProfilePage}
                             DocumentsPageComponent={DocumentsPage}

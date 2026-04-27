@@ -308,6 +308,8 @@ export function DashboardPage({
     const [paymentDisciplineSortCol, setPaymentDisciplineSortCol] = useState<'name' | 'count' | 'paid' | 'unpaid' | 'paidRate'>('paidRate');
     const [paymentDisciplineSortAsc, setPaymentDisciplineSortAsc] = useState(true);
     const [maChartType, setMaChartType] = useState<'money' | 'paidWeight' | 'weight' | 'volume' | 'pieces'>('paidWeight');
+    /** Виджет «Загрузка по дням недели»: приход (DatePrih) или факт выдачи/доставки */
+    const [weekdayDistributionMode, setWeekdayDistributionMode] = useState<"received" | "issued">("received");
     const [expandedSlaItem, setExpandedSlaItem] = useState<CargoItem | null>(null);
     const [slaTimelineSteps, setSlaTimelineSteps] = useState<PerevozkaTimelineStep[] | null>(null);
     const [slaTimelineLoading, setSlaTimelineLoading] = useState(false);
@@ -2458,23 +2460,38 @@ export function DashboardPage({
         const auto = [0, 0, 0, 0, 0, 0, 0];
         const weights = [0, 0, 0, 0, 0, 0, 0];
         filteredItems.forEach((item) => {
-            const raw = String(item.DatePrih ?? '').trim();
-            if (!raw) return;
-            const dk = raw.includes('T') ? raw.split('T')[0] : raw;
-            const p = dateUtils.parseDateOnly(dk);
+            let p: Date | null = null;
+            if (weekdayDistributionMode === "received") {
+                const raw = String(item.DatePrih ?? "").trim();
+                if (!raw) return;
+                const dk = raw.includes("T") ? raw.split("T")[0] : raw;
+                if (!isDateInRange(dk, apiDateRange.dateFrom, apiDateRange.dateTo)) return;
+                p = dateUtils.parseDateOnly(dk);
+            } else {
+                const act = getActualDeliveryDate(item);
+                if (!act) return;
+                const key = `${act.getFullYear()}-${String(act.getMonth() + 1).padStart(2, "0")}-${String(act.getDate()).padStart(2, "0")}`;
+                if (!isDateInRange(key, apiDateRange.dateFrom, apiDateRange.dateTo)) return;
+                p = act;
+            }
             if (!p) return;
             const dow = (p.getDay() + 6) % 7;
-            if (isFerry(item)) { ferry[dow] += 1; } else { auto[dow] += 1; }
-            weights[dow] += typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+            if (isFerry(item)) ferry[dow] += 1;
+            else auto[dow] += 1;
+            weights[dow] += typeof item.PW === "string" ? parseFloat(item.PW) || 0 : (item.PW || 0);
         });
         const maxCount = Math.max(...ferry.map((f, i) => f + auto[i]), 1);
         return DAYS.map((label, i) => ({
-            label, count: ferry[i] + auto[i], ferry: ferry[i], auto: auto[i],
-            pw: weights[i], percent: Math.round(((ferry[i] + auto[i]) / maxCount) * 100),
+            label,
+            count: ferry[i] + auto[i],
+            ferry: ferry[i],
+            auto: auto[i],
+            pw: weights[i],
+            percent: Math.round(((ferry[i] + auto[i]) / maxCount) * 100),
             ferryPct: Math.round((ferry[i] / maxCount) * 100),
             autoPct: Math.round((auto[i] / maxCount) * 100),
         }));
-    }, [filteredItems, useServiceRequest]);
+    }, [filteredItems, useServiceRequest, weekdayDistributionMode, getActualDeliveryDate, apiDateRange.dateFrom, apiDateRange.dateTo]);
 
     // ═══════ CLIENT ANALYTICS DATA ═══════
 
@@ -3492,11 +3509,49 @@ export function DashboardPage({
             {/* 10. Распределение по дням недели */}
             {useServiceRequest && !loading && !error && weekdayDistribution.length > 0 && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
-                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                        Загрузка по дням недели
-                    </Typography.Headline>
+                    <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem" style={{ marginBottom: '0.25rem' }}>
+                        <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600 }}>
+                            Загрузка по дням недели
+                        </Typography.Headline>
+                        <Flex gap="0.25rem" align="center" style={{ flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                            <Button
+                                type="button"
+                                className="filter-button"
+                                onClick={() => setWeekdayDistributionMode("received")}
+                                style={{
+                                    padding: "0.3rem 0.55rem",
+                                    fontSize: "0.78rem",
+                                    borderRadius: 8,
+                                    border: "none",
+                                    background: weekdayDistributionMode === "received" ? "var(--color-primary-blue)" : "transparent",
+                                    color: weekdayDistributionMode === "received" ? "#fff" : "var(--color-text-secondary)",
+                                }}
+                                title="По дате прихода (DatePrih) в выбранном периоде"
+                            >
+                                Получено
+                            </Button>
+                            <Button
+                                type="button"
+                                className="filter-button"
+                                onClick={() => setWeekdayDistributionMode("issued")}
+                                style={{
+                                    padding: "0.3rem 0.55rem",
+                                    fontSize: "0.78rem",
+                                    borderRadius: 8,
+                                    border: "none",
+                                    background: weekdayDistributionMode === "issued" ? "var(--color-primary-blue)" : "transparent",
+                                    color: weekdayDistributionMode === "issued" ? "#fff" : "var(--color-text-secondary)",
+                                }}
+                                title="По фактической дате выдачи / доставки (DateVr и др.) в выбранном периоде"
+                            >
+                                Выдано
+                            </Button>
+                        </Flex>
+                    </Flex>
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem' }}>
-                        Количество приёмок и платный вес в разрезе дня недели
+                        {weekdayDistributionMode === "received"
+                            ? "Количество приёмок и платный вес по дню недели даты прихода (в периоде фильтра)."
+                            : "Количество выдач и платный вес по дню недели фактической даты доставки / вручения (в периоде фильтра)."}
                     </Typography.Body>
                     <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'flex-end', height: 100, marginBottom: '0.4rem' }}>
                         {weekdayDistribution.map((d, idx) => {

@@ -2,7 +2,6 @@ import React, { Suspense } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { Loader2, Package } from "lucide-react";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { CargoPage } from "../pages/CargoPage";
 import { ExpenseRequestsPage } from "../pages/ExpenseRequestsPage";
 import { WildberriesPage } from "../pages/WildberriesPage";
 import type { Account, AuthData, Tab } from "../types";
@@ -40,6 +39,7 @@ type Props = {
   setIsPersonalConsentOpen: (value: boolean) => void;
   openSecretPinModal: () => void;
   CargoDetailsModal: React.ComponentType<any>;
+  CargoPageComponent: React.ComponentType<any>;
   DashboardPageComponent: React.ComponentType<any>;
   ProfilePageComponent: React.ComponentType<any>;
   DocumentsPageComponent: React.ComponentType<any>;
@@ -146,11 +146,13 @@ export function AppMainContent({
   setIsPersonalConsentOpen,
   openSecretPinModal,
   CargoDetailsModal,
+  CargoPageComponent,
   DashboardPageComponent,
   ProfilePageComponent,
   DocumentsPageComponent,
   profileSaasShellActive,
 }: Props) {
+  const CargoPage = CargoPageComponent;
   const DashboardPage = DashboardPageComponent;
   const ProfilePage = ProfilePageComponent;
   const DocumentsPage = DocumentsPageComponent;
@@ -216,23 +218,25 @@ export function AppMainContent({
 
       {(showDashboard || activeTab === "cargo") && activeTab === "cargo" && (selectedAuths.length > 0 || (useServiceRequest && !!auth)) && (
         <SectionBoundary section="Грузы">
-        <CargoPage
-          auths={selectedAuths.length > 0 ? selectedAuths : (auth ? [auth] : [])}
-          onOpenChat={undefined}
-          onOpenClaim={openClaimFromCargo}
-          onCustomerDetected={updateActiveAccountCustomer}
-          contextCargoNumber={contextCargoNumber}
-          onClearContextCargo={() => setContextCargoNumber(null)}
-          roleCustomer={
-            showDashboard
-              ? (activeAccount?.isRegisteredUser ? true : (activeAccount?.roleCustomer ?? true))
-              : (activeAccount?.roleCustomer ?? true)
-          }
-          roleSender={activeAccount?.roleSender ?? true}
-          roleReceiver={activeAccount?.roleReceiver ?? true}
-          showSums={activeAccount?.financialAccess ?? true}
-          CargoDetailsModal={CargoDetailsModal}
-        />
+        <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
+          <CargoPage
+            auths={selectedAuths.length > 0 ? selectedAuths : (auth ? [auth] : [])}
+            onOpenChat={undefined}
+            onOpenClaim={openClaimFromCargo}
+            onCustomerDetected={updateActiveAccountCustomer}
+            contextCargoNumber={contextCargoNumber}
+            onClearContextCargo={() => setContextCargoNumber(null)}
+            roleCustomer={
+              showDashboard
+                ? (activeAccount?.isRegisteredUser ? true : (activeAccount?.roleCustomer ?? true))
+                : (activeAccount?.roleCustomer ?? true)
+            }
+            roleSender={activeAccount?.roleSender ?? true}
+            roleReceiver={activeAccount?.roleReceiver ?? true}
+            showSums={activeAccount?.financialAccess ?? true}
+            CargoDetailsModal={CargoDetailsModal}
+          />
+        </Suspense>
         </SectionBoundary>
       )}
 
