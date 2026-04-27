@@ -40,6 +40,8 @@ export type CargoDetailsModalProps = {
 };
 
 export type CargoPageProps = {
+    /** Стиль «SaaS analytics» для агрегатов и каркаса — только при праве служебного режима (передаётся из App). */
+    cargoServiceSaasUi?: boolean;
     /** Один или несколько аккаунтов — перевозки объединяются */
     auths: AuthData[];
     searchText?: string;
@@ -59,6 +61,7 @@ export type CargoPageProps = {
 };
 
 export function CargoPage({
+    cargoServiceSaasUi = false,
     auths,
     searchText,
     onOpenChat,
@@ -297,13 +300,14 @@ export function CargoPage({
         return sortGroupedByCustomer(groupedByCustomer, tableSortColumn, tableSortOrder, stripOoo);
     }, [groupedByCustomer, tableSortColumn, tableSortOrder]);
 
-useEffect(() => {
-    if (!tableModeByCustomer || sortedGroupedByCustomer.length === 0) return;
-    setExpandedTableCustomer((prev) => {
-        if (prev && sortedGroupedByCustomer.some((row) => row.customer === prev)) return prev;
-        return sortedGroupedByCustomer[0]?.customer ?? null;
-    });
-}, [tableModeByCustomer, sortedGroupedByCustomer]);
+    /** Не разворачиваем первого заказчика по умолчанию — только сохраняем выбор, если строка ещё в выборке */
+    useEffect(() => {
+        if (!tableModeByCustomer || sortedGroupedByCustomer.length === 0) return;
+        setExpandedTableCustomer((prev) => {
+            if (!prev) return null;
+            return sortedGroupedByCustomer.some((row) => row.customer === prev) ? prev : null;
+        });
+    }, [tableModeByCustomer, sortedGroupedByCustomer]);
 
     const handleTableSort = (column: typeof tableSortColumn) => {
         if (tableSortColumn === column) {
@@ -389,8 +393,10 @@ useEffect(() => {
         alert(text);
     }, [primaryAuth, effectiveServiceMode]);
 
+    const rootShellClass = cargoServiceSaasUi ? "cargo-page-root cargo-page-root--saas-analytics" : "cargo-page-root";
+
     return (
-        <div className="w-full">
+        <div className={`w-full ${rootShellClass}`}>
             <div className="cargo-page-sticky-header">
             <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <Typography.Headline style={{ fontSize: '1.25rem' }}>Грузы</Typography.Headline>
@@ -619,7 +625,12 @@ useEffect(() => {
                 </div>
             </div>
 
-            <CargoSummaryCard summary={summary} showSums={showSums} useServiceRequest={effectiveServiceMode} />
+            <CargoSummaryCard
+                summary={summary}
+                showSums={showSums}
+                useServiceRequest={effectiveServiceMode}
+                saasAnalytics={cargoServiceSaasUi}
+            />
             </div>
 
             <CargoStateBlocks

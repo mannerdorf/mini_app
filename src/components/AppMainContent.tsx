@@ -221,6 +221,10 @@ export function AppMainContent({
         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
           <CargoPage
             auths={selectedAuths.length > 0 ? selectedAuths : (auth ? [auth] : [])}
+            cargoServiceSaasUi={
+              !!activeAccount?.isRegisteredUser &&
+              !!(activeAccount?.permissions?.service_mode || activeAccount?.accessAllInns)
+            }
             onOpenChat={undefined}
             onOpenClaim={openClaimFromCargo}
             onCustomerDetected={updateActiveAccountCustomer}

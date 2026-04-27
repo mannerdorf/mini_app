@@ -1189,6 +1189,81 @@ body {
     .summary-metrics { display: grid; grid-template-columns: repeat(3, 1fr); justify-items: center; }
 }
 
+/**
+ * Грузы — визуал «SaaS analytics» (как на uupm.cc/demo/saas-analytics-dashboard).
+ * Только для аккаунтов с правом служебного режима: класс вешается из AppMainContent.
+ */
+.cargo-page-root--saas-analytics {
+    padding-bottom: 0.35rem;
+    border-radius: 18px;
+    background: linear-gradient(165deg, rgba(248, 250, 252, 0.97) 0%, rgba(241, 245, 249, 0.55) 42%, rgba(238, 242, 255, 0.35) 100%);
+}
+
+/* Карточка фильтров + заголовок — белая «панель» с лёгкой тенью */
+.cargo-page-root--saas-analytics .cargo-page-sticky-header {
+    background: var(--color-bg-card);
+    border-radius: 14px;
+    padding: 0.85rem 0.95rem 0.95rem;
+    margin-bottom: 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.05),
+        0 12px 40px rgba(15, 23, 42, 0.06);
+}
+
+/* KPI-блок: сетка отдельных плиток вместо одной полосы */
+.cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi.cargo-card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0.35rem 0 0.85rem !important;
+}
+
+.cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+    gap: 0.55rem;
+    max-width: 100%;
+    width: 100%;
+    align-items: stretch;
+}
+
+.cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics > div {
+    position: relative;
+    padding: 0.62rem 0.45rem;
+    border-radius: 12px;
+    background: var(--color-bg-card);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+}
+
+.cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics > div::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #2563eb, #6366f1, #0ea5e9);
+    opacity: 0.88;
+}
+
+/* Таблица по заказчикам и карточки списка — те же скругления и тень */
+.cargo-page-root--saas-analytics .cargo-table-offset-desktop > .cargo-card,
+.cargo-page-root--saas-analytics .cargo-cards-offset-desktop .cargo-list-item {
+    border-radius: 14px !important;
+    border: 1px solid rgba(148, 163, 184, 0.2) !important;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cargo-page-root--saas-analytics .cargo-page-sticky-header,
+    .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics > div {
+        box-shadow: none;
+    }
+}
+
 /* Монитор SLA — компактнее на телефоне */
 @media (max-width: 640px) {
     .sla-monitor-panel {

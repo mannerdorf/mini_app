@@ -2962,19 +2962,6 @@ export function DashboardPage({
             </div>
             )}
 
-            {canAccessHaulzDispatch && onOpenCargo && (
-                <HaulzDispatchSummary
-                    auth={auth}
-                    useServiceRequest={useServiceRequest}
-                    onOpenCargo={onOpenCargo}
-                    perevozkiItems={items}
-                    perevozkiLoading={loading}
-                    perevozkiError={error}
-                    perevozkiMutate={mutatePerevozki}
-                    showRefreshButton
-                />
-            )}
-
             <DashboardMotionGroup enabled={dashboardMotionEnabled}>
             {/* === ВИДЖЕТ 2: Полоска с периодом и типом графика (включить: WIDGET_2_STRIP = true) === */}
             {WIDGET_2_STRIP && showSums && (
@@ -5082,6 +5069,22 @@ export function DashboardPage({
 
             </DashboardMotionItem>
             </DashboardMotionGroup>
+
+            {/* Выдача грузов (HAULZ): карточки статусов + таблица по заказчикам — второй экран после основной аналитики */}
+            {canAccessHaulzDispatch && onOpenCargo && (
+                <div id="haulz-dispatch-dashboard" style={{ marginTop: "0.25rem" }}>
+                    <HaulzDispatchSummary
+                        auth={auth}
+                        useServiceRequest={useServiceRequest}
+                        onOpenCargo={onOpenCargo}
+                        perevozkiItems={items}
+                        perevozkiLoading={loading}
+                        perevozkiError={error}
+                        perevozkiMutate={mutatePerevozki}
+                        showRefreshButton
+                    />
+                </div>
+            )}
 
             {/* === ВИДЖЕТ 5: Платёжный календарь (включить: WIDGET_5_PAYMENT_CALENDAR = true) === */}
             {false && WIDGET_5_PAYMENT_CALENDAR && showPaymentCalendar && !loading && !error && (

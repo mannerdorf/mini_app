@@ -16,69 +16,65 @@ type CargoSummaryCardProps = {
   summary: CargoSummary;
   showSums: boolean;
   useServiceRequest: boolean;
+  /** Визуал KPI-карточек в духе SaaS analytics (только служебный режим в приложении). */
+  saasAnalytics?: boolean;
 };
 
 export function CargoSummaryCard({
   summary,
   showSums,
   useServiceRequest,
+  saasAnalytics = false,
 }: CargoSummaryCardProps) {
+  const mkLabelStyle = (): React.CSSProperties =>
+    saasAnalytics
+      ? {
+          fontSize: "0.68rem",
+          fontWeight: 600,
+          color: "var(--color-text-secondary)",
+          letterSpacing: "0.04em",
+          opacity: 0.92,
+        }
+      : { fontSize: "0.75rem", color: "var(--color-text-secondary)" };
+  const mkValueStyle = (): React.CSSProperties =>
+    saasAnalytics
+      ? {
+          fontWeight: 700,
+          fontSize: "1.06rem",
+          letterSpacing: "-0.02em",
+          color: "var(--color-text-primary)",
+        }
+      : { fontWeight: 600, fontSize: "0.9rem" };
+
   return (
-    <div className="cargo-card cargo-summary-totals mb-4" style={{ padding: "0.95rem 0.85rem 0.85rem", marginBottom: "0.85rem" }}>
+    <div
+      className={`cargo-card cargo-summary-totals mb-4${saasAnalytics ? " cargo-summary-totals--saas-kpi" : ""}`}
+      style={{ padding: "0.95rem 0.85rem 0.85rem", marginBottom: "0.85rem" }}
+    >
       <div className="summary-metrics">
         {showSums && (
           <Flex direction="column" align="center">
-            <Typography.Label
-              style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}
-            >
-              Сумма
-            </Typography.Label>
-            <Typography.Body style={{ fontWeight: 600, fontSize: "0.9rem" }}>
-              {formatCurrency(summary.sum, true)}
-            </Typography.Body>
+            <Typography.Label style={mkLabelStyle()}>Сумма</Typography.Label>
+            <Typography.Body style={mkValueStyle()}>{formatCurrency(summary.sum, true)}</Typography.Body>
           </Flex>
         )}
         <Flex direction="column" align="center">
-          <Typography.Label
-            style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}
-          >
-            Мест
-          </Typography.Label>
-          <Typography.Body style={{ fontWeight: 600, fontSize: "0.9rem" }}>
-            {Math.round(summary.mest)}
-          </Typography.Body>
+          <Typography.Label style={mkLabelStyle()}>Мест</Typography.Label>
+          <Typography.Body style={mkValueStyle()}>{Math.round(summary.mest)}</Typography.Body>
         </Flex>
         <Flex direction="column" align="center">
-          <Typography.Label
-            style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}
-          >
-            Плат. вес
-          </Typography.Label>
-          <Typography.Body style={{ fontWeight: 600, fontSize: "0.9rem" }}>
-            {Math.round(summary.pw)} кг
-          </Typography.Body>
+          <Typography.Label style={mkLabelStyle()}>Плат. вес</Typography.Label>
+          <Typography.Body style={mkValueStyle()}>{Math.round(summary.pw)} кг</Typography.Body>
         </Flex>
         {useServiceRequest && (
           <>
             <Flex direction="column" align="center">
-              <Typography.Label
-                style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}
-              >
-                Вес
-              </Typography.Label>
-              <Typography.Body style={{ fontWeight: 600, fontSize: "0.9rem" }}>
-                {Math.round(summary.w)} кг
-              </Typography.Body>
+              <Typography.Label style={mkLabelStyle()}>Вес</Typography.Label>
+              <Typography.Body style={mkValueStyle()}>{Math.round(summary.w)} кг</Typography.Body>
             </Flex>
             <Flex direction="column" align="center">
-              <Typography.Label
-                style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}
-              >
-                Объём
-              </Typography.Label>
-              <Typography.Body style={{ fontWeight: 600, fontSize: "0.9rem" }}>
-                {Math.round(summary.vol)} м³
-              </Typography.Body>
+              <Typography.Label style={mkLabelStyle()}>Объём</Typography.Label>
+              <Typography.Body style={mkValueStyle()}>{Math.round(summary.vol)} м³</Typography.Body>
             </Flex>
           </>
         )}
