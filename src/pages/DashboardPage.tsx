@@ -31,6 +31,7 @@ import { HaulzDispatchSummary } from "../components/HaulzDispatchSummary";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
 import { getWebApp, isMaxWebApp } from "../webApp";
 import type { AuthData, CargoItem, DateFilter, PerevozkaTimelineStep, StatusFilter } from "../types";
+import { cargoSummaryMotion } from "./cargoMotion";
 
 const {
     DEFAULT_DATE_FROM,
@@ -2765,9 +2766,10 @@ export function DashboardPage({
     }
 
     return (
-        <div className="w-full dashboard-page-offset">
+        <div className={`w-full dashboard-page-offset${saasDashboardMotion ? " dashboard-page--saas-analytics" : ""}`}>
             {/* === ВИДЖЕТ 1: Фильтры (включить: WIDGET_1_FILTERS = true) === */}
             {WIDGET_1_FILTERS && (
+            <motion.div {...(dashboardMotionEnabled ? cargoSummaryMotion : { initial: false })}>
             <div className="cargo-page-sticky-header dashboard-sticky-filters" style={{ marginBottom: 0 }}>
             <div className="filters-container filters-row-scroll">
                 <div className="filter-group" style={{ flexShrink: 0 }}>
@@ -2960,6 +2962,7 @@ export function DashboardPage({
                 </div>
             </div>
             </div>
+            </motion.div>
             )}
 
             <DashboardMotionGroup enabled={dashboardMotionEnabled}>

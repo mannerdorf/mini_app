@@ -253,10 +253,8 @@ export default function App() {
         return accounts.find(acc => acc.id === activeAccountId) || null;
     }, [accounts, activeAccountId]);
 
-    const profileSaasShellActive = useMemo(
-        () => activeAccount?.isSuperAdmin === true || activeAccount?.permissions?.haulz === true,
-        [activeAccount?.isSuperAdmin, activeAccount?.permissions?.haulz],
-    );
+    /** Оболочка HAULZ Analytics (CSS-токены, motion на главных экранах) — для всех пользователей. */
+    const profileSaasShellActive = true;
 
     /** Аккаунты для отображения перевозок (один или несколько). У сотрудников без доступа ко всем заказчикам всегда передаём ИНН — фильтрация по компании. */
     const selectedAuths = useMemo((): AuthData[] => {

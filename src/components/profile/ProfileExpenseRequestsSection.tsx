@@ -28,7 +28,11 @@ export function ProfileExpenseRequestsSection({ activeAccount, onBack }: Props) 
                 </Button>
                 <Typography.Headline style={{ fontSize: "1.25rem" }}>Заявки на расходы</Typography.Headline>
             </Flex>
-            <ExpenseRequestsPage auth={auth} departmentName={activeAccount?.customer ?? "Моё подразделение"} />
+            <ExpenseRequestsPage
+                auth={auth}
+                departmentName={activeAccount?.customer ?? "Моё подразделение"}
+                saasAnalyticsShell
+            />
         </div>
     );
 }

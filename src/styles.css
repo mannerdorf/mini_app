@@ -963,6 +963,48 @@ body {
     margin-top: 2.5cm;
 }
 
+/**
+ * Главная (дашборд) — визуал «SaaS analytics» при saasDashboardMotion (включён для всех).
+ */
+.dashboard-page--saas-analytics {
+    padding-bottom: 0.35rem;
+    border-radius: 18px;
+    background: linear-gradient(165deg, rgba(248, 250, 252, 0.97) 0%, rgba(241, 245, 249, 0.55) 42%, rgba(238, 242, 255, 0.35) 100%);
+}
+
+.dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters {
+    background: var(--color-bg-card);
+    border-radius: 14px;
+    padding: 0.85rem 0.95rem 0.95rem;
+    margin-bottom: 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.05),
+        0 12px 40px rgba(15, 23, 42, 0.06);
+}
+
+.dashboard-page--saas-analytics .filters-container {
+    margin-bottom: 0;
+}
+
+.dashboard-page--saas-analytics .home-strip {
+    border-radius: 14px !important;
+    border: 1px solid rgba(148, 163, 184, 0.2) !important;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
+}
+
+.dashboard-page--saas-analytics .cargo-card:not(.profile-saas-row-card) {
+    border-radius: 14px !important;
+    border: 1px solid rgba(148, 163, 184, 0.2) !important;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters {
+        box-shadow: none;
+    }
+}
+
 /* Контент раздела Договоры/Тарифы — отступ сверху, чтобы первая строка не перекрывалась липким хедером при скролле */
 .doc-section-content {
     padding-top: 5rem; /* ~80px — буфер, чтобы первая строка не перекрывалась липким хедером */
@@ -1260,6 +1302,192 @@ body {
 @media (prefers-reduced-motion: reduce) {
     .cargo-page-root--saas-analytics .cargo-page-sticky-header,
     .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics > div {
+        box-shadow: none;
+    }
+}
+
+/**
+ * Документы — визуал «SaaS analytics» (как у «Грузов»); класс включается из App для всех.
+ */
+.documents-page--saas-analytics {
+    padding-bottom: 0.35rem;
+    border-radius: 18px;
+    background: linear-gradient(165deg, rgba(248, 250, 252, 0.97) 0%, rgba(241, 245, 249, 0.55) 42%, rgba(238, 242, 255, 0.35) 100%);
+}
+
+.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
+    background: var(--color-bg-card);
+    border-radius: 14px;
+    padding: 0.85rem 0.95rem 0.95rem;
+    margin-bottom: 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.05),
+        0 12px 40px rgba(15, 23, 42, 0.06);
+}
+
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi.documents-summary-card.cargo-card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0.35rem 0 0.85rem !important;
+}
+
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+    gap: 0.55rem;
+    max-width: 100%;
+    width: 100%;
+    align-items: stretch;
+}
+
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div {
+    position: relative;
+    padding: 0.62rem 0.45rem;
+    border-radius: 12px;
+    background: var(--color-bg-card);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+}
+
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #2563eb, #6366f1, #0ea5e9);
+    opacity: 0.88;
+}
+
+.documents-page--saas-analytics .documents-table-offset-desktop > .cargo-card,
+.documents-page--saas-analytics .documents-cards-offset-desktop .cargo-list > .cargo-card {
+    border-radius: 14px !important;
+    border: 1px solid rgba(148, 163, 184, 0.2) !important;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header,
+    .documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div {
+        box-shadow: none;
+    }
+}
+
+@media (min-width: 769px) {
+    .documents-page--saas-analytics .documents-table-offset-desktop,
+    .documents-page--saas-analytics .documents-cards-offset-desktop {
+        margin-top: 2cm;
+    }
+}
+
+/* Документы — табличные разделы (тарифы, акты сверок, договоры, претензии и т.д.) */
+.documents-page--saas-analytics .doc-section-content {
+    padding-left: 0.15rem;
+    padding-right: 0.15rem;
+}
+
+.documents-page--saas-analytics .doc-section-table-wrap {
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+    background: var(--color-bg-card);
+}
+
+.documents-page--saas-analytics .doc-contracts-table-offset-desktop .doc-section-table-wrap {
+    border-radius: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .documents-page--saas-analytics .doc-section-table-wrap {
+        box-shadow: none;
+    }
+}
+
+/* Заявки на расходы и Wildberries — холст при SaaS-оболочке приложения */
+.profile-saas-shell .expense-requests-shell {
+    padding: 0.85rem 1rem 1.25rem;
+    border-radius: 18px;
+    background: linear-gradient(165deg, rgba(248, 250, 252, 0.97) 0%, rgba(241, 245, 249, 0.55) 42%, rgba(238, 242, 255, 0.35) 100%);
+}
+
+.profile-saas-shell .wb-page.wb-page--saas-analytics-shell {
+    padding: 0.85rem 1rem 1.25rem;
+    border-radius: 18px;
+    background: linear-gradient(165deg, rgba(248, 250, 252, 0.97) 0%, rgba(241, 245, 249, 0.55) 42%, rgba(238, 242, 255, 0.35) 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .profile-saas-shell .expense-requests-shell,
+    .profile-saas-shell .wb-page.wb-page--saas-analytics-shell {
+        box-shadow: none;
+    }
+}
+
+/* CMS /admin — холст SaaS analytics (standalone, корень — .light-mode.admin-page-root) */
+.admin-page-root.admin-page-root--saas-analytics {
+    --saas-color-primary: #2563eb;
+    --saas-color-primary-soft: rgba(37, 99, 235, 0.12);
+    --radius-md: 16px;
+    --radius-lg: 18px;
+    box-sizing: border-box;
+    padding: 0.85rem 1rem 1.25rem;
+    border-radius: 18px;
+    background: linear-gradient(165deg, rgba(248, 250, 252, 0.97) 0%, rgba(241, 245, 249, 0.55) 42%, rgba(238, 242, 255, 0.35) 100%);
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.05),
+        0 22px 50px -20px rgba(15, 23, 42, 0.1);
+}
+
+.admin-page-root--saas-analytics .cargo-card {
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(15, 23, 42, 0.07);
+    box-shadow:
+        0 22px 50px -20px rgba(15, 23, 42, 0.12),
+        0 10px 24px -12px rgba(15, 23, 42, 0.08),
+        0 0 0 1px rgba(15, 23, 42, 0.03);
+    transition:
+        border-color 0.22s ease,
+        box-shadow 0.22s ease,
+        transform 0.18s ease;
+}
+
+.admin-page-root--saas-analytics .cargo-card:hover {
+    border-color: color-mix(in srgb, rgba(15, 23, 42, 0.07) 55%, var(--saas-color-primary) 45%);
+    box-shadow:
+        0 28px 64px -18px rgba(15, 23, 42, 0.16),
+        0 14px 32px -10px rgba(15, 23, 42, 0.1),
+        0 0 0 1px rgba(37, 99, 235, 0.06);
+    transform: translateY(-2px);
+}
+
+.admin-page-root--saas-analytics .button-primary {
+    background-color: var(--saas-color-primary);
+    border-radius: var(--radius-md);
+}
+
+.admin-page-root--saas-analytics .button-primary:hover:not(:disabled) {
+    background-color: #1d4ed8;
+    opacity: 1;
+}
+
+.admin-page-root--saas-analytics .filter-button {
+    border-radius: var(--radius-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .admin-page-root--saas-analytics .cargo-card {
+        transition: none;
+    }
+
+    .admin-page-root--saas-analytics .cargo-card:hover {
+        transform: none;
+    }
+
+    .admin-page-root.admin-page-root--saas-analytics {
         box-shadow: none;
     }
 }
@@ -2908,6 +3136,27 @@ body {
 .profile-saas-shell .profile-saas-layout {
     max-width: 50rem;
     gap: 28px;
+}
+
+/* Профиль — холст в духе SaaS analytics (рядом с «Документами»), только при profile-saas-shell */
+.profile-saas-shell .profile-saas-layout--analytics {
+    padding: 0.85rem 1rem 1.25rem;
+    border-radius: 18px;
+    background: linear-gradient(165deg, rgba(17, 24, 39, 0.94) 0%, rgba(15, 23, 42, 0.78) 45%, rgba(30, 41, 59, 0.48) 100%);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.light-mode .profile-saas-shell .profile-saas-layout--analytics {
+    background: linear-gradient(165deg, rgba(248, 250, 252, 0.97) 0%, rgba(241, 245, 249, 0.55) 42%, rgba(238, 242, 255, 0.35) 100%);
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.05),
+        0 12px 40px rgba(15, 23, 42, 0.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .profile-saas-shell .profile-saas-layout--analytics {
+        box-shadow: none;
+    }
 }
 
 .profile-saas-page-header {

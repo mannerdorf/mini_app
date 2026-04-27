@@ -14,6 +14,8 @@ type ImportMode = "append" | "upsert";
 type Props = {
   auth: AuthData;
   canUpload: boolean;
+  /** SaaS analytics shell (градиентный фон при активном профиле HAULZ Analytics). */
+  saasAnalyticsShell?: boolean;
 };
 
 type ColumnDef = { key: string; label: string };
@@ -916,7 +918,7 @@ function inboundDetailCacheKey(inventoryNumber: string, f: WbInboundListFilters)
   return `${inv}\x1f${sig}`;
 }
 
-export function WildberriesPage({ auth, canUpload }: Props) {
+export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }: Props) {
   const [activeTab, setActiveTab] = useState<WbTab>("inbound");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1939,7 +1941,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
-    <div className="wb-page">
+    <div className={`wb-page${saasAnalyticsShell ? " wb-page--saas-analytics-shell" : ""}`}>
       <Panel className="wb-panel" mode="secondary">
         <div className="wb-panel-tabs-section">
         <div className="wb-tabs">

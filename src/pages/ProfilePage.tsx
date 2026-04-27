@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import {
     LogOut, Loader2, Check, Moon, Sun, Eye, EyeOff, User as UserIcon, Users, ChevronDown,
     Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MessageCircle, FileText, LayoutGrid, Mic, Receipt,
@@ -26,6 +27,7 @@ import { ProfileRolesSection } from "../components/profile/ProfileRolesSection";
 import { ProfileHaulzSection } from "../components/profile/ProfileHaulzSection";
 import { ProfileParcelScannerSection } from "../components/profile/ProfileParcelScannerSection";
 import { ProfileExpenseRequestsSection } from "../components/profile/ProfileExpenseRequestsSection";
+import { cargoListContainerVariants, cargoListItemVariants, cargoSummaryMotion } from "./cargoMotion";
 
 export function ProfilePage({
     accounts,
@@ -67,6 +69,9 @@ export function ProfilePage({
 }) {
     const [currentView, setCurrentView] = useState<ProfileView>('main');
     const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
+    const prefersReducedMotion = useReducedMotion();
+    const profileMotionEnabled = prefersReducedMotion !== true;
+    const shellMotion = profileSaasShellActive && profileMotionEnabled;
     useEffect(() => {
         if (aisOpenWithMmsi) {
             setCurrentView('ais');
@@ -2984,105 +2989,157 @@ export function ProfilePage({
     }
 
     return (
-        <div className={profileSaasShellActive ? "w-full profile-saas-layout" : "w-full"}>
-            <header className={profileSaasShellActive ? "profile-saas-page-header" : "profile-saas-page-header profile-saas-page-header--legacy"}>
-                <div className="profile-saas-page-header-text">
-                    <h1 className="profile-saas-h1">Профиль</h1>
-                    {activeAccount ? (
-                        <p className="profile-saas-caption">
-                            {activeAccount.customer?.trim() || activeAccount.login || "Аккаунт"}
-                        </p>
-                    ) : (
-                        <p className="profile-saas-caption">Выберите компанию в шапке</p>
-                    )}
-                </div>
-            </header>
+        <div className={profileSaasShellActive ? "w-full profile-saas-layout profile-saas-layout--analytics" : "w-full"}>
+            <motion.div {...(shellMotion ? cargoSummaryMotion : { initial: false })}>
+                <header className={profileSaasShellActive ? "profile-saas-page-header" : "profile-saas-page-header profile-saas-page-header--legacy"}>
+                    <div className="profile-saas-page-header-text">
+                        <h1 className="profile-saas-h1">Профиль</h1>
+                        {activeAccount ? (
+                            <p className="profile-saas-caption">
+                                {activeAccount.customer?.trim() || activeAccount.login || "Аккаунт"}
+                            </p>
+                        ) : (
+                            <p className="profile-saas-caption">Выберите компанию в шапке</p>
+                        )}
+                    </div>
+                </header>
+            </motion.div>
 
             {/* Настройки */}
             <section className="profile-saas-section" aria-labelledby="profile-settings-heading">
-                <h2 id="profile-settings-heading" className="profile-saas-h2">
+                <motion.h2
+                    id="profile-settings-heading"
+                    className="profile-saas-h2"
+                    {...(shellMotion ? cargoSummaryMotion : { initial: false })}
+                >
                     Настройки
-                </h2>
-                <div className="profile-saas-stack">
-                    {settingsItems
-                        .map((item) => (
-                        <Panel
+                </motion.h2>
+                <motion.div
+                    className="profile-saas-stack"
+                    variants={shellMotion ? cargoListContainerVariants : undefined}
+                    initial={shellMotion ? "hidden" : false}
+                    animate={shellMotion ? "visible" : undefined}
+                >
+                    {settingsItems.map((item) => (
+                        <motion.div
                             key={item.id}
-                            className="cargo-card profile-saas-row-card"
-                            onClick={item.onClick}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                padding: '1rem',
-                                cursor: 'pointer'
-                            }}
+                            variants={shellMotion ? cargoListItemVariants : undefined}
+                            initial={shellMotion ? "hidden" : false}
+                            animate={shellMotion ? "visible" : undefined}
                         >
-                            <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
-                                <div className="profile-saas-row-icon">{item.icon}</div>
-                                <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>{item.label}</Typography.Body>
-                            </Flex>
-                        </Panel>
+                            <Panel
+                                className="cargo-card profile-saas-row-card"
+                                onClick={item.onClick}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    padding: '1rem',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
+                                    <div className="profile-saas-row-icon">{item.icon}</div>
+                                    <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>{item.label}</Typography.Body>
+                                </Flex>
+                            </Panel>
+                        </motion.div>
                     ))}
-                </div>
+                </motion.div>
             </section>
 
             {/* Безопасность */}
             <section className="profile-saas-section" aria-labelledby="profile-security-heading">
-                <h2 id="profile-security-heading" className="profile-saas-h2">
+                <motion.h2
+                    id="profile-security-heading"
+                    className="profile-saas-h2"
+                    {...(shellMotion ? cargoSummaryMotion : { initial: false })}
+                >
                     Безопасность
-                </h2>
-                <div className="profile-saas-stack">
+                </motion.h2>
+                <motion.div
+                    className="profile-saas-stack"
+                    variants={shellMotion ? cargoListContainerVariants : undefined}
+                    initial={shellMotion ? "hidden" : false}
+                    animate={shellMotion ? "visible" : undefined}
+                >
                     {/* 2FA — переход на отдельную страницу */}
                     {activeAccountId && activeAccount && (
-                        <Panel
-                            className="cargo-card profile-saas-row-card"
-                            onClick={() => setCurrentView('2fa')}
-                            style={{ display: 'flex', alignItems: 'center', padding: '1rem', cursor: 'pointer' }}
+                        <motion.div
+                            variants={shellMotion ? cargoListItemVariants : undefined}
+                            initial={shellMotion ? "hidden" : false}
+                            animate={shellMotion ? "visible" : undefined}
                         >
-                            <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
-                                <div className="profile-saas-row-icon">
-                                    <Shield className="w-5 h-5" />
-                                </div>
-                                <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>Двухфакторная аутентификация (2FA)</Typography.Body>
-                            </Flex>
-                        </Panel>
+                            <Panel
+                                className="cargo-card profile-saas-row-card"
+                                onClick={() => setCurrentView('2fa')}
+                                style={{ display: 'flex', alignItems: 'center', padding: '1rem', cursor: 'pointer' }}
+                            >
+                                <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
+                                    <div className="profile-saas-row-icon">
+                                        <Shield className="w-5 h-5" />
+                                    </div>
+                                    <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>Двухфакторная аутентификация (2FA)</Typography.Body>
+                                </Flex>
+                            </Panel>
+                        </motion.div>
                     )}
                     {/* Пароль — смена пароля для входа по email/паролю */}
                     {activeAccountId && activeAccount?.isRegisteredUser && activeAccount && (
-                        <ProfilePasswordSection
-                            activeAccount={activeAccount}
-                            activeAccountId={activeAccountId}
-                            onUpdateAccount={onUpdateAccount}
-                        />
+                        <motion.div
+                            variants={shellMotion ? cargoListItemVariants : undefined}
+                            initial={shellMotion ? "hidden" : false}
+                            animate={shellMotion ? "visible" : undefined}
+                        >
+                            <ProfilePasswordSection
+                                activeAccount={activeAccount}
+                                activeAccountId={activeAccountId}
+                                onUpdateAccount={onUpdateAccount}
+                            />
+                        </motion.div>
                     )}
-                </div>
+                </motion.div>
             </section>
 
             {/* Информация */}
             <section className="profile-saas-section" aria-labelledby="profile-info-heading">
-                <h2 id="profile-info-heading" className="profile-saas-h2">
+                <motion.h2
+                    id="profile-info-heading"
+                    className="profile-saas-h2"
+                    {...(shellMotion ? cargoSummaryMotion : { initial: false })}
+                >
                     Информация
-                </h2>
-                <div className="profile-saas-stack">
+                </motion.h2>
+                <motion.div
+                    className="profile-saas-stack"
+                    variants={shellMotion ? cargoListContainerVariants : undefined}
+                    initial={shellMotion ? "hidden" : false}
+                    animate={shellMotion ? "visible" : undefined}
+                >
                     {infoItems.map((item) => (
-                        <Panel
+                        <motion.div
                             key={item.id}
-                            className="cargo-card profile-saas-row-card"
-                            onClick={item.onClick}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                padding: '1rem',
-                                cursor: 'pointer'
-                            }}
+                            variants={shellMotion ? cargoListItemVariants : undefined}
+                            initial={shellMotion ? "hidden" : false}
+                            animate={shellMotion ? "visible" : undefined}
                         >
-                            <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
-                                <div className="profile-saas-row-icon">{item.icon}</div>
-                                <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>{item.label}</Typography.Body>
-                            </Flex>
-                        </Panel>
+                            <Panel
+                                className="cargo-card profile-saas-row-card"
+                                onClick={item.onClick}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    padding: '1rem',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
+                                    <div className="profile-saas-row-icon">{item.icon}</div>
+                                    <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>{item.label}</Typography.Body>
+                                </Flex>
+                            </Panel>
+                        </motion.div>
                     ))}
-                </div>
+                </motion.div>
             </section>
 
         </div>

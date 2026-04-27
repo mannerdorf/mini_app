@@ -3474,7 +3474,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const isDirectoryTab = tab === "users" || tab === "customers" || tab === "suppliers" || tab === "tariffs" || tab === "sverki" || tab === "dogovors" || tab === "ferries" || tab === "pvz" || tab === "employee_directory" || tab === "subdivisions" || tab === "presets";
 
   return (
-    <div className="light-mode w-full">
+    <div className="light-mode w-full admin-page-root admin-page-root--saas-analytics">
       <Flex align="center" justify="space-between" style={{ marginBottom: "1rem", gap: "0.75rem", flexWrap: "wrap" }}>
         <Flex align="center" gap="0.75rem">
           <Button type="button" className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }} aria-label="Назад в приложение">

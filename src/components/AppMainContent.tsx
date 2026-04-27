@@ -185,6 +185,7 @@ export function AppMainContent({
           <ExpenseRequestsPage
             auth={auth}
             departmentName={activeAccount?.customer ?? "Моё подразделение"}
+            saasAnalyticsShell={profileSaasShellActive}
           />
         </SectionBoundary>
       )}
@@ -196,6 +197,7 @@ export function AppMainContent({
             canUpload={
               activeAccount?.permissions?.cms_access === true || activeAccount?.permissions?.wb_admin === true
             }
+            saasAnalyticsShell={profileSaasShellActive}
           />
         </SectionBoundary>
       )}
@@ -211,6 +213,7 @@ export function AppMainContent({
             permissions={activeAccount?.isRegisteredUser ? activeAccount.permissions : undefined}
             showSums={activeAccount?.financialAccess ?? true}
             isSuperAdmin={activeAccount?.isSuperAdmin === true}
+            documentsServiceSaasUi={true}
           />
         </Suspense>
         </SectionBoundary>
@@ -221,10 +224,7 @@ export function AppMainContent({
         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
           <CargoPage
             auths={selectedAuths.length > 0 ? selectedAuths : (auth ? [auth] : [])}
-            cargoServiceSaasUi={
-              !!activeAccount?.isRegisteredUser &&
-              !!(activeAccount?.permissions?.service_mode || activeAccount?.accessAllInns)
-            }
+            cargoServiceSaasUi={true}
             onOpenChat={undefined}
             onOpenClaim={openClaimFromCargo}
             onCustomerDetected={updateActiveAccountCustomer}

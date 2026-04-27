@@ -93,9 +93,11 @@ type Props = {
     auth: AuthData | null;
     /** Fallback-название подразделения (используется если API не вернул). */
     departmentName?: string;
+    /** SaaS analytics shell (градиентный фон при активном профиле HAULZ Analytics). */
+    saasAnalyticsShell?: boolean;
 };
 
-export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment = "Моё подразделение" }: Props) {
+export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment = "Моё подразделение", saasAnalyticsShell = false }: Props) {
     const [docNumber, setDocNumber] = useState("");
     const [docDate, setDocDate] = useState(() => new Date().toISOString().slice(0, 10));
     const [period, setPeriod] = useState(() => {
@@ -726,7 +728,10 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     const canSubmit = categoryId && amount.trim() && parseFloat(amount.replace(",", ".")) > 0 && docNumber.trim();
 
     return (
-        <div className="w-full" style={{ padding: "1rem", paddingBottom: "5rem" }}>
+        <div
+            className={`w-full${saasAnalyticsShell ? " expense-requests-shell" : ""}`}
+            style={{ padding: "1rem", paddingBottom: "5rem" }}
+        >
             <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
                 Подразделение: {departmentLoading ? "загрузка…" : department}.{" "}
                 Укажите статью расхода, сумму, комментарий и при необходимости приложите счёт или выберите транспорт.

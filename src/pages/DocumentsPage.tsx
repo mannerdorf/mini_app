@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { ChevronDown, ArrowUp, ArrowDown, Share2, Heart, Ship, Loader2, Truck, Flag, ClipboardList, RotateCcw, Download } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
@@ -51,6 +52,14 @@ import {
     getFirstCargoNumberFromInvoice,
 } from "./documentsPipeline";
 import { DocumentsSummaryCard, DocumentsStateBlocks } from "./documentsViewBlocks";
+import {
+    cargoExpandMotionProps,
+    cargoListContainerVariants,
+    cargoListItemVariants,
+    cargoModeSwitchMotion,
+    cargoSummaryMotion,
+    cargoTableGroupRowVariants,
+} from "./cargoMotion";
 
 const INVOICE_STATUS_OPTIONS = ['Оплачен', 'Не оплачен', 'Оплачен частично'] as const;
 
@@ -316,6 +325,8 @@ const DOC_SECTION_TO_PERMISSION: Record<DocSectionKey, keyof AccountPermissions>
 
 type DocumentsPageProps = {
     auth: AuthData;
+    /** Визуал «SaaS analytics» для сводки и каркаса — как у «Грузов» (из App). */
+    documentsServiceSaasUi?: boolean;
     useServiceRequest?: boolean;
     activeInn?: string;
     searchText?: string;
@@ -332,11 +343,13 @@ type DocumentsPageProps = {
 
 export type EorStatus = 'entry_allowed' | 'full_inspection' | 'turnaround';
 
-export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, onOpenCargo, onOpenAisWithMmsi, onOpenChat, permissions, showSums = true, isSuperAdmin = false }: DocumentsPageProps) {
+export function DocumentsPage({ auth, documentsServiceSaasUi = false, useServiceRequest, activeInn, searchText, onOpenCargo, onOpenAisWithMmsi, onOpenChat, permissions, showSums = true, isSuperAdmin = false }: DocumentsPageProps) {
     const runtime = useAppRuntime();
     const effectiveServiceMode = useServiceRequest ?? runtime.useServiceRequest;
     const effectiveActiveInn = activeInn ?? runtime.activeInn;
     const effectiveSearchText = searchText ?? runtime.searchText;
+    const prefersReducedMotion = useReducedMotion();
+    const docsMotionEnabled = prefersReducedMotion !== true;
     const initDate = () => loadDateFilterState();
     const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate()?.dateFilter ?? "месяц");
     const [customDateFrom, setCustomDateFrom] = useState(() => initDate()?.customDateFrom ?? DEFAULT_DATE_FROM);
@@ -2875,7 +2888,7 @@ useEffect(() => {
     }, [auth?.login, auth?.password, ferriesList, effectiveActiveInn]);
 
     return (
-        <div className="w-full documents-page">
+        <div className={`w-full documents-page${documentsServiceSaasUi ? " documents-page--saas-analytics" : ""}`}>
             <div className="cargo-page-sticky-header documents-page-sticky-header">
                 <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Документы</Typography.Headline>
@@ -3355,14 +3368,19 @@ useEffect(() => {
             {docSection === 'Счета' && (
             <>
             {!loading && !error && filteredItems.length > 0 && (
-                <DocumentsSummaryCard
-                    sum={documentsSummary.sum}
-                    count={documentsSummary.count}
-                    showSums={showSums}
-                />
+                <motion.div {...(docsMotionEnabled ? cargoSummaryMotion : { initial: false })}>
+                    <DocumentsSummaryCard
+                        sum={documentsSummary.sum}
+                        count={documentsSummary.count}
+                        showSums={showSums}
+                        saasAnalytics={documentsServiceSaasUi}
+                    />
+                </motion.div>
             )}
             {(loading || !!error) && <DocumentsStateBlocks loading={loading} error={error} emptyText="" />}
-            {!loading && !error && tableModeEffective && sortedGroupedByCustomer.length > 0 && (
+            <AnimatePresence mode="wait">
+            {!loading && !error && tableModeEffective && sortedGroupedByCustomer.length > 0 ? (
+                <motion.div key="docs-inv-g" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
@@ -3386,7 +3404,15 @@ useEffect(() => {
                                 const rowEdoAgg = aggregateInvoiceEdoDocStats(row.items);
                                 return (
                                 <React.Fragment key={i}>
-                                    <tr style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expandedTableCustomer === row.customer ? 'var(--color-bg-hover)' : undefined }} onClick={() => setExpandedTableCustomer(prev => prev === row.customer ? null : row.customer)} title={expandedTableCustomer === row.customer ? 'Свернуть' : 'Показать счета'}>
+                                    <motion.tr
+                                        custom={i}
+                                        variants={docsMotionEnabled ? cargoTableGroupRowVariants : undefined}
+                                        initial={docsMotionEnabled ? "initial" : false}
+                                        animate={docsMotionEnabled ? "animate" : undefined}
+                                        style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expandedTableCustomer === row.customer ? 'var(--color-bg-hover)' : undefined }}
+                                        onClick={() => setExpandedTableCustomer(prev => prev === row.customer ? null : row.customer)}
+                                        title={expandedTableCustomer === row.customer ? 'Свернуть' : 'Показать счета'}
+                                    >
                                         <td style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
                                         {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>}
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
@@ -3399,11 +3425,11 @@ useEffect(() => {
                                                 {formatEdoSignedRatio(rowEdoAgg[k].signed, rowEdoAgg[k].total)}
                                             </td>
                                         ))}
-                                    </tr>
+                                    </motion.tr>
                                     {expandedTableCustomer === row.customer && (
                                         <tr key={`${i}-detail`}>
                                             <td colSpan={showSums ? 7 : 6} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
-                                                <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
+                                                <motion.div {...(docsMotionEnabled ? cargoExpandMotionProps : { initial: false })} style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                     <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                         <thead>
                                                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
@@ -3446,7 +3472,7 @@ useEffect(() => {
                                                             })}
                                                         </tbody>
                                                     </table>
-                                                </div>
+                                                </motion.div>
                                             </td>
                                         </tr>
                                     )}
@@ -3467,8 +3493,9 @@ useEffect(() => {
                         </tfoot>
                     </table>
                 </div>
-            )}
-            {!loading && !error && tableModeEffective && effectiveServiceMode && filteredItems.length > 0 && sortedGroupedByCustomer.length === 0 && (
+                </motion.div>
+            ) : !loading && !error && tableModeEffective && effectiveServiceMode && filteredItems.length > 0 && sortedGroupedByCustomer.length === 0 ? (
+                <motion.div key="docs-inv-f" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
@@ -3519,9 +3546,16 @@ useEffect(() => {
                         </tfoot>
                     </table>
                 </div>
-            )}
-            {!loading && !error && filteredItems.length > 0 && !tableModeEffective && (
-                <div className="cargo-list" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
+                </motion.div>
+            ) : !loading && !error && filteredItems.length > 0 && !tableModeEffective ? (
+                <motion.div key="docs-inv-c" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
+                <motion.div
+                    className="cargo-list"
+                    style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}
+                    variants={docsMotionEnabled ? cargoListContainerVariants : undefined}
+                    initial={docsMotionEnabled ? "hidden" : false}
+                    animate={docsMotionEnabled ? "visible" : undefined}
+                >
                     {filteredItems.map((row, idx) => {
                         const num = row.Number ?? row.number ?? row.Номер ?? row.N ?? '';
                         const dt = row.DateDoc ?? row.Date ?? row.date ?? row.Дата ?? '';
@@ -3533,7 +3567,13 @@ useEffect(() => {
                         const edo = getInvoiceBillEdoInfo(row);
                         const badgeStyle = st === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : st === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : st === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
                         return (
-                            <Panel key={num || idx} className="cargo-card" onClick={() => setSelectedInvoice(row)} style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}>
+                            <motion.div
+                                key={num || idx}
+                                variants={docsMotionEnabled ? cargoListItemVariants : undefined}
+                                initial={docsMotionEnabled ? "hidden" : false}
+                                animate={docsMotionEnabled ? "visible" : undefined}
+                            >
+                            <Panel className="cargo-card" onClick={() => setSelectedInvoice(row)} style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}>
                                 <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'visible' }}>
                                     <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '60%' }}>
                                         <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: badgeStyle.color }}>{formatInvoiceNumber(num)}</Typography.Body>
@@ -3569,10 +3609,13 @@ useEffect(() => {
                                     </Flex>
                                 )}
                             </Panel>
+                            </motion.div>
                         );
                     })}
-                </div>
-            )}
+                </motion.div>
+                </motion.div>
+            ) : null}
+            </AnimatePresence>
             {selectedInvoice && (
                 <InvoiceDetailModal
                     item={selectedInvoice}
@@ -3596,14 +3639,19 @@ useEffect(() => {
             {docSection === 'УПД' && (
             <>
             {!actsLoading && !actsError && filteredActs.length > 0 && (
-                <DocumentsSummaryCard
-                    sum={actsSummary.sum}
-                    count={actsSummary.count}
-                    showSums={showSums}
-                />
+                <motion.div {...(docsMotionEnabled ? cargoSummaryMotion : { initial: false })}>
+                    <DocumentsSummaryCard
+                        sum={actsSummary.sum}
+                        count={actsSummary.count}
+                        showSums={showSums}
+                        saasAnalytics={documentsServiceSaasUi}
+                    />
+                </motion.div>
             )}
             {(actsLoading || !!actsError) && <DocumentsStateBlocks loading={actsLoading} error={actsError} emptyText="" />}
-            {!actsLoading && !actsError && tableModeEffective && sortedGroupedActsByCustomer.length > 0 && (
+            <AnimatePresence mode="wait">
+            {!actsLoading && !actsError && tableModeEffective && sortedGroupedActsByCustomer.length > 0 ? (
+                <motion.div key="docs-act-g" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
@@ -3627,7 +3675,15 @@ useEffect(() => {
                                 const actRowEdoAgg = aggregateActsEdoDocStats(row.items, items);
                                 return (
                                 <React.Fragment key={i}>
-                                    <tr style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expandedTableActCustomer === row.customer ? 'var(--color-bg-hover)' : undefined }} onClick={() => setExpandedTableActCustomer(prev => prev === row.customer ? null : row.customer)} title={expandedTableActCustomer === row.customer ? 'Свернуть' : 'Показать УПД'}>
+                                    <motion.tr
+                                        custom={i}
+                                        variants={docsMotionEnabled ? cargoTableGroupRowVariants : undefined}
+                                        initial={docsMotionEnabled ? "initial" : false}
+                                        animate={docsMotionEnabled ? "animate" : undefined}
+                                        style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expandedTableActCustomer === row.customer ? 'var(--color-bg-hover)' : undefined }}
+                                        onClick={() => setExpandedTableActCustomer(prev => prev === row.customer ? null : row.customer)}
+                                        title={expandedTableActCustomer === row.customer ? 'Свернуть' : 'Показать УПД'}
+                                    >
                                         <td style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
                                         {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>}
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
@@ -3640,11 +3696,11 @@ useEffect(() => {
                                                 {formatEdoSignedRatio(actRowEdoAgg[k].signed, actRowEdoAgg[k].total)}
                                             </td>
                                         ))}
-                                    </tr>
+                                    </motion.tr>
                                     {expandedTableActCustomer === row.customer && (
                                         <tr key={`${i}-detail`}>
                                             <td colSpan={showSums ? 7 : 6} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
-                                                <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
+                                                <motion.div {...(docsMotionEnabled ? cargoExpandMotionProps : { initial: false })} style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                     <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                         <thead>
                                                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
@@ -3676,7 +3732,7 @@ useEffect(() => {
                                                             })}
                                                         </tbody>
                                                     </table>
-                                                </div>
+                                                </motion.div>
                                             </td>
                                         </tr>
                                     )}
@@ -3697,8 +3753,9 @@ useEffect(() => {
                         </tfoot>
                     </table>
                 </div>
-            )}
-            {!actsLoading && !actsError && tableModeEffective && effectiveServiceMode && filteredActs.length > 0 && sortedGroupedActsByCustomer.length === 0 && (
+                </motion.div>
+            ) : !actsLoading && !actsError && tableModeEffective && effectiveServiceMode && filteredActs.length > 0 && sortedGroupedActsByCustomer.length === 0 ? (
+                <motion.div key="docs-act-f" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
@@ -3732,9 +3789,16 @@ useEffect(() => {
                         </tbody>
                     </table>
                 </div>
-            )}
-            {!actsLoading && !actsError && filteredActs.length > 0 && !tableModeEffective && (
-                <div className="cargo-list" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
+                </motion.div>
+            ) : !actsLoading && !actsError && filteredActs.length > 0 && !tableModeEffective ? (
+                <motion.div key="docs-act-c" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
+                <motion.div
+                    className="cargo-list"
+                    style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}
+                    variants={docsMotionEnabled ? cargoListContainerVariants : undefined}
+                    initial={docsMotionEnabled ? "hidden" : false}
+                    animate={docsMotionEnabled ? "visible" : undefined}
+                >
                     {filteredActs.map((act: any, idx: number) => {
                         const num = act.Number ?? act.number ?? '';
                         const dateDoc = act.DateDoc ?? act.Date ?? act.date ?? '';
@@ -3743,7 +3807,13 @@ useEffect(() => {
                         const invoiceNum = act.Invoice ?? act.invoice ?? '';
                         const updEdo = getActUpdEdoInfo(act, items);
                         return (
-                            <Panel key={num || idx} className="cargo-card" onClick={() => setSelectedAct(act)} style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}>
+                            <motion.div
+                                key={num || idx}
+                                variants={docsMotionEnabled ? cargoListItemVariants : undefined}
+                                initial={docsMotionEnabled ? "hidden" : false}
+                                animate={docsMotionEnabled ? "visible" : undefined}
+                            >
+                            <Panel className="cargo-card" onClick={() => setSelectedAct(act)} style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}>
                                 <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'visible' }}>
                                     <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '60%' }}>
                                         <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{formatInvoiceNumber(String(num))}</Typography.Body>
@@ -3791,10 +3861,13 @@ useEffect(() => {
                                     )}
                                 </Flex>
                             </Panel>
+                            </motion.div>
                         );
                     })}
-                </div>
-            )}
+                </motion.div>
+                </motion.div>
+            ) : null}
+            </AnimatePresence>
             {!actsLoading && !actsError && filteredActs.length === 0 && (
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет УПД за выбранный период</Typography.Body>
             )}
@@ -3845,7 +3918,9 @@ useEffect(() => {
                 }}
             />
             {(ordersLoading || !!ordersError) && <DocumentsStateBlocks loading={ordersLoading} error={ordersError} emptyText="" />}
-            {!ordersLoading && !ordersError && tableModeEffective && orderRowsSorted.length > 0 && (
+            <AnimatePresence mode="wait">
+            {!ordersLoading && !ordersError && tableModeEffective && orderRowsSorted.length > 0 ? (
+                <motion.div key="docs-orders-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                 <div className="cargo-card documents-zayavki-below-new-order" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
@@ -4066,9 +4141,15 @@ useEffect(() => {
                         </tbody>
                     </table>
                 </div>
-            )}
-            {!ordersLoading && !ordersError && !tableModeEffective && orderRowsSorted.length > 0 && (
-                <div className="cargo-list documents-zayavki-below-new-order">
+                </motion.div>
+            ) : !ordersLoading && !ordersError && !tableModeEffective && orderRowsSorted.length > 0 ? (
+                <motion.div key="docs-orders-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
+                <motion.div
+                    className="cargo-list documents-zayavki-below-new-order"
+                    variants={docsMotionEnabled ? cargoListContainerVariants : undefined}
+                    initial={docsMotionEnabled ? "hidden" : false}
+                    animate={docsMotionEnabled ? "visible" : undefined}
+                >
                     {orderRowsSorted.map((row: any, idx: number) => {
                         const rawDate = row?.Дата ?? row?.DateZayavki ?? row?.Date ?? row?.date ?? '';
                         const requestNumber = String(row?.НомерЗаявки ?? row?.Номер ?? row?.Number ?? row?.number ?? row?.N ?? '');
@@ -4097,8 +4178,13 @@ useEffect(() => {
                         const rowKey = `${requestNumber || 'row'}-${cargoNumber || idx}`;
                         const expanded = expandedOrderRow === rowKey;
                         return (
-                            <Panel
+                            <motion.div
                                 key={rowKey}
+                                variants={docsMotionEnabled ? cargoListItemVariants : undefined}
+                                initial={docsMotionEnabled ? "hidden" : false}
+                                animate={docsMotionEnabled ? "visible" : undefined}
+                            >
+                            <Panel
                                 className="cargo-card"
                                 onClick={() => setExpandedOrderRow((prev) => (prev === rowKey ? null : rowKey))}
                                 style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}
@@ -4193,10 +4279,13 @@ useEffect(() => {
                                     </div>
                                 )}
                             </Panel>
+                            </motion.div>
                         );
                     })}
-                </div>
-            )}
+                </motion.div>
+                </motion.div>
+            ) : null}
+            </AnimatePresence>
             {!ordersLoading && !ordersError && orderRowsSorted.length === 0 && (
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет заявок за выбранный период</Typography.Body>
             )}
@@ -4369,7 +4458,9 @@ useEffect(() => {
                         )}
                     </div>
                 )}
-                {tableModeEffective && (
+                <AnimatePresence mode="wait">
+                {tableModeEffective ? (
+                <motion.div key="docs-send-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
@@ -5334,8 +5425,9 @@ useEffect(() => {
                         </tbody>
                     </table>
                 </div>
-                )}
-                {!tableModeEffective && (
+                </motion.div>
+                ) : (
+                <motion.div key="docs-send-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                     <div className="cargo-list" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
                         {canEditPlanDate && (
                             <div className="cargo-card" style={{ padding: '0.6rem 0.75rem', marginBottom: '0.5rem', overflow: 'visible' }}>
@@ -5621,7 +5713,9 @@ useEffect(() => {
                             );
                         })}
                     </div>
+                </motion.div>
                 )}
+                </AnimatePresence>
                 </>
             )}
             {!sendingsLoading && !sendingsError && sendingRowsSorted.length === 0 && (
@@ -5638,7 +5732,10 @@ useEffect(() => {
                         </Flex>
                     ) : filteredTariffs.length === 0 ? (
                         <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по тарифам</Typography.Body>
-                    ) : tableModeEffective ? (
+                    ) : (
+                        <AnimatePresence mode="wait">
+                        {tableModeEffective ? (
+                        <motion.div key="docs-tariffs-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                         <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
                             <table className="doc-tariffs-table doc-table-header-inline" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                 <thead>
@@ -5753,7 +5850,9 @@ useEffect(() => {
                                 </tbody>
                             </table>
                         </div>
-                    ) : (
+                        </motion.div>
+                        ) : (
+                        <motion.div key="docs-tariffs-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                         <div className="cargo-list">
                             {filteredTariffs.map((t) => {
                                 const favorite = isDocFavorite('tariffs', t.id);
@@ -5821,6 +5920,9 @@ useEffect(() => {
                                 );
                             })}
                         </div>
+                        </motion.div>
+                        )}
+                        </AnimatePresence>
                     )}
                 </div>
             )}
@@ -5868,7 +5970,10 @@ useEffect(() => {
                             <Typography.Body style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
                                 {'   '}Заявок пока нет
                             </Typography.Body>
-                        ) : tableModeEffective ? (
+                        ) : (
+                            <AnimatePresence mode="wait">
+                            {tableModeEffective ? (
+                            <motion.div key="docs-sverki-req-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                             <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
                                 <table className="doc-section-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                                     <thead>
@@ -5908,7 +6013,9 @@ useEffect(() => {
                                     </tbody>
                                 </table>
                             </div>
+                            </motion.div>
                         ) : (
+                            <motion.div key="docs-sverki-req-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                             <div className="cargo-list">
                                 {sverkiRequests.map((req) => {
                                     const sent = req.status === 'edo_sent';
@@ -5967,6 +6074,9 @@ useEffect(() => {
                                     );
                                 })}
                             </div>
+                            </motion.div>
+                            )}
+                            </AnimatePresence>
                         )}
                     </div>
                     {sverkiLoading ? (
@@ -5976,7 +6086,10 @@ useEffect(() => {
                         </Flex>
                     ) : filteredSverki.length === 0 ? (
                         <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по актам сверок</Typography.Body>
-                    ) : tableModeEffective ? (
+                    ) : (
+                        <AnimatePresence mode="wait">
+                        {tableModeEffective ? (
+                        <motion.div key="docs-sverki-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                         <div className="doc-contracts-table-offset-desktop">
                             <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
                             <table className="doc-section-table doc-table-header-inline" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
@@ -6025,7 +6138,9 @@ useEffect(() => {
                             </table>
                             </div>
                         </div>
+                        </motion.div>
                     ) : (
+                        <motion.div key="docs-sverki-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                         <div className="cargo-list">
                             {filteredSverki.map((row) => {
                                 const number = String(row.docNumber || '').trim();
@@ -6101,6 +6216,9 @@ useEffect(() => {
                                 );
                             })}
                         </div>
+                        </motion.div>
+                        )}
+                        </AnimatePresence>
                     )}
                     {sverkiDownloadError && (
                         <Typography.Body style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: '#ef4444' }}>
@@ -6118,7 +6236,10 @@ useEffect(() => {
                         </Flex>
                     ) : filteredDogovors.length === 0 ? (
                         <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по договорам</Typography.Body>
-                    ) : tableModeEffective ? (
+                    ) : (
+                        <AnimatePresence mode="wait">
+                        {tableModeEffective ? (
+                        <motion.div key="docs-dog-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                         <div className="doc-contracts-table-offset-desktop">
                             <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
                                 <table className="doc-section-table doc-table-header-inline" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
@@ -6164,7 +6285,9 @@ useEffect(() => {
                                 </table>
                             </div>
                         </div>
+                        </motion.div>
                     ) : (
+                        <motion.div key="docs-dog-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                         <div className="cargo-list">
                             {filteredDogovors.map((row) => {
                                 const hasDownload = row.docNumber && row.docDate && row.customerInn;
@@ -6237,6 +6360,9 @@ useEffect(() => {
                                 );
                             })}
                         </div>
+                        </motion.div>
+                        )}
+                        </AnimatePresence>
                     )}
                     {dogovorsDownloadError && (
                         <Typography.Body style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: '#ef4444' }}>
@@ -6300,7 +6426,10 @@ useEffect(() => {
                         </Flex>
                     ) : filteredClaims.length === 0 ? (
                         <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Претензий пока нет</Typography.Body>
-                    ) : tableModeEffective ? (
+                    ) : (
+                        <AnimatePresence mode="wait">
+                        {tableModeEffective ? (
+                        <motion.div key="docs-claims-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                         <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
                             <table className="doc-section-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                 <thead>
@@ -6399,7 +6528,9 @@ useEffect(() => {
                                 </tbody>
                             </table>
                         </div>
+                        </motion.div>
                     ) : (
+                        <motion.div key="docs-claims-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                         <div className="cargo-list">
                             {filteredClaims.map((row) => {
                                 const status = (row.status || 'new') as ClaimStatusKey;
@@ -6524,6 +6655,9 @@ useEffect(() => {
                                 );
                             })}
                         </div>
+                        </motion.div>
+                        )}
+                        </AnimatePresence>
                     )}
                 </>
             )}
