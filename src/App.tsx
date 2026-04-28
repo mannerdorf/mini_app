@@ -7,8 +7,6 @@ import { createPortal } from "react-dom";
 import { Button, Container, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
 import { ChatModal } from "./ChatModal";
 import "./styles.css";
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile } from "@ffmpeg/util";
 import {
     ensureOk,
     readJsonOrText,
@@ -26,10 +24,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AppMainContent } from "./components/AppMainContent";
 import { getWebApp, isMaxWebApp, isMaxDocsEnabled } from "./webApp";
 import { DOCUMENT_METHODS } from "./documentMethods";
-import { NotificationsPage } from "./pages/NotificationsPage";
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
-import { TinyUrlTestPage } from "./pages/TinyUrlTestPage";
-import { AiChatProfilePage } from "./pages/AiChatProfilePage";
 import { TapSwitch } from "./components/TapSwitch";
 import { FilterDropdownPortal } from "./components/ui/FilterDropdownPortal";
 import { DateText } from "./components/ui/DateText";
@@ -43,19 +38,13 @@ import { CustomPeriodModal } from "./components/modals/CustomPeriodModal";
 import { CargoDetailsModal } from "./components/modals/CargoDetailsModal";
 import { LegalModal } from "./components/modals/LegalModal";
 const DocumentsPage = lazy(() => import("./pages/DocumentsPage").then(m => ({ default: m.DocumentsPage })));
-import { AdminPage } from "./pages/AdminPage";
-import { CMSStandalonePage } from "./pages/CMSStandalonePage";
-import { NotFoundPage, shouldShowNotFound } from "./pages/NotFoundPage";
-import { AboutCompanyPage } from "./pages/AboutCompanyPage";
-import { CompaniesPage } from "./pages/CompaniesPage";
-import { AddCompanyByINNPage } from "./pages/AddCompanyByINNPage";
-import { AddCompanyByLoginPage } from "./pages/AddCompanyByLoginPage";
-import { CompaniesListPage } from "./pages/CompaniesListPage";
-import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
+const NotFoundPage = lazy(() => import("./pages/NotFoundPage").then((m) => ({ default: m.NotFoundPage })));
+const CMSStandalonePage = lazy(() => import("./pages/CMSStandalonePage").then((m) => ({ default: m.CMSStandalonePage })));
+const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage })));
 const CargoPage = lazy(() => import("./pages/CargoPage").then((m) => ({ default: m.CargoPage })));
 const ProfilePage = lazy(() => import("./pages/ProfilePage").then((m) => ({ default: m.ProfilePage })));
-import { ExpenseRequestsPage } from "./pages/ExpenseRequestsPage";
 import { AppRuntimeProvider } from "./contexts/AppRuntimeContext";
+import { shouldShowNotFound } from "./lib/notFoundRoute";
 import { getInitialAuthState } from "./lib/authState";
 import {
     WB_TAB,
@@ -1564,7 +1553,11 @@ export default function App() {
 
     // 404 для неизвестного path (не "/", "/admin", "/cms")
     if (typeof window !== "undefined" && shouldShowNotFound()) {
-        return <NotFoundPage onGoHome={() => { window.location.href = "/"; }} />;
+        return (
+            <Suspense fallback={<div className="p-8 flex justify-center items-center min-h-[40vh]"><Loader2 className="w-8 h-8 animate-spin" /></div>}>
+                <NotFoundPage onGoHome={() => { window.location.href = "/"; }} />
+            </Suspense>
+        );
     }
 
     // Админка: постоянные ссылки /admin, /cms или ?tab=cms
@@ -1573,24 +1566,30 @@ export default function App() {
         (new URL(window.location.href).searchParams.get("tab") === "cms" ||
             /^\/(admin|cms)\/?$/i.test(window.location.pathname));
     if (isCmsStandalone) {
-        return <CMSStandalonePage />;
+        return (
+            <Suspense fallback={<div className="p-8 flex justify-center items-center min-h-[40vh]"><Loader2 className="w-8 h-8 animate-spin" /></div>}>
+                <CMSStandalonePage />
+            </Suspense>
+        );
     }
 
     if (!auth && showForgotPage) {
         return (
-            <ForgotPasswordPage
-                initialEmail={login}
-                onBackToLogin={() => {
-                    setShowForgotPage(false);
-                    try {
-                        const u = new URL(window.location.href);
-                        u.searchParams.delete("forgot");
-                        window.history.replaceState(null, "", u.toString());
-                    } catch {
-                        // ignore
-                    }
-                }}
-            />
+            <Suspense fallback={<div className="p-8 flex justify-center items-center min-h-[40vh]"><Loader2 className="w-8 h-8 animate-spin" /></div>}>
+                <ForgotPasswordPage
+                    initialEmail={login}
+                    onBackToLogin={() => {
+                        setShowForgotPage(false);
+                        try {
+                            const u = new URL(window.location.href);
+                            u.searchParams.delete("forgot");
+                            window.history.replaceState(null, "", u.toString());
+                        } catch {
+                            // ignore
+                        }
+                    }}
+                />
+            </Suspense>
         );
     }
 

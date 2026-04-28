@@ -9,11 +9,6 @@ type NotFoundPageProps = {
   onSearch?: (query: string) => void;
 };
 
-const isValidPath = (path: string): boolean => {
-  const p = (path || "/").replace(/\/$/, "") || "/";
-  return p === "/" || p === "" || p === "/index.html" || /^\/(admin|cms|wildberries)$/i.test(p);
-};
-
 export function NotFoundPage({ onGoHome, onSearch }: NotFoundPageProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -112,11 +107,4 @@ export function NotFoundPage({ onGoHome, onSearch }: NotFoundPageProps) {
       </div>
     </div>
   );
-}
-
-/** Проверка: показывать ли 404 по текущему pathname (SPA: неизвестный путь). */
-export function shouldShowNotFound(): boolean {
-  if (typeof window === "undefined") return false;
-  const path = window.location.pathname || "/";
-  return !isValidPath(path);
 }

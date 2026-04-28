@@ -1,10 +1,15 @@
-import React, { Suspense } from "react";
+import React, { Suspense, lazy } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { Loader2, Package } from "lucide-react";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { ExpenseRequestsPage } from "../pages/ExpenseRequestsPage";
-import { WildberriesPage } from "../pages/WildberriesPage";
 import type { Account, AuthData, Tab } from "../types";
+
+const ExpenseRequestsPage = lazy(() =>
+  import("../pages/ExpenseRequestsPage").then((m) => ({ default: m.ExpenseRequestsPage })),
+);
+const WildberriesPage = lazy(() =>
+  import("../pages/WildberriesPage").then((m) => ({ default: m.WildberriesPage })),
+);
 
 type Props = {
   showDashboard: boolean;
@@ -182,23 +187,27 @@ export function AppMainContent({
 
       {activeTab === "expense_requests" && auth && (
         <SectionBoundary section="Заявки на расходы">
-          <ExpenseRequestsPage
-            auth={auth}
-            departmentName={activeAccount?.customer ?? "Моё подразделение"}
-            saasAnalyticsShell={profileSaasShellActive}
-          />
+          <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
+            <ExpenseRequestsPage
+              auth={auth}
+              departmentName={activeAccount?.customer ?? "Моё подразделение"}
+              saasAnalyticsShell={profileSaasShellActive}
+            />
+          </Suspense>
         </SectionBoundary>
       )}
 
       {activeTab === "wildberries" && auth && (
         <SectionBoundary section="Wildberries">
-          <WildberriesPage
-            auth={auth}
-            canUpload={
-              activeAccount?.permissions?.cms_access === true || activeAccount?.permissions?.wb_admin === true
-            }
-            saasAnalyticsShell={profileSaasShellActive}
-          />
+          <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
+            <WildberriesPage
+              auth={auth}
+              canUpload={
+                activeAccount?.permissions?.cms_access === true || activeAccount?.permissions?.wb_admin === true
+              }
+              saasAnalyticsShell={profileSaasShellActive}
+            />
+          </Suspense>
         </SectionBoundary>
       )}
 

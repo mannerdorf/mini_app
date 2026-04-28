@@ -18,12 +18,31 @@ function adminRewrite() {
   };
 }
 
+/** Один index.html со всем кодом — только если явно VITE_SINGLEFILE=1 (старые сценарии деплоя). */
+function useSingleFilePlugin() {
+  return process.env.VITE_SINGLEFILE === "1";
+}
+
 export default defineConfig(({ command }) => ({
-  plugins: [react(), viteSingleFile(), adminRewrite()],
+  plugins: [react(), ...(useSingleFilePlugin() ? [viteSingleFile()] : []), adminRewrite()],
   build: {
-    assetsInlineLimit: 100000000,
-    cssCodeSplit: false,
-    // В production без карт: меньше артефактов и нет предупреждений singlefile про *.map
+    // Без singlefile — разумный лимит инлайна мелких ассетов
+    assetsInlineLimit: useSingleFilePlugin() ? 100000000 : 4096,
+    cssCodeSplit: !useSingleFilePlugin(),
     sourcemap: command === "serve",
+    rollupOptions: {
+      output: useSingleFilePlugin()
+        ? {}
+        : {
+            manualChunks(id) {
+              if (!id.includes("node_modules")) return;
+              if (id.includes("firebase") || id.includes("@firebase")) return "firebase";
+              if (id.includes("recharts")) return "recharts";
+              if (id.includes("lucide-react")) return "lucide";
+              if (id.includes("jspdf") || id.includes("html2canvas") || id.includes("html2pdf")) return "pdf";
+              if (id.includes("date-fns")) return "date-fns";
+            },
+          },
+    },
   },
 }));
