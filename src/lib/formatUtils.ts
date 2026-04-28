@@ -41,7 +41,7 @@ export const parseCargoNumbersFromText = (text: string): Array<{ type: 'text' | 
     return parts.length ? parts : [{ type: 'text', value: text }];
 };
 
-/** Номер счёта без ведущих нулей (000279 → 279) */
+/** Номер счёта / УПД без префикса 0000- и ведущих нулей (0000-001529 → 1529) */
 export const formatInvoiceNumber = (s: string | undefined | null): string => {
     const str = String(s ?? '').trim();
     if (!str) return '—';

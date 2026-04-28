@@ -5,8 +5,7 @@ import {
   getPaymentFilterKey,
   getFilterKeyByStatus,
 } from "../lib/statusUtils";
-import { cityToCode, formatCurrency } from "../lib/formatUtils";
-import { formatDate } from "../lib/dateUtils";
+import { cityToCode, formatInvoiceNumber } from "../lib/formatUtils";
 
 type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;
 
@@ -126,6 +125,39 @@ const normalizeTransportName = (value: unknown): string => {
     .trim();
 };
 
+const MAX_CARGO_SEARCH_DEPTH = 6;
+
+/** Все текстовые фрагменты перевозки для поиска (включая вложенные массивы/объекты — номенклатура и пр., если есть в списке API). */
+function appendCargoSearchParts(obj: unknown, depth: number, parts: string[]): void {
+  if (depth > MAX_CARGO_SEARCH_DEPTH || obj === null || obj === undefined) return;
+  const t = typeof obj;
+  if (t === "string" || t === "number" || t === "boolean") {
+    const s = String(obj).trim();
+    if (!s) return;
+    parts.push(s);
+    // Поиск «1529» / «1534» по полному номеру «0000-001529»
+    if (/^\d{4}-\d{2,}$/.test(s)) {
+      parts.push(formatInvoiceNumber(s));
+    }
+    return;
+  }
+  if (Array.isArray(obj)) {
+    for (const el of obj) appendCargoSearchParts(el, depth + 1, parts);
+    return;
+  }
+  if (t === "object") {
+    for (const v of Object.values(obj as Record<string, unknown>)) {
+      appendCargoSearchParts(v, depth + 1, parts);
+    }
+  }
+}
+
+function cargoItemSearchHaystack(item: CargoItem): string {
+  const parts: string[] = [];
+  appendCargoSearchParts(item, 0, parts);
+  return parts.join(" ");
+}
+
 const getCargoTransportCandidates = (item: CargoItem): string[] => {
   const explicit = [
     (item as any)?.AutoReg,
@@ -173,23 +205,7 @@ export function buildFilteredCargoItems(
 
   if (searchText) {
     const lower = searchText.toLowerCase();
-    const searchable = (i: CargoItem) =>
-      [
-        i.Number,
-        i.State,
-        i.Sender,
-        i.Customer,
-        i.Receiver ?? (i as { receiver?: string }).receiver,
-        formatDate(i.DatePrih),
-        formatCurrency(i.Sum),
-        String(i.PW),
-        String(i.Mest),
-        String((i as { Order?: string }).Order ?? ""),
-        cityToCode(i.CitySender),
-        cityToCode(i.CityReceiver),
-        i.StateBill,
-      ].join(" ");
-    res = res.filter((i) => searchable(i).toLowerCase().includes(lower));
+    res = res.filter((i) => cargoItemSearchHaystack(i).toLowerCase().includes(lower));
   }
 
   if (statusFilterSet.size > 0) {

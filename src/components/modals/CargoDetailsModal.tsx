@@ -5,7 +5,7 @@ import { fetchPerevozkaDetails, getTimelineStepColor } from "../../lib/perevozka
 import { getWebApp, isMaxWebApp } from "../../webApp";
 import { DOCUMENT_METHODS } from "../../documentMethods";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
-import { formatCurrency, stripOoo, cityToCode, transliterateFilename } from "../../lib/formatUtils";
+import { formatCurrency, stripOoo, cityToCode, transliterateFilename, formatInvoiceNumber } from "../../lib/formatUtils";
 import { normalizeStatus, getFilterKeyByStatus, getSumColorByPaymentStatus } from "../../lib/statusUtils";
 import { formatDate } from "../../lib/dateUtils";
 import { getPlanDays } from "../../lib/cargoUtils";
@@ -226,6 +226,9 @@ export function CargoDetailsModal({
         CityReceiver: 'Место получения',
         Order: 'Номер заявки заказчика',
         AutoReg: 'Транспортное средство',
+        UPD: 'УПД',
+        BillNum: 'Счет',
+        Bill_Number: 'Счет',
     };
     const lastMile = {
         autoReg: String((item as any).LMAutoReg ?? '').trim(),
@@ -391,13 +394,20 @@ export function CargoDetailsModal({
                             if (val === 0 && key.toLowerCase().includes('date') === false) return null;
                             if (key === 'AutoReg' && !useServiceRequest) return null;
                             const isFerry = item?.AK === true || item?.AK === "true" || item?.AK === "1" || item?.AK === 1;
-                            const label = FIELD_LABELS[key] || key;
-                            const value =
-                                (key === 'TypeOfTranzit' || key === 'TypeOfTransit') && isFerry
-                                    ? 'Паром'
-                                    : (key === 'CitySender' || key === 'CityReceiver')
-                                        ? (cityToCode(val) || renderValue(val))
-                                        : renderValue(val);
+                            const lk = key.toLowerCase();
+                            const label =
+                                FIELD_LABELS[key]
+                                ?? (lk === 'upd' ? 'УПД' : lk === 'billnum' || lk === 'bill_number' ? 'Счет' : key);
+                            let value: React.ReactNode;
+                            if (lk === 'upd' || lk === 'billnum' || lk === 'bill_number') {
+                                value = formatInvoiceNumber(String(val ?? ''));
+                            } else if ((key === 'TypeOfTranzit' || key === 'TypeOfTransit') && isFerry) {
+                                value = 'Паром';
+                            } else if (key === 'CitySender' || key === 'CityReceiver') {
+                                value = cityToCode(val) || renderValue(val);
+                            } else {
+                                value = renderValue(val);
+                            }
                             return <DetailItem key={key} label={label} value={value} />;
                         })}
                 </div>
