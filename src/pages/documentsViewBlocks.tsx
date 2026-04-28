@@ -91,3 +91,8 @@ export function DocumentsStateBlocks({ loading, error, emptyText }: StateProps) 
   );
 }
 
+/** Отступ под липкой карточкой вкладок/фильтров в «Документах» (см. `.documents-toolbar-below-sticky`). */
+export function DocumentsToolbarBelowSticky({ children }: { children: React.ReactNode }) {
+  return <div className="documents-toolbar-below-sticky">{children}</div>;
+}
+

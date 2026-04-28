@@ -831,6 +831,15 @@ export function DashboardPage({
         return res;
     }, [items, statusFilter, senderFilter, receiverFilter, billStatusFilter, typeFilter, routeFilter]);
 
+    /** Монитор SLA: жёстко только перевозки с фактом доставки в выбранном периоде (DateVr ∈ [dateFrom, dateTo]), поверх фильтров дашборда. Иначе мин/макс тянут «лишние» строки из ответа API за интервал по другому полю. */
+    const slaMonitorFilteredItems = useMemo(() => {
+        return filteredItems.filter(
+            (i) =>
+                getFilterKeyByStatus(i.State) === 'delivered'
+                && isDateInRange(String(i.DateVr ?? '').trim() || undefined, apiDateRange.dateFrom, apiDateRange.dateTo),
+        );
+    }, [filteredItems, apiDateRange.dateFrom, apiDateRange.dateTo]);
+
     const parseDashboardDateOnly = useCallback((value: unknown): Date | null => {
         const raw = String(value ?? '').trim();
         if (!raw) return null;
@@ -1482,7 +1491,7 @@ export function DashboardPage({
         ];
     }, [filteredItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
     const slaStats = useMemo(() => {
-        const withSla = filteredItems.map(i => getSlaInfo(i, workScheduleByInn)).filter((s): s is NonNullable<ReturnType<typeof getSlaInfo>> => s != null);
+        const withSla = slaMonitorFilteredItems.map(i => getSlaInfo(i, workScheduleByInn)).filter((s): s is NonNullable<ReturnType<typeof getSlaInfo>> => s != null);
         const total = withSla.length;
         const onTime = withSla.filter(s => s.onTime).length;
         const delayed = withSla.filter(s => !s.onTime);
@@ -1495,11 +1504,11 @@ export function DashboardPage({
         const maxDays = actualDaysValid.length ? Math.max(...actualDaysValid) : 0;
         const avgDays = actualDaysValid.length ? Math.round(actualDaysValid.reduce((a, b) => a + b, 0) / actualDaysValid.length) : 0;
         return { total, onTime, percentOnTime: total ? Math.round((onTime / total) * 100) : 0, avgDelay, minDays, maxDays, avgDays };
-    }, [filteredItems, workScheduleByInn]);
+    }, [slaMonitorFilteredItems, workScheduleByInn]);
 
     const slaStatsByType = useMemo(() => {
-        const autoItems = filteredItems.filter(i => !isFerry(i));
-        const ferryItems = filteredItems.filter(i => isFerry(i));
+        const autoItems = slaMonitorFilteredItems.filter(i => !isFerry(i));
+        const ferryItems = slaMonitorFilteredItems.filter(i => isFerry(i));
         const calc = (arr: CargoItem[]) => {
             const withSla = arr.map(i => getSlaInfo(i, workScheduleByInn)).filter((s): s is NonNullable<ReturnType<typeof getSlaInfo>> => s != null);
             const total = withSla.length;
@@ -1509,24 +1518,24 @@ export function DashboardPage({
             return { total, onTime, percentOnTime: total ? Math.round((onTime / total) * 100) : 0, avgDelay };
         };
         return { auto: calc(autoItems), ferry: calc(ferryItems) };
-    }, [filteredItems, workScheduleByInn]);
+    }, [slaMonitorFilteredItems, workScheduleByInn]);
 
     /** Перевозки вне SLA по типу (для таблицы в подробностях, только в служебном режиме) */
     const outOfSlaByType = useMemo(() => {
-        const withSla = filteredItems
+        const withSla = slaMonitorFilteredItems
             .map(i => ({ item: i, sla: getSlaInfo(i, workScheduleByInn) }))
             .filter((x): x is { item: CargoItem; sla: NonNullable<ReturnType<typeof getSlaInfo>> } => x.sla != null && !x.sla.onTime);
         return {
             auto: withSla.filter(x => !isFerry(x.item)),
             ferry: withSla.filter(x => isFerry(x.item)),
         };
-    }, [filteredItems, workScheduleByInn]);
+    }, [slaMonitorFilteredItems, workScheduleByInn]);
 
     const sortedOutOfSlaAuto = useMemo(() => sortOutOfSlaRows(outOfSlaByType.auto), [outOfSlaByType.auto, slaTableSortColumn, slaTableSortOrder]);
     const sortedOutOfSlaFerry = useMemo(() => sortOutOfSlaRows(outOfSlaByType.ferry), [outOfSlaByType.ferry, slaTableSortColumn, slaTableSortOrder]);
 
     const slaTrend = useMemo(() => {
-        const withSla = filteredItems
+        const withSla = slaMonitorFilteredItems
             .map(i => ({ item: i, sla: getSlaInfo(i, workScheduleByInn) }))
             .filter((x): x is { item: CargoItem; sla: NonNullable<ReturnType<typeof getSlaInfo>> } => x.sla != null);
         if (withSla.length < 4) return null;
@@ -1539,7 +1548,7 @@ export function DashboardPage({
         if (p2 > p1) return 'up';
         if (p2 < p1) return 'down';
         return null;
-    }, [filteredItems, workScheduleByInn]);
+    }, [slaMonitorFilteredItems, workScheduleByInn]);
 
     const stripDiagramBySender = useMemo(() => {
         const map = new Map<string, number>();

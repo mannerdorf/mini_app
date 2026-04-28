@@ -51,7 +51,7 @@ import {
     buildFilteredOrders,
     getFirstCargoNumberFromInvoice,
 } from "./documentsPipeline";
-import { DocumentsSummaryCard, DocumentsStateBlocks } from "./documentsViewBlocks";
+import { DocumentsSummaryCard, DocumentsStateBlocks, DocumentsToolbarBelowSticky } from "./documentsViewBlocks";
 import {
     cargoExpandMotionProps,
     cargoListContainerVariants,
@@ -5927,7 +5927,7 @@ useEffect(() => {
                 </div>
             )}
             {docSection === 'Акты сверок' && (
-                <div className="documents-toolbar-below-sticky">
+                <DocumentsToolbarBelowSticky>
                     <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.75rem' }}>
                         <Button
                             className="button-primary"
@@ -6225,7 +6225,7 @@ useEffect(() => {
                             {sverkiDownloadError}
                         </Typography.Body>
                     )}
-                </div>
+                </DocumentsToolbarBelowSticky>
             )}
             {docSection === 'Договоры' && (
                 <div className="doc-section-content">
@@ -6372,7 +6372,7 @@ useEffect(() => {
                 </div>
             )}
             {docSection === 'Претензии' && (
-                <div className="documents-toolbar-below-sticky">
+                <DocumentsToolbarBelowSticky>
                     <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.75rem' }}>
                         <div ref={claimsStatusButtonRef} style={{ display: 'inline-flex' }}>
                             <Button
@@ -6659,7 +6659,7 @@ useEffect(() => {
                         )}
                         </AnimatePresence>
                     )}
-                </div>
+                </DocumentsToolbarBelowSticky>
             )}
             {docSection !== 'Счета' && docSection !== 'УПД' && docSection !== 'Заявки' && docSection !== 'Отправки' && docSection !== 'Тарифы' && docSection !== 'Акты сверок' && docSection !== 'Договоры' && docSection !== 'Претензии' && (
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0', fontSize: '0.9rem' }}>
