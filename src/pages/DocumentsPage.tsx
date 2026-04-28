@@ -5927,8 +5927,8 @@ useEffect(() => {
                 </div>
             )}
             {docSection === 'Акты сверок' && (
-                <>
-                    <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.75rem', paddingTop: '0.2rem' }}>
+                <div className="documents-toolbar-below-sticky">
+                    <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.75rem' }}>
                         <Button
                             className="button-primary"
                             disabled={!effectiveActiveInn || !auth?.login || !auth?.password}
@@ -6225,7 +6225,7 @@ useEffect(() => {
                             {sverkiDownloadError}
                         </Typography.Body>
                     )}
-                </>
+                </div>
             )}
             {docSection === 'Договоры' && (
                 <div className="doc-section-content">
@@ -6372,7 +6372,7 @@ useEffect(() => {
                 </div>
             )}
             {docSection === 'Претензии' && (
-                <>
+                <div className="documents-toolbar-below-sticky">
                     <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.75rem' }}>
                         <div ref={claimsStatusButtonRef} style={{ display: 'inline-flex' }}>
                             <Button
@@ -6659,7 +6659,7 @@ useEffect(() => {
                         )}
                         </AnimatePresence>
                     )}
-                </>
+                </div>
             )}
             {docSection !== 'Счета' && docSection !== 'УПД' && docSection !== 'Заявки' && docSection !== 'Отправки' && docSection !== 'Тарифы' && docSection !== 'Акты сверок' && docSection !== 'Договоры' && docSection !== 'Претензии' && (
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0', fontSize: '0.9rem' }}>

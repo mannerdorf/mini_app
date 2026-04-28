@@ -19,7 +19,7 @@ import {
 import type { BillStatusFilterKey } from "../lib/statusUtils";
 import { normalizeStatus } from "../lib/statusUtils";
 import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "../lib/slaWorkSchedule";
-import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry } from "../lib/cargoUtils";
+import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry, getSlaPlanDeadlineMs } from "../lib/cargoUtils";
 import { formatCurrency, formatInvoiceNumber, stripOoo, cityToCode, normalizeInvoiceStatus } from "../lib/formatUtils";
 import { getFirstCargoNumberFromInvoice, buildCargoStateByNumber } from "./documentsPipeline";
 import { usePerevozki, usePrevPeriodPerevozki, useInvoices } from "../hooks/useApi";
@@ -4042,7 +4042,7 @@ export function DashboardPage({
                                                                         <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{slaTimelineError}</Typography.Body>
                                                                     )}
                                                                     {!slaTimelineLoading && slaTimelineSteps && slaTimelineSteps.length > 0 && (() => {
-                                                                        const planEndMs = item?.DatePrih ? new Date(item.DatePrih).getTime() + getPlanDays(item) * 24 * 60 * 60 * 1000 : 0;
+                                                                        const planEndMs = getSlaPlanDeadlineMs(item);
                                                                         return (
                                                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                                             <thead>

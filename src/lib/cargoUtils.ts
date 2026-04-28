@@ -4,6 +4,7 @@
 import { cityToCode } from "./formatUtils";
 import { getFilterKeyByStatus } from "./statusUtils";
 import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "./slaWorkSchedule";
+import { mapTimelineStageLabel } from "./perevozkaDetails";
 import type { CargoItem } from "../types";
 
 /** Плановые сроки доставки (дней): MSK-KGD авто 7 / паром 20; KGD-MSK авто и паром 60 */
@@ -29,7 +30,54 @@ export function getInnFromCargo(item: CargoItem): string | null {
     return inn.length > 0 ? inn : null;
 }
 
-/** SLA: начало расчёта — дата приёмки + 1 день (не с даты приёмки).
+function firstNonEmptyStatusArray(item: CargoItem): unknown[] | undefined {
+    const c = item as Record<string, unknown>;
+    for (const k of ["Statuses", "statuses", "Steps", "steps", "Статусы", "stages"] as const) {
+        const v = c[k];
+        if (Array.isArray(v) && v.length > 0) return v;
+    }
+    return undefined;
+}
+
+/**
+ * Дата поступления на склад отправления («Получена в MSK» и т.д.), не «Получена информация».
+ * Если в объекте перевозки есть массив статусов от API — берём оттуда.
+ */
+export function getWarehouseReceiptDateForSla(item: CargoItem): string | undefined {
+    const rows = firstNonEmptyStatusArray(item);
+    if (!rows) return undefined;
+    const fromCity = cityToCode(item.CitySender) || "—";
+    const wantLabel = `Получена в ${fromCity}`;
+    for (const el of rows) {
+        const raw = el as Record<string, unknown>;
+        const rawLabel = raw?.Stage ?? raw?.Name ?? raw?.Status ?? raw?.label ?? "";
+        const labelStr = typeof rawLabel === "string" ? rawLabel : String(rawLabel ?? "");
+        const displayLabel = mapTimelineStageLabel(labelStr, item);
+        if (displayLabel !== wantLabel) continue;
+        const dateRaw = raw?.Date ?? raw?.date ?? raw?.DatePrih ?? raw?.DateVr;
+        const date = dateRaw != null ? String(dateRaw).trim() : "";
+        if (date) return date;
+    }
+    return undefined;
+}
+
+/** Базовая дата для SLA: склад отправления, иначе DatePrih из списка. */
+export function getSlaPlanAnchorDateString(item: CargoItem): string | undefined {
+    const wh = getWarehouseReceiptDateForSla(item);
+    const dp = item.DatePrih ? String(item.DatePrih).trim() : "";
+    return wh || dp || undefined;
+}
+
+/** Крайний срок по плану (мс): якорная дата + плановые дни маршрута. */
+export function getSlaPlanDeadlineMs(item: CargoItem): number {
+    const anchor = getSlaPlanAnchorDateString(item);
+    if (!anchor) return 0;
+    const t = new Date(anchor).getTime();
+    if (Number.isNaN(t)) return 0;
+    return t + getPlanDays(item) * 24 * 60 * 60 * 1000;
+}
+
+/** SLA: начало интервала — день после якорной даты поступления на склад («Получена в …» из статусов или DatePrih).
  * Для статусов «Готов к выдаче» и «На доставке» при наличии рабочего графика заказчика
  * считаются только рабочие дни и часы (нерабочее время не входит в SLA).
  */
@@ -37,7 +85,8 @@ export function getSlaInfo(
     item: CargoItem,
     workScheduleByInn?: Record<string, WorkSchedule>
 ): { planDays: number; actualDays: number; onTime: boolean; delayDays: number } | null {
-    const fromDate = item?.DatePrih ? new Date(item.DatePrih) : null;
+    const anchorRaw = getSlaPlanAnchorDateString(item);
+    const fromDate = anchorRaw ? new Date(anchorRaw) : null;
     const toDate = item?.DateVr ? new Date(item.DateVr) : null;
     if (!fromDate || isNaN(fromDate.getTime()) || !toDate || isNaN(toDate.getTime())) return null;
     fromDate.setDate(fromDate.getDate() + 1);

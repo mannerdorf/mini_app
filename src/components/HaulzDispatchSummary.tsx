@@ -8,7 +8,7 @@ import type { AuthData, CargoItem, PerevozkaTimelineStep } from "../types";
 import { formatTimelineDate, formatTimelineTime, parseDateOnly } from "../lib/dateUtils";
 import { getFilterKeyByStatus, isReceivedInfoStatus } from "../lib/statusUtils";
 import { formatCurrency, formatInvoiceNumber, stripOoo } from "../lib/formatUtils";
-import { getPlanDays, getSlaInfo } from "../lib/cargoUtils";
+import { getPlanDays, getSlaInfo, getSlaPlanAnchorDateString, getSlaPlanDeadlineMs } from "../lib/cargoUtils";
 import { fetchPerevozkaTimeline } from "../lib/perevozkaDetails";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
 import type { KeyedMutator } from "swr";
@@ -746,11 +746,7 @@ export function HaulzDispatchSummary({
                                                                                     dispatchTimelineSteps.length > 0 &&
                                                                                     (() => {
                                                                                         const item = expandedDispatchItem;
-                                                                                        const planEndMs =
-                                                                                            item?.DatePrih
-                                                                                                ? new Date(item.DatePrih).getTime() +
-                                                                                                  getPlanDays(item) * 24 * 60 * 60 * 1000
-                                                                                                : 0;
+                                                                                        const planEndMs = getSlaPlanDeadlineMs(item);
                                                                                         return (
                                                                                             <table
                                                                                                 style={{

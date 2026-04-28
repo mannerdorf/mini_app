@@ -933,6 +933,27 @@ body {
     margin-top: 0.35rem;
 }
 
+/* Инструменты под липкой карточкой вкладок/фильтров (претензии, акты сверок и т.п.) — буфер, чтобы кнопки не подрезались тенью / краем блока */
+.documents-toolbar-below-sticky {
+    padding-top: 0.75rem;
+    overflow: visible;
+    position: relative;
+    z-index: 1;
+}
+@media (min-width: 769px) {
+    .documents-toolbar-below-sticky {
+        padding-top: 1rem;
+    }
+}
+.documents-page--saas-analytics .documents-toolbar-below-sticky {
+    padding-top: 0.85rem;
+}
+@media (min-width: 769px) {
+    .documents-page--saas-analytics .documents-toolbar-below-sticky {
+        padding-top: 1.05rem;
+    }
+}
+
 /* Панель bulk-действий в "Отправках" остаётся закреплённой при скролле */
 .sendings-bulk-actions-sticky {
     position: sticky;
