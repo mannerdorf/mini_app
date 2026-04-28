@@ -1,0 +1,24 @@
+# Уменьшает контекст `docker build` (иначе в образ уходит весь репозиторий, включая node_modules)
+node_modules
+dist
+.npm-cache
+
+.git
+.gitignore
+.cursor
+**/.DS_Store
+
+.env
+.env.*
+!.env.example
+
+.vercel
+
+android
+audit-output
+docs
+*.md
+CHANGELOG*
+LICENSE*
+
+migrations

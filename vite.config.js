@@ -18,11 +18,12 @@ function adminRewrite() {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react(), viteSingleFile(), adminRewrite()],
   build: {
     assetsInlineLimit: 100000000,
     cssCodeSplit: false,
-    sourcemap: true,
+    // В production без карт: меньше артефактов и нет предупреждений singlefile про *.map
+    sourcemap: command === "serve",
   },
-});
+}));
