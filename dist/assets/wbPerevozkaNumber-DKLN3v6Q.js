@@ -1,0 +1,1 @@
+const e=/[\uFEFF\u200B-\u200D\u2060\u00AD]/g;function n(u){let r=String(u??"").replace(e,"");return r=r.replace(/^[\s\u00A0\u2000-\u200A\u202F\u205F\u3000]+|[\s\u00A0\u2000-\u200A\u202F\u205F\u3000]+$/g,""),r.trim()}function i(u){return n(u).replace(/\D/g,"")}function o(u,r=9){const t=i(u);return t?t.length>=r?t:t.padStart(r,"0"):n(u)}export{o as n};
