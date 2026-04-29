@@ -3389,19 +3389,33 @@ useEffect(() => {
                         </Button>
                     </div>
                 )}
+                {(docSection === 'Счета' || docSection === 'УПД') && (
+                    <div className="documents-sticky-summary-wrap">
+                        {docSection === 'Счета' && !loading && !error && filteredItems.length > 0 && (
+                            <motion.div {...(docsMotionEnabled ? cargoSummaryMotion : { initial: false })}>
+                                <DocumentsSummaryCard
+                                    sum={documentsSummary.sum}
+                                    count={documentsSummary.count}
+                                    showSums={showSums}
+                                    saasAnalytics={documentsServiceSaasUi}
+                                />
+                            </motion.div>
+                        )}
+                        {docSection === 'УПД' && !actsLoading && !actsError && filteredActs.length > 0 && (
+                            <motion.div {...(docsMotionEnabled ? cargoSummaryMotion : { initial: false })}>
+                                <DocumentsSummaryCard
+                                    sum={actsSummary.sum}
+                                    count={actsSummary.count}
+                                    showSums={showSums}
+                                    saasAnalytics={documentsServiceSaasUi}
+                                />
+                            </motion.div>
+                        )}
+                    </div>
+                )}
             </div>
             {docSection === 'Счета' && (
             <>
-            {!loading && !error && filteredItems.length > 0 && (
-                <motion.div {...(docsMotionEnabled ? cargoSummaryMotion : { initial: false })}>
-                    <DocumentsSummaryCard
-                        sum={documentsSummary.sum}
-                        count={documentsSummary.count}
-                        showSums={showSums}
-                        saasAnalytics={documentsServiceSaasUi}
-                    />
-                </motion.div>
-            )}
             {(loading || !!error) && <DocumentsStateBlocks loading={loading} error={error} emptyText="" />}
             <AnimatePresence mode="wait">
             {!loading && !error && tableModeEffective && sortedGroupedByCustomer.length > 0 ? (
@@ -3663,16 +3677,6 @@ useEffect(() => {
             )}
             {docSection === 'УПД' && (
             <>
-            {!actsLoading && !actsError && filteredActs.length > 0 && (
-                <motion.div {...(docsMotionEnabled ? cargoSummaryMotion : { initial: false })}>
-                    <DocumentsSummaryCard
-                        sum={actsSummary.sum}
-                        count={actsSummary.count}
-                        showSums={showSums}
-                        saasAnalytics={documentsServiceSaasUi}
-                    />
-                </motion.div>
-            )}
             {(actsLoading || !!actsError) && <DocumentsStateBlocks loading={actsLoading} error={actsError} emptyText="" />}
             <AnimatePresence mode="wait">
             {!actsLoading && !actsError && tableModeEffective && sortedGroupedActsByCustomer.length > 0 ? (

@@ -57,7 +57,7 @@ import {
     TABS_ALLOWED_ON_RESTORE,
 } from "./wb/appWb";
 import { PUBLIC_OFFER_TEXT, PERSONAL_DATA_CONSENT_TEXT } from "./constants/legalTexts";
-import { HAULZ_MAX_SUPPORT_BOT_URL, HAULZ_TG_SUPPORT_BOT_URL } from "./constants/brand";
+import { HAULZ_MAX_SUPPORT_BOT_URL, HAULZ_SPLASH_BACKGROUND, HAULZ_TG_SUPPORT_BOT_URL } from "./constants/brand";
 import {
     loadAuthMethodsConfig,
     postAuthRegisteredLogin,
@@ -159,17 +159,14 @@ export default function App() {
                 if (typeof webApp.ready === "function") {
                     webApp.ready();
                 }
-                
-                // Настройка цветов для MAX Bridge
+
+                // Тот же синий, что PWA splash — оверскролл и скругления webview не чёрные (Telegram / MAX).
+                if (typeof webApp.setBackgroundColor === "function") {
+                    webApp.setBackgroundColor(HAULZ_SPLASH_BACKGROUND);
+                }
                 if (isMaxWebApp()) {
-                    // Устанавливаем цвет фона - всегда белый для MAX
-                    if (typeof webApp.setBackgroundColor === "function") {
-                        webApp.setBackgroundColor('#ffffff');
-                    }
-                    
-                    // Устанавливаем цвет хедера (визуально привязываем к бренду)
                     if (typeof webApp.setHeaderColor === "function") {
-                        webApp.setHeaderColor('#2563eb'); // Синий цвет бренда HAULZ
+                        webApp.setHeaderColor("#2563eb");
                     }
                 }
                 
@@ -506,11 +503,11 @@ export default function App() {
         }
         const metaTheme = document.querySelector('meta[name="theme-color"]');
         if (metaTheme) {
-            metaTheme.setAttribute("content", theme === "dark" ? "#000000" : "#0071e3");
+            metaTheme.setAttribute("content", HAULZ_SPLASH_BACKGROUND);
         }
         const webApp = getWebApp();
         if (webApp && typeof webApp.setBackgroundColor === "function") {
-            webApp.setBackgroundColor(theme === "dark" ? "#000000" : "#ffffff");
+            webApp.setBackgroundColor(HAULZ_SPLASH_BACKGROUND);
         }
     }, [theme]);
     useEffect(() => {

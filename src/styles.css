@@ -47,9 +47,10 @@
 
 * { box-sizing: border-box; }
 /* auto вместо hidden — при широком контенте (таблицы, табель) появляется скролл, в Яндексе и др. не обрезается */
+/* html/body: брендовый синий как у PWA splash — скругления webview и оверскролл не показывают чёрный */
 html {
     overflow-x: auto;
-    background-color: var(--color-bg-primary);
+    background-color: #3655ff;
 }
 body {
     margin: 0;
@@ -59,9 +60,9 @@ body {
     line-height: var(--line-height-body, 1.47);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background-color: var(--color-bg-primary);
+    background-color: #3655ff;
 }
-/* Ниже основного контента (оверскролл, safe area) не должен «просвечивать» белым */
+/* Контент приложения — как раньше по теме */
 #root {
     min-height: 100%;
     min-height: 100dvh;
@@ -519,7 +520,7 @@ body {
 }
 
 /* --- LOGIN FORM --- */
-.login-form-wrapper { display: flex; justify-content: center; align-items: center; min-height: 100vh; width: 100%; background-color: var(--color-bg-primary); }
+.login-form-wrapper { display: flex; justify-content: center; align-items: center; min-height: 100vh; width: 100%; background-color: #3655ff; }
 .login-card {
     background-color: var(--color-bg-card);
     width: 90%;
@@ -950,6 +951,22 @@ body {
     overflow-x: visible;
 }
 
+/* Итоги счётов/УПД: внутри липкой шапки, под фильтрами — не прячутся под прокруткой контента */
+.documents-sticky-summary-wrap {
+    margin-top: 0.35rem;
+    width: 100%;
+    min-width: 0;
+    overflow: visible;
+}
+.documents-page--saas-analytics .documents-sticky-summary-wrap {
+    margin-top: 0.28rem;
+}
+
+/* Строка «Итого» у таблиц счётов/УПД не должна пропадать из разметки таблицы */
+.documents-page table tfoot {
+    display: table-footer-group;
+}
+
 /* У .button-primary задан margin-top для форм логина; в «Документах» верх кнопки (скругление) визуально подрезается у контейнеров с overflow */
 .documents-page .button-primary {
     margin-top: 0;
@@ -1318,6 +1335,30 @@ body {
 .summary-metrics { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.5rem; align-items: center; max-width: fit-content; margin: 0 auto; }
 @media (max-width: 480px) {
     .summary-metrics { display: grid; grid-template-columns: repeat(3, 1fr); justify-items: center; }
+}
+
+/* Грузы (моб.): все KPI суммирования — в один ряд */
+@media (max-width: 768px) {
+    .cargo-page-root .cargo-summary-totals .summary-metrics {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        justify-content: space-between;
+        align-items: stretch;
+        gap: 0.35rem;
+        max-width: 100%;
+        width: 100%;
+        margin: 0;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+    .cargo-page-root .cargo-summary-totals .summary-metrics > * {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+    .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics > div {
+        padding: 0.45rem 0.3rem;
+    }
 }
 
 /**
