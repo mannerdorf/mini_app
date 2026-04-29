@@ -31,7 +31,7 @@ function CargoLastMileBadge({ item }: { item: CargoItem }) {
     <span
       title={
         selfPickup
-          ? "Место назначения содержит Андреевское или Железнодорожная — самовывоз"
+          ? "Пункт назначения: Андреевск… или Железнодорожная (в т.ч. с номером дома) — самовывоз"
           : "Доставка"
       }
       className={`max-badge ${selfPickup ? "cargo-last-mile-self" : "cargo-last-mile-delivery"}`}

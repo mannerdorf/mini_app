@@ -134,7 +134,10 @@ function isDestinationFieldKey(key: string): boolean {
     return DESTINATION_FIELD_KEY_RES.some((re) => re.test(k));
 }
 
-/** Текст места назначения (пункт выдачи / адрес), без отправителя и контрагента. */
+/**
+ * Текст места назначения (пункт / адрес доставки).
+ * Включён Receiver: в выдаче API часто там строка вида «… Железнодорожная 12», без отдельного поля улицы.
+ */
 export function cargoDestinationHaystack(item: CargoItem): string {
     const rec = item as Record<string, unknown>;
     const parts: string[] = [];
@@ -150,6 +153,7 @@ export function cargoDestinationHaystack(item: CargoItem): string {
         "ПунктНазначенияНаименование",
         "ПунктПолученияНаименование",
         "ПунктНазначения",
+        "ПунктНазначенияГородАэропорт",
         "ПунктДоставки",
         "ПунктПолучения",
         "ПунктВыдачи",
@@ -160,6 +164,8 @@ export function cargoDestinationHaystack(item: CargoItem): string {
         "LMAddress",
         "DestinationPoint",
         "ReceiverPoint",
+        "Receiver",
+        "receiver",
     ] as const;
     for (const k of explicitKeys) {
         push(rec[k]);
@@ -174,11 +180,13 @@ export function cargoDestinationHaystack(item: CargoItem): string {
 }
 
 /**
- * Самовывоз: в месте назначения есть «Андреевское» или «Железнодорожная» (без учёта регистра).
- * Иначе — доставка. Нет данных о пункте назначения — считаем доставкой.
+ * Самовывоз: в пункте назначения встречается «Андреевское» / «Андреевск…»
+ * или «Железнодорожн…» (в т.ч. «Железнодорожная 12»). Иначе — доставка.
+ * Нет текста по назначению — доставка.
  */
 export function cargoLastMileIsSelfPickup(item: CargoItem): boolean {
-    const t = cargoDestinationHaystack(item).toLowerCase();
-    if (!t.trim()) return false;
+    const raw = cargoDestinationHaystack(item);
+    if (!raw.trim()) return false;
+    const t = raw.toLowerCase().replace(/ё/g, "е");
     return t.includes("андреевск") || t.includes("железнодорожн");
 }
