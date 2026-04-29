@@ -1014,7 +1014,7 @@ body {
     box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
 }
 
-.dashboard-page--saas-analytics .cargo-card:not(.profile-saas-row-card) {
+.dashboard-page--saas-analytics .cargo-card:not(.profile-saas-row-card):not(.haulz-dispatch-stat-tile) {
     border-radius: 14px !important;
     border: 1px solid rgba(148, 163, 184, 0.2) !important;
     box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;

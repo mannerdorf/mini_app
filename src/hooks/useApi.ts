@@ -7,6 +7,7 @@ import { useCallback } from "react";
 import { apiFetchJson } from "../utils";
 import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_INVOICES_URL, PROXY_API_ACTS_URL, PROXY_API_ORDERS_URL, PROXY_API_SENDINGS_URL } from "../constants/config";
 import type { AuthData, CargoItem, PerevozkiRole } from "../types";
+import { mergePerevozkiRoleDuplicates } from "../lib/cargoUtils";
 
 /** SWR config: 60s consider fresh, 5min cache */
 const SWR_OPTIONS = {
@@ -154,7 +155,13 @@ async function fetcherPerevozkiMulti(params: PerevozkiMultiRoleParams): Promise<
         const key = String(item.Number || "").trim();
         if (!key) return;
         const existing = byNumber.get(key);
-        byNumber.set(key, existing ? chooseBest(existing, item) : item);
+        if (!existing) {
+            byNumber.set(key, item);
+            return;
+        }
+        const best = chooseBest(existing, item);
+        const other = best === existing ? item : existing;
+        byNumber.set(key, mergePerevozkiRoleDuplicates(best, other));
     });
     return Array.from(byNumber.values());
 }
@@ -239,7 +246,13 @@ async function fetcherPerevozkiMultiAccounts(params: PerevozkiMultiAccountsParam
             const key = String(item.Number || "").trim();
             if (!key) continue;
             const existing = byNumber.get(key);
-            byNumber.set(key, existing ? chooseBestItem(existing, item) : item);
+            if (!existing) {
+                byNumber.set(key, item);
+                continue;
+            }
+            const best = chooseBestItem(existing, item);
+            const other = best === existing ? item : existing;
+            byNumber.set(key, mergePerevozkiRoleDuplicates(best, other));
         }
     }
     return Array.from(byNumber.values());

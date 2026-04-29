@@ -134,6 +134,77 @@ function isDestinationFieldKey(key: string): boolean {
     return DESTINATION_FIELD_KEY_RES.some((re) => re.test(k));
 }
 
+/** Явные ключи API для пункта назначения (общий список для haystack и слияния ролей). */
+export const CARGO_DESTINATION_EXPLICIT_KEYS = [
+    "CityReceiver",
+    "ГородНазначения",
+    "ПунктНазначенияНаименование",
+    "ПунктПолученияНаименование",
+    "ПунктНазначения",
+    "ПунктНазначенияГородАэропорт",
+    "ПунктДоставки",
+    "ПунктПолучения",
+    "ПунктВыдачи",
+    "ПунктВыдачиНаименование",
+    "АдресДоставки",
+    "АдресПолучения",
+    "LMPoint",
+    "LMAddress",
+    "DestinationPoint",
+    "ReceiverPoint",
+    "Receiver",
+    "receiver",
+] as const;
+
+function stringHasSelfPickupAddressHint(s: string): boolean {
+    const t = s.toLowerCase().replace(/ё/g, "е");
+    return t.includes("андреевск") || t.includes("железнодорожн");
+}
+
+function pickRicherDestinationString(primary: string, secondary: string): string {
+    if (!secondary.trim()) return primary;
+    if (!primary.trim()) return secondary;
+    const p = primary.trim();
+    const s = secondary.trim();
+    const pHint = stringHasSelfPickupAddressHint(p);
+    const sHint = stringHasSelfPickupAddressHint(s);
+    if (sHint && !pHint) return s;
+    if (pHint && !sHint) return p;
+    if (s.length > p.length + 6) return s;
+    if (p.length > s.length + 6) return p;
+    return p;
+}
+
+/**
+ * При дедупликации одной перевозки по Mode (Customer / Sender / Receiver) 1С отдаёт разный состав полей.
+ * Выигрышная запись могла остаться только с CityReceiver=Калининград/МСК/КГД, а «Железнодорожная…» — в Receiver / другой роли.
+ * Сливаем поля назначения до «обогащения» маршрута кодами MSK/KGD в UI.
+ */
+export function mergePerevozkiRoleDuplicates(winner: CargoItem, loser: CargoItem): CargoItem {
+    const w = winner as Record<string, unknown>;
+    const l = loser as Record<string, unknown>;
+    const out: Record<string, unknown> = { ...l, ...w };
+    const role = winner._role;
+
+    for (const k of CARGO_DESTINATION_EXPLICIT_KEYS) {
+        const ws = w[k] != null ? String(w[k]).trim() : "";
+        const ls = l[k] != null ? String(l[k]).trim() : "";
+        if (!ws && !ls) continue;
+        out[k] = pickRicherDestinationString(ws, ls);
+    }
+
+    for (const [k, v] of Object.entries(l)) {
+        if (typeof v !== "string" || !v.trim()) continue;
+        if (!isDestinationFieldKey(k)) continue;
+        const ws = w[k] != null ? String(w[k]).trim() : "";
+        const ls = String(v).trim();
+        out[k] = pickRicherDestinationString(ws, ls);
+    }
+
+    if (role !== undefined) out._role = role;
+    return out as CargoItem;
+}
+
 /**
  * Текст места назначения (пункт / адрес доставки).
  * Включён Receiver: в выдаче API часто там строка вида «… Железнодорожная 12», без отдельного поля улицы.
@@ -147,27 +218,7 @@ export function cargoDestinationHaystack(item: CargoItem): string {
         if (s) parts.push(s);
     };
 
-    const explicitKeys = [
-        "CityReceiver",
-        "ГородНазначения",
-        "ПунктНазначенияНаименование",
-        "ПунктПолученияНаименование",
-        "ПунктНазначения",
-        "ПунктНазначенияГородАэропорт",
-        "ПунктДоставки",
-        "ПунктПолучения",
-        "ПунктВыдачи",
-        "ПунктВыдачиНаименование",
-        "АдресДоставки",
-        "АдресПолучения",
-        "LMPoint",
-        "LMAddress",
-        "DestinationPoint",
-        "ReceiverPoint",
-        "Receiver",
-        "receiver",
-    ] as const;
-    for (const k of explicitKeys) {
+    for (const k of CARGO_DESTINATION_EXPLICIT_KEYS) {
         push(rec[k]);
     }
 

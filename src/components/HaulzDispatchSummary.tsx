@@ -434,7 +434,7 @@ export function HaulzDispatchSummary({
             <Panel
                 role="button"
                 tabIndex={0}
-                className="cargo-card"
+                className="cargo-card haulz-dispatch-stat-tile"
                 onClick={() => setSelectedTile(tileKey)}
                 onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
