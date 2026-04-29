@@ -1094,6 +1094,23 @@ export function DashboardPage({
         };
     }, [filteredItems, getEffectivePlannedDate]);
     const planVsFactDashboard = useMemo(() => {
+        if (!canAccessHaulzDispatch) {
+            return {
+                total: 0,
+                withPlan: 0,
+                withoutPlan: 0,
+                pendingFact: 0,
+                overdueOpen: 0,
+                onTime: 0,
+                late: 0,
+                onTimeRate: 0,
+                avgDeviationDays: 0,
+                avgLateDays: 0,
+                trend: [] as { key: string; onTime: number; late: number; total: number }[],
+                maxTotal: 1,
+                topLate: [] as { number: string; route: string; planned: string; actual: string; delayDays: number }[],
+            };
+        }
         const dayMs = 24 * 60 * 60 * 1000;
         const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
         const toKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -1205,7 +1222,7 @@ export function DashboardPage({
             maxTotal,
             topLate,
         };
-    }, [filteredItems, getEffectivePlannedDate]);
+    }, [filteredItems, getEffectivePlannedDate, canAccessHaulzDispatch]);
 
     useEffect(() => {
         if (!useServiceRequest || !auth?.login || !auth?.password || filteredItems.length === 0) return;
@@ -3834,7 +3851,8 @@ export function DashboardPage({
                 </Panel>
             )}
 
-            {!showOnlySla && !loading && !error && (
+            {/* План-факт — только при праве haulz (раздел HAULZ в профиле) или суперадмин; см. canAccessHaulzDispatch в AppMainContent. */}
+            {!showOnlySla && !loading && !error && canAccessHaulzDispatch && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
                         План-Факт
