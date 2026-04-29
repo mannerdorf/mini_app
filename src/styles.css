@@ -2229,6 +2229,18 @@ body {
     color: var(--color-text-primary);
     border: 1px solid var(--color-border);
 }
+
+/* Последняя миля: те же padding / font-size / radius, что у статуса (.max-badge) */
+.max-badge.cargo-last-mile-self {
+    background-color: rgba(13, 148, 136, 0.18);
+    color: #0f766e;
+    border: 1px solid rgba(13, 148, 136, 0.45);
+}
+.max-badge.cargo-last-mile-delivery {
+    background-color: rgba(37, 99, 235, 0.12);
+    color: #1d4ed8;
+    border: 1px solid rgba(37, 99, 235, 0.32);
+}
 /* Улучшаем видимость границ бейджей в темном режиме */
 .dark-mode .max-badge-success {
     border: 1px solid rgba(52, 211, 153, 0.6);
@@ -2247,6 +2259,12 @@ body {
 }
 .dark-mode .max-badge-default {
     border: 1px solid var(--color-border);
+}
+.dark-mode .max-badge.cargo-last-mile-self {
+    border: 1px solid rgba(13, 148, 136, 0.55);
+}
+.dark-mode .max-badge.cargo-last-mile-delivery {
+    border: 1px solid rgba(37, 99, 235, 0.45);
 }
 
 /* Вертикальный таймлайн статусов перевозки (объёмный, в стиле бейджей) */

@@ -31,28 +31,11 @@ function CargoLastMileBadge({ item }: { item: CargoItem }) {
     <span
       title={
         selfPickup
-          ? "Пункт выдачи содержит ИП Андреевское или ул. Железнодорожная — самовывоз"
-          : "Последняя миля: доставка до адреса"
+          ? "Место назначения содержит Андреевское или Железнодорожная — самовывоз"
+          : "Доставка"
       }
-      style={{
-        fontSize: "0.65rem",
-        fontWeight: 600,
-        padding: "0.15rem 0.45rem",
-        borderRadius: "999px",
-        flexShrink: 0,
-        alignSelf: "flex-start",
-        ...(selfPickup
-          ? {
-              background: "rgba(13, 148, 136, 0.18)",
-              color: "#0f766e",
-              border: "1px solid rgba(13, 148, 136, 0.45)",
-            }
-          : {
-              background: "rgba(37, 99, 235, 0.12)",
-              color: "#1d4ed8",
-              border: "1px solid rgba(37, 99, 235, 0.32)",
-            }),
-      }}
+      className={`max-badge ${selfPickup ? "cargo-last-mile-self" : "cargo-last-mile-delivery"}`}
+      style={{ flexShrink: 0 }}
     >
       {selfPickup ? "Самовывоз" : "Доставка"}
     </span>

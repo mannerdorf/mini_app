@@ -660,7 +660,7 @@ export function CargoPage({
                             onClick={() => { setLastMileFilter("self_pickup"); setIsLastMileDropdownOpen(false); }}
                             style={{ background: lastMileFilter === "self_pickup" ? "var(--color-bg-hover)" : undefined }}
                         >
-                            <Typography.Body>Самовывоз (ИП Андреевское, ж/д) {lastMileFilter === "self_pickup" ? "✓" : ""}</Typography.Body>
+                            <Typography.Body>Самовывоз {lastMileFilter === "self_pickup" ? "✓" : ""}</Typography.Body>
                         </div>
                         <div
                             className="dropdown-item"

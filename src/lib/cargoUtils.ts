@@ -112,10 +112,30 @@ export function getSlaInfo(
     return { planDays: planWorkingDays, actualDays, onTime, delayDays };
 }
 
-const LAST_MILE_KEY_RE = /пункт|выдач|назначен|получен|доставк|lm|last.?mile|addressreceiver|delivery|адрес.?получ/i;
+/** Ключи и шаблоны имён полей API — только место/пункт назначения (не отправитель). */
+const DESTINATION_FIELD_KEY_RES = [
+    /^cityreceiver$/,
+    /^пунктназнач/,
+    /^пунктполуч/,
+    /^пунктдостав/,
+    /^пунктвыдач/,
+    /^адресдостав/,
+    /^адресполуч/,
+    /^городназнач/,
+    /^lmpoint$/,
+    /^lmaddress$/,
+    /^destination/,
+    /^receiverpoint$/,
+];
 
-/** Текст пункта выдачи / последней мили (для эвристики самовывоз vs доставка). */
-export function cargoLastMileHaystack(item: CargoItem): string {
+function isDestinationFieldKey(key: string): boolean {
+    const k = key.trim().toLowerCase();
+    if (!k) return false;
+    return DESTINATION_FIELD_KEY_RES.some((re) => re.test(k));
+}
+
+/** Текст места назначения (пункт выдачи / адрес), без отправителя и контрагента. */
+export function cargoDestinationHaystack(item: CargoItem): string {
     const rec = item as Record<string, unknown>;
     const parts: string[] = [];
     const push = (v: unknown) => {
@@ -123,38 +143,42 @@ export function cargoLastMileHaystack(item: CargoItem): string {
         const s = String(v).trim();
         if (s) parts.push(s);
     };
-    push(rec.Receiver);
-    push(rec.receiver);
-    push(rec.ПунктНазначенияНаименование);
-    push(rec.ПунктПолученияНаименование);
-    push(rec.ПунктНазначения);
-    push(rec.ПунктДоставки);
-    push(rec.ПунктПолучения);
-    push(rec.ПунктВыдачи);
-    push(rec.ПунктВыдачиНаименование);
-    push(rec.АдресДоставки);
-    push(rec.АдресПолучения);
-    push(rec.LMPoint);
-    push(rec.LMAddress);
-    push(rec.CityReceiver);
+
+    const explicitKeys = [
+        "CityReceiver",
+        "ГородНазначения",
+        "ПунктНазначенияНаименование",
+        "ПунктПолученияНаименование",
+        "ПунктНазначения",
+        "ПунктДоставки",
+        "ПунктПолучения",
+        "ПунктВыдачи",
+        "ПунктВыдачиНаименование",
+        "АдресДоставки",
+        "АдресПолучения",
+        "LMPoint",
+        "LMAddress",
+        "DestinationPoint",
+        "ReceiverPoint",
+    ] as const;
+    for (const k of explicitKeys) {
+        push(rec[k]);
+    }
 
     for (const [k, v] of Object.entries(rec)) {
         if (typeof v !== "string" || !v.trim()) continue;
-        if (!LAST_MILE_KEY_RE.test(k)) continue;
-        if (/^(Customer|Sender|State|StateBill|DatePrih|DateVr)$/i.test(k)) continue;
+        if (!isDestinationFieldKey(k)) continue;
         push(v);
     }
     return parts.join("\n");
 }
 
 /**
- * Самовывоз на последней миле: пункт выдачи содержит Индустриальный парк Андреевское
- * или адрес с «Железнодорожн…»; остальные считаем доставкой.
+ * Самовывоз: в месте назначения есть «Андреевское» или «Железнодорожная» (без учёта регистра).
+ * Иначе — доставка. Нет данных о пункте назначения — считаем доставкой.
  */
 export function cargoLastMileIsSelfPickup(item: CargoItem): boolean {
-    const t = cargoLastMileHaystack(item).toLowerCase();
+    const t = cargoDestinationHaystack(item).toLowerCase();
     if (!t.trim()) return false;
-    const andreevskoIP = t.includes("индустриаль") && t.includes("парк") && t.includes("андреевск");
-    const railway = t.includes("железнодорожн");
-    return andreevskoIP || railway;
+    return t.includes("андреевск") || t.includes("железнодорожн");
 }
