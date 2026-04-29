@@ -6,25 +6,34 @@
     <meta name="robots" content="noindex, nofollow" />
     <meta name="googlebot" content="noindex, nofollow" />
     <meta name="yandex" content="noindex, nofollow" />
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://st.max.ru/js/max-web-app.js"></script>
+    <link rel="dns-prefetch" href="https://telegram.org" />
+    <link rel="dns-prefetch" href="https://st.max.ru" />
+    <link rel="preconnect" href="https://telegram.org" crossorigin />
+    <link rel="preconnect" href="https://st.max.ru" crossorigin />
+    <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script defer src="https://st.max.ru/js/max-web-app.js"></script>
     <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#0071e3" />
     <title>HAULZ</title>
-    <script type="module" crossorigin src="/assets/index-BPL8oemW.js"></script>
+    <script type="module" crossorigin src="/assets/index-DN3tdWD_.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/lucide-Cu5tXsGr.js">
     <link rel="modulepreload" crossorigin href="/assets/recharts-DExrhe65.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-BqJ07cJV.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-D_1ZnVa_.css">
   </head>
   <body>
     <div id="root"></div>
+    <!-- Bitrix после window.load — меньше конкуренции за сеть при первом рендере -->
     <script>
       (function(w,d,u){
-        var s=d.createElement('script');s.async=true;s.src=u+'?'+(Date.now()/60000|0);
-        var h=d.getElementsByTagName('script')[0];h.parentNode.insertBefore(s,h);
+        function inject() {
+          var s=d.createElement('script');s.async=true;s.src=u+'?'+(Date.now()/60000|0);
+          var h=d.getElementsByTagName('script')[0];h.parentNode.insertBefore(s,h);
+        }
+        if (w.document.readyState === 'complete') inject();
+        else w.addEventListener('load', inject, { once: true });
       })(window,document,'https://cdn-ru.bitrix24.ru/b33102400/crm/site_button/loader_1_q2c97k.js');
     </script>
   </body>

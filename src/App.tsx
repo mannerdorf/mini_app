@@ -496,17 +496,21 @@ export default function App() {
     }, [activeAccount?.id, activeAccount?.isRegisteredUser, activeAccount?.permissions, activeTab, isWbOnlyUser]);
 
     useEffect(() => {
-        document.body.className = `${theme}-mode`;
+        const cls = `${theme}-mode`;
+        document.documentElement.className = cls;
+        document.body.className = cls;
         try {
             window.localStorage.setItem("haulz.theme", theme);
         } catch {
             // ignore
         }
-        if (isMaxWebApp()) {
-            const webApp = getWebApp();
-            if (webApp && typeof webApp.setBackgroundColor === "function") {
-                webApp.setBackgroundColor(theme === "dark" ? "#000000" : "#ffffff");
-            }
+        const metaTheme = document.querySelector('meta[name="theme-color"]');
+        if (metaTheme) {
+            metaTheme.setAttribute("content", theme === "dark" ? "#000000" : "#0071e3");
+        }
+        const webApp = getWebApp();
+        if (webApp && typeof webApp.setBackgroundColor === "function") {
+            webApp.setBackgroundColor(theme === "dark" ? "#000000" : "#ffffff");
         }
     }, [theme]);
     useEffect(() => {

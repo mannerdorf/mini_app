@@ -2994,13 +2994,9 @@ export function ProfilePage({
                 <header className={profileSaasShellActive ? "profile-saas-page-header" : "profile-saas-page-header profile-saas-page-header--legacy"}>
                     <div className="profile-saas-page-header-text">
                         <h1 className="profile-saas-h1">Профиль</h1>
-                        {activeAccount ? (
-                            <p className="profile-saas-caption">
-                                {activeAccount.customer?.trim() || activeAccount.login || "Аккаунт"}
-                            </p>
-                        ) : (
+                        {!activeAccount ? (
                             <p className="profile-saas-caption">Выберите компанию в шапке</p>
-                        )}
+                        ) : null}
                     </div>
                 </header>
             </motion.div>

@@ -47,15 +47,25 @@
 
 * { box-sizing: border-box; }
 /* auto вместо hidden — при широком контенте (таблицы, табель) появляется скролл, в Яндексе и др. не обрезается */
-html { overflow-x: auto; }
+html {
+    overflow-x: auto;
+    background-color: var(--color-bg-primary);
+}
 body {
-  margin: 0;
-  overflow-x: auto;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", "Helvetica", "Arial", sans-serif;
-  font-size: var(--font-size-body, 17px);
-  line-height: var(--line-height-body, 1.47);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+    margin: 0;
+    overflow-x: auto;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", "Helvetica", "Arial", sans-serif;
+    font-size: var(--font-size-body, 17px);
+    line-height: var(--line-height-body, 1.47);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: var(--color-bg-primary);
+}
+/* Ниже основного контента (оверскролл, safe area) не должен «просвечивать» белым */
+#root {
+    min-height: 100%;
+    min-height: 100dvh;
+    background-color: var(--color-bg-primary);
 }
 
 /* Скрыть визуально, оставить для скринридеров (a11y) */
@@ -298,6 +308,7 @@ body {
     justify-content: center;
     min-width: 0;
     overflow-x: auto; /* не обрезать широкие таблицы в Документах/Грузах */
+    background-color: var(--color-bg-primary);
 }
 .app-main > div {
     min-width: 0;
@@ -337,6 +348,14 @@ body {
 
 /* Мобильная версия: хедер и таббар фиксированы, скролл только в контенте */
 @media (max-width: 768px) {
+    /**
+     * Отступ под фиксированный .app-header: совпадает с его разметкой.
+     * У хедера padding-top: max(16px, safe-area). Раньше в .app-main было «inner + safe-area» целиком — лишний кусок inset
+     * давал заметный зазор на Главной / Грузы / Документы. Формула: высота «тела» шапки + тот же верхний inset, что у хедера.
+     */
+    :root {
+        --app-mobile-header-inner-stack: 60px;
+    }
     .app-container {
         padding-top: 0;
         padding-bottom: 0;
@@ -377,9 +396,9 @@ body {
         overflow-y: auto;
         overflow-x: auto; /* не обрезать табель и широкие таблицы слева */
         -webkit-overflow-scrolling: touch;
-        /* Высота хедера + отступ + safe-area, чтобы название раздела и фильтры были ниже хедера */
-        padding-top: calc(124px + env(safe-area-inset-top));
-        padding-bottom: calc(84px + env(safe-area-inset-bottom));
+        padding-top: calc(var(--app-mobile-header-inner-stack) + max(var(--space-4, 16px), env(safe-area-inset-top)));
+        /* Таббар fixed + индикатор «домой» + виджет чата (Bitrix) — 84px мало, последние пункты профиля обрезались */
+        padding-bottom: calc(112px + env(safe-area-inset-bottom));
         padding-left: max(var(--space-3, 12px), env(safe-area-inset-left));
         padding-right: max(var(--space-3, 12px), env(safe-area-inset-right));
     }
@@ -400,12 +419,15 @@ body {
     .modal-overlay {
         z-index: 49;
         align-items: flex-start;
-        padding-top: calc(124px + env(safe-area-inset-top));
+        padding-top: calc(var(--app-mobile-header-inner-stack) + max(var(--space-4, 16px), env(safe-area-inset-top)));
         padding-bottom: calc(72px + env(safe-area-inset-bottom));
     }
     .modal-content {
         margin-bottom: 0;
-        max-height: calc(100dvh - 124px - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        max-height: calc(
+            100dvh - var(--app-mobile-header-inner-stack) - max(var(--space-4, 16px), env(safe-area-inset-top)) - 72px -
+                env(safe-area-inset-bottom)
+        );
     }
     .tabbar-container {
         transform: translateX(-50%) translateZ(0);
@@ -415,15 +437,31 @@ body {
     }
     /* Форма создания претензии: на мобильном не перекрывать верхним хедером */
     .claims-create-overlay {
-        padding-top: calc(124px + env(safe-area-inset-top)) !important;
+        padding-top: calc(var(--app-mobile-header-inner-stack) + max(var(--space-4, 16px), env(safe-area-inset-top))) !important;
         padding-bottom: calc(72px + env(safe-area-inset-bottom)) !important;
     }
     .claims-create-content {
-        max-height: calc(100vh - 124px - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
-        max-height: calc(100dvh - 124px - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+        max-height: calc(
+                100vh - var(--app-mobile-header-inner-stack) - max(var(--space-4, 16px), env(safe-area-inset-top)) - 100px -
+                    env(safe-area-inset-bottom)
+            )
+            !important;
+        max-height: calc(
+                100dvh - var(--app-mobile-header-inner-stack) - max(var(--space-4, 16px), env(safe-area-inset-top)) - 100px -
+                    env(safe-area-inset-bottom)
+            )
+            !important;
         padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
     }
 }
+
+/* Планшет / узкое окно: не мобильный @media, но таббар всё ещё fixed — иначе мало места под нижним баром и виджетом */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .app-container.profile-saas-shell {
+        padding-bottom: calc(112px + env(safe-area-inset-bottom));
+    }
+}
+
 .light-mode .app-header {
     border-bottom: 1px solid var(--color-border);
 }
@@ -984,6 +1022,13 @@ body {
     margin-top: 2.5cm;
 }
 
+/* Мобильный: app-main уже даёт отступ под фиксированный хедер — лишний margin съедает экран */
+@media (max-width: 768px) {
+    .dashboard-page-offset {
+        margin-top: 0;
+    }
+}
+
 /**
  * Главная (дашборд) — визуал «SaaS analytics» при saasDashboardMotion (включён для всех).
  */
@@ -1327,6 +1372,14 @@ body {
     }
 }
 
+/* Мобильный: KPI в одной карточке с фильтрами — меньше зазор между строкой фильтров и плитками */
+@media (max-width: 768px) {
+    .cargo-page-root--saas-analytics .cargo-page-sticky-header .filters-container,
+    .cargo-page-root--saas-analytics .cargo-page-sticky-header .filters-row-scroll {
+        margin-bottom: 0.35rem;
+    }
+}
+
 /**
  * Документы — визуал «SaaS analytics» (как у «Грузов»); класс включается из App для всех.
  */
@@ -1346,6 +1399,28 @@ body {
     box-shadow:
         0 1px 2px rgba(15, 23, 42, 0.05),
         0 12px 40px rgba(15, 23, 42, 0.06);
+}
+
+/* Сразу под шапкой — контент без KPI (тарифы/договоры) или панель с кнопками: 1.5cm лишний; WebView часто шире 768px */
+.documents-page .cargo-page-sticky-header.documents-page-sticky-header:has(+ .documents-toolbar-below-sticky),
+.documents-page .cargo-page-sticky-header.documents-page-sticky-header:has(+ .doc-section-content) {
+    margin-bottom: 0.65rem;
+}
+
+/* Узкий холст / миниапп: до 1024px ловим WebView с шириной > 768 */
+@media (max-width: 1024px) {
+    .documents-page-sticky-header,
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
+        margin-bottom: 0.65rem;
+    }
+    /* Тарифы / Договоры: padding-top: 5rem рассчитан на десктоп; без этого — огромный зазор до карточек */
+    .documents-page .doc-section-content {
+        padding-top: 0.35rem;
+    }
+    .documents-page .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics .documents-toolbar-below-sticky {
+        padding-top: 0.35rem;
+    }
 }
 
 .documents-page--saas-analytics .documents-summary-totals--saas-kpi.documents-summary-card.cargo-card {
@@ -1399,7 +1474,7 @@ body {
     }
 }
 
-@media (min-width: 769px) {
+@media (min-width: 1025px) {
     .documents-page--saas-analytics .documents-table-offset-desktop,
     .documents-page--saas-analytics .documents-cards-offset-desktop {
         margin-top: 2cm;
