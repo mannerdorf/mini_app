@@ -18,7 +18,7 @@ export function ProfileFaqSection({ onBack }: Props) {
                 <Typography.Headline style={{ fontSize: "1.25rem" }}>FAQ</Typography.Headline>
             </Flex>
             <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
-                Подробные ответы: вход и пароль, присоединение компаний (по ИНН и по логину/паролю), приглашение и управление сотрудниками, грузы, фильтры, документы и поддержка.
+                Актуальные ответы по HAULZ: вход и 2FA, компании и заказчик в шапке, сотрудники, Главная и Грузы (фильтры, служебный режим, роли), Документы (вкладки, таблица/карточки, претензии), тема и браузер, модули WB и расходы, поддержка.
             </Typography.Body>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                 {PROFILE_FAQ_ITEMS.map((item, idx) => (

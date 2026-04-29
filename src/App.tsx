@@ -1845,15 +1845,19 @@ export default function App() {
                                 onUpdateAccount={handleUpdateAccount}
                             />
                         )}
-                        {!isWildberriesTab(activeTab) && serviceModeUnlocked && (
+                        {!isWildberriesTab(activeTab) && (
                             <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }}>
-                                <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>Служ.</Typography.Label>
-                                <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
-                                    <TapSwitch
-                                        checked={useServiceRequest}
-                                        onToggle={() => setUseServiceRequest(v => !v)}
-                                    />
-                                </span>
+                                {serviceModeUnlocked && (
+                                    <>
+                                        <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>Служ.</Typography.Label>
+                                        <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
+                                            <TapSwitch
+                                                checked={useServiceRequest}
+                                                onToggle={() => setUseServiceRequest(v => !v)}
+                                            />
+                                        </span>
+                                    </>
+                                )}
                                 <Button
                                     className="search-toggle-button desktop-expand-toggle"
                                     onClick={(e) => {
@@ -1865,7 +1869,7 @@ export default function App() {
                                 >
                                     {desktopExpanded ? <Minimize2 className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
                                 </Button>
-                                {useServiceRequest && (
+                                {serviceModeUnlocked && useServiceRequest && (
                                     <Button
                                         className="search-toggle-button"
                                         onClick={(e) => {

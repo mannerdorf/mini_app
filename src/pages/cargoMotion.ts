@@ -30,6 +30,15 @@ export const cargoListItemVariants = {
     },
 };
 
+/** Документы: без сдвига по Y — при overflow у .cargo-list первая карточка обрезалась сверху */
+export const documentsListItemVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+        opacity: 1,
+        transition: { duration: 0.28, ease: CARGO_MOTION_EASE },
+    },
+};
+
 /** Строки-агрегаты по заказчику: stagger через custom = индекс строки */
 export const cargoTableGroupRowVariants = {
     initial: { opacity: 0, x: -10 },

@@ -55,7 +55,7 @@ import { DocumentsSummaryCard, DocumentsStateBlocks, DocumentsToolbarBelowSticky
 import {
     cargoExpandMotionProps,
     cargoListContainerVariants,
-    cargoListItemVariants,
+    documentsListItemVariants,
     cargoModeSwitchMotion,
     cargoSummaryMotion,
     cargoTableGroupRowVariants,
@@ -3569,7 +3569,7 @@ useEffect(() => {
                         return (
                             <motion.div
                                 key={num || idx}
-                                variants={docsMotionEnabled ? cargoListItemVariants : undefined}
+                                variants={docsMotionEnabled ? documentsListItemVariants : undefined}
                                 initial={docsMotionEnabled ? "hidden" : false}
                                 animate={docsMotionEnabled ? "visible" : undefined}
                             >
@@ -3809,7 +3809,7 @@ useEffect(() => {
                         return (
                             <motion.div
                                 key={num || idx}
-                                variants={docsMotionEnabled ? cargoListItemVariants : undefined}
+                                variants={docsMotionEnabled ? documentsListItemVariants : undefined}
                                 initial={docsMotionEnabled ? "hidden" : false}
                                 animate={docsMotionEnabled ? "visible" : undefined}
                             >
@@ -4180,7 +4180,7 @@ useEffect(() => {
                         return (
                             <motion.div
                                 key={rowKey}
-                                variants={docsMotionEnabled ? cargoListItemVariants : undefined}
+                                variants={docsMotionEnabled ? documentsListItemVariants : undefined}
                                 initial={docsMotionEnabled ? "hidden" : false}
                                 animate={docsMotionEnabled ? "visible" : undefined}
                             >

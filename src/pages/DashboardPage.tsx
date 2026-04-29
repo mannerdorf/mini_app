@@ -67,6 +67,17 @@ const DASHBOARD_MOTION_ITEM = {
     },
 };
 
+type CargoFlowTableSelection =
+    | { kind: 'badge'; badge: 'withPlan' | 'withoutPlan' | 'overdue' | 'dueToday' | 'dueTomorrow' | 'dueNext7' }
+    | { kind: 'tile'; dateKey: string };
+
+function cargoFlowSelectionEqual(a: CargoFlowTableSelection | null, b: CargoFlowTableSelection | null): boolean {
+    if (!a || !b) return false;
+    if (a.kind !== b.kind) return false;
+    if (a.kind === 'tile') return a.dateKey === b.dateKey;
+    return a.badge === b.badge;
+}
+
 function DashboardMotionGroup({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
     if (!enabled) return <>{children}</>;
     return (
@@ -305,6 +316,9 @@ export function DashboardPage({
     const [selectedFunnelStatusKey, setSelectedFunnelStatusKey] = useState<string | null>(null);
     /** Раскрытый заказчик в таблице «Заказчики по статусу» — показываем перевозки и даты */
     const [expandedFunnelCustomer, setExpandedFunnelCustomer] = useState<string | null>(null);
+    /** Грузовой поток: таблица по клику на бейдж или плитку; по умолчанию свёрнута */
+    const [cargoFlowTableExpanded, setCargoFlowTableExpanded] = useState(false);
+    const [cargoFlowTableSelection, setCargoFlowTableSelection] = useState<CargoFlowTableSelection | null>(null);
     /** Сортировка таблицы «Платёжная дисциплина» */
     const [paymentDisciplineSortCol, setPaymentDisciplineSortCol] = useState<'name' | 'count' | 'paid' | 'unpaid' | 'paidRate'>('paidRate');
     const [paymentDisciplineSortAsc, setPaymentDisciplineSortAsc] = useState(true);
@@ -2528,6 +2542,73 @@ export function DashboardPage({
     const getItemSum = (item: any) => typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
     const getItemPw = (item: any) => typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
 
+    const cargoFlowDetailItems = useMemo(() => {
+        if (!cargoFlowTableExpanded || !cargoFlowTableSelection) return [] as CargoItem[];
+        const dateToKey = (date: Date): string =>
+            `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const todayKey = dateToKey(today);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowKey = dateToKey(tomorrow);
+        const horizon = new Date(today);
+        horizon.setDate(horizon.getDate() + 7);
+        const horizonKey = dateToKey(horizon);
+        const getPlannedKey = (item: CargoItem): string | null => {
+            const planned = getEffectivePlannedDate(item);
+            return planned ? dateToKey(planned) : null;
+        };
+        const isUndelivered = (item: CargoItem) => getFilterKeyByStatus(item.State) !== 'delivered';
+        const sel = cargoFlowTableSelection;
+        return filteredItems.filter((item) => {
+            const plannedKey = getPlannedKey(item);
+            if (sel.kind === 'tile') {
+                if (!plannedKey) return false;
+                return plannedKey === sel.dateKey;
+            }
+            switch (sel.badge) {
+                case 'withoutPlan':
+                    return !plannedKey;
+                case 'withPlan':
+                    return !!plannedKey;
+                case 'overdue':
+                    if (!plannedKey || !isUndelivered(item)) return false;
+                    return plannedKey < todayKey;
+                case 'dueToday':
+                    if (!plannedKey || !isUndelivered(item)) return false;
+                    return plannedKey === todayKey;
+                case 'dueTomorrow':
+                    if (!plannedKey || !isUndelivered(item)) return false;
+                    return plannedKey === tomorrowKey;
+                case 'dueNext7':
+                    if (!plannedKey || !isUndelivered(item)) return false;
+                    return plannedKey > tomorrowKey && plannedKey <= horizonKey;
+                default:
+                    return false;
+            }
+        });
+    }, [filteredItems, cargoFlowTableExpanded, cargoFlowTableSelection, getEffectivePlannedDate]);
+
+    const cargoFlowDetailSorted = useMemo(() => {
+        return [...cargoFlowDetailItems].sort((a, b) => {
+            const ka = getEffectivePlannedDate(a)?.getTime() ?? 0;
+            const kb = getEffectivePlannedDate(b)?.getTime() ?? 0;
+            if (ka !== kb) return ka - kb;
+            return String(a.Number ?? '').localeCompare(String(b.Number ?? ''), 'ru');
+        });
+    }, [cargoFlowDetailItems, getEffectivePlannedDate]);
+
+    const onCargoFlowPick = useCallback((sel: CargoFlowTableSelection) => {
+        if (cargoFlowTableExpanded && cargoFlowSelectionEqual(cargoFlowTableSelection, sel)) {
+            setCargoFlowTableExpanded(false);
+            setCargoFlowTableSelection(null);
+            return;
+        }
+        setCargoFlowTableSelection(sel);
+        setCargoFlowTableExpanded(true);
+    }, [cargoFlowTableExpanded, cargoFlowTableSelection]);
+
     const customerLtv = useMemo(() => {
         if (!useServiceRequest || clientItems.length === 0) return null;
         const byCustomer = new Map<string, { sum: number; pw: number; count: number; first: Date | null; last: Date | null }>();
@@ -3773,15 +3854,41 @@ export function DashboardPage({
                         Грузовой поток (по плановой дате)
                     </Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
-                        Поток перевозок по плановой дате доставки: нагрузка на ближайшие дни и риск просрочки.
+                        Поток перевозок по плановой дате доставки: нагрузка на ближайшие дни и риск просрочки. Нажмите на бейдж или день — ниже откроется таблица; повторный клик по тому же элементу сворачивает её.
                     </Typography.Body>
                     <Flex gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.9rem' }}>
-                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(37,99,235,0.14)', border: '1px solid rgba(37,99,235,0.35)' }}>С планом: {cargoFlowByPlan.withPlan} из {cargoFlowByPlan.total}</span>
-                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: cargoFlowByPlan.overdue > 0 ? 'rgba(239,68,68,0.16)' : 'rgba(148,163,184,0.16)', border: cargoFlowByPlan.overdue > 0 ? '1px solid rgba(239,68,68,0.35)' : '1px solid var(--color-border)' }}>Просрочено: {cargoFlowByPlan.overdue}</span>
-                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(245,158,11,0.16)', border: '1px solid rgba(245,158,11,0.35)' }}>Сегодня: {cargoFlowByPlan.dueToday}</span>
-                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(16,185,129,0.16)', border: '1px solid rgba(16,185,129,0.35)' }}>Завтра: {cargoFlowByPlan.dueTomorrow}</span>
-                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(99,102,241,0.16)', border: '1px solid rgba(99,102,241,0.35)' }}>2-7 дней: {cargoFlowByPlan.dueNext7}</span>
-                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(148,163,184,0.16)', border: '1px solid var(--color-border)' }}>Без плановой: {cargoFlowByPlan.withoutPlan}</span>
+                        {([
+                            { badge: 'withPlan' as const, label: `С планом: ${cargoFlowByPlan.withPlan} из ${cargoFlowByPlan.total}`, bg: 'rgba(37,99,235,0.14)', border: '1px solid rgba(37,99,235,0.35)' },
+                            { badge: 'overdue' as const, label: `Просрочено: ${cargoFlowByPlan.overdue}`, bg: cargoFlowByPlan.overdue > 0 ? 'rgba(239,68,68,0.16)' : 'rgba(148,163,184,0.16)', border: cargoFlowByPlan.overdue > 0 ? '1px solid rgba(239,68,68,0.35)' : '1px solid var(--color-border)' },
+                            { badge: 'dueToday' as const, label: `Сегодня: ${cargoFlowByPlan.dueToday}`, bg: 'rgba(245,158,11,0.16)', border: '1px solid rgba(245,158,11,0.35)' },
+                            { badge: 'dueTomorrow' as const, label: `Завтра: ${cargoFlowByPlan.dueTomorrow}`, bg: 'rgba(16,185,129,0.16)', border: '1px solid rgba(16,185,129,0.35)' },
+                            { badge: 'dueNext7' as const, label: `2-7 дней: ${cargoFlowByPlan.dueNext7}`, bg: 'rgba(99,102,241,0.16)', border: '1px solid rgba(99,102,241,0.35)' },
+                            { badge: 'withoutPlan' as const, label: `Без плановой: ${cargoFlowByPlan.withoutPlan}`, bg: 'rgba(148,163,184,0.16)', border: '1px solid var(--color-border)' },
+                        ]).map((b) => {
+                            const sel = { kind: 'badge' as const, badge: b.badge };
+                            const active = cargoFlowTableExpanded && cargoFlowSelectionEqual(cargoFlowTableSelection, sel);
+                            return (
+                                <button
+                                    key={b.badge}
+                                    type="button"
+                                    className="role-badge"
+                                    onClick={() => onCargoFlowPick(sel)}
+                                    style={{
+                                        fontSize: '0.72rem',
+                                        padding: '0.18rem 0.45rem',
+                                        borderRadius: '999px',
+                                        background: active ? `${b.bg.replace('0.14', '0.22').replace('0.16', '0.24')}` : b.bg,
+                                        border: active ? '2px solid rgba(255,255,255,0.35)' : b.border,
+                                        cursor: 'pointer',
+                                        color: 'inherit',
+                                        font: 'inherit',
+                                        boxShadow: active ? '0 0 0 2px rgba(37,99,235,0.25)' : undefined,
+                                    }}
+                                >
+                                    {b.label}
+                                </button>
+                            );
+                        })}
                     </Flex>
                     <div style={{ marginTop: '0.4rem' }}>
                         <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.45rem' }}>
@@ -3790,11 +3897,15 @@ export function DashboardPage({
                         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(130px, 1fr))', gap: '0.45rem', minWidth: '56rem' }}>
                             {cargoFlowByPlan.upcomingSeries.map((row) => {
+                                const tileSel = { kind: 'tile' as const, dateKey: row.key };
+                                const tileActive = cargoFlowTableExpanded && cargoFlowSelectionEqual(cargoFlowTableSelection, tileSel);
                                 return (
-                                    <div
+                                    <button
                                         key={`cargo-flow-${row.key}`}
+                                        type="button"
+                                        onClick={() => onCargoFlowPick(tileSel)}
                                         style={{
-                                            border: '1px solid var(--color-border)',
+                                            border: tileActive ? '2px solid rgba(37,99,235,0.65)' : '1px solid var(--color-border)',
                                             borderRadius: 10,
                                             padding: '0.45rem 0.5rem',
                                             background: row.count > 0 ? 'rgba(37,99,235,0.05)' : 'var(--color-bg-hover)',
@@ -3802,6 +3913,11 @@ export function DashboardPage({
                                             display: 'flex',
                                             flexDirection: 'column',
                                             gap: '0.3rem',
+                                            cursor: 'pointer',
+                                            color: 'inherit',
+                                            font: 'inherit',
+                                            textAlign: 'left',
+                                            boxSizing: 'border-box',
                                         }}
                                     >
                                         <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600 }}>
@@ -3837,12 +3953,115 @@ export function DashboardPage({
                                                 Объём: {row.vol.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} м³
                                             </Typography.Body>
                                         </div>
-                                    </div>
+                                    </button>
                                 );
                             })}
                         </div>
                         </div>
                     </div>
+                    {cargoFlowTableExpanded && cargoFlowTableSelection && (
+                        <div style={{ marginTop: '0.75rem', border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.55rem', background: 'var(--color-bg-hover)' }}>
+                            <Flex align="center" justify="space-between" gap="0.5rem" wrap="wrap" style={{ marginBottom: '0.45rem' }}>
+                                <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600 }}>
+                                    {cargoFlowTableSelection.kind === 'tile' ? (
+                                        <>
+                                            Плановая доставка,{' '}
+                                            <DateText value={cargoFlowTableSelection.dateKey} />
+                                            {' '}(<b>{cargoFlowDetailSorted.length}</b>)
+                                        </>
+                                    ) : (
+                                        <>
+                                            {cargoFlowTableSelection.badge === 'withPlan' && <>Все с плановой датой (<b>{cargoFlowDetailSorted.length}</b>)</>}
+                                            {cargoFlowTableSelection.badge === 'withoutPlan' && <>Без плановой даты (<b>{cargoFlowDetailSorted.length}</b>)</>}
+                                            {cargoFlowTableSelection.badge === 'overdue' && <>Просрочено (<b>{cargoFlowDetailSorted.length}</b>)</>}
+                                            {cargoFlowTableSelection.badge === 'dueToday' && <>Срок сегодня (<b>{cargoFlowDetailSorted.length}</b>)</>}
+                                            {cargoFlowTableSelection.badge === 'dueTomorrow' && <>Срок завтра (<b>{cargoFlowDetailSorted.length}</b>)</>}
+                                            {cargoFlowTableSelection.badge === 'dueNext7' && <>Через 2–7 дней (<b>{cargoFlowDetailSorted.length}</b>)</>}
+                                        </>
+                                    )}
+                                </Typography.Body>
+                                <Button type="button" className="filter-button" style={{ padding: '0.25rem 0.5rem', fontSize: '0.72rem' }} onClick={() => { setCargoFlowTableExpanded(false); setCargoFlowTableSelection(null); }}>
+                                    Свернуть
+                                </Button>
+                            </Flex>
+                            <div style={{ overflowX: 'auto', maxHeight: 360, overflowY: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-card)' }}>
+                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
+                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600 }}>План</th>
+                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'center', fontWeight: 600 }}>Статус</th>
+                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600 }}>Маршрут</th>
+                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'center', fontWeight: 600 }}>Тип</th>
+                                            {showSums && <th style={{ padding: '0.4rem 0.45rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {cargoFlowDetailSorted.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={showSums ? 6 : 5} style={{ padding: '0.5rem', color: 'var(--color-text-secondary)' }}>
+                                                    Нет перевозок по этому фильтру.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            cargoFlowDetailSorted.map((item, idx) => {
+                                                const num = String(item.Number ?? (item as any).Номер ?? '—').trim() || '—';
+                                                const planD = getEffectivePlannedDate(item);
+                                                const planKey = planD
+                                                    ? `${planD.getFullYear()}-${String(planD.getMonth() + 1).padStart(2, '0')}-${String(planD.getDate()).padStart(2, '0')}`
+                                                    : '';
+                                                const sk = getFilterKeyByStatus(item.State);
+                                                const stLabel = STATUS_MAP[sk] ?? (String(item.State ?? '').trim() || '—');
+                                                const stColor =
+                                                    sk === 'delivered'
+                                                        ? '#10b981'
+                                                        : sk === 'delivering'
+                                                          ? '#f59e0b'
+                                                          : sk === 'ready'
+                                                            ? '#8b5cf6'
+                                                            : sk === 'in_transit'
+                                                              ? '#3b82f6'
+                                                              : '#94a3b8';
+                                                const from = cityToCode(item.CitySender) || String(item.CitySender ?? '').trim() || '—';
+                                                const to = cityToCode(item.CityReceiver) || String(item.CityReceiver ?? '').trim() || '—';
+                                                return (
+                                                    <tr key={`cargo-flow-row-${num}-${idx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                        <td style={{ padding: '0.35rem 0.45rem', whiteSpace: 'nowrap' }}>{num}</td>
+                                                        <td style={{ padding: '0.35rem 0.45rem', whiteSpace: 'nowrap' }}>
+                                                            {planKey ? <DateText value={planKey} /> : '—'}
+                                                        </td>
+                                                        <td style={{ padding: '0.35rem 0.45rem', textAlign: 'center' }}>
+                                                            <span
+                                                                style={{
+                                                                    fontSize: '0.65rem',
+                                                                    padding: '0.12rem 0.4rem',
+                                                                    borderRadius: 999,
+                                                                    background: `${stColor}18`,
+                                                                    color: stColor,
+                                                                    border: `1px solid ${stColor}44`,
+                                                                    fontWeight: 600,
+                                                                    whiteSpace: 'nowrap',
+                                                                }}
+                                                            >
+                                                                {stLabel}
+                                                            </span>
+                                                        </td>
+                                                        <td style={{ padding: '0.35rem 0.45rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`${from} → ${to}`}>
+                                                            {from} → {to}
+                                                        </td>
+                                                        <td style={{ padding: '0.35rem 0.45rem', textAlign: 'center', fontSize: '0.72rem' }}>{isFerry(item) ? 'Паром' : 'Авто'}</td>
+                                                        {showSums && (
+                                                            <td style={{ padding: '0.35rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(getItemSum(item), true)}</td>
+                                                        )}
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
                     {(cargoFlowByPlan.deliveredOnTime + cargoFlowByPlan.deliveredLate) > 0 && (
                         <Typography.Body style={{ marginTop: '0.6rem', fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
                             Доставлено: в срок {cargoFlowByPlan.deliveredOnTime}, с опозданием {cargoFlowByPlan.deliveredLate}.

@@ -781,9 +781,15 @@ body {
     overflow: visible;
 }
 
-/* Плитки в списках «Документы» (счета, УПД, заявки, отправки…): общий .cargo-card с overflow-x:hidden подрезает верх первой строки */
-.documents-page .cargo-list > .cargo-card {
+/* Плитки в списках «Документы»: .cargo-card с overflow-x:hidden подрезает верх; дети списка — через motion, не только прямые > .cargo-card */
+.documents-page .cargo-list .cargo-card {
     overflow: visible;
+}
+
+/* Глобально .cargo-list { overflow-x: hidden } даёт в браузерах усечение по Y — первая карточка в Документах «пропадала» при анимации */
+.documents-page .cargo-list {
+    overflow-x: visible;
+    overflow-y: visible;
 }
 
 /* Мобильная версия: карточка груза — номер, шеринг, сообщение, избранное и дата в одну строку; маршрут и заказчик в одну строку */
@@ -1038,6 +1044,11 @@ body {
     padding-bottom: 0.35rem;
     border-radius: 18px;
     background: linear-gradient(165deg, rgba(248, 250, 252, 0.97) 0%, rgba(241, 245, 249, 0.55) 42%, rgba(238, 242, 255, 0.35) 100%);
+}
+
+/* Тёмная тема: тот же холст, что у analytics-панели профиля — без светлых полос между блоками */
+.dark-mode .dashboard-page--saas-analytics {
+    background: linear-gradient(165deg, rgba(17, 24, 39, 0.94) 0%, rgba(15, 23, 42, 0.78) 45%, rgba(30, 41, 59, 0.48) 100%);
 }
 
 .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters {
@@ -1309,6 +1320,10 @@ body {
     background: linear-gradient(165deg, rgba(248, 250, 252, 0.97) 0%, rgba(241, 245, 249, 0.55) 42%, rgba(238, 242, 255, 0.35) 100%);
 }
 
+.dark-mode .cargo-page-root--saas-analytics {
+    background: linear-gradient(165deg, rgba(17, 24, 39, 0.94) 0%, rgba(15, 23, 42, 0.78) 45%, rgba(30, 41, 59, 0.48) 100%);
+}
+
 /* Карточка фильтров + заголовок — белая «панель» с лёгкой тенью */
 .cargo-page-root--saas-analytics .cargo-page-sticky-header {
     background: var(--color-bg-card);
@@ -1393,6 +1408,10 @@ body {
     background: linear-gradient(165deg, rgba(248, 250, 252, 0.97) 0%, rgba(241, 245, 249, 0.55) 42%, rgba(238, 242, 255, 0.35) 100%);
 }
 
+.dark-mode .documents-page--saas-analytics {
+    background: linear-gradient(165deg, rgba(17, 24, 39, 0.94) 0%, rgba(15, 23, 42, 0.78) 45%, rgba(30, 41, 59, 0.48) 100%);
+}
+
 .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
     background: var(--color-bg-card);
     border-radius: 14px;
@@ -1470,7 +1489,7 @@ body {
 }
 
 .documents-page--saas-analytics .documents-table-offset-desktop > .cargo-card,
-.documents-page--saas-analytics .documents-cards-offset-desktop .cargo-list > .cargo-card {
+.documents-page--saas-analytics .documents-cards-offset-desktop .cargo-list .cargo-card {
     border-radius: 14px !important;
     border: 1px solid rgba(148, 163, 184, 0.2) !important;
     box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
