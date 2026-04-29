@@ -792,6 +792,16 @@ body {
     overflow-y: visible;
 }
 
+/* Зазор таблицы / списка карточек от липкого блока (фильтры + KPI): без него верх первой плитки визуально подрезается тенью/краем блока, на ≤1024px ранее margin не задавался */
+.documents-page .documents-cards-offset-desktop,
+.documents-page .documents-table-offset-desktop {
+    margin-top: 0.5rem;
+    overflow: visible;
+}
+.documents-page .documents-cards-offset-desktop .cargo-list {
+    padding-top: 0.2rem;
+}
+
 /* Мобильная версия: карточка груза — номер, шеринг, сообщение, избранное и дата в одну строку; маршрут и заказчик в одну строку */
 @media (max-width: 768px) {
     .cargo-list-item .cargo-item-row-1 {
@@ -1423,9 +1433,9 @@ body {
         0 12px 40px rgba(15, 23, 42, 0.06);
 }
 
-/* Меньше пустоты под строкой фильтров внутри белой карточки */
+/* Под строкой фильтров оставляем заметный зазор до KPI/списка — иначе первая карточка прилегает к фильтру и верх обрезается визуально */
 .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .filters-container.filters-row-scroll {
-    margin-bottom: 0.15rem;
+    margin-bottom: 0.4rem;
 }
 
 /* Сразу под шапкой — контент без KPI (тарифы/договоры) или панель с кнопками: 1.5cm лишний; WebView часто шире 768px */
@@ -1503,10 +1513,10 @@ body {
 }
 
 @media (min-width: 1025px) {
-    /* Раньше 2cm оставляли «воздух» под липким блоком — визуально огромный зазор между KPI и списком */
+    /* Немного больше воздуха под липким блоком в SaaS-оболочке */
     .documents-page--saas-analytics .documents-table-offset-desktop,
     .documents-page--saas-analytics .documents-cards-offset-desktop {
-        margin-top: 0.5rem;
+        margin-top: 0.65rem;
     }
 }
 

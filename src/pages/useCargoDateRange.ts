@@ -22,27 +22,13 @@ export function useCargoDateRange(params: Params) {
   } = params;
 
   return useMemo(() => {
-    const api =
-      dateFilter === "период"
-        ? { dateFrom: customDateFrom, dateTo: customDateTo }
-        : dateFilter === "месяц" && selectedMonthForFilter
-          ? (() => {
-              const { year, month } = selectedMonthForFilter;
-              const pad = (n: number) => String(n).padStart(2, "0");
-              const lastDay = new Date(year, month, 0).getDate();
-              return {
-                dateFrom: `${year}-${pad(month)}-01`,
-                dateTo: `${year}-${pad(month)}-${pad(lastDay)}`,
-              };
-            })()
-          : dateFilter === "год" && selectedYearForFilter
-            ? {
-                dateFrom: `${selectedYearForFilter}-01-01`,
-                dateTo: `${selectedYearForFilter}-12-31`,
-              }
-            : dateFilter === "неделя" && selectedWeekForFilter
-              ? dateUtils.getWeekRange(selectedWeekForFilter)
-              : dateUtils.getDateRange(dateFilter);
+    const api = dateUtils.resolveDateFilterToRange(dateFilter, {
+      customDateFrom,
+      customDateTo,
+      selectedMonthForFilter,
+      selectedYearForFilter,
+      selectedWeekForFilter,
+    });
 
     const prev = dateUtils.getPreviousPeriodRange(
       dateFilter,

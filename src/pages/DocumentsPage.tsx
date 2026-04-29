@@ -49,6 +49,7 @@ import {
     getActUpdEdoInfo,
     buildFilteredInvoices,
     buildFilteredOrders,
+    collectInvoiceLinkedCargoNumbers,
     getFirstCargoNumberFromInvoice,
 } from "./documentsPipeline";
 import { DocumentsSummaryCard, DocumentsStateBlocks, DocumentsToolbarBelowSticky } from "./documentsViewBlocks";
@@ -1757,6 +1758,31 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
     }, [docSection, items, actsItems]);
 
+    /** Те же фильтры, что у таблицы счетов, но без ТС — чтобы список ТС совпадал с текущей выборкой (напр. только «в пути»). */
+    const filteredInvoiceRowsForTransportOptions = useMemo(() => {
+        return buildFilteredInvoices({
+            items,
+            activeInn: effectiveActiveInn,
+            useServiceRequest: effectiveServiceMode,
+            customerFilter,
+            statusFilterSet,
+            typeFilter,
+            routeFilter,
+            deliveryStatusFilterSet,
+            routeFilterCargo,
+            transportFilter: '',
+            searchText: effectiveSearchText,
+            edoStatusFilterSet,
+            sortBy,
+            sortOrder,
+            isInvoiceFavorite,
+            getFirstCargoNumberFromInvoice,
+            cargoStateByNumber,
+            cargoRouteByNumber,
+            cargoTransportByNumber,
+        });
+    }, [items, effectiveActiveInn, effectiveServiceMode, customerFilter, statusFilterSet, typeFilter, routeFilter, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, routeFilterCargo, effectiveSearchText, edoStatusFilterSet, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, cargoTransportByNumber, normCargoKey]);
+
     const uniqueTransportVehicles = useMemo(() => {
         const set = new Set<string>();
         cargoTransportByNumber.forEach((v) => {
@@ -1779,7 +1805,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     }, [cargoTransportByNumber, items, actsItems, normalizeTransportDisplay]);
     const uniqueInvoiceTransportVehicles = useMemo(() => {
         const set = new Set<string>();
-        (items || []).forEach((row: any) => {
+        (filteredInvoiceRowsForTransportOptions || []).forEach((row: any) => {
             const direct = normalizeTransportDisplay(
                 row?.АвтомобильCMRНаименование ??
                 row?.AutoReg ??
@@ -1790,14 +1816,13 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
                 ''
             );
             if (direct) set.add(direct);
-            if (direct) return;
-            const cargoNum = getFirstCargoNumberFromInvoice(row);
-            if (!cargoNum) return;
-            const byCargo = normalizeTransportDisplay(cargoTransportByNumber.get(normCargoKey(cargoNum)));
-            if (byCargo) set.add(byCargo);
+            for (const cargoNum of collectInvoiceLinkedCargoNumbers(row)) {
+                const byCargo = normalizeTransportDisplay(cargoTransportByNumber.get(normCargoKey(cargoNum)));
+                if (byCargo) set.add(byCargo);
+            }
         });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [items, getFirstCargoNumberFromInvoice, cargoTransportByNumber, normCargoKey, normalizeTransportDisplay]);
+    }, [filteredInvoiceRowsForTransportOptions, cargoTransportByNumber, normCargoKey, normalizeTransportDisplay]);
     const uniqueActsTransportVehicles = useMemo(() => {
         const set = new Set<string>();
         (actsItems || []).forEach((row: any) => {

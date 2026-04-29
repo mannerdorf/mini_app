@@ -211,6 +211,22 @@ export function getFirstCargoNumberFromInvoice(inv: any): string | null {
   return null;
 }
 
+/** Все номера груза со счёта/УПД (первая строка + все из List) — для ТС по цепочке перевозки. */
+export function collectInvoiceLinkedCargoNumbers(inv: any): string[] {
+  const cargoNums = new Set<string>();
+  const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
+  if (firstCargoNum) cargoNums.add(firstCargoNum);
+  const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(inv?.List) ? inv.List : [];
+  list.forEach((row) => {
+    const text = String(row?.Operation ?? row?.Name ?? "").trim();
+    if (!text) return;
+    parseCargoNumbersFromText(text)
+      .filter((p) => p.type === "cargo" && p.value)
+      .forEach((p) => cargoNums.add(p.value));
+  });
+  return [...cargoNums];
+}
+
 export function buildCargoStateByNumber(perevozkiItems: any[]) {
   const m = new Map<string, string>();
   (perevozkiItems || []).forEach((c: any) => {
@@ -338,6 +354,7 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
   if (transportFilter) {
     res = res.filter((i) => {
       const selected = normalizeTransportName(transportFilter);
+      const candidates = new Set<string>();
       const direct = normalizeTransportName(
         i?.AutoReg ??
           i?.autoReg ??
@@ -346,25 +363,13 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
           i?.transport ??
           i?.AutoType
       );
-      if (direct && direct === selected) return true;
-      // Fallback for invoices that don't carry transport directly in row fields.
-      // In such cases, use linked cargo transport to keep filter usable.
-      if (direct) return false;
-
-      const cargoNums = new Set<string>();
-      const firstCargoNum = getFirstCargoNumberFromInvoice(i);
-      if (firstCargoNum) cargoNums.add(firstCargoNum);
-      const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(i?.List) ? i.List : [];
-      list.forEach((row) => {
-        const text = String(row?.Operation ?? row?.Name ?? "").trim();
-        if (!text) return;
-        parseCargoNumbersFromText(text)
-          .filter((p) => p.type === "cargo" && p.value)
-          .forEach((p) => cargoNums.add(p.value));
-      });
-      for (const cargoNum of cargoNums) {
+      if (direct) candidates.add(direct);
+      for (const cargoNum of collectInvoiceLinkedCargoNumbers(i)) {
         const byCargo = normalizeTransportName(cargoTransportByNumber.get(normCargoKey(cargoNum)));
-        if (byCargo && byCargo === selected) return true;
+        if (byCargo) candidates.add(byCargo);
+      }
+      for (const c of candidates) {
+        if (c === selected) return true;
       }
       return false;
     });
@@ -441,6 +446,7 @@ export function buildFilteredActs(params: FilterActsParams) {
   if (transportFilter) {
     res = res.filter((a) => {
       const selected = normalizeTransportName(transportFilter);
+      const candidates = new Set<string>();
       const direct = normalizeTransportName(
         a?.AutoReg ??
           a?.autoReg ??
@@ -449,10 +455,15 @@ export function buildFilteredActs(params: FilterActsParams) {
           a?.transport ??
           a?.AutoType
       );
-      if (direct && direct === selected) return true;
-      const cargoNum = getFirstCargoNumberFromInvoice(a);
-      const transport = cargoNum ? normalizeTransportName(cargoTransportByNumber.get(normCargoKey(cargoNum))) : "";
-      return transport === selected;
+      if (direct) candidates.add(direct);
+      for (const cargoNum of collectInvoiceLinkedCargoNumbers(a)) {
+        const byCargo = normalizeTransportName(cargoTransportByNumber.get(normCargoKey(cargoNum)));
+        if (byCargo) candidates.add(byCargo);
+      }
+      for (const c of candidates) {
+        if (c === selected) return true;
+      }
+      return false;
     });
   }
   return res;

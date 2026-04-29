@@ -152,6 +152,39 @@ export const getWeekRange = (mondayIso: string) => {
     };
 };
 
+/** Единая логика периода для API и клиентских фильтров (в т.ч. «План доставки» в Грузах). */
+export const resolveDateFilterToRange = (
+    dateFilter: DateFilter,
+    options: {
+        customDateFrom: string;
+        customDateTo: string;
+        selectedMonthForFilter: { year: number; month: number } | null;
+        selectedYearForFilter: number | null;
+        selectedWeekForFilter: string | null;
+    },
+): { dateFrom: string; dateTo: string } => {
+    if (dateFilter === "период") {
+        return { dateFrom: options.customDateFrom, dateTo: options.customDateTo };
+    }
+    if (dateFilter === "месяц" && options.selectedMonthForFilter) {
+        const { year, month } = options.selectedMonthForFilter;
+        const pad = (n: number) => String(n).padStart(2, "0");
+        const lastDay = new Date(year, month, 0).getDate();
+        return {
+            dateFrom: `${year}-${pad(month)}-01`,
+            dateTo: `${year}-${pad(month)}-${pad(lastDay)}`,
+        };
+    }
+    if (dateFilter === "год" && options.selectedYearForFilter) {
+        const y = options.selectedYearForFilter;
+        return { dateFrom: `${y}-01-01`, dateTo: `${y}-12-31` };
+    }
+    if (dateFilter === "неделя" && options.selectedWeekForFilter) {
+        return getWeekRange(options.selectedWeekForFilter);
+    }
+    return getDateRange(dateFilter);
+};
+
 export const getWeeksList = (count: number) => {
     const weeks: { monday: string; label: string }[] = [];
     const now = new Date();

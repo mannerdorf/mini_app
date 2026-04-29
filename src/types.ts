@@ -68,6 +68,9 @@ export type Tab = "home" | "cargo" | "docs" | "profile" | "dashboard" | "expense
 
 export type DateFilter = "все" | "сегодня" | "вчера" | "неделя" | "месяц" | "год" | "период";
 
+/** Фильтр «План доставки» на экране Грузы: all — не фильтровать; иначе период по расчётной/ручной плановой дате. */
+export type PlannedDeliveryFilter = "all" | Exclude<DateFilter, "все">;
+
 export type StatusFilter = "all" | "in_transit" | "ready" | "delivering" | "delivered" | "favorites";
 
 export type HomePeriodFilter = "today" | "week" | "month" | "year" | "custom";

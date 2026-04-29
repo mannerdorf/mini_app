@@ -10,7 +10,8 @@ import type { BillStatusFilterKey } from "../lib/statusUtils";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
 import * as dateUtils from "../lib/dateUtils";
 import { formatCurrency, stripOoo, cityToCode } from "../lib/formatUtils";
-import type { AuthData, CargoItem, DateFilter, StatusFilter } from "../types";
+import { buildRouteTypePlanDaysMap, getEffectivePlannedDeliveryDate } from "../lib/cargoPlannedDelivery";
+import type { AuthData, CargoItem, DateFilter, PlannedDeliveryFilter, StatusFilter } from "../types";
 import { useCargoDateRange } from "./useCargoDateRange";
 import { useCargoDataLoad } from "./useCargoDataLoad";
 import {
@@ -24,7 +25,7 @@ import { CargoCustomerTable, CargoCardsList } from "./cargoCollectionViews";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import { cargoModeSwitchMotion, cargoSummaryMotion } from "./cargoMotion";
 
-const { loadDateFilterState, saveDateFilterState, getDateRange, getWeekRange, getWeeksList, getYearsList, MONTH_NAMES, DEFAULT_DATE_FROM, DEFAULT_DATE_TO, formatDate } = dateUtils;
+const { loadDateFilterState, saveDateFilterState, getDateRange, getWeekRange, getWeeksList, getYearsList, MONTH_NAMES, DEFAULT_DATE_FROM, DEFAULT_DATE_TO, formatDate, resolveDateFilterToRange } = dateUtils;
 type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;
 const CARGO_STATUS_FILTER_KEYS: CargoStatusFilterKey[] = ["in_transit", "ready", "delivering", "delivered"];
 
@@ -148,6 +149,23 @@ export function CargoPage({
     const routeButtonRef = useRef<HTMLDivElement>(null);
     const lastMileButtonRef = useRef<HTMLDivElement>(null);
     const [isLastMileDropdownOpen, setIsLastMileDropdownOpen] = useState(false);
+    /** Плановая дата доставки (расчёт + ручные поля) — отдельно от фильтра «Дата» по данным API */
+    const [plannedDeliveryFilter, setPlannedDeliveryFilter] = useState<PlannedDeliveryFilter>('all');
+    const [plannedCustomFrom, setPlannedCustomFrom] = useState(() => DEFAULT_DATE_FROM);
+    const [plannedCustomTo, setPlannedCustomTo] = useState(() => DEFAULT_DATE_TO);
+    const [isPlannedCustomModalOpen, setIsPlannedCustomModalOpen] = useState(false);
+    const [isPlannedDateDropdownOpen, setIsPlannedDateDropdownOpen] = useState(false);
+    const [plannedDateDropdownMode, setPlannedDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
+    const [plannedMonthForFilter, setPlannedMonthForFilter] = useState<{ year: number; month: number } | null>(null);
+    const [plannedYearForFilter, setPlannedYearForFilter] = useState<number | null>(null);
+    const [plannedWeekForFilter, setPlannedWeekForFilter] = useState<string | null>(null);
+    const plannedMonthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const plannedMonthWasLongPressRef = useRef(false);
+    const plannedYearLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const plannedYearWasLongPressRef = useRef(false);
+    const plannedWeekLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const plannedWeekWasLongPressRef = useRef(false);
+    const plannedDateButtonRef = useRef<HTMLDivElement>(null);
     /** Расширяли ли уже фильтр дат для отображения перевозки по contextCargoNumber (из счёта) */
     const contextCargoWidenedRef = useRef(false);
     useEffect(() => {
@@ -280,6 +298,22 @@ export function CargoPage({
     const uniqueSenders = useMemo(() => [...new Set(items.map(i => (i.Sender ?? '').trim()).filter(Boolean))].sort(), [items]);
     const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
 
+    const cargoPlanDaysByRouteType = useMemo(() => buildRouteTypePlanDaysMap(items), [items]);
+    const getEffectivePlannedForFilter = useCallback(
+        (item: CargoItem) => getEffectivePlannedDeliveryDate(item, cargoPlanDaysByRouteType),
+        [cargoPlanDaysByRouteType],
+    );
+    const plannedDeliveryRange = useMemo(() => {
+        if (plannedDeliveryFilter === 'all') return null;
+        return resolveDateFilterToRange(plannedDeliveryFilter as DateFilter, {
+            customDateFrom: plannedCustomFrom,
+            customDateTo: plannedCustomTo,
+            selectedMonthForFilter: plannedMonthForFilter,
+            selectedYearForFilter: plannedYearForFilter,
+            selectedWeekForFilter: plannedWeekForFilter,
+        });
+    }, [plannedDeliveryFilter, plannedCustomFrom, plannedCustomTo, plannedMonthForFilter, plannedYearForFilter, plannedWeekForFilter]);
+
     // Client-side filtering and sorting
     const filteredItems = useMemo(() => {
         return buildFilteredCargoItems({
@@ -297,8 +331,10 @@ export function CargoPage({
             lastMileFilter,
             sortBy,
             sortOrder,
+            plannedDeliveryRange,
+            getEffectivePlannedDelivery: plannedDeliveryRange ? getEffectivePlannedForFilter : null,
         });
-    }, [items, effectiveActiveInn, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, lastMileFilter, sortBy, sortOrder]);
+    }, [items, effectiveActiveInn, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, lastMileFilter, sortBy, sortOrder, plannedDeliveryRange, getEffectivePlannedForFilter]);
 
     const summary = useMemo(() => buildCargoSummary(filteredItems), [filteredItems]);
 
@@ -453,7 +489,7 @@ export function CargoPage({
                         )}
                     </Button>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); setIsPlannedDateDropdownOpen(false); }}>
                             Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8,10)}.${r.dateFrom.slice(5,7)} – ${r.dateTo.slice(8,10)}.${r.dateTo.slice(5,7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -550,8 +586,135 @@ export function CargoPage({
                     </FilterDropdownPortal>
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <div ref={plannedDateButtonRef} style={{ display: 'inline-flex' }}>
+                        <Button className="filter-button" onClick={() => {
+                            setIsPlannedDateDropdownOpen(!isPlannedDateDropdownOpen);
+                            setPlannedDateDropdownMode('main');
+                            setIsDateDropdownOpen(false);
+                            setIsStatusDropdownOpen(false);
+                            setIsSenderDropdownOpen(false);
+                            setIsReceiverDropdownOpen(false);
+                            setIsBillStatusDropdownOpen(false);
+                            setIsTypeDropdownOpen(false);
+                            setIsRouteDropdownOpen(false);
+                            setIsLastMileDropdownOpen(false);
+                        }}>
+                            План доставки:{' '}
+                            {plannedDeliveryFilter === 'all'
+                                ? 'Все'
+                                : plannedDeliveryFilter === 'период'
+                                  ? 'Период'
+                                  : plannedDeliveryFilter === 'месяц' && plannedMonthForFilter
+                                    ? `${MONTH_NAMES[plannedMonthForFilter.month - 1]} ${plannedMonthForFilter.year}`
+                                    : plannedDeliveryFilter === 'год' && plannedYearForFilter
+                                      ? `${plannedYearForFilter}`
+                                      : plannedDeliveryFilter === 'неделя' && plannedWeekForFilter
+                                        ? (() => {
+                                            const r = getWeekRange(plannedWeekForFilter);
+                                            return `${r.dateFrom.slice(8, 10)}.${r.dateFrom.slice(5, 7)} – ${r.dateTo.slice(8, 10)}.${r.dateTo.slice(5, 7)}`;
+                                        })()
+                                        : plannedDeliveryFilter.charAt(0).toUpperCase() + plannedDeliveryFilter.slice(1)}{' '}
+                            <ChevronDown className="w-4 h-4" />
+                        </Button>
+                    </div>
+                    <FilterDropdownPortal triggerRef={plannedDateButtonRef} isOpen={isPlannedDateDropdownOpen} onClose={() => setIsPlannedDateDropdownOpen(false)}>
+                        {plannedDateDropdownMode === 'months' ? (
+                            <>
+                                <div className="dropdown-item" onClick={() => setPlannedDateDropdownMode('main')} style={{ fontWeight: 600 }}>← Назад</div>
+                                {MONTH_NAMES.map((name, i) => (
+                                    <div key={i} className="dropdown-item" onClick={() => {
+                                        const year = new Date().getFullYear();
+                                        setPlannedDeliveryFilter('месяц');
+                                        setPlannedMonthForFilter({ year, month: i + 1 });
+                                        setIsPlannedDateDropdownOpen(false);
+                                        setPlannedDateDropdownMode('main');
+                                    }}>
+                                        <Typography.Body>{name} {new Date().getFullYear()}</Typography.Body>
+                                    </div>
+                                ))}
+                            </>
+                        ) : plannedDateDropdownMode === 'years' ? (
+                            <>
+                                <div className="dropdown-item" onClick={() => setPlannedDateDropdownMode('main')} style={{ fontWeight: 600 }}>← Назад</div>
+                                {getYearsList(6).map((y) => (
+                                    <div key={y} className="dropdown-item" onClick={() => {
+                                        setPlannedDeliveryFilter('год');
+                                        setPlannedYearForFilter(y);
+                                        setIsPlannedDateDropdownOpen(false);
+                                        setPlannedDateDropdownMode('main');
+                                    }}>
+                                        <Typography.Body>{y}</Typography.Body>
+                                    </div>
+                                ))}
+                            </>
+                        ) : plannedDateDropdownMode === 'weeks' ? (
+                            <>
+                                <div className="dropdown-item" onClick={() => setPlannedDateDropdownMode('main')} style={{ fontWeight: 600 }}>← Назад</div>
+                                {getWeeksList(16).map((w) => (
+                                    <div key={w.monday} className="dropdown-item" onClick={() => {
+                                        setPlannedDeliveryFilter('неделя');
+                                        setPlannedWeekForFilter(w.monday);
+                                        setIsPlannedDateDropdownOpen(false);
+                                        setPlannedDateDropdownMode('main');
+                                    }}>
+                                        <Typography.Body>{w.label}</Typography.Body>
+                                    </div>
+                                ))}
+                            </>
+                        ) : (
+                            <>
+                                <div className="dropdown-item" onClick={() => { setPlannedDeliveryFilter('all'); setIsPlannedDateDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                                {(['сегодня', 'вчера', 'неделя', 'месяц', 'год', 'период'] as const).map((key) => {
+                                    const isMonth = key === 'месяц';
+                                    const isYear = key === 'год';
+                                    const isWeek = key === 'неделя';
+                                    const doLongPress = isMonth || isYear || isWeek;
+                                    const timerRef = isMonth ? plannedMonthLongPressTimerRef : isYear ? plannedYearLongPressTimerRef : plannedWeekLongPressTimerRef;
+                                    const wasLongPressRef = isMonth ? plannedMonthWasLongPressRef : isYear ? plannedYearWasLongPressRef : plannedWeekWasLongPressRef;
+                                    const mode = isMonth ? 'months' : isYear ? 'years' : 'weeks';
+                                    const title = isMonth ? 'Клик — текущий месяц; удерживайте — выбор месяца' : isYear ? 'Клик — 365 дней; удерживайте — выбор года' : isWeek ? 'Клик — предыдущая неделя; удерживайте — выбор недели (пн–вс)' : undefined;
+                                    return (
+                                        <div key={key} className="dropdown-item" title={title}
+                                            onPointerDown={doLongPress ? () => { wasLongPressRef.current = false; timerRef.current = setTimeout(() => { timerRef.current = null; wasLongPressRef.current = true; setPlannedDateDropdownMode(mode); }, 500); } : undefined}
+                                            onPointerUp={doLongPress ? () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } } : undefined}
+                                            onPointerLeave={doLongPress ? () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } } : undefined}
+                                            onClick={() => {
+                                                if (doLongPress && wasLongPressRef.current) { wasLongPressRef.current = false; return; }
+                                                if (key === 'период') {
+                                                    let r: { dateFrom: string; dateTo: string };
+                                                    if (plannedDeliveryFilter === 'период') { r = { dateFrom: plannedCustomFrom, dateTo: plannedCustomTo }; }
+                                                    else if (plannedDeliveryFilter === 'месяц' && plannedMonthForFilter) {
+                                                        const { year, month } = plannedMonthForFilter;
+                                                        const pad = (n: number) => String(n).padStart(2, '0');
+                                                        const lastDay = new Date(year, month, 0).getDate();
+                                                        r = { dateFrom: `${year}-${pad(month)}-01`, dateTo: `${year}-${pad(month)}-${pad(lastDay)}` };
+                                                    } else if (plannedDeliveryFilter === 'год' && plannedYearForFilter) {
+                                                        r = { dateFrom: `${plannedYearForFilter}-01-01`, dateTo: `${plannedYearForFilter}-12-31` };
+                                                    } else if (plannedDeliveryFilter === 'неделя' && plannedWeekForFilter) {
+                                                        r = getWeekRange(plannedWeekForFilter);
+                                                    } else { r = getDateRange(plannedDeliveryFilter === 'all' ? 'месяц' : plannedDeliveryFilter as DateFilter); }
+                                                    setPlannedCustomFrom(r.dateFrom);
+                                                    setPlannedCustomTo(r.dateTo);
+                                                }
+                                                setPlannedDeliveryFilter(key);
+                                                if (key === 'месяц') setPlannedMonthForFilter(null);
+                                                if (key === 'год') setPlannedYearForFilter(null);
+                                                if (key === 'неделя') setPlannedWeekForFilter(null);
+                                                setIsPlannedDateDropdownOpen(false);
+                                                if (key === 'период') setIsPlannedCustomModalOpen(true);
+                                            }}
+                                        >
+                                            <Typography.Body>{key === 'год' ? 'Год' : key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
+                                        </div>
+                                    );
+                                })}
+                            </>
+                        )}
+                    </FilterDropdownPortal>
+                </div>
+                <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); setIsPlannedDateDropdownOpen(false); }}>
                             Статус: {statusFilterSet.size === 0 ? 'Все' : statusFilterSet.size === 1 ? STATUS_MAP[[...statusFilterSet][0]] : `Выбрано: ${statusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -566,7 +729,7 @@ export function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={senderButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); setIsPlannedDateDropdownOpen(false); }}>
                             Отправитель: {senderFilter ? stripOoo(senderFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -579,7 +742,7 @@ export function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={receiverButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); setIsPlannedDateDropdownOpen(false); }}>
                             Получатель: {receiverFilter ? stripOoo(receiverFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -593,7 +756,7 @@ export function CargoPage({
                 {effectiveServiceMode && (
                     <div className="filter-group" style={{ flexShrink: 0 }}>
                         <div ref={billStatusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); setIsPlannedDateDropdownOpen(false); }}>
                                 Статус счёта: {billStatusFilterSet.size === 0 ? 'Все' : billStatusFilterSet.size === 1 ? BILL_STATUS_MAP[[...billStatusFilterSet][0]] : `Выбрано: ${billStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -609,7 +772,7 @@ export function CargoPage({
                 )}
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); setIsPlannedDateDropdownOpen(false); }}>
                             Тип: {typeFilterSet.size === 0 ? 'Все' : typeFilterSet.size === 2 ? 'Паром, Авто' : typeFilterSet.has('ferry') ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -621,7 +784,7 @@ export function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={routeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsLastMileDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsLastMileDropdownOpen(false); setIsPlannedDateDropdownOpen(false); }}>
                             Маршрут: {routeFilterSet.size === 0 ? 'Все' : routeFilterSet.size === 2 ? 'Выбрано: 2' : [...routeFilterSet][0] === 'MSK-KGD' ? 'MSK – KGD' : 'KGD – MSK'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -644,6 +807,7 @@ export function CargoPage({
                                 setIsBillStatusDropdownOpen(false);
                                 setIsTypeDropdownOpen(false);
                                 setIsRouteDropdownOpen(false);
+                                setIsPlannedDateDropdownOpen(false);
                             }}
                         >
                             Последняя миля:{" "}
@@ -752,6 +916,7 @@ export function CargoPage({
                 />
             )}
             <FilterDialog isOpen={isCustomModalOpen} onClose={() => setIsCustomModalOpen(false)} dateFrom={customDateFrom} dateTo={customDateTo} onApply={(f, t) => { setCustomDateFrom(f); setCustomDateTo(t); }} />
+            <FilterDialog isOpen={isPlannedCustomModalOpen} onClose={() => setIsPlannedCustomModalOpen(false)} dateFrom={plannedCustomFrom} dateTo={plannedCustomTo} onApply={(f, t) => { setPlannedCustomFrom(f); setPlannedCustomTo(t); setPlannedDeliveryFilter('период'); }} />
         </div>
     );
 }
