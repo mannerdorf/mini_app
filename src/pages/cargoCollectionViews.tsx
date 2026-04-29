@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { DateText } from "../components/ui/DateText";
 import { StatusBadge, StatusBillBadge } from "../components/shared/StatusBadges";
-import { getSlaInfo } from "../lib/cargoUtils";
+import { getSlaInfo, cargoLastMileIsSelfPickup } from "../lib/cargoUtils";
 import { formatCurrency, stripOoo, cityToCode } from "../lib/formatUtils";
 import { getSumColorByPaymentStatus } from "../lib/statusUtils";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
@@ -24,6 +24,40 @@ import {
   cargoListItemVariants,
   cargoTableGroupRowVariants,
 } from "./cargoMotion";
+
+function CargoLastMileBadge({ item }: { item: CargoItem }) {
+  const selfPickup = cargoLastMileIsSelfPickup(item);
+  return (
+    <span
+      title={
+        selfPickup
+          ? "Пункт выдачи содержит ИП Андреевское или ул. Железнодорожная — самовывоз"
+          : "Последняя миля: доставка до адреса"
+      }
+      style={{
+        fontSize: "0.65rem",
+        fontWeight: 600,
+        padding: "0.15rem 0.45rem",
+        borderRadius: "999px",
+        flexShrink: 0,
+        alignSelf: "flex-start",
+        ...(selfPickup
+          ? {
+              background: "rgba(13, 148, 136, 0.18)",
+              color: "#0f766e",
+              border: "1px solid rgba(13, 148, 136, 0.45)",
+            }
+          : {
+              background: "rgba(37, 99, 235, 0.12)",
+              color: "#1d4ed8",
+              border: "1px solid rgba(37, 99, 235, 0.32)",
+            }),
+      }}
+    >
+      {selfPickup ? "Самовывоз" : "Доставка"}
+    </span>
+  );
+}
 
 type InnerTableSortCol = "number" | "datePrih" | "status" | "mest" | "pw" | "sum";
 
@@ -620,7 +654,10 @@ export function CargoCustomerTable({
                                 <DateText value={item.DatePrih} />
                               </td>
                               <td style={{ padding: "0.35rem 0.3rem" }}>
-                                <StatusBadge status={item.State} />
+                                <Flex align="center" gap="0.35rem" wrap="wrap">
+                                  <StatusBadge status={item.State} />
+                                  <CargoLastMileBadge item={item} />
+                                </Flex>
                               </td>
                               <td style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
                                 {item.Mest != null ? Math.round(Number(item.Mest)) : "—"}
@@ -749,6 +786,7 @@ export function CargoCardsList({
                         : "Получатель"}
                   </span>
                 )}
+                <CargoLastMileBadge item={item} />
               </Flex>
               <Flex
                 align="center"

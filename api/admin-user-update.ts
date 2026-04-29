@@ -68,8 +68,14 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const pool = getPool();
-    const { rows: existing } = await pool.query<{ login: string; inn: string; company_name: string; active: boolean }>(
-      "SELECT login, inn, company_name, active FROM registered_users WHERE id = $1",
+    const { rows: existing } = await pool.query<{
+      login: string;
+      inn: string;
+      company_name: string;
+      active: boolean;
+      permissions: Record<string, boolean> | null;
+    }>(
+      "SELECT login, inn, company_name, active, permissions FROM registered_users WHERE id = $1",
       [id]
     );
     if (existing.length === 0) {
@@ -123,9 +129,18 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const values: unknown[] = [];
     let vi = 1;
 
+    let sanitizedPermissions: Record<string, boolean> | undefined;
     if (body?.permissions && typeof body.permissions === "object") {
+      sanitizedPermissions = { ...(body.permissions as Record<string, boolean>) };
+      if (getAdminTokenPayload(getAdminTokenFromRequest(req))?.superAdmin !== true) {
+        const stored = existing[0]!.permissions;
+        const prev = stored && typeof stored === "object" ? (stored as Record<string, boolean>) : {};
+        if (sanitizedPermissions.doc_sendings === true && prev.doc_sendings !== true) {
+          sanitizedPermissions = { ...sanitizedPermissions, doc_sendings: false };
+        }
+      }
       updates.push(`permissions = $${vi++}`);
-      values.push(JSON.stringify(body.permissions));
+      values.push(JSON.stringify(sanitizedPermissions));
     }
     if (typeof body?.financial_access === "boolean") {
       updates.push(`financial_access = $${vi++}`);
@@ -177,7 +192,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    if (body?.permissions && typeof body.permissions === "object" && body.permissions.haulz === true) {
+    if (sanitizedPermissions && sanitizedPermissions.haulz === true) {
       await ensureEmployeeDirectoryVisibilityForHaulz(pool, id);
     }
 

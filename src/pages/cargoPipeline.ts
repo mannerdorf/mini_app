@@ -6,6 +6,7 @@ import {
   getFilterKeyByStatus,
 } from "../lib/statusUtils";
 import { cityToCode, formatInvoiceNumber } from "../lib/formatUtils";
+import { cargoLastMileIsSelfPickup } from "../lib/cargoUtils";
 
 type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;
 
@@ -23,6 +24,8 @@ export type CargoFilterPipelineParams = {
   >;
   typeFilterSet: Set<"ferry" | "auto">;
   routeFilterSet: Set<"MSK-KGD" | "KGD-MSK">;
+  /** Фильтр последней мили: самовывоз (ПВЗ Андреевское / ж/д) vs доставка. */
+  lastMileFilter: "all" | "self_pickup" | "delivery";
   sortBy: "datePrih" | "dateVr" | null;
   sortOrder: "asc" | "desc";
 };
@@ -192,6 +195,7 @@ export function buildFilteredCargoItems(
     billStatusFilterSet,
     typeFilterSet,
     routeFilterSet,
+    lastMileFilter,
     sortBy,
     sortOrder,
   } = params;
@@ -254,6 +258,12 @@ export function buildFilteredCargoItems(
         (routeFilterSet.has("KGD-MSK") && kgdMsk)
       );
     });
+  }
+
+  if (lastMileFilter === "self_pickup") {
+    res = res.filter((i) => cargoLastMileIsSelfPickup(i));
+  } else if (lastMileFilter === "delivery") {
+    res = res.filter((i) => !cargoLastMileIsSelfPickup(i));
   }
 
   if (sortBy) {

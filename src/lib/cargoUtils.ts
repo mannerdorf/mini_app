@@ -111,3 +111,50 @@ export function getSlaInfo(
     const delayDays = Math.max(0, Math.round((actualDays - planWorkingDays) * 10) / 10);
     return { planDays: planWorkingDays, actualDays, onTime, delayDays };
 }
+
+const LAST_MILE_KEY_RE = /пункт|выдач|назначен|получен|доставк|lm|last.?mile|addressreceiver|delivery|адрес.?получ/i;
+
+/** Текст пункта выдачи / последней мили (для эвристики самовывоз vs доставка). */
+export function cargoLastMileHaystack(item: CargoItem): string {
+    const rec = item as Record<string, unknown>;
+    const parts: string[] = [];
+    const push = (v: unknown) => {
+        if (v == null) return;
+        const s = String(v).trim();
+        if (s) parts.push(s);
+    };
+    push(rec.Receiver);
+    push(rec.receiver);
+    push(rec.ПунктНазначенияНаименование);
+    push(rec.ПунктПолученияНаименование);
+    push(rec.ПунктНазначения);
+    push(rec.ПунктДоставки);
+    push(rec.ПунктПолучения);
+    push(rec.ПунктВыдачи);
+    push(rec.ПунктВыдачиНаименование);
+    push(rec.АдресДоставки);
+    push(rec.АдресПолучения);
+    push(rec.LMPoint);
+    push(rec.LMAddress);
+    push(rec.CityReceiver);
+
+    for (const [k, v] of Object.entries(rec)) {
+        if (typeof v !== "string" || !v.trim()) continue;
+        if (!LAST_MILE_KEY_RE.test(k)) continue;
+        if (/^(Customer|Sender|State|StateBill|DatePrih|DateVr)$/i.test(k)) continue;
+        push(v);
+    }
+    return parts.join("\n");
+}
+
+/**
+ * Самовывоз на последней миле: пункт выдачи содержит Индустриальный парк Андреевское
+ * или адрес с «Железнодорожн…»; остальные считаем доставкой.
+ */
+export function cargoLastMileIsSelfPickup(item: CargoItem): boolean {
+    const t = cargoLastMileHaystack(item).toLowerCase();
+    if (!t.trim()) return false;
+    const andreevskoIP = t.includes("индустриаль") && t.includes("парк") && t.includes("андреевск");
+    const railway = t.includes("железнодорожн");
+    return andreevskoIP || railway;
+}

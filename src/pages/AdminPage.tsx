@@ -76,6 +76,17 @@ const PERMISSION_ROW3_BLUE = [
   { key: "doc_tariffs", label: "Тарифы" },
 ] as const;
 
+/** Пресет: без суперадмина «Отправки» нельзя включить, если у пользователя их ещё не было. */
+function applyPresetPermissionsWithSendingsGate(
+  presetPerms: Record<string, boolean>,
+  isSuperAdmin: boolean,
+  existingDocSendings: boolean
+): Record<string, boolean> {
+  if (isSuperAdmin) return { ...presetPerms };
+  const doc_sendings = presetPerms.doc_sendings === true && existingDocSendings;
+  return { ...presetPerms, doc_sendings };
+}
+
 export type PermissionPreset = { id: string; label: string; permissions: Record<string, boolean>; financial: boolean; serviceMode: boolean };
 
 /** Подсветка совпадения с поисковым запросом в тексте (для журнала аудита). */
@@ -90,6 +101,45 @@ function highlightMatch(text: string, query: string, keyPrefix: string): React.R
       {parts.map((p, i) => (i % 2 === 1 ? <mark key={`${keyPrefix}-${i}`} style={{ background: "rgba(0, 113, 227, 0.25)", borderRadius: 2, padding: "0 1px" }}>{p}</mark> : p))}
     </>
   );
+}
+
+function normalizeSearchableText(v: string): string {
+  return String(v || "")
+    .toLowerCase()
+    .replace(/[.,;:()"'`]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function digitsOnly(s: string): string {
+  return s.replace(/\D/g, "");
+}
+
+/** ИНН: подстрока в исходном виде или совпадение по цифрам (при ≥3 цифрах в запросе). */
+function innMatchesSearchQuery(innRaw: string | undefined, queryRaw: string): boolean {
+  const inn = String(innRaw ?? "").trim();
+  const q = queryRaw.trim();
+  if (!q) return true;
+  if (!inn) return false;
+  const ql = q.toLowerCase();
+  if (inn.toLowerCase().includes(ql)) return true;
+  const qDigits = digitsOnly(q);
+  if (qDigits.length >= 3 && digitsOnly(inn).includes(qDigits)) return true;
+  return false;
+}
+
+/** Наименование юрлица: подстрока и по-словам (префиксы слов). */
+function legalEntityNameMatchesQuery(name: string, queryRaw: string): boolean {
+  const q = queryRaw.trim().toLowerCase();
+  const qNorm = normalizeSearchableText(q);
+  if (!qNorm) return true;
+  const qTokens = qNorm.split(" ").filter(Boolean);
+  const n = normalizeSearchableText(name);
+  if (!n) return false;
+  if (n.includes(qNorm)) return true;
+  if (n === qNorm || n.startsWith(qNorm)) return true;
+  const words = n.split(" ").filter(Boolean);
+  return qTokens.every((t) => words.some((w) => w.startsWith(t)));
 }
 
 async function fileToBase64(file: File): Promise<string> {
@@ -539,7 +589,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [bulkDeactivateConfirmOpen, setBulkDeactivateConfirmOpen] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [bulkPermissions, setBulkPermissions] = useState<Record<string, boolean>>({
-    cms_access: false, home: true, dashboard: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false, eor: false, wb: false, wb_admin: false,
+    cms_access: false, home: true, dashboard: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: false, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false, eor: false, wb: false, wb_admin: false,
   });
   const [bulkFinancial, setBulkFinancial] = useState(false);
   const [bulkAccessAllInns, setBulkAccessAllInns] = useState(false);
@@ -857,7 +907,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [presetEditingId, setPresetEditingId] = useState<string | null>(null);
   const [presetFormLabel, setPresetFormLabel] = useState("");
   const [presetFormPermissions, setPresetFormPermissions] = useState<Record<string, boolean>>({
-    cms_access: false, home: true, dashboard: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false, eor: false, wb: false, wb_admin: false,
+    cms_access: false, home: true, dashboard: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: false, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false, eor: false, wb: false, wb_admin: false,
   });
   const [presetFormFinancial, setPresetFormFinancial] = useState(false);
   const [presetFormServiceMode, setPresetFormServiceMode] = useState(false);
@@ -923,7 +973,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     doc_invoices: true,
     doc_acts: true,
     doc_orders: true,
-    doc_sendings: true,
+    doc_sendings: false,
     doc_claims: true,
     doc_contracts: true,
     doc_acts_settlement: true,
@@ -1420,41 +1470,22 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   };
 
   const matchesUserSearch = useCallback((u: User, q: string) => {
-    if (!q) return true;
-    const ql = q.trim().toLowerCase();
-    if (!ql) return true;
+    const raw = q.trim();
+    if (!raw) return true;
+    const ql = raw.toLowerCase();
 
-    const normalize = (v: string) =>
-      v
-        .toLowerCase()
-        .replace(/[.,;:()"'`]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
+    if (u.login && String(u.login).toLowerCase().includes(ql)) return true;
 
     const companies = u.companies ?? [];
-    const names = [
-      ...companies.map((c) => String(c?.name ?? "").trim()).filter(Boolean),
-      String(u.company_name ?? "").trim(),
-    ];
-    // In "by customers" mode search must match customer fields strictly.
-    if (usersViewMode === "customer") {
-      const qNorm = normalize(ql);
-      const qTokens = qNorm.split(" ").filter(Boolean);
-
-      return names.some((name) => {
-        const n = normalize(name);
-        if (!n) return false;
-        if (n === qNorm || n.startsWith(qNorm)) return true;
-        const words = n.split(" ").filter(Boolean);
-        return qTokens.every((t) => words.some((w) => w.startsWith(t)));
-      });
+    for (const c of companies) {
+      if (innMatchesSearchQuery(c.inn, raw)) return true;
+      if (legalEntityNameMatchesQuery(c.name || "", raw)) return true;
     }
+    if (innMatchesSearchQuery(u.inn, raw)) return true;
+    if (legalEntityNameMatchesQuery(u.company_name || "", raw)) return true;
 
-    // In "by logins" mode keep broad search in login + customer fields.
-    if (u.login && String(u.login).toLowerCase().includes(ql)) return true;
-    const searchIn = [...companies.flatMap((c) => [c.inn, c.name].filter(Boolean)), u.inn, u.company_name].map((s) => String(s).toLowerCase());
-    return searchIn.some((s) => s.includes(ql));
-  }, [usersViewMode]);
+    return false;
+  }, []);
 
   const userMatchesPreset = useCallback((u: User, preset: PermissionPreset) => {
     const perms = u.permissions ?? {};
@@ -3164,6 +3195,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [usersSearchQuery, users, matchesUserSearch]);
 
   const togglePerm = (key: string) => {
+    if (key === "doc_sendings" && !isSuperAdmin) return;
     setFormSelectedPresetId("");
     setFormPermissions((p) => ({ ...p, [key]: !p[key] }));
   };
@@ -3202,7 +3234,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       email: entry.login.trim(),
       password: formSendEmail ? undefined : entry.password || formPassword,
       send_email: formSendEmail,
-      permissions: formPermissions,
+      permissions: isSuperAdmin ? formPermissions : { ...formPermissions, doc_sendings: false },
       financial_access: formFinancial,
       access_all_inns: formAccessAllInns,
     };
@@ -3255,6 +3287,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   };
 
   const handlePermissionsToggle = (key: string) => {
+    if (key === "doc_sendings" && !isSuperAdmin) return;
     setEditorSelectedPresetId("");
     setEditorPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
   };
@@ -3345,7 +3378,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           Authorization: `Bearer ${adminToken}`,
         },
         body: JSON.stringify({
-          permissions: editorPermissions,
+          permissions: isSuperAdmin
+            ? editorPermissions
+            : {
+                ...editorPermissions,
+                doc_sendings:
+                  selectedUser.permissions?.doc_sendings === true && editorPermissions.doc_sendings === true,
+              },
           financial_access: editorFinancial,
           access_all_inns: editorAccessAllInns,
           customers: editorCustomers.map((c) => ({ inn: c.inn, name: c.customer_name })),
@@ -3950,16 +3989,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   По заказчикам
                 </Button>
               </Flex>
-              <label htmlFor="admin-users-search" className="visually-hidden">Поиск по email или заказчику</label>
+              <label htmlFor="admin-users-search" className="visually-hidden">Поиск пользователей</label>
               <Input
                 id="admin-users-search"
                 type="text"
-                placeholder="Поиск по email или заказчику (ИНН / название)"
+                placeholder="Логин, ИНН, наименование организации…"
                 value={usersSearchQuery}
                 onChange={(e) => setUsersSearchQuery(e.target.value)}
                 className="admin-form-input"
                 style={{ maxWidth: "24rem" }}
-                aria-label="Поиск по email или заказчику (ИНН / название)"
+                aria-label="Поиск: логин, ИНН, наименование юрлица"
               />
               <Flex align="center" gap="var(--space-2, 0.35rem)">
                 <label htmlFor="users-filter-by" style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>Права:</label>
@@ -4323,7 +4362,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           setEditorSelectedPresetId(id);
                           const preset = permissionPresets.find((p) => p.id === id);
                           if (preset) {
-                            setEditorPermissions(preset.permissions);
+                            setEditorPermissions(
+                              applyPresetPermissionsWithSendingsGate(
+                                preset.permissions,
+                                isSuperAdmin,
+                                selectedUser?.permissions?.doc_sendings === true
+                              )
+                            );
                             setEditorFinancial(preset.financial);
                             setEditorAccessAllInns(preset.serviceMode);
                           }
@@ -4588,7 +4633,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         setBulkSelectedPresetId(id);
                         const preset = permissionPresets.find((p) => p.id === id);
                         if (preset) {
-                          setBulkPermissions(preset.permissions);
+                          setBulkPermissions(applyPresetPermissionsWithSendingsGate(preset.permissions, isSuperAdmin, false));
                           setBulkFinancial(preset.financial);
                           setBulkAccessAllInns(preset.serviceMode);
                         }
@@ -4710,21 +4755,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               }
               const CUSTOMER_ALL = "Доступ ко всем заказчикам";
               const groups = new Map<string, User[]>();
-              const normalizeCustomerName = (v: string) =>
-                String(v || "")
-                  .toLowerCase()
-                  .replace(/[.,;:()"'`]/g, " ")
-                  .replace(/\s+/g, " ")
-                  .trim();
-              const qNorm = normalizeCustomerName(q);
-              const qTokens = qNorm.split(" ").filter(Boolean);
-              const customerNameMatchesQuery = (name: string) => {
-                if (!qNorm) return true;
-                const n = normalizeCustomerName(name);
-                if (!n) return false;
-                if (n === qNorm || n.startsWith(qNorm)) return true;
-                const words = n.split(" ").filter(Boolean);
-                return qTokens.every((t) => words.some((w) => w.startsWith(t)));
+              const companyRowMatchesSearch = (c: { inn?: string; name?: string }) => {
+                if (!q) return true;
+                return innMatchesSearchQuery(c.inn, q) || legalEntityNameMatchesQuery(c.name || "", q);
               };
               const addToGroup = (label: string, user: User) => {
                 const list = groups.get(label) ?? [];
@@ -4735,21 +4768,27 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 // Логины с доступом ко всем заказчикам всегда показываем только в отдельной группе,
                 // чтобы не дублировать их в каждой группе заказчиков.
                 if (u.access_all_inns || !!u.permissions?.service_mode) {
-                  if (!qNorm || customerNameMatchesQuery(CUSTOMER_ALL)) addToGroup(CUSTOMER_ALL, u);
+                  addToGroup(CUSTOMER_ALL, u);
                   continue;
                 }
+                let placed = false;
                 if (u.companies && u.companies.length > 0) {
                   for (const c of u.companies) {
-                    if (!customerNameMatchesQuery(c.name || "")) continue;
+                    if (!companyRowMatchesSearch(c)) continue;
                     const label = c.name?.trim() ? `${c.name} (${c.inn})` : c.inn;
                     addToGroup(label, u);
+                    placed = true;
                   }
+                  if (!placed) addToGroup(CUSTOMER_ALL, u);
                 } else if (u.inn) {
-                  if (!customerNameMatchesQuery(u.company_name || "")) continue;
-                  const label = u.company_name?.trim() ? `${u.company_name} (${u.inn})` : u.inn;
-                  addToGroup(label, u);
+                  if (companyRowMatchesSearch({ inn: u.inn, name: u.company_name || "" })) {
+                    const label = u.company_name?.trim() ? `${u.company_name} (${u.inn})` : u.inn;
+                    addToGroup(label, u);
+                  } else {
+                    addToGroup(CUSTOMER_ALL, u);
+                  }
                 } else {
-                  if (!qNorm || customerNameMatchesQuery(CUSTOMER_ALL)) addToGroup(CUSTOMER_ALL, u);
+                  addToGroup(CUSTOMER_ALL, u);
                 }
               }
               const sortedLabels = Array.from(groups.keys()).sort((a, b) => (a === CUSTOMER_ALL ? 1 : b === CUSTOMER_ALL ? -1 : a.localeCompare(b)));
@@ -4993,7 +5032,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     setFormSelectedPresetId(id);
                     const preset = permissionPresets.find((p) => p.id === id);
                     if (preset) {
-                      setFormPermissions(preset.permissions);
+                      setFormPermissions(applyPresetPermissionsWithSendingsGate(preset.permissions, isSuperAdmin, false));
                       setFormFinancial(preset.financial);
                       setFormAccessAllInns(preset.serviceMode);
                       if (preset.serviceMode) clearCustomerSelection();
@@ -8498,7 +8537,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           const data = await res.json().catch(() => ({}));
                           if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка сохранения");
                           setPresetFormLabel("");
-                          setPresetFormPermissions({ cms_access: false, home: true, dashboard: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false, eor: false, wb: false, wb_admin: false });
+                          setPresetFormPermissions({ cms_access: false, home: true, dashboard: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: false, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false, eor: false, wb: false, wb_admin: false });
                           setPresetFormFinancial(false);
                           setPresetFormServiceMode(false);
                           setPresetEditingId(null);

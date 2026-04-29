@@ -113,6 +113,7 @@ export function CargoPage({
     const [billStatusFilterSet, setBillStatusFilterSet] = useState<Set<BillStatusFilterKey>>(() => new Set());
     const [typeFilterSet, setTypeFilterSet] = useState<Set<'ferry' | 'auto'>>(() => new Set());
     const [routeFilterSet, setRouteFilterSet] = useState<Set<'MSK-KGD' | 'KGD-MSK'>>(() => new Set());
+    const [lastMileFilter, setLastMileFilter] = useState<'all' | 'self_pickup' | 'delivery'>('all');
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [isSenderDropdownOpen, setIsSenderDropdownOpen] = useState(false);
     const [isReceiverDropdownOpen, setIsReceiverDropdownOpen] = useState(false);
@@ -145,6 +146,8 @@ export function CargoPage({
     const billStatusButtonRef = useRef<HTMLDivElement>(null);
     const typeButtonRef = useRef<HTMLDivElement>(null);
     const routeButtonRef = useRef<HTMLDivElement>(null);
+    const lastMileButtonRef = useRef<HTMLDivElement>(null);
+    const [isLastMileDropdownOpen, setIsLastMileDropdownOpen] = useState(false);
     /** Расширяли ли уже фильтр дат для отображения перевозки по contextCargoNumber (из счёта) */
     const contextCargoWidenedRef = useRef(false);
     useEffect(() => {
@@ -291,10 +294,11 @@ export function CargoPage({
             billStatusFilterSet,
             typeFilterSet,
             routeFilterSet,
+            lastMileFilter,
             sortBy,
             sortOrder,
         });
-    }, [items, effectiveActiveInn, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, sortBy, sortOrder]);
+    }, [items, effectiveActiveInn, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, lastMileFilter, sortBy, sortOrder]);
 
     const summary = useMemo(() => buildCargoSummary(filteredItems), [filteredItems]);
 
@@ -449,7 +453,7 @@ export function CargoPage({
                         )}
                     </Button>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); }}>
                             Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8,10)}.${r.dateFrom.slice(5,7)} – ${r.dateTo.slice(8,10)}.${r.dateTo.slice(5,7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -547,7 +551,7 @@ export function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); }}>
                             Статус: {statusFilterSet.size === 0 ? 'Все' : statusFilterSet.size === 1 ? STATUS_MAP[[...statusFilterSet][0]] : `Выбрано: ${statusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -562,7 +566,7 @@ export function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={senderButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); }}>
                             Отправитель: {senderFilter ? stripOoo(senderFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -575,7 +579,7 @@ export function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={receiverButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); }}>
                             Получатель: {receiverFilter ? stripOoo(receiverFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -589,7 +593,7 @@ export function CargoPage({
                 {effectiveServiceMode && (
                     <div className="filter-group" style={{ flexShrink: 0 }}>
                         <div ref={billStatusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); }}>
                                 Статус счёта: {billStatusFilterSet.size === 0 ? 'Все' : billStatusFilterSet.size === 1 ? BILL_STATUS_MAP[[...billStatusFilterSet][0]] : `Выбрано: ${billStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -605,7 +609,7 @@ export function CargoPage({
                 )}
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); }}>
                             Тип: {typeFilterSet.size === 0 ? 'Все' : typeFilterSet.size === 2 ? 'Паром, Авто' : typeFilterSet.has('ferry') ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -617,7 +621,7 @@ export function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={routeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false);  }}>
+                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsLastMileDropdownOpen(false); }}>
                             Маршрут: {routeFilterSet.size === 0 ? 'Все' : routeFilterSet.size === 2 ? 'Выбрано: 2' : [...routeFilterSet][0] === 'MSK-KGD' ? 'MSK – KGD' : 'KGD – MSK'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -625,6 +629,46 @@ export function CargoPage({
                         <div className="dropdown-item" onClick={() => { setRouteFilterSet(new Set()); setIsRouteDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
                         <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setRouteFilterSet(prev => { const next = new Set(prev); if (next.has('MSK-KGD')) next.delete('MSK-KGD'); else next.add('MSK-KGD'); return next; }); }} style={{ background: routeFilterSet.has('MSK-KGD') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>MSK – KGD {routeFilterSet.has('MSK-KGD') ? '✓' : ''}</Typography.Body></div>
                         <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setRouteFilterSet(prev => { const next = new Set(prev); if (next.has('KGD-MSK')) next.delete('KGD-MSK'); else next.add('KGD-MSK'); return next; }); }} style={{ background: routeFilterSet.has('KGD-MSK') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>KGD – MSK {routeFilterSet.has('KGD-MSK') ? '✓' : ''}</Typography.Body></div>
+                    </FilterDropdownPortal>
+                </div>
+                <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <div ref={lastMileButtonRef} style={{ display: "inline-flex" }}>
+                        <Button
+                            className="filter-button"
+                            onClick={() => {
+                                setIsLastMileDropdownOpen(!isLastMileDropdownOpen);
+                                setIsDateDropdownOpen(false);
+                                setIsStatusDropdownOpen(false);
+                                setIsSenderDropdownOpen(false);
+                                setIsReceiverDropdownOpen(false);
+                                setIsBillStatusDropdownOpen(false);
+                                setIsTypeDropdownOpen(false);
+                                setIsRouteDropdownOpen(false);
+                            }}
+                        >
+                            Последняя миля:{" "}
+                            {lastMileFilter === "all" ? "Все" : lastMileFilter === "self_pickup" ? "Самовывоз" : "Доставка"}{" "}
+                            <ChevronDown className="w-4 h-4" />
+                        </Button>
+                    </div>
+                    <FilterDropdownPortal triggerRef={lastMileButtonRef} isOpen={isLastMileDropdownOpen} onClose={() => setIsLastMileDropdownOpen(false)}>
+                        <div className="dropdown-item" onClick={() => { setLastMileFilter("all"); setIsLastMileDropdownOpen(false); }}>
+                            <Typography.Body>Все</Typography.Body>
+                        </div>
+                        <div
+                            className="dropdown-item"
+                            onClick={() => { setLastMileFilter("self_pickup"); setIsLastMileDropdownOpen(false); }}
+                            style={{ background: lastMileFilter === "self_pickup" ? "var(--color-bg-hover)" : undefined }}
+                        >
+                            <Typography.Body>Самовывоз (ИП Андреевское, ж/д) {lastMileFilter === "self_pickup" ? "✓" : ""}</Typography.Body>
+                        </div>
+                        <div
+                            className="dropdown-item"
+                            onClick={() => { setLastMileFilter("delivery"); setIsLastMileDropdownOpen(false); }}
+                            style={{ background: lastMileFilter === "delivery" ? "var(--color-bg-hover)" : undefined }}
+                        >
+                            <Typography.Body>Доставка {lastMileFilter === "delivery" ? "✓" : ""}</Typography.Body>
+                        </div>
                     </FilterDropdownPortal>
                 </div>
             </div>

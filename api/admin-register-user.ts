@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
-import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js";
+import { verifyAdminToken, getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
 import { getClientIp, isRateLimited, ADMIN_API_LIMIT } from "../lib/rateLimit.js";
 import { hashPassword, generatePassword } from "../lib/passwordUtils.js";
 import { writeAuditLog } from "../lib/adminAuditLog.js";
@@ -107,9 +107,13 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   const inn = primaryCustomer?.inn || fallbackInn;
   const companyName = primaryCustomer?.name || fallbackCompanyName;
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
-  const permissions = body?.permissions && typeof body.permissions === "object"
+  const permissionsRaw = body?.permissions && typeof body.permissions === "object"
     ? { ...DEFAULT_PERMISSIONS, ...body.permissions }
     : DEFAULT_PERMISSIONS;
+  const permissions =
+    getAdminTokenPayload(getAdminTokenFromRequest(req))?.superAdmin === true
+      ? permissionsRaw
+      : { ...permissionsRaw, doc_sendings: false };
   const financialAccess = body?.financial_access !== false;
 
   if (!accessAllInns && (!inn || inn.length < 10)) {
