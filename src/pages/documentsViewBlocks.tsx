@@ -34,8 +34,8 @@ export function DocumentsSummaryCard({ sum, count, showSums, saasAnalytics = fal
 
   return (
     <div
-      className={`cargo-card documents-summary-card mb-4${saasAnalytics ? " documents-summary-totals--saas-kpi" : ""}`}
-      style={{ padding: "0.95rem 0.85rem 0.85rem", marginBottom: "1rem" }}
+      className={`cargo-card documents-summary-card${saasAnalytics ? " documents-summary-totals--saas-kpi" : " mb-4"}`}
+      style={saasAnalytics ? undefined : { padding: "0.95rem 0.85rem 0.85rem", marginBottom: "1rem" }}
     >
       <div className="summary-metrics">
         {showSums && (

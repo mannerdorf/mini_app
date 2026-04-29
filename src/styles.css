@@ -330,7 +330,7 @@ body {
     padding: var(--space-4, 16px) var(--pad-page-h, 24px);
     background-color: var(--color-bg-secondary);
     box-shadow: var(--shadow-sm);
-    margin-bottom: var(--space-2, 8px);
+    margin-bottom: var(--space-1, 4px);
     position: sticky;
     top: 0;
     z-index: 45;
@@ -354,7 +354,8 @@ body {
      * давал заметный зазор на Главной / Грузы / Документы. Формула: высота «тела» шапки + тот же верхний inset, что у хедера.
      */
     :root {
-        --app-mobile-header-inner-stack: 60px;
+        /* Высота «тела» шапки под safe-area: было 60px — лишний зazoр до «Грузов»/фильтров */
+        --app-mobile-header-inner-stack: 42px;
     }
     .app-container {
         padding-top: 0;
@@ -367,6 +368,10 @@ body {
     }
     .app-container.profile-saas-shell {
         padding-bottom: 0;
+        /* Поздний .profile-saas-shell { padding: 20px … } не должен верхний/боковой отступ на оболочке */
+        padding-top: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
     }
     /* CMS/табель: горизонтальный скролл при широком контенте */
     .app-container.app-container--allow-h-scroll {
@@ -455,10 +460,13 @@ body {
     }
 }
 
-/* Планшет / узкое окно: не мобильный @media, но таббар всё ещё fixed — иначе мало места под нижним баром и виджетом */
+/* Планшет / узкое окно: таббар fixed + паддинги оболочки */
 @media (min-width: 769px) and (max-width: 1024px) {
     .app-container.profile-saas-shell {
         padding-bottom: calc(112px + env(safe-area-inset-bottom));
+        padding-top: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
     }
 }
 
@@ -469,7 +477,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--space-2, 8px);
+    margin-bottom: var(--space-1, 4px);
 }
 .header-auth-info {
     display: flex;
@@ -917,9 +925,9 @@ body {
     }
 }
 
-/* Документы: дополнительный отступ под таблицы во всех разделах */
+/* Документы: зазор до таблиц; 1.5cm на широких экранах давал ощущение «дыры» под карточкой фильтров */
 .documents-page-sticky-header {
-    margin-bottom: 1.5cm;
+    margin-bottom: 0.45rem;
     /* Не даём overflow-x: hidden «схлопнуть» overflow-y в auto — иначе обрезается контент у нижней границы блока */
     overflow-y: visible;
     /* Строка вкладок и фильтров скроллится в .doc-sections-row / .filters-container — родителю не нужен hidden по X, иначе подрезается верх текста */
@@ -936,7 +944,7 @@ body {
 }
 @media (min-width: 769px) {
     .doc-contracts-table-offset-desktop {
-        margin-top: 2cm;
+        margin-top: 0.5rem;
     }
 }
 
@@ -1019,14 +1027,8 @@ body {
 }
 
 .dashboard-page-offset {
-    margin-top: 2.5cm;
-}
-
-/* Мобильный: app-main уже даёт отступ под фиксированный хедер — лишний margin съедает экран */
-@media (max-width: 768px) {
-    .dashboard-page-offset {
-        margin-top: 0;
-    }
+    /* Раньше 2.5cm защищал от наложения на старый sticky-хедер; сейчас даёт пустую полосу между app-header и фильтрами на ширине >768px */
+    margin-top: 0;
 }
 
 /**
@@ -1071,9 +1073,9 @@ body {
     }
 }
 
-/* Контент раздела Договоры/Тарифы — отступ сверху, чтобы первая строка не перекрывалась липким хедером при скролле */
+/* Контент раздела Договоры/Тарифы (только DocumentsPage). Раньше 5rem давал пустую «полосу» между липким блоком фильтров и карточками на широких экранах. */
 .doc-section-content {
-    padding-top: 5rem; /* ~80px — буфер, чтобы первая строка не перекрывалась липким хедером */
+    padding-top: 0.5rem;
     padding-bottom: 1rem;
     min-height: 2rem;
 }
@@ -1384,6 +1386,8 @@ body {
  * Документы — визуал «SaaS analytics» (как у «Грузов»); класс включается из App для всех.
  */
 .documents-page--saas-analytics {
+    margin-top: 0;
+    padding-top: 0;
     padding-bottom: 0.35rem;
     border-radius: 18px;
     background: linear-gradient(165deg, rgba(248, 250, 252, 0.97) 0%, rgba(241, 245, 249, 0.55) 42%, rgba(238, 242, 255, 0.35) 100%);
@@ -1392,28 +1396,32 @@ body {
 .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
     background: var(--color-bg-card);
     border-radius: 14px;
-    /* Нижний отступ как у общего .documents-page-sticky-header (1.5cm), иначе карточка с бейджами «Отправок» визуально подрезается под тенью блока фильтров */
-    padding: 0.85rem 0.95rem 1.05rem;
-    margin-bottom: 1.5cm;
+    padding: 0.4rem 0.75rem 0.45rem;
+    margin-bottom: 0.45rem;
     border: 1px solid rgba(148, 163, 184, 0.22);
     box-shadow:
         0 1px 2px rgba(15, 23, 42, 0.05),
         0 12px 40px rgba(15, 23, 42, 0.06);
 }
 
+/* Меньше пустоты под строкой фильтров внутри белой карточки */
+.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .filters-container.filters-row-scroll {
+    margin-bottom: 0.15rem;
+}
+
 /* Сразу под шапкой — контент без KPI (тарифы/договоры) или панель с кнопками: 1.5cm лишний; WebView часто шире 768px */
 .documents-page .cargo-page-sticky-header.documents-page-sticky-header:has(+ .documents-toolbar-below-sticky),
 .documents-page .cargo-page-sticky-header.documents-page-sticky-header:has(+ .doc-section-content) {
-    margin-bottom: 0.65rem;
+    margin-bottom: 0.45rem;
 }
 
 /* Узкий холст / миниапп: до 1024px ловим WebView с шириной > 768 */
 @media (max-width: 1024px) {
     .documents-page-sticky-header,
     .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
-        margin-bottom: 0.65rem;
+        margin-bottom: 0.45rem;
     }
-    /* Тарифы / Договоры: padding-top: 5rem рассчитан на десктоп; без этого — огромный зазор до карточек */
+    /* Договоры / Тарифы: на узком холсте чуть плотнее к липкому блоку */
     .documents-page .doc-section-content {
         padding-top: 0.35rem;
     }
@@ -1427,7 +1435,8 @@ body {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
-    padding: 0.35rem 0 0.85rem !important;
+    padding: 0.35rem 0 0.45rem !important;
+    margin-bottom: 0.35rem !important;
 }
 
 .documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics {
@@ -1475,9 +1484,10 @@ body {
 }
 
 @media (min-width: 1025px) {
+    /* Раньше 2cm оставляли «воздух» под липким блоком — визуально огромный зазор между KPI и списком */
     .documents-page--saas-analytics .documents-table-offset-desktop,
     .documents-page--saas-analytics .documents-cards-offset-desktop {
-        margin-top: 2cm;
+        margin-top: 0.5rem;
     }
 }
 

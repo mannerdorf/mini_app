@@ -6,22 +6,72 @@
     <meta name="robots" content="noindex, nofollow" />
     <meta name="googlebot" content="noindex, nofollow" />
     <meta name="yandex" content="noindex, nofollow" />
-    <link rel="dns-prefetch" href="https://telegram.org" />
-    <link rel="dns-prefetch" href="https://st.max.ru" />
-    <link rel="preconnect" href="https://telegram.org" crossorigin />
-    <link rel="preconnect" href="https://st.max.ru" crossorigin />
-    <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script defer src="https://st.max.ru/js/max-web-app.js"></script>
+    <!-- Telegram / MAX SDK подключаются только в контексте мини-приложения (см. __haulzWebAppSdkReady) — в обычном браузере нет запросов к telegram.org / st.max.ru -->
+    <script>
+      (function () {
+        var search = window.location.search || "";
+        var hash = window.location.hash || "";
+        var ua = navigator.userAgent || "";
+        var forceAll = /(?:^|[?&])haulzWebAppSdks=all(?:&|$)/.test(search);
+
+        function needsTelegram() {
+          if (forceAll) return true;
+          if (/Telegram/i.test(ua)) return true;
+          if (/tgWebAppData=/i.test(search) || /tgWebAppData=/i.test(hash)) return true;
+          return false;
+        }
+        function needsMax() {
+          if (forceAll) return true;
+          if (/max[^a-z0-9]?app/i.test(ua)) return true;
+          if (/WebAppData=/i.test(hash)) return true;
+          return false;
+        }
+        function loadScript(src) {
+          return new Promise(function (resolve, reject) {
+            var s = document.createElement("script");
+            s.src = src;
+            s.async = false;
+            s.onload = function () {
+              resolve();
+            };
+            s.onerror = function () {
+              reject(new Error("Failed to load " + src));
+            };
+            document.head.appendChild(s);
+          });
+        }
+        var chain = Promise.resolve();
+        if (needsTelegram()) {
+          chain = chain
+            .then(function () {
+              return loadScript("https://telegram.org/js/telegram-web-app.js");
+            })
+            .catch(function (e) {
+              console.warn("[HAULZ] telegram-web-app.js:", e && e.message ? e.message : e);
+            });
+        }
+        if (needsMax()) {
+          chain = chain
+            .then(function () {
+              return loadScript("https://st.max.ru/js/max-web-app.js");
+            })
+            .catch(function (e) {
+              console.warn("[HAULZ] max-web-app.js:", e && e.message ? e.message : e);
+            });
+        }
+        window.__haulzWebAppSdkReady = chain;
+      })();
+    </script>
     <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#0071e3" />
     <title>HAULZ</title>
-    <script type="module" crossorigin src="/assets/index-DN3tdWD_.js"></script>
+    <script type="module" crossorigin src="/assets/index-rO-mOHHB.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/lucide-Cu5tXsGr.js">
     <link rel="modulepreload" crossorigin href="/assets/recharts-DExrhe65.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-D_1ZnVa_.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-BuAMjnRd.css">
   </head>
   <body>
     <div id="root"></div>

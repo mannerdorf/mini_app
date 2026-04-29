@@ -2890,7 +2890,7 @@ useEffect(() => {
     return (
         <div className={`w-full documents-page${documentsServiceSaasUi ? " documents-page--saas-analytics" : ""}`}>
             <div className="cargo-page-sticky-header documents-page-sticky-header">
-                <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <Flex align="center" justify="space-between" style={{ marginBottom: '0.3rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Документы</Typography.Headline>
                     <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                         <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
@@ -2903,7 +2903,7 @@ useEffect(() => {
                 <div
                     className="doc-sections-row"
                     style={{
-                        marginBottom: '0.75rem',
+                        marginBottom: '0.3rem',
                         overflowX: 'auto',
                         WebkitOverflowScrolling: 'touch',
                         paddingBottom: '4px',

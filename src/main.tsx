@@ -20,6 +20,7 @@ const shouldShowDebug = () => {
 
 declare global {
   interface Window {
+    __haulzWebAppSdkReady?: Promise<void>;
     __debugLog?: (label: string, data?: unknown) => void;
     Capacitor?: {
       isNativePlatform?: () => boolean;
@@ -178,14 +179,26 @@ if (typeof window !== "undefined") {
   }
 }
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <SWRConfig value={swrConfig}>
-        <MaxUI>
-          <App />
-        </MaxUI>
-      </SWRConfig>
-    </ErrorBoundary>
-  </React.StrictMode>
-);
+/** Дождаться условной загрузки Telegram/MAX SDK из index.html, затем монтировать React. */
+const mountApp = () => {
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <ErrorBoundary>
+        <SWRConfig value={swrConfig}>
+          <MaxUI>
+            <App />
+          </MaxUI>
+        </SWRConfig>
+      </ErrorBoundary>
+    </React.StrictMode>
+  );
+};
+
+void (async () => {
+  try {
+    await (typeof window !== "undefined" ? window.__haulzWebAppSdkReady ?? Promise.resolve() : Promise.resolve());
+  } catch {
+    /* загрузчик сам логирует предупреждения */
+  }
+  mountApp();
+})();
