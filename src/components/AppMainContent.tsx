@@ -102,6 +102,18 @@ function EmptyCargoState({
 }
 
 function SectionBoundary({ section, children }: { section: string; children: React.ReactNode }) {
+  const docsDebugEnabled =
+    section === "Документы" &&
+    typeof window !== "undefined" &&
+    (() => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("debug_docs") === "1") return true;
+        return window.localStorage.getItem("haulz.debug.docs") === "1";
+      } catch {
+        return false;
+      }
+    })();
   return (
     <ErrorBoundary
       fallback={(err) => (
@@ -113,6 +125,36 @@ function SectionBoundary({ section, children }: { section: string; children: Rea
           <button type="button" onClick={() => window.location.reload()} style={{ padding: "0.5rem 1rem", cursor: "pointer" }}>
             Обновить страницу
           </button>
+          {docsDebugEnabled ? (
+            <details style={{ marginTop: "0.75rem", textAlign: "left" }}>
+              <summary style={{ cursor: "pointer", fontSize: "0.8rem" }}>Debug details</summary>
+              <pre
+                style={{
+                  marginTop: "0.5rem",
+                  fontSize: "0.72rem",
+                  lineHeight: 1.35,
+                  color: "#7f1d1d",
+                  background: "#fef2f2",
+                  padding: "0.65rem",
+                  borderRadius: "0.5rem",
+                  maxHeight: "30vh",
+                  overflow: "auto",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                {[
+                  `name: ${err?.name || "Error"}`,
+                  `message: ${err?.message || "-"}`,
+                  `path: ${window.location.pathname}${window.location.search}`,
+                  `userAgent: ${navigator.userAgent}`,
+                  "",
+                  "stack:",
+                  err?.stack || "(empty)",
+                ].join("\n")}
+              </pre>
+            </details>
+          ) : null}
         </div>
       )}
     >

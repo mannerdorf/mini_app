@@ -484,6 +484,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [claimsCreateSubmitting, setClaimsCreateSubmitting] = useState(false);
     const [claimsCreateError, setClaimsCreateError] = useState<string | null>(null);
     const [claimsCreateCargoNumber, setClaimsCreateCargoNumber] = useState('');
+    const [claimsCreateCargoNumberDebounced, setClaimsCreateCargoNumberDebounced] = useState('');
     const [claimsCargoDropdownOpen, setClaimsCargoDropdownOpen] = useState(false);
     const claimsCargoInputRef = useRef<HTMLDivElement>(null);
     const [claimsCreateType, setClaimsCreateType] = useState<'cargo_damage' | 'quantity_mismatch' | 'cargo_loss' | 'other'>('cargo_damage');
@@ -1659,7 +1660,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
     }, [claimsCargoDropdownOpen]);
-    const [claimsCreateCargoNumberDebounced, setClaimsCreateCargoNumberDebounced] = useState('');
     useEffect(() => {
         const q = String(claimsCreateCargoNumber || '').trim();
         if (!q) {

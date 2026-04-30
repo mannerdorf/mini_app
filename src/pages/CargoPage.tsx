@@ -10,7 +10,7 @@ import type { BillStatusFilterKey } from "../lib/statusUtils";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
 import * as dateUtils from "../lib/dateUtils";
 import { formatCurrency, stripOoo, cityToCode } from "../lib/formatUtils";
-import { buildRouteTypePlanDaysMap, getEffectivePlannedDeliveryDate } from "../lib/cargoPlannedDelivery";
+import { getManualPlannedDeliveryDate } from "../lib/cargoPlannedDelivery";
 import type { AuthData, CargoItem, DateFilter, PlannedDeliveryFilter, StatusFilter } from "../types";
 import { useCargoDateRange } from "./useCargoDateRange";
 import { useCargoDataLoad } from "./useCargoDataLoad";
@@ -298,10 +298,9 @@ export function CargoPage({
     const uniqueSenders = useMemo(() => [...new Set(items.map(i => (i.Sender ?? '').trim()).filter(Boolean))].sort(), [items]);
     const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
 
-    const cargoPlanDaysByRouteType = useMemo(() => buildRouteTypePlanDaysMap(items), [items]);
-    const getEffectivePlannedForFilter = useCallback(
-        (item: CargoItem) => getEffectivePlannedDeliveryDate(item, cargoPlanDaysByRouteType),
-        [cargoPlanDaysByRouteType],
+    const getManualPlannedForFilter = useCallback(
+        (item: CargoItem) => getManualPlannedDeliveryDate(item),
+        [],
     );
     const plannedDeliveryRange = useMemo(() => {
         if (plannedDeliveryFilter === 'all') return null;
@@ -332,9 +331,9 @@ export function CargoPage({
             sortBy,
             sortOrder,
             plannedDeliveryRange,
-            getEffectivePlannedDelivery: plannedDeliveryRange ? getEffectivePlannedForFilter : null,
+            getEffectivePlannedDelivery: plannedDeliveryRange ? getManualPlannedForFilter : null,
         });
-    }, [items, effectiveActiveInn, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, lastMileFilter, sortBy, sortOrder, plannedDeliveryRange, getEffectivePlannedForFilter]);
+    }, [items, effectiveActiveInn, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, lastMileFilter, sortBy, sortOrder, plannedDeliveryRange, getManualPlannedForFilter]);
 
     const summary = useMemo(() => buildCargoSummary(filteredItems), [filteredItems]);
 

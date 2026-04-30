@@ -29,7 +29,9 @@ export default defineConfig(({ command }) => ({
     // Без singlefile — разумный лимит инлайна мелких ассетов
     assetsInlineLimit: useSingleFilePlugin() ? 100000000 : 4096,
     cssCodeSplit: !useSingleFilePlugin(),
-    sourcemap: command === "serve",
+    // Прод source map включаем только флагом для точечной отладки:
+    // VITE_PROD_SOURCEMAP=1 npm run build
+    sourcemap: command === "serve" || process.env.VITE_PROD_SOURCEMAP === "1",
     rollupOptions: {
       output: useSingleFilePlugin()
         ? {}
