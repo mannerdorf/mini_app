@@ -1758,6 +1758,28 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
     }, [docSection, items, actsItems]);
 
+    const toggleInvoiceFavorite = useCallback((invNum: string | undefined) => {
+        if (!invNum) return;
+        try {
+            const raw = typeof localStorage !== 'undefined' && localStorage.getItem('haulz.invoiceFavorites');
+            const arr: string[] = raw ? JSON.parse(raw) : [];
+            const set = new Set(arr);
+            if (set.has(invNum)) set.delete(invNum);
+            else set.add(invNum);
+            localStorage.setItem('haulz.invoiceFavorites', JSON.stringify([...set]));
+            setFavVersion(v => v + 1);
+        } catch {}
+    }, []);
+
+    const isInvoiceFavorite = useCallback((invNum: string | undefined): boolean => {
+        if (!invNum) return false;
+        try {
+            const raw = typeof localStorage !== 'undefined' && localStorage.getItem('haulz.invoiceFavorites');
+            const arr: string[] = raw ? JSON.parse(raw) : [];
+            return arr.includes(invNum);
+        } catch { return false; }
+    }, []);
+
     /** Те же фильтры, что у таблицы счетов, но без ТС — чтобы список ТС совпадал с текущей выборкой (напр. только «в пути»). */
     const filteredInvoiceRowsForTransportOptions = useMemo(() => {
         return buildFilteredInvoices({
@@ -1912,28 +1934,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
     }, [tariffsList]);
-
-    const toggleInvoiceFavorite = useCallback((invNum: string | undefined) => {
-        if (!invNum) return;
-        try {
-            const raw = typeof localStorage !== 'undefined' && localStorage.getItem('haulz.invoiceFavorites');
-            const arr: string[] = raw ? JSON.parse(raw) : [];
-            const set = new Set(arr);
-            if (set.has(invNum)) set.delete(invNum);
-            else set.add(invNum);
-            localStorage.setItem('haulz.invoiceFavorites', JSON.stringify([...set]));
-            setFavVersion(v => v + 1);
-        } catch {}
-    }, []);
-
-    const isInvoiceFavorite = useCallback((invNum: string | undefined): boolean => {
-        if (!invNum) return false;
-        try {
-            const raw = typeof localStorage !== 'undefined' && localStorage.getItem('haulz.invoiceFavorites');
-            const arr: string[] = raw ? JSON.parse(raw) : [];
-            return arr.includes(invNum);
-        } catch { return false; }
-    }, []);
 
 const toDocFavoriteKey = useCallback((section: 'claims' | 'contracts' | 'reconciliation' | 'tariffs', itemKey: string | number | undefined): string => {
     return `${section}:${String(itemKey ?? '').trim()}`;
