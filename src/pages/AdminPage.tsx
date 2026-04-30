@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Pencil, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Calendar, AlertCircle, Download, Clock, Receipt, BarChart3, Calculator, ClipboardList, FileText, Ship, MapPin } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Pencil, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Calendar, AlertCircle, Download, Clock, Receipt, BarChart3, Calculator, ClipboardList, FileText, Ship, MapPin, LayoutDashboard } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 import type { ExpenseRequestItem } from "./ExpenseRequestsPage";
@@ -11,6 +11,7 @@ import { SUBDIVISIONS } from "../pnl/constants";
 import { stripOoo } from "../lib/formatUtils";
 import { getCurrentMonthYm } from "../lib/dateUtils";
 import { downloadBase64File } from "../utils";
+import { AdminDashboardsPanel } from "../components/AdminDashboardsPanel";
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
@@ -76,15 +77,35 @@ const PERMISSION_ROW3_BLUE = [
   { key: "doc_tariffs", label: "Тарифы" },
 ] as const;
 
+/** Раздел «Дашборды» в приложении согласован с «Аналитика». */
+function normalizeAnalyticsDashboardPermissions(perms: Record<string, boolean>): Record<string, boolean> {
+  const p = { ...perms };
+  if (p.dashboard === true) p.analytics = true;
+  if (p.analytics !== true) p.dashboard = false;
+  return p;
+}
+
+function applyPermissionsToggle(prev: Record<string, boolean>, key: string): Record<string, boolean> {
+  const nextVal = !prev[key];
+  const next = { ...prev, [key]: nextVal };
+  if (key === "analytics" && !nextVal) next.dashboard = false;
+  if (key === "dashboard" && nextVal && !prev.analytics) next.analytics = true;
+  return next;
+}
+
+function isDashboardPermissionDisabled(key: string, perms: Record<string, boolean>): boolean {
+  return key === "dashboard" && !perms.analytics;
+}
+
 /** Пресет: без суперадмина «Отправки» нельзя включить, если у пользователя их ещё не было. */
 function applyPresetPermissionsWithSendingsGate(
   presetPerms: Record<string, boolean>,
   isSuperAdmin: boolean,
   existingDocSendings: boolean
 ): Record<string, boolean> {
-  if (isSuperAdmin) return { ...presetPerms };
+  if (isSuperAdmin) return normalizeAnalyticsDashboardPermissions({ ...presetPerms });
   const doc_sendings = presetPerms.doc_sendings === true && existingDocSendings;
-  return { ...presetPerms, doc_sendings };
+  return normalizeAnalyticsDashboardPermissions({ ...presetPerms, doc_sendings });
 }
 
 export type PermissionPreset = { id: string; label: string; permissions: Record<string, boolean>; financial: boolean; serviceMode: boolean };
@@ -489,7 +510,7 @@ function UserRow({
 
 const ADMIN_THEME_KEY = "admin-theme";
 const ADMIN_TAB_KEY = "haulz.admin.tab";
-const ADMIN_TABS = ["users", "templates", "customers", "suppliers", "tariffs", "sverki", "dogovors", "ferries", "pvz", "audit", "logs", "integrations", "employee_directory", "subdivisions", "presets", "payment_calendar", "work_schedule", "timesheet", "expense_requests", "accounting", "claims", "pnl"] as const;
+const ADMIN_TABS = ["users", "templates", "customers", "suppliers", "tariffs", "sverki", "dogovors", "ferries", "pvz", "audit", "logs", "integrations", "employee_directory", "subdivisions", "presets", "payment_calendar", "work_schedule", "timesheet", "expense_requests", "accounting", "claims", "dashboards", "pnl"] as const;
 type AdminTab = (typeof ADMIN_TABS)[number];
 
 function getInitialAdminTab(): AdminTab {
@@ -588,9 +609,29 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [deactivateConfirmUserId, setDeactivateConfirmUserId] = useState<number | null>(null);
   const [bulkDeactivateConfirmOpen, setBulkDeactivateConfirmOpen] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
-  const [bulkPermissions, setBulkPermissions] = useState<Record<string, boolean>>({
-    cms_access: false, home: true, dashboard: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: false, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false, eor: false, wb: false, wb_admin: false,
-  });
+  const [bulkPermissions, setBulkPermissions] = useState<Record<string, boolean>>(() =>
+    normalizeAnalyticsDashboardPermissions({
+      cms_access: false,
+      home: true,
+      dashboard: true,
+      cargo: true,
+      doc_invoices: true,
+      doc_acts: true,
+      doc_orders: true,
+      doc_sendings: false,
+      doc_claims: true,
+      doc_contracts: true,
+      doc_acts_settlement: true,
+      doc_tariffs: true,
+      haulz: false,
+      service_mode: false,
+      analytics: false,
+      supervisor: false,
+      eor: false,
+      wb: false,
+      wb_admin: false,
+    })
+  );
   const [bulkFinancial, setBulkFinancial] = useState(false);
   const [bulkAccessAllInns, setBulkAccessAllInns] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
@@ -906,9 +947,29 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [presetsLoading, setPresetsLoading] = useState(false);
   const [presetEditingId, setPresetEditingId] = useState<string | null>(null);
   const [presetFormLabel, setPresetFormLabel] = useState("");
-  const [presetFormPermissions, setPresetFormPermissions] = useState<Record<string, boolean>>({
-    cms_access: false, home: true, dashboard: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: false, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false, eor: false, wb: false, wb_admin: false,
-  });
+  const [presetFormPermissions, setPresetFormPermissions] = useState<Record<string, boolean>>(() =>
+    normalizeAnalyticsDashboardPermissions({
+      cms_access: false,
+      home: true,
+      dashboard: true,
+      cargo: true,
+      doc_invoices: true,
+      doc_acts: true,
+      doc_orders: true,
+      doc_sendings: false,
+      doc_claims: true,
+      doc_contracts: true,
+      doc_acts_settlement: true,
+      doc_tariffs: true,
+      haulz: false,
+      service_mode: false,
+      analytics: false,
+      supervisor: false,
+      eor: false,
+      wb: false,
+      wb_admin: false,
+    })
+  );
   const [presetFormFinancial, setPresetFormFinancial] = useState(false);
   const [presetFormServiceMode, setPresetFormServiceMode] = useState(false);
   const [presetFormError, setPresetFormError] = useState<string | null>(null);
@@ -965,27 +1026,29 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [formAccessAllInns, setFormAccessAllInns] = useState(false);
   const [selectedCustomers, setSelectedCustomers] = useState<CustomerItem[]>([]);
   const [formEmail, setFormEmail] = useState("");
-  const [formPermissions, setFormPermissions] = useState<Record<string, boolean>>({
-    cms_access: false,
-    home: true,
-    dashboard: true,
-    cargo: true,
-    doc_invoices: true,
-    doc_acts: true,
-    doc_orders: true,
-    doc_sendings: false,
-    doc_claims: true,
-    doc_contracts: true,
-    doc_acts_settlement: true,
-    doc_tariffs: true,
-    haulz: false,
-    service_mode: false,
-    analytics: false,
-    supervisor: true,
-    eor: false,
-    wb: false,
-    wb_admin: false,
-  });
+  const [formPermissions, setFormPermissions] = useState<Record<string, boolean>>(() =>
+    normalizeAnalyticsDashboardPermissions({
+      cms_access: false,
+      home: true,
+      dashboard: true,
+      cargo: true,
+      doc_invoices: true,
+      doc_acts: true,
+      doc_orders: true,
+      doc_sendings: false,
+      doc_claims: true,
+      doc_contracts: true,
+      doc_acts_settlement: true,
+      doc_tariffs: true,
+      haulz: false,
+      service_mode: false,
+      analytics: false,
+      supervisor: true,
+      eor: false,
+      wb: false,
+      wb_admin: false,
+    })
+  );
   const [formSelectedPresetId, setFormSelectedPresetId] = useState<string>("");
   const [formFinancial, setFormFinancial] = useState(true);
   const [formSendEmail, setFormSendEmail] = useState(true);
@@ -2102,7 +2165,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
   useEffect(() => {
     if (!adminMeLoaded) return;
-    if (!isSuperAdmin && (tab === "employee_directory" || tab === "subdivisions" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet" || tab === "expense_requests" || tab === "accounting" || tab === "claims" || tab === "pnl")) setTab("users");
+    if (!isSuperAdmin && (tab === "employee_directory" || tab === "subdivisions" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet" || tab === "expense_requests" || tab === "accounting" || tab === "claims" || tab === "dashboards" || tab === "pnl")) setTab("users");
     if (isSuperAdmin && tab === "claims") {
       setTab("accounting");
       setAccountingSubsection("claims");
@@ -3197,7 +3260,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const togglePerm = (key: string) => {
     if (key === "doc_sendings" && !isSuperAdmin) return;
     setFormSelectedPresetId("");
-    setFormPermissions((p) => ({ ...p, [key]: !p[key] }));
+    setFormPermissions((p) => applyPermissionsToggle(p, key));
   };
 
   const fetchCustomersForModal = useCallback(
@@ -3234,7 +3297,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       email: entry.login.trim(),
       password: formSendEmail ? undefined : entry.password || formPassword,
       send_email: formSendEmail,
-      permissions: isSuperAdmin ? formPermissions : { ...formPermissions, doc_sendings: false },
+      permissions: normalizeAnalyticsDashboardPermissions(
+        isSuperAdmin ? formPermissions : { ...formPermissions, doc_sendings: false }
+      ),
       financial_access: formFinancial,
       access_all_inns: formAccessAllInns,
     };
@@ -3289,7 +3354,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const handlePermissionsToggle = (key: string) => {
     if (key === "doc_sendings" && !isSuperAdmin) return;
     setEditorSelectedPresetId("");
-    setEditorPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
+    setEditorPermissions((prev) => applyPermissionsToggle(prev, key));
   };
 
   const selectedSet = useMemo(() => new Set(selectedUserIds), [selectedUserIds]);
@@ -3306,7 +3371,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     setBulkLoading(true);
     setBulkError(null);
     const body = {
-      permissions: bulkPermissions,
+      permissions: normalizeAnalyticsDashboardPermissions(bulkPermissions),
       financial_access: bulkFinancial,
       access_all_inns: bulkAccessAllInns,
     };
@@ -3378,13 +3443,15 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           Authorization: `Bearer ${adminToken}`,
         },
         body: JSON.stringify({
-          permissions: isSuperAdmin
-            ? editorPermissions
-            : {
-                ...editorPermissions,
-                doc_sendings:
-                  selectedUser.permissions?.doc_sendings === true && editorPermissions.doc_sendings === true,
-              },
+          permissions: normalizeAnalyticsDashboardPermissions(
+            isSuperAdmin
+              ? editorPermissions
+              : {
+                  ...editorPermissions,
+                  doc_sendings:
+                    selectedUser.permissions?.doc_sendings === true && editorPermissions.doc_sendings === true,
+                }
+          ),
           financial_access: editorFinancial,
           access_all_inns: editorAccessAllInns,
           customers: editorCustomers.map((c) => ({ inn: c.inn, name: c.customer_name })),
@@ -3428,10 +3495,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
   useEffect(() => {
     if (!selectedUser) return;
-    const nextPermissions = PERMISSION_KEYS.reduce<Record<string, boolean>>((acc, perm) => {
-      acc[perm.key] = Boolean(selectedUser.permissions?.[perm.key]);
-      return acc;
-    }, {});
+    const nextPermissions = normalizeAnalyticsDashboardPermissions(
+      PERMISSION_KEYS.reduce<Record<string, boolean>>((acc, perm) => {
+        acc[perm.key] = Boolean(selectedUser.permissions?.[perm.key]);
+        return acc;
+      }, {})
+    );
     setEditorPermissions(nextPermissions);
     setEditorFinancial(Boolean(selectedUser.financial_access));
     setEditorAccessAllInns(Boolean(selectedUser.permissions?.service_mode ?? selectedUser.access_all_inns));
@@ -3606,6 +3675,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           >
             <FileText className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             Претензии
+          </Button>
+        )}
+        {isSuperAdmin && (
+          <Button
+            className="filter-button"
+            style={{ background: tab === "dashboards" ? "var(--color-primary-blue)" : undefined, color: tab === "dashboards" ? "white" : undefined }}
+            onClick={() => setTab("dashboards")}
+          >
+            <LayoutDashboard className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Дашборды
           </Button>
         )}
         {isSuperAdmin && (
@@ -4416,8 +4495,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
                       {PERMISSION_ROW3_BLUE.map(({ key, label }) => {
                         const isActive = !!editorPermissions[key];
+                        const dis = isDashboardPermissionDisabled(key, editorPermissions);
                         return (
-                          <button key={key} type="button" className={`permission-button ${isActive ? "active" : ""}`} onClick={() => handlePermissionsToggle(key)}>{label}</button>
+                          <button
+                            key={key}
+                            type="button"
+                            className={`permission-button ${isActive ? "active" : ""}`}
+                            onClick={() => { if (!dis) handlePermissionsToggle(key); }}
+                            disabled={dis}
+                            title={dis ? "Сначала включите «Аналитика»" : undefined}
+                          >
+                            {label}
+                          </button>
                         );
                       })}
                     </div>
@@ -4677,9 +4766,25 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     })}
                   </div>
                   <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
-                    {PERMISSION_ROW3_BLUE.map(({ key, label }) => (
-                      <button key={key} type="button" className={`permission-button ${!!bulkPermissions[key] ? "active" : ""}`} onClick={() => { setBulkSelectedPresetId(""); setBulkPermissions((p) => ({ ...p, [key]: !p[key] })); }}>{label}</button>
-                    ))}
+                    {PERMISSION_ROW3_BLUE.map(({ key, label }) => {
+                      const dis = isDashboardPermissionDisabled(key, bulkPermissions);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          className={`permission-button ${!!bulkPermissions[key] ? "active" : ""}`}
+                          onClick={() => {
+                            if (dis) return;
+                            setBulkSelectedPresetId("");
+                            setBulkPermissions((p) => applyPermissionsToggle(p, key));
+                          }}
+                          disabled={dis}
+                          title={dis ? "Сначала включите «Аналитика»" : undefined}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
                   </div>
                   {bulkError && <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginTop: "0.5rem" }}>{bulkError}</Typography.Body>}
                   <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginTop: "0.75rem" }}>
@@ -5082,8 +5187,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
                 {PERMISSION_ROW3_BLUE.map(({ key, label }) => {
                   const isActive = !!formPermissions[key];
+                  const dis = isDashboardPermissionDisabled(key, formPermissions);
                   return (
-                    <button type="button" key={key} className={`permission-button ${isActive ? "active" : ""}`} onClick={() => togglePerm(key)}>{label}</button>
+                    <button
+                      type="button"
+                      key={key}
+                      className={`permission-button ${isActive ? "active" : ""}`}
+                      onClick={() => { if (!dis) togglePerm(key); }}
+                      disabled={dis}
+                      title={dis ? "Сначала включите «Аналитика»" : undefined}
+                    >
+                      {label}
+                    </button>
                   );
                 })}
               </div>
@@ -8509,9 +8624,24 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     })}
                   </div>
                   <div className="admin-permissions-toolbar" style={{ marginTop: "0.25rem" }}>
-                    {PERMISSION_ROW3_BLUE.map(({ key, label }) => (
-                      <button key={key} type="button" className={`permission-button ${!!presetFormPermissions[key] ? "active" : ""}`} onClick={() => setPresetFormPermissions((p) => ({ ...p, [key]: !p[key] }))}>{label}</button>
-                    ))}
+                    {PERMISSION_ROW3_BLUE.map(({ key, label }) => {
+                      const dis = isDashboardPermissionDisabled(key, presetFormPermissions);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          className={`permission-button ${!!presetFormPermissions[key] ? "active" : ""}`}
+                          onClick={() => {
+                            if (dis) return;
+                            setPresetFormPermissions((p) => applyPermissionsToggle(p, key));
+                          }}
+                          disabled={dis}
+                          title={dis ? "Сначала включите «Аналитика»" : undefined}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
                   </div>
                   {presetFormError && <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginTop: "0.25rem" }}>{presetFormError}</Typography.Body>}
                   <Flex gap="0.5rem" align="center" style={{ marginTop: "0.5rem" }}>
@@ -8529,7 +8659,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             body: JSON.stringify({
                               ...(presetEditingId ? { id: presetEditingId } : {}),
                               label: presetFormLabel.trim(),
-                              permissions: presetFormPermissions,
+                              permissions: normalizeAnalyticsDashboardPermissions(presetFormPermissions),
                               financial: presetFormFinancial,
                               serviceMode: presetFormServiceMode,
                             }),
@@ -8537,7 +8667,29 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           const data = await res.json().catch(() => ({}));
                           if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка сохранения");
                           setPresetFormLabel("");
-                          setPresetFormPermissions({ cms_access: false, home: true, dashboard: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: false, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false, eor: false, wb: false, wb_admin: false });
+                          setPresetFormPermissions(
+                            normalizeAnalyticsDashboardPermissions({
+                              cms_access: false,
+                              home: true,
+                              dashboard: true,
+                              cargo: true,
+                              doc_invoices: true,
+                              doc_acts: true,
+                              doc_orders: true,
+                              doc_sendings: false,
+                              doc_claims: true,
+                              doc_contracts: true,
+                              doc_acts_settlement: true,
+                              doc_tariffs: true,
+                              haulz: false,
+                              service_mode: false,
+                              analytics: false,
+                              supervisor: false,
+                              eor: false,
+                              wb: false,
+                              wb_admin: false,
+                            })
+                          );
                           setPresetFormFinancial(false);
                           setPresetFormServiceMode(false);
                           setPresetEditingId(null);
@@ -8587,7 +8739,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           onClick={() => {
                             setPresetEditingId(p.id);
                             setPresetFormLabel(p.label);
-                            setPresetFormPermissions({ ...p.permissions });
+                            setPresetFormPermissions(normalizeAnalyticsDashboardPermissions({ ...p.permissions }));
                             setPresetFormFinancial(p.financial);
                             setPresetFormServiceMode(p.serviceMode);
                             setPresetFormError(null);
@@ -10878,6 +11030,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         }}
         fetchCustomers={fetchCustomersForModal}
       />
+
+      {tab === "dashboards" && isSuperAdmin && <AdminDashboardsPanel adminToken={adminToken} />}
 
       {tab === "pnl" && isSuperAdmin && (
         <PnlSection

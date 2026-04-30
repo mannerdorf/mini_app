@@ -132,6 +132,8 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     let sanitizedPermissions: Record<string, boolean> | undefined;
     if (body?.permissions && typeof body.permissions === "object") {
       sanitizedPermissions = { ...(body.permissions as Record<string, boolean>) };
+      if (sanitizedPermissions.dashboard === true) sanitizedPermissions.analytics = true;
+      if (sanitizedPermissions.analytics !== true) sanitizedPermissions.dashboard = false;
       if (getAdminTokenPayload(getAdminTokenFromRequest(req))?.superAdmin !== true) {
         const stored = existing[0]!.permissions;
         const prev = stored && typeof stored === "object" ? (stored as Record<string, boolean>) : {};

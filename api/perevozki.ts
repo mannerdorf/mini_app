@@ -4,6 +4,8 @@ import { upsertDocument } from "../lib/rag.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { dispatchWebPushCargoEvents } from "./_lib/webpushEventDispatch.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { getAdminTokenFromRequest, getAdminTokenPayload, verifyAdminToken } from "../lib/adminAuth.js";
+import { getAdminTokenFromRequest, getAdminTokenPayload, verifyAdminToken } from "../lib/adminAuth.js";
 
 /**
  * Запрос данных перевозок — только этот метод:
@@ -77,13 +79,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     isRegisteredUser,
   } = body || {};
 
-  if (!login || !password) {
-    return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
-  }
-
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
   if (!dateRe.test(dateFrom) || !dateRe.test(dateTo)) {
     return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD required)", request_id: ctx.requestId });
+  }
+
+  const adminToken =
+    (typeof body?.adminToken === "string" ? body.adminToken.trim() : "") || getAdminTokenFromRequest(req) || "";
+  if (adminToken && verifyAdminToken(adminToken) && getAdminTokenPayload(adminToken)?.superAdmin === true) {
+    try {
+      const pool = getPool();
+      let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+        "SELECT data, fetched_at FROM cache_perevozki WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
+        [CACHE_FRESH_MINUTES]
+      );
+      if (cacheRow.rows.length === 0) {
+        cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+          "SELECT data, fetched_at FROM cache_perevozki WHERE id = 1"
+        );
+      }
+      if (cacheRow.rows.length === 0) {
+        return res.status(200).json([]);
+      }
+      const data = cacheRow.rows[0].data as any[];
+      const list = Array.isArray(data) ? data : [];
+      const filtered = list.filter((item) => {
+        const d = itemDate(item);
+        return d >= dateFrom && d <= dateTo;
+      });
+      return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+    } catch (e) {
+      logError(ctx, "perevozki_admin_cache_failed", e);
+      return res.status(500).json({ error: "Ошибка чтения кэша перевозок", request_id: ctx.requestId });
+    }
+  }
+
+  if (!login || !password) {
+    return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
   }
 
   // Зарегистрированные пользователи — только кэш, без 1С

@@ -114,6 +114,8 @@ const normalizePermissions = (raw: unknown): AccountPermissions | undefined => {
         const boolValue = toBooleanPermission(value);
         if (boolValue !== undefined) out[key] = boolValue;
     }
+    if (out.dashboard === true) out.analytics = true;
+    if (out.analytics !== true) out.dashboard = false;
     return out as AccountPermissions;
 };
 

@@ -104,14 +104,17 @@ function EmptyCargoState({
 function SectionBoundary({ section, children }: { section: string; children: React.ReactNode }) {
   return (
     <ErrorBoundary
-      fallback={
+      fallback={(err) => (
         <div style={{ padding: "1.5rem", textAlign: "center" }}>
           <p style={{ marginBottom: "0.5rem" }}>Ошибка в разделе ({section}).</p>
+          {err.message ? (
+            <p style={{ fontSize: "0.85rem", color: "#b91c1c", marginBottom: "0.75rem", wordBreak: "break-word" }}>{err.message}</p>
+          ) : null}
           <button type="button" onClick={() => window.location.reload()} style={{ padding: "0.5rem 1rem", cursor: "pointer" }}>
             Обновить страницу
           </button>
         </div>
-      }
+      )}
     >
       {children}
     </ErrorBoundary>
