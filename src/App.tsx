@@ -24,7 +24,10 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AppMainContent } from "./components/AppMainContent";
 import { getWebApp, isMaxWebApp, isMaxDocsEnabled } from "./webApp";
 import { DOCUMENT_METHODS } from "./documentMethods";
-const DashboardPage = lazy(() => import("./pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
+const DashboardPage = lazyWithRetry(
+    () => import("./pages/DashboardPage").then((m) => ({ default: m.DashboardPage })),
+    "DashboardPage"
+);
 import { TapSwitch } from "./components/TapSwitch";
 import { FilterDropdownPortal } from "./components/ui/FilterDropdownPortal";
 import { DateText } from "./components/ui/DateText";
@@ -37,12 +40,30 @@ import type { BillStatusFilterKey } from "./lib/statusUtils";
 import { CustomPeriodModal } from "./components/modals/CustomPeriodModal";
 import { CargoDetailsModal } from "./components/modals/CargoDetailsModal";
 import { LegalModal } from "./components/modals/LegalModal";
-const DocumentsPage = lazy(() => import("./pages/DocumentsPage").then(m => ({ default: m.DocumentsPage })));
-const NotFoundPage = lazy(() => import("./pages/NotFoundPage").then((m) => ({ default: m.NotFoundPage })));
-const CMSStandalonePage = lazy(() => import("./pages/CMSStandalonePage").then((m) => ({ default: m.CMSStandalonePage })));
-const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage })));
-const CargoPage = lazy(() => import("./pages/CargoPage").then((m) => ({ default: m.CargoPage })));
-const ProfilePage = lazy(() => import("./pages/ProfilePage").then((m) => ({ default: m.ProfilePage })));
+const DocumentsPage = lazyWithRetry(
+    () => import("./pages/DocumentsPage").then((m) => ({ default: m.DocumentsPage })),
+    "DocumentsPage"
+);
+const NotFoundPage = lazyWithRetry(
+    () => import("./pages/NotFoundPage").then((m) => ({ default: m.NotFoundPage })),
+    "NotFoundPage"
+);
+const CMSStandalonePage = lazyWithRetry(
+    () => import("./pages/CMSStandalonePage").then((m) => ({ default: m.CMSStandalonePage })),
+    "CMSStandalonePage"
+);
+const ForgotPasswordPage = lazyWithRetry(
+    () => import("./pages/ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage })),
+    "ForgotPasswordPage"
+);
+const CargoPage = lazyWithRetry(
+    () => import("./pages/CargoPage").then((m) => ({ default: m.CargoPage })),
+    "CargoPage"
+);
+const ProfilePage = lazyWithRetry(
+    () => import("./pages/ProfilePage").then((m) => ({ default: m.ProfilePage })),
+    "ProfilePage"
+);
 import { AppRuntimeProvider } from "./contexts/AppRuntimeContext";
 import { shouldShowNotFound } from "./lib/notFoundRoute";
 import { getInitialAuthState } from "./lib/authState";
@@ -82,6 +103,42 @@ import type {
 } from "./types";
 
 const { getDateRange } = dateUtils;
+
+function lazyWithRetry<T extends React.ComponentType<any>>(
+    importer: () => Promise<{ default: T }>,
+    chunkKey: string
+) {
+    return lazy(async () => {
+        try {
+            return await importer();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error ?? "");
+            const isChunkLoadError =
+                /Failed to fetch dynamically imported module/i.test(message) ||
+                /Importing a module script failed/i.test(message) ||
+                /Loading chunk [\d]+ failed/i.test(message);
+            if (typeof window !== "undefined" && isChunkLoadError) {
+                const marker = `haulz.chunk-retry:${chunkKey}`;
+                try {
+                    const alreadyRetried = window.sessionStorage.getItem(marker) === "1";
+                    if (!alreadyRetried) {
+                        window.sessionStorage.setItem(marker, "1");
+                        const url = new URL(window.location.href);
+                        url.searchParams.set("__chunk_retry", String(Date.now()));
+                        window.location.replace(url.toString());
+                        return await new Promise<never>(() => {
+                            // keep pending while browser navigates
+                        });
+                    }
+                    window.sessionStorage.removeItem(marker);
+                } catch {
+                    // ignore storage access issues and rethrow original error
+                }
+            }
+            throw error;
+        }
+    });
+}
 
 const resolveChecked = (value: unknown): boolean => {
     if (typeof value === "boolean") return value;
