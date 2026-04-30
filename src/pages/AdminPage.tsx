@@ -1817,6 +1817,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         body: JSON.stringify({ action, payload }),
       });
       const data = await res.json().catch(() => ({}));
+      setZvonobotResult(JSON.stringify(data, null, 2));
       if (!res.ok) {
         const details =
           data?.error ||
@@ -1826,7 +1827,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           `Ошибка ${res.status}`;
         throw new Error(String(details));
       }
-      setZvonobotResult(JSON.stringify(data, null, 2));
     } catch (e: any) {
       setZvonobotError(e?.message || "Ошибка запроса к Zvonobot");
     } finally {

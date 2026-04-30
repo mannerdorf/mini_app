@@ -117,26 +117,49 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   };
 
   try {
-    const method = action === "getAvailableLanguages" ? "GET" : "POST";
-    const url =
+    const fetchJson = async (url: string, method: "GET" | "POST", body?: string) => {
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          accept: "application/json",
+        },
+        body,
+      });
+      const rawText = await response.text();
+      let parsed: any = null;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch {
+        parsed = { raw: rawText };
+      }
+      return { response, rawText, parsed };
+    };
+
+    let method: "GET" | "POST" = action === "getAvailableLanguages" ? "GET" : "POST";
+    let url =
       action === "getAvailableLanguages"
         ? `${ZVONOBOT_BASE_URL}${endpoint}?apiKey=${encodeURIComponent(apiKey)}`
         : `${ZVONOBOT_BASE_URL}${endpoint}`;
-    const upstream = await fetch(url, {
+    let firstAttempt = await fetchJson(
+      url,
       method,
-      headers: {
-        "Content-Type": "application/json",
-        accept: "application/json",
-      },
-      body: action === "getAvailableLanguages" ? undefined : JSON.stringify(requestBody),
-    });
-    const text = await upstream.text();
-    let data: any = null;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { raw: text };
+      action === "getAvailableLanguages" ? undefined : JSON.stringify(requestBody),
+    );
+
+    // Some Zvonobot environments accept getAvailableLanguages only as POST.
+    if (action === "getAvailableLanguages" && !firstAttempt.response.ok) {
+      const postAttempt = await fetchJson(`${ZVONOBOT_BASE_URL}${endpoint}`, "POST", JSON.stringify(requestBody));
+      if (postAttempt.response.ok) {
+        method = "POST";
+        url = `${ZVONOBOT_BASE_URL}${endpoint}`;
+        firstAttempt = postAttempt;
+      }
     }
+
+    const upstream = firstAttempt.response;
+    const text = firstAttempt.rawText;
+    const data = firstAttempt.parsed;
 
     try {
       const pool = getPool();
@@ -146,8 +169,13 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         details: {
           action,
           endpoint,
+          method,
           status: upstream.status,
           ok: upstream.ok,
+          upstreamError:
+            data && typeof data === "object"
+              ? String((data as { error?: unknown; message?: unknown }).error ?? (data as { message?: unknown }).message ?? "").trim()
+              : "",
           hasPhone: Boolean(payload?.phone),
           phonesCount: Array.isArray(payload?.phones) ? payload.phones.length : 0,
         },
@@ -165,6 +193,18 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       status: upstream.status,
       action,
       endpoint,
+      method,
+      request_debug: {
+        url,
+        payload:
+          action === "getAvailableLanguages"
+            ? { note: "apiKey passed in query or POST body" }
+            : payload,
+      },
+      upstream_debug: {
+        contentType: upstream.headers.get("content-type") || "",
+        raw: text,
+      },
       error: upstream.ok ? undefined : upstreamError || `Zvonobot ${upstream.status}`,
       data,
       request_id: ctx.requestId,
