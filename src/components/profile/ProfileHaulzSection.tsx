@@ -39,14 +39,12 @@ export function ProfileHaulzSection({
                         Заявки на расходы
                     </Button>
                 )}
+                <Button type="button" className="button-primary" onClick={() => navigateTo("parcelScanner")}>
+                    Сканер посылки
+                </Button>
                 {activeAccount?.permissions?.haulz === true && (
                     <Button type="button" className="button-primary" onClick={() => navigateTo("ais")}>
                         AIS
-                    </Button>
-                )}
-                {activeAccount?.permissions?.haulz === true && (
-                    <Button type="button" className="button-primary" onClick={() => navigateTo("parcelScanner")}>
-                        Сканер посылки
                     </Button>
                 )}
                 {activeAccount?.permissions?.doc_claims === true && onOpenDocumentsWithSection && (

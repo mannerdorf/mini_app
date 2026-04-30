@@ -117,8 +117,13 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   };
 
   try {
-    const upstream = await fetch(`${ZVONOBOT_BASE_URL}${endpoint}`, {
-      method: action === "getAvailableLanguages" ? "GET" : "POST",
+    const method = action === "getAvailableLanguages" ? "GET" : "POST";
+    const url =
+      action === "getAvailableLanguages"
+        ? `${ZVONOBOT_BASE_URL}${endpoint}?apiKey=${encodeURIComponent(apiKey)}`
+        : `${ZVONOBOT_BASE_URL}${endpoint}`;
+    const upstream = await fetch(url, {
+      method,
       headers: {
         "Content-Type": "application/json",
         accept: "application/json",
@@ -151,11 +156,16 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       logError(ctx, "admin_zvonobot_sandbox_audit_failed", e);
     }
 
+    const upstreamError =
+      data && typeof data === "object"
+        ? String((data as { error?: unknown; message?: unknown }).error ?? (data as { message?: unknown }).message ?? "").trim()
+        : "";
     return res.status(upstream.ok ? 200 : upstream.status).json({
       ok: upstream.ok,
       status: upstream.status,
       action,
       endpoint,
+      error: upstream.ok ? undefined : upstreamError || `Zvonobot ${upstream.status}`,
       data,
       request_id: ctx.requestId,
     });

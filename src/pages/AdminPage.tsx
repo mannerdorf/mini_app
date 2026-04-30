@@ -1817,7 +1817,15 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         body: JSON.stringify({ action, payload }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || `Ошибка ${res.status}`);
+      if (!res.ok) {
+        const details =
+          data?.error ||
+          data?.message ||
+          data?.data?.error ||
+          data?.data?.message ||
+          `Ошибка ${res.status}`;
+        throw new Error(String(details));
+      }
       setZvonobotResult(JSON.stringify(data, null, 2));
     } catch (e: any) {
       setZvonobotError(e?.message || "Ошибка запроса к Zvonobot");
