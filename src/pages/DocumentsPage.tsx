@@ -2913,7 +2913,7 @@ useEffect(() => {
     }, [auth?.login, auth?.password, ferriesList, effectiveActiveInn]);
 
     return (
-        <div className={`w-full documents-page${documentsServiceSaasUi ? " documents-page--saas-analytics" : ""}`}>
+        <div className={`w-full documents-page${documentsServiceSaasUi ? " documents-page--saas-analytics" : ""}${(docSection === 'Счета' || docSection === 'УПД') ? " documents-page--with-summary-sections" : ""}${docSection === 'Заявки' ? " documents-page--with-orders-section" : ""}`}>
             <div className="cargo-page-sticky-header documents-page-sticky-header">
                 <Flex align="center" justify="space-between" style={{ marginBottom: '0.3rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Документы</Typography.Headline>

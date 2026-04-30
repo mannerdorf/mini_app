@@ -273,11 +273,13 @@ export function buildFilteredCargoItems(
 
   if (plannedDeliveryRange && getEffectivePlannedDelivery) {
     const { dateFrom, dateTo } = plannedDeliveryRange;
+    const now = new Date();
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     res = res.filter((i) => {
       const p = getEffectivePlannedDelivery(i);
       if (!p) return false;
       const k = `${p.getFullYear()}-${String(p.getMonth() + 1).padStart(2, "0")}-${String(p.getDate()).padStart(2, "0")}`;
-      return k >= dateFrom && k <= dateTo;
+      return k >= todayKey && k >= dateFrom && k <= dateTo;
     });
   }
 

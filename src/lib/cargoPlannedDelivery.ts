@@ -17,7 +17,6 @@ function parseDateOnly(value: unknown): Date | null {
 
 export function getManualPlannedDeliveryDate(item: CargoItem): Date | null {
     const candidates = [
-        (item as any).DateArrival,
         (item as any).PlannedDeliveryDate,
         (item as any).PlanDeliveryDate,
         (item as any).DateDeliveryPlan,

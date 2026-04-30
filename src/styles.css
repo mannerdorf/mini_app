@@ -958,8 +958,34 @@ body {
     min-width: 0;
     overflow: visible;
 }
+.documents-page .documents-page-sticky-header:has(.documents-sticky-summary-wrap) {
+    margin-bottom: 0.9rem;
+}
 .documents-page--saas-analytics .documents-sticky-summary-wrap {
     margin-top: 0.28rem;
+}
+.documents-page--saas-analytics .documents-page-sticky-header:has(.documents-sticky-summary-wrap) {
+    margin-bottom: 1rem;
+}
+
+/* Надёжный отступ для секций с итогами (Счета/УПД), без зависимости от :has() */
+.documents-page--with-summary-sections .documents-table-offset-desktop,
+.documents-page--with-summary-sections .documents-cards-offset-desktop {
+    margin-top: 0.95rem;
+}
+.documents-page--with-summary-sections.documents-page--saas-analytics .documents-table-offset-desktop,
+.documents-page--with-summary-sections.documents-page--saas-analytics .documents-cards-offset-desktop {
+    margin-top: 1.05rem;
+}
+
+/* Заявки: таблица/карточки не должны заезжать под липкий блок фильтров */
+.documents-page--with-orders-section .documents-table-offset-desktop,
+.documents-page--with-orders-section .documents-zayavki-below-new-order {
+    margin-top: 0.95rem;
+}
+.documents-page--with-orders-section.documents-page--saas-analytics .documents-table-offset-desktop,
+.documents-page--with-orders-section.documents-page--saas-analytics .documents-zayavki-below-new-order {
+    margin-top: 1.05rem;
 }
 
 /* Строка «Итого» у таблиц счётов/УПД не должна пропадать из разметки таблицы */
@@ -973,11 +999,11 @@ body {
 }
 
 .doc-contracts-table-offset-desktop {
-    margin-top: 0;
+    margin-top: 0.95rem;
 }
 @media (min-width: 769px) {
     .doc-contracts-table-offset-desktop {
-        margin-top: 0.5rem;
+        margin-top: 1.05rem;
     }
 }
 
@@ -1036,7 +1062,7 @@ body {
 /* Панель bulk-действий в "Отправках" остаётся закреплённой при скролле */
 .sendings-bulk-actions-sticky {
     position: sticky;
-    top: calc(64px + 0.5rem);
+    top: calc(64px + 5.5rem);
     z-index: 35;
     background: var(--color-bg-primary);
 }
@@ -1046,7 +1072,7 @@ body {
         top: 0;
     }
     .sendings-bulk-actions-sticky {
-        top: 0.5rem;
+        top: 5rem;
     }
 }
 
@@ -1562,7 +1588,11 @@ body {
 }
 
 /* Документы — табличные разделы (тарифы, акты сверок, договоры, претензии и т.д.) */
+.documents-page .doc-section-content {
+    padding-top: 0.9rem;
+}
 .documents-page--saas-analytics .doc-section-content {
+    padding-top: 1rem;
     padding-left: 0.15rem;
     padding-right: 0.15rem;
 }
