@@ -2315,6 +2315,401 @@ body {
     line-height: 1.45;
     color: var(--color-text-secondary);
 }
+.profile-api-catalog-postman__item-actions {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+.profile-api-catalog-postman__try-btn {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.35rem 0.65rem;
+    border-radius: 6px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.profile-api-catalog-postman__try-btn:hover {
+    background: var(--color-bg-hover);
+    border-color: var(--color-primary-blue, #0071e3);
+    color: var(--color-text-primary);
+}
+.profile-api-catalog-postman__item.is-open {
+    padding-bottom: 0.35rem;
+}
+
+/* Профиль → API: консоль теста запроса (Postman-like) */
+.profile-api-try {
+    margin-top: 0.65rem;
+    padding: 0.65rem 0.5rem 0.75rem;
+    border-radius: var(--radius-md, 12px);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-secondary);
+}
+.profile-api-try__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+.profile-api-try__toolbar-left {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+.profile-api-try__pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 3.25rem;
+    padding: 0.2rem 0.45rem;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 800;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    letter-spacing: 0.04em;
+}
+.profile-api-try__method-select {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.4rem;
+    border-radius: 6px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
+}
+.profile-api-try__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+}
+.profile-api-try__close:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+}
+.profile-api-try__url-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0.45rem;
+    padding: 0.35rem;
+    border-radius: 8px;
+    background: var(--color-bg-input);
+    border: 1px solid var(--color-border);
+}
+.profile-api-try__url-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.45rem 0.5rem;
+    font-size: 0.72rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+}
+.profile-api-try__send {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0 0.85rem;
+    min-height: 36px;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: var(--color-primary-blue, #0071e3);
+    color: #fff;
+    cursor: pointer;
+    transition: opacity 0.15s, filter 0.15s;
+}
+.profile-api-try__send:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+.profile-api-try__send:not(:disabled):hover {
+    filter: brightness(1.06);
+}
+.profile-api-try__path-edit {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.45rem;
+}
+.profile-api-try__path-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    flex-shrink: 0;
+}
+.profile-api-try__path-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.35rem 0.45rem;
+    font-size: 0.78rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+}
+.profile-api-try__example-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 0.5rem;
+}
+.profile-api-try__example-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+.profile-api-try__example-select {
+    flex: 1;
+    min-width: 140px;
+    max-width: 100%;
+    padding: 0.35rem 0.45rem;
+    font-size: 0.78rem;
+    border-radius: 6px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+}
+.profile-api-try__note {
+    margin: 0.45rem 0 0;
+    font-size: 0.72rem;
+    line-height: 1.4;
+    color: var(--color-text-secondary);
+}
+.profile-api-try__tabs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.15rem;
+    margin-top: 0.55rem;
+    padding: 0.2rem;
+    border-radius: 8px;
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+}
+.profile-api-try__tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+}
+.profile-api-try__tab:hover {
+    color: var(--color-text-primary);
+    background: var(--color-bg-hover);
+}
+.profile-api-try__tab.is-active {
+    color: var(--color-text-primary);
+    background: var(--color-bg-secondary);
+    box-shadow: 0 0 0 1px var(--color-border);
+}
+.profile-api-try__tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.1rem;
+    padding: 0 4px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+.profile-api-try__panel {
+    margin-top: 0.45rem;
+}
+.profile-api-try__table-head,
+.profile-api-try__table-row {
+    display: grid;
+    grid-template-columns: 28px 1fr 1fr;
+    gap: 0.35rem;
+    align-items: center;
+}
+.profile-api-try__table-head {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-secondary);
+    padding: 0.15rem 0.1rem 0.35rem;
+    border-bottom: 1px solid var(--color-border);
+}
+.profile-api-try__table-row {
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--color-border);
+}
+.profile-api-try__table-row:last-child {
+    border-bottom: none;
+}
+.profile-api-try__cell {
+    width: 100%;
+    padding: 0.3rem 0.4rem;
+    font-size: 0.75rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+}
+.profile-api-try__textarea {
+    width: 100%;
+    padding: 0.45rem 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    border-radius: 6px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    resize: vertical;
+    font-family: inherit;
+}
+.profile-api-try__textarea--mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+.profile-api-try__auth-label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+    color: var(--color-text-secondary);
+}
+.profile-api-try__hint {
+    margin: 0.4rem 0 0;
+    font-size: 0.68rem;
+    line-height: 1.45;
+    color: var(--color-text-secondary);
+}
+.profile-api-try__hint code {
+    font-size: 0.85em;
+    padding: 0.05rem 0.2rem;
+    border-radius: 4px;
+    background: var(--color-bg-hover);
+}
+.profile-api-try__warn {
+    margin: 0.45rem 0 0;
+    font-size: 0.68rem;
+    color: var(--color-pending-status, #ffd60a);
+}
+.profile-api-try__error {
+    margin-top: 0.45rem;
+    padding: 0.45rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 6px;
+    background: var(--color-error-bg);
+    color: var(--color-error-text);
+    border: 1px solid var(--color-error-border);
+}
+.profile-api-try__response-head {
+    margin-top: 0.65rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--color-text-secondary);
+    letter-spacing: 0.02em;
+}
+.profile-api-try__response-box {
+    margin-top: 0.35rem;
+    min-height: 120px;
+    max-height: 320px;
+    overflow: auto;
+    padding: 0.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-primary);
+}
+.profile-api-try__response-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-bottom: 0.45rem;
+    font-size: 0.72rem;
+}
+.profile-api-try__status {
+    font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+.profile-api-try__status.is-ok {
+    color: var(--color-success-status, #30d158);
+}
+.profile-api-try__status.is-err {
+    color: var(--color-error, #ff453a);
+}
+.profile-api-try__time {
+    color: var(--color-text-secondary);
+}
+.profile-api-try__response-pre {
+    margin: 0;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    color: var(--color-text-primary);
+}
+.profile-api-try__response-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100px;
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+}
+
+/* Светлая тема: полоса вкладок и строка URL — тёмная с контрастным текстом (как у Postman) */
+.light-mode .profile-api-try__tabs {
+    background: #0f172a;
+    border-color: #1e293b;
+}
+.light-mode .profile-api-try__tab {
+    color: #94a3b8;
+}
+.light-mode .profile-api-try__tab:hover {
+    color: #e2e8f0;
+    background: rgba(255, 255, 255, 0.06);
+}
+.light-mode .profile-api-try__tab.is-active {
+    color: #f8fafc;
+    background: #1e293b;
+    box-shadow: 0 0 0 1px #334155;
+}
+.light-mode .profile-api-try__tab-badge {
+    color: #cbd5e1;
+}
+.light-mode .profile-api-try__url-row {
+    background: #0f172a;
+    border-color: #1e293b;
+}
+.light-mode .profile-api-try__url-input {
+    background: #1e293b !important;
+    color: #f1f5f9 !important;
+    border-color: #334155 !important;
+}
+
 @media (max-width: 560px) {
     .profile-api-catalog-postman {
         flex-direction: column;

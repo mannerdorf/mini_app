@@ -1,6 +1,7 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Copy, Check } from "lucide-react";
 import { MINI_APP_API_INVENTORY } from "../../constants/miniAppApiInventory";
+import { ProfileApiTryConsole, type ProfileTryAuth } from "./ProfileApiTryConsole";
 
 const METHOD_STYLE: Record<string, { bg: string; fg: string }> = {
     GET: { bg: "#49cc90", fg: "#ffffff" },
@@ -40,13 +41,23 @@ function MethodBadges({ method }: { method: string }) {
     );
 }
 
+type Props = {
+    tryAuth: ProfileTryAuth;
+};
+
 /**
- * Справочник эндпоинтов в духе Postman: боковая навигация по группам, цветные методы, путь monospace, копирование.
+ * Справочник эндпоинтов в духе Postman: группы, список, копирование пути, консоль теста запроса.
  */
-export function ProfileApiCatalogPostman() {
+export function ProfileApiCatalogPostman({ tryAuth }: Props) {
     const [sectionIdx, setSectionIdx] = useState(0);
     const [copiedPath, setCopiedPath] = useState<string | null>(null);
+    const [sel, setSel] = useState<{ gi: number; ii: number } | null>(null);
+
     const section = MINI_APP_API_INVENTORY[sectionIdx] ?? MINI_APP_API_INVENTORY[0];
+
+    useEffect(() => {
+        setSel(null);
+    }, [sectionIdx]);
 
     const copyPath = useCallback((path: string) => {
         void navigator.clipboard?.writeText(path).catch(() => {});
@@ -74,28 +85,51 @@ export function ProfileApiCatalogPostman() {
                     <span className="profile-api-catalog-postman__count">{section.items.length} запросов</span>
                 </div>
                 <ul className="profile-api-catalog-postman__list" role="list">
-                    {section.items.map((it) => (
-                        <li key={`${it.method}-${it.path}`} className="profile-api-catalog-postman__item">
-                            <div className="profile-api-catalog-postman__row-top">
-                                <MethodBadges method={it.method} />
-                                <code className="profile-api-catalog-postman__path">{it.path}</code>
-                                <button
-                                    type="button"
-                                    className="profile-api-catalog-postman__copy"
-                                    title="Копировать путь"
-                                    aria-label={`Копировать ${it.path}`}
-                                    onClick={() => copyPath(it.path)}
-                                >
-                                    {copiedPath === it.path ? (
-                                        <Check className="profile-api-catalog-postman__copy-icon" strokeWidth={2.5} />
-                                    ) : (
-                                        <Copy className="profile-api-catalog-postman__copy-icon" strokeWidth={2} />
-                                    )}
-                                </button>
-                            </div>
-                            <p className="profile-api-catalog-postman__desc">{it.note}</p>
-                        </li>
-                    ))}
+                    {section.items.map((it, ii) => {
+                        const isOpen = sel?.gi === sectionIdx && sel?.ii === ii;
+                        return (
+                            <li
+                                key={`${it.method}-${it.path}-${ii}`}
+                                className={`profile-api-catalog-postman__item${isOpen ? " is-open" : ""}`}
+                            >
+                                <div className="profile-api-catalog-postman__row-top">
+                                    <MethodBadges method={it.method} />
+                                    <code className="profile-api-catalog-postman__path">{it.path}</code>
+                                    <button
+                                        type="button"
+                                        className="profile-api-catalog-postman__copy"
+                                        title="Копировать путь"
+                                        aria-label={`Копировать ${it.path}`}
+                                        onClick={() => copyPath(it.path)}
+                                    >
+                                        {copiedPath === it.path ? (
+                                            <Check className="profile-api-catalog-postman__copy-icon" strokeWidth={2.5} />
+                                        ) : (
+                                            <Copy className="profile-api-catalog-postman__copy-icon" strokeWidth={2} />
+                                        )}
+                                    </button>
+                                </div>
+                                <p className="profile-api-catalog-postman__desc">{it.note}</p>
+                                <div className="profile-api-catalog-postman__item-actions">
+                                    <button
+                                        type="button"
+                                        className="profile-api-catalog-postman__try-btn"
+                                        onClick={() => setSel(isOpen ? null : { gi: sectionIdx, ii })}
+                                    >
+                                        {isOpen ? "Свернуть консоль" : "Тест запроса"}
+                                    </button>
+                                </div>
+                                {isOpen ? (
+                                    <ProfileApiTryConsole
+                                        key={`${it.path}-${it.method}`}
+                                        item={it}
+                                        tryAuth={tryAuth}
+                                        onClose={() => setSel(null)}
+                                    />
+                                ) : null}
+                            </li>
+                        );
+                    })}
                 </ul>
             </div>
         </div>

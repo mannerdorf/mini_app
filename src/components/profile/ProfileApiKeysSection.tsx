@@ -419,7 +419,13 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                 </button>
                 {catalogOpen ? (
                     <div style={{ padding: "0 0 1rem" }}>
-                        <ProfileApiCatalogPostman />
+                        <ProfileApiCatalogPostman
+                            tryAuth={
+                                activeAccount?.login && activeAccount?.password
+                                    ? { login: activeAccount.login, password: activeAccount.password }
+                                    : null
+                            }
+                        />
                     </div>
                 ) : null}
             </Panel>

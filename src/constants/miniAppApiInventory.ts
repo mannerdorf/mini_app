@@ -2,22 +2,130 @@
  * Каталог HTTP-эндпоинтов, которые дергает фронт (и смежные клиенты).
  * Не исчерпывает все файлы в /api (крон, вебхуки, редиректы) — только то, что видно из кода клиента.
  */
-export const MINI_APP_API_INVENTORY: { group: string; items: { method: string; path: string; note: string }[] }[] = [
+
+/** Плейсхолдеры в body: строки "{{LOGIN}}" и "{{PASSWORD}}" подставляются из аккаунта в консоли теста. */
+export type ApiTryExample = {
+  id: string;
+  label: string;
+  query?: Record<string, string>;
+  body?: Record<string, unknown>;
+  headers?: Record<string, string>;
+};
+
+export type ApiInventoryItem = {
+  method: string;
+  path: string;
+  note: string;
+  examples?: ApiTryExample[];
+};
+
+export type ApiInventorySection = { group: string; items: ApiInventoryItem[] };
+
+export const MINI_APP_API_INVENTORY: ApiInventorySection[] = [
   {
     group: "Партнёрский / внешний API (Bearer)",
     items: [
-      { method: "GET", path: "/api/partner/v1/health", note: "Проверка конфигурации партнёрского API и вебхуков" },
-      { method: "POST", path: "/api/partner/v1/cargo", note: "Перевозки (как POST /api/perevozki); env-ключ или ключ haulz_… (cargo:read)" },
-      { method: "POST", path: "/api/partner/v1/sendings", note: "Отправки; env или haulz_… (sendings:read)" },
-      { method: "POST", path: "/api/partner/v1/orders", note: "Заявки; env или haulz_… (orders:read)" },
+      {
+        method: "GET",
+        path: "/api/partner/v1/health",
+        note: "Проверка конфигурации партнёрского API и вебхуков",
+        examples: [
+          { id: "health-basic", label: "Без параметров", query: {} },
+        ],
+      },
+      {
+        method: "POST",
+        path: "/api/partner/v1/cargo",
+        note: "Перевозки (как POST /api/perevozki); env-ключ или ключ haulz_… (cargo:read)",
+        examples: [
+          {
+            id: "cargo-period",
+            label: "Период дат (только Bearer)",
+            body: { dateFrom: "2026-01-01", dateTo: "2026-01-31", inn: "", serviceMode: false },
+          },
+          {
+            id: "cargo-inn",
+            label: "С фильтром по ИНН",
+            body: { dateFrom: "2026-01-01", dateTo: "2026-01-31", inn: "7722461620", serviceMode: false },
+          },
+        ],
+      },
+      {
+        method: "POST",
+        path: "/api/partner/v1/sendings",
+        note: "Отправки; env или haulz_… (sendings:read)",
+        examples: [
+          {
+            id: "send-def",
+            label: "Период",
+            body: { dateFrom: "2026-01-01", dateTo: "2026-01-31", inn: "", serviceMode: false },
+          },
+        ],
+      },
+      {
+        method: "POST",
+        path: "/api/partner/v1/orders",
+        note: "Заявки; env или haulz_… (orders:read)",
+        examples: [
+          {
+            id: "ord-def",
+            label: "Период",
+            body: { dateFrom: "2026-01-01", dateTo: "2026-01-31", inn: "", serviceMode: false },
+          },
+        ],
+      },
     ],
   },
   {
     group: "Профиль — API-ключи (зарегистрированный пользователь)",
     items: [
-      { method: "GET", path: "/api/my-api-keys", note: "Список активных ключей и доступные ИНН; авторизация заголовками x-login и x-password" },
-      { method: "POST", path: "/api/my-api-keys", note: "Создать ключ: label, scopes[], allowed_inns[]; один раз возвращает token" },
-      { method: "DELETE", path: "/api/my-api-keys?id=<uuid>", note: "Отозвать ключ (query id + заголовки x-login, x-password)" },
+      {
+        method: "GET",
+        path: "/api/my-api-keys",
+        note: "Список активных ключей и доступные ИНН; авторизация заголовками x-login и x-password",
+        examples: [{ id: "list-keys", label: "Список ключей", query: {} }],
+      },
+      {
+        method: "POST",
+        path: "/api/my-api-keys",
+        note: "Создать ключ: label, scopes[], allowed_inns[]; один раз возвращает token",
+        examples: [
+          {
+            id: "create-key",
+            label: "Новый ключ (все три scope)",
+            body: {
+              login: "{{LOGIN}}",
+              password: "{{PASSWORD}}",
+              label: "Интеграция",
+              scopes: ["cargo:read", "sendings:read", "orders:read"],
+              allowed_inns: [],
+            },
+          },
+          {
+            id: "create-key-inns",
+            label: "Ключ только для выбранных ИНН",
+            body: {
+              login: "{{LOGIN}}",
+              password: "{{PASSWORD}}",
+              label: "Ограниченный",
+              scopes: ["cargo:read"],
+              allowed_inns: ["7722461620"],
+            },
+          },
+        ],
+      },
+      {
+        method: "DELETE",
+        path: "/api/my-api-keys",
+        note: "Отозвать ключ: query id + заголовки x-login, x-password",
+        examples: [
+          {
+            id: "del-key",
+            label: "Отзыв по id",
+            query: { id: "ЗАМЕНИТЕ_UUID_КЛЮЧА" },
+          },
+        ],
+      },
     ],
   },
   {
@@ -36,9 +144,75 @@ export const MINI_APP_API_INVENTORY: { group: string; items: { method: string; p
   {
     group: "Перевозки, отправки, заявки, ПВЗ",
     items: [
-      { method: "POST", path: "/api/perevozki", note: "Список перевозок (кэш / 1С)" },
-      { method: "POST", path: "/api/sendings", note: "Отправки" },
-      { method: "POST", path: "/api/orders", note: "Заявки" },
+      {
+        method: "POST",
+        path: "/api/perevozki",
+        note: "Список перевозок (кэш / 1С)",
+        examples: [
+          {
+            id: "pv-reg",
+            label: "Зарегистрированный пользователь (кэш)",
+            body: {
+              login: "{{LOGIN}}",
+              password: "{{PASSWORD}}",
+              dateFrom: "2026-01-01",
+              dateTo: "2026-01-31",
+              inn: "",
+              isRegisteredUser: true,
+            },
+          },
+          {
+            id: "pv-inn",
+            label: "С ИНН",
+            body: {
+              login: "{{LOGIN}}",
+              password: "{{PASSWORD}}",
+              dateFrom: "2026-01-01",
+              dateTo: "2026-01-31",
+              inn: "7722461620",
+              isRegisteredUser: true,
+            },
+          },
+        ],
+      },
+      {
+        method: "POST",
+        path: "/api/sendings",
+        note: "Отправки",
+        examples: [
+          {
+            id: "sd-reg",
+            label: "Зарегистрированный (кэш)",
+            body: {
+              login: "{{LOGIN}}",
+              password: "{{PASSWORD}}",
+              dateFrom: "2026-01-01",
+              dateTo: "2026-01-31",
+              inn: "",
+              isRegisteredUser: true,
+            },
+          },
+        ],
+      },
+      {
+        method: "POST",
+        path: "/api/orders",
+        note: "Заявки",
+        examples: [
+          {
+            id: "or-reg",
+            label: "Зарегистрированный (кэш)",
+            body: {
+              login: "{{LOGIN}}",
+              password: "{{PASSWORD}}",
+              dateFrom: "2026-01-01",
+              dateTo: "2026-01-31",
+              inn: "",
+              isRegisteredUser: true,
+            },
+          },
+        ],
+      },
       { method: "POST", path: "/api/order-create", note: "Создание заявки" },
       { method: "POST", path: "/api/pvz-list", note: "Список ПВЗ" },
       { method: "GET", path: "/api/customer-work-schedules", note: "График работы заказчика" },
