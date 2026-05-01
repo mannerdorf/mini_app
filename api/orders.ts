@@ -1,6 +1,7 @@
+import type { Pool } from "pg";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
-import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { verifyRegisteredUser, type VerifiedRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
 /**
@@ -30,7 +31,7 @@ function getFirstNonEmpty(item: any, keys: string[]): string {
   return "";
 }
 
-function orderInn(item: any): string {
+export function ordersItemInn(item: any): string {
   return normalizeInn(getFirstNonEmpty(item, [
     "INN",
     "Inn",
@@ -86,6 +87,66 @@ function orderDate(item: any): string {
   return normalizeDateOnly(d);
 }
 
+/** Кэш заявок для зарегистрированного пользователя. */
+export async function readRegisteredOrdersFromCache(
+  pool: Pool,
+  verified: VerifiedRegisteredUser,
+  login: string,
+  dateFrom: string,
+  dateTo: string,
+  inn: unknown,
+  serviceMode: unknown,
+): Promise<any[]> {
+  try {
+    let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+      "SELECT data, fetched_at FROM cache_orders WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
+      [CACHE_FRESH_MINUTES],
+    );
+    if (cacheRow.rows.length === 0) {
+      cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+        "SELECT data, fetched_at FROM cache_orders WHERE id = 1",
+      );
+    }
+    if (cacheRow.rows.length === 0) return [];
+    const requestedInn = normalizeInn(inn);
+    const isService = !!serviceMode;
+    let filterInns: Set<string> | null = null;
+    if (!isService && !verified.accessAllInns) {
+      const acRows = await pool.query<{ inn: string }>(
+        "SELECT inn FROM account_companies WHERE login = $1",
+        [String(login).trim().toLowerCase()],
+      );
+      const allowed = new Set(acRows.rows.map((r) => normalizeInn(r.inn)).filter(Boolean));
+      const verifiedInn = normalizeInn(verified.inn);
+      if (verifiedInn) allowed.add(verifiedInn);
+      filterInns = allowed.size > 0 ? allowed : verifiedInn ? new Set([verifiedInn]) : null;
+    }
+    const finalInns = isService
+      ? null
+      : filterInns === null
+        ? requestedInn
+          ? new Set([requestedInn])
+          : null
+        : requestedInn
+          ? filterInns.has(requestedInn)
+            ? new Set([requestedInn])
+            : new Set<string>()
+          : filterInns;
+    const data = cacheRow.rows[0].data as any[];
+    const list = Array.isArray(data) ? data : [];
+    return list.filter((item) => {
+      if (finalInns !== null) {
+        const itemInnVal = ordersItemInn(item);
+        if (!finalInns.has(itemInnVal)) return false;
+      }
+      const d = orderDate(item);
+      return !d || (d >= dateFrom && d <= dateTo);
+    });
+  } catch {
+    return [];
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "orders");
   if (req.method !== "POST") {
@@ -128,48 +189,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!verified) {
         return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
       }
-      let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-        "SELECT data, fetched_at FROM cache_orders WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
-        [CACHE_FRESH_MINUTES]
-      );
-      if (cacheRow.rows.length === 0) {
-        cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-          "SELECT data, fetched_at FROM cache_orders WHERE id = 1"
-        );
-      }
-      if (cacheRow.rows.length > 0) {
-        const requestedInn = normalizeInn(inn);
-        const isService = !!serviceMode;
-        let filterInns: Set<string> | null = null;
-        if (!isService && !verified.accessAllInns) {
-          const acRows = await pool.query<{ inn: string }>(
-            "SELECT inn FROM account_companies WHERE login = $1",
-            [String(login).trim().toLowerCase()]
-          );
-          const allowed = new Set(acRows.rows.map((r) => normalizeInn(r.inn)).filter(Boolean));
-          const verifiedInn = normalizeInn(verified.inn);
-          if (verifiedInn) allowed.add(verifiedInn);
-          filterInns = allowed.size > 0 ? allowed : (verifiedInn ? new Set([verifiedInn]) : null);
-        }
-        const finalInns = isService
-          ? null
-          : (filterInns === null
-            ? (requestedInn ? new Set([requestedInn]) : null)
-            : requestedInn
-              ? (filterInns.has(requestedInn) ? new Set([requestedInn]) : new Set<string>())
-              : filterInns);
-        const data = cacheRow.rows[0].data as any[];
-        const list = Array.isArray(data) ? data : [];
-        const filtered = list.filter((item) => {
-          if (finalInns !== null) {
-            const itemInnVal = orderInn(item);
-            if (!finalInns.has(itemInnVal)) return false;
-          }
-          const d = orderDate(item);
-          return !d || (d >= dateFrom && d <= dateTo);
-        });
-        if (filtered.length > 0) return res.status(200).json(filtered);
-      }
+      const filtered = await readRegisteredOrdersFromCache(pool, verified, login, dateFrom, dateTo, inn, serviceMode);
+      if (filtered.length > 0) return res.status(200).json(filtered);
       return res.status(200).json([]);
     } catch (e) {
       logError(ctx, "orders_registered_user_failed", e);
@@ -207,7 +228,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const list = Array.isArray(data) ? data : [];
       const filtered = list.filter((item) => {
         if (finalInns !== null) {
-          const itemInnVal = orderInn(item);
+          const itemInnVal = ordersItemInn(item);
           if (!finalInns.has(itemInnVal)) return false;
         }
         const d = orderDate(item);

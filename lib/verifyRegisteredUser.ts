@@ -28,3 +28,20 @@ export async function verifyRegisteredUser(
     accessAllInns: !!row.access_all_inns,
   };
 }
+
+/** Профиль доступа без проверки пароля (только активный пользователь). Для внутренних вызовов после проверки API-ключа. */
+export async function getRegisteredUserProfile(pool: Pool, login: string): Promise<VerifiedRegisteredUser | null> {
+  const loginKey = String(login).trim().toLowerCase();
+  if (!loginKey) return null;
+  const { rows } = await pool.query<{ inn: string | null; access_all_inns: boolean }>(
+    `SELECT inn, COALESCE(access_all_inns, false) as access_all_inns
+     FROM registered_users WHERE login = $1 AND active = true`,
+    [loginKey]
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    inn: row.inn?.trim() || null,
+    accessAllInns: !!row.access_all_inns,
+  };
+}

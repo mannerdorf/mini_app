@@ -132,7 +132,8 @@ export type ProfileView =
     | "ais"
     | "admin"
     | "tinyurl-test"
-    | "chat";
+    | "chat"
+    | "apiKeys";
 
 export type CompanyRow = { login: string; inn: string; name: string };
 

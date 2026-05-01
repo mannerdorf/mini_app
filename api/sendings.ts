@@ -1,6 +1,7 @@
+import type { Pool } from "pg";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
-import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { verifyRegisteredUser, type VerifiedRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
 const BASE_URL =
@@ -165,6 +166,78 @@ function pickDate(item: any): string {
   return normalizeDateOnly(dateValue);
 }
 
+function filterSendingsCachedByInnAndDate(
+  list: any[],
+  finalInns: Set<string> | null,
+  dateFrom: string,
+  dateTo: string,
+): any[] {
+  return list.filter((item) => {
+    if (finalInns !== null) {
+      const itemInn = pickInn(item);
+      if (!finalInns.has(itemInn)) return false;
+    }
+    const d = pickDate(item);
+    return !d || (d >= dateFrom && d <= dateTo);
+  });
+}
+
+export function sendingsPickInnForRow(item: any): string {
+  return pickInn(item);
+}
+
+/** Кэш отправок для зарегистрированного пользователя. */
+export async function readRegisteredSendingsFromCache(
+  pool: Pool,
+  verified: VerifiedRegisteredUser,
+  login: string,
+  dateFrom: string,
+  dateTo: string,
+  inn: unknown,
+  serviceMode: unknown,
+): Promise<any[]> {
+  try {
+    let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+      "SELECT data, fetched_at FROM cache_sendings WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
+      [CACHE_FRESH_MINUTES],
+    );
+    if (cacheRow.rows.length === 0) {
+      cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+        "SELECT data, fetched_at FROM cache_sendings WHERE id = 1",
+      );
+    }
+    if (cacheRow.rows.length === 0) return [];
+    const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+    const isService = !!serviceMode;
+    let filterInns: Set<string> | null = null;
+    if (!isService && !verified.accessAllInns) {
+      const acRows = await pool.query<{ inn: string }>(
+        "SELECT inn FROM account_companies WHERE login = $1",
+        [String(login).trim().toLowerCase()],
+      );
+      const allowed = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
+      if (verified.inn?.trim()) allowed.add(verified.inn.trim());
+      filterInns = allowed.size > 0 ? allowed : verified.inn ? new Set([verified.inn]) : null;
+    }
+    const finalInns = isService
+      ? null
+      : filterInns === null
+        ? requestedInn
+          ? new Set([requestedInn])
+          : null
+        : requestedInn
+          ? filterInns.has(requestedInn)
+            ? new Set([requestedInn])
+            : new Set<string>()
+          : filterInns;
+    const list = Array.isArray(cacheRow.rows[0].data) ? (cacheRow.rows[0].data as any[]) : [];
+    const filtered = filterSendingsCachedByInnAndDate(list, finalInns, dateFrom, dateTo);
+    return attachMetricsToSendings(pool, filtered);
+  } catch {
+    return [];
+  }
+}
+
 function extractItems(raw: any): any[] {
   if (Array.isArray(raw)) return raw;
   if (!raw || typeof raw !== "object") return [];
@@ -220,14 +293,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const filterCachedItems = (list: any[], finalInns: Set<string> | null) =>
-    list.filter((item) => {
-      if (finalInns !== null) {
-        const itemInn = pickInn(item);
-        if (!finalInns.has(itemInn)) return false;
-      }
-      const d = pickDate(item);
-      return !d || (d >= dateFrom && d <= dateTo);
-    });
+    filterSendingsCachedByInnAndDate(list, finalInns, dateFrom, dateTo);
 
   if (isRegisteredUser) {
     try {
@@ -236,41 +302,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!verified) {
         return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
       }
-      let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-        "SELECT data, fetched_at FROM cache_sendings WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
-        [CACHE_FRESH_MINUTES]
+      const withMetrics = await readRegisteredSendingsFromCache(
+        pool,
+        verified,
+        login,
+        dateFrom,
+        dateTo,
+        inn,
+        serviceMode,
       );
-      if (cacheRow.rows.length === 0) {
-        cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-          "SELECT data, fetched_at FROM cache_sendings WHERE id = 1"
-        );
-      }
-      if (cacheRow.rows.length > 0) {
-        const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
-        const isService = !!serviceMode;
-        let filterInns: Set<string> | null = null;
-        if (!isService && !verified.accessAllInns) {
-          const acRows = await pool.query<{ inn: string }>(
-            "SELECT inn FROM account_companies WHERE login = $1",
-            [String(login).trim().toLowerCase()]
-          );
-          const allowed = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
-          if (verified.inn?.trim()) allowed.add(verified.inn.trim());
-          filterInns = allowed.size > 0 ? allowed : (verified.inn ? new Set([verified.inn]) : null);
-        }
-        const finalInns = isService
-          ? null
-          : (filterInns === null
-            ? (requestedInn ? new Set([requestedInn]) : null)
-            : requestedInn
-              ? (filterInns.has(requestedInn) ? new Set([requestedInn]) : new Set<string>())
-              : filterInns);
-        const list = Array.isArray(cacheRow.rows[0].data) ? (cacheRow.rows[0].data as any[]) : [];
-        const filtered = filterCachedItems(list, finalInns);
-        const withMetrics = await attachMetricsToSendings(pool, filtered);
-        return res.status(200).json(withMetrics);
-      }
-      return res.status(200).json([]);
+      return res.status(200).json(withMetrics);
     } catch (e) {
       logError(ctx, "sendings_registered_user_failed", e);
       return res.status(200).json([]);

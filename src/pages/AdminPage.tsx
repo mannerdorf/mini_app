@@ -917,6 +917,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [zvonobotRecordGender, setZvonobotRecordGender] = useState<"0" | "1">("0");
   const [zvonobotPlannedAt, setZvonobotPlannedAt] = useState("");
   const [zvonobotApiCallIds, setZvonobotApiCallIds] = useState("");
+  const [partnerApiHealthJson, setPartnerApiHealthJson] = useState<string>("");
   const [integrationHealth, setIntegrationHealth] = useState<{
     telegram: {
       linked_total: number;
@@ -1850,6 +1851,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         setZvonobotKeyHint("");
       });
   }, [tab, adminToken]);
+
+  useEffect(() => {
+    if (tab !== "integrations") return;
+    fetch("/api/partner/v1/health")
+      .then((r) => r.json())
+      .then((data) => {
+        setPartnerApiHealthJson(JSON.stringify(data, null, 2));
+      })
+      .catch(() => {
+        setPartnerApiHealthJson(JSON.stringify({ error: "Не удалось загрузить /api/partner/v1/health" }, null, 2));
+      });
+  }, [tab, integrationFetchTrigger]);
 
   useEffect(() => {
     if (tab !== "customers") return;
@@ -8699,6 +8712,36 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               style={{
                 width: "100%",
                 minHeight: "11rem",
+                resize: "vertical",
+                borderRadius: "8px",
+                border: "1px solid var(--color-border)",
+                background: "var(--color-bg)",
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                fontSize: "0.75rem",
+                lineHeight: 1.35,
+                padding: "0.6rem",
+              }}
+            />
+          </Panel>
+
+          <Panel className="cargo-card" style={{ padding: "0.85rem", border: "1px solid var(--color-border)", marginTop: "0.9rem" }}>
+            <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Partner API и webhooks (v1)</Typography.Body>
+            <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.55rem" }}>
+              Партнёрский REST: заголовок <code style={{ fontSize: "0.75rem" }}>Authorization: Bearer &lt;HAULZ_PARTNER_API_KEY&gt;</code>, тело как у обычных API.
+              Эндпоинты: <code style={{ fontSize: "0.75rem" }}>/api/partner/v1/cargo</code>,{" "}
+              <code style={{ fontSize: "0.75rem" }}>/api/partner/v1/sendings</code>, <code style={{ fontSize: "0.75rem" }}>/api/partner/v1/orders</code> (все POST).
+              Исходящие webhooks: <code style={{ fontSize: "0.75rem" }}>HAULZ_PARTNER_WEBHOOK_URL</code> или <code style={{ fontSize: "0.75rem" }}>HAULZ_PARTNER_WEBHOOK_URLS</code> + секрет{" "}
+              <code style={{ fontSize: "0.75rem" }}>HAULZ_PARTNER_WEBHOOK_SECRET</code> (подпись HMAC-SHA256 заголовка <code style={{ fontSize: "0.75rem" }}>X-Haulz-Signature</code> для тела с timestamp).
+              Событие пример: <code style={{ fontSize: "0.75rem" }}>cargo.plan_date_batch_updated</code> после массовой записи плановой даты.
+            </Typography.Body>
+            <textarea
+              value={partnerApiHealthJson}
+              onChange={() => {}}
+              readOnly
+              placeholder="GET /api/partner/v1/health ..."
+              style={{
+                width: "100%",
+                minHeight: "8rem",
                 resize: "vertical",
                 borderRadius: "8px",
                 border: "1px solid var(--color-border)",

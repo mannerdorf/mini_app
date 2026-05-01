@@ -971,21 +971,33 @@ body {
 /* Надёжный отступ для секций с итогами (Счета/УПД), без зависимости от :has() */
 .documents-page--with-summary-sections .documents-table-offset-desktop,
 .documents-page--with-summary-sections .documents-cards-offset-desktop {
-    margin-top: 0.95rem;
+    margin-top: calc(0.95rem + 0.5cm);
 }
 .documents-page--with-summary-sections.documents-page--saas-analytics .documents-table-offset-desktop,
 .documents-page--with-summary-sections.documents-page--saas-analytics .documents-cards-offset-desktop {
-    margin-top: 1.05rem;
+    margin-top: calc(1.05rem + 0.5cm);
 }
 
-/* Заявки: таблица/карточки не должны заезжать под липкий блок фильтров */
+/* Заявки: таблица/карточки не должны заезжать под липкий блок фильтров и панель «Новая заявка» */
 .documents-page--with-orders-section .documents-table-offset-desktop,
+.documents-page--with-orders-section .documents-cards-offset-desktop,
 .documents-page--with-orders-section .documents-zayavki-below-new-order {
-    margin-top: 0.95rem;
+    margin-top: calc(0.95rem + 0.5cm);
 }
 .documents-page--with-orders-section.documents-page--saas-analytics .documents-table-offset-desktop,
+.documents-page--with-orders-section.documents-page--saas-analytics .documents-cards-offset-desktop,
 .documents-page--with-orders-section.documents-page--saas-analytics .documents-zayavki-below-new-order {
-    margin-top: 1.05rem;
+    margin-top: calc(1.05rem + 0.5cm);
+}
+
+/* Тарифы: таблица/карточки под липкой SaaS-шапкой (без отдельного KPI — базового margin недостаточно) */
+.documents-page--with-tariffs-section .documents-table-offset-desktop,
+.documents-page--with-tariffs-section .documents-cards-offset-desktop {
+    margin-top: calc(0.95rem + 0.5cm);
+}
+.documents-page--with-tariffs-section.documents-page--saas-analytics .documents-table-offset-desktop,
+.documents-page--with-tariffs-section.documents-page--saas-analytics .documents-cards-offset-desktop {
+    margin-top: calc(1.05rem + 0.55cm);
 }
 
 /* Строка «Итого» у таблиц счётов/УПД не должна пропадать из разметки таблицы */
@@ -999,11 +1011,19 @@ body {
 }
 
 .doc-contracts-table-offset-desktop {
-    margin-top: 0.95rem;
+    margin-top: calc(0.95rem + 0.5cm);
 }
 @media (min-width: 769px) {
     .doc-contracts-table-offset-desktop {
-        margin-top: 1.05rem;
+        margin-top: calc(1.05rem + 0.5cm);
+    }
+}
+.documents-page--saas-analytics .doc-contracts-table-offset-desktop {
+    margin-top: calc(1.05rem + 0.55cm);
+}
+@media (min-width: 769px) {
+    .documents-page--saas-analytics .doc-contracts-table-offset-desktop {
+        margin-top: calc(1.1rem + 0.55cm);
     }
 }
 
@@ -1074,6 +1094,16 @@ body {
     .sendings-bulk-actions-sticky {
         top: 5rem;
     }
+}
+
+/* Отправки: карточка с бейджами-инфографикой — зазор от липкой шапки с фильтрами (иначе верх бейджей визуально подрезается тенью/краем SaaS-карточки) */
+.documents-sendings-infographic {
+    margin-top: calc(0.5rem + 0.5cm);
+    position: relative;
+    z-index: 2;
+}
+.documents-page--saas-analytics .documents-sendings-infographic {
+    margin-top: calc(0.65rem + 0.55cm);
 }
 
 .dashboard-sticky-filters {

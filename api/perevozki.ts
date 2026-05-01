@@ -1,10 +1,10 @@
+import type { Pool } from "pg";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { upsertDocument } from "../lib/rag.js";
-import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { verifyRegisteredUser, type VerifiedRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { dispatchWebPushCargoEvents } from "./_lib/webpushEventDispatch.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
-import { getAdminTokenFromRequest, getAdminTokenPayload, verifyAdminToken } from "../lib/adminAuth.js";
 import { getAdminTokenFromRequest, getAdminTokenPayload, verifyAdminToken } from "../lib/adminAuth.js";
 
 /**
@@ -50,6 +50,70 @@ function normalizeDateOnly(raw: unknown): string {
   const parsed = new Date(s);
   if (Number.isNaN(parsed.getTime())) return "";
   return parsed.toISOString().split("T")[0];
+}
+
+export function perevozkiItemInn(item: any): string {
+  return itemInn(item);
+}
+
+/** Кэш перевозок для зарегистрированного пользователя (без 1С). Используется из `/api/perevozki` и partner/v1 с пользовательским ключом. */
+export async function readRegisteredPerevozkiFromCache(
+  pool: Pool,
+  verified: VerifiedRegisteredUser,
+  login: string,
+  dateFrom: string,
+  dateTo: string,
+  inn: unknown,
+  serviceMode: unknown,
+): Promise<any[]> {
+  try {
+    let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+      "SELECT data, fetched_at FROM cache_perevozki WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
+      [CACHE_FRESH_MINUTES],
+    );
+    if (cacheRow.rows.length === 0) {
+      cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+        "SELECT data, fetched_at FROM cache_perevozki WHERE id = 1",
+      );
+    }
+    if (cacheRow.rows.length === 0) return [];
+    const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+    const isServiceMode = !!serviceMode;
+    let filterInns: Set<string> | null = null;
+    if (!isServiceMode && !verified.accessAllInns) {
+      const acRows = await pool.query<{ inn: string }>(
+        "SELECT inn FROM account_companies WHERE login = $1",
+        [String(login).trim().toLowerCase()],
+      );
+      const allowed = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
+      if (verified.inn?.trim()) allowed.add(verified.inn.trim());
+      filterInns = allowed.size > 0 ? allowed : verified.inn ? new Set([verified.inn]) : null;
+    }
+    const finalInns = isServiceMode
+      ? null
+      : filterInns === null
+        ? requestedInn
+          ? new Set([requestedInn])
+          : null
+        : requestedInn
+          ? filterInns.has(requestedInn)
+            ? new Set([requestedInn])
+            : new Set<string>()
+          : filterInns;
+    const data = cacheRow.rows[0].data as any[];
+    const list = Array.isArray(data) ? data : [];
+    const filtered = list.filter((item) => {
+      if (finalInns !== null) {
+        const itemInnVal = itemInn(item);
+        if (!finalInns.has(itemInnVal)) return false;
+      }
+      const d = itemDate(item);
+      return d >= dateFrom && d <= dateTo;
+    });
+    return Array.isArray(filtered) ? filtered : [];
+  } catch {
+    return [];
+  }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -126,47 +190,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!verified) {
         return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
       }
-      let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-        "SELECT data, fetched_at FROM cache_perevozki WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
-        [CACHE_FRESH_MINUTES]
-      );
-      if (cacheRow.rows.length === 0) {
-        cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-          "SELECT data, fetched_at FROM cache_perevozki WHERE id = 1"
-        );
-      }
-      if (cacheRow.rows.length > 0) {
-        const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
-        const isServiceMode = !!serviceMode;
-        // accessAllInns — без ограничений; иначе — allowed INNs из account_companies + registered_users.inn
-        let filterInns: Set<string> | null = null;
-        if (!isServiceMode && !verified.accessAllInns) {
-          const acRows = await pool.query<{ inn: string }>(
-            "SELECT inn FROM account_companies WHERE login = $1",
-            [String(login).trim().toLowerCase()]
-          );
-          const allowed = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
-          if (verified.inn?.trim()) allowed.add(verified.inn.trim());
-          filterInns = allowed.size > 0 ? allowed : (verified.inn ? new Set([verified.inn]) : null);
-        }
-        const finalInns = isServiceMode ? null : (filterInns === null
-          ? (requestedInn ? new Set([requestedInn]) : null)
-          : requestedInn
-            ? (filterInns.has(requestedInn) ? new Set([requestedInn]) : new Set<string>())
-            : filterInns);
-        const data = cacheRow.rows[0].data as any[];
-        const list = Array.isArray(data) ? data : [];
-        const filtered = list.filter((item) => {
-          if (finalInns !== null) {
-            const itemInnVal = itemInn(item);
-            if (!finalInns.has(itemInnVal)) return false;
-          }
-          const d = itemDate(item);
-          return d >= dateFrom && d <= dateTo;
-        });
-        return res.status(200).json(Array.isArray(filtered) ? filtered : []);
-      }
-      return res.status(200).json([]);
+      const filtered = await readRegisteredPerevozkiFromCache(pool, verified, login, dateFrom, dateTo, inn, serviceMode);
+      return res.status(200).json(Array.isArray(filtered) ? filtered : []);
     } catch (e) {
       logError(ctx, "perevozki_registered_user_failed", e);
       return res.status(200).json([]);

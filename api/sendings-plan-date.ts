@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { notifyPartnerWebhooks } from "../lib/partnerWebhook.js";
 import { initRequestContext } from "./_lib/observability.js";
 const BASE_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
@@ -159,6 +160,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const okCount = results.filter((r) => r.ok).length;
   const errorItems = results.filter((r) => !r.ok);
+  if (okCount > 0) {
+    void notifyPartnerWebhooks({
+      event: "cargo.plan_date_batch_updated",
+      payload: {
+        date,
+        requested: cargoNumbers.length,
+        updated: okCount,
+        failed: errorItems.length,
+        results: results.map((r) => ({ cargoNumber: r.cargoNumber, ok: r.ok })),
+      },
+    }).catch(() => undefined);
+  }
   return res.status(200).json({
     ok: errorItems.length === 0,
     date,

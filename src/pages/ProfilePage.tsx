@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import { motion, useReducedMotion } from "motion/react";
 import {
     LogOut, Loader2, Check, Moon, Sun, Eye, EyeOff, User as UserIcon, Users, ChevronDown,
-    Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MessageCircle, FileText, LayoutGrid, Mic, Receipt,
+    Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MessageCircle, FileText, LayoutGrid, Mic, Receipt, Key,
 } from "lucide-react";
 import { Button, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
 import type { Account, AuthData, ProfileView } from "../types";
@@ -27,6 +27,7 @@ import { ProfileRolesSection } from "../components/profile/ProfileRolesSection";
 import { ProfileHaulzSection } from "../components/profile/ProfileHaulzSection";
 import { ProfileParcelScannerSection } from "../components/profile/ProfileParcelScannerSection";
 import { ProfileExpenseRequestsSection } from "../components/profile/ProfileExpenseRequestsSection";
+import { ProfileApiKeysSection } from "../components/profile/ProfileApiKeysSection";
 import { cargoListContainerVariants, cargoListItemVariants, cargoSummaryMotion } from "./cargoMotion";
 
 export function ProfilePage({
@@ -1051,6 +1052,14 @@ export function ProfilePage({
             icon: <Bell className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('notifications')
         },
+        ...(activeAccount?.isRegisteredUser === true
+            ? [{
+                id: 'apiKeys' as const,
+                label: 'API',
+                icon: <Key className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+                onClick: () => setCurrentView('apiKeys'),
+            }]
+            : []),
     ];
 
 
@@ -1127,6 +1136,10 @@ export function ProfilePage({
                 onUpdateAccount={onUpdateAccount}
             />
         );
+    }
+
+    if (currentView === 'apiKeys') {
+        return <ProfileApiKeysSection activeAccount={activeAccount} onBack={() => setCurrentView('main')} />;
     }
 
     if (currentView === 'haulz') {
