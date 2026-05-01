@@ -65,6 +65,31 @@ async function loadAssignableInnsCanon(pool: ReturnType<typeof getPool>, login: 
   return out;
 }
 
+function permissionsAllowServiceMode(permissions: unknown): boolean {
+  if (!permissions || typeof permissions !== "object" || Array.isArray(permissions)) return false;
+  return (permissions as Record<string, unknown>).service_mode === true;
+}
+
+async function assertMyApiKeysServiceMode(
+  pool: ReturnType<typeof getPool>,
+  loginKey: string,
+  res: VercelResponse,
+  requestId: string,
+): Promise<boolean> {
+  const { rows } = await pool.query<{ permissions: unknown }>(
+    `SELECT permissions FROM registered_users WHERE lower(trim(login)) = $1 AND active = true`,
+    [loginKey],
+  );
+  if (!permissionsAllowServiceMode(rows[0]?.permissions)) {
+    res.status(403).json({
+      error: "Раздел API доступен только при праве «Служебный режим» (service_mode) у пользователя.",
+      request_id: requestId,
+    });
+    return false;
+  }
+  return true;
+}
+
 function parseAllowedInnsInput(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   const out: string[] = [];
@@ -94,6 +119,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const pool = getPool();
   const loginKey = login.trim().toLowerCase();
+
+  if (!(await assertMyApiKeysServiceMode(pool, loginKey, res, ctx.requestId))) {
+    return;
+  }
 
   if (req.method === "GET") {
     try {

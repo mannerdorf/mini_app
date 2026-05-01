@@ -82,6 +82,23 @@ export async function resolvePartnerOrUserApiAuth(
       sendJson(res, 401, { error: "Пользователь не найден или неактивен", request_id: requestId });
       return { ok: false };
     }
+    const { rows: permRows } = await pool.query<{ permissions: unknown }>(
+      `SELECT permissions FROM registered_users WHERE lower(trim(login)) = $1 AND active = true`,
+      [loginKey],
+    );
+    const perm = permRows[0]?.permissions;
+    const serviceModeOk =
+      perm &&
+      typeof perm === "object" &&
+      !Array.isArray(perm) &&
+      (perm as Record<string, unknown>).service_mode === true;
+    if (!serviceModeOk) {
+      sendJson(res, 403, {
+        error: "Запросы с API-ключом разрешены только пользователям с правом «Служебный режим» (service_mode).",
+        request_id: requestId,
+      });
+      return { ok: false };
+    }
     void pool.query(`UPDATE user_api_keys SET last_used_at = now() WHERE id = $1`, [r.id]).catch(() => {});
     const allow = Array.isArray(r.allowed_inns)
       ? r.allowed_inns.map((x) => canonInnForApiKey(String(x))).filter(Boolean)

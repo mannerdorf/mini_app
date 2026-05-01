@@ -151,6 +151,25 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
         );
     }
 
+    if (activeAccount.permissions?.service_mode !== true) {
+        return (
+            <div className="w-full profile-api-keys-root">
+                <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
+                    <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
+                        <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                    <Typography.Headline style={{ fontSize: "1.25rem" }}>API</Typography.Headline>
+                </Flex>
+                <Panel className="cargo-card" style={{ padding: "1rem" }}>
+                    <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+                        Раздел API доступен только при включённом для аккаунта праве «Служебный режим» (как переключатель «Служ.» в шапке).
+                        Обратитесь к администратору, если вам нужен доступ.
+                    </Typography.Body>
+                </Panel>
+            </div>
+        );
+    }
+
     return (
         <div className="w-full profile-api-keys-root">
             <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
