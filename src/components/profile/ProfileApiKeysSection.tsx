@@ -173,12 +173,16 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
             </Flex>
 
             <Typography.Body style={{ marginBottom: "0.75rem", color: "var(--color-text-secondary)", fontSize: "0.9rem" }}>
-                Создавайте ключи с правами (scopes) и ограничением по ИНН. Запросы к бэкенду:{" "}
+                Создавайте ключи с правами (scopes) и ограничением по ИНН. Для перевозок через{" "}
+                <Typography.Body as="span" style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
+                    POST /api/partner/v1/cargo
+                </Typography.Body>{" "}
+                укажите{" "}
                 <Typography.Body as="span" style={{ fontWeight: 600 }}>
                     Authorization: Bearer &lt;токен&gt;
-                </Typography.Body>
-                , например POST <code>/api/partner/v1/cargo</code> с тем же телом, что и для <code>/api/perevozki</code> (без логина/пароля в теле
-                для режима ключа).
+                </Typography.Body>{" "}
+                и тело только с полями периода и ИНН (без логина/пароля). Остальные методы из справочника ниже — по логину/паролю в теле или
+                публичные GET к кэшу, см. подписи к каждому запросу.
             </Typography.Body>
 
             {error ? (

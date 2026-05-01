@@ -1,387 +1,187 @@
 /**
- * Каталог HTTP-эндпоинтов, которые дергает фронт (и смежные клиенты).
- * Не исчерпывает все файлы в /api (крон, вебхуки, редиректы) — только то, что видно из кода клиента.
+ * Справочник методов для раздела «Профиль → API» (консоль теста).
+ * Только сценарии документов и грузов; остальные маршруты приложения сюда не входят.
  */
 
 /** Плейсхолдеры в body: строки "{{LOGIN}}" и "{{PASSWORD}}" подставляются из аккаунта в консоли теста. */
 export type ApiTryExample = {
-  id: string;
-  label: string;
-  query?: Record<string, string>;
-  body?: Record<string, unknown>;
-  headers?: Record<string, string>;
+    id: string;
+    label: string;
+    query?: Record<string, string>;
+    body?: Record<string, unknown>;
+    headers?: Record<string, string>;
 };
 
 export type ApiInventoryItem = {
-  method: string;
-  path: string;
-  note: string;
-  examples?: ApiTryExample[];
+    method: string;
+    path: string;
+    note: string;
+    examples?: ApiTryExample[];
 };
 
 export type ApiInventorySection = { group: string; items: ApiInventoryItem[] };
 
+const BODY_DATES_INN = {
+    dateFrom: "2026-01-01",
+    dateTo: "2026-01-31",
+    inn: "",
+    serviceMode: false,
+};
+
 export const MINI_APP_API_INVENTORY: ApiInventorySection[] = [
-  {
-    group: "Партнёрский / внешний API (Bearer)",
-    items: [
-      {
-        method: "GET",
-        path: "/api/partner/v1/health",
-        note: "Проверка конфигурации партнёрского API и вебхуков",
-        examples: [
-          { id: "health-basic", label: "Без параметров", query: {} },
-        ],
-      },
-      {
-        method: "POST",
-        path: "/api/partner/v1/cargo",
-        note: "Перевозки (как POST /api/perevozki); env-ключ или ключ haulz_… (cargo:read)",
-        examples: [
-          {
-            id: "cargo-period",
-            label: "Период дат (только Bearer)",
-            body: { dateFrom: "2026-01-01", dateTo: "2026-01-31", inn: "", serviceMode: false },
-          },
-          {
-            id: "cargo-inn",
-            label: "С фильтром по ИНН",
-            body: { dateFrom: "2026-01-01", dateTo: "2026-01-31", inn: "7722461620", serviceMode: false },
-          },
-        ],
-      },
-      {
-        method: "POST",
-        path: "/api/partner/v1/sendings",
-        note: "Отправки; env или haulz_… (sendings:read)",
-        examples: [
-          {
-            id: "send-def",
-            label: "Период",
-            body: { dateFrom: "2026-01-01", dateTo: "2026-01-31", inn: "", serviceMode: false },
-          },
-        ],
-      },
-      {
-        method: "POST",
-        path: "/api/partner/v1/orders",
-        note: "Заявки; env или haulz_… (orders:read)",
-        examples: [
-          {
-            id: "ord-def",
-            label: "Период",
-            body: { dateFrom: "2026-01-01", dateTo: "2026-01-31", inn: "", serviceMode: false },
-          },
-        ],
-      },
-    ],
-  },
-  {
-    group: "Профиль — API-ключи (зарегистрированный пользователь)",
-    items: [
-      {
-        method: "GET",
-        path: "/api/my-api-keys",
-        note: "Список активных ключей и доступные ИНН; авторизация заголовками x-login и x-password",
-        examples: [{ id: "list-keys", label: "Список ключей", query: {} }],
-      },
-      {
-        method: "POST",
-        path: "/api/my-api-keys",
-        note: "Создать ключ: label, scopes[], allowed_inns[]; один раз возвращает token",
-        examples: [
-          {
-            id: "create-key",
-            label: "Новый ключ (все три scope)",
-            body: {
-              login: "{{LOGIN}}",
-              password: "{{PASSWORD}}",
-              label: "Интеграция",
-              scopes: ["cargo:read", "sendings:read", "orders:read"],
-              allowed_inns: [],
+    {
+        group: "Документы и грузы",
+        items: [
+            {
+                method: "POST",
+                path: "/api/partner/v1/cargo",
+                note: "Перевозки (как вкладка «Грузы»): только Authorization: Bearer (haulz_… или партнёрский env-ключ, scope cargo:read). В теле — dateFrom, dateTo, inn, serviceMode; без логина/пароля.",
+                examples: [
+                    {
+                        id: "cargo-bearer",
+                        label: "Период и ИНН (только Bearer)",
+                        body: { ...BODY_DATES_INN },
+                    },
+                    {
+                        id: "cargo-inn",
+                        label: "Фильтр по ИНН заказчика",
+                        body: { dateFrom: "2026-01-01", dateTo: "2026-01-31", inn: "7722461620", serviceMode: false },
+                    },
+                ],
             },
-          },
-          {
-            id: "create-key-inns",
-            label: "Ключ только для выбранных ИНН",
-            body: {
-              login: "{{LOGIN}}",
-              password: "{{PASSWORD}}",
-              label: "Ограниченный",
-              scopes: ["cargo:read"],
-              allowed_inns: ["7722461620"],
+            {
+                method: "POST",
+                path: "/api/invoices",
+                note: "Запросить счета (кэш / 1С). Тело: login, password, dateFrom, dateTo, inn, serviceMode, isRegisteredUser.",
+                examples: [
+                    {
+                        id: "inv-reg",
+                        label: "Зарегистрированный пользователь (кэш)",
+                        body: {
+                            login: "{{LOGIN}}",
+                            password: "{{PASSWORD}}",
+                            ...BODY_DATES_INN,
+                            isRegisteredUser: true,
+                        },
+                    },
+                ],
             },
-          },
-        ],
-      },
-      {
-        method: "DELETE",
-        path: "/api/my-api-keys",
-        note: "Отозвать ключ: query id + заголовки x-login, x-password",
-        examples: [
-          {
-            id: "del-key",
-            label: "Отзыв по id",
-            query: { id: "ЗАМЕНИТЕ_UUID_КЛЮЧА" },
-          },
-        ],
-      },
-    ],
-  },
-  {
-    group: "Авторизация и компании",
-    items: [
-      { method: "GET", path: "/api/auth-config", note: "Конфигурация входа" },
-      { method: "POST", path: "/api/auth-registered-login", note: "Вход зарегистрированного пользователя" },
-      { method: "GET", path: "/api/companies", note: "Список компаний по логину" },
-      { method: "POST", path: "/api/companies-save", note: "Сохранение компаний" },
-      { method: "POST", path: "/api/request-inn-access", note: "Запрос доступа по ИНН" },
-      { method: "POST", path: "/api/verify-inn-code", note: "Подтверждение кода ИНН" },
-      { method: "POST", path: "/api/change-password", note: "Смена пароля" },
-      { method: "POST", path: "/api/forgot-password", note: "Восстановление пароля" },
-    ],
-  },
-  {
-    group: "Перевозки, отправки, заявки, ПВЗ",
-    items: [
-      {
-        method: "POST",
-        path: "/api/perevozki",
-        note: "Список перевозок (кэш / 1С)",
-        examples: [
-          {
-            id: "pv-reg",
-            label: "Зарегистрированный пользователь (кэш)",
-            body: {
-              login: "{{LOGIN}}",
-              password: "{{PASSWORD}}",
-              dateFrom: "2026-01-01",
-              dateTo: "2026-01-31",
-              inn: "",
-              isRegisteredUser: true,
+            {
+                method: "POST",
+                path: "/api/acts",
+                note: "Запросить список УПД (GetActs; кэш / 1С). То же тело, что для счетов.",
+                examples: [
+                    {
+                        id: "acts-reg",
+                        label: "Зарегистрированный пользователь (кэш)",
+                        body: {
+                            login: "{{LOGIN}}",
+                            password: "{{PASSWORD}}",
+                            ...BODY_DATES_INN,
+                            isRegisteredUser: true,
+                        },
+                    },
+                ],
             },
-          },
-          {
-            id: "pv-inn",
-            label: "С ИНН",
-            body: {
-              login: "{{LOGIN}}",
-              password: "{{PASSWORD}}",
-              dateFrom: "2026-01-01",
-              dateTo: "2026-01-31",
-              inn: "7722461620",
-              isRegisteredUser: true,
+            {
+                method: "POST",
+                path: "/api/download",
+                note: "Скачать ЭР (PDF через прокси). metod=ЭР, number — номер перевозки (как во вкладке документов). Для зарегистрированного пользователя — isRegisteredUser и проверка доступа к перевозке.",
+                examples: [
+                    {
+                        id: "dl-er",
+                        label: "ЭР по номеру перевозки",
+                        body: {
+                            login: "{{LOGIN}}",
+                            password: "{{PASSWORD}}",
+                            metod: "ЭР",
+                            number: "000123456",
+                            isRegisteredUser: true,
+                        },
+                    },
+                ],
             },
-          },
-        ],
-      },
-      {
-        method: "POST",
-        path: "/api/sendings",
-        note: "Отправки",
-        examples: [
-          {
-            id: "sd-reg",
-            label: "Зарегистрированный (кэш)",
-            body: {
-              login: "{{LOGIN}}",
-              password: "{{PASSWORD}}",
-              dateFrom: "2026-01-01",
-              dateTo: "2026-01-31",
-              inn: "",
-              isRegisteredUser: true,
+            {
+                method: "POST",
+                path: "/api/download",
+                note: "Скачать АПП. metod=АПП, number — номер перевозки.",
+                examples: [
+                    {
+                        id: "dl-app",
+                        label: "АПП по номеру перевозки",
+                        body: {
+                            login: "{{LOGIN}}",
+                            password: "{{PASSWORD}}",
+                            metod: "АПП",
+                            number: "000123456",
+                            isRegisteredUser: true,
+                        },
+                    },
+                ],
             },
-          },
-        ],
-      },
-      {
-        method: "POST",
-        path: "/api/orders",
-        note: "Заявки",
-        examples: [
-          {
-            id: "or-reg",
-            label: "Зарегистрированный (кэш)",
-            body: {
-              login: "{{LOGIN}}",
-              password: "{{PASSWORD}}",
-              dateFrom: "2026-01-01",
-              dateTo: "2026-01-31",
-              inn: "",
-              isRegisteredUser: true,
+            {
+                method: "POST",
+                path: "/api/download",
+                note: "Скачать счёт (PDF). В 1С metod=Счет; number — номер перевозки из номенклатуры или номер счёта (маска 0000-…), см. приложение.",
+                examples: [
+                    {
+                        id: "dl-schet",
+                        label: "Счёт (пример с номером перевозки)",
+                        body: {
+                            login: "{{LOGIN}}",
+                            password: "{{PASSWORD}}",
+                            metod: "Счет",
+                            number: "000123456",
+                            isRegisteredUser: true,
+                        },
+                    },
+                ],
             },
-          },
+            {
+                method: "POST",
+                path: "/api/download",
+                note: "Скачать УПД (файл). В API metod=Акт (не слово «УПД»); number — номер перевозки из УПД.",
+                examples: [
+                    {
+                        id: "dl-upd",
+                        label: "УПД (metod Акт)",
+                        body: {
+                            login: "{{LOGIN}}",
+                            password: "{{PASSWORD}}",
+                            metod: "Акт",
+                            number: "000123456",
+                            isRegisteredUser: true,
+                        },
+                    },
+                ],
+            },
+            {
+                method: "GET",
+                path: "/api/dogovors",
+                note: "Запросить договоры из кэша. Опционально query inn — только по этому ИНН заказчика.",
+                examples: [
+                    { id: "dog-all", label: "Все договоры в кэше", query: {} },
+                    { id: "dog-inn", label: "Фильтр по ИНН", query: { inn: "7722461620" } },
+                ],
+            },
+            {
+                method: "GET",
+                path: "/api/tariffs",
+                note: "Запросить тарифы из кэша. Опционально ?inn= — фильтр по ИНН заказчика.",
+                examples: [
+                    { id: "tar-all", label: "Все тарифы", query: {} },
+                    { id: "tar-inn", label: "По ИНН", query: { inn: "7722461620" } },
+                ],
+            },
+            {
+                method: "GET",
+                path: "/api/sverki",
+                note: "Запросить акты сверок из кэша. Опционально ?inn=.",
+                examples: [
+                    { id: "sv-all", label: "Все акты сверок", query: {} },
+                    { id: "sv-inn", label: "По ИНН", query: { inn: "7722461620" } },
+                ],
+            },
         ],
-      },
-      { method: "POST", path: "/api/order-create", note: "Создание заявки" },
-      { method: "POST", path: "/api/pvz-list", note: "Список ПВЗ" },
-      { method: "GET", path: "/api/customer-work-schedules", note: "График работы заказчика" },
-    ],
-  },
-  {
-    group: "Документы и скачивание",
-    items: [
-      { method: "GET", path: "/api/tariffs", note: "Тарифы" },
-      { method: "GET", path: "/api/sverki", note: "Сверки" },
-      { method: "GET", path: "/api/dogovors", note: "Договоры" },
-      { method: "GET", path: "/api/claims", note: "Претензии" },
-      { method: "GET/PATCH", path: "/api/claims/[id]", note: "Деталь / обновление претензии" },
-      { method: "GET", path: "/api/sverki-requests", note: "Запросы сверок" },
-      { method: "POST", path: "/api/sverki-requests", note: "Создание запроса сверки" },
-      { method: "POST", path: "/api/download", note: "Скачивание файла" },
-      { method: "POST", path: "/api/sendings-eor", note: "ЭОР отправок" },
-      { method: "POST", path: "/api/sendings-plan-date", note: "Плановая дата отправки" },
-      { method: "POST", path: "/api/sendings-ferry", note: "Паромы в отправках" },
-      { method: "GET", path: "/api/ferries-list", note: "Справочник паромов" },
-      { method: "GET", path: "/api/marinesia-ship", note: "AIS по MMSI" },
-    ],
-  },
-  {
-    group: "Wildberries",
-    items: [
-      { method: "GET", path: "/api/wb/postb-getapi", note: "Данные Postb по коду/номеру" },
-      { method: "GET", path: "/api/wb/inbound", note: "Входящие" },
-      { method: "POST", path: "/api/wb/inbound/delete-inventory", note: "Удаление инвентаризации" },
-      { method: "POST", path: "/api/wb/inbound/box-shk-upload", note: "Загрузка ШК короба" },
-      { method: "POST", path: "/api/wb/inbound/import", note: "Импорт inbound" },
-      { method: "GET", path: "/api/wb/returned", note: "Возвраты" },
-      { method: "POST", path: "/api/wb/returned/delete-group", note: "Удаление группы" },
-      { method: "POST", path: "/api/wb/returned/import", note: "Импорт returned" },
-      { method: "POST", path: "/api/wb/returned/manual", note: "Ручной ввод" },
-      { method: "GET", path: "/api/wb/claims", note: "Претензии WB" },
-      { method: "POST", path: "/api/wb/claims/delete-revision", note: "Удаление ревизии" },
-      { method: "POST", path: "/api/wb/claims/import", note: "Импорт claims" },
-      { method: "GET", path: "/api/wb/summary", note: "Сводка" },
-      { method: "POST", path: "/api/wb/summary/refresh", note: "Обновление сводки" },
-      { method: "POST", path: "/api/wb/summary/clear", note: "Очистка сводки" },
-      { method: "POST", path: "/api/wb/logistics-import", note: "Импорт логистики" },
-      { method: "GET", path: "/api/wb/export", note: "Экспорт" },
-    ],
-  },
-  {
-    group: "Чат и голос",
-    items: [
-      { method: "POST", path: "/api/chat", note: "Сообщение в чат" },
-      { method: "POST", path: "/api/chat-reset", note: "Сброс сессии" },
-      { method: "POST", path: "/api/transcribe", note: "Транскрипция" },
-    ],
-  },
-  {
-    group: "2FA и уведомления",
-    items: [
-      { method: "GET/POST", path: "/api/2fa", note: "Настройки 2FA" },
-      { method: "POST", path: "/api/2fa-google", note: "Google 2FA" },
-      { method: "POST", path: "/api/2fa-telegram", note: "Telegram 2FA" },
-      { method: "GET/POST", path: "/api/webpush-preferences", note: "Web Push настройки" },
-      { method: "GET", path: "/api/webpush-vapid", note: "VAPID ключ" },
-      { method: "POST", path: "/api/webpush-subscribe", note: "Подписка" },
-      { method: "POST", path: "/api/webpush-unsubscribe", note: "Отписка" },
-      { method: "POST", path: "/api/telegram-unlink", note: "Отвязка Telegram" },
-    ],
-  },
-  {
-    group: "MAX / сокращение ссылок",
-    items: [
-      { method: "POST", path: "/api/max-link", note: "Привязка MAX" },
-      { method: "POST", path: "/api/max-send-message", note: "Отправка в MAX" },
-      { method: "GET", path: "/api/shorten-ping", note: "Проверка shorten" },
-      { method: "POST", path: "/api/shorten", note: "Сокращение URL" },
-    ],
-  },
-  {
-    group: "Профиль: сотрудники, табель, заявки на расход",
-    items: [
-      { method: "GET/POST", path: "/api/my-employees", note: "Справочник сотрудников" },
-      { method: "PATCH/DELETE", path: "/api/my-employees?id=", note: "Обновление / удаление" },
-      { method: "GET/POST", path: "/api/my-department-timesheet", note: "Табель подразделения" },
-      { method: "GET/POST", path: "/api/my-expense-requests", note: "Заявки на расход" },
-      { method: "GET", path: "/api/expense-request-categories", note: "Категории" },
-      { method: "GET", path: "/api/expense-request-suppliers", note: "Поставщики" },
-      { method: "GET", path: "/api/role-presets", note: "Пресеты ролей" },
-      { method: "GET", path: "/api/my-payment-calendar", note: "Календарь платежей" },
-    ],
-  },
-  {
-    group: "Бухгалтерия в профиле",
-    items: [
-      { method: "GET/POST/PATCH", path: "/api/accounting-expense-requests", note: "Заявки на оплату" },
-      { method: "GET", path: "/api/accounting-expense-attachment", note: "Вложение" },
-      { method: "GET/POST/DELETE", path: "/api/accounting-sverki-requests", note: "Запросы сверок (бух)" },
-      { method: "GET", path: "/api/claims", note: "Претензии (профиль)" },
-    ],
-  },
-  {
-    group: "HAULZ / посылка / Алиса",
-    items: [
-      { method: "GET", path: "/api/haulz/postb-posilka", note: "Посылка по коду" },
-      { method: "POST", path: "/api/alice-link", note: "Привязка Алисы" },
-      { method: "POST", path: "/api/alice-unlink", note: "Отвязка" },
-    ],
-  },
-  {
-    group: "PnL (префиксы проксируются на /api/pnl-*)",
-    items: [
-      { method: "GET", path: "/api/pnl-report", note: "Отчёт PnL (клиент: /api/pnl)" },
-      { method: "GET", path: "/api/pnl-operations", note: "Операции" },
-      { method: "GET/POST", path: "/api/pnl-credits", note: "Кредиты" },
-      { method: "GET/POST/PATCH/DELETE", path: "/api/pnl-income-categories", note: "Категории доходов" },
-      { method: "GET/POST/PATCH/DELETE", path: "/api/pnl-expense-categories", note: "Категории расходов" },
-      { method: "GET/POST", path: "/api/pnl-subdivisions", note: "Подразделения" },
-      { method: "GET/POST", path: "/api/pnl-manual-entry", note: "Ручной ввод" },
-      { method: "GET", path: "/api/pnl-statement", note: "Выписка" },
-      { method: "POST", path: "/api/pnl-upload-statement", note: "Загрузка выписки" },
-      { method: "GET", path: "/api/pnl-unit-economics", note: "Юнит-экономика" },
-      { method: "GET", path: "/api/pnl-charts", note: "Графики" },
-      { method: "GET", path: "/api/pnl-charts-monthly-margin", note: "Маржа по месяцам" },
-      { method: "GET/POST", path: "/api/pnl-alerts", note: "Алерты" },
-      { method: "GET/POST", path: "/api/pnl-rules", note: "Правила" },
-      { method: "POST", path: "/api/pnl-upload-bank", note: "Загрузка банка" },
-      { method: "POST", path: "/api/pnl-upload-sales", note: "Загрузка продаж" },
-      { method: "POST", path: "/api/pnl-upload-expenses", note: "Загрузка расходов" },
-      { method: "GET", path: "/api/pnl-sales-auto", note: "Авто продажи" },
-      { method: "POST", path: "/api/pnl-sales-manual", note: "Ручные продажи" },
-      { method: "GET", path: "/api/pnl-timesheet-accruals", note: "Начисления табеля" },
-      { method: "POST", path: "/api/pnl-expense-categories-from-statement", note: "Категории из выписки" },
-    ],
-  },
-  {
-    group: "Админка (Bearer admin)",
-    items: [
-      { method: "GET", path: "/api/admin-me", note: "Текущий админ" },
-      { method: "POST", path: "/api/verify-admin-access", note: "Проверка доступа CMS" },
-      { method: "POST", path: "/api/admin-refresh-token", note: "Обновление токена" },
-      { method: "GET", path: "/api/admin-users", note: "Пользователи" },
-      { method: "GET", path: "/api/admin-customers-search", note: "Поиск заказчиков" },
-      { method: "GET", path: "/api/admin-suppliers-search", note: "Поиск поставщиков" },
-      { method: "GET", path: "/api/admin-audit-log", note: "Аудит" },
-      { method: "GET", path: "/api/admin-request-error-log", note: "Лог ошибок" },
-      { method: "GET", path: "/api/admin-integration-health", note: "Здоровье интеграций" },
-      { method: "GET/POST", path: "/api/admin-email-templates", note: "Шаблоны писем" },
-      { method: "POST", path: "/api/admin-sendlk-sync", note: "Синхронизация ЛК" },
-      { method: "GET/POST", path: "/api/admin-zvonobot-sandbox", note: "Песочница Zvonobot" },
-      { method: "GET", path: "/api/admin-auto-register-candidates", note: "Кандидаты регистрации" },
-      { method: "GET/POST/DELETE", path: "/api/admin-presets", note: "Пресеты" },
-      { method: "GET", path: "/api/admin-payment-calendar", note: "Календарь платежей (админ)" },
-      { method: "GET/PATCH/DELETE", path: "/api/admin-employee-directory", note: "Справочник сотрудников" },
-      { method: "GET", path: "/api/admin-timesheet", note: "Табель (админ)" },
-      { method: "PATCH", path: "/api/admin-user-update", note: "Обновление пользователя" },
-      { method: "GET", path: "/api/admin-claims", note: "Претензии" },
-      { method: "GET", path: "/api/admin-claim-detail", note: "Деталь претензии" },
-      { method: "GET", path: "/api/admin-expense-requests", note: "Заявки на расход" },
-      { method: "GET", path: "/api/admin-expense-attachment", note: "Вложение" },
-      { method: "GET/POST", path: "/api/admin-work-schedule", note: "График работы" },
-      { method: "GET/POST", path: "/api/admin-company-timesheet", note: "Табель компании" },
-      { method: "GET/POST/DELETE", path: "/api/ferries", note: "Паромы" },
-      { method: "GET", path: "/api/pvz", note: "ПВЗ (админ)" },
-      { method: "POST", path: "/api/admin-refresh-tariffs-cache", note: "Обновление кэша тарифов" },
-    ],
-  },
-  {
-    group: "Прочее (редко на фронте)",
-    items: [
-      { method: "GET", path: "/api/verify-service-mode", note: "Проверка сервисного режима" },
-      { method: "GET", path: "/api/my-timesheet-analytics", note: "Аналитика табеля" },
-      { method: "POST", path: "/api/ferries-enrich-marinesia", note: "Обогащение паромов" },
-    ],
-  },
+    },
 ];

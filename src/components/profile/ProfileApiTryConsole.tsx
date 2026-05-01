@@ -409,8 +409,8 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
                         placeholder="Bearer haulz_… или только токен без префикса"
                     />
                     <p className="profile-api-try__hint">
-                        Для <code>/api/partner/v1/*</code> без логина в теле нужен Bearer. Для <code>GET/DELETE /api/my-api-keys</code> при
-                        пустом Bearer используются заголовки <code>x-login</code> / <code>x-password</code> из аккаунта.
+                        Для <code>POST /api/partner/v1/cargo</code> укажите Bearer (haulz_… или env-ключ партнёра). Для счетов, УПД и скачиваний
+                        в теле запроса используются <code>login</code> / <code>password</code> (или подстановка из аккаунта через плейсхолдеры).
                     </p>
                     {!tryAuth ? (
                         <p className="profile-api-try__warn">Войдите в аккаунт в приложении — иначе подстановка логина/пароля в примерах не сработает.</p>

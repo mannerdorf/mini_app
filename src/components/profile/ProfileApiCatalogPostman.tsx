@@ -89,7 +89,7 @@ export function ProfileApiCatalogPostman({ tryAuth }: Props) {
                         const isOpen = sel?.gi === sectionIdx && sel?.ii === ii;
                         return (
                             <li
-                                key={`${it.method}-${it.path}-${ii}`}
+                                key={`profile-api-inv-${sectionIdx}-${ii}`}
                                 className={`profile-api-catalog-postman__item${isOpen ? " is-open" : ""}`}
                             >
                                 <div className="profile-api-catalog-postman__row-top">
@@ -121,7 +121,7 @@ export function ProfileApiCatalogPostman({ tryAuth }: Props) {
                                 </div>
                                 {isOpen ? (
                                     <ProfileApiTryConsole
-                                        key={`${it.path}-${it.method}`}
+                                        key={`profile-api-try-${sectionIdx}-${ii}`}
                                         item={it}
                                         tryAuth={tryAuth}
                                         onClose={() => setSel(null)}
