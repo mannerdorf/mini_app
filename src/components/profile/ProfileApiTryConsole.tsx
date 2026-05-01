@@ -409,7 +409,7 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
                         placeholder="Bearer haulz_… или только токен без префикса"
                     />
                     <p className="profile-api-try__hint">
-                        Для <code>POST /api/partner/v1/cargo</code> укажите Bearer (haulz_… или env-ключ партнёра). Для счетов, УПД и скачиваний
+                        Для <code>POST /api/partner/v1/cargo</code> укажите Bearer с полным ключом haulz_… из Профиль → API. Для счетов, УПД и скачиваний
                         в теле запроса используются <code>login</code> / <code>password</code> (или подстановка из аккаунта через плейсхолдеры).
                     </p>
                     {!tryAuth ? (

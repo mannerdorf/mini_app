@@ -1,6 +1,7 @@
 .npm-cache/
 node_modules
 .vercel
+# Секреты и локальные env — не коммитить (файл .env у разработчика остаётся только локально).
 .env*.local
 .env
 .env.vercel

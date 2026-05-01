@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { initRequestContext } from "../../_lib/observability.js";
-import { getBearerPartnerToken, getConfiguredPartnerKeys, verifyPartnerApiKey } from "../../../lib/partnerApi.js";
+import { getBearerPartnerToken } from "../../../lib/partnerApi.js";
+import { parseUserApiBearerToken } from "../../../lib/userApiKeyCrypto.js";
 import { getPartnerWebhookSecret, getPartnerWebhookUrls } from "../../../lib/partnerWebhook.js";
 import { withErrorLog } from "../../../lib/requestErrorLog.js";
 
@@ -11,17 +12,17 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
-  const keys = getConfiguredPartnerKeys();
   const token = getBearerPartnerToken(req);
-  const authOk = keys.length > 0 && token ? verifyPartnerApiKey(token) : false;
+  const parsed = token ? parseUserApiBearerToken(token) : null;
   const webhookUrls = getPartnerWebhookUrls();
   const out = {
     ok: true,
     version: "1",
     partner_api: {
-      configured: keys.length > 0,
-      keys_count: keys.length,
-      bearer_ok: authOk,
+      auth: "profile_api_key_bearer",
+      bearer_present: Boolean(token),
+      /** Полный формат haulz_<12hex>_<64hex> (без проверки секрета в БД). */
+      bearer_full_key_format: parsed !== null,
     },
     partner_webhooks: {
       outbound_configured: webhookUrls.length > 0 && Boolean(getPartnerWebhookSecret()),

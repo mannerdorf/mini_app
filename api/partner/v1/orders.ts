@@ -4,7 +4,7 @@ import { withErrorLog } from "../../../lib/requestErrorLog.js";
 import { resolvePartnerOrUserApiAuth } from "../../../lib/partnerOrUserApiAuth.js";
 import { assertBodyInnAllowedForApiKey, filterRowsByApiKeyInns } from "../../../lib/userApiKeyInnFilter.js";
 import { getPool } from "../../_db.js";
-import ordersHandler, { readRegisteredOrdersFromCache, ordersItemInn } from "../../orders.js";
+import { readRegisteredOrdersFromCache, ordersItemInn } from "../../orders.js";
 
 function readJsonBody(req: VercelRequest): Record<string, unknown> {
   let body: any = req.body;
@@ -19,8 +19,8 @@ function readJsonBody(req: VercelRequest): Record<string, unknown> {
 }
 
 /**
- * Партнёрский API v1: заявки (тело и ответ — как у `/api/orders`).
- * Авторизация: env-ключ или персональный `haulz_…` (scope `orders:read`).
+ * Внешний API v1: заявки (тело и ответ — как у кэша `/api/orders`).
+ * Авторизация: только полный ключ `haulz_…` из профиля (scope `orders:read`).
  */
 async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "partner-v1-orders");
@@ -31,10 +31,6 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
   const auth = await resolvePartnerOrUserApiAuth(req, res, ctx.requestId, "orders:read");
   if (!auth.ok) return;
-
-  if (auth.mode === "env") {
-    return ordersHandler(req, res);
-  }
 
   const body = readJsonBody(req);
   const dateFrom = String(body.dateFrom ?? "2024-01-01");

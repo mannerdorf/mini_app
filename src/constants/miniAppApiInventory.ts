@@ -35,7 +35,7 @@ export const MINI_APP_API_INVENTORY: ApiInventorySection[] = [
             {
                 method: "POST",
                 path: "/api/partner/v1/cargo",
-                note: "Перевозки (как вкладка «Грузы»): только Authorization: Bearer (haulz_… или партнёрский env-ключ, scope cargo:read). В теле — dateFrom, dateTo, inn, serviceMode; без логина/пароля.",
+                note: "Перевозки (как вкладка «Грузы»): только Authorization: Bearer и полный ключ haulz_… из Профиль → API (scope cargo:read). В теле — dateFrom, dateTo, inn, serviceMode; без логина/пароля.",
                 examples: [
                     {
                         id: "cargo-bearer",

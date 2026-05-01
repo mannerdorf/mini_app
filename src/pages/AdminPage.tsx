@@ -8727,7 +8727,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           <Panel className="cargo-card" style={{ padding: "0.85rem", border: "1px solid var(--color-border)", marginTop: "0.9rem" }}>
             <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Partner API и webhooks (v1)</Typography.Body>
             <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.55rem" }}>
-              Партнёрский REST: заголовок <code style={{ fontSize: "0.75rem" }}>Authorization: Bearer &lt;HAULZ_PARTNER_API_KEY&gt;</code>, тело как у обычных API.
+              Внешний REST v1: заголовок <code style={{ fontSize: "0.75rem" }}>Authorization: Bearer &lt;полный ключ haulz_… из ЛК пользователя&gt;</code>, тело как у кэшированных методов (без логина/пароля в теле).
               Эндпоинты: <code style={{ fontSize: "0.75rem" }}>/api/partner/v1/cargo</code>,{" "}
               <code style={{ fontSize: "0.75rem" }}>/api/partner/v1/sendings</code>, <code style={{ fontSize: "0.75rem" }}>/api/partner/v1/orders</code> (все POST).
               Исходящие webhooks: <code style={{ fontSize: "0.75rem" }}>HAULZ_PARTNER_WEBHOOK_URL</code> или <code style={{ fontSize: "0.75rem" }}>HAULZ_PARTNER_WEBHOOK_URLS</code> + секрет{" "}

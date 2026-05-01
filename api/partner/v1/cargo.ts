@@ -4,7 +4,7 @@ import { withErrorLog } from "../../../lib/requestErrorLog.js";
 import { resolvePartnerOrUserApiAuth } from "../../../lib/partnerOrUserApiAuth.js";
 import { assertBodyInnAllowedForApiKey, filterRowsByApiKeyInns } from "../../../lib/userApiKeyInnFilter.js";
 import { getPool } from "../../_db.js";
-import perevozkiHandler, { readRegisteredPerevozkiFromCache, perevozkiItemInn } from "../../perevozki.js";
+import { readRegisteredPerevozkiFromCache, perevozkiItemInn } from "../../perevozki.js";
 
 function readJsonBody(req: VercelRequest): Record<string, unknown> {
   let body: any = req.body;
@@ -19,8 +19,8 @@ function readJsonBody(req: VercelRequest): Record<string, unknown> {
 }
 
 /**
- * Партнёрский API v1: перевозки (тело и ответ — как у `/api/perevozki`).
- * Авторизация: `Authorization: Bearer` — env `HAULZ_PARTNER_API_KEY` или персональный ключ `haulz_…` из профиля (scope `cargo:read`).
+ * Внешний API v1: перевозки (тело и ответ — как у кэша `/api/perevozki` для зарегистрированного пользователя).
+ * Авторизация: только `Authorization: Bearer` + полный ключ `haulz_…` из профиля (scope `cargo:read`).
  */
 async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "partner-v1-cargo");
@@ -31,10 +31,6 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
   const auth = await resolvePartnerOrUserApiAuth(req, res, ctx.requestId, "cargo:read");
   if (!auth.ok) return;
-
-  if (auth.mode === "env") {
-    return perevozkiHandler(req, res);
-  }
 
   const body = readJsonBody(req);
   const dateFrom = String(body.dateFrom ?? "2024-01-01");
