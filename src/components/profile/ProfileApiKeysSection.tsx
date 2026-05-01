@@ -1,14 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Key, Loader2, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Copy, Key, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 import type { Account } from "../../types";
-import { USER_API_KEY_SCOPES_CLIENT } from "../../constants/userApiKeyScopesClient";
-import { MINI_APP_API_INVENTORY } from "../../constants/miniAppApiInventory";
+import { USER_API_KEY_SCOPES_CLIENT, USER_API_KEY_SCOPE_INFO_RU, scopeTitleRu } from "../../constants/userApiKeyScopesClient";
+import { ProfileApiCatalogPostman } from "./ProfileApiCatalogPostman";
 
 type ApiKeyRow = {
     id: string;
     label: string;
     key_hint: string;
+    /** Префикс до секрета — безопасно копировать (см. GET /api/my-api-keys). */
+    key_prefix?: string;
     scopes: string[];
     allowed_inns: string[];
     created_at: string;
@@ -34,6 +36,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
     const [commaInns, setCommaInns] = useState("");
     const [newToken, setNewToken] = useState<string | null>(null);
     const [catalogOpen, setCatalogOpen] = useState(false);
+    const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
 
     const login = activeAccount?.login?.trim() || "";
     const password = activeAccount?.password || "";
@@ -119,6 +122,12 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
         }
     };
 
+    const copyKeySnippet = useCallback((keyId: string, text: string) => {
+        void navigator.clipboard?.writeText(text).catch(() => {});
+        setCopiedKeyId(keyId);
+        window.setTimeout(() => setCopiedKeyId((cur) => (cur === keyId ? null : cur)), 1600);
+    }, []);
+
     const handleRevoke = async (id: string) => {
         if (!login || !password) return;
         if (!confirm("Отозвать этот ключ? Запросы с ним перестанут работать.")) return;
@@ -138,7 +147,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
 
     if (!activeAccount?.isRegisteredUser) {
         return (
-            <div className="w-full">
+            <div className="w-full profile-api-keys-root">
                 <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
                     <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
                         <ArrowLeft className="w-4 h-4" />
@@ -155,7 +164,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
     }
 
     return (
-        <div className="w-full">
+        <div className="w-full profile-api-keys-root">
             <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
                 <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
                     <ArrowLeft className="w-4 h-4" />
@@ -198,21 +207,82 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
                     <div>
                         <Typography.Body style={{ fontSize: "0.8rem", marginBottom: "0.25rem" }}>Название</Typography.Body>
-                        <Input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="Например, интеграция 1С" />
+                        <Input
+                            className="login-input"
+                            style={{ width: "100%" }}
+                            value={newLabel}
+                            onChange={(e) => setNewLabel(e.target.value)}
+                            placeholder="Например, интеграция 1С"
+                        />
                     </div>
                     <div>
-                        <Typography.Body style={{ fontSize: "0.8rem", marginBottom: "0.35rem" }}>Права (scopes)</Typography.Body>
-                        <Flex direction="column" style={{ gap: "0.35rem" }}>
-                            {USER_API_KEY_SCOPES_CLIENT.map((s) => (
-                                <label key={s} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem" }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={!!scopesSel[s]}
-                                        onChange={() => setScopesSel((prev) => ({ ...prev, [s]: !prev[s] }))}
-                                    />
-                                    {s}
-                                </label>
-                            ))}
+                        <Typography.Body style={{ fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 600 }}>
+                            Права доступа
+                        </Typography.Body>
+                        <Typography.Body
+                            style={{
+                                fontSize: "0.75rem",
+                                color: "var(--color-text-secondary)",
+                                marginBottom: "0.5rem",
+                                lineHeight: 1.45,
+                            }}
+                        >
+                            Отметьте, что разрешено делать с этим ключом. В запросе указывайте заголовок{" "}
+                            <Typography.Body as="span" style={{ fontFamily: "monospace", fontSize: "0.72rem" }}>
+                                Authorization: Bearer …
+                            </Typography.Body>
+                            .
+                        </Typography.Body>
+                        <Flex direction="column" style={{ gap: "0.65rem" }}>
+                            {USER_API_KEY_SCOPES_CLIENT.map((s) => {
+                                const info = USER_API_KEY_SCOPE_INFO_RU[s];
+                                return (
+                                    <label
+                                        key={s}
+                                        style={{
+                                            display: "flex",
+                                            alignItems: "flex-start",
+                                            gap: "0.6rem",
+                                            fontSize: "0.85rem",
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={!!scopesSel[s]}
+                                            onChange={() => setScopesSel((prev) => ({ ...prev, [s]: !prev[s] }))}
+                                            style={{ marginTop: "0.2rem" }}
+                                        />
+                                        <span style={{ flex: 1, minWidth: 0 }}>
+                                            <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem", display: "block" }}>
+                                                {info.title}
+                                            </Typography.Body>
+                                            <Typography.Body
+                                                style={{
+                                                    fontSize: "0.75rem",
+                                                    color: "var(--color-text-secondary)",
+                                                    display: "block",
+                                                    marginTop: "0.2rem",
+                                                    lineHeight: 1.45,
+                                                }}
+                                            >
+                                                {info.description}
+                                            </Typography.Body>
+                                            <Typography.Body
+                                                style={{
+                                                    fontSize: "0.7rem",
+                                                    fontFamily: "monospace",
+                                                    color: "var(--color-text-secondary)",
+                                                    display: "block",
+                                                    marginTop: "0.25rem",
+                                                }}
+                                            >
+                                                {info.apiHint} · код права: <strong>{s}</strong>
+                                            </Typography.Body>
+                                        </span>
+                                    </label>
+                                );
+                            })}
                         </Flex>
                     </div>
                     {assignableInns.length > 0 ? (
@@ -239,6 +309,8 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                                 Ограничение по ИНН (через запятую; пусто = без доп. ограничения по списку)
                             </Typography.Body>
                             <Input
+                                className="login-input"
+                                style={{ width: "100%" }}
                                 value={commaInns}
                                 onChange={(e) => setCommaInns(e.target.value)}
                                 placeholder="7707083893, 7801234567"
@@ -257,40 +329,73 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
             </Panel>
 
             <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "0.75rem" }}>
-                <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Активные ключи</Typography.Body>
+                <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Активные ключи</Typography.Body>
+                {!loading && keys.length > 0 ? (
+                    <Typography.Body
+                        style={{
+                            fontSize: "0.72rem",
+                            color: "var(--color-text-secondary)",
+                            marginBottom: "0.55rem",
+                            lineHeight: 1.4,
+                        }}
+                    >
+                        Префикс в отдельной строке можно скопировать в буфер. Секретную часть токена храните только у себя — после
+                        создания она больше не показывается.
+                    </Typography.Body>
+                ) : null}
                 {loading ? (
                     <Loader2 className="w-5 h-5 animate-spin" style={{ opacity: 0.7 }} />
                 ) : keys.length === 0 ? (
                     <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>Пока нет ключей</Typography.Body>
                 ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
-                        {keys.map((k) => (
-                            <Flex
-                                key={k.id}
-                                align="center"
-                                justify="space-between"
-                                style={{
-                                    padding: "0.5rem 0",
-                                    borderBottom: "1px solid rgba(0,0,0,0.06)",
-                                    gap: "0.5rem",
-                                    flexWrap: "wrap",
-                                }}
-                            >
-                                <div style={{ minWidth: 0 }}>
-                                    <Typography.Body style={{ fontWeight: 600, fontSize: "0.9rem" }}>{k.label}</Typography.Body>
-                                    <Typography.Body style={{ fontSize: "0.75rem", fontFamily: "monospace", opacity: 0.85 }}>
-                                        {k.key_hint}
-                                    </Typography.Body>
-                                    <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}>
-                                        {(k.scopes || []).join(", ")}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+                        {keys.map((k) => {
+                            const copyText = (k.key_prefix && k.key_prefix.length > 0 ? k.key_prefix : k.key_hint).trim();
+                            return (
+                                <div key={k.id} className="profile-api-keys-active-card">
+                                    <Flex align="flex-start" justify="space-between" style={{ gap: "0.5rem" }}>
+                                        <Typography.Body style={{ fontWeight: 600, fontSize: "0.9rem", flex: 1, minWidth: 0 }}>
+                                            {k.label}
+                                        </Typography.Body>
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            onClick={() => void handleRevoke(k.id)}
+                                            style={{ color: "#b91c1c", flexShrink: 0 }}
+                                            title="Отозвать ключ"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                    </Flex>
+                                    <div className="profile-api-keys-keyrow">
+                                        <code className="profile-api-keys-keycode">{copyText}</code>
+                                        <button
+                                            type="button"
+                                            className="profile-api-keys-copy-inline"
+                                            title="Копировать префикс ключа"
+                                            aria-label="Копировать префикс ключа в буфер обмена"
+                                            onClick={() => copyKeySnippet(k.id, copyText)}
+                                        >
+                                            {copiedKeyId === k.id ? (
+                                                <Check className="w-4 h-4" strokeWidth={2.5} />
+                                            ) : (
+                                                <Copy className="w-4 h-4" strokeWidth={2} />
+                                            )}
+                                        </button>
+                                    </div>
+                                    <Typography.Body
+                                        style={{
+                                            fontSize: "0.75rem",
+                                            color: "var(--color-text-secondary)",
+                                            marginTop: "0.45rem",
+                                        }}
+                                    >
+                                        {(k.scopes || []).map((sc) => scopeTitleRu(String(sc))).join(" · ")}
                                         {k.allowed_inns?.length ? ` · ИНН: ${k.allowed_inns.join(", ")}` : " · ИНН: все доступные"}
                                     </Typography.Body>
                                 </div>
-                                <Button size="sm" variant="secondary" onClick={() => void handleRevoke(k.id)} style={{ color: "#b91c1c" }}>
-                                    <Trash2 className="w-4 h-4" />
-                                </Button>
-                            </Flex>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </Panel>
@@ -309,25 +414,12 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                     }}
                 >
                     <Typography.Body style={{ fontWeight: 600 }}>
-                        {catalogOpen ? "▼" : "▶"} Запросы приложения к API (справочник)
+                        {catalogOpen ? "▼" : "▶"} Запросы приложения к API (справочник, как в Postman)
                     </Typography.Body>
                 </button>
                 {catalogOpen ? (
-                    <div style={{ padding: "0 1rem 1rem", maxHeight: "min(60vh, 28rem)", overflow: "auto" }}>
-                        {MINI_APP_API_INVENTORY.map((section) => (
-                            <div key={section.group} style={{ marginBottom: "1rem" }}>
-                                <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem", fontSize: "0.9rem" }}>
-                                    {section.group}
-                                </Typography.Body>
-                                <ul style={{ margin: 0, paddingLeft: "1.1rem", fontSize: "0.8rem", lineHeight: 1.45 }}>
-                                    {section.items.map((it) => (
-                                        <li key={`${it.method}-${it.path}`}>
-                                            <strong>{it.method}</strong> {it.path} — {it.note}
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        ))}
+                    <div style={{ padding: "0 0 1rem" }}>
+                        <ProfileApiCatalogPostman />
                     </div>
                 ) : null}
             </Panel>

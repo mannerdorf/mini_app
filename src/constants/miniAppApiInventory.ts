@@ -15,9 +15,9 @@ export const MINI_APP_API_INVENTORY: { group: string; items: { method: string; p
   {
     group: "Профиль — API-ключи (зарегистрированный пользователь)",
     items: [
-      { method: "GET", path: "/api/my-api-keys", note: "Список активных ключей + доступные ИНН (login/password в JSON)" },
+      { method: "GET", path: "/api/my-api-keys", note: "Список активных ключей и доступные ИНН; авторизация заголовками x-login и x-password" },
       { method: "POST", path: "/api/my-api-keys", note: "Создать ключ: label, scopes[], allowed_inns[]; один раз возвращает token" },
-      { method: "DELETE", path: "/api/my-api-keys?id=<uuid>", note: "Отозвать ключ (тело или query — id)" },
+      { method: "DELETE", path: "/api/my-api-keys?id=<uuid>", note: "Отозвать ключ (query id + заголовки x-login, x-password)" },
     ],
   },
   {

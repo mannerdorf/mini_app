@@ -119,8 +119,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         keys: rows.map((r) => ({
           id: r.id,
           label: r.label,
-          /** Маска для отображения (полный public_id не показываем целиком). */
+          /** Маска для списков (короткая). */
           key_hint: `haulz_${r.public_id.slice(0, 4)}…${r.public_id.slice(-4)}`,
+          /** Префикс токена до секрета — можно копировать (секрет в БД не хранится в открытом виде). */
+          key_prefix: `haulz_${r.public_id}_`,
           scopes: r.scopes || [],
           allowed_inns: (r.allowed_inns || []).map((x) => canonInnForApiKey(String(x))),
           created_at: r.created_at,
