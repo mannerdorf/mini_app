@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Check, Copy, Key, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 import type { Account } from "../../types";
-import { USER_API_KEY_SCOPES_CLIENT, USER_API_KEY_SCOPE_INFO_RU, scopeTitleRu } from "../../constants/userApiKeyScopesClient";
+import { USER_API_KEY_SCOPES_CLIENT, scopeTitleRu } from "../../constants/userApiKeyScopesClient";
 import { ProfileApiCatalogPostman } from "./ProfileApiCatalogPostman";
 
 type ApiKeyRow = {
@@ -29,9 +29,6 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
     const [error, setError] = useState<string | null>(null);
     const [creating, setCreating] = useState(false);
     const [newLabel, setNewLabel] = useState("");
-    const [scopesSel, setScopesSel] = useState<Record<string, boolean>>(() =>
-        Object.fromEntries(USER_API_KEY_SCOPES_CLIENT.map((s) => [s, true])),
-    );
     const [innChecks, setInnChecks] = useState<Record<string, boolean>>({});
     const [commaInns, setCommaInns] = useState("");
     const [newToken, setNewToken] = useState<string | null>(null);
@@ -70,11 +67,6 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
         void load();
     }, [load]);
 
-    const selectedScopesList = useMemo(
-        () => USER_API_KEY_SCOPES_CLIENT.filter((s) => scopesSel[s]),
-        [scopesSel],
-    );
-
     const buildAllowedInnsPayload = (): string[] => {
         if (assignableInns.length > 0) {
             return assignableInns.filter((inn) => innChecks[inn]);
@@ -90,10 +82,6 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
 
     const handleCreate = async () => {
         if (!login || !password) return;
-        if (selectedScopesList.length === 0) {
-            setError("Выберите хотя бы один scope");
-            return;
-        }
         const allowed = buildAllowedInnsPayload();
         setCreating(true);
         setError(null);
@@ -106,7 +94,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                     login,
                     password,
                     label: newLabel.trim() || "API key",
-                    scopes: selectedScopesList,
+                    scopes: [...USER_API_KEY_SCOPES_CLIENT],
                     allowed_inns: allowed,
                 }),
             });
@@ -173,7 +161,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
             </Flex>
 
             <Typography.Body style={{ marginBottom: "0.75rem", color: "var(--color-text-secondary)", fontSize: "0.9rem" }}>
-                Создавайте ключи с правами (scopes) и ограничением по ИНН. Для перевозок через{" "}
+                Создавайте ключи с ограничением по ИНН (при необходимости). Для перевозок через{" "}
                 <Typography.Body as="span" style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
                     POST /api/partner/v1/cargo
                 </Typography.Body>{" "}
@@ -218,76 +206,6 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                             onChange={(e) => setNewLabel(e.target.value)}
                             placeholder="Например, интеграция 1С"
                         />
-                    </div>
-                    <div>
-                        <Typography.Body style={{ fontSize: "0.8rem", marginBottom: "0.25rem", fontWeight: 600 }}>
-                            Права доступа
-                        </Typography.Body>
-                        <Typography.Body
-                            style={{
-                                fontSize: "0.75rem",
-                                color: "var(--color-text-secondary)",
-                                marginBottom: "0.5rem",
-                                lineHeight: 1.45,
-                            }}
-                        >
-                            Отметьте, что разрешено делать с этим ключом. В запросе указывайте заголовок{" "}
-                            <Typography.Body as="span" style={{ fontFamily: "monospace", fontSize: "0.72rem" }}>
-                                Authorization: Bearer …
-                            </Typography.Body>
-                            .
-                        </Typography.Body>
-                        <Flex direction="column" style={{ gap: "0.65rem" }}>
-                            {USER_API_KEY_SCOPES_CLIENT.map((s) => {
-                                const info = USER_API_KEY_SCOPE_INFO_RU[s];
-                                return (
-                                    <label
-                                        key={s}
-                                        style={{
-                                            display: "flex",
-                                            alignItems: "flex-start",
-                                            gap: "0.6rem",
-                                            fontSize: "0.85rem",
-                                            cursor: "pointer",
-                                        }}
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={!!scopesSel[s]}
-                                            onChange={() => setScopesSel((prev) => ({ ...prev, [s]: !prev[s] }))}
-                                            style={{ marginTop: "0.2rem" }}
-                                        />
-                                        <span style={{ flex: 1, minWidth: 0 }}>
-                                            <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem", display: "block" }}>
-                                                {info.title}
-                                            </Typography.Body>
-                                            <Typography.Body
-                                                style={{
-                                                    fontSize: "0.75rem",
-                                                    color: "var(--color-text-secondary)",
-                                                    display: "block",
-                                                    marginTop: "0.2rem",
-                                                    lineHeight: 1.45,
-                                                }}
-                                            >
-                                                {info.description}
-                                            </Typography.Body>
-                                            <Typography.Body
-                                                style={{
-                                                    fontSize: "0.7rem",
-                                                    fontFamily: "monospace",
-                                                    color: "var(--color-text-secondary)",
-                                                    display: "block",
-                                                    marginTop: "0.25rem",
-                                                }}
-                                            >
-                                                {info.apiHint} · код права: <strong>{s}</strong>
-                                            </Typography.Body>
-                                        </span>
-                                    </label>
-                                );
-                            })}
-                        </Flex>
                     </div>
                     {assignableInns.length > 0 ? (
                         <div>
@@ -394,7 +312,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                                             marginTop: "0.45rem",
                                         }}
                                     >
-                                        {(k.scopes || []).map((sc) => scopeTitleRu(String(sc))).join(" · ")}
+                                        {(k.scopes || []).map((sc) => scopeTitleRu(String(sc))).join(" · ") || "Partner v1"}
                                         {k.allowed_inns?.length ? ` · ИНН: ${k.allowed_inns.join(", ")}` : " · ИНН: все доступные"}
                                     </Typography.Body>
                                 </div>

@@ -1,6 +1,6 @@
 /**
  * Справочник методов для раздела «Профиль → API» (консоль теста).
- * Только сценарии документов и грузов; остальные маршруты приложения сюда не входят.
+ * Группы: перевозки, документы (запросы/списки), скачать документы (GetFile).
  */
 
 /** Плейсхолдеры в body: строки "{{LOGIN}}" и "{{PASSWORD}}" подставляются из аккаунта в консоли теста. */
@@ -30,12 +30,12 @@ const BODY_DATES_INN = {
 
 export const MINI_APP_API_INVENTORY: ApiInventorySection[] = [
     {
-        group: "Документы и грузы",
+        group: "Перевозки",
         items: [
             {
                 method: "POST",
                 path: "/api/partner/v1/cargo",
-                note: "Перевозки (как вкладка «Грузы»): только Authorization: Bearer и полный ключ haulz_… из Профиль → API (scope cargo:read). В теле — dateFrom, dateTo, inn, serviceMode; без логина/пароля.",
+                note: "Список перевозок (как вкладка «Грузы»): только Authorization: Bearer и полный ключ haulz_… из Профиль → API (scope cargo:read). В теле — dateFrom, dateTo, inn, serviceMode; без логина/пароля.",
                 examples: [
                     {
                         id: "cargo-bearer",
@@ -49,6 +49,11 @@ export const MINI_APP_API_INVENTORY: ApiInventorySection[] = [
                     },
                 ],
             },
+        ],
+    },
+    {
+        group: "Документы",
+        items: [
             {
                 method: "POST",
                 path: "/api/invoices",
@@ -83,6 +88,38 @@ export const MINI_APP_API_INVENTORY: ApiInventorySection[] = [
                     },
                 ],
             },
+            {
+                method: "GET",
+                path: "/api/dogovors",
+                note: "Запросить договоры из кэша. Опционально query inn — только по этому ИНН заказчика.",
+                examples: [
+                    { id: "dog-all", label: "Все договоры в кэше", query: {} },
+                    { id: "dog-inn", label: "Фильтр по ИНН", query: { inn: "7722461620" } },
+                ],
+            },
+            {
+                method: "GET",
+                path: "/api/tariffs",
+                note: "Запросить тарифы из кэша. Опционально ?inn= — фильтр по ИНН заказчика.",
+                examples: [
+                    { id: "tar-all", label: "Все тарифы", query: {} },
+                    { id: "tar-inn", label: "По ИНН", query: { inn: "7722461620" } },
+                ],
+            },
+            {
+                method: "GET",
+                path: "/api/sverki",
+                note: "Запросить акты сверок из кэша. Опционально ?inn=.",
+                examples: [
+                    { id: "sv-all", label: "Все акты сверок", query: {} },
+                    { id: "sv-inn", label: "По ИНН", query: { inn: "7722461620" } },
+                ],
+            },
+        ],
+    },
+    {
+        group: "Скачать документы",
+        items: [
             {
                 method: "POST",
                 path: "/api/download",
@@ -153,33 +190,6 @@ export const MINI_APP_API_INVENTORY: ApiInventorySection[] = [
                             isRegisteredUser: true,
                         },
                     },
-                ],
-            },
-            {
-                method: "GET",
-                path: "/api/dogovors",
-                note: "Запросить договоры из кэша. Опционально query inn — только по этому ИНН заказчика.",
-                examples: [
-                    { id: "dog-all", label: "Все договоры в кэше", query: {} },
-                    { id: "dog-inn", label: "Фильтр по ИНН", query: { inn: "7722461620" } },
-                ],
-            },
-            {
-                method: "GET",
-                path: "/api/tariffs",
-                note: "Запросить тарифы из кэша. Опционально ?inn= — фильтр по ИНН заказчика.",
-                examples: [
-                    { id: "tar-all", label: "Все тарифы", query: {} },
-                    { id: "tar-inn", label: "По ИНН", query: { inn: "7722461620" } },
-                ],
-            },
-            {
-                method: "GET",
-                path: "/api/sverki",
-                note: "Запросить акты сверок из кэша. Опционально ?inn=.",
-                examples: [
-                    { id: "sv-all", label: "Все акты сверок", query: {} },
-                    { id: "sv-inn", label: "По ИНН", query: { inn: "7722461620" } },
                 ],
             },
         ],

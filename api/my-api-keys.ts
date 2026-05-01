@@ -140,12 +140,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === "POST") {
     const label = typeof body.label === "string" ? body.label.trim().slice(0, 200) : "";
-    const scopes = normalizeScopes(body.scopes);
+    let scopes = normalizeScopes(body.scopes);
     if (scopes.length === 0) {
-      return res.status(400).json({
-        error: `Укажите хотя бы один scope: ${USER_API_KEY_SCOPES.join(", ")}`,
-        request_id: ctx.requestId,
-      });
+      scopes = [...USER_API_KEY_SCOPES];
     }
     const verified = await getRegisteredUserProfile(pool, loginKey);
     if (!verified) {
