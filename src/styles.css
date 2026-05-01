@@ -2680,36 +2680,6 @@ body {
     color: var(--color-text-secondary);
 }
 
-/* Светлая тема: полоса вкладок и строка URL — тёмная с контрастным текстом (как у Postman) */
-.light-mode .profile-api-try__tabs {
-    background: #0f172a;
-    border-color: #1e293b;
-}
-.light-mode .profile-api-try__tab {
-    color: #94a3b8;
-}
-.light-mode .profile-api-try__tab:hover {
-    color: #e2e8f0;
-    background: rgba(255, 255, 255, 0.06);
-}
-.light-mode .profile-api-try__tab.is-active {
-    color: #f8fafc;
-    background: #1e293b;
-    box-shadow: 0 0 0 1px #334155;
-}
-.light-mode .profile-api-try__tab-badge {
-    color: #cbd5e1;
-}
-.light-mode .profile-api-try__url-row {
-    background: #0f172a;
-    border-color: #1e293b;
-}
-.light-mode .profile-api-try__url-input {
-    background: #1e293b !important;
-    color: #f1f5f9 !important;
-    border-color: #334155 !important;
-}
-
 @media (max-width: 560px) {
     .profile-api-catalog-postman {
         flex-direction: column;
