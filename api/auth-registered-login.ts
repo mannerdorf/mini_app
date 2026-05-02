@@ -4,6 +4,7 @@ import { verifyPassword } from "../lib/passwordUtils.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
 import { getClientIp, isRateLimited, AUTH_LOGIN_LIMIT } from "../lib/rateLimit.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { insertUserAppEvent } from "../lib/userAppEvents.js";
 
 async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "auth-registered-login");
@@ -17,7 +18,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(429).json({ error: "Слишком много попыток входа. Подождите минуту.", request_id: ctx.requestId });
   }
 
-  let body: { email?: string; login?: string; password?: string } = req.body;
+  let body: { email?: string; login?: string; password?: string; activity?: string } = req.body;
   if (typeof body === "string") {
     try {
       body = JSON.parse(body);
@@ -80,6 +81,10 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       if (err?.code !== "42703" && !err?.message?.includes("last_login_at")) {
         throw updateErr;
       }
+    }
+
+    if (body.activity !== "silent") {
+      await insertUserAppEvent(pool, { userId: user.id, login: user.login, eventType: "app_login" });
     }
 
     const permissions =

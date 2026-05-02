@@ -744,6 +744,24 @@ export default function App() {
     useEffect(() => {
         syncAppUrlWithActiveTab(activeTab);
     }, [activeTab]);
+
+    // Журнал разделов приложения для админ-отчёта активности (debounce; без учёта фоновых refresh входа).
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        if (!activeAccount?.isRegisteredUser || !activeAccount.login || !activeAccount.password) return;
+        const section = String(activeTab);
+        const login = activeAccount.login;
+        const password = activeAccount.password;
+        const t = window.setTimeout(() => {
+            void fetch("/api/app-activity-beacon", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ login, password, section }),
+                keepalive: true,
+            }).catch(() => {});
+        }, 650);
+        return () => window.clearTimeout(t);
+    }, [activeTab, activeAccount?.isRegisteredUser, activeAccount?.login, activeAccount?.password]);
     
     // Сохранение аккаунтов и выбранных компаний в localStorage
     useEffect(() => {
@@ -782,6 +800,7 @@ export default function App() {
                         const { ok, data } = await postAuthRegisteredLogin({
                             email: acc.login.trim().toLowerCase(),
                             password: acc.password,
+                            activity: "silent",
                         });
                         if (cancelled || !ok || !data?.ok || !data?.user) continue;
                         const u = data.user as Record<string, unknown>;
@@ -836,6 +855,7 @@ export default function App() {
                 const { ok, data } = await postAuthRegisteredLogin({
                     email: activeAccount.login.trim().toLowerCase(),
                     password: activeAccount.password,
+                    activity: "silent",
                 });
                 if (cancelled || !ok || !data?.ok || !data?.user) return;
                 const user = data.user as Record<string, unknown>;
@@ -876,6 +896,7 @@ export default function App() {
                 const { ok, data } = await postAuthRegisteredLogin({
                     email: activeAccount.login.trim().toLowerCase(),
                     password: activeAccount.password,
+                    activity: "silent",
                 });
                 if (cancelled || !ok || !data?.ok || !data?.user) return;
                 const user = data.user as Record<string, unknown>;

@@ -32,7 +32,12 @@ export type AuthRegisteredLoginResponse = {
 };
 
 /** CMS: вход по email/пароль. Вызывающий сам проверяет res.ok и data.ok. */
-export async function postAuthRegisteredLogin(body: { email: string; password: string }): Promise<{
+export async function postAuthRegisteredLogin(body: {
+    email: string;
+    password: string;
+    /** Не писать событие входа в журнал активности (фоновое обновление профиля). */
+    activity?: "silent";
+}): Promise<{
     ok: boolean;
     data: AuthRegisteredLoginResponse;
 }> {
