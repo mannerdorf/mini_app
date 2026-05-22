@@ -27,9 +27,6 @@ export type CargoFilterPipelineParams = {
   lastMileFilter: "all" | "self_pickup" | "delivery";
   sortBy: "datePrih" | "dateVr" | null;
   sortOrder: "asc" | "desc";
-  /** Диапазон плановой даты доставки (календарный день); null — не фильтровать. */
-  plannedDeliveryRange: { dateFrom: string; dateTo: string } | null;
-  getEffectivePlannedDelivery: ((item: CargoItem) => Date | null) | null;
 };
 
 const parseDateSafe = (dateString: string | undefined): number | null => {
@@ -180,8 +177,6 @@ export function buildFilteredCargoItems(
     lastMileFilter,
     sortBy,
     sortOrder,
-    plannedDeliveryRange,
-    getEffectivePlannedDelivery,
   } = params;
 
   let res = items.filter((i) => !isReceivedInfoStatus(i.State));
@@ -243,18 +238,6 @@ export function buildFilteredCargoItems(
     res = res.filter((i) => cargoLastMileIsSelfPickup(i));
   } else if (lastMileFilter === "delivery") {
     res = res.filter((i) => !cargoLastMileIsSelfPickup(i));
-  }
-
-  if (plannedDeliveryRange && getEffectivePlannedDelivery) {
-    const { dateFrom, dateTo } = plannedDeliveryRange;
-    const now = new Date();
-    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    res = res.filter((i) => {
-      const p = getEffectivePlannedDelivery(i);
-      if (!p) return false;
-      const k = `${p.getFullYear()}-${String(p.getMonth() + 1).padStart(2, "0")}-${String(p.getDate()).padStart(2, "0")}`;
-      return k >= todayKey && k >= dateFrom && k <= dateTo;
-    });
   }
 
   if (sortBy) {
