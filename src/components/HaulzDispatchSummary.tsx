@@ -507,6 +507,13 @@ export function HaulzDispatchSummary({
                     <Flex gap="0.55rem" wrap="wrap" style={{ marginBottom: "1rem" }}>
                         <StatCard tileKey="total" cardTitle="Всего в выборке" count={stats.total} footer={<TileMetricsFooter items={items} />} accent="#2563eb" />
                         <StatCard
+                            tileKey="delivered"
+                            cardTitle="Доставлено"
+                            count={stats.delivered.length}
+                            footer={<TileMetricsFooter items={stats.delivered} />}
+                            accent="#10b981"
+                        />
+                        <StatCard
                             tileKey="transit"
                             cardTitle="В пути"
                             count={stats.transit.length}
@@ -526,13 +533,6 @@ export function HaulzDispatchSummary({
                             count={stats.delivering.length}
                             footer={<TileMetricsFooter items={stats.delivering} />}
                             accent="#06b6d4"
-                        />
-                        <StatCard
-                            tileKey="delivered"
-                            cardTitle="Доставлено"
-                            count={stats.delivered.length}
-                            footer={<TileMetricsFooter items={stats.delivered} />}
-                            accent="#10b981"
                         />
                     </Flex>
 

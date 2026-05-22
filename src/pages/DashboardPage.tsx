@@ -2583,6 +2583,22 @@ export function DashboardPage({
 
     return (
         <div className={`w-full dashboard-page-offset${saasDashboardMotion ? " dashboard-page--saas-analytics" : ""}`}>
+            {/* Выдача грузов (HAULZ): первым блоком — карточки статусов + таблица по заказчикам */}
+            {canAccessHaulzDispatch && onOpenCargo && (
+                <div id="haulz-dispatch-dashboard" style={{ marginBottom: "0.75rem" }}>
+                    <HaulzDispatchSummary
+                        auth={auth}
+                        useServiceRequest={useServiceRequest}
+                        onOpenCargo={onOpenCargo}
+                        perevozkiItems={items}
+                        perevozkiLoading={loading}
+                        perevozkiError={error}
+                        perevozkiMutate={mutatePerevozki}
+                        showRefreshButton
+                    />
+                </div>
+            )}
+
             {/* === ВИДЖЕТ 1: Фильтры (включить: WIDGET_1_FILTERS = true) === */}
             {WIDGET_1_FILTERS && (
             <motion.div {...(dashboardMotionEnabled ? cargoSummaryMotion : { initial: false })}>
@@ -4907,22 +4923,6 @@ export function DashboardPage({
 
             </DashboardMotionItem>
             </DashboardMotionGroup>
-
-            {/* Выдача грузов (HAULZ): карточки статусов + таблица по заказчикам — второй экран после основной аналитики */}
-            {canAccessHaulzDispatch && onOpenCargo && (
-                <div id="haulz-dispatch-dashboard" style={{ marginTop: "0.25rem" }}>
-                    <HaulzDispatchSummary
-                        auth={auth}
-                        useServiceRequest={useServiceRequest}
-                        onOpenCargo={onOpenCargo}
-                        perevozkiItems={items}
-                        perevozkiLoading={loading}
-                        perevozkiError={error}
-                        perevozkiMutate={mutatePerevozki}
-                        showRefreshButton
-                    />
-                </div>
-            )}
 
             {/* === ВИДЖЕТ 5: Платёжный календарь (включить: WIDGET_5_PAYMENT_CALENDAR = true) === */}
             {false && WIDGET_5_PAYMENT_CALENDAR && showPaymentCalendar && !loading && !error && (
