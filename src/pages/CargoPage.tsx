@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Button, Flex, Typography } from "@maxhub/max-ui";
+import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { ChevronDown, X, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
@@ -898,17 +898,32 @@ export function CargoPage({
                     saasAnalytics={cargoServiceSaasUi}
                 />
             </motion.div>
+            </div>
+
             {effectiveServiceMode && (
-                <details style={{ marginTop: "0.5rem" }}>
-                    <summary style={{ cursor: "pointer", fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-                        Debug грузов (служебный режим)
-                    </summary>
-                    <pre style={{ marginTop: "0.5rem", fontSize: "0.72rem", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                <Panel
+                    className="cargo-service-debug-panel"
+                    style={{
+                        marginBottom: "0.75rem",
+                        padding: "0.65rem 0.75rem",
+                        border: "2px solid #2563eb",
+                        background: "rgba(37, 99, 235, 0.08)",
+                    }}
+                >
+                    <Flex align="center" justify="space-between" style={{ marginBottom: "0.35rem", flexWrap: "wrap", gap: "0.35rem" }}>
+                        <Typography.Label style={{ fontWeight: 700, color: "#1d4ed8" }}>
+                            Debug грузов (служебный режим)
+                        </Typography.Label>
+                        <Typography.Body style={{ fontSize: "0.8rem" }}>
+                            API: {serviceDebugSnapshot.counts.itemsFromApi} · после фильтров: {serviceDebugSnapshot.counts.filteredItems}
+                            {serviceDebugSnapshot.error ? ` · ошибка: ${serviceDebugSnapshot.error}` : ""}
+                        </Typography.Body>
+                    </Flex>
+                    <pre style={{ margin: 0, fontSize: "0.72rem", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: "40vh" }}>
                         {JSON.stringify(serviceDebugSnapshot, null, 2)}
                     </pre>
-                </details>
+                </Panel>
             )}
-            </div>
 
             <CargoStateBlocks
                 loading={loading}
