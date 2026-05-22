@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
-import { ChevronDown, ArrowUp, ArrowDown, Share2, Heart, Ship, Loader2, Truck, Flag, ClipboardList, RotateCcw, Download } from "lucide-react";
+import { ChevronDown, ArrowUp, ArrowDown, Share2, Heart, Ship, Loader2, Truck, Download } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
@@ -4346,7 +4346,7 @@ useEffect(() => {
                             </span>
                         ))}
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '0.35rem', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+                    <div className="documents-sendings-infographic-status-row" style={{ display: 'flex', flexWrap: 'nowrap', gap: '0.35rem', overflowX: 'auto', whiteSpace: 'nowrap' }}>
                         {sendingsInfographic.statusBadges.map((item) => {
                             const isActive = deliveryStatusFilterSet.has(item.key as StatusFilter);
                             return (
@@ -4521,10 +4521,7 @@ useEffect(() => {
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус доставки</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Плановая дата прибытия</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('vehicle')} title="Сортировка">Транспортное средство {sendingsSortColumn === 'vehicle' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Паром</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>ETA</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('comment')} title="Сортировка">Комментарий {sendingsSortColumn === 'comment' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                {showEorColumn && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }} title="Exit of Records (Запись о выходе)">EOR</th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -4533,26 +4530,7 @@ useEffect(() => {
                                 const number = String(row?.Номер ?? row?.Number ?? row?.number ?? '');
                                 const vehicle = normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '');
                                 const comment = String(row?.Комментарий ?? row?.Comment ?? '');
-                                const eor = String(row?.EOR ?? row?.ЗаписьОВыходе ?? row?.ExitOfRecords ?? '').trim();
                                 const rowKey = getSendingRowKey(row, idx);
-                                const eorStatuses = (() => {
-                                    const withNormalized = (raw: string) => {
-                                        const base = String(raw ?? '').trim();
-                                        if (!base) return [] as string[];
-                                        const compact = base.replace(/\D+/g, '');
-                                        return compact && compact !== base ? [base, compact] : [base];
-                                    };
-                                    const candidates = [
-                                        ...withNormalized(rowKey),
-                                        ...withNormalized(number),
-                                        ...withNormalized(String(row?.ИДОтправления ?? '').trim()),
-                                    ];
-                                    for (const candidate of Array.from(new Set(candidates))) {
-                                        const statuses = eorStatusMap[candidate];
-                                        if (Array.isArray(statuses) && statuses.length > 0) return statuses;
-                                    }
-                                    return [] as EorStatus[];
-                                })();
                                 const parcels = getRequestParcels(row);
                                 const searchLower = effectiveSearchText.trim().toLowerCase();
                                 const parcelMatches = searchLower ? parcels.filter((parcel: any) => getParcelSearchText(parcel).includes(searchLower)) : [];
@@ -4573,16 +4551,7 @@ useEffect(() => {
                                     <React.Fragment key={rowKey}>
                                         <tr
                                             style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expanded ? 'var(--color-bg-hover)' : undefined }}
-                                            onClick={(e) => {
-                                                const el = e.target as Element | null;
-                                                if (
-                                                    el?.closest?.('select') ||
-                                                    el?.closest?.('[data-ferry-cell]') ||
-                                                    el?.closest?.('option')
-                                                )
-                                                    return;
-                                                setExpandedSendingRow((prev) => (prev === rowKey ? null : rowKey));
-                                            }}
+                                            onClick={() => setExpandedSendingRow((prev) => (prev === rowKey ? null : rowKey))}
                                             title={expanded ? 'Свернуть посылки' : 'Показать посылки'}
                                         >
                                             {canEditPlanDate && (
@@ -4636,101 +4605,11 @@ useEffect(() => {
                                                 {plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : 'нет'}
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
-                                            <td
-                                                data-ferry-cell
-                                                style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle', position: 'relative', zIndex: 2, touchAction: 'manipulation' }}
-                                                onClick={(e) => e.stopPropagation()}
-                                                onMouseDown={(e) => e.stopPropagation()}
-                                                onPointerDown={(e) => e.stopPropagation()}
-                                            >
-                                                {transportType === 'ferry' ? (
-                                                    canEditPlanDate && ferriesList.length > 0 ? (
-                                                        <div
-                                                            style={{ display: 'inline-block', minWidth: 140 }}
-                                                            onClick={(e) => e.stopPropagation()}
-                                                            onMouseDown={(e) => e.stopPropagation()}
-                                                            onPointerDown={(e) => e.stopPropagation()}
-                                                        >
-                                                            <select
-                                                                className="admin-form-input"
-                                                                data-ferry-select
-                                                                value={String(getSendingsFerryEntry(rowKey, number)?.ferry_id ?? '')}
-                                                                onChange={(e) => {
-                                                                    const v = e.target.value;
-                                                                    handleFerrySelect(rowKey, v, effectiveActiveInn ?? null);
-                                                                }}
-                                                                disabled={ferryEtaLoadingByRow[rowKey]}
-                                                                onClick={(e) => e.stopPropagation()}
-                                                                onMouseDown={(e) => e.stopPropagation()}
-                                                                onPointerDown={(e) => e.stopPropagation()}
-                                                                style={{ padding: '0.4rem 0.5rem', fontSize: '0.85rem', minWidth: 140, maxWidth: 200, minHeight: 36, cursor: 'pointer' }}
-                                                                aria-label="Выберите паром"
-                                                            >
-                                                                <option value="">— Выберите паром —</option>
-                                                                {ferriesList.map((f) => (
-                                                                    <option key={f.id} value={String(f.id)}>{f.name}</option>
-                                                                ))}
-                                                            </select>
-                                                        </div>
-                                                    ) : getSendingsFerryEntry(rowKey, number)?.ferry_name ?? '—'
-                                                ) : '—'}
-                                            </td>
-                                            <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>
-                                                {transportType === 'ferry' ? (
-                                                    ferryEtaLoadingByRow[rowKey] ? (
-                                                        <Loader2 className="w-4 h-4 animate-spin" style={{ display: 'inline-block' }} />
-                                                    ) : (() => {
-                                                        const entry = getSendingsFerryEntry(rowKey, number);
-                                                        const etaVal = entry?.eta;
-                                                        const mmsiForLink = entry
-                                                            ? ferriesList.find((f) => Number(f.id) === Number(entry.ferry_id))?.mmsi
-                                                            : undefined;
-                                                        const canOpenAis = mmsiForLink && onOpenAisWithMmsi;
-                                                        const content = etaVal ? <DateText value={etaVal} /> : (entry ? '—' : '—');
-                                                        return canOpenAis ? (
-                                                            <button
-                                                                type="button"
-                                                                onClick={(e) => { e.stopPropagation(); onOpenAisWithMmsi(mmsiForLink!); }}
-                                                                style={{ border: 'none', background: 'transparent', padding: 0, color: 'var(--color-primary-blue)', cursor: 'pointer', textDecoration: etaVal ? 'underline' : 'none', fontSize: 'inherit' }}
-                                                                title="Открыть в AIS"
-                                                            >
-                                                                {content}
-                                                            </button>
-                                                        ) : (
-                                                            content
-                                                        );
-                                                    })()
-                                                ) : '—'}
-                                            </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>
-                                            {showEorColumn && (
-                                                <td style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle' }} title="Exit of Records (Запись о выходе)">
-                                                    {eorStatuses.length > 0 ? (
-                                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                                                            {eorStatuses.includes('entry_allowed') && (
-                                                                <span title="Въезд разрешен"><Flag className="w-4 h-4" style={{ color: '#003399', display: 'inline-block' }} /></span>
-                                                            )}
-                                                            {eorStatuses.includes('full_inspection') && (
-                                                                <span title="Полный досмотр"><ClipboardList className="w-4 h-4" style={{ color: 'var(--color-text-primary)', display: 'inline-block' }} /></span>
-                                                            )}
-                                                            {eorStatuses.includes('turnaround') && (
-                                                                <span title="Разворот" style={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
-                                                                    <RotateCcw className="w-4 h-4" style={{ color: 'var(--color-text-primary)', flexShrink: 0 }} />
-                                                                    <Truck className="w-3.5 h-3.5" style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} />
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    ) : eor ? (
-                                                        eor
-                                                    ) : (
-                                                        '—'
-                                                    )}
-                                                </td>
-                                            )}
                                         </tr>
                                         {expanded && (
                                             <tr>
-                                                <td colSpan={(showEorColumn ? 11 : 10) + (canEditPlanDate ? 1 : 0)} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <td colSpan={9 + (canEditPlanDate ? 1 : 0)} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                     <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                                             <Button
@@ -5570,26 +5449,7 @@ useEffect(() => {
                             const number = String(row?.Номер ?? row?.Number ?? row?.number ?? '');
                             const vehicle = normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '');
                             const comment = String(row?.Комментарий ?? row?.Comment ?? '');
-                            const eor = String(row?.EOR ?? row?.ЗаписьОВыходе ?? row?.ExitOfRecords ?? '').trim();
                             const rowKey = getSendingRowKey(row, idx);
-                            const eorStatuses = (() => {
-                                const withNormalized = (raw: string) => {
-                                    const base = String(raw ?? '').trim();
-                                    if (!base) return [] as string[];
-                                    const compact = base.replace(/\D+/g, '');
-                                    return compact && compact !== base ? [base, compact] : [base];
-                                };
-                                const candidates = [
-                                    ...withNormalized(rowKey),
-                                    ...withNormalized(number),
-                                    ...withNormalized(String(row?.ИДОтправления ?? '').trim()),
-                                ];
-                                for (const candidate of Array.from(new Set(candidates))) {
-                                    const statuses = eorStatusMap[candidate];
-                                    if (Array.isArray(statuses) && statuses.length > 0) return statuses;
-                                }
-                                return [] as EorStatus[];
-                            })();
                             const parcels = getRequestParcels(row);
                             const searchLower = effectiveSearchText.trim().toLowerCase();
                             const parcelMatches = searchLower ? parcels.filter((parcel: any) => getParcelSearchText(parcel).includes(searchLower)) : [];
@@ -5675,29 +5535,6 @@ useEffect(() => {
                                         <Typography.Label style={{ marginTop: '0.2rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={comment}>
                                             Комментарий: {comment}
                                         </Typography.Label>
-                                    )}
-                                    {showEorColumn && (
-                                        <div style={{ marginTop: '0.3rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }} title="Exit of Records (Запись о выходе)">
-                                            EOR:{' '}
-                                            {eorStatuses.length > 0 ? (
-                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', verticalAlign: 'middle' }}>
-                                                    {eorStatuses.includes('entry_allowed') && (
-                                                        <span title="Въезд разрешен"><Flag className="w-4 h-4" style={{ color: '#003399', display: 'inline-block' }} /></span>
-                                                    )}
-                                                    {eorStatuses.includes('full_inspection') && (
-                                                        <span title="Полный досмотр"><ClipboardList className="w-4 h-4" style={{ color: 'var(--color-text-primary)', display: 'inline-block' }} /></span>
-                                                    )}
-                                                    {eorStatuses.includes('turnaround') && (
-                                                        <span title="Разворот" style={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
-                                                            <RotateCcw className="w-4 h-4" style={{ color: 'var(--color-text-primary)', flexShrink: 0 }} />
-                                                            <Truck className="w-3.5 h-3.5" style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} />
-                                                        </span>
-                                                    )}
-                                                </span>
-                                            ) : (
-                                                eor || '—'
-                                            )}
-                                        </div>
                                     )}
                                     {expanded && (
                                         <div style={{ marginTop: '0.6rem', borderTop: '1px solid var(--color-border)', paddingTop: '0.55rem' }} onClick={(ev) => ev.stopPropagation()}>
