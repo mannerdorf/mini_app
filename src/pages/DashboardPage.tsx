@@ -1608,7 +1608,7 @@ export function DashboardPage({
                             <circle key={`dot-main-${idx}`} cx={p.x + barWidth / 2} cy={p.y} r="4" fill={color} opacity="0.9" />
                         ))}
 
-                        {/* Подписи значений — только для столбцов */}
+                        {/* Подписи дат под столбцами (без значений на столбцах) */}
                         {roundedData.map((d, idx) => {
                             const { x, y, barHeight } = points[idx];
                             
