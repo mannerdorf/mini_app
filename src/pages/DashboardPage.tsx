@@ -51,6 +51,32 @@ const {
 } = dateUtils;
 const MONTH_NAMES = dateUtils.MONTH_NAMES;
 
+/** Единая типографика панелей «План-Факт», «Грузовой поток» и аналогичных блоков */
+const DASH_PLAN_FACT_TYPO = {
+    title: { fontSize: "1rem", fontWeight: 600, marginBottom: "0.25rem" } as const,
+    desc: { fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" } as const,
+    badge: { fontSize: "0.72rem", padding: "0.18rem 0.45rem", borderRadius: "999px" } as const,
+    subhead: { fontSize: "0.78rem", fontWeight: 600, marginBottom: "0.35rem" } as const,
+    meta: { fontSize: "0.78rem", color: "var(--color-text-secondary)" } as const,
+    tile: {
+        border: "1px solid var(--color-border)",
+        borderRadius: 8,
+        padding: "0.38rem 0.42rem",
+        background: "var(--color-bg-hover)",
+    } as const,
+    tileDate: { fontSize: "0.7rem", color: "var(--color-text-secondary)", marginBottom: "0.18rem" } as const,
+    tileLine: { fontSize: "0.68rem", display: "block" as const },
+    table: { fontSize: "0.72rem" } as const,
+    tableTh: { padding: "0.4rem 0.45rem", fontWeight: 600 } as const,
+    statusPill: {
+        fontSize: "0.68rem",
+        padding: "0.12rem 0.4rem",
+        borderRadius: 999,
+        fontWeight: 600,
+        whiteSpace: "nowrap" as const,
+    },
+};
+
 const DASHBOARD_MOTION_CONTAINER = {
     hidden: {},
     visible: {
@@ -3575,13 +3601,13 @@ export function DashboardPage({
 
             {!showOnlySla && !loading && !error && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
-                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                    <Typography.Headline style={DASH_PLAN_FACT_TYPO.title}>
                         Грузовой поток (по плановой дате)
                     </Typography.Headline>
-                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
+                    <Typography.Body style={DASH_PLAN_FACT_TYPO.desc}>
                         Поток перевозок по плановой дате доставки: нагрузка на ближайшие дни и риск просрочки. Нажмите на бейдж или день — ниже откроется таблица; повторный клик по тому же элементу сворачивает её.
                     </Typography.Body>
-                    <Flex gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.9rem' }}>
+                    <Flex gap="0.55rem" wrap="wrap" style={{ marginBottom: '0.8rem' }}>
                         {([
                             { badge: 'withPlan' as const, label: `С планом: ${cargoFlowByPlan.withPlan} из ${cargoFlowByPlan.total}`, bg: 'rgba(37,99,235,0.14)', border: '1px solid rgba(37,99,235,0.35)' },
                             { badge: 'overdue' as const, label: `Просрочено: ${cargoFlowByPlan.overdue}`, bg: cargoFlowByPlan.overdue > 0 ? 'rgba(239,68,68,0.16)' : 'rgba(148,163,184,0.16)', border: cargoFlowByPlan.overdue > 0 ? '1px solid rgba(239,68,68,0.35)' : '1px solid var(--color-border)' },
@@ -3599,14 +3625,11 @@ export function DashboardPage({
                                     className="role-badge"
                                     onClick={() => onCargoFlowPick(sel)}
                                     style={{
-                                        fontSize: '0.72rem',
-                                        padding: '0.18rem 0.45rem',
-                                        borderRadius: '999px',
+                                        ...DASH_PLAN_FACT_TYPO.badge,
                                         background: active ? `${b.bg.replace('0.14', '0.22').replace('0.16', '0.24')}` : b.bg,
                                         border: active ? '2px solid rgba(255,255,255,0.35)' : b.border,
                                         cursor: 'pointer',
                                         color: 'inherit',
-                                        font: 'inherit',
                                         boxShadow: active ? '0 0 0 2px rgba(37,99,235,0.25)' : undefined,
                                     }}
                                 >
@@ -3615,12 +3638,12 @@ export function DashboardPage({
                             );
                         })}
                     </Flex>
-                    <div style={{ marginTop: '0.4rem' }}>
-                        <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.45rem' }}>
+                    <div style={{ marginTop: '0.35rem' }}>
+                        <Typography.Body style={DASH_PLAN_FACT_TYPO.subhead}>
                             Ближайшие 7 дней (плановая доставка)
                         </Typography.Body>
                         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(130px, 1fr))', gap: '0.45rem', minWidth: '56rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(86px, 1fr))', gap: '0.4rem', minWidth: '40rem' }}>
                             {cargoFlowByPlan.upcomingSeries.map((row) => {
                                 const tileSel = { kind: 'tile' as const, dateKey: row.key };
                                 const tileActive = cargoFlowTableExpanded && cargoFlowSelectionEqual(cargoFlowTableSelection, tileSel);
@@ -3630,54 +3653,36 @@ export function DashboardPage({
                                         type="button"
                                         onClick={() => onCargoFlowPick(tileSel)}
                                         style={{
-                                            border: tileActive ? '2px solid rgba(37,99,235,0.65)' : '1px solid var(--color-border)',
-                                            borderRadius: 10,
-                                            padding: '0.45rem 0.5rem',
-                                            background: row.count > 0 ? 'rgba(37,99,235,0.05)' : 'var(--color-bg-hover)',
-                                            minHeight: '9.1rem',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            gap: '0.3rem',
+                                            ...DASH_PLAN_FACT_TYPO.tile,
+                                            border: tileActive ? '2px solid rgba(37,99,235,0.65)' : DASH_PLAN_FACT_TYPO.tile.border,
+                                            background: row.count > 0 ? 'rgba(37,99,235,0.05)' : DASH_PLAN_FACT_TYPO.tile.background,
                                             cursor: 'pointer',
                                             color: 'inherit',
-                                            font: 'inherit',
                                             textAlign: 'left',
                                             boxSizing: 'border-box',
                                         }}
                                     >
-                                        <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600 }}>
+                                        <Typography.Body style={DASH_PLAN_FACT_TYPO.tileDate}>
                                             <DateText value={row.key} />
                                         </Typography.Body>
-                                        <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>
+                                        <Typography.Body style={DASH_PLAN_FACT_TYPO.tileLine}>
                                             Всего: {row.count}
                                         </Typography.Body>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.22rem', marginTop: '0.08rem' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.35rem' }}>
-                                                <Flex align="center" gap="0.25rem">
-                                                    <Ship className="w-3.5 h-3.5" style={{ color: '#2563eb' }} />
-                                                    <Typography.Body style={{ fontSize: '0.72rem' }}>Паром</Typography.Body>
-                                                </Flex>
-                                                <Typography.Body style={{ fontSize: '0.72rem', fontWeight: 600 }}>{row.ferry.count}</Typography.Body>
-                                            </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.35rem' }}>
-                                                <Flex align="center" gap="0.25rem">
-                                                    <Truck className="w-3.5 h-3.5" style={{ color: '#16a34a' }} />
-                                                    <Typography.Body style={{ fontSize: '0.72rem' }}>Авто</Typography.Body>
-                                                </Flex>
-                                                <Typography.Body style={{ fontSize: '0.72rem', fontWeight: 600 }}>{row.auto.count}</Typography.Body>
-                                            </div>
-                                        </div>
-                                        <div style={{ marginTop: '0.1rem', paddingTop: '0.3rem', borderTop: '1px dashed var(--color-border)' }}>
-                                            <Typography.Body style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
-                                                Мест: {Math.round(row.mest).toLocaleString('ru-RU')}
-                                            </Typography.Body>
-                                            <Typography.Body style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
-                                                Вес: {Math.round(row.pw).toLocaleString('ru-RU')} кг
-                                            </Typography.Body>
-                                            <Typography.Body style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
-                                                Объём: {row.vol.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} м³
-                                            </Typography.Body>
-                                        </div>
+                                        <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.tileLine, color: '#2563eb' }}>
+                                            Паром: {row.ferry.count}
+                                        </Typography.Body>
+                                        <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.tileLine, color: '#16a34a' }}>
+                                            Авто: {row.auto.count}
+                                        </Typography.Body>
+                                        <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.tileLine, color: 'var(--color-text-secondary)' }}>
+                                            Мест: {Math.round(row.mest).toLocaleString('ru-RU')}
+                                        </Typography.Body>
+                                        <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.tileLine, color: 'var(--color-text-secondary)' }}>
+                                            Вес: {Math.round(row.pw).toLocaleString('ru-RU')} кг
+                                        </Typography.Body>
+                                        <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.tileLine, color: 'var(--color-text-secondary)' }}>
+                                            Объём: {row.vol.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} м³
+                                        </Typography.Body>
                                     </button>
                                 );
                             })}
@@ -3687,7 +3692,7 @@ export function DashboardPage({
                     {cargoFlowTableExpanded && cargoFlowTableSelection && (
                         <div style={{ marginTop: '0.75rem', border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.55rem', background: 'var(--color-bg-hover)' }}>
                             <Flex align="center" justify="space-between" gap="0.5rem" wrap="wrap" style={{ marginBottom: '0.45rem' }}>
-                                <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600 }}>
+                                <Typography.Body style={DASH_PLAN_FACT_TYPO.subhead}>
                                     {cargoFlowTableSelection.kind === 'tile' ? (
                                         <>
                                             Плановая доставка,{' '}
@@ -3705,20 +3710,20 @@ export function DashboardPage({
                                         </>
                                     )}
                                 </Typography.Body>
-                                <Button type="button" className="filter-button" style={{ padding: '0.25rem 0.5rem', fontSize: '0.72rem' }} onClick={() => { setCargoFlowTableExpanded(false); setCargoFlowTableSelection(null); }}>
+                                <Button type="button" className="filter-button" style={{ ...DASH_PLAN_FACT_TYPO.badge, padding: '0.25rem 0.5rem' }} onClick={() => { setCargoFlowTableExpanded(false); setCargoFlowTableSelection(null); }}>
                                     Свернуть
                                 </Button>
                             </Flex>
                             <div style={{ overflowX: 'auto', maxHeight: 360, overflowY: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', ...DASH_PLAN_FACT_TYPO.table }}>
                                     <thead>
                                         <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-card)' }}>
-                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
-                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600 }}>План</th>
-                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'center', fontWeight: 600 }}>Статус</th>
-                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600 }}>Маршрут</th>
-                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'center', fontWeight: 600 }}>Тип</th>
-                                            {showSums && <th style={{ padding: '0.4rem 0.45rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>}
+                                            <th style={{ ...DASH_PLAN_FACT_TYPO.tableTh, textAlign: 'left' }}>Перевозка</th>
+                                            <th style={{ ...DASH_PLAN_FACT_TYPO.tableTh, textAlign: 'left' }}>План</th>
+                                            <th style={{ ...DASH_PLAN_FACT_TYPO.tableTh, textAlign: 'center' }}>Статус</th>
+                                            <th style={{ ...DASH_PLAN_FACT_TYPO.tableTh, textAlign: 'left' }}>Маршрут</th>
+                                            <th style={{ ...DASH_PLAN_FACT_TYPO.tableTh, textAlign: 'center' }}>Тип</th>
+                                            {showSums && <th style={{ ...DASH_PLAN_FACT_TYPO.tableTh, textAlign: 'right' }}>Сумма</th>}
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -3758,14 +3763,10 @@ export function DashboardPage({
                                                         <td style={{ padding: '0.35rem 0.45rem', textAlign: 'center' }}>
                                                             <span
                                                                 style={{
-                                                                    fontSize: '0.65rem',
-                                                                    padding: '0.12rem 0.4rem',
-                                                                    borderRadius: 999,
+                                                                    ...DASH_PLAN_FACT_TYPO.statusPill,
                                                                     background: `${stColor}18`,
                                                                     color: stColor,
                                                                     border: `1px solid ${stColor}44`,
-                                                                    fontWeight: 600,
-                                                                    whiteSpace: 'nowrap',
                                                                 }}
                                                             >
                                                                 {stLabel}
@@ -3774,7 +3775,7 @@ export function DashboardPage({
                                                         <td style={{ padding: '0.35rem 0.45rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`${from} → ${to}`}>
                                                             {from} → {to}
                                                         </td>
-                                                        <td style={{ padding: '0.35rem 0.45rem', textAlign: 'center', fontSize: '0.72rem' }}>{isFerry(item) ? 'Паром' : 'Авто'}</td>
+                                                        <td style={{ padding: '0.35rem 0.45rem', textAlign: 'center' }}>{isFerry(item) ? 'Паром' : 'Авто'}</td>
                                                         {showSums && (
                                                             <td style={{ padding: '0.35rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(getItemSum(item), true)}</td>
                                                         )}
@@ -3788,7 +3789,7 @@ export function DashboardPage({
                         </div>
                     )}
                     {(cargoFlowByPlan.deliveredOnTime + cargoFlowByPlan.deliveredLate) > 0 && (
-                        <Typography.Body style={{ marginTop: '0.6rem', fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                        <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.meta, marginTop: '0.6rem' }}>
                             Доставлено: в срок {cargoFlowByPlan.deliveredOnTime}, с опозданием {cargoFlowByPlan.deliveredLate}.
                         </Typography.Body>
                     )}
@@ -3798,49 +3799,49 @@ export function DashboardPage({
             {/* План-факт — только при праве haulz (раздел HAULZ в профиле) или суперадмин; см. canAccessHaulzDispatch в AppMainContent. */}
             {!showOnlySla && !loading && !error && canAccessHaulzDispatch && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
-                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                    <Typography.Headline style={DASH_PLAN_FACT_TYPO.title}>
                         План-Факт
                     </Typography.Headline>
-                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
+                    <Typography.Body style={DASH_PLAN_FACT_TYPO.desc}>
                         Сравнение плановой и фактической даты доставки по выбранному периоду.
                     </Typography.Body>
                     <Flex gap="0.55rem" wrap="wrap" style={{ marginBottom: '0.8rem' }}>
-                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(37,99,235,0.14)', border: '1px solid rgba(37,99,235,0.35)' }}>С планом: {planVsFactDashboard.withPlan} из {planVsFactDashboard.total}</span>
-                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(22,163,74,0.16)', border: '1px solid rgba(22,163,74,0.35)' }}>В срок: {planVsFactDashboard.onTime}</span>
-                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(239,68,68,0.16)', border: '1px solid rgba(239,68,68,0.35)' }}>С опозданием: {planVsFactDashboard.late}</span>
-                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(245,158,11,0.16)', border: '1px solid rgba(245,158,11,0.35)' }}>Без факта: {planVsFactDashboard.pendingFact}</span>
-                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(99,102,241,0.16)', border: '1px solid rgba(99,102,241,0.35)' }}>В срок, %: {planVsFactDashboard.onTimeRate}%</span>
-                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(148,163,184,0.16)', border: '1px solid var(--color-border)' }}>Без плана: {planVsFactDashboard.withoutPlan}</span>
+                        <span className="role-badge" style={{ ...DASH_PLAN_FACT_TYPO.badge, background: 'rgba(37,99,235,0.14)', border: '1px solid rgba(37,99,235,0.35)' }}>С планом: {planVsFactDashboard.withPlan} из {planVsFactDashboard.total}</span>
+                        <span className="role-badge" style={{ ...DASH_PLAN_FACT_TYPO.badge, background: 'rgba(22,163,74,0.16)', border: '1px solid rgba(22,163,74,0.35)' }}>В срок: {planVsFactDashboard.onTime}</span>
+                        <span className="role-badge" style={{ ...DASH_PLAN_FACT_TYPO.badge, background: 'rgba(239,68,68,0.16)', border: '1px solid rgba(239,68,68,0.35)' }}>С опозданием: {planVsFactDashboard.late}</span>
+                        <span className="role-badge" style={{ ...DASH_PLAN_FACT_TYPO.badge, background: 'rgba(245,158,11,0.16)', border: '1px solid rgba(245,158,11,0.35)' }}>Без факта: {planVsFactDashboard.pendingFact}</span>
+                        <span className="role-badge" style={{ ...DASH_PLAN_FACT_TYPO.badge, background: 'rgba(99,102,241,0.16)', border: '1px solid rgba(99,102,241,0.35)' }}>В срок, %: {planVsFactDashboard.onTimeRate}%</span>
+                        <span className="role-badge" style={{ ...DASH_PLAN_FACT_TYPO.badge, background: 'rgba(148,163,184,0.16)', border: '1px solid var(--color-border)' }}>Без плана: {planVsFactDashboard.withoutPlan}</span>
                     </Flex>
                     <Flex gap="1.4rem" wrap="wrap" style={{ marginBottom: '0.7rem' }}>
-                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+                        <Typography.Body style={DASH_PLAN_FACT_TYPO.meta}>
                             Ср. отклонение (план→факт): <b style={{ color: 'var(--color-text-primary)' }}>{planVsFactDashboard.avgDeviationDays} дн.</b>
                         </Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+                        <Typography.Body style={DASH_PLAN_FACT_TYPO.meta}>
                             Ср. задержка (только просрочка): <b style={{ color: '#ef4444' }}>{planVsFactDashboard.avgLateDays} дн.</b>
                         </Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+                        <Typography.Body style={DASH_PLAN_FACT_TYPO.meta}>
                             Просрочено без факта: <b style={{ color: planVsFactDashboard.overdueOpen > 0 ? '#ef4444' : 'var(--color-text-primary)' }}>{planVsFactDashboard.overdueOpen}</b>
                         </Typography.Body>
                     </Flex>
                     {planVsFactDashboard.trend.length > 0 && (
                         <div style={{ marginTop: '0.35rem' }}>
-                            <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                            <Typography.Body style={DASH_PLAN_FACT_TYPO.subhead}>
                                 Тренд по датам плана (последние 10 дней)
                             </Typography.Body>
                             <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                                 <div style={{ display: 'grid', gridTemplateColumns: `repeat(${planVsFactDashboard.trend.length}, minmax(86px, 1fr))`, gap: '0.4rem', minWidth: `${Math.max(560, planVsFactDashboard.trend.length * 92)}px` }}>
                                     {planVsFactDashboard.trend.map((row, ti) => (
-                                        <div key={`pvf-${row.key}`} style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.38rem 0.42rem', background: 'var(--color-bg-hover)' }}>
-                                            <Typography.Body style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginBottom: '0.18rem' }}>
+                                        <div key={`pvf-${row.key}`} style={DASH_PLAN_FACT_TYPO.tile}>
+                                            <Typography.Body style={DASH_PLAN_FACT_TYPO.tileDate}>
                                                 <DateText value={row.key} />
                                             </Typography.Body>
                                             <div style={{ height: 7, borderRadius: 4, background: 'rgba(148,163,184,0.25)', overflow: 'hidden', marginBottom: '0.2rem' }}>
                                                 <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={Math.round((row.total / planVsFactDashboard.maxTotal) * 100)} delay={ti * 0.035} style={{ background: 'rgba(99,102,241,0.7)', borderRadius: 4 }} />
                                             </div>
-                                            <Typography.Body style={{ fontSize: '0.68rem', display: 'block' }}>Всего: {row.total}</Typography.Body>
-                                            <Typography.Body style={{ fontSize: '0.68rem', color: '#16a34a', display: 'block' }}>В срок: {row.onTime}</Typography.Body>
-                                            <Typography.Body style={{ fontSize: '0.68rem', color: '#ef4444', display: 'block' }}>Опоздание: {row.late}</Typography.Body>
+                                            <Typography.Body style={DASH_PLAN_FACT_TYPO.tileLine}>Всего: {row.total}</Typography.Body>
+                                            <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.tileLine, color: '#16a34a' }}>В срок: {row.onTime}</Typography.Body>
+                                            <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.tileLine, color: '#ef4444' }}>Опоздание: {row.late}</Typography.Body>
                                         </div>
                                     ))}
                                 </div>
@@ -3849,16 +3850,16 @@ export function DashboardPage({
                     )}
                     {planVsFactDashboard.topLate.length > 0 && (
                         <div style={{ marginTop: '0.8rem', borderTop: '1px dashed var(--color-border)', paddingTop: '0.55rem' }}>
-                            <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                            <Typography.Body style={DASH_PLAN_FACT_TYPO.subhead}>
                                 Топ просрочек
                             </Typography.Body>
                             {planVsFactDashboard.topLate.map((row, idx) => (
                                 <div key={`late-row-${row.number}-${idx}`} style={{ display: 'grid', gridTemplateColumns: 'minmax(90px, 110px) minmax(120px, 1fr) minmax(64px, 90px) minmax(64px, 90px) minmax(56px, 70px)', gap: '0.45rem', padding: '0.22rem 0', borderBottom: idx === planVsFactDashboard.topLate.length - 1 ? 'none' : '1px dashed var(--color-border)' }}>
-                                    <Typography.Body style={{ fontSize: '0.72rem', whiteSpace: 'nowrap' }}>{formatInvoiceNumber(row.number)}</Typography.Body>
-                                    <Typography.Body style={{ fontSize: '0.72rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.route}>{row.route}</Typography.Body>
-                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>{row.planned.slice(5).split('-').reverse().join('.')}</Typography.Body>
-                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>{row.actual.slice(5).split('-').reverse().join('.')}</Typography.Body>
-                                    <Typography.Body style={{ fontSize: '0.72rem', fontWeight: 700, color: '#ef4444' }}>+{row.delayDays} д</Typography.Body>
+                                    <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.table, whiteSpace: 'nowrap' }}>{formatInvoiceNumber(row.number)}</Typography.Body>
+                                    <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.table, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.route}>{row.route}</Typography.Body>
+                                    <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.meta }}>{row.planned.slice(5).split('-').reverse().join('.')}</Typography.Body>
+                                    <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.meta }}>{row.actual.slice(5).split('-').reverse().join('.')}</Typography.Body>
+                                    <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.table, fontWeight: 700, color: '#ef4444' }}>+{row.delayDays} д</Typography.Body>
                                 </div>
                             ))}
                         </div>
