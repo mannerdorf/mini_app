@@ -482,6 +482,12 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [dogovorsDownloadError, setDogovorsDownloadError] = useState<string | null>(null);
     const [sverkiApiDebug, setSverkiApiDebug] = useState<DocumentsApiDebugSnapshot | null>(null);
     const [dogovorsApiDebug, setDogovorsApiDebug] = useState<DocumentsApiDebugSnapshot | null>(null);
+    useEffect(() => {
+        if (!effectiveServiceMode) {
+            setSverkiApiDebug(null);
+            setDogovorsApiDebug(null);
+        }
+    }, [effectiveServiceMode]);
     const [claimsList, setClaimsList] = useState<{
         id: number;
         claimNumber: string;
@@ -625,29 +631,33 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
                 const list = Array.isArray((body as { sverki?: unknown })?.sverki)
                     ? ((body as { sverki: typeof sverkiList }).sverki)
                     : [];
-                setSverkiApiDebug({
-                    fetchedAt: new Date().toISOString(),
-                    url,
-                    status: res.status,
-                    ok: res.ok,
-                    body,
-                    listKey: 'sverki',
-                    listLength: list.length,
-                    error: res.ok ? undefined : String((body as { error?: string })?.error || (body as { message?: string })?.message || 'HTTP error'),
-                });
+                if (effectiveServiceMode) {
+                    setSverkiApiDebug({
+                        fetchedAt: new Date().toISOString(),
+                        url,
+                        status: res.status,
+                        ok: res.ok,
+                        body,
+                        listKey: 'sverki',
+                        listLength: list.length,
+                        error: res.ok ? undefined : String((body as { error?: string })?.error || (body as { message?: string })?.message || 'HTTP error'),
+                    });
+                }
                 setSverkiList(res.ok ? list : []);
             })
             .catch((e: unknown) => {
                 setSverkiList([]);
-                setSverkiApiDebug({
-                    fetchedAt: new Date().toISOString(),
-                    url,
-                    status: null,
-                    ok: false,
-                    body: null,
-                    listKey: 'sverki',
-                    error: (e as Error)?.message || 'Сетевая ошибка',
-                });
+                if (effectiveServiceMode) {
+                    setSverkiApiDebug({
+                        fetchedAt: new Date().toISOString(),
+                        url,
+                        status: null,
+                        ok: false,
+                        body: null,
+                        listKey: 'sverki',
+                        error: (e as Error)?.message || 'Сетевая ошибка',
+                    });
+                }
             })
             .finally(() => setSverkiLoading(false));
     }, [docSection, effectiveActiveInn, effectiveServiceMode]);
@@ -663,29 +673,33 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
                 const list = Array.isArray((body as { dogovors?: unknown })?.dogovors)
                     ? ((body as { dogovors: typeof dogovorsList }).dogovors)
                     : [];
-                setDogovorsApiDebug({
-                    fetchedAt: new Date().toISOString(),
-                    url,
-                    status: res.status,
-                    ok: res.ok,
-                    body,
-                    listKey: 'dogovors',
-                    listLength: list.length,
-                    error: res.ok ? undefined : String((body as { error?: string })?.error || (body as { message?: string })?.message || 'HTTP error'),
-                });
+                if (effectiveServiceMode) {
+                    setDogovorsApiDebug({
+                        fetchedAt: new Date().toISOString(),
+                        url,
+                        status: res.status,
+                        ok: res.ok,
+                        body,
+                        listKey: 'dogovors',
+                        listLength: list.length,
+                        error: res.ok ? undefined : String((body as { error?: string })?.error || (body as { message?: string })?.message || 'HTTP error'),
+                    });
+                }
                 setDogovorsList(res.ok ? list : []);
             })
             .catch((e: unknown) => {
                 setDogovorsList([]);
-                setDogovorsApiDebug({
-                    fetchedAt: new Date().toISOString(),
-                    url,
-                    status: null,
-                    ok: false,
-                    body: null,
-                    listKey: 'dogovors',
-                    error: (e as Error)?.message || 'Сетевая ошибка',
-                });
+                if (effectiveServiceMode) {
+                    setDogovorsApiDebug({
+                        fetchedAt: new Date().toISOString(),
+                        url,
+                        status: null,
+                        ok: false,
+                        body: null,
+                        listKey: 'dogovors',
+                        error: (e as Error)?.message || 'Сетевая ошибка',
+                    });
+                }
             })
             .finally(() => setDogovorsLoading(false));
     }, [docSection, effectiveActiveInn, effectiveServiceMode]);
@@ -5929,15 +5943,17 @@ useEffect(() => {
             )}
             {docSection === 'Акты сверок' && (
                 <>
-                <DocumentsApiDebugPanel
-                    title="GET /api/sverki"
-                    loading={sverkiLoading}
-                    snapshot={
-                        sverkiApiDebug
-                            ? { ...sverkiApiDebug, filteredLength: filteredSverki.length }
-                            : null
-                    }
-                />
+                {effectiveServiceMode && (
+                    <DocumentsApiDebugPanel
+                        title="GET /api/sverki"
+                        loading={sverkiLoading}
+                        snapshot={
+                            sverkiApiDebug
+                                ? { ...sverkiApiDebug, filteredLength: filteredSverki.length }
+                                : null
+                        }
+                    />
+                )}
                 <DocumentsToolbarBelowSticky>
                     <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.75rem' }}>
                         <Button
@@ -6241,15 +6257,17 @@ useEffect(() => {
             )}
             {docSection === 'Договоры' && (
                 <div className="doc-section-content">
-                    <DocumentsApiDebugPanel
-                        title="GET /api/dogovors"
-                        loading={dogovorsLoading}
-                        snapshot={
-                            dogovorsApiDebug
-                                ? { ...dogovorsApiDebug, filteredLength: filteredDogovors.length }
-                                : null
-                        }
-                    />
+                    {effectiveServiceMode && (
+                        <DocumentsApiDebugPanel
+                            title="GET /api/dogovors"
+                            loading={dogovorsLoading}
+                            snapshot={
+                                dogovorsApiDebug
+                                    ? { ...dogovorsApiDebug, filteredLength: filteredDogovors.length }
+                                    : null
+                            }
+                        />
+                    )}
                     {dogovorsLoading ? (
                         <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
                             <Loader2 className="w-4 h-4 animate-spin" />
