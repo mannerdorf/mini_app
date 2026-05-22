@@ -84,6 +84,17 @@ export function CargoPage({
     const runtime = useAppRuntime();
     const effectiveSearchText = searchText ?? runtime.searchText;
     const effectiveServiceMode = useServiceRequest ?? runtime.useServiceRequest;
+    const showCargoDebug = useMemo(() => {
+        if (effectiveServiceMode) return true;
+        if (typeof window === "undefined") return false;
+        try {
+            if (new URLSearchParams(window.location.search).has("debug")) return true;
+            if (new URLSearchParams(window.location.search).has("debug_cargo")) return true;
+            return window.localStorage.getItem("haulz.debug.cargo") === "1";
+        } catch {
+            return false;
+        }
+    }, [effectiveServiceMode]);
     const [selectedCargo, setSelectedCargo] = useState<CargoItem | null>(null);
 
     // Filters State; при переключении вкладок восстанавливаем из localStorage
@@ -900,7 +911,7 @@ export function CargoPage({
             </motion.div>
             </div>
 
-            {effectiveServiceMode && (
+            {showCargoDebug && (
                 <Panel
                     className="cargo-service-debug-panel"
                     style={{
@@ -912,7 +923,7 @@ export function CargoPage({
                 >
                     <Flex align="center" justify="space-between" style={{ marginBottom: "0.35rem", flexWrap: "wrap", gap: "0.35rem" }}>
                         <Typography.Label style={{ fontWeight: 700, color: "#1d4ed8" }}>
-                            Debug грузов (служебный режим)
+                            Debug грузов {effectiveServiceMode ? "(служебный режим)" : "(?debug=1)"}
                         </Typography.Label>
                         <Typography.Body style={{ fontSize: "0.8rem" }}>
                             API: {serviceDebugSnapshot.counts.itemsFromApi} · после фильтров: {serviceDebugSnapshot.counts.filteredItems}
