@@ -104,6 +104,21 @@ function cargoFlowSelectionEqual(a: CargoFlowTableSelection | null, b: CargoFlow
     return a.badge === b.badge;
 }
 
+function getCargoItemRoute(item: CargoItem | Record<string, unknown>): string {
+    const dirRaw = String(item?.Direction ?? item?.direction ?? item?.Направление ?? '').trim().toUpperCase();
+    const senderCode = cityToCode(item?.CitySender ?? item?.citySender ?? item?.ГородОтправителя ?? '');
+    const receiverCode = cityToCode(item?.CityReceiver ?? item?.cityReceiver ?? item?.ГородПолучателя ?? '');
+    if (dirRaw.includes('MSK_TO_KGD') || dirRaw.includes('MSK-KGD')) return 'MSK-KGD';
+    if (dirRaw.includes('KGD_TO_MSK') || dirRaw.includes('KGD-MSK')) return 'KGD-MSK';
+    return senderCode && receiverCode ? `${senderCode}-${receiverCode}` : '—';
+}
+
+function routeBadgeColor(route: string): string {
+    if (route === 'MSK-KGD') return '#2563eb';
+    if (route === 'KGD-MSK') return '#7c3aed';
+    return '#64748b';
+}
+
 function DashboardMotionGroup({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
     if (!enabled) return <>{children}</>;
     return (
@@ -2513,25 +2528,6 @@ export function DashboardPage({
             .sort((a, b) => b.sum - a.sum);
     }, [clientItems, useServiceRequest]);
 
-    const clientGeography = useMemo(() => {
-        if (!useServiceRequest || clientItems.length === 0) return null;
-        const routes = new Map<string, { count: number; pw: number; sum: number }>();
-        const cities = new Map<string, { sent: number; received: number }>();
-        clientItems.forEach(item => {
-            const from = (item.CitySender ?? '').trim() || '—';
-            const to = (item.CityReceiver ?? '').trim() || '—';
-            const rKey = `${from} → ${to}`;
-            const rEntry = routes.get(rKey) || { count: 0, pw: 0, sum: 0 };
-            rEntry.count += 1; rEntry.pw += getItemPw(item); rEntry.sum += getItemSum(item);
-            routes.set(rKey, rEntry);
-            const fromE = cities.get(from) || { sent: 0, received: 0 }; fromE.sent += 1; cities.set(from, fromE);
-            const toE = cities.get(to) || { sent: 0, received: 0 }; toE.received += 1; cities.set(to, toE);
-        });
-        const topRoutes = [...routes.entries()].map(([route, v]) => ({ route, ...v })).sort((a, b) => b.count - a.count).slice(0, 10);
-        const topCities = [...cities.entries()].map(([city, v]) => ({ city, total: v.sent + v.received, ...v })).sort((a, b) => b.total - a.total).slice(0, 10);
-        return { topRoutes, topCities };
-    }, [clientItems, useServiceRequest]);
-
     const clientSeasonality = useMemo(() => {
         if (!useServiceRequest || clientItems.length === 0) return null;
         const data = new Map<string, number[]>();
@@ -3550,20 +3546,28 @@ export function DashboardPage({
                                                                         <thead>
                                                                             <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                                                 <th style={{ padding: '0.2rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
+                                                                                <th style={{ padding: '0.2rem 0.3rem', textAlign: 'center', fontWeight: 600 }}>Маршрут</th>
                                                                                 <th style={{ padding: '0.2rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
                                                                                 {showSums && <th style={{ padding: '0.2rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>}
                                                                             </tr>
                                                                         </thead>
                                                                         <tbody>
-                                                                            {sortedItems.map((it, i) => (
+                                                                            {sortedItems.map((it, i) => {
+                                                                                const route = getCargoItemRoute(it);
+                                                                                const routeColor = routeBadgeColor(route);
+                                                                                return (
                                                                                 <tr key={i} style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
                                                                                     <td style={{ padding: '0.2rem 0.3rem' }}>{String(it?.Number ?? it?.Номер ?? '—').trim() || '—'}</td>
+                                                                                    <td style={{ padding: '0.2rem 0.3rem', textAlign: 'center' }}>
+                                                                                        <span style={{ fontSize: '0.65rem', padding: '0.12rem 0.4rem', borderRadius: 999, background: `${routeColor}18`, color: routeColor, border: `1px solid ${routeColor}44`, fontWeight: 600, whiteSpace: 'nowrap' }}>{route}</span>
+                                                                                    </td>
                                                                                     <td style={{ padding: '0.2rem 0.3rem' }}>
                                                                                         <DateText value={String(it?.DatePrih ?? it?.DateOtpr ?? it?.Дата ?? '').trim()} />
                                                                                     </td>
                                                                                     {showSums && <td style={{ padding: '0.2rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{it?.Sum != null ? formatCurrency(it.Sum as number, true) : '—'}</td>}
                                                                                 </tr>
-                                                                            ))}
+                                                                                );
+                                                                            })}
                                                                         </tbody>
                                                                     </table>
                                                                 </div>
@@ -4743,57 +4747,7 @@ export function DashboardPage({
                 </Panel>
             )}
 
-            {/* 5.7 География клиентов */}
-            {useServiceRequest && !loading && !error && clientGeography && (
-                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
-                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>География клиентов</Typography.Headline>
-                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
-                        Популярные маршруты и концентрация грузов по городам.
-                    </Typography.Body>
-                    <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.3rem' }}>Топ маршрутов</Typography.Body>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', marginBottom: '0.75rem' }}>
-                        {clientGeography.topRoutes.map((r, i) => {
-                            const maxC = clientGeography.topRoutes[0]?.count || 1;
-                            return (
-                                <div key={r.route} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <Typography.Body style={{ fontSize: '0.72rem', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.route}</Typography.Body>
-                                    <div style={{ width: '25%', flexShrink: 0 }}>
-                                        <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                            <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={Math.round((r.count / maxC) * 100)} delay={i * 0.035} style={{ background: '#8b5cf6', borderRadius: 4 }} />
-                                        </div>
-                                    </div>
-                                    <Typography.Body style={{ fontSize: '0.72rem', fontWeight: 600, minWidth: 40, textAlign: 'right' }}>{r.count}</Typography.Body>
-                                    <Typography.Body style={{ fontSize: '0.65rem', color: 'var(--color-text-secondary)', minWidth: 55, textAlign: 'right' }}>{Math.round(r.pw).toLocaleString('ru-RU')} кг</Typography.Body>
-                                </div>
-                            );
-                        })}
-                    </div>
-                    <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.3rem' }}>Топ городов</Typography.Body>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                        {clientGeography.topCities.map((c, ci) => {
-                            const maxC = clientGeography.topCities[0]?.total || 1;
-                            return (
-                                <div key={c.city} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <Typography.Body style={{ fontSize: '0.72rem', width: 90, flexShrink: 0, fontWeight: 600 }}>{c.city}</Typography.Body>
-                                    <div style={{ flex: 1, height: 10, borderRadius: 5, background: 'var(--color-bg-hover)', overflow: 'hidden', display: 'flex' }}>
-                                        <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={Math.round((c.sent / maxC) * 100)} delay={ci * 0.05} style={{ background: '#3b82f6' }} />
-                                        <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={Math.round((c.received / maxC) * 100)} delay={ci * 0.05 + 0.06} style={{ background: '#f59e0b' }} />
-                                    </div>
-                                    <Typography.Body style={{ fontSize: '0.68rem', minWidth: 70, textAlign: 'right' }}>
-                                        <span style={{ color: '#3b82f6' }}>↑{c.sent}</span>{' '}<span style={{ color: '#f59e0b' }}>↓{c.received}</span>
-                                    </Typography.Body>
-                                </div>
-                            );
-                        })}
-                    </div>
-                    <Flex gap="0.5rem" style={{ marginTop: '0.35rem' }}>
-                        <Flex align="center" gap="0.2rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6' }} /><Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)' }}>Отправка</Typography.Body></Flex>
-                        <Flex align="center" gap="0.2rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} /><Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)' }}>Получение</Typography.Body></Flex>
-                    </Flex>
-                </Panel>
-            )}
-
-            {/* 5.8 Сезонность по клиентам */}
+            {/* 5.7 Сезонность по клиентам */}
             {useServiceRequest && !loading && !error && clientSeasonality && clientSeasonality.rows.length > 0 && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>Сезонность по клиентам</Typography.Headline>
