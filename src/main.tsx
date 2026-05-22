@@ -103,7 +103,7 @@ const setupDebugOverlay = () => {
 
 setupDebugOverlay();
 
-const FALLBACK_API_ORIGIN = "https://mini-app-lake-phi.vercel.app";
+const FALLBACK_API_ORIGIN = "https://api.haulz.ru";
 
 const normalizeOrigin = (value: string): string => value.trim().replace(/\/+$/, "");
 

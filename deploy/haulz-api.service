@@ -1,0 +1,17 @@
+[Unit]
+Description=HAULZ API (Node)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/haulz/app
+EnvironmentFile=-/opt/haulz/.env
+Environment=HAULZ_ENV_FILE=/opt/haulz/.env
+Environment=PORT=3000
+Environment=HOST=127.0.0.1
+ExecStart=/usr/bin/npm run api:start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
