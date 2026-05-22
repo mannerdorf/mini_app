@@ -1411,6 +1411,30 @@ body {
     .summary-metrics { display: grid; grid-template-columns: repeat(3, 1fr); justify-items: center; }
 }
 
+/* Грузы (моб.): сворачиваемый блок KPI */
+.cargo-summary-totals-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 0.5rem;
+    margin: 0 0 0.4rem;
+    padding: 0.15rem 0.1rem;
+    border: none;
+    background: transparent;
+    color: var(--color-text-primary);
+    cursor: pointer;
+    text-align: left;
+}
+.cargo-summary-totals--collapsed .cargo-summary-totals-toggle {
+    margin-bottom: 0;
+}
+@media (min-width: 769px) {
+    .cargo-summary-totals-toggle {
+        display: none;
+    }
+}
+
 /* Грузы (моб.): KPI суммирования — в несколько рядов; размер плиток и шрифтов −50% */
 @media (max-width: 768px) {
     .cargo-page-root .cargo-summary-totals.cargo-card {

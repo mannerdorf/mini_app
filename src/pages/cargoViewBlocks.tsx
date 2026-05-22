@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
-import { Loader2, Package } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Package } from "lucide-react";
 import type { DateFilter } from "../types";
 import { formatCurrency } from "../lib/formatUtils";
 
@@ -20,12 +20,39 @@ type CargoSummaryCardProps = {
   saasAnalytics?: boolean;
 };
 
+const CARGO_SUMMARY_COLLAPSED_KEY = "haulz.cargo.summaryCollapsedMobile";
+
 export function CargoSummaryCard({
   summary,
   showSums,
   useServiceRequest,
   saasAnalytics = false,
 }: CargoSummaryCardProps) {
+  const [isMobile, setIsMobile] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(CARGO_SUMMARY_COLLAPSED_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    try {
+      localStorage.setItem(CARGO_SUMMARY_COLLAPSED_KEY, String(collapsed));
+    } catch {
+      /* ignore */
+    }
+  }, [collapsed, isMobile]);
   const mkLabelStyle = (): React.CSSProperties =>
     saasAnalytics
       ? {
@@ -46,11 +73,29 @@ export function CargoSummaryCard({
         }
       : { fontWeight: 600, fontSize: "0.9rem" };
 
+  const showMetrics = !isMobile || !collapsed;
+
   return (
     <div
-      className={`cargo-card cargo-summary-totals mb-4${saasAnalytics ? " cargo-summary-totals--saas-kpi" : ""}`}
-      style={{ padding: "0.95rem 0.85rem 0.85rem", marginBottom: "0.85rem" }}
+      className={`cargo-card cargo-summary-totals mb-4${saasAnalytics ? " cargo-summary-totals--saas-kpi" : ""}${isMobile && collapsed ? " cargo-summary-totals--collapsed" : ""}`}
+      style={{
+        padding: isMobile && collapsed ? "0.45rem 0.55rem" : "0.95rem 0.85rem 0.85rem",
+        marginBottom: isMobile && collapsed ? "0.45rem" : "0.85rem",
+      }}
     >
+      {isMobile && (
+        <button
+          type="button"
+          className="cargo-summary-totals-toggle"
+          onClick={() => setCollapsed((v) => !v)}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? "Развернуть итоги" : "Свернуть итоги"}
+        >
+          <Typography.Body style={{ fontSize: "0.78rem", fontWeight: 600 }}>Итого по выборке</Typography.Body>
+          {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+        </button>
+      )}
+      {showMetrics && (
       <div className="summary-metrics">
         {showSums && (
           <Flex direction="column" align="center">
@@ -79,6 +124,7 @@ export function CargoSummaryCard({
           </>
         )}
       </div>
+      )}
     </div>
   );
 }
