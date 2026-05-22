@@ -1062,10 +1062,10 @@ body {
 }
 @media (min-width: 769px) {
     .documents-page--with-edo-section .documents-table-offset-desktop {
-        margin-top: 3cm;
+        margin-top: 3.5cm;
     }
     .documents-page--with-edo-section.documents-page--saas-analytics .documents-table-offset-desktop {
-        margin-top: 3.5cm;
+        margin-top: 4cm;
     }
 }
 
