@@ -1614,22 +1614,6 @@ export function DashboardPage({
                             
                             return (
                                 <g key={idx}>
-                                    {/* Значение вертикально внутри столбца */}
-                                    {variant === 'columns' && barHeight > 20 && (
-                                        <text
-                                            x={x + barWidth / 2}
-                                            y={y + barHeight / 2}
-                                            fontSize="7"
-                                            fill="var(--color-text-primary)"
-                                            textAnchor="middle"
-                                            fontWeight="600"
-                                            dominantBaseline="middle"
-                                            transform={`rotate(-90 ${x + barWidth / 2} ${y + barHeight / 2})`}
-                                        >
-                                            {formatValue(d.value)}
-                                        </text>
-                                    )}
-                                    
                                     {/* Дата вертикально под столбцом: день 1 раз, выходные/праздники — красным */}
                                     <text
                                         x={x + barWidth / 2}

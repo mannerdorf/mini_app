@@ -495,7 +495,7 @@ export function HaulzDispatchSummary({
             )}
 
             {error && (
-                <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "1rem", borderRadius: 12, border: "1px solid #fecaca", background: "#fef2f2" }}>
+                <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "1rem", borderRadius: 12, border: "1px solid var(--color-error-border)", background: "var(--color-error-bg)" }}>
                     <Typography.Body style={{ color: "#b91c1c" }}>
                         {typeof error === "string" ? error : String((error as Error)?.message || error)}
                     </Typography.Body>
@@ -608,7 +608,7 @@ export function HaulzDispatchSummary({
                                                             borderBottom: "1px solid var(--color-border)",
                                                             cursor: "pointer",
                                                             background: groupSlaLate
-                                                                ? "rgba(254, 226, 226, 0.45)"
+                                                                ? "var(--color-error-bg)"
                                                                 : "var(--color-bg-hover)",
                                                         }}
                                                         aria-expanded={groupOpen}
@@ -659,7 +659,7 @@ export function HaulzDispatchSummary({
                                                             const rowBg = expanded
                                                                 ? "var(--color-bg-hover)"
                                                                 : slaLate
-                                                                  ? "rgba(254, 226, 226, 0.85)"
+                                                                  ? "var(--color-error-bg)"
                                                                   : undefined;
                                                             return (
                                                                 <React.Fragment key={num ? `${selectedTile}-${customerKey}-${num}` : `${selectedTile}-${customerKey}-i-${ridx}`}>
