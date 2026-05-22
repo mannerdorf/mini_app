@@ -4,6 +4,7 @@ import path from "node:path";
 import { config as loadEnv } from "dotenv";
 import type { VercelRequest } from "@vercel/node";
 import { buildRouteIndex, getProjectRoot, loadHandler, matchRoute } from "./routes.js";
+import { applyCors } from "./cors.js";
 import { readRequestBody, toVercelRequest, toVercelResponse } from "./vercelAdapter.js";
 
 const ENV_PATH = process.env.HAULZ_ENV_FILE || "/opt/haulz/.env";
@@ -32,6 +33,14 @@ console.log(
 
 const server = http.createServer(async (req, res) => {
   const started = Date.now();
+  applyCors(res);
+
+  if ((req.method || "GET").toUpperCase() === "OPTIONS") {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
+
   try {
     const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
     const pathname = url.pathname.replace(/\/+$/, "") || "/";
