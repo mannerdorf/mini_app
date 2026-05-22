@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
+import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { ChevronDown, X, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
@@ -84,17 +84,6 @@ export function CargoPage({
     const runtime = useAppRuntime();
     const effectiveSearchText = searchText ?? runtime.searchText;
     const effectiveServiceMode = useServiceRequest ?? runtime.useServiceRequest;
-    const showCargoDebug = useMemo(() => {
-        if (effectiveServiceMode) return true;
-        if (typeof window === "undefined") return false;
-        try {
-            if (new URLSearchParams(window.location.search).has("debug")) return true;
-            if (new URLSearchParams(window.location.search).has("debug_cargo")) return true;
-            return window.localStorage.getItem("haulz.debug.cargo") === "1";
-        } catch {
-            return false;
-        }
-    }, [effectiveServiceMode]);
     const [selectedCargo, setSelectedCargo] = useState<CargoItem | null>(null);
 
     // Filters State; при переключении вкладок восстанавливаем из localStorage
@@ -446,62 +435,6 @@ export function CargoPage({
     }, [primaryAuth, effectiveServiceMode]);
 
     const rootShellClass = cargoServiceSaasUi ? "cargo-page-root cargo-page-root--saas-analytics" : "cargo-page-root";
-    const serviceDebugSnapshot = useMemo(() => ({
-        now: new Date().toISOString(),
-        serviceMode: effectiveServiceMode,
-        roles: { roleCustomer, roleSender, roleReceiver },
-        runtimeActiveInn: runtime.activeInn ?? "",
-        auths: auths.map((a) => ({ login: a.login, inn: a.inn ?? "", isRegisteredUser: !!a.isRegisteredUser })),
-        apiDateRange,
-        filters: {
-            dateFilter,
-            senderFilter,
-            receiverFilter,
-            statusFilterKeys: Array.from(statusFilterSet),
-            billStatusFilterKeys: Array.from(billStatusFilterSet),
-            typeFilterKeys: Array.from(typeFilterSet),
-            routeFilterKeys: Array.from(routeFilterSet),
-            lastMileFilter,
-            plannedDeliveryFilter,
-            plannedDeliveryRange,
-            searchText: effectiveSearchText,
-        },
-        counts: {
-            itemsFromApi: items.length,
-            filteredItems: filteredItems.length,
-            groupedByCustomer: groupedByCustomer.length,
-            uniqueSenders: uniqueSenders.length,
-            uniqueReceivers: uniqueReceivers.length,
-        },
-        loading,
-        error,
-    }), [
-        effectiveServiceMode,
-        roleCustomer,
-        roleSender,
-        roleReceiver,
-        runtime.activeInn,
-        auths,
-        apiDateRange,
-        dateFilter,
-        senderFilter,
-        receiverFilter,
-        statusFilterSet,
-        billStatusFilterSet,
-        typeFilterSet,
-        routeFilterSet,
-        lastMileFilter,
-        plannedDeliveryFilter,
-        plannedDeliveryRange,
-        effectiveSearchText,
-        items.length,
-        filteredItems.length,
-        groupedByCustomer.length,
-        uniqueSenders.length,
-        uniqueReceivers.length,
-        loading,
-        error,
-    ]);
 
     return (
         <div className={`w-full ${rootShellClass}`}>
@@ -910,31 +843,6 @@ export function CargoPage({
                 />
             </motion.div>
             </div>
-
-            {showCargoDebug && (
-                <Panel
-                    className="cargo-service-debug-panel"
-                    style={{
-                        marginBottom: "0.75rem",
-                        padding: "0.65rem 0.75rem",
-                        border: "2px solid #2563eb",
-                        background: "rgba(37, 99, 235, 0.08)",
-                    }}
-                >
-                    <Flex align="center" justify="space-between" style={{ marginBottom: "0.35rem", flexWrap: "wrap", gap: "0.35rem" }}>
-                        <Typography.Label style={{ fontWeight: 700, color: "#1d4ed8" }}>
-                            Debug грузов {effectiveServiceMode ? "(служебный режим)" : "(?debug=1)"}
-                        </Typography.Label>
-                        <Typography.Body style={{ fontSize: "0.8rem" }}>
-                            API: {serviceDebugSnapshot.counts.itemsFromApi} · после фильтров: {serviceDebugSnapshot.counts.filteredItems}
-                            {serviceDebugSnapshot.error ? ` · ошибка: ${serviceDebugSnapshot.error}` : ""}
-                        </Typography.Body>
-                    </Flex>
-                    <pre style={{ margin: 0, fontSize: "0.72rem", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: "40vh" }}>
-                        {JSON.stringify(serviceDebugSnapshot, null, 2)}
-                    </pre>
-                </Panel>
-            )}
 
             <CargoStateBlocks
                 loading={loading}
