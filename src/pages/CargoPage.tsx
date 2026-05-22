@@ -435,6 +435,62 @@ export function CargoPage({
     }, [primaryAuth, effectiveServiceMode]);
 
     const rootShellClass = cargoServiceSaasUi ? "cargo-page-root cargo-page-root--saas-analytics" : "cargo-page-root";
+    const serviceDebugSnapshot = useMemo(() => ({
+        now: new Date().toISOString(),
+        serviceMode: effectiveServiceMode,
+        roles: { roleCustomer, roleSender, roleReceiver },
+        runtimeActiveInn: runtime.activeInn ?? "",
+        auths: auths.map((a) => ({ login: a.login, inn: a.inn ?? "", isRegisteredUser: !!a.isRegisteredUser })),
+        apiDateRange,
+        filters: {
+            dateFilter,
+            senderFilter,
+            receiverFilter,
+            statusFilterKeys: Array.from(statusFilterSet),
+            billStatusFilterKeys: Array.from(billStatusFilterSet),
+            typeFilterKeys: Array.from(typeFilterSet),
+            routeFilterKeys: Array.from(routeFilterSet),
+            lastMileFilter,
+            plannedDeliveryFilter,
+            plannedDeliveryRange,
+            searchText: effectiveSearchText,
+        },
+        counts: {
+            itemsFromApi: items.length,
+            filteredItems: filteredItems.length,
+            groupedByCustomer: groupedByCustomer.length,
+            uniqueSenders: uniqueSenders.length,
+            uniqueReceivers: uniqueReceivers.length,
+        },
+        loading,
+        error,
+    }), [
+        effectiveServiceMode,
+        roleCustomer,
+        roleSender,
+        roleReceiver,
+        runtime.activeInn,
+        auths,
+        apiDateRange,
+        dateFilter,
+        senderFilter,
+        receiverFilter,
+        statusFilterSet,
+        billStatusFilterSet,
+        typeFilterSet,
+        routeFilterSet,
+        lastMileFilter,
+        plannedDeliveryFilter,
+        plannedDeliveryRange,
+        effectiveSearchText,
+        items.length,
+        filteredItems.length,
+        groupedByCustomer.length,
+        uniqueSenders.length,
+        uniqueReceivers.length,
+        loading,
+        error,
+    ]);
 
     return (
         <div className={`w-full ${rootShellClass}`}>
@@ -842,6 +898,16 @@ export function CargoPage({
                     saasAnalytics={cargoServiceSaasUi}
                 />
             </motion.div>
+            {effectiveServiceMode && (
+                <details style={{ marginTop: "0.5rem" }}>
+                    <summary style={{ cursor: "pointer", fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                        Debug грузов (служебный режим)
+                    </summary>
+                    <pre style={{ marginTop: "0.5rem", fontSize: "0.72rem", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                        {JSON.stringify(serviceDebugSnapshot, null, 2)}
+                    </pre>
+                </details>
+            )}
             </div>
 
             <CargoStateBlocks
