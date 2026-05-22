@@ -811,6 +811,24 @@ body {
     }
     .cargo-list-item .cargo-item-row-1 .cargo-item-number-wrap {
         min-width: 0;
+        overflow: visible;
+    }
+    /* Бейдж роли (Заказчик / Отправитель / Получатель): меньше шрифт, чуть шире плашка */
+    .cargo-list-item .cargo-item-row-1 .role-badge {
+        font-size: 0.58rem !important;
+        padding: 0.1rem 0.52rem !important;
+        min-height: 22px !important;
+        min-width: 5.6rem;
+        letter-spacing: -0.02em;
+        white-space: nowrap;
+        box-sizing: border-box;
+    }
+    .modal-header .role-badge {
+        font-size: 0.6rem !important;
+        padding: 0.12rem 0.55rem !important;
+        min-height: 22px !important;
+        min-width: 5.6rem;
+        max-width: none;
     }
     .cargo-list-item .cargo-item-row-1 .cargo-item-number {
         word-break: break-all;

@@ -749,7 +749,7 @@ export function CargoCardsList({
                 </Typography.Body>
                 {item._role && (
                   <span
-                    className="role-badge"
+                    className="role-badge cargo-role-badge"
                     style={{
                       fontSize: "0.65rem",
                       fontWeight: 600,
