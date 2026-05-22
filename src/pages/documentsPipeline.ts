@@ -548,21 +548,67 @@ export function buildFilteredOrders(params: FilterOrdersParams) {
   return res;
 }
 
-export function buildDocsSummary(list: any[]) {
+export type DocsSummaryTotals = {
+  sum: number;
+  count: number;
+  mest: number;
+  pw: number;
+  w: number;
+  vol: number;
+};
+
+function parseCargoMetric(value: unknown): number {
+  if (value == null || value === "") return 0;
+  return typeof value === "string" ? parseFloat(value) || 0 : Number(value) || 0;
+}
+
+function buildLinkedCargoMetrics(list: any[], perevozkiItems: any[] | undefined): Pick<DocsSummaryTotals, "mest" | "pw" | "w" | "vol"> {
+  const metrics = { mest: 0, pw: 0, w: 0, vol: 0 };
+  if (!perevozkiItems?.length || !list.length) return metrics;
+
+  const cargoByKey = new Map<string, any>();
+  perevozkiItems.forEach((c: any) => {
+    const raw = String(c?.Number ?? c?.number ?? "").trim();
+    if (!raw) return;
+    const key = normCargoKey(raw);
+    cargoByKey.set(key, c);
+    const stripped = raw.replace(/^0+/, "") || raw;
+    if (stripped !== key) cargoByKey.set(stripped, c);
+  });
+
+  const seenCargo = new Set<string>();
+  list.forEach((row) => {
+    collectInvoiceLinkedCargoNumbers(row).forEach((num) => {
+      const key = normCargoKey(num);
+      if (!key || seenCargo.has(key)) return;
+      const cargo = cargoByKey.get(key);
+      if (!cargo) return;
+      seenCargo.add(key);
+      metrics.mest += parseCargoMetric(cargo.Mest);
+      metrics.pw += parseCargoMetric(cargo.PW);
+      metrics.w += parseCargoMetric(cargo.W);
+      metrics.vol += parseCargoMetric(cargo.Value);
+    });
+  });
+
+  return metrics;
+}
+
+export function buildDocsSummary(list: any[], perevozkiItems?: any[]): DocsSummaryTotals {
   let sum = 0;
   list.forEach((i: any) => {
     const v = i.SumDoc ?? i.Sum ?? i.sum ?? i.Сумма ?? i.Amount ?? 0;
     sum += typeof v === "string" ? parseFloat(v) || 0 : (v || 0);
   });
-  return { sum, count: list.length };
+  return { sum, count: list.length, ...buildLinkedCargoMetrics(list, perevozkiItems) };
 }
 
-export function buildActsSummary(list: any[]) {
+export function buildActsSummary(list: any[], perevozkiItems?: any[]): DocsSummaryTotals {
   let sum = 0;
   list.forEach((a: any) => {
     const v = a.SumDoc ?? a.Sum ?? a.sum ?? 0;
     sum += typeof v === "string" ? parseFloat(v) || 0 : (v || 0);
   });
-  return { sum, count: list.length };
+  return { sum, count: list.length, ...buildLinkedCargoMetrics(list, perevozkiItems) };
 }
 

@@ -1437,10 +1437,12 @@ body {
 
 /* Грузы (моб.): KPI суммирования — в несколько рядов; размер плиток и шрифтов −50% */
 @media (max-width: 768px) {
+    .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals.cargo-card,
     .cargo-page-root .cargo-summary-totals.cargo-card {
         padding: 0.475rem 0.425rem 0.425rem !important;
         margin-bottom: 0.425rem !important;
     }
+    .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals .summary-metrics,
     .cargo-page-root .cargo-summary-totals .summary-metrics {
         display: grid !important;
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1453,39 +1455,48 @@ body {
         margin: 0;
         overflow-x: visible;
     }
+    .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals .summary-metrics > *,
     .cargo-page-root .cargo-summary-totals .summary-metrics > * {
         flex: unset;
         min-width: 0;
         width: 100%;
     }
     /* Базовый режим: label 0.75rem → 0.375rem, value 0.9rem → 0.45rem */
+    .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals .summary-metrics > * > :first-child,
     .cargo-page-root .cargo-summary-totals .summary-metrics > * > :first-child {
         font-size: 0.375rem !important;
         line-height: 1.15 !important;
     }
+    .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals .summary-metrics > * > :last-child,
     .cargo-page-root .cargo-summary-totals .summary-metrics > * > :last-child {
         font-size: 0.45rem !important;
         line-height: 1.15 !important;
     }
+    .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals--saas-kpi.cargo-card,
     .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi.cargo-card {
         padding: 0.175rem 0 0.425rem !important;
     }
+    .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals--saas-kpi .summary-metrics > div,
     .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics > div {
         padding: 0.31rem 0.225rem;
         border-radius: 6px;
     }
+    .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals--saas-kpi .summary-metrics > div::before,
     .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics > div::before {
         height: 1.5px;
     }
     /* SaaS KPI: label 0.68rem → 0.34rem, value 1.06rem → 0.53rem */
+    .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals--saas-kpi .summary-metrics > div > :first-child,
     .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics > div > :first-child {
         font-size: 0.34rem !important;
     }
+    .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals--saas-kpi .summary-metrics > div > :last-child,
     .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics > div > :last-child {
         font-size: 0.53rem !important;
     }
 }
 @media (max-width: 420px) {
+    .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals .summary-metrics,
     .cargo-page-root .cargo-summary-totals .summary-metrics {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }

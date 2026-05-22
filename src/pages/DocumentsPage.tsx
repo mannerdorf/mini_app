@@ -1987,7 +1987,10 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
         });
     }, [items, effectiveActiveInn, effectiveServiceMode, customerFilter, statusFilterSet, typeFilter, routeFilter, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, routeFilterCargo, transportFilter, effectiveSearchText, edoStatusFilterSet, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, cargoTransportByNumber, normCargoKey]);
 
-    const documentsSummary = useMemo(() => buildDocsSummary(filteredItems), [filteredItems]);
+    const documentsSummary = useMemo(
+        () => buildDocsSummary(filteredItems, perevozkiItems),
+        [filteredItems, perevozkiItems],
+    );
 
     /** ЭДО по типам документа для итоговой строки склеенной таблицы счетов (подписано / с непустым статусом) */
     const mergedInvoicesEdoTotals = useMemo(() => aggregateInvoiceEdoDocStats(filteredItems), [filteredItems]);
@@ -2017,7 +2020,10 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
         });
     }, [sortedActs, effectiveActiveInn, effectiveServiceMode, actCustomerFilter, effectiveSearchText, edoStatusFilterSet, transportFilter, getFirstCargoNumberFromInvoice, cargoTransportByNumber, normCargoKey, items]);
 
-    const actsSummary = useMemo(() => buildActsSummary(filteredActs), [filteredActs]);
+    const actsSummary = useMemo(
+        () => buildActsSummary(filteredActs, perevozkiItems),
+        [filteredActs, perevozkiItems],
+    );
     const mergedActsEdoTotals = useMemo(() => aggregateActsEdoDocStats(filteredActs, items), [filteredActs, items]);
     const filteredOrders = useMemo(() => {
         const base = buildFilteredOrders({
@@ -3394,9 +3400,9 @@ useEffect(() => {
                         {docSection === 'Счета' && !loading && !error && filteredItems.length > 0 && (
                             <motion.div {...(docsMotionEnabled ? cargoSummaryMotion : { initial: false })}>
                                 <DocumentsSummaryCard
-                                    sum={documentsSummary.sum}
-                                    count={documentsSummary.count}
+                                    summary={documentsSummary}
                                     showSums={showSums}
+                                    useServiceRequest={effectiveServiceMode}
                                     saasAnalytics={documentsServiceSaasUi}
                                 />
                             </motion.div>
@@ -3404,9 +3410,9 @@ useEffect(() => {
                         {docSection === 'УПД' && !actsLoading && !actsError && filteredActs.length > 0 && (
                             <motion.div {...(docsMotionEnabled ? cargoSummaryMotion : { initial: false })}>
                                 <DocumentsSummaryCard
-                                    sum={actsSummary.sum}
-                                    count={actsSummary.count}
+                                    summary={actsSummary}
                                     showSums={showSums}
+                                    useServiceRequest={effectiveServiceMode}
                                     saasAnalytics={documentsServiceSaasUi}
                                 />
                             </motion.div>
