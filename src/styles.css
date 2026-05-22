@@ -1109,6 +1109,16 @@ body {
         /* В мобильном режиме скролл в app-main; stick к верху видимой области */
         top: 0;
     }
+    /* Документы: карточка «Документы» + вкладки — ниже фиксированного app-header */
+    .documents-page {
+        padding-top: 0.5rem;
+    }
+    .documents-page .cargo-page-sticky-header.documents-page-sticky-header,
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
+        padding-top: 1rem !important;
+        margin-top: 0.35rem;
+        margin-bottom: 0.55rem !important;
+    }
     .sendings-bulk-actions-sticky {
         top: 5rem;
     }
@@ -1628,9 +1638,13 @@ body {
 
 /* Узкий холст / миниапп: до 1024px ловим WebView с шириной > 768 */
 @media (max-width: 1024px) {
+    .documents-page {
+        padding-top: 0.35rem;
+    }
     .documents-page-sticky-header,
     .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
         margin-bottom: 0.45rem;
+        padding-top: 0.85rem !important;
     }
     /* Договоры / Тарифы: на узком холсте чуть плотнее к липкому блоку */
     .documents-page .doc-section-content {
