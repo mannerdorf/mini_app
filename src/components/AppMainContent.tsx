@@ -266,6 +266,7 @@ export function AppMainContent({
             onOpenChat={undefined}
             permissions={activeAccount?.isRegisteredUser ? activeAccount.permissions : undefined}
             showSums={activeAccount?.financialAccess ?? true}
+            hasAnalytics={activeAccount?.permissions?.analytics === true}
             isSuperAdmin={activeAccount?.isSuperAdmin === true}
             documentsServiceSaasUi={true}
           />

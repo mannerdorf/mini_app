@@ -194,6 +194,30 @@ export function getInvoiceBillEdoInfo(item: any): EdoStatusInfo {
 export const INVOICE_EDO_MERGED_COLUMNS = ["ЭР", "АПП", "УПД", "СЧЕТ"] as const;
 export type InvoiceEdoMergedDocLabel = (typeof INVOICE_EDO_MERGED_COLUMNS)[number];
 
+/** Подписи статусов ЭДО по колонкам таблицы (как в мониторе / раскрытии счёта). */
+export function collectInvoiceEdoTableLabels(item: any): string[] {
+  return INVOICE_EDO_MERGED_COLUMNS.map((col) => getInvoiceEdoInfoByDocLabel(item, col).label);
+}
+
+/** Фильтр «Статус ЭДО»: счёт подходит, если хотя бы одна колонка совпадает с выбранным статусом. */
+export function invoiceMatchesEdoStatusFilter(item: any, filterSet: Set<string>): boolean {
+  if (filterSet.size === 0) return true;
+  return collectInvoiceEdoTableLabels(item).some((label) => filterSet.has(label));
+}
+
+/** Уникальные статусы ЭДО из списка счетов (все колонки таблицы). */
+export function collectUniqueInvoiceEdoTableLabels(invoices: any[] | undefined | null): string[] {
+  const set = new Set<string>();
+  for (const inv of invoices || []) {
+    collectInvoiceEdoTableLabels(inv).forEach((label) => set.add(label));
+  }
+  return [...set].sort((a, b) => {
+    if (a === EMPTY_EDO.label) return 1;
+    if (b === EMPTY_EDO.label) return -1;
+    return a.localeCompare(b, "ru");
+  });
+}
+
 /** Подписан по ЭДО: зелёный бейдж «П» (success) */
 export function isInvoiceEdoSigned(info: EdoStatusInfo): boolean {
   return Boolean(info.raw) && info.tone === "success";

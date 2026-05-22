@@ -969,9 +969,14 @@ body {
     overflow-x: visible;
 }
 
+/* Вкладки разделов ↔ строка фильтров */
+.documents-page .doc-sections-row {
+    margin-bottom: 0.55rem;
+}
+
 /* Итоги счётов/УПД: внутри липкой шапки, под фильтрами — не прячутся под прокруткой контента */
 .documents-sticky-summary-wrap {
-    margin-top: 0.35rem;
+    margin-top: 0.55rem;
     width: 100%;
     min-width: 0;
     overflow: visible;
@@ -1085,6 +1090,33 @@ body {
     }
     .documents-page--with-tariffs-section .documents-page-sticky-header,
     .documents-page--with-tariffs-section.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
+        margin-bottom: 1.15rem;
+    }
+}
+
+/* Договоры: первая плитка/таблица под липкими вкладками и фильтрами */
+.documents-page--with-contracts-section .documents-table-offset-desktop,
+.documents-page--with-contracts-section .documents-cards-offset-desktop {
+    margin-top: calc(0.95rem + 0.5cm);
+}
+.documents-page--with-contracts-section.documents-page--saas-analytics .documents-table-offset-desktop,
+.documents-page--with-contracts-section.documents-page--saas-analytics .documents-cards-offset-desktop {
+    margin-top: calc(1.05rem + 0.55cm);
+}
+@media (min-width: 769px) {
+    .documents-page--with-contracts-section .documents-table-offset-desktop,
+    .documents-page--with-contracts-section .documents-cards-offset-desktop {
+        margin-top: calc(0.95rem + 1.5cm);
+    }
+    .documents-page--with-contracts-section.documents-page--saas-analytics .documents-table-offset-desktop,
+    .documents-page--with-contracts-section.documents-page--saas-analytics .documents-cards-offset-desktop {
+        margin-top: calc(1.05rem + 1.55cm);
+    }
+    .documents-page--with-contracts-section .doc-contracts-table-offset-desktop {
+        margin-top: 0;
+    }
+    .documents-page--with-contracts-section .documents-page-sticky-header,
+    .documents-page--with-contracts-section.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
         margin-bottom: 1.15rem;
     }
 }
@@ -1776,9 +1808,14 @@ body {
         0 12px 40px rgba(15, 23, 42, 0.06);
 }
 
-/* Под строкой фильтров оставляем заметный зазор до KPI/списка — иначе первая карточка прилегает к фильтру и верх обрезается визуально */
+/* Под строкой фильтров — зазор до KPI; сверху — отступ от вкладок разделов */
 .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .filters-container.filters-row-scroll {
-    margin-bottom: 0.4rem;
+    margin-top: 0.35rem;
+    margin-bottom: 0.55rem;
+}
+.documents-page .cargo-page-sticky-header.documents-page-sticky-header .filters-container.filters-row-scroll {
+    margin-top: 0.3rem;
+    margin-bottom: 0.5rem;
 }
 
 /* Сразу под шапкой — контент без KPI (тарифы/договоры) или панель с кнопками: 1.5cm лишний; WebView часто шире 768px */
@@ -1861,8 +1898,8 @@ body {
 
 @media (min-width: 1025px) {
     /* Немного больше воздуха под липким блоком в SaaS-оболочке (кроме Счета/УПД с KPI) */
-    .documents-page--saas-analytics:not(.documents-page--with-summary-sections):not(.documents-page--with-tariffs-section):not(.documents-page--with-orders-section):not(.documents-page--with-sendings-section) .documents-table-offset-desktop,
-    .documents-page--saas-analytics:not(.documents-page--with-summary-sections):not(.documents-page--with-tariffs-section):not(.documents-page--with-orders-section):not(.documents-page--with-sendings-section) .documents-cards-offset-desktop {
+    .documents-page--saas-analytics:not(.documents-page--with-summary-sections):not(.documents-page--with-tariffs-section):not(.documents-page--with-orders-section):not(.documents-page--with-sendings-section):not(.documents-page--with-contracts-section) .documents-table-offset-desktop,
+    .documents-page--saas-analytics:not(.documents-page--with-summary-sections):not(.documents-page--with-tariffs-section):not(.documents-page--with-orders-section):not(.documents-page--with-sendings-section):not(.documents-page--with-contracts-section) .documents-cards-offset-desktop {
         margin-top: 0.65rem;
     }
 }

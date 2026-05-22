@@ -15,8 +15,8 @@ import { normalizeStatus, STATUS_MAP, getFilterKeyByStatus } from "../lib/status
 import { StatusBadge } from "../components/shared/StatusBadges";
 import {
     aggregateInvoiceEdoDocStats,
+    collectUniqueInvoiceEdoTableLabels,
     formatEdoSignedRatio,
-    getInvoiceBillEdoInfo,
     INVOICE_EDO_MERGED_COLUMNS,
 } from "../lib/edoStatus";
 import {
@@ -48,16 +48,22 @@ import {
     getActUpdEdoInfo,
     buildFilteredInvoices,
     buildFilteredOrders,
+    buildSendingsTotalsByVehicle,
     collectInvoiceLinkedCargoNumbers,
+    formatSendingMetricNum,
     getFirstCargoNumberFromInvoice,
+    getSendingParcelsFromRow,
+    sumSendingParcelsMetrics,
 } from "./documentsPipeline";
 import {
+    DocumentsApiDebugPanel,
     DocumentsEdoCardBadge,
     DocumentsEdoMonitorGroupedTable,
     DocumentsEdoTableStatus,
     DocumentsSummaryCard,
     DocumentsStateBlocks,
     DocumentsToolbarBelowSticky,
+    type DocumentsApiDebugSnapshot,
 } from "./documentsViewBlocks";
 import {
     cargoExpandMotionProps,
@@ -309,8 +315,8 @@ function extractCustomerClaimPayloadFromEvents(events: any[]): {
 
 type DocSectionKey = 'Счета' | 'ЭДО' | 'УПД' | 'Заявки' | 'Отправки' | 'Претензии' | 'Договоры' | 'Акты сверок' | 'Тарифы';
 const DOC_SECTIONS: { key: DocSectionKey; label: string }[] = [
-    { key: 'Счета', label: 'Счета' },
     { key: 'ЭДО', label: 'ЭДО' },
+    { key: 'Счета', label: 'Счета' },
     { key: 'УПД', label: 'УПД' },
     { key: 'Заявки', label: 'Заявки' },
     { key: 'Отправки', label: 'Отправки' },
@@ -345,13 +351,15 @@ type DocumentsPageProps = {
     permissions?: AccountPermissions | null;
     /** Показывать суммы (финансовые показатели) */
     showSums?: boolean;
+    /** Право «Аналитика» — платный вес, стоимость и итоги по ТС в «Отправках» */
+    hasAnalytics?: boolean;
     /** Суперадминистратор (может менять EOR) */
     isSuperAdmin?: boolean;
 };
 
 export type EorStatus = 'entry_allowed' | 'full_inspection' | 'turnaround';
 
-export function DocumentsPage({ auth, documentsServiceSaasUi = false, useServiceRequest, activeInn, searchText, onOpenCargo, onOpenAisWithMmsi, onOpenChat, permissions, showSums = true, isSuperAdmin = false }: DocumentsPageProps) {
+export function DocumentsPage({ auth, documentsServiceSaasUi = false, useServiceRequest, activeInn, searchText, onOpenCargo, onOpenAisWithMmsi, onOpenChat, permissions, showSums = true, hasAnalytics = false, isSuperAdmin = false }: DocumentsPageProps) {
     const runtime = useAppRuntime();
     const effectiveServiceMode = useServiceRequest ?? runtime.useServiceRequest;
     const effectiveActiveInn = activeInn ?? runtime.activeInn;
@@ -472,6 +480,8 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [dogovorsLoading, setDogovorsLoading] = useState(false);
     const [dogovorsDownloadingId, setDogovorsDownloadingId] = useState<number | null>(null);
     const [dogovorsDownloadError, setDogovorsDownloadError] = useState<string | null>(null);
+    const [sverkiApiDebug, setSverkiApiDebug] = useState<DocumentsApiDebugSnapshot | null>(null);
+    const [dogovorsApiDebug, setDogovorsApiDebug] = useState<DocumentsApiDebugSnapshot | null>(null);
     const [claimsList, setClaimsList] = useState<{
         id: number;
         claimNumber: string;
@@ -556,7 +566,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
             return permissions[DOC_SECTION_TO_PERMISSION[key]] !== false;
         });
     }, [permissions]);
-    const defaultDocSection = allowedDocSections[0]?.key ?? 'Счета';
+    const defaultDocSection = allowedDocSections[0]?.key ?? 'ЭДО';
     const [docSection, setDocSection] = useState<DocSectionKey>(() => {
         try {
             const v = localStorage.getItem(DOCS_SECTION_KEY) as DocSectionKey | null;
@@ -608,20 +618,37 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         setSverkiLoading(true);
         const params = new URLSearchParams();
         if (!effectiveServiceMode && effectiveActiveInn) params.set('inn', effectiveActiveInn);
-        fetch(`/api/sverki${params.toString() ? `?${params.toString()}` : ''}`)
-            .then((res) => res.json())
-            .then((data: { sverki?: {
-                id: number;
-                docNumber: string;
-                docDate: string | null;
-                periodFrom: string | null;
-                periodTo: string | null;
-                customerName: string;
-                customerInn: string;
-            }[] }) => {
-                setSverkiList(data.sverki || []);
+        const url = `/api/sverki${params.toString() ? `?${params.toString()}` : ''}`;
+        fetch(url)
+            .then(async (res) => {
+                const body = await res.json().catch(() => null);
+                const list = Array.isArray((body as { sverki?: unknown })?.sverki)
+                    ? ((body as { sverki: typeof sverkiList }).sverki)
+                    : [];
+                setSverkiApiDebug({
+                    fetchedAt: new Date().toISOString(),
+                    url,
+                    status: res.status,
+                    ok: res.ok,
+                    body,
+                    listKey: 'sverki',
+                    listLength: list.length,
+                    error: res.ok ? undefined : String((body as { error?: string })?.error || (body as { message?: string })?.message || 'HTTP error'),
+                });
+                setSverkiList(res.ok ? list : []);
             })
-            .catch(() => setSverkiList([]))
+            .catch((e: unknown) => {
+                setSverkiList([]);
+                setSverkiApiDebug({
+                    fetchedAt: new Date().toISOString(),
+                    url,
+                    status: null,
+                    ok: false,
+                    body: null,
+                    listKey: 'sverki',
+                    error: (e as Error)?.message || 'Сетевая ошибка',
+                });
+            })
             .finally(() => setSverkiLoading(false));
     }, [docSection, effectiveActiveInn, effectiveServiceMode]);
     useEffect(() => {
@@ -629,19 +656,37 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         setDogovorsLoading(true);
         const params = new URLSearchParams();
         if (!effectiveServiceMode && effectiveActiveInn) params.set('inn', effectiveActiveInn);
-        fetch(`/api/dogovors${params.toString() ? `?${params.toString()}` : ''}`)
-            .then((res) => res.json())
-            .then((data: { dogovors?: {
-                id: number;
-                docNumber: string;
-                docDate: string | null;
-                customerName: string;
-                customerInn: string;
-                title: string;
-            }[] }) => {
-                setDogovorsList(data.dogovors || []);
+        const url = `/api/dogovors${params.toString() ? `?${params.toString()}` : ''}`;
+        fetch(url)
+            .then(async (res) => {
+                const body = await res.json().catch(() => null);
+                const list = Array.isArray((body as { dogovors?: unknown })?.dogovors)
+                    ? ((body as { dogovors: typeof dogovorsList }).dogovors)
+                    : [];
+                setDogovorsApiDebug({
+                    fetchedAt: new Date().toISOString(),
+                    url,
+                    status: res.status,
+                    ok: res.ok,
+                    body,
+                    listKey: 'dogovors',
+                    listLength: list.length,
+                    error: res.ok ? undefined : String((body as { error?: string })?.error || (body as { message?: string })?.message || 'HTTP error'),
+                });
+                setDogovorsList(res.ok ? list : []);
             })
-            .catch(() => setDogovorsList([]))
+            .catch((e: unknown) => {
+                setDogovorsList([]);
+                setDogovorsApiDebug({
+                    fetchedAt: new Date().toISOString(),
+                    url,
+                    status: null,
+                    ok: false,
+                    body: null,
+                    listKey: 'dogovors',
+                    error: (e as Error)?.message || 'Сетевая ошибка',
+                });
+            })
             .finally(() => setDogovorsLoading(false));
     }, [docSection, effectiveActiveInn, effectiveServiceMode]);
     useEffect(() => {
@@ -1041,7 +1086,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [innerTableSortOrder, setInnerTableSortOrder] = useState<'asc' | 'desc'>('desc');
     const [innerTableActSortColumn, setInnerTableActSortColumn] = useState<'number' | 'date' | 'invoice' | 'sum'>('date');
     const [innerTableActSortOrder, setInnerTableActSortOrder] = useState<'asc' | 'desc'>('desc');
-    const [sendingsSortColumn, setSendingsSortColumn] = useState<'date' | 'number' | 'route' | 'type' | 'transitHours' | 'vehicle' | 'comment'>('date');
+    const [sendingsSortColumn, setSendingsSortColumn] = useState<'date' | 'number' | 'route' | 'type' | 'transitHours' | 'vehicle' | 'comment' | 'paidWeight' | 'cost'>('date');
     const [sendingsSortOrder, setSendingsSortOrder] = useState<'asc' | 'desc'>('desc');
     const [sendingsDetailsView, setSendingsDetailsView] = useState<'general' | 'byCargo' | 'byCustomer'>('general');
     const [sendingsSummaryGroupBy, setSendingsSummaryGroupBy] = useState<'customer' | 'receiver'>('customer');
@@ -1751,13 +1796,11 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     ]);
 
     const uniqueEdoStatuses = useMemo(() => {
-        const set = new Set<string>();
         if (docSection === 'Счета' || docSection === 'ЭДО') {
-            (items || []).forEach((i: any) => {
-                const edo = getInvoiceBillEdoInfo(i);
-                if (edo.raw) set.add(edo.label);
-            });
-        } else if (docSection === 'УПД') {
+            return collectUniqueInvoiceEdoTableLabels(items);
+        }
+        const set = new Set<string>();
+        if (docSection === 'УПД') {
             (actsItems || []).forEach((a: any) => {
                 const edo = getActUpdEdoInfo(a, items);
                 if (edo.raw) set.add(edo.label);
@@ -2544,6 +2587,8 @@ useEffect(() => {
         const getTransitHours = (row: any) => getSendingTransitHours(row) ?? -1;
         const getVehicle = (row: any) => normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? "");
         const getComment = (row: any) => String(row?.Комментарий ?? row?.Comment ?? "");
+        const getPaidWeight = (row: any) => sumSendingParcelsMetrics(getSendingParcelsFromRow(row)).paidWeight;
+        const getCost = (row: any) => sumSendingParcelsMetrics(getSendingParcelsFromRow(row)).cost;
         return [...statusFilteredRows].sort((a, b) => {
             let cmp = 0;
             switch (sendingsSortColumn) {
@@ -2567,6 +2612,12 @@ useEffect(() => {
                     break;
                 case 'comment':
                     cmp = getComment(a).localeCompare(getComment(b));
+                    break;
+                case 'paidWeight':
+                    cmp = getPaidWeight(a) - getPaidWeight(b);
+                    break;
+                case 'cost':
+                    cmp = getCost(a) - getCost(b);
                     break;
             }
             return sendingsSortOrder === 'asc' ? cmp : -cmp;
@@ -2611,7 +2662,29 @@ useEffect(() => {
             .sort((a, b) => b.count - a.count || a.route.localeCompare(b.route, 'ru'));
         return { ferry, auto, routes, statusBadges };
     }, [sendingRowsSorted, normalizeTransportDisplay, getSendingStatusKey]);
-    const handleSendingsSort = useCallback((column: 'date' | 'number' | 'route' | 'type' | 'transitHours' | 'vehicle' | 'comment') => {
+    const getSendingVehicleLabel = useCallback(
+        (row: any) =>
+            normalizeTransportDisplay(
+                row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? ""
+            ) || "—",
+        [normalizeTransportDisplay]
+    );
+    const sendingsTotalsByVehicle = useMemo(() => {
+        if (!hasAnalytics) return [];
+        return buildSendingsTotalsByVehicle(sendingRowsSorted, getSendingVehicleLabel);
+    }, [hasAnalytics, sendingRowsSorted, getSendingVehicleLabel]);
+    const sendingsVehicleGrandTotals = useMemo(() => {
+        return sendingsTotalsByVehicle.reduce(
+            (acc, row) => {
+                acc.sendingsCount += row.sendingsCount;
+                acc.paidWeight += row.paidWeight;
+                acc.cost += row.cost;
+                return acc;
+            },
+            { sendingsCount: 0, paidWeight: 0, cost: 0 }
+        );
+    }, [sendingsTotalsByVehicle]);
+    const handleSendingsSort = useCallback((column: 'date' | 'number' | 'route' | 'type' | 'transitHours' | 'vehicle' | 'comment' | 'paidWeight' | 'cost') => {
         if (sendingsSortColumn === column) {
             setSendingsSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
             return;
@@ -2643,19 +2716,8 @@ useEffect(() => {
         setOrdersParcelsSortColumn(column);
         setOrdersParcelsSortOrder('asc');
     }, [ordersParcelsSortColumn]);
-    const getRequestParcels = useCallback((row: any): any[] => {
-        const raw = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
-        if (Array.isArray(raw)) return raw;
-        if (typeof raw === "string" && raw.trim()) {
-            try {
-                const parsed = JSON.parse(raw);
-                return Array.isArray(parsed) ? parsed : [];
-            } catch {
-                return [];
-            }
-        }
-        return [];
-    }, []);
+    const getRequestParcels = useCallback((row: any): any[] => getSendingParcelsFromRow(row), []);
+    const sendingsAnalyticsExtraColCount = hasAnalytics ? (showSums ? 2 : 1) : 0;
     const getSendingRowKey = useCallback((row: any, idx: number): string => {
         const number = String(row?.Номер ?? row?.Number ?? row?.number ?? '').trim();
         return number || `${idx}`;
@@ -2928,7 +2990,7 @@ useEffect(() => {
     }, [auth?.login, auth?.password, ferriesList, effectiveActiveInn]);
 
     return (
-        <div className={`w-full documents-page${documentsServiceSaasUi ? " documents-page--saas-analytics" : ""}${(docSection === 'Счета' || docSection === 'УПД') ? " documents-page--with-summary-sections" : ""}${docSection === 'ЭДО' ? " documents-page--with-edo-section" : ""}${docSection === 'Заявки' ? " documents-page--with-orders-section" : ""}${docSection === 'Отправки' ? " documents-page--with-sendings-section" : ""}${docSection === 'Тарифы' ? " documents-page--with-tariffs-section" : ""}`}>
+        <div className={`w-full documents-page${documentsServiceSaasUi ? " documents-page--saas-analytics" : ""}${(docSection === 'Счета' || docSection === 'УПД') ? " documents-page--with-summary-sections" : ""}${docSection === 'ЭДО' ? " documents-page--with-edo-section" : ""}${docSection === 'Заявки' ? " documents-page--with-orders-section" : ""}${docSection === 'Отправки' ? " documents-page--with-sendings-section" : ""}${docSection === 'Тарифы' ? " documents-page--with-tariffs-section" : ""}${docSection === 'Договоры' ? " documents-page--with-contracts-section" : ""}`}>
             <div className="cargo-page-sticky-header documents-page-sticky-header">
                 <Flex align="center" justify="space-between" style={{ marginBottom: '0.3rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Документы</Typography.Headline>
@@ -2943,7 +3005,7 @@ useEffect(() => {
                 <div
                     className="doc-sections-row"
                     style={{
-                        marginBottom: '0.3rem',
+                        marginBottom: '0.55rem',
                         overflowX: 'auto',
                         WebkitOverflowScrolling: 'touch',
                         paddingBottom: '4px',
@@ -4502,6 +4564,47 @@ useEffect(() => {
                         )}
                     </div>
                 )}
+                {hasAnalytics && sendingsTotalsByVehicle.length > 0 && (
+                    <div className="cargo-card documents-sendings-by-vehicle-summary" style={{ overflowX: 'auto', marginBottom: '0.65rem', padding: '0.55rem 0.65rem' }}>
+                        <Typography.Body style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: '0.45rem' }}>
+                            Итого по транспортным средствам
+                        </Typography.Body>
+                        <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                            <thead>
+                                <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                    <th style={{ padding: '0.4rem 0.35rem', textAlign: 'left', fontWeight: 600 }}>ТС</th>
+                                    <th style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Отправок</th>
+                                    <th style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Плат. вес</th>
+                                    {showSums && <th style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Стоимость</th>}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sendingsTotalsByVehicle.map((vehicleRow) => (
+                                    <tr key={vehicleRow.vehicle} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                        <td style={{ padding: '0.4rem 0.35rem', whiteSpace: 'nowrap', fontWeight: 600 }}>{vehicleRow.vehicle}</td>
+                                        <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{vehicleRow.sendingsCount}</td>
+                                        <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatSendingMetricNum(vehicleRow.paidWeight)}</td>
+                                        {showSums && (
+                                            <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                {formatCurrency(vehicleRow.cost)}
+                                            </td>
+                                        )}
+                                    </tr>
+                                ))}
+                                <tr style={{ borderTop: '2px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                    <td style={{ padding: '0.4rem 0.35rem', fontWeight: 700 }}>Всего</td>
+                                    <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{sendingsVehicleGrandTotals.sendingsCount}</td>
+                                    <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatSendingMetricNum(sendingsVehicleGrandTotals.paidWeight)}</td>
+                                    {showSums && (
+                                        <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                            {formatCurrency(sendingsVehicleGrandTotals.cost)}
+                                        </td>
+                                    )}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                )}
                 <AnimatePresence mode="wait">
                 {tableModeEffective ? (
                 <motion.div key="docs-send-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
@@ -4530,6 +4633,12 @@ useEffect(() => {
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус доставки</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Плановая дата прибытия</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('vehicle')} title="Сортировка">Транспортное средство {sendingsSortColumn === 'vehicle' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                {hasAnalytics && (
+                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('paidWeight')} title="Сортировка">Плат. вес {sendingsSortColumn === 'paidWeight' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                )}
+                                {hasAnalytics && showSums && (
+                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('cost')} title="Сортировка">Стоимость {sendingsSortColumn === 'cost' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                )}
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('comment')} title="Сортировка">Комментарий {sendingsSortColumn === 'comment' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                             </tr>
                         </thead>
@@ -4556,6 +4665,7 @@ useEffect(() => {
                                 const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
                                 const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
                                 const expanded = expandedSendingRow === rowKey;
+                                const sendingParcelMetrics = sumSendingParcelsMetrics(parcels);
                                 return (
                                     <React.Fragment key={rowKey}>
                                         <tr
@@ -4614,11 +4724,21 @@ useEffect(() => {
                                                 {plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : 'нет'}
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
+                                            {hasAnalytics && (
+                                                <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                    {formatSendingMetricNum(sendingParcelMetrics.paidWeight)}
+                                                </td>
+                                            )}
+                                            {hasAnalytics && showSums && (
+                                                <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                    {formatCurrency(sendingParcelMetrics.cost)}
+                                                </td>
+                                            )}
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>
                                         </tr>
                                         {expanded && (
                                             <tr>
-                                                <td colSpan={9 + (canEditPlanDate ? 1 : 0)} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <td colSpan={9 + sendingsAnalyticsExtraColCount + (canEditPlanDate ? 1 : 0)} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                     <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                                             <Button
@@ -5808,6 +5928,16 @@ useEffect(() => {
                 </div>
             )}
             {docSection === 'Акты сверок' && (
+                <>
+                <DocumentsApiDebugPanel
+                    title="GET /api/sverki"
+                    loading={sverkiLoading}
+                    snapshot={
+                        sverkiApiDebug
+                            ? { ...sverkiApiDebug, filteredLength: filteredSverki.length }
+                            : null
+                    }
+                />
                 <DocumentsToolbarBelowSticky>
                     <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.75rem' }}>
                         <Button
@@ -6107,9 +6237,19 @@ useEffect(() => {
                         </Typography.Body>
                     )}
                 </DocumentsToolbarBelowSticky>
+                </>
             )}
             {docSection === 'Договоры' && (
                 <div className="doc-section-content">
+                    <DocumentsApiDebugPanel
+                        title="GET /api/dogovors"
+                        loading={dogovorsLoading}
+                        snapshot={
+                            dogovorsApiDebug
+                                ? { ...dogovorsApiDebug, filteredLength: filteredDogovors.length }
+                                : null
+                        }
+                    />
                     {dogovorsLoading ? (
                         <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
                             <Loader2 className="w-4 h-4 animate-spin" />

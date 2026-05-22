@@ -98,11 +98,8 @@ export function ActDetailModal({ item, isOpen, onClose, onOpenInvoice, invoices 
         const metod = DOCUMENT_METHODS[label] ?? label;
         setDownloading(label);
         setDownloadError(null);
-        const downloadUrl = typeof window !== "undefined" && window.location?.origin
-            ? `${window.location.origin}${PROXY_API_DOWNLOAD_URL}`
-            : PROXY_API_DOWNLOAD_URL;
         try {
-            const res = await fetch(downloadUrl, {
+            const res = await fetch(PROXY_API_DOWNLOAD_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -114,7 +111,22 @@ export function ActDetailModal({ item, isOpen, onClose, onOpenInvoice, invoices 
                 }),
             });
             if (!res.ok) {
-                const msg = res.status === 404 ? "Документ не найден" : res.status >= 500 ? "Ошибка сервера" : "Не удалось получить документ";
+                let msg =
+                    res.status === 404
+                        ? "Документ не найден"
+                        : res.status >= 500
+                            ? "Ошибка сервера"
+                            : "Не удалось получить документ";
+                try {
+                    const errData = await res.json();
+                    if (errData?.message && res.status !== 404 && res.status < 500) {
+                        msg = String(errData.message);
+                    } else if (errData?.error && res.status !== 404 && res.status < 500) {
+                        msg = String(errData.error);
+                    }
+                } catch {
+                    /* ignore */
+                }
                 throw new Error(msg);
             }
             const data = await res.json();
@@ -128,7 +140,9 @@ export function ActDetailModal({ item, isOpen, onClose, onOpenInvoice, invoices 
             const a = document.createElement("a");
             a.href = url;
             a.download = fileName;
+            document.body.appendChild(a);
             a.click();
+            document.body.removeChild(a);
             URL.revokeObjectURL(url);
         } catch (e: any) {
             setDownloadError(e?.message ?? "Ошибка загрузки");

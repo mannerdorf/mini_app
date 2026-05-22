@@ -389,3 +389,103 @@ export function DocumentsStateBlocks({ loading, error, emptyText }: StateProps) 
 export function DocumentsToolbarBelowSticky({ children }: { children: React.ReactNode }) {
   return <div className="documents-toolbar-below-sticky">{children}</div>;
 }
+
+export type DocumentsApiDebugSnapshot = {
+  fetchedAt: string;
+  url: string;
+  status: number | null;
+  ok: boolean;
+  error?: string;
+  body: unknown;
+  listKey?: string;
+  listLength?: number;
+  filteredLength?: number;
+};
+
+type DocumentsApiDebugPanelProps = {
+  title: string;
+  snapshot: DocumentsApiDebugSnapshot | null;
+  loading?: boolean;
+};
+
+export function DocumentsApiDebugPanel({ title, snapshot, loading }: DocumentsApiDebugPanelProps) {
+  const bodyKeys =
+    snapshot?.body && typeof snapshot.body === "object" && snapshot.body !== null
+      ? Object.keys(snapshot.body as object)
+      : [];
+
+  return (
+    <details className="documents-api-debug-panel" open style={{ marginBottom: "0.85rem" }}>
+      <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
+        Отладка API: {title}
+        {loading ? " (загрузка…)" : snapshot ? ` — HTTP ${snapshot.status ?? "—"}` : ""}
+      </summary>
+      <div
+        style={{
+          marginTop: "0.5rem",
+          padding: "0.65rem 0.75rem",
+          borderRadius: 10,
+          border: "1px solid var(--color-border)",
+          background: "var(--color-bg-hover)",
+          fontSize: "0.78rem",
+          lineHeight: 1.4,
+        }}
+      >
+        {loading && !snapshot ? (
+          <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>Запрос выполняется…</Typography.Body>
+        ) : null}
+        {!loading && !snapshot ? (
+          <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>Ответ ещё не получен</Typography.Body>
+        ) : null}
+        {snapshot ? (
+          <>
+            <div style={{ marginBottom: "0.45rem", color: "var(--color-text-secondary)" }}>
+              <div>
+                <strong>URL:</strong> {snapshot.url}
+              </div>
+              <div>
+                <strong>Время:</strong> {snapshot.fetchedAt}
+              </div>
+              <div>
+                <strong>HTTP:</strong> {snapshot.status ?? "—"} {snapshot.ok ? "(ok)" : "(ошибка)"}
+              </div>
+              {snapshot.error ? (
+                <div style={{ color: "var(--color-error, #ef4444)" }}>
+                  <strong>Ошибка:</strong> {snapshot.error}
+                </div>
+              ) : null}
+              {snapshot.listKey != null ? (
+                <div>
+                  <strong>{snapshot.listKey}:</strong> {snapshot.listLength ?? 0} в ответе
+                  {snapshot.filteredLength != null ? ` → ${snapshot.filteredLength} после фильтров UI` : ""}
+                </div>
+              ) : null}
+              {bodyKeys.length > 0 ? (
+                <div>
+                  <strong>Ключи JSON:</strong> {bodyKeys.join(", ")}
+                </div>
+              ) : null}
+            </div>
+            <pre
+              style={{
+                margin: 0,
+                maxHeight: "min(42vh, 320px)",
+                overflow: "auto",
+                padding: "0.55rem",
+                borderRadius: 8,
+                background: "var(--color-bg-primary)",
+                border: "1px solid var(--color-border)",
+                fontSize: "0.7rem",
+                lineHeight: 1.35,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+              }}
+            >
+              {JSON.stringify(snapshot.body, null, 2)}
+            </pre>
+          </>
+        ) : null}
+      </div>
+    </details>
+  );
+}

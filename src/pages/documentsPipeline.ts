@@ -1,9 +1,9 @@
 import { cityToCode, normalizeInvoiceStatus, parseCargoNumbersFromText, stripOoo } from "../lib/formatUtils";
 import { coerceStatusDisplay, getFilterKeyByStatus } from "../lib/statusUtils";
 import {
-  getInvoiceBillEdoInfo,
   getInvoiceEdoInfoByDocLabel,
   INVOICE_EDO_MERGED_COLUMNS,
+  invoiceMatchesEdoStatusFilter,
   isInvoiceEdoSigned,
   type InvoiceEdoDocAgg,
   type InvoiceEdoMergedDocLabel,
@@ -12,7 +12,7 @@ import type { StatusFilter } from "../types";
 
 export const INVOICE_FAVORITES_VALUE = "__favorites__";
 
-function normalizeTransportName(value: unknown): string {
+export function normalizeTransportName(value: unknown): string {
   const s = String(value ?? "").toUpperCase().trim();
   if (!s) return "";
   const normalizedSpaces = s.replace(/\s+/g, " ");
@@ -379,10 +379,7 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
     res = res.filter((i) => getInvoiceSearchText(i).includes(lower));
   }
   if (edoStatusFilterSet.size > 0) {
-    res = res.filter((i) => {
-      const edo = getInvoiceBillEdoInfo(i);
-      return Boolean(edo.raw) && edoStatusFilterSet.has(edo.label);
-    });
+    res = res.filter((i) => invoiceMatchesEdoStatusFilter(i, edoStatusFilterSet));
   }
   const getDate = (r: any) => (r.Date ?? r.date ?? r.Дата ?? r.DateDoc ?? "").toString();
   if (sortBy === "date") {
@@ -610,5 +607,88 @@ export function buildActsSummary(list: any[], perevozkiItems?: any[]): DocsSumma
     sum += typeof v === "string" ? parseFloat(v) || 0 : (v || 0);
   });
   return { sum, count: list.length, ...buildLinkedCargoMetrics(list, perevozkiItems) };
+}
+
+export type SendingParcelMetrics = { paidWeight: number; cost: number };
+
+export function parseSendingMetricNumber(v: unknown): number {
+  const raw = String(v ?? "").trim().replace(",", ".");
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+export function formatSendingMetricNum(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  const fixed = n.toFixed(3);
+  return fixed.replace(/\.?0+$/, "");
+}
+
+export function getSendingParcelsFromRow(row: any): any[] {
+  const raw = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+export function getParcelGoodsCost(parcel: any): number {
+  const goodsRaw = parcel?.Товары;
+  const goods = Array.isArray(goodsRaw)
+    ? (goodsRaw[0] ?? {})
+    : goodsRaw && typeof goodsRaw === "object"
+      ? goodsRaw
+      : {};
+  return parseSendingMetricNumber(
+    goods?.ОбъявленнаяСтоимостьТовараДляПечати ??
+      goods?.ОбъявленнаяСтоимостьТовара ??
+      goods?.Стоимость ??
+      parcel?.Стоимость ??
+      parcel?.Sum ??
+      parcel?.sum
+  );
+}
+
+export function sumSendingParcelsMetrics(parcels: any[]): SendingParcelMetrics {
+  let paidWeight = 0;
+  let cost = 0;
+  for (const parcel of parcels) {
+    paidWeight += parseSendingMetricNumber(parcel?.ПлатныйВес);
+    cost += getParcelGoodsCost(parcel);
+  }
+  return { paidWeight, cost };
+}
+
+export type SendingVehicleTotalRow = {
+  vehicle: string;
+  sendingsCount: number;
+  paidWeight: number;
+  cost: number;
+};
+
+export function buildSendingsTotalsByVehicle(
+  rows: any[],
+  getVehicle: (row: any) => string
+): SendingVehicleTotalRow[] {
+  const map = new Map<string, SendingVehicleTotalRow>();
+  for (const row of rows) {
+    const vehicle = getVehicle(row) || "—";
+    const metrics = sumSendingParcelsMetrics(getSendingParcelsFromRow(row));
+    const prev =
+      map.get(vehicle) ??
+      { vehicle, sendingsCount: 0, paidWeight: 0, cost: 0 };
+    prev.sendingsCount += 1;
+    prev.paidWeight += metrics.paidWeight;
+    prev.cost += metrics.cost;
+    map.set(vehicle, prev);
+  }
+  return [...map.values()].sort((a, b) =>
+    a.vehicle.localeCompare(b.vehicle, "ru", { numeric: true })
+  );
 }
 
