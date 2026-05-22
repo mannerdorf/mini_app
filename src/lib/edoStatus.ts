@@ -51,7 +51,7 @@ const EDO_STATUS_MAP: Record<string, Omit<EdoStatusInfo, "raw">> = {
 
 const EMPTY_EDO: EdoStatusInfo = {
   raw: "",
-  label: "Нет статуса ЭДО",
+  label: "Нет статуса",
   shortLabel: "НС",
   tone: "muted",
 };
@@ -241,11 +241,14 @@ export function edoToneSurfaceStyle(tone: EdoTone): CSSProperties {
  */
 export function edoDocButtonMiniBadgeStyle(tone: EdoTone): CSSProperties {
   return {
-    fontSize: "0.54rem",
-    fontWeight: 700,
-    lineHeight: 1,
-    padding: "0.04rem 0.16rem",
+    fontSize: "0.5rem",
+    fontWeight: 600,
+    lineHeight: 1.1,
+    padding: "0.04rem 0.2rem",
     borderRadius: "999px",
+    maxWidth: "7.5rem",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
     whiteSpace: "nowrap",
     ...edoToneSurfaceStyle(tone),
   };
@@ -275,3 +278,63 @@ export function edoTableCellBadgeStyle(tone: EdoTone): CSSProperties {
     ...edoToneSurfaceStyle(tone),
   };
 }
+
+/** Текст статуса в таблице (без «ЭДО» и без сокращений) */
+export function getEdoTableDisplayLabel(info: EdoStatusInfo): string {
+  if (!info.raw) return "Нет статуса";
+  return info.label;
+}
+
+/** Подпись на карточке: полный статус с префиксом «ЭДО» */
+export function getEdoCardDisplayLabel(info: EdoStatusInfo): string {
+  return `ЭДО ${getEdoTableDisplayLabel(info)}`;
+}
+
+export function edoToneTextColor(tone: EdoTone): string {
+  if (tone === "success") return "#22c55e";
+  if (tone === "warning") return "#ca8a04";
+  if (tone === "danger") return "#ef4444";
+  if (tone === "info") return "var(--color-primary-blue)";
+  return "var(--color-text-secondary)";
+}
+
+/** Таблица: обычный текст, цвет по тону */
+export function edoTableCellTextStyle(tone: EdoTone): CSSProperties {
+  return {
+    fontSize: "0.8rem",
+    fontWeight: 500,
+    whiteSpace: "nowrap",
+    color: edoToneTextColor(tone),
+  };
+}
+
+/** Карточка: мини-бейдж в правом нижнем углу */
+export function edoCardCornerBadgeStyle(tone: EdoTone): CSSProperties {
+  return {
+    position: "absolute",
+    right: 8,
+    bottom: 8,
+    zIndex: 2,
+    maxWidth: "54%",
+    fontSize: "0.5rem",
+    fontWeight: 600,
+    lineHeight: 1.2,
+    padding: "0.1rem 0.3rem",
+    borderRadius: 999,
+    textAlign: "right",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    pointerEvents: "none",
+    ...edoToneSurfaceStyle(tone),
+  };
+}
+
+/** Пункты легенды в модалках (без сокращений ОП/П/НП) */
+export const EDO_LEGEND_ITEMS: ReadonlyArray<{ tone: EdoTone; label: string }> = [
+  { tone: "warning", label: "Ожидает подписи получателя" },
+  { tone: "success", label: "Принят или подписан получателем" },
+  { tone: "danger", label: "Не принят (ЭР, АПП, УПД)" },
+  { tone: "info", label: "Отправлен (счёт)" },
+  { tone: "muted", label: "Нет статуса" },
+] as const;

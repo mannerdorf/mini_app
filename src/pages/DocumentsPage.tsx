@@ -15,7 +15,6 @@ import { normalizeStatus, STATUS_MAP, getFilterKeyByStatus } from "../lib/status
 import { StatusBadge } from "../components/shared/StatusBadges";
 import {
     aggregateInvoiceEdoDocStats,
-    edoTableCellBadgeStyle,
     formatEdoSignedRatio,
     getInvoiceBillEdoInfo,
     INVOICE_EDO_MERGED_COLUMNS,
@@ -52,7 +51,14 @@ import {
     collectInvoiceLinkedCargoNumbers,
     getFirstCargoNumberFromInvoice,
 } from "./documentsPipeline";
-import { DocumentsSummaryCard, DocumentsStateBlocks, DocumentsToolbarBelowSticky } from "./documentsViewBlocks";
+import {
+    DocumentsEdoCardBadge,
+    DocumentsEdoMonitorGroupedTable,
+    DocumentsEdoTableStatus,
+    DocumentsSummaryCard,
+    DocumentsStateBlocks,
+    DocumentsToolbarBelowSticky,
+} from "./documentsViewBlocks";
 import {
     cargoExpandMotionProps,
     cargoListContainerVariants,
@@ -301,9 +307,10 @@ function extractCustomerClaimPayloadFromEvents(events: any[]): {
     return { contactName: '', selectedPlaces: [], manipulationSigns: [], packagingTypes: [] };
 }
 
-type DocSectionKey = 'Счета' | 'УПД' | 'Заявки' | 'Отправки' | 'Претензии' | 'Договоры' | 'Акты сверок' | 'Тарифы';
+type DocSectionKey = 'Счета' | 'ЭДО' | 'УПД' | 'Заявки' | 'Отправки' | 'Претензии' | 'Договоры' | 'Акты сверок' | 'Тарифы';
 const DOC_SECTIONS: { key: DocSectionKey; label: string }[] = [
     { key: 'Счета', label: 'Счета' },
+    { key: 'ЭДО', label: 'ЭДО' },
     { key: 'УПД', label: 'УПД' },
     { key: 'Заявки', label: 'Заявки' },
     { key: 'Отправки', label: 'Отправки' },
@@ -313,7 +320,7 @@ const DOC_SECTIONS: { key: DocSectionKey; label: string }[] = [
     { key: 'Тарифы', label: 'Тарифы' },
 ];
 
-const DOC_SECTION_TO_PERMISSION: Record<DocSectionKey, keyof AccountPermissions> = {
+const DOC_SECTION_TO_PERMISSION: Record<Exclude<DocSectionKey, 'ЭДО'>, keyof AccountPermissions> = {
     'Счета': 'doc_invoices',
     'УПД': 'doc_acts',
     'Заявки': 'doc_orders',
@@ -543,6 +550,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const allowedDocSections = useMemo(() => {
         if (!permissions) return DOC_SECTIONS;
         return DOC_SECTIONS.filter(({ key }) => {
+            if (key === 'ЭДО') return true;
             if (key === 'Отправки') return permissions.doc_sendings === true && permissions.haulz === true;
             if (key === 'Претензии') return permissions.doc_claims === true;
             return permissions[DOC_SECTION_TO_PERMISSION[key]] !== false;
@@ -1744,7 +1752,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
 
     const uniqueEdoStatuses = useMemo(() => {
         const set = new Set<string>();
-        if (docSection === 'Счета') {
+        if (docSection === 'Счета' || docSection === 'ЭДО') {
             (items || []).forEach((i: any) => {
                 const edo = getInvoiceBillEdoInfo(i);
                 if (edo.raw) set.add(edo.label);
@@ -1893,7 +1901,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
     }, [sendingsItems]);
     const transportOptionsCurrentSection = useMemo(() => {
-        if (docSection === 'Счета') return uniqueInvoiceTransportVehicles;
+        if (docSection === 'Счета' || docSection === 'ЭДО') return uniqueInvoiceTransportVehicles;
         if (docSection === 'УПД') return uniqueActsTransportVehicles;
         if (docSection === 'Заявки') return uniqueOrderTransportVehicles;
         if (docSection === 'Отправки') return uniqueSendingTransportVehicles;
@@ -2334,7 +2342,8 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
     }, [groupedActsByCustomer, tableSortColumn, tableSortOrder]);
 
 useEffect(() => {
-    if (docSection !== 'Счета' || !tableModeByCustomer || sortedGroupedByCustomer.length === 0) return;
+    if ((docSection !== 'Счета' && docSection !== 'ЭДО') || sortedGroupedByCustomer.length === 0) return;
+    if (docSection === 'Счета' && !tableModeByCustomer) return;
     setExpandedTableCustomer((prev) => {
         if (prev && sortedGroupedByCustomer.some((row) => row.customer === prev)) return prev;
         return null;
@@ -2919,7 +2928,7 @@ useEffect(() => {
     }, [auth?.login, auth?.password, ferriesList, effectiveActiveInn]);
 
     return (
-        <div className={`w-full documents-page${documentsServiceSaasUi ? " documents-page--saas-analytics" : ""}${(docSection === 'Счета' || docSection === 'УПД') ? " documents-page--with-summary-sections" : ""}${docSection === 'Заявки' ? " documents-page--with-orders-section" : ""}${docSection === 'Тарифы' ? " documents-page--with-tariffs-section" : ""}`}>
+        <div className={`w-full documents-page${documentsServiceSaasUi ? " documents-page--saas-analytics" : ""}${(docSection === 'Счета' || docSection === 'УПД') ? " documents-page--with-summary-sections" : ""}${docSection === 'ЭДО' ? " documents-page--with-edo-section" : ""}${docSection === 'Заявки' ? " documents-page--with-orders-section" : ""}${docSection === 'Отправки' ? " documents-page--with-sendings-section" : ""}${docSection === 'Тарифы' ? " documents-page--with-tariffs-section" : ""}`}>
             <div className="cargo-page-sticky-header documents-page-sticky-header">
                 <Flex align="center" justify="space-between" style={{ marginBottom: '0.3rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Документы</Typography.Headline>
@@ -2983,7 +2992,7 @@ useEffect(() => {
                         })}
                     </Flex>
                 </div>
-                {(docSection === 'Счета' || docSection === 'УПД' || docSection === 'Заявки' || docSection === 'Отправки' || docSection === 'Тарифы' || docSection === 'Акты сверок' || docSection === 'Договоры') && (
+                {(docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'УПД' || docSection === 'Заявки' || docSection === 'Отправки' || docSection === 'Тарифы' || docSection === 'Акты сверок' || docSection === 'Договоры') && (
                 <div className="filters-container filters-row-scroll">
                     <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
                         {docSection !== 'Тарифы' ? (
@@ -3144,7 +3153,7 @@ useEffect(() => {
                                 </FilterDropdownPortal>
                             </>
                         )}
-                        {(docSection === 'Счета' || docSection === 'Заявки') && effectiveServiceMode && (
+                        {(docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'Заявки') && effectiveServiceMode && (
                             <>
                                 <div ref={customerButtonRef} style={{ display: 'inline-flex' }}>
                                     <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsOrderSenderDropdownOpen(false); setIsOrderRouteDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
@@ -3287,7 +3296,7 @@ useEffect(() => {
                                 </FilterDropdownPortal>
                             </>
                         )}
-                        {(docSection === 'Счета' || docSection === 'УПД') && (
+                        {(docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'УПД') && (
                         <>
                         <div ref={edoStatusButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsEdoStatusDropdownOpen(!isEdoStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
@@ -3433,20 +3442,10 @@ useEffect(() => {
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка">Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 {showSums && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка">Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('count')} title="Сортировка">Счетов {tableSortColumn === 'count' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
-                                    <th
-                                        key={k}
-                                        style={{ padding: '0.5rem 0.35rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}
-                                        title="ЭДО: подписано / всего (счета с непустым статусом по этому документу)"
-                                    >
-                                        {k === "СЧЕТ" ? "СЧЕТА" : k}
-                                    </th>
-                                ))}
                             </tr>
                         </thead>
                         <tbody>
                             {sortedGroupedByCustomer.map((row, i) => {
-                                const rowEdoAgg = aggregateInvoiceEdoDocStats(row.items);
                                 return (
                                 <React.Fragment key={i}>
                                     <motion.tr
@@ -3461,19 +3460,10 @@ useEffect(() => {
                                         <td style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
                                         {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>}
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
-                                        {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
-                                            <td
-                                                key={k}
-                                                style={{ padding: '0.5rem 0.35rem', textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: "tabular-nums" }}
-                                                title="Подписано / всего по ЭДО для этого типа документа"
-                                            >
-                                                {formatEdoSignedRatio(rowEdoAgg[k].signed, rowEdoAgg[k].total)}
-                                            </td>
-                                        ))}
                                     </motion.tr>
                                     {expandedTableCustomer === row.customer && (
                                         <tr key={`${i}-detail`}>
-                                            <td colSpan={showSums ? 7 : 6} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                            <td colSpan={showSums ? 3 : 2} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                 <motion.div {...(docsMotionEnabled ? cargoExpandMotionProps : { initial: false })} style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                     <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                         <thead>
@@ -3481,7 +3471,6 @@ useEffect(() => {
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('number'); }} title="Сортировка">Номер {innerTableSortColumn === 'number' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} className="doc-inner-table-date" onClick={(e) => { e.stopPropagation(); handleInnerTableSort('date'); }} title="Сортировка">Дата {innerTableSortColumn === 'date' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('status'); }} title="Сортировка">Статус {innerTableSortColumn === 'status' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>ЭДО</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('deliveryStatus'); }} title="Сортировка">Статус перевозки {innerTableSortColumn === 'deliveryStatus' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} className="doc-inner-table-route" onClick={(e) => { e.stopPropagation(); handleInnerTableSort('route'); }} title="Сортировка">Маршрут {innerTableSortColumn === 'route' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 {showSums && <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('sum'); }} title="Сортировка">Сумма {innerTableSortColumn === 'sum' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
@@ -3494,7 +3483,6 @@ useEffect(() => {
                                                                 const isum = inv.SumDoc ?? inv.Sum ?? inv.sum ?? inv.Сумма ?? inv.Amount ?? 0;
                                                                 const ist = normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
                                                                 const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
-                                                                const edo = getInvoiceBillEdoInfo(inv);
                                                                 const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
                                                                 const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
                                                                 return (
@@ -3502,9 +3490,6 @@ useEffect(() => {
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{formatInvoiceNumber(inum)}</td>
                                                                         <td className="doc-inner-table-date" style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} /></td>
                                                                         <td className="doc-inner-table-status" style={{ padding: '0.35rem 0.3rem' }}>{ist ? <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: istBadgeStyle.bg, color: istBadgeStyle.color, border: '1px solid var(--color-border)', whiteSpace: 'nowrap', display: 'inline-block' }}>{ist}</span> : '—'}</td>
-                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>
-                                                                            <span className="role-badge" title={edo.label} style={edoTableCellBadgeStyle(edo.tone)}>{edo.shortLabel}</span>
-                                                                        </td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>
                                                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
                                                                         </td>
@@ -3529,11 +3514,6 @@ useEffect(() => {
                                 <td style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
                                 {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrency(documentsSummary.sum)}</td>}
                                 <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700 }}>{documentsSummary.count}</td>
-                                {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
-                                    <td key={k} style={{ padding: '0.5rem 0.35rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', fontVariantNumeric: "tabular-nums" }} title="Итого по всем счетам в таблице">
-                                        {formatEdoSignedRatio(mergedInvoicesEdoTotals[k].signed, mergedInvoicesEdoTotals[k].total)}
-                                    </td>
-                                ))}
                             </tr>
                         </tfoot>
                     </table>
@@ -3548,7 +3528,6 @@ useEffect(() => {
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>ЭДО</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус перевозки</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Маршрут</th>
                                 {showSums && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>}
@@ -3561,7 +3540,6 @@ useEffect(() => {
                                 const isum = inv.SumDoc ?? inv.Sum ?? inv.sum ?? inv.Сумма ?? inv.Amount ?? 0;
                                 const ist = normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
                                 const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
-                                const edo = getInvoiceBillEdoInfo(inv);
                                 const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
                                 const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
                                 return (
@@ -3569,9 +3547,6 @@ useEffect(() => {
                                         <td style={{ padding: '0.5rem 0.4rem' }}>{formatInvoiceNumber(inum)}</td>
                                         <td style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} /></td>
                                         <td style={{ padding: '0.5rem 0.4rem' }}>{ist ? <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: istBadgeStyle.bg, color: istBadgeStyle.color, border: '1px solid var(--color-border)', whiteSpace: 'nowrap', display: 'inline-block' }}>{ist}</span> : '—'}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem' }}>
-                                            <span className="role-badge" title={edo.label} style={edoTableCellBadgeStyle(edo.tone)}>{edo.shortLabel}</span>
-                                        </td>
                                         <td style={{ padding: '0.5rem 0.4rem' }}>
                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
                                         </td>
@@ -3585,7 +3560,7 @@ useEffect(() => {
                         </tbody>
                         <tfoot>
                             <tr style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <td colSpan={showSums ? 6 : 7} style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
+                                <td colSpan={showSums ? 5 : 4} style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
                                 {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrency(documentsSummary.sum)}</td>}
                             </tr>
                         </tfoot>
@@ -3609,7 +3584,6 @@ useEffect(() => {
                         const sum = row.SumDoc ?? row.Sum ?? row.sum ?? row.Сумма ?? row.Amount ?? 0;
                         const rawStatus = row.Status ?? row.State ?? row.state ?? row.Статус ?? '';
                         const st = (normalizeInvoiceStatus(rawStatus) || rawStatus) as string;
-                        const edo = getInvoiceBillEdoInfo(row);
                         const badgeStyle = st === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : st === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : st === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
                         return (
                             <motion.div
@@ -3636,7 +3610,6 @@ useEffect(() => {
                                 <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
                                     <Flex align="center" gap="0.35rem" style={{ minWidth: 0 }}>
                                         {st && <span className="role-badge" style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.4rem', borderRadius: '999px', background: badgeStyle.bg, color: badgeStyle.color, border: '1px solid var(--color-border)', whiteSpace: 'nowrap' }}>{st}</span>}
-                                        <span className="role-badge" title={edo.label} style={edoTableCellBadgeStyle(edo.tone)}>{edo.shortLabel}</span>
                                     </Flex>
                                     <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{sum != null ? formatCurrency(sum) : '—'}</Typography.Body>
                                 </Flex>
@@ -3658,6 +3631,47 @@ useEffect(() => {
                         );
                     })}
                 </motion.div>
+                </motion.div>
+            ) : null}
+            </AnimatePresence>
+            {selectedInvoice && (
+                <InvoiceDetailModal
+                    item={selectedInvoice}
+                    isOpen={!!selectedInvoice}
+                    onClose={() => setSelectedInvoice(null)}
+                    onOpenCargo={(cargoNumber) => {
+                        setSelectedInvoice(null);
+                        setTimeout(() => onOpenCargo?.(cargoNumber), 0);
+                    }}
+                    auth={auth}
+                    cargoStateByNumber={cargoStateByNumber}
+                    cargoRouteByNumber={cargoRouteByNumber}
+                    perevozkiLoading={perevozkiLoading}
+                />
+            )}
+            {!loading && !error && filteredItems.length === 0 && (
+                <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет счетов за выбранный период</Typography.Body>
+            )}
+            </>
+            )}
+            {docSection === 'ЭДО' && (
+            <>
+            {(loading || !!error) && <DocumentsStateBlocks loading={loading} error={error} emptyText="" />}
+            <AnimatePresence mode="wait">
+            {!loading && !error && sortedGroupedByCustomer.length > 0 ? (
+                <motion.div key="docs-edo-monitor" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
+                    <DocumentsEdoMonitorGroupedTable
+                        rows={sortedGroupedByCustomer}
+                        totals={mergedInvoicesEdoTotals}
+                        invoicesCount={documentsSummary.count}
+                        expandedCustomer={expandedTableCustomer}
+                        onToggleCustomer={(customer) => setExpandedTableCustomer((prev) => (prev === customer ? null : customer))}
+                        onOpenInvoice={(inv) => setSelectedInvoice(inv)}
+                        sortColumn={tableSortColumn === 'sum' ? 'sum' : tableSortColumn === 'count' ? 'count' : 'customer'}
+                        sortOrder={tableSortOrder}
+                        onSort={handleTableSort}
+                        docsMotionEnabled={docsMotionEnabled}
+                    />
                 </motion.div>
             ) : null}
             </AnimatePresence>
@@ -3759,7 +3773,7 @@ useEffect(() => {
                                                                         <td className="doc-inner-table-date" style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof adt === 'string' ? adt : adt ? String(adt) : undefined} /></td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{ainv ? formatInvoiceNumber(String(ainv)) : '—'}</td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>
-                                                                            <span className="role-badge" title={updEdo.label} style={edoTableCellBadgeStyle(updEdo.tone)}>{updEdo.shortLabel}</span>
+                                                                            <DocumentsEdoTableStatus info={updEdo} />
                                                                         </td>
                                                                         {showSums && <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{asum != null ? formatCurrency(asum) : '—'}</td>}
                                                                     </tr>
@@ -3815,7 +3829,7 @@ useEffect(() => {
                                         <td style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof adt === 'string' ? adt : adt ? String(adt) : undefined} /></td>
                                         <td style={{ padding: '0.5rem 0.4rem' }}>{ainv ? formatInvoiceNumber(String(ainv)) : '—'}</td>
                                         <td style={{ padding: '0.5rem 0.4rem' }}>
-                                            <span className="role-badge" title={updEdo.label} style={edoTableCellBadgeStyle(updEdo.tone)}>{updEdo.shortLabel}</span>
+                                            <DocumentsEdoTableStatus info={updEdo} />
                                         </td>
                                         {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{asum != null ? formatCurrency(asum) : '—'}</td>}
                                     </tr>
@@ -3848,7 +3862,7 @@ useEffect(() => {
                                 initial={docsMotionEnabled ? "hidden" : false}
                                 animate={docsMotionEnabled ? "visible" : undefined}
                             >
-                            <Panel className="cargo-card" onClick={() => setSelectedAct(act)} style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}>
+                            <Panel className="cargo-card" onClick={() => setSelectedAct(act)} style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative', paddingBottom: '1.65rem' }}>
                                 <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'visible' }}>
                                     <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '60%' }}>
                                         <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{formatInvoiceNumber(String(num))}</Typography.Body>
@@ -3875,14 +3889,8 @@ useEffect(() => {
                                 </Flex>
                                 {showSums && (
                                 <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
-                                    <span className="role-badge" title={updEdo.label} style={edoTableCellBadgeStyle(updEdo.tone)}>{updEdo.shortLabel}</span>
-                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{sumDoc != null ? formatCurrency(sumDoc) : '—'}</Typography.Body>
-                                </Flex>
-                                )}
-                                {!showSums && (
-                                <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
-                                    <span className="role-badge" title={updEdo.label} style={edoTableCellBadgeStyle(updEdo.tone)}>{updEdo.shortLabel}</span>
                                     <span />
+                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{sumDoc != null ? formatCurrency(sumDoc) : '—'}</Typography.Body>
                                 </Flex>
                                 )}
                                 <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
@@ -3895,6 +3903,7 @@ useEffect(() => {
                                         <Typography.Label style={{ fontSize: '0.85rem' }}>Счёт {formatInvoiceNumber(String(invoiceNum))}</Typography.Label>
                                     )}
                                 </Flex>
+                                <DocumentsEdoCardBadge info={updEdo} />
                             </Panel>
                             </motion.div>
                         );
@@ -4381,9 +4390,9 @@ useEffect(() => {
                     </div>
                 </div>
                 {canEditPlanDate && tableModeEffective && (
-                    <div className="cargo-card sendings-bulk-actions-sticky" style={{ padding: '0.6rem 0.75rem', marginBottom: '0.5rem', overflow: 'visible' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
-                            <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                    <div className="cargo-card sendings-bulk-actions-bar sendings-bulk-actions-sticky" style={{ overflow: 'visible' }}>
+                        <div className="sendings-bulk-actions-bar__row">
+                            <Typography.Body className="sendings-bulk-actions-bar__label" style={{ color: 'var(--color-text-secondary)' }}>
                                 Выбрано отправок: {selectedVisibleSendingCount}
                             </Typography.Body>
                             {canEditEor && (
@@ -5344,9 +5353,9 @@ useEffect(() => {
                 <motion.div key="docs-send-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                     <div className="cargo-list" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
                         {canEditPlanDate && (
-                            <div className="cargo-card" style={{ padding: '0.6rem 0.75rem', marginBottom: '0.5rem', overflow: 'visible' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
-                                    <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                            <div className="cargo-card sendings-bulk-actions-bar" style={{ overflow: 'visible' }}>
+                                <div className="sendings-bulk-actions-bar__row">
+                                    <Typography.Body className="sendings-bulk-actions-bar__label" style={{ color: 'var(--color-text-secondary)' }}>
                                         Выбрано отправок: {selectedVisibleSendingCount}
                                     </Typography.Body>
                                     {canEditEor && (
@@ -6533,7 +6542,7 @@ useEffect(() => {
                     )}
                 </DocumentsToolbarBelowSticky>
             )}
-            {docSection !== 'Счета' && docSection !== 'УПД' && docSection !== 'Заявки' && docSection !== 'Отправки' && docSection !== 'Тарифы' && docSection !== 'Акты сверок' && docSection !== 'Договоры' && docSection !== 'Претензии' && (
+            {docSection !== 'Счета' && docSection !== 'ЭДО' && docSection !== 'УПД' && docSection !== 'Заявки' && docSection !== 'Отправки' && docSection !== 'Тарифы' && docSection !== 'Акты сверок' && docSection !== 'Договоры' && docSection !== 'Претензии' && (
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0', fontSize: '0.9rem' }}>
                     Раздел «{docSection}» в разработке.
                 </Typography.Body>

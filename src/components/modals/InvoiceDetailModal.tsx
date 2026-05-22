@@ -8,7 +8,8 @@ import { DateText } from "../ui/DateText";
 import { StatusBadge } from "../shared/StatusBadges";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { DOCUMENT_METHODS } from "../../documentMethods";
-import { edoDocButtonMiniBadgeStyle, edoLegendBadgeStyle, getInvoiceEdoInfoByDocLabel } from "../../lib/edoStatus";
+import { edoDocButtonMiniBadgeStyle, getEdoTableDisplayLabel, getInvoiceEdoInfoByDocLabel } from "../../lib/edoStatus";
+import { DocumentsEdoLegend } from "../../pages/documentsViewBlocks";
 import type { AuthData } from "../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД", "Реестр"] as const;
@@ -207,7 +208,7 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                                     {label}
                                     {!isReestr && (
                                         <span title={edo.label} style={edoDocButtonMiniBadgeStyle(edo.tone)}>
-                                            {edo.shortLabel}
+                                            {getEdoTableDisplayLabel(edo)}
                                         </span>
                                     )}
                                 </Button>
@@ -215,25 +216,7 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                         })}
                     </Flex>
                 )}
-                {auth && (
-                    <Flex gap="0.35rem" wrap="wrap" align="center" style={{ marginBottom: '0.75rem', flexShrink: 0 }}>
-                        <Typography.Label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", marginRight: "0.15rem" }}>Легенда ЭДО:</Typography.Label>
-                        <span className="role-badge" style={edoLegendBadgeStyle("warning")}>ОП</span>
-                        <Typography.Label style={{ fontSize: "0.68rem", color: "var(--color-text-secondary)" }}>ожидает подписи</Typography.Label>
-                        <span style={{ color: "var(--color-text-secondary)", fontSize: "0.65rem" }}>·</span>
-                        <span className="role-badge" style={edoLegendBadgeStyle("success")}>П</span>
-                        <Typography.Label style={{ fontSize: "0.68rem", color: "var(--color-text-secondary)" }}>принят / подписан</Typography.Label>
-                        <span style={{ color: "var(--color-text-secondary)", fontSize: "0.65rem" }}>·</span>
-                        <span className="role-badge" style={edoLegendBadgeStyle("danger")}>НП</span>
-                        <Typography.Label style={{ fontSize: "0.68rem", color: "var(--color-text-secondary)" }}>не принят (ЭР, АПП, УПД)</Typography.Label>
-                        <span style={{ color: "var(--color-text-secondary)", fontSize: "0.65rem" }}>·</span>
-                        <span className="role-badge" style={edoLegendBadgeStyle("info")}>ОТ</span>
-                        <Typography.Label style={{ fontSize: "0.68rem", color: "var(--color-text-secondary)" }}>отправлен (счёт)</Typography.Label>
-                        <span style={{ color: "var(--color-text-secondary)", fontSize: "0.65rem" }}>·</span>
-                        <span className="role-badge" style={edoLegendBadgeStyle("muted")}>НС</span>
-                        <Typography.Label style={{ fontSize: "0.68rem", color: "var(--color-text-secondary)" }}>нет статуса</Typography.Label>
-                    </Flex>
-                )}
+                {auth && <DocumentsEdoLegend />}
                 {downloadError && (
                     <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem', marginBottom: '0.5rem', flexShrink: 0 }}>{downloadError}</Typography.Body>
                 )}
