@@ -1062,10 +1062,14 @@ body {
 }
 @media (min-width: 769px) {
     .documents-page--with-edo-section .documents-table-offset-desktop {
-        margin-top: 3.5cm;
+        margin-top: 4.5cm;
     }
     .documents-page--with-edo-section.documents-page--saas-analytics .documents-table-offset-desktop {
-        margin-top: 4cm;
+        margin-top: 5cm;
+    }
+    .documents-page--with-edo-section .documents-page-sticky-header,
+    .documents-page--with-edo-section.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
+        margin-bottom: 1.15rem;
     }
 }
 
@@ -1898,8 +1902,8 @@ body {
 
 @media (min-width: 1025px) {
     /* Немного больше воздуха под липким блоком в SaaS-оболочке (кроме Счета/УПД с KPI) */
-    .documents-page--saas-analytics:not(.documents-page--with-summary-sections):not(.documents-page--with-tariffs-section):not(.documents-page--with-orders-section):not(.documents-page--with-sendings-section):not(.documents-page--with-contracts-section) .documents-table-offset-desktop,
-    .documents-page--saas-analytics:not(.documents-page--with-summary-sections):not(.documents-page--with-tariffs-section):not(.documents-page--with-orders-section):not(.documents-page--with-sendings-section):not(.documents-page--with-contracts-section) .documents-cards-offset-desktop {
+    .documents-page--saas-analytics:not(.documents-page--with-summary-sections):not(.documents-page--with-edo-section):not(.documents-page--with-tariffs-section):not(.documents-page--with-orders-section):not(.documents-page--with-sendings-section):not(.documents-page--with-contracts-section) .documents-table-offset-desktop,
+    .documents-page--saas-analytics:not(.documents-page--with-summary-sections):not(.documents-page--with-edo-section):not(.documents-page--with-tariffs-section):not(.documents-page--with-orders-section):not(.documents-page--with-sendings-section):not(.documents-page--with-contracts-section) .documents-cards-offset-desktop {
         margin-top: 0.65rem;
     }
 }
