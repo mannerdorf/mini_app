@@ -1376,6 +1376,43 @@ body {
     box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
 }
 
+/* Дашборд HAULZ: на телефоне верхние статусные плитки примерно в 1.5 раза компактнее. */
+@media (max-width: 768px) {
+    .haulz-dispatch-stat-grid {
+        gap: 0.37rem !important;
+        margin-bottom: 0.67rem !important;
+    }
+
+    .haulz-dispatch-stat-tile {
+        flex: 1 1 93px !important;
+        min-width: 93px !important;
+        padding: 0.57rem 0.67rem !important;
+        border-radius: 8px !important;
+        border-left-width: 3px !important;
+    }
+
+    .haulz-dispatch-stat-tile > *:first-child {
+        font-size: 0.48rem !important;
+        margin-bottom: 0.17rem !important;
+    }
+
+    .haulz-dispatch-stat-tile > *:nth-child(2) {
+        font-size: 0.9rem !important;
+        line-height: 1.15 !important;
+    }
+
+    .haulz-dispatch-stat-tile span,
+    .haulz-dispatch-stat-tile p {
+        font-size: 0.41rem !important;
+        line-height: 1.15 !important;
+    }
+
+    .haulz-dispatch-stat-tile svg {
+        width: 9px !important;
+        height: 9px !important;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters {
         box-shadow: none;
