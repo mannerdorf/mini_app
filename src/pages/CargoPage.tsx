@@ -20,6 +20,8 @@ import {
     sortGroupedByCustomer,
 } from "./cargoPipeline";
 import { initSharedFilterSets, saveSharedListFilters, sharedFromFilterSets } from "../lib/sharedListFilters";
+import { buildTransportOptionsFromSendingsInPeriod } from "./documentsPipeline";
+import { useSendings } from "../hooks/useApi";
 import { CargoSummaryCard, CargoStateBlocks } from "./cargoViewBlocks";
 import { CargoCustomerTable, CargoCardsList } from "./cargoCollectionViews";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
@@ -118,6 +120,8 @@ export function CargoPage({
         saveSharedListFilters(sharedFromFilterSets({ statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet }));
     }, [statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet]);
     const [lastMileFilter, setLastMileFilter] = useState<'all' | 'self_pickup' | 'delivery'>('all');
+    const [transportFilter, setTransportFilter] = useState<string>('');
+    const [transportSearchQuery, setTransportSearchQuery] = useState<string>('');
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [isSenderDropdownOpen, setIsSenderDropdownOpen] = useState(false);
     const [isReceiverDropdownOpen, setIsReceiverDropdownOpen] = useState(false);
@@ -150,7 +154,9 @@ export function CargoPage({
     const billStatusButtonRef = useRef<HTMLDivElement>(null);
     const typeButtonRef = useRef<HTMLDivElement>(null);
     const routeButtonRef = useRef<HTMLDivElement>(null);
+    const transportButtonRef = useRef<HTMLDivElement>(null);
     const lastMileButtonRef = useRef<HTMLDivElement>(null);
+    const [isTransportDropdownOpen, setIsTransportDropdownOpen] = useState(false);
     const [isLastMileDropdownOpen, setIsLastMileDropdownOpen] = useState(false);
     /** Расширяли ли уже фильтр дат для отображения перевозки по contextCargoNumber (из счёта) */
     const contextCargoWidenedRef = useRef(false);
@@ -232,6 +238,29 @@ export function CargoPage({
         onCustomerDetected,
     });
 
+    const { items: sendingsItems, loading: sendingsLoading } = useSendings({
+        auth: primaryAuth,
+        dateFrom: apiDateRange.dateFrom,
+        dateTo: apiDateRange.dateTo,
+        useServiceRequest: effectiveServiceMode,
+    });
+
+    const transportOptions = useMemo(
+        () => buildTransportOptionsFromSendingsInPeriod(
+            sendingsItems,
+            apiDateRange.dateFrom,
+            apiDateRange.dateTo,
+            sendingsLoading,
+        ),
+        [sendingsItems, sendingsLoading, apiDateRange.dateFrom, apiDateRange.dateTo],
+    );
+
+    useEffect(() => {
+        if (!transportFilter) return;
+        if (transportOptions.includes(transportFilter)) return;
+        setTransportFilter('');
+    }, [transportFilter, transportOptions]);
+
     useEffect(() => {
         if (!effectiveServiceMode || !primaryAuth?.login || !primaryAuth?.password) return;
         const inns = [...new Set(items.map((i) => {
@@ -292,7 +321,7 @@ export function CargoPage({
             statusFilterSet,
             senderFilter,
             receiverFilter,
-            transportFilter: '',
+            transportFilter: effectiveServiceMode ? transportFilter : '',
             useServiceRequest: effectiveServiceMode,
             billStatusFilterSet,
             typeFilterSet,
@@ -301,7 +330,7 @@ export function CargoPage({
             sortBy,
             sortOrder,
         });
-    }, [items, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, lastMileFilter, sortBy, sortOrder]);
+    }, [items, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, transportFilter, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, lastMileFilter, sortBy, sortOrder]);
 
     const summary = useMemo(() => buildCargoSummary(filteredItems), [filteredItems]);
 
@@ -610,9 +639,36 @@ export function CargoPage({
                         </FilterDropdownPortal>
                     </div>
                 )}
+                {effectiveServiceMode && (
+                    <div className="filter-group" style={{ flexShrink: 0 }}>
+                        <div ref={transportButtonRef} style={{ display: 'inline-flex' }}>
+                            <Button className="filter-button" onClick={() => { setIsTransportDropdownOpen(!isTransportDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); }}>
+                                Транспортное средство: {transportFilter || 'Все'} <ChevronDown className="w-4 h-4"/>
+                            </Button>
+                        </div>
+                        <FilterDropdownPortal triggerRef={transportButtonRef} isOpen={isTransportDropdownOpen} onClose={() => { setIsTransportDropdownOpen(false); setTransportSearchQuery(''); }}>
+                            <div className="dropdown-item" style={{ padding: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
+                                <input
+                                    type="text"
+                                    placeholder="Поиск..."
+                                    value={transportSearchQuery}
+                                    onChange={(e) => setTransportSearchQuery(e.target.value)}
+                                    className="filter-search-input"
+                                    style={{ width: '100%', padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid var(--color-border)', fontSize: '0.875rem', outline: 'none' }}
+                                />
+                            </div>
+                            <div className="dropdown-item" onClick={() => { setTransportFilter(''); setIsTransportDropdownOpen(false); setTransportSearchQuery(''); }}><Typography.Body>Все</Typography.Body></div>
+                            {transportOptions
+                                .filter(v => !transportSearchQuery.trim() || v.toLowerCase().includes(transportSearchQuery.trim().toLowerCase()))
+                                .map(v => (
+                                    <div key={v} className="dropdown-item" onClick={() => { setTransportFilter(v); setIsTransportDropdownOpen(false); setTransportSearchQuery(''); }}><Typography.Body>{v}</Typography.Body></div>
+                                ))}
+                        </FilterDropdownPortal>
+                    </div>
+                )}
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                             Тип: {typeFilterSet.size === 0 ? 'Все' : typeFilterSet.size === 2 ? 'Паром, Авто' : typeFilterSet.has('ferry') ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>

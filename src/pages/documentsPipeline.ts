@@ -718,6 +718,25 @@ export function sendingRowInSelectedPeriod(
   return isApiDateInRange(pickSendingRowDisplayDate(row), dateFrom, dateTo);
 }
 
+/** ТС из отправок за период — для фильтра «Транспортное средство». */
+export function buildTransportOptionsFromSendingsInPeriod(
+  sendingsItems: any[],
+  dateFrom: string,
+  dateTo: string,
+  sendingsLoading: boolean,
+): string[] {
+  if (sendingsLoading) return [];
+  const set = new Set<string>();
+  (sendingsItems || []).forEach((row: any) => {
+    if (!sendingRowInSelectedPeriod(row, dateFrom, dateTo)) return;
+    const v = normalizeTransportName(
+      row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.autoReg ?? row?.AutoType ?? "",
+    );
+    if (v) set.add(v);
+  });
+  return [...set].sort((a, b) => a.localeCompare(b, "ru"));
+}
+
 export function parseSendingMetricNumber(v: unknown): number {
   const raw = String(v ?? "").trim().replace(",", ".");
   const n = Number(raw);
