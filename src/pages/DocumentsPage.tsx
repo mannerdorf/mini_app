@@ -50,6 +50,7 @@ import {
     buildActsSummary,
     buildCargoRouteByNumber,
     buildCargoStateByNumber,
+    buildCargoSumByNumber,
     buildCargoTransportByNumber,
     buildDocsSummary,
     buildFilteredActs,
@@ -60,11 +61,13 @@ import {
     buildSendingsTotalsByVehicle,
     collectInvoiceLinkedCargoNumbers,
     formatSendingMetricNum,
+    parseSendingMetricNumber,
     getFirstCargoNumberFromInvoice,
     getSendingParcelsFromRow,
     getSendingRowParcelMetrics,
     getParcelFreightSum,
     getParcelDeclaredCost,
+    collectSendingFreightCargoNumbers,
     sendingRowInSelectedPeriod,
 } from "./documentsPipeline";
 import {
@@ -1247,6 +1250,11 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         [perevozkiItems]
     );
 
+    const cargoSumByNumber = useMemo(
+        () => buildCargoSumByNumber(perevozkiItems || []),
+        [perevozkiItems]
+    );
+
     const cargoTransportByNumber = useMemo(() => {
         const base = buildCargoTransportByNumber(perevozkiItems || []);
         (sendingsItems || []).forEach((row: any) => {
@@ -1354,11 +1362,19 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const cargoStopDateByNumber = useMemo(() => {
         const m = new Map<string, Date>();
         (perevozkiItems || []).forEach((cargo: any) => {
-            const raw = String(cargo?.Number ?? cargo?.number ?? '').replace(/^0000-/, '').trim();
+            const raw = String(
+                cargo?.Number
+                ?? cargo?.number
+                ?? cargo?.Номер
+                ?? cargo?.НомерПеревозки
+                ?? cargo?.CargoNumber
+                ?? cargo?.NumberPerevozki
+                ?? '',
+            ).replace(/^0000-/, '').trim();
             if (!raw) return;
-            const statusKey = getFilterKeyByStatus(String(cargo?.State ?? cargo?.state ?? cargo?.Статус ?? ''));
+            const statusKey = getFilterKeyByStatus(String(cargo?.State ?? cargo?.state ?? cargo?.Статус ?? cargo?.Status ?? ''));
+            // Таймер останавливается на «Готов к выдаче»; «Доставлено» — финальная точка, если ready не было
             if (statusKey !== 'ready' && statusKey !== 'delivered') return;
-            // Окончание «в пути» — момент получения статуса «Готов к выдаче» или «Доставлено» (дата статуса)
             const stopDate = parseDateTimeValue(
                 cargo?.StatusDate
                 ?? cargo?.DateStatus
@@ -1386,6 +1402,33 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         });
         return m;
     }, [perevozkiItems, parseDateTimeValue, normCargoKey]);
+    const pickSendingTransitStopDate = useCallback((
+        cargoNumbers: string[],
+        rowStatusKey: StatusFilter,
+        rowStopDate: Date | null,
+        explicitEnd: Date | null,
+        start: Date,
+    ): { frozen: boolean; end: Date } => {
+        let readyStopDate: Date | null = null;
+        cargoNumbers.forEach((cargoNumber) => {
+            const statusKey = getFilterKeyByStatus(String(cargoStateByNumber.get(normCargoKey(cargoNumber)) ?? ''));
+            if (statusKey !== 'ready' && statusKey !== 'delivered') return;
+            const cargoStopDate = cargoStopDateByNumber.get(normCargoKey(cargoNumber))
+                ?? cargoStopDateByNumber.get(cargoNumber);
+            if (!cargoStopDate) return;
+            if (cargoStopDate.getTime() < start.getTime()) return;
+            if (!readyStopDate || cargoStopDate.getTime() < readyStopDate.getTime()) {
+                readyStopDate = cargoStopDate;
+            }
+        });
+        const hasReadyStatusInRow = rowStatusKey === 'ready' || rowStatusKey === 'delivered';
+        const frozen = readyStopDate != null || hasReadyStatusInRow;
+        if (frozen) {
+            const end = readyStopDate ?? rowStopDate ?? explicitEnd ?? start;
+            return { frozen: true, end };
+        }
+        return { frozen: false, end: explicitEnd ?? new Date() };
+    }, [cargoStateByNumber, cargoStopDateByNumber, normCargoKey]);
     const cargoPlanDateByNumber = useMemo(() => {
         const m = new Map<string, Date>();
         const plannedKeys = [
@@ -1485,112 +1528,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         });
         return Array.from(new Set(numbers));
     }, []);
-    const getSendingTransitHours = useCallback((row: any): number | null => {
-        const start = parseDateTimeValue(
-            row?.DateOtpr
-            ?? row?.DateSend
-            ?? row?.DateShipment
-            ?? row?.ShipmentDate
-            ?? row?.ДатаОтправки
-            ?? row?.ДатаОтгрузки
-            ?? row?.DateDoc
-            ?? row?.Date
-            ?? row?.date
-            ?? row?.Дата
-        );
-        if (!start) return null;
-        const rowStatusKey = getFilterKeyByStatus(
-            String(
-                row?.State
-                ?? row?.state
-                ?? row?.Статус
-                ?? row?.Status
-                ?? row?.StatusName
-                ?? ''
-            )
-        );
-        const rowStopDate = parseDateTimeValue(
-            row?.StatusDate
-            ?? row?.DateStatus
-            ?? row?.DateState
-            ?? row?.UpdatedAt
-            ?? row?.updated_at
-            ?? row?.ДатаСтатуса
-            ?? row?.ДатаИзменения
-        );
-        const explicitEnd = parseDateTimeValue(
-            row?.DatePrih
-            ?? row?.DateVr
-            ?? row?.DateDelivery
-            ?? row?.DeliveryDate
-            ?? row?.ДатаДоставки
-            ?? row?.ДатаПрибытия
-        );
-        const cargoNumbers = getSendingCargoNumbers(row);
-        let hasStopStatus = false;
-        let stopDateByCargo: Date | null = null;
-        cargoNumbers.forEach((cargoNumber) => {
-            const statusKey = getFilterKeyByStatus(String(cargoStateByNumber.get(normCargoKey(cargoNumber)) ?? ''));
-            if (statusKey !== 'ready' && statusKey !== 'delivered') return;
-            hasStopStatus = true;
-            const cargoStopDate = cargoStopDateByNumber.get(normCargoKey(cargoNumber)) ?? cargoStopDateByNumber.get(cargoNumber);
-            if (!cargoStopDate) return;
-            if (!stopDateByCargo || cargoStopDate.getTime() < stopDateByCargo.getTime()) stopDateByCargo = cargoStopDate;
-        });
-        const hasReadyStatusInRow = rowStatusKey === 'ready' || rowStatusKey === 'delivered';
-        // Окончание «в пути» — дата получения статуса «Готов к выдаче»/«Доставлено», затем явная дата доставки
-        const end = (hasStopStatus || hasReadyStatusInRow)
-            ? (stopDateByCargo ?? rowStopDate ?? explicitEnd ?? new Date())
-            : (explicitEnd ?? new Date());
-        const diffMs = end.getTime() - start.getTime();
-        if (!Number.isFinite(diffMs) || diffMs < 0) return null;
-        return Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
-    }, [parseDateTimeValue, getSendingCargoNumbers, cargoStateByNumber, normCargoKey, cargoStopDateByNumber]);
-    const getSendingTransitIsFinal = useCallback((row: any): boolean => {
-        const rowStatusKey = getFilterKeyByStatus(
-            String(
-                row?.State
-                ?? row?.state
-                ?? row?.Статус
-                ?? row?.Status
-                ?? row?.StatusName
-                ?? ''
-            )
-        );
-        const rowStopDate = parseDateTimeValue(
-            row?.StatusDate
-            ?? row?.DateStatus
-            ?? row?.DateState
-            ?? row?.UpdatedAt
-            ?? row?.updated_at
-            ?? row?.ДатаСтатуса
-            ?? row?.ДатаИзменения
-        );
-        const explicitEnd = parseDateTimeValue(
-            row?.DatePrih
-            ?? row?.DateVr
-            ?? row?.DateDelivery
-            ?? row?.DeliveryDate
-            ?? row?.ДатаДоставки
-            ?? row?.ДатаПрибытия
-        );
-        const cargoNumbers = getSendingCargoNumbers(row);
-        let hasStopStatus = false;
-        let stopDateByCargo: Date | null = null;
-        cargoNumbers.forEach((cargoNumber) => {
-            const statusKey = getFilterKeyByStatus(String(cargoStateByNumber.get(normCargoKey(cargoNumber)) ?? ''));
-            if (statusKey !== 'ready' && statusKey !== 'delivered') return;
-            hasStopStatus = true;
-            const cargoStopDate = cargoStopDateByNumber.get(normCargoKey(cargoNumber)) ?? cargoStopDateByNumber.get(cargoNumber);
-            if (!cargoStopDate) return;
-            if (!stopDateByCargo || cargoStopDate.getTime() < stopDateByCargo.getTime()) stopDateByCargo = cargoStopDate;
-        });
-        const hasReadyStatusInRow = rowStatusKey === 'ready' || rowStatusKey === 'delivered';
-        const finalEnd = (hasStopStatus || hasReadyStatusInRow)
-            ? (stopDateByCargo ?? rowStopDate ?? explicitEnd ?? null)
-            : (explicitEnd ?? null);
-        return finalEnd instanceof Date && Number.isFinite(finalEnd.getTime());
-    }, [parseDateTimeValue, getSendingCargoNumbers, cargoStateByNumber, normCargoKey, cargoStopDateByNumber]);
     const getSendingPlannedArrivalDate = useCallback((row: any): Date | null => {
         try {
             const plannedKeys = [
@@ -2164,6 +2101,141 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
         }
         return res;
     }, [sendingsItems, sendingsLoading, effectiveActiveInn, customerFilter, typeFilterSet, routeFilterSet, transportFilter, effectiveSearchText, sortBy, sortOrder, normalizeTransportDisplay, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    /** Все перевозки на одном ТС в текущей выборке (для остановки таймера «в пути»). */
+    const vehicleFreightCargoNumbers = useMemo(() => {
+        const m = new Map<string, Set<string>>();
+        (filteredSendings || []).forEach((row: any) => {
+            const vehicle = normalizeTransportDisplay(
+                row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '',
+            );
+            if (!vehicle) return;
+            const bucket = m.get(vehicle) ?? new Set<string>();
+            collectSendingFreightCargoNumbers(row).forEach((num) => bucket.add(num));
+            m.set(vehicle, bucket);
+        });
+        return m;
+    }, [filteredSendings, normalizeTransportDisplay]);
+    const getSendingTransitHours = useCallback((row: any): number | null => {
+        const start = parseDateTimeValue(
+            row?.DateOtpr
+            ?? row?.DateSend
+            ?? row?.DateShipment
+            ?? row?.ShipmentDate
+            ?? row?.ДатаОтправки
+            ?? row?.ДатаОтгрузки
+            ?? row?.DateDoc
+            ?? row?.Date
+            ?? row?.date
+            ?? row?.Дата
+        );
+        if (!start) return null;
+        const rowStatusKey = getFilterKeyByStatus(
+            String(
+                row?.State
+                ?? row?.state
+                ?? row?.Статус
+                ?? row?.Status
+                ?? row?.StatusName
+                ?? ''
+            )
+        );
+        const rowStopDate = parseDateTimeValue(
+            row?.StatusDate
+            ?? row?.DateStatus
+            ?? row?.DateState
+            ?? row?.UpdatedAt
+            ?? row?.updated_at
+            ?? row?.ДатаСтатуса
+            ?? row?.ДатаИзменения
+        );
+        const explicitEnd = parseDateTimeValue(
+            row?.DatePrih
+            ?? row?.DateVr
+            ?? row?.DateDelivery
+            ?? row?.DeliveryDate
+            ?? row?.ДатаДоставки
+            ?? row?.ДатаПрибытия
+        );
+        const cargoNumbers = (() => {
+            const vehicle = normalizeTransportDisplay(
+                row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '',
+            );
+            const rowNumbers = collectSendingFreightCargoNumbers(row);
+            if (!vehicle) return rowNumbers;
+            const onVehicle = vehicleFreightCargoNumbers.get(vehicle);
+            if (!onVehicle?.size) return rowNumbers;
+            return Array.from(onVehicle);
+        })();
+        const { end } = pickSendingTransitStopDate(
+            cargoNumbers,
+            rowStatusKey,
+            rowStopDate,
+            explicitEnd,
+            start,
+        );
+        const diffMs = end.getTime() - start.getTime();
+        if (!Number.isFinite(diffMs) || diffMs < 0) return null;
+        return Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
+    }, [parseDateTimeValue, pickSendingTransitStopDate, normalizeTransportDisplay, vehicleFreightCargoNumbers]);
+    const getSendingTransitIsFinal = useCallback((row: any): boolean => {
+        const start = parseDateTimeValue(
+            row?.DateOtpr
+            ?? row?.DateSend
+            ?? row?.DateShipment
+            ?? row?.ShipmentDate
+            ?? row?.ДатаОтправки
+            ?? row?.ДатаОтгрузки
+            ?? row?.DateDoc
+            ?? row?.Date
+            ?? row?.date
+            ?? row?.Дата
+        );
+        if (!start) return false;
+        const rowStatusKey = getFilterKeyByStatus(
+            String(
+                row?.State
+                ?? row?.state
+                ?? row?.Статус
+                ?? row?.Status
+                ?? row?.StatusName
+                ?? ''
+            )
+        );
+        const rowStopDate = parseDateTimeValue(
+            row?.StatusDate
+            ?? row?.DateStatus
+            ?? row?.DateState
+            ?? row?.UpdatedAt
+            ?? row?.updated_at
+            ?? row?.ДатаСтатуса
+            ?? row?.ДатаИзменения
+        );
+        const explicitEnd = parseDateTimeValue(
+            row?.DatePrih
+            ?? row?.DateVr
+            ?? row?.DateDelivery
+            ?? row?.DeliveryDate
+            ?? row?.ДатаДоставки
+            ?? row?.ДатаПрибытия
+        );
+        const cargoNumbers = (() => {
+            const vehicle = normalizeTransportDisplay(
+                row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '',
+            );
+            const rowNumbers = collectSendingFreightCargoNumbers(row);
+            if (!vehicle) return rowNumbers;
+            const onVehicle = vehicleFreightCargoNumbers.get(vehicle);
+            if (!onVehicle?.size) return rowNumbers;
+            return Array.from(onVehicle);
+        })();
+        return pickSendingTransitStopDate(
+            cargoNumbers,
+            rowStatusKey,
+            rowStopDate,
+            explicitEnd,
+            start,
+        ).frozen;
+    }, [parseDateTimeValue, pickSendingTransitStopDate, normalizeTransportDisplay, vehicleFreightCargoNumbers]);
     const sendingsInitialLoading = sendingsLoading && (sendingsItems?.length ?? 0) === 0;
     const sendingsSummary = useMemo(() => buildDocsSummary(filteredSendings), [filteredSendings]);
     const filteredTariffs = useMemo(() => {
@@ -2624,9 +2696,9 @@ useEffect(() => {
         const getTransitHours = (row: any) => getSendingTransitHours(row) ?? -1;
         const getVehicle = (row: any) => normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? "");
         const getComment = (row: any) => String(row?.Комментарий ?? row?.Comment ?? "");
-        const getPaidWeight = (row: any) => getSendingRowParcelMetrics(row).paidWeight;
-        const getCost = (row: any) => getSendingRowParcelMetrics(row).cost;
-        const getDeclaredCost = (row: any) => getSendingRowParcelMetrics(row).declaredCost;
+        const getPaidWeight = (row: any) => getSendingRowParcelMetrics(row, cargoSumByNumber).paidWeight;
+        const getCost = (row: any) => getSendingRowParcelMetrics(row, cargoSumByNumber).cost;
+        const getDeclaredCost = (row: any) => getSendingRowParcelMetrics(row, cargoSumByNumber).declaredCost;
         return [...statusFilteredRows].sort((a, b) => {
             let cmp = 0;
             switch (sendingsSortColumn) {
@@ -2663,7 +2735,7 @@ useEffect(() => {
             }
             return sendingsSortOrder === 'asc' ? cmp : -cmp;
         });
-    }, [filteredSendings, deliveryStatusFilterSet, getSendingStatusKey, sendingsSortColumn, sendingsSortOrder, normalizeTransportDisplay, getSendingTransitHours]);
+    }, [filteredSendings, deliveryStatusFilterSet, getSendingStatusKey, sendingsSortColumn, sendingsSortOrder, normalizeTransportDisplay, getSendingTransitHours, cargoSumByNumber]);
     const sendingsInfographic = useMemo(() => {
         let ferry = 0;
         let auto = 0;
@@ -2712,10 +2784,15 @@ useEffect(() => {
     );
     const sendingsTotalsByVehicle = useMemo(() => {
         if (!hasAnalytics) return [];
-        return buildSendingsTotalsByVehicle(sendingRowsSorted, getSendingVehicleLabel);
-    }, [hasAnalytics, sendingRowsSorted, getSendingVehicleLabel]);
+        return buildSendingsTotalsByVehicle(sendingRowsSorted, getSendingVehicleLabel, cargoSumByNumber);
+    }, [hasAnalytics, sendingRowsSorted, getSendingVehicleLabel, cargoSumByNumber]);
+    /** Сводка по ТС — только если в периоде 2+ отправки на одно ТС. */
+    const sendingsRepeatedVehicleTotals = useMemo(
+        () => sendingsTotalsByVehicle.filter((row) => row.sendingsCount >= 2),
+        [sendingsTotalsByVehicle],
+    );
     const sendingsVehicleGrandTotals = useMemo(() => {
-        return sendingsTotalsByVehicle.reduce(
+        return sendingsRepeatedVehicleTotals.reduce(
             (acc, row) => {
                 acc.sendingsCount += row.sendingsCount;
                 acc.paidWeight += row.paidWeight;
@@ -2725,7 +2802,7 @@ useEffect(() => {
             },
             { sendingsCount: 0, paidWeight: 0, cost: 0, declaredCost: 0 }
         );
-    }, [sendingsTotalsByVehicle]);
+    }, [sendingsRepeatedVehicleTotals]);
     const handleSendingsSort = useCallback((column: 'date' | 'number' | 'route' | 'type' | 'transitHours' | 'vehicle' | 'comment' | 'paidWeight' | 'cost' | 'declaredCost') => {
         if (sendingsSortColumn === column) {
             setSendingsSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
@@ -4609,7 +4686,7 @@ useEffect(() => {
                         )}
                     </div>
                 )}
-                {hasAnalytics && sendingsTotalsByVehicle.length > 0 && (
+                {hasAnalytics && sendingsRepeatedVehicleTotals.length > 0 && (
                     <div className="cargo-card documents-sendings-by-vehicle-summary" style={{ overflowX: 'auto', marginBottom: '0.65rem', padding: '0.55rem 0.65rem' }}>
                         <Typography.Body style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: '0.45rem' }}>
                             Итого по транспортным средствам
@@ -4625,19 +4702,19 @@ useEffect(() => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {sendingsTotalsByVehicle.map((vehicleRow) => (
+                                {sendingsRepeatedVehicleTotals.map((vehicleRow) => (
                                     <tr key={vehicleRow.vehicle} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                         <td style={{ padding: '0.4rem 0.35rem', whiteSpace: 'nowrap', fontWeight: 600 }}>{vehicleRow.vehicle}</td>
                                         <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{vehicleRow.sendingsCount}</td>
                                         <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatSendingMetricNum(vehicleRow.paidWeight)}</td>
                                         {showSums && (
                                             <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                {formatCurrency(vehicleRow.cost)}
+                                                {formatCurrency(vehicleRow.cost, true)}
                                             </td>
                                         )}
                                         {showSums && (
                                             <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                {formatCurrency(vehicleRow.declaredCost)}
+                                                {formatCurrency(vehicleRow.declaredCost, true)}
                                             </td>
                                         )}
                                     </tr>
@@ -4648,12 +4725,12 @@ useEffect(() => {
                                     <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatSendingMetricNum(sendingsVehicleGrandTotals.paidWeight)}</td>
                                     {showSums && (
                                         <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                                            {formatCurrency(sendingsVehicleGrandTotals.cost)}
+                                            {formatCurrency(sendingsVehicleGrandTotals.cost, true)}
                                         </td>
                                     )}
                                     {showSums && (
                                         <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                                            {formatCurrency(sendingsVehicleGrandTotals.declaredCost)}
+                                            {formatCurrency(sendingsVehicleGrandTotals.declaredCost, true)}
                                         </td>
                                     )}
                                 </tr>
@@ -4724,7 +4801,7 @@ useEffect(() => {
                                 const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
                                 const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
                                 const expanded = expandedSendingRow === rowKey;
-                                const sendingParcelMetrics = getSendingRowParcelMetrics(row);
+                                const sendingParcelMetrics = getSendingRowParcelMetrics(row, cargoSumByNumber);
                                 return (
                                     <React.Fragment key={rowKey}>
                                         <tr
@@ -4790,12 +4867,12 @@ useEffect(() => {
                                             )}
                                             {hasAnalytics && showSums && (
                                                 <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                    {formatCurrency(sendingParcelMetrics.cost)}
+                                                    {formatCurrency(sendingParcelMetrics.cost, true)}
                                                 </td>
                                             )}
                                             {hasAnalytics && showSums && (
                                                 <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                    {formatCurrency(sendingParcelMetrics.declaredCost)}
+                                                    {formatCurrency(sendingParcelMetrics.declaredCost, true)}
                                                 </td>
                                             )}
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>
@@ -4883,11 +4960,11 @@ useEffect(() => {
                                                                                 <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.Перевозка ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcel?.ВесДляОтчета ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcel?.ОбъемДляОтчета ?? '—'}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcel?.ПлатныйВес ?? '—'}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const w = parseSendingMetricNumber(parcel?.ПлатныйВес); return w > 0 ? formatSendingMetricNum(w) : '—'; })()}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem' }}>{goods?.ТМЦ ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const sum = getParcelFreightSum(parcel); return sum > 0 ? formatCurrency(sum) : '—'; })()}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const sum = getParcelDeclaredCost(parcel); return sum > 0 ? formatCurrency(sum) : '—'; })()}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const sum = getParcelFreightSum(parcel, cargoSumByNumber); return sum > 0 ? formatCurrency(sum, true) : '—'; })()}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const sum = getParcelDeclaredCost(parcel); return sum > 0 ? formatCurrency(sum, true) : '—'; })()}</td>
                                                                             </tr>
                                                                         );
                                                                     })}
@@ -4917,8 +4994,7 @@ useEffect(() => {
                                                                         };
                                                                         const formatNum = (n: number) => {
                                                                             if (!Number.isFinite(n)) return '—';
-                                                                            const fixed = n.toFixed(3);
-                                                                            return fixed.replace(/\.?0+$/, '');
+                                                                            return String(Math.round(n));
                                                                         };
                                                                         const byCargo = new Map<string, { cargo: string; status: string; count: number; volume: number; weight: number; paidWeight: number }>();
                                                                         parcelsToRender.forEach((parcel: any) => {
@@ -5264,8 +5340,7 @@ useEffect(() => {
                                                                         };
                                                                         const formatNum = (n: number) => {
                                                                             if (!Number.isFinite(n)) return '—';
-                                                                            const fixed = n.toFixed(3);
-                                                                            return fixed.replace(/\.?0+$/, '');
+                                                                            return String(Math.round(n));
                                                                         };
                                                                         const densityOf = (weight: number, volume: number) => {
                                                                             if (!Number.isFinite(weight) || !Number.isFinite(volume) || volume <= 0) return '—';

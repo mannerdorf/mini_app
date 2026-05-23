@@ -279,6 +279,39 @@ export function buildCargoTransportByNumber(perevozkiItems: any[]) {
   return m;
 }
 
+function pickCargoRecordNumber(c: any): string {
+  return String(
+    c?.Number ??
+      c?.number ??
+      c?.Номер ??
+      c?.НомерПеревозки ??
+      c?.CargoNumber ??
+      c?.NumberPerevozki ??
+      "",
+  )
+    .replace(/^0000-/, "")
+    .trim();
+}
+
+function pickCargoRecordSum(c: any): number {
+  return parseSendingMetricNumber(c?.Sum ?? c?.sum ?? c?.Сумма ?? c?.Amount ?? c?.amount);
+}
+
+/** Сумма перевозки (freight) из getperevozka по номеру груза. */
+export function buildCargoSumByNumber(perevozkiItems: any[]): Map<string, number> {
+  const m = new Map<string, number>();
+  (perevozkiItems || []).forEach((c: any) => {
+    const raw = pickCargoRecordNumber(c);
+    if (!raw) return;
+    const sum = pickCargoRecordSum(c);
+    if (sum <= 0) return;
+    const key = normCargoKey(raw);
+    m.set(key, sum);
+    if (key !== raw) m.set(raw, sum);
+  });
+  return m;
+}
+
 type FilterInvoicesParams = {
   items: any[];
   activeInn?: string;
@@ -691,10 +724,14 @@ export function parseSendingMetricNumber(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+export function roundSendingMetric(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n);
+}
+
 export function formatSendingMetricNum(n: number): string {
   if (!Number.isFinite(n)) return "—";
-  const fixed = n.toFixed(3);
-  return fixed.replace(/\.?0+$/, "");
+  return String(roundSendingMetric(n));
 }
 
 export function getSendingParcelsFromRow(row: any): any[] {
@@ -726,10 +763,45 @@ function pickSendingFreightAmount(...sources: unknown[]): number {
   return 0;
 }
 
+function addFreightCargoNumber(numbers: string[], value: unknown): void {
+  const v = String(value ?? "").trim();
+  if (v) numbers.push(v);
+}
+
+function lookupCargoFreightSum(cargoSumByNumber: Map<string, number> | undefined, num: unknown): number {
+  if (!cargoSumByNumber?.size) return 0;
+  const trimmed = String(num ?? "").trim();
+  if (!trimmed) return 0;
+  return cargoSumByNumber.get(normCargoKey(trimmed)) ?? cargoSumByNumber.get(trimmed) ?? 0;
+}
+
+/** Номера перевозок для суммы freight (без ИД отправления — это не номер груза). */
+export function collectSendingFreightCargoNumbers(row: any): string[] {
+  const numbers: string[] = [];
+  addFreightCargoNumber(numbers, row?.НомерПеревозки);
+  addFreightCargoNumber(numbers, row?.CargoNumber);
+  addFreightCargoNumber(numbers, row?.NumberPerevozki);
+  addFreightCargoNumber(numbers, row?.Перевозка);
+
+  for (const parcel of getSendingParcelsFromRow(row)) {
+    addFreightCargoNumber(numbers, parcel?.Перевозка);
+    addFreightCargoNumber(numbers, parcel?.НомерПеревозки);
+    addFreightCargoNumber(numbers, parcel?.CargoNumber);
+    addFreightCargoNumber(numbers, parcel?.NumberPerevozki);
+    const goods = getParcelGoodsObject(parcel);
+    addFreightCargoNumber(numbers, goods?.Перевозка);
+    addFreightCargoNumber(numbers, goods?.НомерПеревозки);
+    addFreightCargoNumber(numbers, goods?.CargoNumber);
+    addFreightCargoNumber(numbers, goods?.NumberPerevozki);
+  }
+
+  return Array.from(new Set(numbers));
+}
+
 /** Сумма перевозки по посылке (как «Сумма» в отчёте 1С), не объявленная стоимость товара. */
-export function getParcelFreightSum(parcel: any): number {
+export function getParcelFreightSum(parcel: any, cargoSumByNumber?: Map<string, number>): number {
   const goods = getParcelGoodsObject(parcel);
-  return pickSendingFreightAmount(
+  const direct = pickSendingFreightAmount(
     parcel?.Сумма,
     parcel?.Sum,
     parcel?.SumDoc,
@@ -745,9 +817,25 @@ export function getParcelFreightSum(parcel: any): number {
     parcel?.Стоимость,
     goods?.Стоимость,
   );
+  if (direct > 0) return direct;
+
+  for (const num of [
+    parcel?.Перевозка,
+    parcel?.НомерПеревозки,
+    parcel?.CargoNumber,
+    parcel?.NumberPerevozki,
+    goods?.Перевозка,
+    goods?.НомерПеревозки,
+    goods?.CargoNumber,
+    goods?.NumberPerevozki,
+  ]) {
+    const sum = lookupCargoFreightSum(cargoSumByNumber, num);
+    if (sum > 0) return sum;
+  }
+  return 0;
 }
 
-export function getSendingRowFreightSum(row: any): number {
+export function getSendingRowFreightSum(row: any, cargoSumByNumber?: Map<string, number>): number {
   const rowSum = pickSendingFreightAmount(
     row?.Сумма,
     row?.Sum,
@@ -759,11 +847,26 @@ export function getSendingRowFreightSum(row: any): number {
   if (rowSum > 0) return rowSum;
 
   const parcels = getSendingParcelsFromRow(row);
-  if (parcels.length === 0) return 0;
+  let directParcelTotal = 0;
+  for (const parcel of parcels) {
+    directParcelTotal += pickSendingFreightAmount(
+      parcel?.Сумма,
+      parcel?.Sum,
+      parcel?.SumDoc,
+      parcel?.Amount,
+      parcel?.amount,
+      parcel?.sum,
+    );
+  }
+  if (directParcelTotal > 0) return directParcelTotal;
 
   let total = 0;
-  for (const parcel of parcels) {
-    total += getParcelFreightSum(parcel);
+  const seen = new Set<string>();
+  for (const num of collectSendingFreightCargoNumbers(row)) {
+    const key = normCargoKey(num);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    total += lookupCargoFreightSum(cargoSumByNumber, num);
   }
   return total;
 }
@@ -808,19 +911,25 @@ export function getSendingRowDeclaredCost(row: any): number {
   return total;
 }
 
-export function sumSendingParcelsMetrics(parcels: any[]): SendingParcelMetrics {
+export function sumSendingParcelsMetrics(
+  parcels: any[],
+  cargoSumByNumber?: Map<string, number>,
+): SendingParcelMetrics {
   let paidWeight = 0;
   let cost = 0;
   let declaredCost = 0;
   for (const parcel of parcels) {
     paidWeight += parseSendingMetricNumber(parcel?.ПлатныйВес);
-    cost += getParcelFreightSum(parcel);
+    cost += getParcelFreightSum(parcel, cargoSumByNumber);
     declaredCost += getParcelDeclaredCost(parcel);
   }
   return { paidWeight, cost, declaredCost };
 }
 
-export function getSendingRowParcelMetrics(row: any): SendingParcelMetrics {
+export function getSendingRowParcelMetrics(
+  row: any,
+  cargoSumByNumber?: Map<string, number>,
+): SendingParcelMetrics {
   const parcels = getSendingParcelsFromRow(row);
   let paidWeight = 0;
   for (const parcel of parcels) {
@@ -828,7 +937,7 @@ export function getSendingRowParcelMetrics(row: any): SendingParcelMetrics {
   }
   return {
     paidWeight,
-    cost: getSendingRowFreightSum(row),
+    cost: getSendingRowFreightSum(row, cargoSumByNumber),
     declaredCost: getSendingRowDeclaredCost(row),
   };
 }
@@ -844,11 +953,12 @@ export type SendingVehicleTotalRow = {
 export function buildSendingsTotalsByVehicle(
   rows: any[],
   getVehicle: (row: any) => string,
+  cargoSumByNumber?: Map<string, number>,
 ): SendingVehicleTotalRow[] {
   const map = new Map<string, SendingVehicleTotalRow>();
   for (const row of rows) {
     const vehicle = getVehicle(row) || "—";
-    const metrics = getSendingRowParcelMetrics(row);
+    const metrics = getSendingRowParcelMetrics(row, cargoSumByNumber);
     const prev =
       map.get(vehicle) ??
       { vehicle, sendingsCount: 0, paidWeight: 0, cost: 0, declaredCost: 0 };
