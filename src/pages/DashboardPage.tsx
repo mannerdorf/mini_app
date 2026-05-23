@@ -606,10 +606,12 @@ export function DashboardPage({
 
     const uniqueSenders = useMemo(() => [...new Set(items.map(i => (i.Sender ?? '').trim()).filter(Boolean))].sort(), [items]);
     const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
+
+    const dashboardTotalItems = useMemo(() => items.filter(i => !isReceivedInfoStatus(i.State)), [items]);
     
     // Фильтрация
     const filteredItems = useMemo(() => {
-        let res = items.filter(i => !isReceivedInfoStatus(i.State));
+        let res = dashboardTotalItems;
         if (statusFilterSet.size > 0) {
             res = res.filter(i => statusFilterSet.has(getFilterKeyByStatus(i.State) as CargoStatusFilterKey));
         }
@@ -625,7 +627,7 @@ export function DashboardPage({
             res = res.filter(i => matchesRouteFilterSet(i.CitySender, i.CityReceiver, routeFilterSet));
         }
         return res;
-    }, [items, statusFilterSet, senderFilter, receiverFilter, billStatusFilterSet, typeFilterSet, routeFilterSet, useServiceRequest]);
+    }, [dashboardTotalItems, statusFilterSet, senderFilter, receiverFilter, billStatusFilterSet, typeFilterSet, routeFilterSet, useServiceRequest]);
 
     /** Монитор SLA: жёстко только перевозки с фактом доставки в выбранном периоде (DateVr ∈ [dateFrom, dateTo]), поверх фильтров дашборда. Иначе мин/макс тянут «лишние» строки из ответа API за интервал по другому полю. */
     const slaMonitorFilteredItems = useMemo(() => {
@@ -1134,7 +1136,7 @@ export function DashboardPage({
     const chartData = useMemo(() => {
         const dataMap = new Map<string, { date: string; sum: number; pw: number; w: number; mest: number; vol: number }>();
         
-        filteredItems.forEach(item => {
+        dashboardTotalItems.forEach(item => {
             if (!item.DatePrih) return;
             const rawDate = String(item.DatePrih ?? '').trim();
             if (!rawDate) return;
@@ -1150,12 +1152,12 @@ export function DashboardPage({
             dataMap.set(dateKey, existing);
         });
         return Array.from(dataMap.values()).sort((a, b) => (a.dateKey || a.date).localeCompare(b.dateKey || b.date));
-    }, [filteredItems]);
+    }, [dashboardTotalItems]);
 
     const DIAGRAM_COLORS = ['#06b6d4', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#3b82f6', '#ef4444', '#84cc16'];
     const stripTotals = useMemo(() => {
         let sum = 0, pw = 0, w = 0, vol = 0, mest = 0;
-        filteredItems.forEach(item => {
+        dashboardTotalItems.forEach(item => {
             sum += typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
             pw += typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
             w += typeof item.W === 'string' ? parseFloat(item.W) || 0 : (item.W || 0);
@@ -1163,7 +1165,7 @@ export function DashboardPage({
             mest += typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
         });
         return { sum, pw, w, vol, mest };
-    }, [filteredItems]);
+    }, [dashboardTotalItems]);
     const getValForChart = useCallback((item: CargoItem) => {
         if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
         if (chartType === 'paidWeight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
@@ -1238,7 +1240,7 @@ export function DashboardPage({
 
     const stripDiagramByType = useMemo(() => {
         let autoVal = 0, ferryVal = 0;
-        filteredItems.forEach(item => {
+        dashboardTotalItems.forEach(item => {
             const v = getValForChart(item);
             if (item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1) ferryVal += v;
             else autoVal += v;
@@ -1262,7 +1264,7 @@ export function DashboardPage({
             { label: 'Авто', value: autoVal, percent: Math.round((autoVal / total) * 100), color: DIAGRAM_COLORS[0], dynamics: dynamics(autoVal, autoPrev) },
             { label: 'Паром', value: ferryVal, percent: Math.round((ferryVal / total) * 100), color: DIAGRAM_COLORS[1], dynamics: dynamics(ferryVal, ferryPrev) },
         ];
-    }, [filteredItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
+    }, [dashboardTotalItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
     const slaStats = useMemo(() => {
         const withSla = slaMonitorFilteredItems.map(i => getSlaInfo(i, workScheduleByInn)).filter((s): s is NonNullable<ReturnType<typeof getSlaInfo>> => s != null);
         const total = withSla.length;
@@ -1326,7 +1328,7 @@ export function DashboardPage({
     const stripDiagramBySender = useMemo(() => {
         const map = new Map<string, number>();
         const prevMap = new Map<string, number>();
-        filteredItems.forEach(item => {
+        dashboardTotalItems.forEach(item => {
             const key = (item.Sender ?? '').trim() || '—';
             map.set(key, (map.get(key) || 0) + getValForChart(item));
         });
@@ -1345,11 +1347,11 @@ export function DashboardPage({
                 return { name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length], dynamics };
             })
             .sort((a, b) => b.value - a.value);
-    }, [filteredItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
+    }, [dashboardTotalItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
     const stripDiagramByReceiver = useMemo(() => {
         const map = new Map<string, number>();
         const prevMap = new Map<string, number>();
-        filteredItems.forEach(item => {
+        dashboardTotalItems.forEach(item => {
             const key = (item.Receiver ?? (item as any).receiver ?? '').trim() || '—';
             map.set(key, (map.get(key) || 0) + getValForChart(item));
         });
@@ -1368,11 +1370,11 @@ export function DashboardPage({
                 return { name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length], dynamics };
             })
             .sort((a, b) => b.value - a.value);
-    }, [filteredItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
+    }, [dashboardTotalItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
     const stripDiagramByCustomer = useMemo(() => {
         const map = new Map<string, number>();
         const prevMap = new Map<string, number>();
-        filteredItems.forEach(item => {
+        dashboardTotalItems.forEach(item => {
             const key = (item.Customer ?? (item as any).customer ?? '').trim() || '—';
             map.set(key, (map.get(key) || 0) + getValForChart(item));
         });
@@ -1391,7 +1393,7 @@ export function DashboardPage({
                 return { name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length], dynamics };
             })
             .sort((a, b) => b.value - a.value);
-    }, [filteredItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
+    }, [dashboardTotalItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
 
     const stripLineChartData = useMemo(() => {
         if (!showSums || stripTab === 'type') return null;
@@ -1416,7 +1418,7 @@ export function DashboardPage({
             return `${y}-${m}-${d}`;
         };
 
-        filteredItems.forEach((item) => {
+        dashboardTotalItems.forEach((item) => {
             const dateKey = toDateKey(item.DatePrih || item.DateVr);
             if (!dateKey) return;
 
@@ -1444,7 +1446,7 @@ export function DashboardPage({
         }));
         const maxY = Math.max(1, ...series.flatMap((line) => line.values));
         return { dates, series, maxY };
-    }, [showSums, stripTab, filteredItems, stripDiagramBySender, stripDiagramByReceiver, stripDiagramByCustomer]);
+    }, [showSums, stripTab, dashboardTotalItems, stripDiagramBySender, stripDiagramByReceiver, stripDiagramByCustomer]);
 
     type DashboardChartPoint = { date: string; value: number; dateKey?: string };
     type MainChartVariant = 'columns' | 'line' | 'area' | 'combo' | 'dot';
