@@ -57,14 +57,13 @@ import {
     getActUpdEdoInfo,
     buildFilteredInvoices,
     buildFilteredOrders,
-    buildCargoFilterDateByNumber,
     buildSendingsTotalsByVehicle,
     collectInvoiceLinkedCargoNumbers,
     formatSendingMetricNum,
     getFirstCargoNumberFromInvoice,
     getSendingParcelsFromRow,
     getSendingRowParcelMetrics,
-    sendingRowMatchesDateRange,
+    sendingRowInSelectedPeriod,
 } from "./documentsPipeline";
 import {
     DocumentsApiDebugPanel,
@@ -1296,18 +1295,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         });
         return base;
     }, [perevozkiItems, sendingsItems, normCargoKey]);
-    const cargoFilterDateByNumber = useMemo(
-        () => buildCargoFilterDateByNumber(perevozkiItems || []),
-        [perevozkiItems]
-    );
-    const sendingsDateFilter = useMemo(
-        () => ({
-            dateFrom: apiDateRange.dateFrom,
-            dateTo: apiDateRange.dateTo,
-            cargoFilterDateByNumber,
-        }),
-        [apiDateRange.dateFrom, apiDateRange.dateTo, cargoFilterDateByNumber]
-    );
     const normalizeTransportDisplay = useCallback((value: unknown): string => {
         const s = String(value ?? '').toUpperCase().trim();
         if (!s) return '';
@@ -2168,9 +2155,14 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
                 return (typeFilterSet.has('auto') && transportType === 'auto') || (typeFilterSet.has('ferry') && transportType === 'ferry');
             });
         }
-        res = res.filter((row: any) => sendingRowMatchesDateRange(row, sendingsDateFilter));
+        if (!sendingsLoading) {
+            res = res.filter((row: any) =>
+                sendingRowInSelectedPeriod(row, apiDateRange.dateFrom, apiDateRange.dateTo)
+            );
+        }
         return res;
-    }, [sendingsItems, effectiveActiveInn, customerFilter, typeFilterSet, routeFilterSet, transportFilter, effectiveSearchText, sortBy, sortOrder, normalizeTransportDisplay, sendingsDateFilter]);
+    }, [sendingsItems, sendingsLoading, effectiveActiveInn, customerFilter, typeFilterSet, routeFilterSet, transportFilter, effectiveSearchText, sortBy, sortOrder, normalizeTransportDisplay, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    const sendingsInitialLoading = sendingsLoading && (sendingsItems?.length ?? 0) === 0;
     const sendingsSummary = useMemo(() => buildDocsSummary(filteredSendings), [filteredSendings]);
     const filteredTariffs = useMemo(() => {
         const placeCode = (value: string) => cityToCode(value || '') || (value || '');
@@ -2630,8 +2622,8 @@ useEffect(() => {
         const getTransitHours = (row: any) => getSendingTransitHours(row) ?? -1;
         const getVehicle = (row: any) => normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? "");
         const getComment = (row: any) => String(row?.Комментарий ?? row?.Comment ?? "");
-        const getPaidWeight = (row: any) => getSendingRowParcelMetrics(row, sendingsDateFilter).paidWeight;
-        const getCost = (row: any) => getSendingRowParcelMetrics(row, sendingsDateFilter).cost;
+        const getPaidWeight = (row: any) => getSendingRowParcelMetrics(row).paidWeight;
+        const getCost = (row: any) => getSendingRowParcelMetrics(row).cost;
         return [...statusFilteredRows].sort((a, b) => {
             let cmp = 0;
             switch (sendingsSortColumn) {
@@ -2665,7 +2657,7 @@ useEffect(() => {
             }
             return sendingsSortOrder === 'asc' ? cmp : -cmp;
         });
-    }, [filteredSendings, deliveryStatusFilterSet, getSendingStatusKey, sendingsSortColumn, sendingsSortOrder, normalizeTransportDisplay, getSendingTransitHours, sendingsDateFilter]);
+    }, [filteredSendings, deliveryStatusFilterSet, getSendingStatusKey, sendingsSortColumn, sendingsSortOrder, normalizeTransportDisplay, getSendingTransitHours]);
     const sendingsInfographic = useMemo(() => {
         let ferry = 0;
         let auto = 0;
@@ -2714,8 +2706,8 @@ useEffect(() => {
     );
     const sendingsTotalsByVehicle = useMemo(() => {
         if (!hasAnalytics) return [];
-        return buildSendingsTotalsByVehicle(sendingRowsSorted, getSendingVehicleLabel, sendingsDateFilter);
-    }, [hasAnalytics, sendingRowsSorted, getSendingVehicleLabel, sendingsDateFilter]);
+        return buildSendingsTotalsByVehicle(sendingRowsSorted, getSendingVehicleLabel);
+    }, [hasAnalytics, sendingRowsSorted, getSendingVehicleLabel]);
     const sendingsVehicleGrandTotals = useMemo(() => {
         return sendingsTotalsByVehicle.reduce(
             (acc, row) => {
@@ -4445,7 +4437,7 @@ useEffect(() => {
             )}
             {docSection === 'Отправки' && (
             <>
-            {(sendingsLoading || !!sendingsError) && <DocumentsStateBlocks loading={sendingsLoading} error={sendingsError} emptyText="" />}
+            {(sendingsInitialLoading || !!sendingsError) && <DocumentsStateBlocks loading={sendingsInitialLoading} error={sendingsError} emptyText="" />}
             {!sendingsLoading && !sendingsError && sendingRowsSorted.length > 0 && (
                 <>
                 <div className="cargo-card documents-sendings-infographic" style={{ padding: '0.6rem 0.75rem', marginBottom: '0.5rem' }}>
@@ -4711,7 +4703,7 @@ useEffect(() => {
                                 const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
                                 const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
                                 const expanded = expandedSendingRow === rowKey;
-                                const sendingParcelMetrics = getSendingRowParcelMetrics(row, sendingsDateFilter);
+                                const sendingParcelMetrics = getSendingRowParcelMetrics(row);
                                 return (
                                     <React.Fragment key={rowKey}>
                                         <tr
