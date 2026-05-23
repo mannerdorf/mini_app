@@ -19,8 +19,6 @@ import {
 import {
     initSharedFilterSets,
     loadSharedDateFilterState,
-    matchesRouteFilterSet,
-    matchesTypeFilterSet,
     routeKeyToCargoLabel,
     saveSharedListFilters,
     sharedFromFilterSets,
@@ -609,34 +607,14 @@ export function DashboardPage({
 
     const dashboardTotalItems = useMemo(() => items.filter(i => !isReceivedInfoStatus(i.State)), [items]);
     
-    // Фильтрация
-    const filteredItems = useMemo(() => {
-        let res = dashboardTotalItems;
-        if (statusFilterSet.size > 0) {
-            res = res.filter(i => statusFilterSet.has(getFilterKeyByStatus(i.State) as CargoStatusFilterKey));
-        }
-        if (senderFilter) res = res.filter(i => (i.Sender ?? '').trim() === senderFilter);
-        if (receiverFilter) res = res.filter(i => (i.Receiver ?? (i as any).receiver ?? '').trim() === receiverFilter);
-        if (useServiceRequest && billStatusFilterSet.size > 0) {
-            res = res.filter(i => billStatusFilterSet.has(getPaymentFilterKey(i.StateBill)));
-        }
-        if (typeFilterSet.size > 0) {
-            res = res.filter(i => matchesTypeFilterSet(i?.AK, typeFilterSet));
-        }
-        if (routeFilterSet.size > 0) {
-            res = res.filter(i => matchesRouteFilterSet(i.CitySender, i.CityReceiver, routeFilterSet));
-        }
-        return res;
-    }, [dashboardTotalItems, statusFilterSet, senderFilter, receiverFilter, billStatusFilterSet, typeFilterSet, routeFilterSet, useServiceRequest]);
-
-    /** Монитор SLA: жёстко только перевозки с фактом доставки в выбранном периоде (DateVr ∈ [dateFrom, dateTo]), поверх фильтров дашборда. Иначе мин/макс тянут «лишние» строки из ответа API за интервал по другому полю. */
+    /** Монитор SLA: жёстко только перевозки с фактом доставки в выбранном периоде (DateVr ∈ [dateFrom, dateTo]). */
     const slaMonitorFilteredItems = useMemo(() => {
-        return filteredItems.filter(
+        return dashboardTotalItems.filter(
             (i) =>
                 getFilterKeyByStatus(i.State) === 'delivered'
                 && isDateInRange(String(i.DateVr ?? '').trim() || undefined, apiDateRange.dateFrom, apiDateRange.dateTo),
         );
-    }, [filteredItems, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    }, [dashboardTotalItems, apiDateRange.dateFrom, apiDateRange.dateTo]);
 
     const parseDashboardDateOnly = useCallback((value: unknown): Date | null => {
         const raw = String(value ?? '').trim();
@@ -811,7 +789,7 @@ export function DashboardPage({
             auto: { count: number; pw: number; mest: number; vol: number };
         }>();
 
-        filteredItems.forEach((item) => {
+        dashboardTotalItems.forEach((item) => {
             const plannedKey = getPlannedKey(item);
             if (!plannedKey) {
                 withoutPlan += 1;
@@ -879,7 +857,7 @@ export function DashboardPage({
         });
 
         return {
-            total: filteredItems.length,
+            total: dashboardTotalItems.length,
             withPlan,
             withoutPlan,
             overdue,
@@ -890,7 +868,7 @@ export function DashboardPage({
             deliveredLate,
             upcomingSeries,
         };
-    }, [filteredItems, getEffectivePlannedDate]);
+    }, [dashboardTotalItems, getEffectivePlannedDate]);
     const planVsFactDashboard = useMemo(() => {
         if (!canAccessHaulzDispatch) {
             return {
@@ -958,7 +936,7 @@ export function DashboardPage({
         const byPlanDate = new Map<string, { onTime: number; late: number; total: number }>();
         const lateRows: { number: string; route: string; planned: string; actual: string; delayDays: number }[] = [];
 
-        filteredItems.forEach((item) => {
+        dashboardTotalItems.forEach((item) => {
             const planned = getPlannedDate(item);
             if (!planned) {
                 withoutPlan += 1;
@@ -1006,7 +984,7 @@ export function DashboardPage({
         const topLate = lateRows.sort((a, b) => b.delayDays - a.delayDays).slice(0, 5);
 
         return {
-            total: filteredItems.length,
+            total: dashboardTotalItems.length,
             withPlan,
             withoutPlan,
             pendingFact,
@@ -1020,11 +998,11 @@ export function DashboardPage({
             maxTotal,
             topLate,
         };
-    }, [filteredItems, getEffectivePlannedDate, canAccessHaulzDispatch]);
+    }, [dashboardTotalItems, getEffectivePlannedDate, canAccessHaulzDispatch]);
 
     useEffect(() => {
-        if (!useServiceRequest || !auth?.login || !auth?.password || filteredItems.length === 0) return;
-        const inns = [...new Set(filteredItems.map((i) => getInnFromCargo(i)).filter((x): x is string => !!x))];
+        if (!useServiceRequest || !auth?.login || !auth?.password || dashboardTotalItems.length === 0) return;
+        const inns = [...new Set(dashboardTotalItems.map((i) => getInnFromCargo(i)).filter((x): x is string => !!x))];
         if (inns.length === 0) return;
         let cancelled = false;
         fetch('/api/customer-work-schedules', {
@@ -1043,28 +1021,12 @@ export function DashboardPage({
             })
             .catch(() => { /* ignore */ });
         return () => { cancelled = true; };
-    }, [useServiceRequest, auth?.login, auth?.password, filteredItems]);
+    }, [useServiceRequest, auth?.login, auth?.password, dashboardTotalItems]);
 
-    /** Фильтрация данных предыдущего периода (те же фильтры, что и для текущего) */
-    const filteredPrevPeriodItems = useMemo(() => {
-        if (!useServiceRequest || prevPeriodItems.length === 0) return [];
-        let res = prevPeriodItems.filter(i => !isReceivedInfoStatus(i.State));
-        if (statusFilterSet.size > 0) {
-            res = res.filter(i => statusFilterSet.has(getFilterKeyByStatus(i.State) as CargoStatusFilterKey));
-        }
-        if (senderFilter) res = res.filter(i => (i.Sender ?? '').trim() === senderFilter);
-        if (receiverFilter) res = res.filter(i => (i.Receiver ?? (i as any).receiver ?? '').trim() === receiverFilter);
-        if (billStatusFilterSet.size > 0) {
-            res = res.filter(i => billStatusFilterSet.has(getPaymentFilterKey(i.StateBill)));
-        }
-        if (typeFilterSet.size > 0) {
-            res = res.filter(i => matchesTypeFilterSet(i?.AK, typeFilterSet));
-        }
-        if (routeFilterSet.size > 0) {
-            res = res.filter(i => matchesRouteFilterSet(i.CitySender, i.CityReceiver, routeFilterSet));
-        }
-        return res;
-    }, [prevPeriodItems, useServiceRequest, statusFilterSet, senderFilter, receiverFilter, billStatusFilterSet, typeFilterSet, routeFilterSet]);
+    const dashboardTotalPrevPeriodItems = useMemo(() => {
+        if (!useServiceRequest || prevPeriodItems.length === 0) return [] as CargoItem[];
+        return prevPeriodItems.filter(i => !isReceivedInfoStatus(i.State));
+    }, [prevPeriodItems, useServiceRequest]);
 
     /** Плановое поступление по счетам: срок в календарных днях; при наступлении срока — первый платёжный день недели (если заданы) или первый рабочий день. */
     const plannedByDate = useMemo(() => {
@@ -1176,21 +1138,8 @@ export function DashboardPage({
 
     /** Монитор доставки: только статус «доставлено» с DateVr в выбранном периоде (без фильтра по заказчику) */
     const deliveryFilteredItems = useMemo(() => {
-        let res = items.filter(i => !isReceivedInfoStatus(i.State));
-        res = res.filter(i => getFilterKeyByStatus(i.State) === 'delivered' && isDateInRange(i.DateVr, apiDateRange.dateFrom, apiDateRange.dateTo));
-        if (senderFilter) res = res.filter(i => (i.Sender ?? '').trim() === senderFilter);
-        if (receiverFilter) res = res.filter(i => (i.Receiver ?? (i as any).receiver ?? '').trim() === receiverFilter);
-        if (useServiceRequest && billStatusFilterSet.size > 0) {
-            res = res.filter(i => billStatusFilterSet.has(getPaymentFilterKey(i.StateBill)));
-        }
-        if (typeFilterSet.size > 0) {
-            res = res.filter(i => matchesTypeFilterSet(i?.AK, typeFilterSet));
-        }
-        if (routeFilterSet.size > 0) {
-            res = res.filter(i => matchesRouteFilterSet(i.CitySender, i.CityReceiver, routeFilterSet));
-        }
-        return res;
-    }, [items, senderFilter, receiverFilter, billStatusFilterSet, typeFilterSet, routeFilterSet, apiDateRange, useServiceRequest]);
+        return dashboardTotalItems.filter(i => getFilterKeyByStatus(i.State) === 'delivered' && isDateInRange(i.DateVr, apiDateRange.dateFrom, apiDateRange.dateTo));
+    }, [dashboardTotalItems, apiDateRange.dateFrom, apiDateRange.dateTo]);
     const deliveryStripTotals = useMemo(() => {
         let sum = 0, pw = 0, w = 0, vol = 0, mest = 0;
         deliveryFilteredItems.forEach(item => {
@@ -1246,9 +1195,9 @@ export function DashboardPage({
             else autoVal += v;
         });
         let autoPrev = 0, ferryPrev = 0;
-        const hasPrev = useServiceRequest && filteredPrevPeriodItems.length > 0;
+        const hasPrev = useServiceRequest && dashboardTotalPrevPeriodItems.length > 0;
         if (hasPrev) {
-            filteredPrevPeriodItems.forEach(item => {
+            dashboardTotalPrevPeriodItems.forEach(item => {
                 const v = getValForChart(item);
                 if (item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1) ferryPrev += v;
                 else autoPrev += v;
@@ -1264,7 +1213,7 @@ export function DashboardPage({
             { label: 'Авто', value: autoVal, percent: Math.round((autoVal / total) * 100), color: DIAGRAM_COLORS[0], dynamics: dynamics(autoVal, autoPrev) },
             { label: 'Паром', value: ferryVal, percent: Math.round((ferryVal / total) * 100), color: DIAGRAM_COLORS[1], dynamics: dynamics(ferryVal, ferryPrev) },
         ];
-    }, [dashboardTotalItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
+    }, [dashboardTotalItems, dashboardTotalPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
     const slaStats = useMemo(() => {
         const withSla = slaMonitorFilteredItems.map(i => getSlaInfo(i, workScheduleByInn)).filter((s): s is NonNullable<ReturnType<typeof getSlaInfo>> => s != null);
         const total = withSla.length;
@@ -1332,9 +1281,9 @@ export function DashboardPage({
             const key = (item.Sender ?? '').trim() || '—';
             map.set(key, (map.get(key) || 0) + getValForChart(item));
         });
-        const hasPrev = useServiceRequest && filteredPrevPeriodItems.length > 0;
+        const hasPrev = useServiceRequest && dashboardTotalPrevPeriodItems.length > 0;
         if (hasPrev) {
-            filteredPrevPeriodItems.forEach(item => {
+            dashboardTotalPrevPeriodItems.forEach(item => {
                 const key = (item.Sender ?? '').trim() || '—';
                 prevMap.set(key, (prevMap.get(key) || 0) + getValForChart(item));
             });
@@ -1347,7 +1296,7 @@ export function DashboardPage({
                 return { name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length], dynamics };
             })
             .sort((a, b) => b.value - a.value);
-    }, [dashboardTotalItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
+    }, [dashboardTotalItems, dashboardTotalPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
     const stripDiagramByReceiver = useMemo(() => {
         const map = new Map<string, number>();
         const prevMap = new Map<string, number>();
@@ -1355,9 +1304,9 @@ export function DashboardPage({
             const key = (item.Receiver ?? (item as any).receiver ?? '').trim() || '—';
             map.set(key, (map.get(key) || 0) + getValForChart(item));
         });
-        const hasPrev = useServiceRequest && filteredPrevPeriodItems.length > 0;
+        const hasPrev = useServiceRequest && dashboardTotalPrevPeriodItems.length > 0;
         if (hasPrev) {
-            filteredPrevPeriodItems.forEach(item => {
+            dashboardTotalPrevPeriodItems.forEach(item => {
                 const key = (item.Receiver ?? (item as any).receiver ?? '').trim() || '—';
                 prevMap.set(key, (prevMap.get(key) || 0) + getValForChart(item));
             });
@@ -1370,7 +1319,7 @@ export function DashboardPage({
                 return { name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length], dynamics };
             })
             .sort((a, b) => b.value - a.value);
-    }, [dashboardTotalItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
+    }, [dashboardTotalItems, dashboardTotalPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
     const stripDiagramByCustomer = useMemo(() => {
         const map = new Map<string, number>();
         const prevMap = new Map<string, number>();
@@ -1378,9 +1327,9 @@ export function DashboardPage({
             const key = (item.Customer ?? (item as any).customer ?? '').trim() || '—';
             map.set(key, (map.get(key) || 0) + getValForChart(item));
         });
-        const hasPrev = useServiceRequest && filteredPrevPeriodItems.length > 0;
+        const hasPrev = useServiceRequest && dashboardTotalPrevPeriodItems.length > 0;
         if (hasPrev) {
-            filteredPrevPeriodItems.forEach(item => {
+            dashboardTotalPrevPeriodItems.forEach(item => {
                 const key = (item.Customer ?? (item as any).customer ?? '').trim() || '—';
                 prevMap.set(key, (prevMap.get(key) || 0) + getValForChart(item));
             });
@@ -1393,7 +1342,7 @@ export function DashboardPage({
                 return { name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length], dynamics };
             })
             .sort((a, b) => b.value - a.value);
-    }, [dashboardTotalItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
+    }, [dashboardTotalItems, dashboardTotalPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
 
     const stripLineChartData = useMemo(() => {
         if (!showSums || stripTab === 'type') return null;
@@ -1942,7 +1891,7 @@ export function DashboardPage({
 
     /** Тренд период к периоду: текущий период vs предыдущий период (только в служебном режиме) */
     const periodToPeriodTrend = useMemo(() => {
-        if (!useServiceRequest || filteredPrevPeriodItems.length === 0) return null;
+        if (!useServiceRequest || dashboardTotalPrevPeriodItems.length === 0) return null;
         
         const getVal = (item: CargoItem) => {
             if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
@@ -1952,8 +1901,8 @@ export function DashboardPage({
             return typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
         };
         
-        const currentVal = filteredItems.reduce((acc, item) => acc + getVal(item), 0);
-        const prevVal = filteredPrevPeriodItems.reduce((acc, item) => acc + getVal(item), 0);
+        const currentVal = dashboardTotalItems.reduce((acc, item) => acc + getVal(item), 0);
+        const prevVal = dashboardTotalPrevPeriodItems.reduce((acc, item) => acc + getVal(item), 0);
         
         if (prevVal === 0) return currentVal > 0 ? { direction: 'up', percent: 100 } : null;
         
@@ -1962,7 +1911,7 @@ export function DashboardPage({
             direction: currentVal > prevVal ? 'up' : currentVal < prevVal ? 'down' : null,
             percent: Math.abs(percent),
         };
-    }, [useServiceRequest, filteredItems, filteredPrevPeriodItems, chartType]);
+    }, [useServiceRequest, dashboardTotalItems, dashboardTotalPrevPeriodItems, chartType]);
 
     /** Тренд по выбранной метрике: первая половина периода vs вторая половина */
     const stripTrend = useMemo(() => {
@@ -1996,18 +1945,18 @@ export function DashboardPage({
             { key: 'delivered', label: 'Доставлен', color: '#10b981' },
         ];
         const counts = new Map<string, number>();
-        filteredItems.forEach((item) => {
+        dashboardTotalItems.forEach((item) => {
             const k = getFilterKeyByStatus(item.State);
             counts.set(k, (counts.get(k) || 0) + 1);
         });
         return stages.map((s) => ({ ...s, count: counts.get(s.key) || 0 }));
-    }, [filteredItems, useServiceRequest]);
+    }, [dashboardTotalItems, useServiceRequest]);
 
     type FunnelCustomerRow = { customer: string; count: number; sum: number };
     const statusFunnelCustomersTable = useMemo(() => {
         if (!useServiceRequest) return {} as Record<string, FunnelCustomerRow[]>;
         const byStatus = new Map<string, Map<string, { count: number; sum: number }>>();
-        filteredItems.forEach((item) => {
+        dashboardTotalItems.forEach((item) => {
             const statusKey = getFilterKeyByStatus(item.State);
             const customer = stripOoo((item.Customer ?? (item as any).customer ?? '').trim() || '—');
             const sumVal = typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum ?? 0);
@@ -2023,13 +1972,13 @@ export function DashboardPage({
                 .sort((a, b) => b.count - a.count);
         });
         return result;
-    }, [filteredItems, useServiceRequest]);
+    }, [dashboardTotalItems, useServiceRequest]);
 
     /** Перевозки по (статус, заказчик) для раскрытия при клике */
     const statusFunnelItemsByCustomer = useMemo(() => {
         if (!useServiceRequest) return {} as Record<string, Record<string, any[]>>;
         const result: Record<string, Record<string, any[]>> = {};
-        filteredItems.forEach((item) => {
+        dashboardTotalItems.forEach((item) => {
             const statusKey = getFilterKeyByStatus(item.State);
             const customer = stripOoo((item.Customer ?? (item as any).customer ?? '').trim() || '—');
             if (!result[statusKey]) result[statusKey] = {};
@@ -2037,12 +1986,12 @@ export function DashboardPage({
             result[statusKey][customer].push(item);
         });
         return result;
-    }, [filteredItems, useServiceRequest]);
+    }, [dashboardTotalItems, useServiceRequest]);
 
     const paretoByCustomer = useMemo(() => {
         if (!useServiceRequest) return { rows: [] as { name: string; value: number; cumPercent: number; color: string }[], total: 0 };
         const map = new Map<string, number>();
-        filteredItems.forEach((item) => {
+        dashboardTotalItems.forEach((item) => {
             const name = stripOoo((item.Customer ?? (item as any).customer ?? '').trim() || '—');
             const val = typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
             map.set(name, (map.get(name) || 0) + val);
@@ -2055,7 +2004,7 @@ export function DashboardPage({
             return { name, value, cumPercent: Math.round((cum / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length] };
         });
         return { rows, total };
-    }, [filteredItems, useServiceRequest]);
+    }, [dashboardTotalItems, useServiceRequest]);
 
     type AgingInvoice = { number: string; customer: string; date: string; sum: number; days: number; status: string; shipmentStatus: string; route: string };
     const invoiceAging = useMemo(() => {
@@ -2121,9 +2070,8 @@ export function DashboardPage({
         const byDay = new Map<string, { count: number; pw: number }>();
         let _dbgTotal = 0, _dbgNoDate = 0, _dbgRecv = 0, _dbgParseFail = 0, _dbgMonthMiss = 0, _dbgOk = 0;
         const _dbgSamples: string[] = [];
-        items.forEach((item) => {
+        dashboardTotalItems.forEach((item) => {
             _dbgTotal++;
-            if (isReceivedInfoStatus(item.State)) { _dbgRecv++; return; }
             const raw = String(item.DatePrih ?? '').trim();
             if (!raw) { _dbgNoDate++; return; }
             if (_dbgSamples.length < 5) _dbgSamples.push(raw);
@@ -2146,7 +2094,7 @@ export function DashboardPage({
         }
         console.log('[HEATMAP DEBUG]', { year, month, _dbgTotal, _dbgRecv, _dbgNoDate, _dbgParseFail, _dbgMonthMiss, _dbgOk, _dbgSamples, byDaySize: byDay.size });
         return { cells, maxCount, year, month };
-    }, [items, useServiceRequest, heatmapMonth]);
+    }, [dashboardTotalItems, useServiceRequest, heatmapMonth]);
 
     const movingAverage7 = useMemo(() => {
         if (!useServiceRequest || chartData.length < 3) return null;
@@ -2184,14 +2132,14 @@ export function DashboardPage({
     }, [useServiceRequest, loading, error, showOnlySla, movingAverage7, maChartType]);
 
     const repeatCustomers = useMemo(() => {
-        if (!useServiceRequest || filteredPrevPeriodItems.length === 0) return null;
+        if (!useServiceRequest || dashboardTotalPrevPeriodItems.length === 0) return null;
         const current = new Set<string>();
         const previous = new Set<string>();
-        filteredItems.forEach((item) => {
+        dashboardTotalItems.forEach((item) => {
             const name = (item.Customer ?? (item as any).customer ?? '').trim();
             if (name) current.add(name);
         });
-        filteredPrevPeriodItems.forEach((item) => {
+        dashboardTotalPrevPeriodItems.forEach((item) => {
             const name = (item.Customer ?? (item as any).customer ?? '').trim();
             if (name) previous.add(name);
         });
@@ -2220,7 +2168,7 @@ export function DashboardPage({
             repeatList,
             newList,
         };
-    }, [filteredItems, filteredPrevPeriodItems, useServiceRequest]);
+    }, [dashboardTotalItems, dashboardTotalPrevPeriodItems, useServiceRequest]);
 
     const weekdayDistribution = useMemo(() => {
         if (!useServiceRequest) return [];
@@ -2228,7 +2176,7 @@ export function DashboardPage({
         const ferry = [0, 0, 0, 0, 0, 0, 0];
         const auto = [0, 0, 0, 0, 0, 0, 0];
         const weights = [0, 0, 0, 0, 0, 0, 0];
-        filteredItems.forEach((item) => {
+        dashboardTotalItems.forEach((item) => {
             let p: Date | null = null;
             if (weekdayDistributionMode === "received") {
                 const raw = String(item.DatePrih ?? "").trim();
@@ -2260,11 +2208,11 @@ export function DashboardPage({
             ferryPct: Math.round((ferry[i] / maxCount) * 100),
             autoPct: Math.round((auto[i] / maxCount) * 100),
         }));
-    }, [filteredItems, useServiceRequest, weekdayDistributionMode, getActualDeliveryDate, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    }, [dashboardTotalItems, useServiceRequest, weekdayDistributionMode, getActualDeliveryDate, apiDateRange.dateFrom, apiDateRange.dateTo]);
 
     // ═══════ CLIENT ANALYTICS DATA ═══════
 
-    const clientItems = useMemo(() => filteredItems, [filteredItems]);
+    const clientItems = useMemo(() => dashboardTotalItems, [dashboardTotalItems]);
     const getCustomerName = (item: any) => (item.Customer ?? item.customer ?? '').trim();
     const getItemDate = (item: any): Date | null => dateUtils.parseDateOnly(String(item.DatePrih ?? '').trim());
     const getItemSum = (item: any) => typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
@@ -2289,7 +2237,7 @@ export function DashboardPage({
         };
         const isUndelivered = (item: CargoItem) => getFilterKeyByStatus(item.State) !== 'delivered';
         const sel = cargoFlowTableSelection;
-        return filteredItems.filter((item) => {
+        return dashboardTotalItems.filter((item) => {
             const plannedKey = getPlannedKey(item);
             if (sel.kind === 'tile') {
                 if (!plannedKey) return false;
@@ -2316,7 +2264,7 @@ export function DashboardPage({
                     return false;
             }
         });
-    }, [filteredItems, cargoFlowTableExpanded, cargoFlowTableSelection, getEffectivePlannedDate]);
+    }, [dashboardTotalItems, cargoFlowTableExpanded, cargoFlowTableSelection, getEffectivePlannedDate]);
 
     const cargoFlowDetailSorted = useMemo(() => {
         return [...cargoFlowDetailItems].sort((a, b) => {
