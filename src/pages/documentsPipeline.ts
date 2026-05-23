@@ -614,7 +614,7 @@ export function buildActsSummary(list: any[], perevozkiItems?: any[]): DocsSumma
   return { sum, count: list.length, ...buildLinkedCargoMetrics(list, perevozkiItems) };
 }
 
-export type SendingParcelMetrics = { paidWeight: number; cost: number };
+export type SendingParcelMetrics = { paidWeight: number; cost: number; declaredCost: number };
 
 /** Синхрон с `pickDate` в api/sendings.ts */
 export function normalizeApiDateOnly(raw: unknown): string {
@@ -768,14 +768,56 @@ export function getSendingRowFreightSum(row: any): number {
   return total;
 }
 
+/** Объявленная стоимость товара в посылке. */
+export function getParcelDeclaredCost(parcel: any): number {
+  const pickDeclared = (obj: unknown): number =>
+    parseSendingMetricNumber(
+      (obj as any)?.ОбъявленнаяСтоимостьТовараДляПечати ??
+        (obj as any)?.ОбъявленнаяСтоимостьТовара ??
+        (obj as any)?.ОбъявленнаяСтоимость ??
+        (obj as any)?.ОбъявлСтоимость ??
+        (obj as any)?.DeclaredCost ??
+        (obj as any)?.declaredCost ??
+        (obj as any)?.DeclaredValue ??
+        (obj as any)?.declaredValue
+    );
+
+  const goodsRaw = parcel?.Товары;
+  if (Array.isArray(goodsRaw)) {
+    let total = 0;
+    for (const item of goodsRaw) {
+      total += pickDeclared(item);
+    }
+    if (total > 0) return total;
+  }
+
+  const goods = getParcelGoodsObject(parcel);
+  const fromGoods = pickDeclared(goods);
+  if (fromGoods > 0) return fromGoods;
+
+  return pickDeclared(parcel);
+}
+
+export function getSendingRowDeclaredCost(row: any): number {
+  const parcels = getSendingParcelsFromRow(row);
+  if (parcels.length === 0) return 0;
+  let total = 0;
+  for (const parcel of parcels) {
+    total += getParcelDeclaredCost(parcel);
+  }
+  return total;
+}
+
 export function sumSendingParcelsMetrics(parcels: any[]): SendingParcelMetrics {
   let paidWeight = 0;
   let cost = 0;
+  let declaredCost = 0;
   for (const parcel of parcels) {
     paidWeight += parseSendingMetricNumber(parcel?.ПлатныйВес);
     cost += getParcelFreightSum(parcel);
+    declaredCost += getParcelDeclaredCost(parcel);
   }
-  return { paidWeight, cost };
+  return { paidWeight, cost, declaredCost };
 }
 
 export function getSendingRowParcelMetrics(row: any): SendingParcelMetrics {
@@ -787,6 +829,7 @@ export function getSendingRowParcelMetrics(row: any): SendingParcelMetrics {
   return {
     paidWeight,
     cost: getSendingRowFreightSum(row),
+    declaredCost: getSendingRowDeclaredCost(row),
   };
 }
 
@@ -795,6 +838,7 @@ export type SendingVehicleTotalRow = {
   sendingsCount: number;
   paidWeight: number;
   cost: number;
+  declaredCost: number;
 };
 
 export function buildSendingsTotalsByVehicle(
@@ -807,10 +851,11 @@ export function buildSendingsTotalsByVehicle(
     const metrics = getSendingRowParcelMetrics(row);
     const prev =
       map.get(vehicle) ??
-      { vehicle, sendingsCount: 0, paidWeight: 0, cost: 0 };
+      { vehicle, sendingsCount: 0, paidWeight: 0, cost: 0, declaredCost: 0 };
     prev.sendingsCount += 1;
     prev.paidWeight += metrics.paidWeight;
     prev.cost += metrics.cost;
+    prev.declaredCost += metrics.declaredCost;
     map.set(vehicle, prev);
   }
   return [...map.values()].sort((a, b) =>

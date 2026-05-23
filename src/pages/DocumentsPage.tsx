@@ -64,6 +64,7 @@ import {
     getSendingParcelsFromRow,
     getSendingRowParcelMetrics,
     getParcelFreightSum,
+    getParcelDeclaredCost,
     sendingRowInSelectedPeriod,
 } from "./documentsPipeline";
 import {
@@ -1112,7 +1113,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [innerTableSortOrder, setInnerTableSortOrder] = useState<'asc' | 'desc'>('desc');
     const [innerTableActSortColumn, setInnerTableActSortColumn] = useState<'number' | 'date' | 'invoice' | 'sum'>('date');
     const [innerTableActSortOrder, setInnerTableActSortOrder] = useState<'asc' | 'desc'>('desc');
-    const [sendingsSortColumn, setSendingsSortColumn] = useState<'date' | 'number' | 'route' | 'type' | 'transitHours' | 'vehicle' | 'comment' | 'paidWeight' | 'cost'>('date');
+    const [sendingsSortColumn, setSendingsSortColumn] = useState<'date' | 'number' | 'route' | 'type' | 'transitHours' | 'vehicle' | 'comment' | 'paidWeight' | 'cost' | 'declaredCost'>('date');
     const [sendingsSortOrder, setSendingsSortOrder] = useState<'asc' | 'desc'>('desc');
     const [sendingsDetailsView, setSendingsDetailsView] = useState<'general' | 'byCargo' | 'byCustomer'>('general');
     const [sendingsSummaryGroupBy, setSendingsSummaryGroupBy] = useState<'customer' | 'receiver'>('customer');
@@ -2625,6 +2626,7 @@ useEffect(() => {
         const getComment = (row: any) => String(row?.Комментарий ?? row?.Comment ?? "");
         const getPaidWeight = (row: any) => getSendingRowParcelMetrics(row).paidWeight;
         const getCost = (row: any) => getSendingRowParcelMetrics(row).cost;
+        const getDeclaredCost = (row: any) => getSendingRowParcelMetrics(row).declaredCost;
         return [...statusFilteredRows].sort((a, b) => {
             let cmp = 0;
             switch (sendingsSortColumn) {
@@ -2654,6 +2656,9 @@ useEffect(() => {
                     break;
                 case 'cost':
                     cmp = getCost(a) - getCost(b);
+                    break;
+                case 'declaredCost':
+                    cmp = getDeclaredCost(a) - getDeclaredCost(b);
                     break;
             }
             return sendingsSortOrder === 'asc' ? cmp : -cmp;
@@ -2715,12 +2720,13 @@ useEffect(() => {
                 acc.sendingsCount += row.sendingsCount;
                 acc.paidWeight += row.paidWeight;
                 acc.cost += row.cost;
+                acc.declaredCost += row.declaredCost;
                 return acc;
             },
-            { sendingsCount: 0, paidWeight: 0, cost: 0 }
+            { sendingsCount: 0, paidWeight: 0, cost: 0, declaredCost: 0 }
         );
     }, [sendingsTotalsByVehicle]);
-    const handleSendingsSort = useCallback((column: 'date' | 'number' | 'route' | 'type' | 'transitHours' | 'vehicle' | 'comment' | 'paidWeight' | 'cost') => {
+    const handleSendingsSort = useCallback((column: 'date' | 'number' | 'route' | 'type' | 'transitHours' | 'vehicle' | 'comment' | 'paidWeight' | 'cost' | 'declaredCost') => {
         if (sendingsSortColumn === column) {
             setSendingsSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
             return;
@@ -2753,7 +2759,7 @@ useEffect(() => {
         setOrdersParcelsSortOrder('asc');
     }, [ordersParcelsSortColumn]);
     const getRequestParcels = useCallback((row: any): any[] => getSendingParcelsFromRow(row), []);
-    const sendingsAnalyticsExtraColCount = hasAnalytics ? (showSums ? 2 : 1) : 0;
+    const sendingsAnalyticsExtraColCount = hasAnalytics ? (1 + (showSums ? 2 : 0)) : 0;
     const getSendingRowKey = useCallback((row: any, idx: number): string => {
         const number = String(row?.Номер ?? row?.Number ?? row?.number ?? '').trim();
         return number || `${idx}`;
@@ -4614,7 +4620,8 @@ useEffect(() => {
                                     <th style={{ padding: '0.4rem 0.35rem', textAlign: 'left', fontWeight: 600 }}>ТС</th>
                                     <th style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Отправок</th>
                                     <th style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Плат. вес</th>
-                                    {showSums && <th style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Стоимость</th>}
+                                    {showSums && <th style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }} title="Сумма за перевозку">Стоимость</th>}
+                                    {showSums && <th style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Объявл. стоимость</th>}
                                 </tr>
                             </thead>
                             <tbody>
@@ -4628,6 +4635,11 @@ useEffect(() => {
                                                 {formatCurrency(vehicleRow.cost)}
                                             </td>
                                         )}
+                                        {showSums && (
+                                            <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                {formatCurrency(vehicleRow.declaredCost)}
+                                            </td>
+                                        )}
                                     </tr>
                                 ))}
                                 <tr style={{ borderTop: '2px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
@@ -4637,6 +4649,11 @@ useEffect(() => {
                                     {showSums && (
                                         <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
                                             {formatCurrency(sendingsVehicleGrandTotals.cost)}
+                                        </td>
+                                    )}
+                                    {showSums && (
+                                        <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                            {formatCurrency(sendingsVehicleGrandTotals.declaredCost)}
                                         </td>
                                     )}
                                 </tr>
@@ -4676,7 +4693,10 @@ useEffect(() => {
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('paidWeight')} title="Сортировка">Плат. вес {sendingsSortColumn === 'paidWeight' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 )}
                                 {hasAnalytics && showSums && (
-                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('cost')} title="Сортировка">Стоимость {sendingsSortColumn === 'cost' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('cost')} title="Сумма за перевозку">Стоимость {sendingsSortColumn === 'cost' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                )}
+                                {hasAnalytics && showSums && (
+                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('declaredCost')} title="Объявленная стоимость товара">Объявл. стоимость {sendingsSortColumn === 'declaredCost' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 )}
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('comment')} title="Сортировка">Комментарий {sendingsSortColumn === 'comment' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                             </tr>
@@ -4773,6 +4793,11 @@ useEffect(() => {
                                                     {formatCurrency(sendingParcelMetrics.cost)}
                                                 </td>
                                             )}
+                                            {hasAnalytics && showSums && (
+                                                <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                    {formatCurrency(sendingParcelMetrics.declaredCost)}
+                                                </td>
+                                            )}
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>
                                         </tr>
                                         {expanded && (
@@ -4836,7 +4861,8 @@ useEffect(() => {
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Платный вес</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Номенклатура</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Кол-во</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Стоимость</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }} title="Сумма за перевозку">Стоимость</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Объявл. стоимость</th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
@@ -4861,6 +4887,7 @@ useEffect(() => {
                                                                                 <td style={{ padding: '0.35rem 0.3rem' }}>{goods?.ТМЦ ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const sum = getParcelFreightSum(parcel); return sum > 0 ? formatCurrency(sum) : '—'; })()}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const sum = getParcelDeclaredCost(parcel); return sum > 0 ? formatCurrency(sum) : '—'; })()}</td>
                                                                             </tr>
                                                                         );
                                                                     })}
