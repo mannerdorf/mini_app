@@ -56,6 +56,48 @@ export function perevozkiItemInn(item: any): string {
   return itemInn(item);
 }
 
+function normalizeCargoNumberForLookup(value: unknown): string {
+  return String(value ?? "").replace(/^0000-/, "").trim().replace(/^0+/, "") || "";
+}
+
+function perevozkiItemNumber(item: any): string {
+  return normalizeCargoNumberForLookup(item?.Number ?? item?.number ?? item?.НомерПеревозки ?? "");
+}
+
+/** Перевозки из cache_perevozki по номерам — без фильтра по дате (для привязки к рейсу). */
+export async function readPerevozkiFromCacheByNumbers(
+  pool: Pool,
+  numbers: string[],
+): Promise<any[]> {
+  const wanted = new Set(
+    numbers
+      .map((n) => normalizeCargoNumberForLookup(n))
+      .filter(Boolean),
+  );
+  if (wanted.size === 0) return [];
+
+  let cacheRow = await pool.query<{ data: unknown[] }>(
+    "SELECT data FROM cache_perevozki WHERE id = 1",
+  );
+  if (cacheRow.rows.length === 0) return [];
+  const list = Array.isArray(cacheRow.rows[0].data) ? (cacheRow.rows[0].data as any[]) : [];
+  return list.filter((item) => wanted.has(perevozkiItemNumber(item)));
+}
+
+function mergePerevozkiByNumber(primary: any[], extra: any[]): any[] {
+  if (!extra.length) return primary;
+  const byNumber = new Map<string, any>();
+  for (const item of primary) {
+    const key = perevozkiItemNumber(item);
+    if (key) byNumber.set(key, item);
+  }
+  for (const item of extra) {
+    const key = perevozkiItemNumber(item);
+    if (key && !byNumber.has(key)) byNumber.set(key, item);
+  }
+  return Array.from(byNumber.values());
+}
+
 /** Кэш перевозок для зарегистрированного пользователя (без 1С). Используется из `/api/perevozki` и partner/v1 с пользовательским ключом. */
 export async function readRegisteredPerevozkiFromCache(
   pool: Pool,
@@ -141,7 +183,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     mode,
     serviceMode,
     isRegisteredUser,
+    includeCargoNumbers,
   } = body || {};
+
+  const extraCargoNumbers = Array.isArray(includeCargoNumbers)
+    ? includeCargoNumbers.map((n: unknown) => String(n ?? "").trim()).filter(Boolean)
+    : [];
 
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
   if (!dateRe.test(dateFrom) || !dateRe.test(dateTo)) {
@@ -191,7 +238,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
       }
       const filtered = await readRegisteredPerevozkiFromCache(pool, verified, login, dateFrom, dateTo, inn, serviceMode);
-      return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+      let result = Array.isArray(filtered) ? filtered : [];
+      if (extraCargoNumbers.length > 0) {
+        const extra = await readPerevozkiFromCacheByNumbers(pool, extraCargoNumbers);
+        result = mergePerevozkiByNumber(result, extra);
+      }
+      return res.status(200).json(Array.isArray(result) ? result : []);
     } catch (e) {
       logError(ctx, "perevozki_registered_user_failed", e);
       return res.status(200).json([]);
@@ -290,15 +342,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(401).json({ error: errorText, request_id: ctx.requestId });
       }
       const list = Array.isArray(json) ? json : json.items || [];
-      if (Array.isArray(list) && list.length > 0) {
-        ingestCargoItems(list, login).catch((error) => {
+      let mergedList = list;
+      if (extraCargoNumbers.length > 0) {
+        try {
+          const pool = getPool();
+          const extra = await readPerevozkiFromCacheByNumbers(pool, extraCargoNumbers);
+          mergedList = mergePerevozkiByNumber(list, extra);
+        } catch (mergeErr: any) {
+          console.error("perevozki includeCargoNumbers merge failed:", mergeErr?.message || mergeErr);
+        }
+      }
+      if (Array.isArray(mergedList) && mergedList.length > 0) {
+        ingestCargoItems(mergedList, login).catch((error) => {
           console.error("RAG cargo ingest error:", error?.message || error);
         });
         try {
           const pool = getPool();
           await dispatchWebPushCargoEvents({
             pool,
-            items: list as any[],
+            items: mergedList as any[],
             source: "api_perevozki",
             dedupeTtlSeconds: 300,
           });
@@ -306,7 +368,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           console.error("webpush event dispatch from perevozki failed:", error?.message || error);
         }
       }
-      return res.status(200).json(json);
+      return res.status(200).json(Array.isArray(json) ? mergedList : { ...json, items: mergedList });
     } catch {
       return res.status(200).send(text);
     }

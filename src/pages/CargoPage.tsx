@@ -20,8 +20,9 @@ import {
     sortGroupedByCustomer,
 } from "./cargoPipeline";
 import { initSharedFilterSets, saveSharedListFilters, sharedFromFilterSets } from "../lib/sharedListFilters";
-import { buildTransportOptionsFromSendingsInPeriod } from "./documentsPipeline";
-import { useSendings } from "../hooks/useApi";
+import { buildTransportOptionsFromSendingsInPeriod, buildTransportLinkedCargoNumbersInPeriod } from "./documentsPipeline";
+import { normCargoKey } from "./documentsPipeline";
+import { useCargoTransportFilter, usePerevozkiMultiAccounts, useSendings } from "../hooks/useApi";
 import { CargoSummaryCard, CargoStateBlocks } from "./cargoViewBlocks";
 import { CargoCustomerTable, CargoCardsList } from "./cargoCollectionViews";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
@@ -30,6 +31,21 @@ import { cargoModeSwitchMotion, cargoSummaryMotion } from "./cargoMotion";
 const { loadDateFilterState, saveDateFilterState, getDateRange, getWeekRange, getWeeksList, getYearsList, MONTH_NAMES, DEFAULT_DATE_FROM, DEFAULT_DATE_TO, formatDate } = dateUtils;
 type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;
 const CARGO_STATUS_FILTER_KEYS: CargoStatusFilterKey[] = ["in_transit", "ready", "delivering", "delivered"];
+
+function mergeCargoItemsByNumber(primary: CargoItem[], extra: CargoItem[]): CargoItem[] {
+    if (!extra.length) return primary;
+    const byNumber = new Map<string, CargoItem>();
+    for (const item of primary) {
+        const key = String(item.Number ?? "").trim();
+        if (key) byNumber.set(key, item);
+    }
+    for (const item of extra) {
+        const key = String(item.Number ?? "").trim();
+        if (!key || byNumber.has(key)) continue;
+        byNumber.set(key, item);
+    }
+    return Array.from(byNumber.values());
+}
 
 export type CargoDetailsModalProps = {
     item: CargoItem;
@@ -255,6 +271,59 @@ export function CargoPage({
         [sendingsItems, sendingsLoading, apiDateRange.dateFrom, apiDateRange.dateTo],
     );
 
+    const { cargoNumbers: dbTransportCargoNumbers, loading: dbTransportLoading } = useCargoTransportFilter({
+        auth: primaryAuth,
+        vehicle: transportFilter,
+        dateFrom: apiDateRange.dateFrom,
+        dateTo: apiDateRange.dateTo,
+        useServiceRequest: effectiveServiceMode,
+        enabled: !!effectiveServiceMode && !!transportFilter,
+    });
+
+    const transportLinkedCargoNumbers = useMemo(() => {
+        if (!effectiveServiceMode || !transportFilter || dbTransportLoading) return undefined;
+        if (dbTransportCargoNumbers.length > 0) {
+            return new Set(dbTransportCargoNumbers.map((n) => normCargoKey(n)).filter(Boolean));
+        }
+        return buildTransportLinkedCargoNumbersInPeriod(
+            sendingsItems,
+            apiDateRange.dateFrom,
+            apiDateRange.dateTo,
+            transportFilter,
+        );
+    }, [
+        effectiveServiceMode,
+        transportFilter,
+        dbTransportCargoNumbers,
+        dbTransportLoading,
+        sendingsItems,
+        apiDateRange.dateFrom,
+        apiDateRange.dateTo,
+    ]);
+
+    const includeCargoNumbersForTransport = useMemo(() => {
+        if (!transportLinkedCargoNumbers?.size) return [];
+        const existing = new Set(items.map((i) => normCargoKey(String(i.Number ?? ""))).filter(Boolean));
+        return [...transportLinkedCargoNumbers].filter((n) => !existing.has(n));
+    }, [transportLinkedCargoNumbers, items]);
+
+    const { items: transportLinkedItems } = usePerevozkiMultiAccounts({
+        auths,
+        dateFrom: apiDateRange.dateFrom,
+        dateTo: apiDateRange.dateTo,
+        useServiceRequest: effectiveServiceMode,
+        roleCustomer,
+        roleSender,
+        roleReceiver,
+        includeCargoNumbers: includeCargoNumbersForTransport,
+        enabled: !!effectiveServiceMode && !!transportFilter && includeCargoNumbersForTransport.length > 0,
+    });
+
+    const itemsForFiltering = useMemo(() => {
+        if (!effectiveServiceMode || !transportFilter) return items;
+        return mergeCargoItemsByNumber(items, transportLinkedItems);
+    }, [items, transportLinkedItems, effectiveServiceMode, transportFilter]);
+
     useEffect(() => {
         if (!transportFilter) return;
         if (transportOptions.includes(transportFilter)) return;
@@ -316,12 +385,13 @@ export function CargoPage({
     // Client-side filtering and sorting
     const filteredItems = useMemo(() => {
         return buildFilteredCargoItems({
-            items,
+            items: itemsForFiltering,
             searchText: effectiveSearchText,
             statusFilterSet,
             senderFilter,
             receiverFilter,
             transportFilter: effectiveServiceMode ? transportFilter : '',
+            transportLinkedCargoNumbers,
             useServiceRequest: effectiveServiceMode,
             billStatusFilterSet,
             typeFilterSet,
@@ -330,7 +400,7 @@ export function CargoPage({
             sortBy,
             sortOrder,
         });
-    }, [items, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, transportFilter, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, lastMileFilter, sortBy, sortOrder]);
+    }, [itemsForFiltering, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, transportFilter, transportLinkedCargoNumbers, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, lastMileFilter, sortBy, sortOrder]);
 
     const summary = useMemo(() => buildCargoSummary(filteredItems), [filteredItems]);
 

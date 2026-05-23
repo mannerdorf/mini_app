@@ -7,6 +7,7 @@ export const PROXY_API_INVOICES_URL = '/api/invoices';
 export const PROXY_API_ACTS_URL = '/api/acts';
 export const PROXY_API_ORDERS_URL = '/api/orders';
 export const PROXY_API_SENDINGS_URL = '/api/sendings';
+export const PROXY_API_CARGO_TRANSPORT_FILTER_URL = '/api/cargo-transport-filter';
 
 /** URL вебхука для отправки заявок на расходы (P&L / БД). Если пустой — заявки сохраняются только в localStorage. */
 export const EXPENSE_REQUESTS_WEBHOOK_URL = '/api/expense-requests-webhook';

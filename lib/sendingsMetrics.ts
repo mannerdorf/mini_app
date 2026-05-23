@@ -7,6 +7,14 @@ type SendingMetricRow = {
   inTransitHours: number | null;
 };
 
+export type CargoSendingAssignmentRow = {
+  customerInn: string;
+  sendingNumber: string;
+  cargoNumber: string;
+  sendingDate: string | null;
+  vehicleNormalized: string;
+};
+
 function normalizeText(value: unknown): string {
   return String(value ?? "").trim();
 }
@@ -18,6 +26,67 @@ function normalizeInn(value: unknown): string {
 function normalizeCargoNumber(value: unknown): string {
   const s = String(value ?? "").replace(/^0000-/, "").trim().replace(/^0+/, "") || "";
   return s;
+}
+
+/** Нормализация госномера / контейнера — синхрон с documentsPipeline.normalizeTransportName. */
+export function normalizeVehicleText(value: unknown): string {
+  const s = String(value ?? "").toUpperCase().trim();
+  if (!s) return "";
+  const normalizedSpaces = s.replace(/\s+/g, " ");
+  const container = normalizedSpaces.match(/([A-ZА-Я]{4})[\s\-]*([0-9]{7})$/u);
+  if (container) return `${container[1]} ${container[2]}`;
+  const vehicle = normalizedSpaces.match(/([A-ZА-Я][0-9]{3}[A-ZА-Я]{2})(\s*\/?\s*([0-9]{2,3}))?$/u);
+  if (vehicle) {
+    const base = vehicle[1];
+    const region = vehicle[3] ?? "";
+    if (!region) return base;
+    return `${base}${region}`;
+  }
+  const looseVehicle = normalizedSpaces.match(/([A-ZА-Я])[\s\-]*([0-9]{3})[\s\-]*([A-ZА-Я]{2})(?:[\s\-]*\/?[\s\-]*([0-9]{2,3}))?$/u);
+  if (looseVehicle) {
+    const base = `${looseVehicle[1]}${looseVehicle[2]}${looseVehicle[3]}`;
+    const region = looseVehicle[4] ?? "";
+    if (!region) return base;
+    return `${base}${region}`;
+  }
+  return normalizedSpaces
+    .replace(/\bнаименование\s*тс\b[:\-]?\s*/giu, "")
+    .replace(/\bконтейнер\b[:\-]?\s*/giu, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function normalizeDateOnly(raw: unknown): string | null {
+  const parsed = parseDateTimeValue(raw);
+  if (!parsed) return null;
+  return parsed.toISOString().split("T")[0];
+}
+
+/** Дата рейса отправки — как колонка «Дата» в отправках. */
+function pickSendingDisplayDate(item: any): string | null {
+  return normalizeDateOnly(
+    item?.Дата ??
+      item?.Date ??
+      item?.date ??
+      item?.DateOtpr ??
+      item?.DateSend ??
+      item?.DateShipment ??
+      item?.ShipmentDate ??
+      item?.DateDoc ??
+      item?.ДатаОтправки ??
+      item?.DatePrih ??
+      item?.DateVr,
+  );
+}
+
+function pickSendingVehicle(item: any): string {
+  return normalizeVehicleText(
+    item?.АвтомобильCMRНаименование ??
+      item?.AutoReg ??
+      item?.autoReg ??
+      item?.AutoType ??
+      "",
+  );
 }
 
 function collectValuesByKeyRegex(
@@ -215,6 +284,7 @@ function getSendingCargoNumbers(row: any): string[] {
   add(row?.НомерПеревозки);
   add(row?.CargoNumber);
   add(row?.NumberPerevozki);
+  add(row?.Перевозка);
   add(row?.ИДОтправления);
 
   const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
@@ -225,6 +295,7 @@ function getSendingCargoNumbers(row: any): string[] {
       : [];
   parcels.forEach((parcel: any) => {
     add(parcel?.ИДОтправления);
+    add(parcel?.Перевозка);
     add(parcel?.НомерПеревозки);
     add(parcel?.CargoNumber);
     add(parcel?.NumberPerevozki);
@@ -236,6 +307,7 @@ function getSendingCargoNumbers(row: any): string[] {
         : null;
     if (goods && typeof goods === "object") {
       add((goods as any)?.ИДОтправления);
+      add((goods as any)?.Перевозка);
       add((goods as any)?.НомерПеревозки);
       add((goods as any)?.CargoNumber);
       add((goods as any)?.NumberPerevozki);
@@ -392,6 +464,126 @@ export function buildSendingsMetrics(sendingsItems: any[], perevozkiItems: any[]
   });
 
   return Array.from(byKey.values());
+}
+
+/** Привязки перевозка → отправка (рейс) → ТС из Getotpravki. */
+export function buildCargoSendingAssignments(sendingsItems: any[]): CargoSendingAssignmentRow[] {
+  const rows: CargoSendingAssignmentRow[] = [];
+  const cargoInnByNumber = new Map<string, string>();
+
+  (sendingsItems || []).forEach((row: any) => {
+    let customerInn = pickSendingInn(row);
+    const cargoNumbers = getSendingCargoNumbers(row);
+    let sendingNumber = pickSendingNumber(row);
+    if (!sendingNumber && cargoNumbers.length > 0) {
+      sendingNumber = cargoNumbers[0];
+    }
+    if (!customerInn && cargoNumbers.length > 0) {
+      for (const cargoNumber of cargoNumbers) {
+        const inferred = cargoInnByNumber.get(cargoNumber);
+        if (inferred) {
+          customerInn = inferred;
+          break;
+        }
+      }
+    }
+    if (!customerInn || !sendingNumber || cargoNumbers.length === 0) return;
+
+    const sendingDate = pickSendingDisplayDate(row);
+    const vehicleNormalized = pickSendingVehicle(row);
+    if (!vehicleNormalized) return;
+
+    cargoNumbers.forEach((cargoNumber) => {
+      if (!cargoInnByNumber.has(cargoNumber) && customerInn) {
+        cargoInnByNumber.set(cargoNumber, customerInn);
+      }
+      rows.push({
+        customerInn,
+        sendingNumber,
+        cargoNumber,
+        sendingDate,
+        vehicleNormalized,
+      });
+    });
+  });
+
+  return rows;
+}
+
+export async function upsertCargoSendingAssignments(
+  pool: { query: (sql: string, params?: any[]) => Promise<{ rows: any[] }> },
+  rows: CargoSendingAssignmentRow[],
+) {
+  if (!rows.length) return { updated: 0 };
+
+  const payload = rows.map((row) => ({
+    customer_inn: row.customerInn,
+    sending_number: row.sendingNumber,
+    cargo_number: row.cargoNumber,
+    sending_date: row.sendingDate,
+    vehicle_normalized: row.vehicleNormalized,
+    now_at: new Date().toISOString(),
+  }));
+
+  await pool.query(
+    `with src as (
+       select *
+       from jsonb_to_recordset($1::jsonb) as x(
+         customer_inn text,
+         sending_number text,
+         cargo_number text,
+         sending_date date,
+         vehicle_normalized text,
+         now_at timestamptz
+       )
+     )
+     insert into cargo_sending_assignments (
+       customer_inn,
+       sending_number,
+       cargo_number,
+       sending_date,
+       vehicle_normalized,
+       first_seen_at,
+       last_seen_at
+     )
+     select
+       customer_inn,
+       sending_number,
+       cargo_number,
+       sending_date,
+       vehicle_normalized,
+       now_at,
+       now_at
+     from src
+     on conflict (customer_inn, sending_number, cargo_number) do update
+       set sending_date = coalesce(excluded.sending_date, cargo_sending_assignments.sending_date),
+           vehicle_normalized = excluded.vehicle_normalized,
+           last_seen_at = excluded.last_seen_at`,
+    [JSON.stringify(payload)],
+  );
+
+  return { updated: payload.length };
+}
+
+export async function queryCargoNumbersByVehicleInPeriod(
+  pool: { query: (sql: string, params?: any[]) => Promise<{ rows: any[] }> },
+  vehicleNormalized: string,
+  dateFrom: string,
+  dateTo: string,
+): Promise<string[]> {
+  const vehicle = normalizeVehicleText(vehicleNormalized);
+  if (!vehicle) return [];
+  const res = await pool.query<{ cargo_number: string }>(
+    `select distinct cargo_number
+     from cargo_sending_assignments
+     where vehicle_normalized = $1
+       and sending_date is not null
+       and sending_date >= $2::date
+       and sending_date <= $3::date
+     order by cargo_number`,
+    [vehicle, dateFrom, dateTo],
+  );
+  return res.rows.map((r) => r.cargo_number).filter(Boolean);
 }
 
 export async function upsertSendingsMetrics(pool: { query: (sql: string, params?: any[]) => Promise<{ rows: any[] }> }, rows: SendingMetricRow[]) {

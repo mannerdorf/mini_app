@@ -1904,3 +1904,25 @@ create index if not exists notification_preferences_login_idx on notification_pr
 create index if not exists notification_preferences_enabled_idx on notification_preferences(login, channel) where enabled = true;
 
 comment on table notification_preferences is 'Настройки пуша: кому (login), канал (telegram/web), событие (вкл/выкл)';
+
+-- ========== 065_cargo_sending_assignments.sql ==========
+create table if not exists cargo_sending_assignments (
+  customer_inn text not null,
+  sending_number text not null,
+  cargo_number text not null,
+  sending_date date,
+  vehicle_normalized text not null default '',
+  first_seen_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  primary key (customer_inn, sending_number, cargo_number)
+);
+
+create index if not exists cargo_sending_assignments_vehicle_date_idx
+  on cargo_sending_assignments (vehicle_normalized, sending_date);
+
+create index if not exists cargo_sending_assignments_cargo_idx
+  on cargo_sending_assignments (cargo_number);
+
+create index if not exists cargo_sending_assignments_last_seen_idx
+  on cargo_sending_assignments (last_seen_at desc);
+

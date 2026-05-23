@@ -737,6 +737,101 @@ export function buildTransportOptionsFromSendingsInPeriod(
   return [...set].sort((a, b) => a.localeCompare(b, "ru"));
 }
 
+function addSendingCargoNumber(numbers: string[], value: unknown): void {
+  const v = String(value ?? "").trim();
+  if (v) numbers.push(v);
+}
+
+/** Все номера грузов/отправлений из строки отправки (посылки, товары). */
+export function collectSendingCargoNumbers(row: any): string[] {
+  const numbers: string[] = [];
+  addSendingCargoNumber(numbers, row?.НомерПеревозки);
+  addSendingCargoNumber(numbers, row?.CargoNumber);
+  addSendingCargoNumber(numbers, row?.NumberPerevozki);
+  addSendingCargoNumber(numbers, row?.Перевозка);
+  addSendingCargoNumber(numbers, row?.ИДОтправления);
+  addSendingCargoNumber(numbers, row?.Номер);
+  addSendingCargoNumber(numbers, row?.Number);
+  addSendingCargoNumber(numbers, row?.number);
+
+  for (const parcel of getSendingParcelsFromRow(row)) {
+    addSendingCargoNumber(numbers, parcel?.ИДОтправления);
+    addSendingCargoNumber(numbers, parcel?.Перевозка);
+    addSendingCargoNumber(numbers, parcel?.НомерПеревозки);
+    addSendingCargoNumber(numbers, parcel?.CargoNumber);
+    addSendingCargoNumber(numbers, parcel?.NumberPerevozki);
+    const goods = getParcelGoodsObject(parcel);
+    addSendingCargoNumber(numbers, goods?.ИДОтправления);
+    addSendingCargoNumber(numbers, goods?.Перевозка);
+    addSendingCargoNumber(numbers, goods?.НомерПеревозки);
+    addSendingCargoNumber(numbers, goods?.CargoNumber);
+    addSendingCargoNumber(numbers, goods?.NumberPerevozki);
+  }
+
+  return Array.from(new Set(numbers));
+}
+
+export function enrichCargoTransportByNumberFromSendings(
+  base: Map<string, string>,
+  sendingsItems: any[],
+): Map<string, string> {
+  const map = new Map(base);
+  (sendingsItems || []).forEach((row: any) => {
+    const transport = String(
+      row?.АвтомобильCMRНаименование
+        ?? row?.AutoReg
+        ?? row?.autoReg
+        ?? row?.AutoType
+        ?? "",
+    ).trim();
+    if (!transport) return;
+    for (const raw of collectSendingCargoNumbers(row)) {
+      const key = normCargoKey(raw);
+      if (!key) continue;
+      map.set(key, transport);
+      if (key !== raw) map.set(raw, transport);
+    }
+  });
+  return map;
+}
+
+export function buildCargoTransportByNumberFromPerevozkiAndSendings(
+  perevozkiItems: any[],
+  sendingsItems: any[],
+): Map<string, string> {
+  return enrichCargoTransportByNumberFromSendings(
+    buildCargoTransportByNumber(perevozkiItems),
+    sendingsItems,
+  );
+}
+
+function pickSendingRowVehicle(row: any): string {
+  return normalizeTransportName(
+    row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.autoReg ?? row?.AutoType ?? "",
+  );
+}
+
+/** Номера перевозок, привязанных к ТС через отправки за период. */
+export function buildTransportLinkedCargoNumbersInPeriod(
+  sendingsItems: any[],
+  dateFrom: string,
+  dateTo: string,
+  transportFilter: string,
+): Set<string> {
+  const selected = normalizeTransportName(transportFilter);
+  if (!selected) return new Set();
+  const set = new Set<string>();
+  (sendingsItems || []).forEach((row: any) => {
+    if (!sendingRowInSelectedPeriod(row, dateFrom, dateTo)) return;
+    if (pickSendingRowVehicle(row) !== selected) return;
+    for (const raw of collectSendingCargoNumbers(row)) {
+      const key = normCargoKey(raw);
+      if (key) set.add(key);
+    }
+  });
+  return set;
+}
+
 export function parseSendingMetricNumber(v: unknown): number {
   const raw = String(v ?? "").trim().replace(",", ".");
   const n = Number(raw);

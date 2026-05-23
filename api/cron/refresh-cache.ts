@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
-import { buildSendingsMetrics, extractArrayFromAnyPayload, upsertSendingsMetrics } from "../../lib/sendingsMetrics.js";
+import { buildCargoSendingAssignments, buildSendingsMetrics, extractArrayFromAnyPayload, upsertCargoSendingAssignments, upsertSendingsMetrics } from "../../lib/sendingsMetrics.js";
 import { dispatchWebPushCargoEvents } from "../_lib/webpushEventDispatch.js";
 import { requireCronAuth } from "../_lib/cronAuth.js";
 import { initRequestContext, logError, logInfo } from "../_lib/observability.js";
@@ -202,6 +202,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (e: any) {
     logError(ctx, "refresh_cache_sendings_metrics_failed", e);
     markStep("sendings_metrics", false, 0, e?.message || String(e));
+  }
+
+  try {
+    const assignmentRows = buildCargoSendingAssignments(sendingsList as any[]);
+    const assignmentResult = await upsertCargoSendingAssignments(pool, assignmentRows);
+    markStep("cargo_sending_assignments", true, assignmentResult.updated);
+  } catch (e: any) {
+    logError(ctx, "refresh_cache_cargo_sending_assignments_failed", e);
+    markStep("cargo_sending_assignments", false, 0, e?.message || String(e));
   }
 
   try {

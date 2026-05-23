@@ -7,6 +7,7 @@ import {
 } from "../lib/statusUtils";
 import { cityToCode, formatInvoiceNumber } from "../lib/formatUtils";
 import { cargoLastMileIsSelfPickup } from "../lib/cargoUtils";
+import { normCargoKey } from "./documentsPipeline";
 
 type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;
 
@@ -17,6 +18,10 @@ export type CargoFilterPipelineParams = {
   senderFilter: string;
   receiverFilter: string;
   transportFilter: string;
+  /** ТС по номеру перевозки из отправок (и perevozki). */
+  cargoTransportByNumber?: Map<string, string>;
+  /** Номера перевозок с выбранным ТС по отправкам за период. */
+  transportLinkedCargoNumbers?: Set<string>;
   useServiceRequest: boolean;
   billStatusFilterSet: Set<
     "paid" | "unpaid" | "partial" | "cancelled" | "unknown"
@@ -170,6 +175,8 @@ export function buildFilteredCargoItems(
     senderFilter,
     receiverFilter,
     transportFilter,
+    cargoTransportByNumber,
+    transportLinkedCargoNumbers,
     useServiceRequest,
     billStatusFilterSet,
     typeFilterSet,
@@ -204,9 +211,16 @@ export function buildFilteredCargoItems(
   }
   if (useServiceRequest && transportFilter) {
     const selectedTransport = normalizeTransportName(transportFilter);
-    res = res.filter((i) =>
-      getCargoTransportCandidates(i).some((candidate) => candidate === selectedTransport)
-    );
+    if (transportLinkedCargoNumbers?.size) {
+      res = res.filter((i) => transportLinkedCargoNumbers.has(normCargoKey(String(i.Number ?? ""))));
+    } else {
+      res = res.filter((i) => {
+        const cargoKey = normCargoKey(String(i.Number ?? ""));
+        const fromSendings = normalizeTransportName(cargoTransportByNumber?.get(cargoKey));
+        if (fromSendings && fromSendings === selectedTransport) return true;
+        return getCargoTransportCandidates(i).some((candidate) => candidate === selectedTransport);
+      });
+    }
   }
   if (useServiceRequest && billStatusFilterSet.size > 0) {
     res = res.filter((i) => billStatusFilterSet.has(getPaymentFilterKey(i.StateBill)));

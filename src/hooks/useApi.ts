@@ -5,7 +5,7 @@
 import useSWR from "swr";
 import { useCallback } from "react";
 import { apiFetchJson } from "../utils";
-import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_INVOICES_URL, PROXY_API_ACTS_URL, PROXY_API_ORDERS_URL, PROXY_API_SENDINGS_URL } from "../constants/config";
+import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_INVOICES_URL, PROXY_API_ACTS_URL, PROXY_API_ORDERS_URL, PROXY_API_SENDINGS_URL, PROXY_API_CARGO_TRANSPORT_FILTER_URL } from "../constants/config";
 import type { AuthData, CargoItem, PerevozkiRole } from "../types";
 import { mergePerevozkiRoleDuplicates } from "../lib/cargoUtils";
 
@@ -47,12 +47,14 @@ type PerevozkiParams = {
     dateTo: string;
     useServiceRequest?: boolean;
     inn?: string | null;
+    /** Номера перевозок из привязки к рейсу — подтягиваются из кэша без фильтра по дате. */
+    includeCargoNumbers?: string[];
     /** When false, no fetch (for conditional prev period) */
     enabled?: boolean;
 };
 
 async function fetcherPerevozki(params: PerevozkiParams): Promise<CargoItem[]> {
-    const { auth, dateFrom, dateTo, useServiceRequest, inn } = params;
+    const { auth, dateFrom, dateTo, useServiceRequest, inn, includeCargoNumbers } = params;
     if (!auth?.login || !auth?.password) return [];
     const body: Record<string, unknown> = {
         login: auth.login,
@@ -62,6 +64,7 @@ async function fetcherPerevozki(params: PerevozkiParams): Promise<CargoItem[]> {
         ...(useServiceRequest ? { serviceMode: true } : {}),
         ...(inn ? { inn } : auth.inn ? { inn: auth.inn } : {}),
         ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
+        ...(includeCargoNumbers?.length ? { includeCargoNumbers } : {}),
     };
     const data = await apiFetchJson<{ items?: unknown[] } | unknown[]>(PROXY_API_BASE_URL, {
         method: "POST",
@@ -97,7 +100,7 @@ type PerevozkiMultiRoleParams = PerevozkiParams & {
 };
 
 async function fetcherPerevozkiMulti(params: PerevozkiMultiRoleParams): Promise<CargoItem[]> {
-    const { auth, dateFrom, dateTo, useServiceRequest, roleCustomer, roleSender, roleReceiver } = params;
+    const { auth, dateFrom, dateTo, useServiceRequest, roleCustomer, roleSender, roleReceiver, includeCargoNumbers } = params;
     if (!auth?.login || !auth?.password) return [];
 
     if (useServiceRequest) {
@@ -107,6 +110,7 @@ async function fetcherPerevozkiMulti(params: PerevozkiMultiRoleParams): Promise<
             dateTo,
             useServiceRequest: true,
             inn: params.inn ?? auth.inn ?? undefined,
+            includeCargoNumbers,
         });
         return list.map((i) => ({ ...i, _role: "Customer" as PerevozkiRole }));
     }
@@ -194,6 +198,9 @@ type PerevozkiMultiAccountsParams = {
     roleCustomer?: boolean;
     roleSender?: boolean;
     roleReceiver?: boolean;
+    includeCargoNumbers?: string[];
+    /** When false, no fetch */
+    enabled?: boolean;
 };
 
 const parseDateValueForMerge = (value: unknown): number => {
@@ -210,7 +217,7 @@ const chooseBestItem = (a: CargoItem, b: CargoItem): CargoItem => {
 };
 
 async function fetcherPerevozkiMultiAccounts(params: PerevozkiMultiAccountsParams): Promise<CargoItem[]> {
-    const { auths, dateFrom, dateTo, useServiceRequest, roleCustomer, roleSender, roleReceiver } = params;
+    const { auths, dateFrom, dateTo, useServiceRequest, roleCustomer, roleSender, roleReceiver, includeCargoNumbers } = params;
     if (!auths.length) return [];
     const validAuths = auths.filter((a) => a?.login && a?.password);
     if (!validAuths.length) return [];
@@ -224,6 +231,7 @@ async function fetcherPerevozkiMultiAccounts(params: PerevozkiMultiAccountsParam
             roleSender,
             roleReceiver,
             inn: validAuths[0].inn ?? undefined,
+            includeCargoNumbers,
         });
     }
     const results = await Promise.all(
@@ -237,6 +245,7 @@ async function fetcherPerevozkiMultiAccounts(params: PerevozkiMultiAccountsParam
                 roleSender,
                 roleReceiver,
                 inn: auth.inn ?? undefined,
+                includeCargoNumbers,
             })
         )
     );
@@ -259,9 +268,10 @@ async function fetcherPerevozkiMultiAccounts(params: PerevozkiMultiAccountsParam
 }
 
 export function usePerevozkiMultiAccounts(params: PerevozkiMultiAccountsParams) {
-    const { auths, dateFrom, dateTo, useServiceRequest, roleCustomer, roleSender, roleReceiver } = params;
+    const { auths, dateFrom, dateTo, useServiceRequest, roleCustomer, roleSender, roleReceiver, includeCargoNumbers, enabled = true } = params;
+    const includeKey = (includeCargoNumbers ?? []).slice().sort().join(",");
     const key =
-        auths.length > 0 && auths.every((a) => a?.login && a?.password)
+        enabled && auths.length > 0 && auths.every((a) => a?.login && a?.password)
             ? [
                   "perevozki-multi-accounts",
                   auths.map((a) => `${a.login}:${a.inn ?? ""}`).sort().join(","),
@@ -271,6 +281,7 @@ export function usePerevozkiMultiAccounts(params: PerevozkiMultiAccountsParams) 
                   roleCustomer,
                   roleSender,
                   roleReceiver,
+                  includeKey,
               ]
             : null;
     const { data, error, isLoading, mutate } = useSWR<CargoItem[]>(
@@ -423,6 +434,50 @@ export function useSendings(params: SendingsParams) {
         error: error?.message ?? null,
         loading: isLoading,
         mutate,
+    };
+}
+
+type CargoTransportFilterParams = {
+    auth: AuthData | null;
+    vehicle: string;
+    dateFrom: string;
+    dateTo: string;
+    useServiceRequest?: boolean;
+    enabled?: boolean;
+};
+
+async function fetcherCargoTransportFilter(params: CargoTransportFilterParams): Promise<string[]> {
+    const { auth, vehicle, dateFrom, dateTo, useServiceRequest } = params;
+    if (!auth?.login || !auth?.password || !vehicle.trim()) return [];
+    const data = await apiFetchJson<{ cargoNumbers?: string[] }>(PROXY_API_CARGO_TRANSPORT_FILTER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            login: auth.login,
+            password: auth.password,
+            vehicle,
+            dateFrom,
+            dateTo,
+            serviceMode: !!useServiceRequest,
+        }),
+    });
+    return Array.isArray(data?.cargoNumbers) ? data.cargoNumbers : [];
+}
+
+export function useCargoTransportFilter(params: CargoTransportFilterParams) {
+    const { auth, vehicle, dateFrom, dateTo, useServiceRequest, enabled = true } = params;
+    const key = enabled && auth?.login && auth?.password && vehicle.trim()
+        ? ["cargo-transport-filter", auth.login, vehicle, dateFrom, dateTo, !!useServiceRequest]
+        : null;
+    const { data, error, isLoading } = useSWR<string[]>(
+        key,
+        () => fetcherCargoTransportFilter(params),
+        SWR_OPTIONS,
+    );
+    return {
+        cargoNumbers: data ?? [],
+        error: error?.message ?? null,
+        loading: isLoading,
     };
 }
 
