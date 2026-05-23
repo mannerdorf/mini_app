@@ -616,6 +616,124 @@ export function buildActsSummary(list: any[], perevozkiItems?: any[]): DocsSumma
 
 export type SendingParcelMetrics = { paidWeight: number; cost: number };
 
+/** Синхрон с `pickDate` в api/sendings.ts */
+export function normalizeApiDateOnly(raw: unknown): string {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  const ruMatch = s.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
+  if (ruMatch) return `${ruMatch[3]}-${ruMatch[2]}-${ruMatch[1]}`;
+  const parsed = new Date(s);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().split("T")[0];
+}
+
+export function pickSendingFilterDateRaw(item: any): unknown {
+  return (
+    item?.DateOtpr ??
+    item?.DateSend ??
+    item?.DateShipment ??
+    item?.ShipmentDate ??
+    item?.DateDoc ??
+    item?.Date ??
+    item?.date ??
+    item?.ДатаОтправки ??
+    item?.Дата ??
+    item?.DatePrih ??
+    item?.DateVr
+  );
+}
+
+export function pickSendingFilterDate(item: any): string {
+  return normalizeApiDateOnly(pickSendingFilterDateRaw(item));
+}
+
+export function isApiDateInRange(d: string, dateFrom: string, dateTo: string): boolean {
+  if (!d) return false;
+  return d >= dateFrom && d <= dateTo;
+}
+
+export function buildCargoFilterDateByNumber(perevozkiItems: any[]): Map<string, string> {
+  const m = new Map<string, string>();
+  (perevozkiItems || []).forEach((cargo: any) => {
+    const raw = String(cargo?.Number ?? cargo?.number ?? "").trim();
+    if (!raw) return;
+    const date = pickSendingFilterDate(cargo);
+    if (!date) return;
+    const key = normCargoKey(raw);
+    m.set(key, date);
+    if (key !== raw) m.set(raw, date);
+  });
+  return m;
+}
+
+export function getParcelCargoNumber(parcel: any): string {
+  const goodsRaw = parcel?.Товары;
+  const goods = Array.isArray(goodsRaw)
+    ? (goodsRaw[0] ?? {})
+    : goodsRaw && typeof goodsRaw === "object"
+      ? goodsRaw
+      : {};
+  return String(
+    parcel?.Перевозка ??
+      parcel?.НомерПеревозки ??
+      parcel?.CargoNumber ??
+      parcel?.NumberPerevozki ??
+      parcel?.ИДОтправления ??
+      goods?.Перевозка ??
+      goods?.НомерПеревозки ??
+      goods?.CargoNumber ??
+      goods?.NumberPerevozki ??
+      goods?.ИДОтправления ??
+      ""
+  ).trim();
+}
+
+export type SendingsDateFilter = {
+  dateFrom: string;
+  dateTo: string;
+  cargoFilterDateByNumber?: Map<string, string>;
+};
+
+function getParcelEffectiveFilterDate(
+  parcel: any,
+  dateFilter: SendingsDateFilter,
+  rowFallbackDate: string,
+): string {
+  const cargoNum = getParcelCargoNumber(parcel);
+  if (cargoNum && dateFilter.cargoFilterDateByNumber) {
+    const cargoDate =
+      dateFilter.cargoFilterDateByNumber.get(normCargoKey(cargoNum))
+      ?? dateFilter.cargoFilterDateByNumber.get(cargoNum)
+      ?? "";
+    if (cargoDate) return cargoDate;
+  }
+  return rowFallbackDate;
+}
+
+export function parcelMatchesDateRange(
+  parcel: any,
+  dateFilter: SendingsDateFilter,
+  rowFallbackDate = "",
+): boolean {
+  const effectiveDate = getParcelEffectiveFilterDate(parcel, dateFilter, rowFallbackDate);
+  return isApiDateInRange(effectiveDate, dateFilter.dateFrom, dateFilter.dateTo);
+}
+
+export function sendingRowMatchesDateRange(
+  row: any,
+  dateFilter: SendingsDateFilter,
+): boolean {
+  const rowDate = pickSendingFilterDate(row);
+  if (isApiDateInRange(rowDate, dateFilter.dateFrom, dateFilter.dateTo)) return true;
+
+  const parcels = getSendingParcelsFromRow(row);
+  if (parcels.length === 0) return false;
+
+  return parcels.some((parcel) => parcelMatchesDateRange(parcel, dateFilter, rowDate));
+}
+
 export function parseSendingMetricNumber(v: unknown): number {
   const raw = String(v ?? "").trim().replace(",", ".");
   const n = Number(raw);
@@ -659,14 +777,27 @@ export function getParcelGoodsCost(parcel: any): number {
   );
 }
 
-export function sumSendingParcelsMetrics(parcels: any[]): SendingParcelMetrics {
+export function sumSendingParcelsMetrics(
+  parcels: any[],
+  dateFilter?: SendingsDateFilter,
+  rowFallbackDate = "",
+): SendingParcelMetrics {
   let paidWeight = 0;
   let cost = 0;
   for (const parcel of parcels) {
+    if (dateFilter && !parcelMatchesDateRange(parcel, dateFilter, rowFallbackDate)) continue;
     paidWeight += parseSendingMetricNumber(parcel?.ПлатныйВес);
     cost += getParcelGoodsCost(parcel);
   }
   return { paidWeight, cost };
+}
+
+export function getSendingRowParcelMetrics(
+  row: any,
+  dateFilter?: SendingsDateFilter,
+): SendingParcelMetrics {
+  const rowFallbackDate = pickSendingFilterDate(row);
+  return sumSendingParcelsMetrics(getSendingParcelsFromRow(row), dateFilter, rowFallbackDate);
 }
 
 export type SendingVehicleTotalRow = {
@@ -678,12 +809,22 @@ export type SendingVehicleTotalRow = {
 
 export function buildSendingsTotalsByVehicle(
   rows: any[],
-  getVehicle: (row: any) => string
+  getVehicle: (row: any) => string,
+  dateFilter?: SendingsDateFilter,
 ): SendingVehicleTotalRow[] {
   const map = new Map<string, SendingVehicleTotalRow>();
   for (const row of rows) {
+    const rowFallbackDate = pickSendingFilterDate(row);
+    if (dateFilter) {
+      const parcels = getSendingParcelsFromRow(row);
+      const hasInRangeParcel = parcels.some((parcel) =>
+        parcelMatchesDateRange(parcel, dateFilter, rowFallbackDate)
+      );
+      const rowDateInRange = isApiDateInRange(rowFallbackDate, dateFilter.dateFrom, dateFilter.dateTo);
+      if (parcels.length > 0 ? !hasInRangeParcel : !rowDateInRange) continue;
+    }
     const vehicle = getVehicle(row) || "—";
-    const metrics = sumSendingParcelsMetrics(getSendingParcelsFromRow(row));
+    const metrics = getSendingRowParcelMetrics(row, dateFilter);
     const prev =
       map.get(vehicle) ??
       { vehicle, sendingsCount: 0, paidWeight: 0, cost: 0 };

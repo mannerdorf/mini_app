@@ -57,12 +57,14 @@ import {
     getActUpdEdoInfo,
     buildFilteredInvoices,
     buildFilteredOrders,
+    buildCargoFilterDateByNumber,
     buildSendingsTotalsByVehicle,
     collectInvoiceLinkedCargoNumbers,
     formatSendingMetricNum,
     getFirstCargoNumberFromInvoice,
     getSendingParcelsFromRow,
-    sumSendingParcelsMetrics,
+    getSendingRowParcelMetrics,
+    sendingRowMatchesDateRange,
 } from "./documentsPipeline";
 import {
     DocumentsApiDebugPanel,
@@ -1294,6 +1296,18 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         });
         return base;
     }, [perevozkiItems, sendingsItems, normCargoKey]);
+    const cargoFilterDateByNumber = useMemo(
+        () => buildCargoFilterDateByNumber(perevozkiItems || []),
+        [perevozkiItems]
+    );
+    const sendingsDateFilter = useMemo(
+        () => ({
+            dateFrom: apiDateRange.dateFrom,
+            dateTo: apiDateRange.dateTo,
+            cargoFilterDateByNumber,
+        }),
+        [apiDateRange.dateFrom, apiDateRange.dateTo, cargoFilterDateByNumber]
+    );
     const normalizeTransportDisplay = useCallback((value: unknown): string => {
         const s = String(value ?? '').toUpperCase().trim();
         if (!s) return '';
@@ -2154,8 +2168,9 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
                 return (typeFilterSet.has('auto') && transportType === 'auto') || (typeFilterSet.has('ferry') && transportType === 'ferry');
             });
         }
+        res = res.filter((row: any) => sendingRowMatchesDateRange(row, sendingsDateFilter));
         return res;
-    }, [sendingsItems, effectiveActiveInn, customerFilter, typeFilterSet, routeFilterSet, transportFilter, effectiveSearchText, sortBy, sortOrder, normalizeTransportDisplay]);
+    }, [sendingsItems, effectiveActiveInn, customerFilter, typeFilterSet, routeFilterSet, transportFilter, effectiveSearchText, sortBy, sortOrder, normalizeTransportDisplay, sendingsDateFilter]);
     const sendingsSummary = useMemo(() => buildDocsSummary(filteredSendings), [filteredSendings]);
     const filteredTariffs = useMemo(() => {
         const placeCode = (value: string) => cityToCode(value || '') || (value || '');
@@ -2615,8 +2630,8 @@ useEffect(() => {
         const getTransitHours = (row: any) => getSendingTransitHours(row) ?? -1;
         const getVehicle = (row: any) => normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? "");
         const getComment = (row: any) => String(row?.Комментарий ?? row?.Comment ?? "");
-        const getPaidWeight = (row: any) => sumSendingParcelsMetrics(getSendingParcelsFromRow(row)).paidWeight;
-        const getCost = (row: any) => sumSendingParcelsMetrics(getSendingParcelsFromRow(row)).cost;
+        const getPaidWeight = (row: any) => getSendingRowParcelMetrics(row, sendingsDateFilter).paidWeight;
+        const getCost = (row: any) => getSendingRowParcelMetrics(row, sendingsDateFilter).cost;
         return [...statusFilteredRows].sort((a, b) => {
             let cmp = 0;
             switch (sendingsSortColumn) {
@@ -2650,7 +2665,7 @@ useEffect(() => {
             }
             return sendingsSortOrder === 'asc' ? cmp : -cmp;
         });
-    }, [filteredSendings, deliveryStatusFilterSet, getSendingStatusKey, sendingsSortColumn, sendingsSortOrder, normalizeTransportDisplay, getSendingTransitHours]);
+    }, [filteredSendings, deliveryStatusFilterSet, getSendingStatusKey, sendingsSortColumn, sendingsSortOrder, normalizeTransportDisplay, getSendingTransitHours, sendingsDateFilter]);
     const sendingsInfographic = useMemo(() => {
         let ferry = 0;
         let auto = 0;
@@ -2699,8 +2714,8 @@ useEffect(() => {
     );
     const sendingsTotalsByVehicle = useMemo(() => {
         if (!hasAnalytics) return [];
-        return buildSendingsTotalsByVehicle(sendingRowsSorted, getSendingVehicleLabel);
-    }, [hasAnalytics, sendingRowsSorted, getSendingVehicleLabel]);
+        return buildSendingsTotalsByVehicle(sendingRowsSorted, getSendingVehicleLabel, sendingsDateFilter);
+    }, [hasAnalytics, sendingRowsSorted, getSendingVehicleLabel, sendingsDateFilter]);
     const sendingsVehicleGrandTotals = useMemo(() => {
         return sendingsTotalsByVehicle.reduce(
             (acc, row) => {
@@ -4696,7 +4711,7 @@ useEffect(() => {
                                 const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
                                 const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
                                 const expanded = expandedSendingRow === rowKey;
-                                const sendingParcelMetrics = sumSendingParcelsMetrics(parcels);
+                                const sendingParcelMetrics = getSendingRowParcelMetrics(row, sendingsDateFilter);
                                 return (
                                     <React.Fragment key={rowKey}>
                                         <tr
