@@ -2,7 +2,7 @@
  * Сводка по выдаче грузов: плитки и таблица по датам верхнего фильтра дашборда.
  */
 import React, { useMemo, useCallback, useState, useEffect } from "react";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, List, Loader2, RefreshCw, Scale, Weight } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, List, Loader2, RefreshCw, RussianRuble, Scale, Weight } from "lucide-react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import type { AuthData, CargoItem, PerevozkaTimelineStep } from "../types";
 import { formatTimelineDate, formatTimelineTime, parseDateOnly } from "../lib/dateUtils";
@@ -25,6 +25,8 @@ export type HaulzDispatchSummaryProps = {
     title?: string;
     subtitle?: string;
     showRefreshButton?: boolean;
+    /** Показывать суммы в рублях на плитках (как в таблице «Сумма»). */
+    showSums?: boolean;
 };
 
 type DispatchTileKey = "ready" | "delivering" | "transit" | "delivered" | "total";
@@ -118,6 +120,13 @@ function sumW(items: CargoItem[]): number {
     }, 0);
 }
 
+function sumMoney(items: CargoItem[]): number {
+    return items.reduce((acc, it) => {
+        const v = typeof it.Sum === "string" ? parseFloat(it.Sum) || 0 : Number(it.Sum) || 0;
+        return acc + v;
+    }, 0);
+}
+
 function formatVolumeM3(vol: number): string {
     const n = Number(vol) || 0;
     return n.toFixed(2).replace(".", ",");
@@ -130,14 +139,28 @@ const tileIconStyle: React.CSSProperties = {
     opacity: 0.92,
 };
 
-/** Строка под числом на плитке: иконки платного веса, веса и объёма (как на полоске графика дашборда). */
-function TileMetricsFooter({ items }: { items: CargoItem[] }) {
+/** Строка под числом на плитке: сумма, платный вес, вес и объём. */
+function TileMetricsFooter({ items, showSums = true }: { items: CargoItem[]; showSums?: boolean }) {
     const pw = Math.round(sumPw(items));
     const w = Math.round(sumW(items));
     const vol = sumVol(items);
     const volStr = formatVolumeM3(vol);
+    const money = sumMoney(items);
     return (
         <Flex align="center" wrap="wrap" gap="0.35rem" style={{ marginTop: "0.2rem", rowGap: "0.15rem" }}>
+            {showSums ? (
+                <>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem" }} title="Сумма">
+                        <RussianRuble width={TILE_ICON_SIZE} height={TILE_ICON_SIZE} style={tileIconStyle} aria-hidden />
+                        <Typography.Body style={{ fontSize: "0.62rem", color: "var(--color-text-secondary)", lineHeight: 1.25 }}>
+                            {formatCurrency(money, true)}
+                        </Typography.Body>
+                    </span>
+                    <span style={{ fontSize: "0.62rem", color: "var(--color-text-secondary)", opacity: 0.45 }} aria-hidden>
+                        ·
+                    </span>
+                </>
+            ) : null}
             <span style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem" }} title="Платный вес">
                 <Scale width={TILE_ICON_SIZE} height={TILE_ICON_SIZE} style={tileIconStyle} aria-hidden />
                 <Typography.Body style={{ fontSize: "0.62rem", color: "var(--color-text-secondary)", lineHeight: 1.25 }}>
@@ -247,6 +270,7 @@ export function HaulzDispatchSummary({
     title,
     subtitle,
     showRefreshButton,
+    showSums = true,
 }: HaulzDispatchSummaryProps) {
     const [workScheduleByInn, setWorkScheduleByInn] = useState<Record<string, WorkSchedule>>({});
     const [selectedTile, setSelectedTile] = useState<DispatchTileKey>("total");
@@ -505,33 +529,33 @@ export function HaulzDispatchSummary({
             {!loading && !error && (
                 <>
                     <Flex gap="0.55rem" wrap="wrap" style={{ marginBottom: "1rem" }}>
-                        <StatCard tileKey="total" cardTitle="Всего в выборке" count={stats.total} footer={<TileMetricsFooter items={items} />} accent="#2563eb" />
+                        <StatCard tileKey="total" cardTitle="Всего в выборке" count={stats.total} footer={<TileMetricsFooter items={items} showSums={showSums} />} accent="#2563eb" />
                         <StatCard
                             tileKey="delivered"
                             cardTitle="Доставлено"
                             count={stats.delivered.length}
-                            footer={<TileMetricsFooter items={stats.delivered} />}
+                            footer={<TileMetricsFooter items={stats.delivered} showSums={showSums} />}
                             accent="#10b981"
                         />
                         <StatCard
                             tileKey="transit"
                             cardTitle="В пути"
                             count={stats.transit.length}
-                            footer={<TileMetricsFooter items={stats.transit} />}
+                            footer={<TileMetricsFooter items={stats.transit} showSums={showSums} />}
                             accent="#f59e0b"
                         />
                         <StatCard
                             tileKey="ready"
                             cardTitle="Готов к выдаче"
                             count={stats.ready.length}
-                            footer={<TileMetricsFooter items={stats.ready} />}
+                            footer={<TileMetricsFooter items={stats.ready} showSums={showSums} />}
                             accent="#8b5cf6"
                         />
                         <StatCard
                             tileKey="delivering"
                             cardTitle="На доставке"
                             count={stats.delivering.length}
-                            footer={<TileMetricsFooter items={stats.delivering} />}
+                            footer={<TileMetricsFooter items={stats.delivering} showSums={showSums} />}
                             accent="#06b6d4"
                         />
                     </Flex>

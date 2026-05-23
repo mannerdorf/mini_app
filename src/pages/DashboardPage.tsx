@@ -2796,6 +2796,7 @@ export function DashboardPage({
                         perevozkiError={error}
                         perevozkiMutate={mutatePerevozki}
                         showRefreshButton
+                        showSums={showSums}
                     />
                 </div>
             )}
