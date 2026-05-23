@@ -67,10 +67,25 @@ export const getPaymentFilterKey = (stateBill: string | undefined): 'unpaid' | '
     if (lower.includes('отменен') || lower.includes('аннулирован') || lower.includes('отменён') || lower.includes('cancelled') || lower.includes('canceled')) {
         return "cancelled";
     }
-    if (lower.includes('оплачен') || lower.includes('paid') || lower.includes('оплачён')) return "paid";
     if (lower.includes('частично') || lower.includes('partial') || lower.includes('частичн')) return "partial";
+    if (lower.includes('оплачен') || lower.includes('paid') || lower.includes('оплачён')) return "paid";
     return "unknown";
 };
+
+export function getInvoicePaymentFilterKey(inv: Record<string, unknown> | null | undefined): ReturnType<typeof getPaymentFilterKey> {
+    const raw = String(
+        inv?.StateBill ??
+            inv?.stateBill ??
+            inv?.Status ??
+            inv?.State ??
+            inv?.state ??
+            inv?.Статус ??
+            inv?.status ??
+            inv?.PaymentStatus ??
+            ""
+    );
+    return getPaymentFilterKey(raw);
+}
 
 export type BillStatusFilterKey = 'all' | ReturnType<typeof getPaymentFilterKey>;
 export const BILL_STATUS_MAP: Record<BillStatusFilterKey, string> = {

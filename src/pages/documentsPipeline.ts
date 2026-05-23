@@ -1,5 +1,5 @@
 import { cityToCode, normalizeInvoiceStatus, parseCargoNumbersFromText, stripOoo } from "../lib/formatUtils";
-import { coerceStatusDisplay, getFilterKeyByStatus, getPaymentFilterKey } from "../lib/statusUtils";
+import { coerceStatusDisplay, getFilterKeyByStatus, getInvoicePaymentFilterKey } from "../lib/statusUtils";
 import {
   getInvoiceEdoInfoByDocLabel,
   INVOICE_EDO_MERGED_COLUMNS,
@@ -337,9 +337,7 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
     res = res.filter((i) => isInvoiceFavorite(String(i?.Number ?? i?.number ?? i?.Номер ?? i?.N ?? "")));
   }
   if (billStatusFilterSet.size > 0) {
-    res = res.filter((i) =>
-      billStatusFilterSet.has(getPaymentFilterKey(String(i?.StateBill ?? i?.stateBill ?? "")))
-    );
+    res = res.filter((i) => billStatusFilterSet.has(getInvoicePaymentFilterKey(i)));
   }
   if (typeFilterSet.size > 0) {
     res = res.filter((i) => matchesTypeFilterSet(i?.AK, typeFilterSet));

@@ -100,9 +100,6 @@ export function CargoPage({
     useEffect(() => {
         saveDateFilterState({ dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter });
     }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
-    useEffect(() => {
-        saveSharedListFilters(sharedFromFilterSets({ statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet }));
-    }, [statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet]);
     const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const monthWasLongPressRef = useRef(false);
     const yearLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -117,6 +114,9 @@ export function CargoPage({
     const [billStatusFilterSet, setBillStatusFilterSet] = useState<Set<BillStatusFilterKey>>(() => sharedFiltersInit.billStatusFilterSet);
     const [typeFilterSet, setTypeFilterSet] = useState<Set<'ferry' | 'auto'>>(() => sharedFiltersInit.typeFilterSet);
     const [routeFilterSet, setRouteFilterSet] = useState<Set<'MSK-KGD' | 'KGD-MSK'>>(() => sharedFiltersInit.routeFilterSet);
+    useEffect(() => {
+        saveSharedListFilters(sharedFromFilterSets({ statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet }));
+    }, [statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet]);
     const [lastMileFilter, setLastMileFilter] = useState<'all' | 'self_pickup' | 'delivery'>('all');
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [isSenderDropdownOpen, setIsSenderDropdownOpen] = useState(false);
