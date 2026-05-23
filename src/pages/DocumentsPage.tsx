@@ -1802,107 +1802,44 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     }, []);
 
     /** Те же фильтры, что у таблицы счетов, но без ТС — чтобы список ТС совпадал с текущей выборкой (напр. только «в пути»). */
-    const filteredInvoiceRowsForTransportOptions = useMemo(() => {
-        return buildFilteredInvoices({
-            items,
+    const sendingsForTransportOptions = useMemo(() => {
+        let res = buildFilteredOrders({
+            items: sendingsItems || [],
             activeInn: effectiveActiveInn,
-            useServiceRequest: effectiveServiceMode,
+            useServiceRequest: true,
             customerFilter,
-            invoiceFavoritesOnly,
-            billStatusFilterSet,
-            typeFilterSet,
+            typeFilterSet: new Set<TypeFilterKey>(),
             routeFilterSet,
-            deliveryStatusFilterSet,
+            deliveryStatusFilterSet: new Set<StatusFilter>(),
             transportFilter: '',
             searchText: effectiveSearchText,
-            edoStatusFilterSet,
             sortBy,
             sortOrder,
-            isInvoiceFavorite,
-            getFirstCargoNumberFromInvoice,
-            cargoStateByNumber,
-            cargoRouteByNumber,
-            cargoTransportByNumber,
         });
-    }, [items, effectiveActiveInn, effectiveServiceMode, customerFilter, invoiceFavoritesOnly, billStatusFilterSet, typeFilterSet, routeFilterSet, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, effectiveSearchText, edoStatusFilterSet, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, cargoTransportByNumber, normCargoKey]);
-
-    const uniqueTransportVehicles = useMemo(() => {
-        const set = new Set<string>();
-        cargoTransportByNumber.forEach((v) => {
-            const normalized = normalizeTransportDisplay(v);
-            if (normalized) set.add(normalized);
-        });
-        [...items, ...(actsItems || [])].forEach((row: any) => {
-            const normalized = normalizeTransportDisplay(
-                row?.АвтомобильCMRНаименование ??
-                row?.AutoReg ??
-                row?.autoReg ??
-                row?.Transport ??
-                row?.transport ??
-                row?.AutoType ??
-                ''
+        if (typeFilterSet.size > 0 && res.length > 0) {
+            res = res.filter((row: any) => {
+                const vehicle = normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '');
+                const transportType = vehicle ? (/[A-ZА-Я][0-9]{3}[A-ZА-Я]{2}(?:\s*\/?\s*[0-9]{2,3})?/u.test(vehicle.toUpperCase()) ? 'auto' : 'ferry') : '';
+                return (typeFilterSet.has('auto') && transportType === 'auto') || (typeFilterSet.has('ferry') && transportType === 'ferry');
+            });
+        }
+        if (!sendingsLoading) {
+            res = res.filter((row: any) =>
+                sendingRowInSelectedPeriod(row, apiDateRange.dateFrom, apiDateRange.dateTo)
             );
-            if (normalized) set.add(normalized);
-        });
-        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [cargoTransportByNumber, items, actsItems, normalizeTransportDisplay]);
-    const uniqueInvoiceTransportVehicles = useMemo(() => {
+        }
+        return res;
+    }, [sendingsItems, sendingsLoading, effectiveActiveInn, customerFilter, typeFilterSet, routeFilterSet, effectiveSearchText, sortBy, sortOrder, normalizeTransportDisplay, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    const transportOptionsCurrentSection = useMemo(() => {
         const set = new Set<string>();
-        (filteredInvoiceRowsForTransportOptions || []).forEach((row: any) => {
-            const direct = normalizeTransportDisplay(
-                row?.АвтомобильCMRНаименование ??
-                row?.AutoReg ??
-                row?.autoReg ??
-                row?.Transport ??
-                row?.transport ??
-                row?.AutoType ??
-                ''
+        sendingsForTransportOptions.forEach((row: any) => {
+            const v = normalizeTransportDisplay(
+                row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.autoReg ?? row?.AutoType ?? '',
             );
-            if (direct) set.add(direct);
-            for (const cargoNum of collectInvoiceLinkedCargoNumbers(row)) {
-                const byCargo = normalizeTransportDisplay(cargoTransportByNumber.get(normCargoKey(cargoNum)));
-                if (byCargo) set.add(byCargo);
-            }
-        });
-        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [filteredInvoiceRowsForTransportOptions, cargoTransportByNumber, normCargoKey, normalizeTransportDisplay]);
-    const uniqueActsTransportVehicles = useMemo(() => {
-        const set = new Set<string>();
-        (actsItems || []).forEach((row: any) => {
-            const direct = normalizeTransportDisplay(
-                row?.АвтомобильCMRНаименование ??
-                row?.AutoReg ??
-                row?.autoReg ??
-                row?.Transport ??
-                row?.transport ??
-                row?.AutoType ??
-                ''
-            );
-            if (direct) set.add(direct);
-            const cargoNum = getFirstCargoNumberFromInvoice(row);
-            if (cargoNum) {
-                const byCargo = normalizeTransportDisplay(cargoTransportByNumber.get(normCargoKey(cargoNum)));
-                if (byCargo) set.add(byCargo);
-            }
-        });
-        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [actsItems, getFirstCargoNumberFromInvoice, cargoTransportByNumber, normCargoKey, normalizeTransportDisplay]);
-    const uniqueOrderTransportVehicles = useMemo(() => {
-        const set = new Set<string>();
-        (ordersItems || []).forEach((item: any) => {
-            const v = normalizeTransportDisplay(item?.АвтомобильCMRНаименование ?? item?.AutoReg ?? item?.autoReg ?? item?.AutoType ?? '');
             if (v) set.add(v);
         });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [ordersItems, normalizeTransportDisplay]);
-    const uniqueSendingTransportVehicles = useMemo(() => {
-        const set = new Set<string>();
-        (sendingsItems || []).forEach((item: any) => {
-            const v = normalizeTransportDisplay(item?.АвтомобильCMRНаименование ?? item?.AutoReg ?? item?.autoReg ?? item?.AutoType ?? '');
-            if (v) set.add(v);
-        });
-        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [sendingsItems, normalizeTransportDisplay]);
+    }, [sendingsForTransportOptions, normalizeTransportDisplay]);
     const uniqueSendingRoutes = useMemo(() => {
         const set = new Set<string>();
         (sendingsItems || []).forEach((item: any) => {
@@ -1913,13 +1850,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
     }, [sendingsItems]);
-    const transportOptionsCurrentSection = useMemo(() => {
-        if (docSection === 'Счета' || docSection === 'ЭДО') return uniqueInvoiceTransportVehicles;
-        if (docSection === 'УПД') return uniqueActsTransportVehicles;
-        if (docSection === 'Заявки') return uniqueOrderTransportVehicles;
-        if (docSection === 'Отправки') return uniqueSendingTransportVehicles;
-        return uniqueTransportVehicles;
-    }, [docSection, uniqueInvoiceTransportVehicles, uniqueActsTransportVehicles, uniqueOrderTransportVehicles, uniqueSendingTransportVehicles, uniqueTransportVehicles]);
     useEffect(() => {
         if (!transportFilter) return;
         if (transportOptionsCurrentSection.includes(transportFilter)) return;
@@ -2074,33 +2004,12 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
     }, [ordersItems, effectiveActiveInn, effectiveServiceMode, customerFilter, typeFilterSet, routeFilterSet, deliveryStatusFilterSet, effectiveSearchText, sortBy, sortOrder, orderReceiverFilter, orderSenderFilter, orderRouteFilter]);
     const ordersSummary = useMemo(() => buildDocsSummary(filteredOrders), [filteredOrders]);
     const filteredSendings = useMemo(() => {
-        let res = buildFilteredOrders({
-            items: sendingsItems || [],
-            activeInn: effectiveActiveInn,
-            useServiceRequest: true,
-            customerFilter,
-            typeFilterSet: new Set<TypeFilterKey>(),
-            routeFilterSet,
-            deliveryStatusFilterSet: new Set<StatusFilter>(),
-            transportFilter,
-            searchText: effectiveSearchText,
-            sortBy,
-            sortOrder,
+        if (!transportFilter) return sendingsForTransportOptions;
+        return sendingsForTransportOptions.filter((row: any) => {
+            const vehicle = normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '');
+            return vehicle === transportFilter;
         });
-        if (typeFilterSet.size > 0 && res.length > 0) {
-            res = res.filter((row: any) => {
-                const vehicle = normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '');
-                const transportType = vehicle ? (/[A-ZА-Я][0-9]{3}[A-ZА-Я]{2}(?:\s*\/?\s*[0-9]{2,3})?/u.test(vehicle.toUpperCase()) ? 'auto' : 'ferry') : '';
-                return (typeFilterSet.has('auto') && transportType === 'auto') || (typeFilterSet.has('ferry') && transportType === 'ferry');
-            });
-        }
-        if (!sendingsLoading) {
-            res = res.filter((row: any) =>
-                sendingRowInSelectedPeriod(row, apiDateRange.dateFrom, apiDateRange.dateTo)
-            );
-        }
-        return res;
-    }, [sendingsItems, sendingsLoading, effectiveActiveInn, customerFilter, typeFilterSet, routeFilterSet, transportFilter, effectiveSearchText, sortBy, sortOrder, normalizeTransportDisplay, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    }, [sendingsForTransportOptions, transportFilter, normalizeTransportDisplay]);
     /** Все перевозки на одном ТС в текущей выборке (для остановки таймера «в пути»). */
     const vehicleFreightCargoNumbers = useMemo(() => {
         const m = new Map<string, Set<string>>();
