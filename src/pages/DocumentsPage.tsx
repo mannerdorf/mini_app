@@ -44,6 +44,7 @@ import {
 import type { AccountPermissions, AuthData, DateFilter, StatusFilter } from "../types";
 import { useDocumentsDateRange } from "./useDocumentsDateRange";
 import { useDocumentsDataLoad } from "./useDocumentsDataLoad";
+import { useCargoTransportFilter, usePerevozki } from "../hooks/useApi";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import { fetchPerevozkaDetails } from "../lib/perevozkaDetails";
 import {
@@ -59,7 +60,9 @@ import {
     buildFilteredInvoices,
     buildFilteredOrders,
     buildSendingsTotalsByVehicle,
+    buildTransportLinkedCargoNumbersInPeriod,
     collectInvoiceLinkedCargoNumbers,
+    sendingRowMatchesTransportFilter,
     formatSendingMetricNum,
     parseSendingMetricNumber,
     getFirstCargoNumberFromInvoice,
@@ -1207,7 +1210,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         sendingsItems,
         sendingsError,
         sendingsLoading,
-        perevozkiItems,
+        perevozkiItems: perevozkiItemsBase,
         perevozkiLoading,
     } = useDocumentsDataLoad({
         auth,
@@ -1239,6 +1242,69 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         const s = String(num).replace(/^0000-/, '').trim().replace(/^0+/, '') || '0';
         return s;
     }, []);
+
+    const { cargoNumbers: dbTransportCargoNumbers, loading: dbTransportLoading } = useCargoTransportFilter({
+        auth,
+        vehicle: transportFilter,
+        dateFrom: apiDateRange.dateFrom,
+        dateTo: apiDateRange.dateTo,
+        useServiceRequest: serviceModeForCurrentDocSection,
+        enabled: !!serviceModeForCurrentDocSection && !!transportFilter,
+    });
+
+    const transportLinkedCargoNumbers = useMemo(() => {
+        if (!serviceModeForCurrentDocSection || !transportFilter || dbTransportLoading) return undefined;
+        if (dbTransportCargoNumbers.length > 0) {
+            return new Set(dbTransportCargoNumbers.map((n) => normCargoKey(n)).filter(Boolean));
+        }
+        return buildTransportLinkedCargoNumbersInPeriod(
+            sendingsItems,
+            apiDateRange.dateFrom,
+            apiDateRange.dateTo,
+            transportFilter,
+        );
+    }, [
+        serviceModeForCurrentDocSection,
+        transportFilter,
+        dbTransportCargoNumbers,
+        dbTransportLoading,
+        sendingsItems,
+        apiDateRange.dateFrom,
+        apiDateRange.dateTo,
+        normCargoKey,
+    ]);
+
+    const includeCargoNumbersForTransport = useMemo(() => {
+        if (!transportLinkedCargoNumbers?.size) return [];
+        const existing = new Set(
+            (perevozkiItemsBase || []).map((i: any) => normCargoKey(String(i?.Number ?? i?.number ?? ""))).filter(Boolean),
+        );
+        return [...transportLinkedCargoNumbers].filter((n) => !existing.has(n));
+    }, [transportLinkedCargoNumbers, perevozkiItemsBase, normCargoKey]);
+
+    const { items: transportLinkedPerevozkiItems } = usePerevozki({
+        auth,
+        dateFrom: perevozkiDateRange.dateFrom,
+        dateTo: perevozkiDateRange.dateTo,
+        inn: effectiveActiveInn || undefined,
+        useServiceRequest: serviceModeForCurrentDocSection,
+        includeCargoNumbers: includeCargoNumbersForTransport,
+        enabled: !!serviceModeForCurrentDocSection && !!transportFilter && includeCargoNumbersForTransport.length > 0,
+    });
+
+    const perevozkiItems = useMemo(() => {
+        if (!transportFilter || !transportLinkedPerevozkiItems.length) return perevozkiItemsBase || [];
+        const byNumber = new Map<string, any>();
+        for (const item of perevozkiItemsBase || []) {
+            const key = normCargoKey(String(item?.Number ?? item?.number ?? ""));
+            if (key) byNumber.set(key, item);
+        }
+        for (const item of transportLinkedPerevozkiItems) {
+            const key = normCargoKey(String(item?.Number ?? item?.number ?? ""));
+            if (key && !byNumber.has(key)) byNumber.set(key, item);
+        }
+        return Array.from(byNumber.values());
+    }, [perevozkiItemsBase, transportLinkedPerevozkiItems, transportFilter, normCargoKey]);
 
     const cargoStateByNumber = useMemo(
         () => buildCargoStateByNumber(perevozkiItems || []),
@@ -1926,6 +1992,7 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             routeFilterSet,
             deliveryStatusFilterSet,
             transportFilter,
+            transportLinkedCargoNumbers,
             searchText: effectiveSearchText,
             edoStatusFilterSet,
             sortBy,
@@ -1936,7 +2003,7 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             cargoRouteByNumber,
             cargoTransportByNumber,
         });
-    }, [items, effectiveActiveInn, effectiveServiceMode, customerFilter, invoiceFavoritesOnly, billStatusFilterSet, typeFilterSet, routeFilterSet, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, transportFilter, effectiveSearchText, edoStatusFilterSet, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, cargoTransportByNumber, normCargoKey]);
+    }, [items, effectiveActiveInn, effectiveServiceMode, customerFilter, invoiceFavoritesOnly, billStatusFilterSet, typeFilterSet, routeFilterSet, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, transportFilter, transportLinkedCargoNumbers, effectiveSearchText, edoStatusFilterSet, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, cargoTransportByNumber, normCargoKey]);
 
     const documentsSummary = useMemo(
         () => buildDocsSummary(filteredItems, perevozkiItems),
@@ -1965,11 +2032,12 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             searchText: effectiveSearchText,
             edoStatusFilterSet,
             transportFilter,
+            transportLinkedCargoNumbers,
             getFirstCargoNumberFromInvoice,
             cargoTransportByNumber,
             invoices: items,
         });
-    }, [sortedActs, effectiveActiveInn, effectiveServiceMode, actCustomerFilter, effectiveSearchText, edoStatusFilterSet, transportFilter, getFirstCargoNumberFromInvoice, cargoTransportByNumber, normCargoKey, items]);
+    }, [sortedActs, effectiveActiveInn, effectiveServiceMode, actCustomerFilter, effectiveSearchText, edoStatusFilterSet, transportFilter, transportLinkedCargoNumbers, getFirstCargoNumberFromInvoice, cargoTransportByNumber, normCargoKey, items]);
 
     const actsSummary = useMemo(
         () => buildActsSummary(filteredActs, perevozkiItems),
@@ -2005,11 +2073,10 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
     const ordersSummary = useMemo(() => buildDocsSummary(filteredOrders), [filteredOrders]);
     const filteredSendings = useMemo(() => {
         if (!transportFilter) return sendingsForTransportOptions;
-        return sendingsForTransportOptions.filter((row: any) => {
-            const vehicle = normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '');
-            return vehicle === transportFilter;
-        });
-    }, [sendingsForTransportOptions, transportFilter, normalizeTransportDisplay]);
+        return sendingsForTransportOptions.filter((row: any) =>
+            sendingRowMatchesTransportFilter(row, transportFilter, transportLinkedCargoNumbers),
+        );
+    }, [sendingsForTransportOptions, transportFilter, transportLinkedCargoNumbers]);
     /** Все перевозки на одном ТС в текущей выборке (для остановки таймера «в пути»). */
     const vehicleFreightCargoNumbers = useMemo(() => {
         const m = new Map<string, Set<string>>();

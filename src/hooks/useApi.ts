@@ -76,9 +76,10 @@ async function fetcherPerevozki(params: PerevozkiParams): Promise<CargoItem[]> {
 }
 
 export function usePerevozki(params: PerevozkiParams) {
-    const { auth, dateFrom, dateTo, useServiceRequest, inn } = params;
-    const key = auth?.login && auth?.password
-        ? ["perevozki", auth.login, dateFrom, dateTo, !!useServiceRequest, inn ?? auth.inn ?? ""]
+    const { auth, dateFrom, dateTo, useServiceRequest, inn, includeCargoNumbers, enabled = true } = params;
+    const includeKey = (includeCargoNumbers ?? []).slice().sort().join(",");
+    const key = enabled && auth?.login && auth?.password
+        ? ["perevozki", auth.login, dateFrom, dateTo, !!useServiceRequest, inn ?? auth.inn ?? "", includeKey]
         : null;
     const { data, error, isLoading, mutate } = useSWR<CargoItem[]>(
         key,

@@ -323,6 +323,7 @@ type FilterInvoicesParams = {
   routeFilterSet: Set<RouteFilterKey>;
   deliveryStatusFilterSet: Set<StatusFilter>;
   transportFilter: string;
+  transportLinkedCargoNumbers?: Set<string>;
   searchText: string;
   edoStatusFilterSet: Set<string>;
   sortBy: "date" | null;
@@ -333,6 +334,41 @@ type FilterInvoicesParams = {
   cargoRouteByNumber: Map<string, string>;
   cargoTransportByNumber: Map<string, string>;
 };
+
+export function linkedCargoMatchesTransportFilter(
+  linkedCargoNumbers: string[],
+  transportFilter: string,
+  transportLinkedCargoNumbers?: Set<string>,
+  cargoTransportByNumber?: Map<string, string>,
+): boolean {
+  if (!transportFilter) return true;
+  if (transportLinkedCargoNumbers?.size) {
+    return linkedCargoNumbers.some((num) => transportLinkedCargoNumbers.has(normCargoKey(num)));
+  }
+  const selected = normalizeTransportName(transportFilter);
+  for (const cargoNum of linkedCargoNumbers) {
+    const byCargo = normalizeTransportName(cargoTransportByNumber?.get(normCargoKey(cargoNum)));
+    if (byCargo === selected) return true;
+  }
+  return false;
+}
+
+export function sendingRowMatchesTransportFilter(
+  row: any,
+  transportFilter: string,
+  transportLinkedCargoNumbers?: Set<string>,
+): boolean {
+  if (!transportFilter) return true;
+  if (transportLinkedCargoNumbers?.size) {
+    return collectSendingCargoNumbers(row).some((num) =>
+      transportLinkedCargoNumbers.has(normCargoKey(num)),
+    );
+  }
+  const vehicle = normalizeTransportName(
+    row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.autoReg ?? row?.AutoType ?? "",
+  );
+  return vehicle === normalizeTransportName(transportFilter);
+}
 
 export function buildFilteredInvoices(params: FilterInvoicesParams) {
   const {
@@ -355,6 +391,7 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
     cargoStateByNumber,
     cargoRouteByNumber,
     cargoTransportByNumber,
+    transportLinkedCargoNumbers,
   } = params;
 
   let res = [...items];
@@ -392,27 +429,14 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
     });
   }
   if (transportFilter) {
-    res = res.filter((i) => {
-      const selected = normalizeTransportName(transportFilter);
-      const candidates = new Set<string>();
-      const direct = normalizeTransportName(
-        i?.AutoReg ??
-          i?.autoReg ??
-          i?.АвтомобильCMRНаименование ??
-          i?.Transport ??
-          i?.transport ??
-          i?.AutoType
-      );
-      if (direct) candidates.add(direct);
-      for (const cargoNum of collectInvoiceLinkedCargoNumbers(i)) {
-        const byCargo = normalizeTransportName(cargoTransportByNumber.get(normCargoKey(cargoNum)));
-        if (byCargo) candidates.add(byCargo);
-      }
-      for (const c of candidates) {
-        if (c === selected) return true;
-      }
-      return false;
-    });
+    res = res.filter((i) =>
+      linkedCargoMatchesTransportFilter(
+        collectInvoiceLinkedCargoNumbers(i),
+        transportFilter,
+        transportLinkedCargoNumbers,
+        cargoTransportByNumber,
+      ),
+    );
   }
   if (searchText.trim()) {
     const lower = searchText.trim().toLowerCase();
@@ -441,6 +465,7 @@ type FilterActsParams = {
   searchText: string;
   edoStatusFilterSet: Set<string>;
   transportFilter: string;
+  transportLinkedCargoNumbers?: Set<string>;
   getFirstCargoNumberFromInvoice: (inv: any) => string | null;
   cargoTransportByNumber: Map<string, string>;
   /** Счета из того же периода — для статуса ЭДО УПД по `DDRecipientResponseStatus_UPD` */
@@ -456,6 +481,7 @@ export function buildFilteredActs(params: FilterActsParams) {
     searchText,
     edoStatusFilterSet,
     transportFilter,
+    transportLinkedCargoNumbers,
     getFirstCargoNumberFromInvoice,
     cargoTransportByNumber,
     invoices,
@@ -481,27 +507,14 @@ export function buildFilteredActs(params: FilterActsParams) {
     });
   }
   if (transportFilter) {
-    res = res.filter((a) => {
-      const selected = normalizeTransportName(transportFilter);
-      const candidates = new Set<string>();
-      const direct = normalizeTransportName(
-        a?.AutoReg ??
-          a?.autoReg ??
-          a?.АвтомобильCMRНаименование ??
-          a?.Transport ??
-          a?.transport ??
-          a?.AutoType
-      );
-      if (direct) candidates.add(direct);
-      for (const cargoNum of collectInvoiceLinkedCargoNumbers(a)) {
-        const byCargo = normalizeTransportName(cargoTransportByNumber.get(normCargoKey(cargoNum)));
-        if (byCargo) candidates.add(byCargo);
-      }
-      for (const c of candidates) {
-        if (c === selected) return true;
-      }
-      return false;
-    });
+    res = res.filter((a) =>
+      linkedCargoMatchesTransportFilter(
+        collectInvoiceLinkedCargoNumbers(a),
+        transportFilter,
+        transportLinkedCargoNumbers,
+        cargoTransportByNumber,
+      ),
+    );
   }
   return res;
 }
