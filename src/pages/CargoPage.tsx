@@ -19,6 +19,7 @@ import {
     buildGroupedByCustomer,
     sortGroupedByCustomer,
 } from "./cargoPipeline";
+import { initSharedFilterSets, saveSharedListFilters, sharedFromFilterSets } from "../lib/sharedListFilters";
 import { CargoSummaryCard, CargoStateBlocks } from "./cargoViewBlocks";
 import { CargoCustomerTable, CargoCardsList } from "./cargoCollectionViews";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
@@ -99,6 +100,9 @@ export function CargoPage({
     useEffect(() => {
         saveDateFilterState({ dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter });
     }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
+    useEffect(() => {
+        saveSharedListFilters(sharedFromFilterSets({ statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet }));
+    }, [statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet]);
     const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const monthWasLongPressRef = useRef(false);
     const yearLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -108,10 +112,11 @@ export function CargoPage({
     const [workScheduleByInn, setWorkScheduleByInn] = useState<Record<string, WorkSchedule>>({});
     const [senderFilter, setSenderFilter] = useState<string>('');
     const [receiverFilter, setReceiverFilter] = useState<string>('');
-    const [statusFilterSet, setStatusFilterSet] = useState<Set<CargoStatusFilterKey>>(() => new Set());
-    const [billStatusFilterSet, setBillStatusFilterSet] = useState<Set<BillStatusFilterKey>>(() => new Set());
-    const [typeFilterSet, setTypeFilterSet] = useState<Set<'ferry' | 'auto'>>(() => new Set());
-    const [routeFilterSet, setRouteFilterSet] = useState<Set<'MSK-KGD' | 'KGD-MSK'>>(() => new Set());
+    const sharedFiltersInit = initSharedFilterSets();
+    const [statusFilterSet, setStatusFilterSet] = useState<Set<CargoStatusFilterKey>>(() => sharedFiltersInit.statusFilterSet);
+    const [billStatusFilterSet, setBillStatusFilterSet] = useState<Set<BillStatusFilterKey>>(() => sharedFiltersInit.billStatusFilterSet);
+    const [typeFilterSet, setTypeFilterSet] = useState<Set<'ferry' | 'auto'>>(() => sharedFiltersInit.typeFilterSet);
+    const [routeFilterSet, setRouteFilterSet] = useState<Set<'MSK-KGD' | 'KGD-MSK'>>(() => sharedFiltersInit.routeFilterSet);
     const [lastMileFilter, setLastMileFilter] = useState<'all' | 'self_pickup' | 'delivery'>('all');
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [isSenderDropdownOpen, setIsSenderDropdownOpen] = useState(false);

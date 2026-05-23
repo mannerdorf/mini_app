@@ -1,5 +1,5 @@
 import { cityToCode, normalizeInvoiceStatus, parseCargoNumbersFromText, stripOoo } from "../lib/formatUtils";
-import { coerceStatusDisplay, getFilterKeyByStatus } from "../lib/statusUtils";
+import { coerceStatusDisplay, getFilterKeyByStatus, getPaymentFilterKey } from "../lib/statusUtils";
 import {
   getInvoiceEdoInfoByDocLabel,
   INVOICE_EDO_MERGED_COLUMNS,
@@ -9,6 +9,14 @@ import {
   type InvoiceEdoMergedDocLabel,
 } from "../lib/edoStatus";
 import type { StatusFilter } from "../types";
+import {
+  matchesRouteFilterSet,
+  matchesTypeFilterSet,
+  routeCargoLabelToKey,
+  type RouteFilterKey,
+  type SharedBillStatusKey,
+  type TypeFilterKey,
+} from "../lib/sharedListFilters";
 
 export const INVOICE_FAVORITES_VALUE = "__favorites__";
 
@@ -276,11 +284,11 @@ type FilterInvoicesParams = {
   activeInn?: string;
   useServiceRequest: boolean;
   customerFilter: string;
-  statusFilterSet: Set<string>;
-  typeFilter: "all" | "ferry" | "auto";
-  routeFilter: "all" | "MSK-KGD" | "KGD-MSK";
+  invoiceFavoritesOnly: boolean;
+  billStatusFilterSet: Set<SharedBillStatusKey>;
+  typeFilterSet: Set<TypeFilterKey>;
+  routeFilterSet: Set<RouteFilterKey>;
   deliveryStatusFilterSet: Set<StatusFilter>;
-  routeFilterCargo: string;
   transportFilter: string;
   searchText: string;
   edoStatusFilterSet: Set<string>;
@@ -299,11 +307,11 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
     activeInn,
     useServiceRequest,
     customerFilter,
-    statusFilterSet,
-    typeFilter,
-    routeFilter,
+    invoiceFavoritesOnly,
+    billStatusFilterSet,
+    typeFilterSet,
+    routeFilterSet,
     deliveryStatusFilterSet,
-    routeFilterCargo,
     transportFilter,
     searchText,
     edoStatusFilterSet,
@@ -325,30 +333,31 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
   if (customerFilter) {
     res = res.filter((i) => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? "").trim()) === customerFilter);
   }
-  if (statusFilterSet.size > 0) {
+  if (invoiceFavoritesOnly) {
+    res = res.filter((i) => isInvoiceFavorite(String(i?.Number ?? i?.number ?? i?.Номер ?? i?.N ?? "")));
+  }
+  if (billStatusFilterSet.size > 0) {
+    res = res.filter((i) =>
+      billStatusFilterSet.has(getPaymentFilterKey(String(i?.StateBill ?? i?.stateBill ?? "")))
+    );
+  }
+  if (typeFilterSet.size > 0) {
+    res = res.filter((i) => matchesTypeFilterSet(i?.AK, typeFilterSet));
+  }
+  if (routeFilterSet.size > 0) {
     res = res.filter((i) => {
-      const invStatus = normalizeInvoiceStatus(i.Status ?? i.State ?? i.state ?? i.Статус ?? i.status ?? i.PaymentStatus ?? "");
-      const invNum = String(i.Number ?? i.number ?? i.Номер ?? i.N ?? "");
-      const isFav = isInvoiceFavorite(invNum);
-      return (statusFilterSet.has(INVOICE_FAVORITES_VALUE) && isFav) || statusFilterSet.has(invStatus);
+      if (matchesRouteFilterSet(i.CitySender, i.CityReceiver, routeFilterSet)) return true;
+      const cargoNum = getFirstCargoNumberFromInvoice(i);
+      const route = cargoNum ? cargoRouteByNumber.get(normCargoKey(cargoNum)) : "";
+      const key = routeCargoLabelToKey(route ?? "");
+      return key ? routeFilterSet.has(key) : false;
     });
   }
-  if (typeFilter === "ferry") res = res.filter((i) => i?.AK === true || i?.AK === "true" || i?.AK === "1" || i?.AK === 1);
-  if (typeFilter === "auto") res = res.filter((i) => !(i?.AK === true || i?.AK === "true" || i?.AK === "1" || i?.AK === 1));
-  if (routeFilter === "MSK-KGD") res = res.filter((i) => cityToCode(i.CitySender) === "MSK" && cityToCode(i.CityReceiver) === "KGD");
-  if (routeFilter === "KGD-MSK") res = res.filter((i) => cityToCode(i.CitySender) === "KGD" && cityToCode(i.CityReceiver) === "MSK");
   if (deliveryStatusFilterSet.size > 0) {
     res = res.filter((i) => {
       const cargoNum = getFirstCargoNumberFromInvoice(i);
       const state = cargoNum ? cargoStateByNumber.get(normCargoKey(cargoNum)) : undefined;
       return deliveryStatusFilterSet.has(getFilterKeyByStatus(state));
-    });
-  }
-  if (routeFilterCargo !== "all") {
-    res = res.filter((i) => {
-      const cargoNum = getFirstCargoNumberFromInvoice(i);
-      const route = cargoNum ? cargoRouteByNumber.get(normCargoKey(cargoNum)) : "";
-      return route === routeFilterCargo;
     });
   }
   if (transportFilter) {
@@ -471,10 +480,9 @@ type FilterOrdersParams = {
   activeInn?: string;
   useServiceRequest: boolean;
   customerFilter: string;
-  typeFilter: "all" | "ferry" | "auto";
-  routeFilter: "all" | "MSK-KGD" | "KGD-MSK";
+  typeFilterSet: Set<TypeFilterKey>;
+  routeFilterSet: Set<RouteFilterKey>;
   deliveryStatusFilterSet: Set<StatusFilter>;
-  routeFilterCargo: string;
   transportFilter: string;
   searchText: string;
   sortBy: "date" | null;
@@ -487,10 +495,9 @@ export function buildFilteredOrders(params: FilterOrdersParams) {
     activeInn,
     useServiceRequest,
     customerFilter,
-    typeFilter,
-    routeFilter,
+    typeFilterSet,
+    routeFilterSet,
     deliveryStatusFilterSet,
-    routeFilterCargo,
     transportFilter,
     searchText,
     sortBy,
@@ -511,20 +518,20 @@ export function buildFilteredOrders(params: FilterOrdersParams) {
   if (customerFilter) {
     res = res.filter((i) => ((i.Customer ?? i.customer ?? i.ЗаказчикНаименование ?? i.Заказчик ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? "").trim()) === customerFilter);
   }
-  if (typeFilter === "ferry") res = res.filter((i) => i?.AK === true || i?.AK === "true" || i?.AK === "1" || i?.AK === 1);
-  if (typeFilter === "auto") res = res.filter((i) => !(i?.AK === true || i?.AK === "true" || i?.AK === "1" || i?.AK === 1));
-  if (routeFilter === "MSK-KGD") res = res.filter((i) => cityToCode(i.CitySender) === "MSK" && cityToCode(i.CityReceiver) === "KGD");
-  if (routeFilter === "KGD-MSK") res = res.filter((i) => cityToCode(i.CitySender) === "KGD" && cityToCode(i.CityReceiver) === "MSK");
+  if (typeFilterSet.size > 0) {
+    res = res.filter((i) => matchesTypeFilterSet(i?.AK, typeFilterSet));
+  }
+  if (routeFilterSet.size > 0) {
+    res = res.filter((i) =>
+      matchesRouteFilterSet(
+        i.CitySender ?? i.ПунктОтправленияГородАэропорт ?? i.ГородОтправления,
+        i.CityReceiver ?? i.ПунктНазначенияГородАэропорт ?? i.ГородНазначения,
+        routeFilterSet
+      )
+    );
+  }
   if (deliveryStatusFilterSet.size > 0) {
     res = res.filter((i) => deliveryStatusFilterSet.has(getFilterKeyByStatus(i.State)));
-  }
-  if (routeFilterCargo !== "all") {
-    res = res.filter((i) => {
-      const from = cityToCode(i.CitySender ?? i.ПунктОтправленияГородАэропорт ?? i.ГородОтправления);
-      const to = cityToCode(i.CityReceiver ?? i.ПунктНазначенияГородАэропорт ?? i.ГородНазначения);
-      const route = [from, to].filter(Boolean).join(" – ") || "";
-      return route === routeFilterCargo;
-    });
   }
   if (transportFilter) {
     res = res.filter((i) => normalizeTransportName(i.AutoReg ?? i.autoReg ?? i.АвтомобильCMRНаименование ?? "") === transportFilter);

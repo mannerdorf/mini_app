@@ -11,7 +11,7 @@ import { NewOrderModal } from "../components/modals/NewOrderModal";
 import { DateText } from "../components/ui/DateText";
 import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode } from "../lib/formatUtils";
 import { downloadBase64File } from "../utils";
-import { normalizeStatus, STATUS_MAP, getFilterKeyByStatus } from "../lib/statusUtils";
+import { normalizeStatus, STATUS_MAP, getFilterKeyByStatus, BILL_STATUS_MAP } from "../lib/statusUtils";
 import { StatusBadge } from "../components/shared/StatusBadges";
 import {
     aggregateInvoiceEdoDocStats,
@@ -31,13 +31,22 @@ import {
     getPayTillDate,
 getPayTillDateColor,
 } from "../lib/dateUtils";
+import {
+    initSharedFilterSets,
+    routeKeyToCargoLabel,
+    saveSharedListFilters,
+    sharedFromFilterSets,
+    type CargoStatusFilterKey,
+    type RouteFilterKey,
+    type SharedBillStatusKey,
+    type TypeFilterKey,
+} from "../lib/sharedListFilters";
 import type { AccountPermissions, AuthData, DateFilter, StatusFilter } from "../types";
 import { useDocumentsDateRange } from "./useDocumentsDateRange";
 import { useDocumentsDataLoad } from "./useDocumentsDataLoad";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import { fetchPerevozkaDetails } from "../lib/perevozkaDetails";
 import {
-    INVOICE_FAVORITES_VALUE,
     buildActsSummary,
     buildCargoRouteByNumber,
     buildCargoStateByNumber,
@@ -73,8 +82,6 @@ import {
     cargoSummaryMotion,
     cargoTableGroupRowVariants,
 } from "./cargoMotion";
-
-const INVOICE_STATUS_OPTIONS = ['Оплачен', 'Не оплачен', 'Оплачен частично'] as const;
 
 type ClaimStatusKey =
     | 'draft'
@@ -384,14 +391,17 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [sverkiCustomerFilter, setSverkiCustomerFilter] = useState<string>('');
     const [dogovorsCustomerFilter, setDogovorsCustomerFilter] = useState<string>('');
     const [edoStatusFilterSet, setEdoStatusFilterSet] = useState<Set<string>>(() => new Set());
-    const [statusFilterSet, setStatusFilterSet] = useState<Set<string>>(() => new Set());
-    const [typeFilter, setTypeFilter] = useState<'all' | 'ferry' | 'auto'>('all');
-    const [routeFilter, setRouteFilter] = useState<'all' | 'MSK-KGD' | 'KGD-MSK'>('all');
+    const sharedFiltersInit = initSharedFilterSets();
+    const [deliveryStatusFilterSet, setDeliveryStatusFilterSet] = useState<Set<CargoStatusFilterKey>>(() => sharedFiltersInit.statusFilterSet);
+    const [billStatusFilterSet, setBillStatusFilterSet] = useState<Set<SharedBillStatusKey>>(() => sharedFiltersInit.billStatusFilterSet);
+    const [typeFilterSet, setTypeFilterSet] = useState<Set<TypeFilterKey>>(() => sharedFiltersInit.typeFilterSet);
+    const [routeFilterSet, setRouteFilterSet] = useState<Set<RouteFilterKey>>(() => sharedFiltersInit.routeFilterSet);
+    const [invoiceFavoritesOnly, setInvoiceFavoritesOnly] = useState(false);
     const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
     const [isReceiverDropdownOpen, setIsReceiverDropdownOpen] = useState(false);
     const [isOrderSenderDropdownOpen, setIsOrderSenderDropdownOpen] = useState(false);
     const [isOrderRouteDropdownOpen, setIsOrderRouteDropdownOpen] = useState(false);
-    const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+    const [isBillStatusDropdownOpen, setIsBillStatusDropdownOpen] = useState(false);
     const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
     const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
     const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
@@ -1106,8 +1116,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [sendingsSummaryGroupBy, setSendingsSummaryGroupBy] = useState<'customer' | 'receiver'>('customer');
     const [sendingsSummarySortColumn, setSendingsSummarySortColumn] = useState<'index' | 'cargo' | 'status' | 'count' | 'volume' | 'weight' | 'paidWeight' | 'customer' | 'density'>('index');
     const [sendingsSummarySortOrder, setSendingsSummarySortOrder] = useState<'asc' | 'desc'>('asc');
-    const [deliveryStatusFilterSet, setDeliveryStatusFilterSet] = useState<Set<StatusFilter>>(() => new Set());
-    const [routeFilterCargo, setRouteFilterCargo] = useState<string>('all');
     const [transportFilter, setTransportFilter] = useState<string>('');
     const [transportSearchQuery, setTransportSearchQuery] = useState<string>('');
     const [isDeliveryStatusDropdownOpen, setIsDeliveryStatusDropdownOpen] = useState(false);
@@ -1144,7 +1152,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const receiverButtonRef = useRef<HTMLDivElement | null>(null);
     const orderSenderButtonRef = useRef<HTMLDivElement | null>(null);
     const orderRouteButtonRef = useRef<HTMLDivElement | null>(null);
-    const statusButtonRef = useRef<HTMLDivElement | null>(null);
+    const billStatusButtonRef = useRef<HTMLDivElement | null>(null);
     const typeButtonRef = useRef<HTMLDivElement | null>(null);
     const routeButtonRef = useRef<HTMLDivElement | null>(null);
     const tariffsCustomerButtonRef = useRef<HTMLDivElement | null>(null);
@@ -1161,6 +1169,14 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     useEffect(() => {
         saveDateFilterState({ dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter });
     }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
+    useEffect(() => {
+        saveSharedListFilters(sharedFromFilterSets({
+            statusFilterSet: deliveryStatusFilterSet,
+            billStatusFilterSet,
+            typeFilterSet,
+            routeFilterSet,
+        }));
+    }, [deliveryStatusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet]);
 
     const { apiDateRange, perevozkiDateRange } = useDocumentsDateRange({
         dateFilter,
@@ -1852,11 +1868,11 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
             activeInn: effectiveActiveInn,
             useServiceRequest: effectiveServiceMode,
             customerFilter,
-            statusFilterSet,
-            typeFilter,
-            routeFilter,
+            invoiceFavoritesOnly,
+            billStatusFilterSet,
+            typeFilterSet,
+            routeFilterSet,
             deliveryStatusFilterSet,
-            routeFilterCargo,
             transportFilter: '',
             searchText: effectiveSearchText,
             edoStatusFilterSet,
@@ -1868,7 +1884,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
             cargoRouteByNumber,
             cargoTransportByNumber,
         });
-    }, [items, effectiveActiveInn, effectiveServiceMode, customerFilter, statusFilterSet, typeFilter, routeFilter, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, routeFilterCargo, effectiveSearchText, edoStatusFilterSet, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, cargoTransportByNumber, normCargoKey]);
+    }, [items, effectiveActiveInn, effectiveServiceMode, customerFilter, invoiceFavoritesOnly, billStatusFilterSet, typeFilterSet, routeFilterSet, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, effectiveSearchText, edoStatusFilterSet, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, cargoTransportByNumber, normCargoKey]);
 
     const uniqueTransportVehicles = useMemo(() => {
         const set = new Set<string>();
@@ -2034,11 +2050,11 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             activeInn: effectiveActiveInn,
             useServiceRequest: effectiveServiceMode,
             customerFilter,
-            statusFilterSet,
-            typeFilter,
-            routeFilter,
+            invoiceFavoritesOnly,
+            billStatusFilterSet,
+            typeFilterSet,
+            routeFilterSet,
             deliveryStatusFilterSet,
-            routeFilterCargo,
             transportFilter,
             searchText: effectiveSearchText,
             edoStatusFilterSet,
@@ -2050,7 +2066,7 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             cargoRouteByNumber,
             cargoTransportByNumber,
         });
-    }, [items, effectiveActiveInn, effectiveServiceMode, customerFilter, statusFilterSet, typeFilter, routeFilter, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, routeFilterCargo, transportFilter, effectiveSearchText, edoStatusFilterSet, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, cargoTransportByNumber, normCargoKey]);
+    }, [items, effectiveActiveInn, effectiveServiceMode, customerFilter, invoiceFavoritesOnly, billStatusFilterSet, typeFilterSet, routeFilterSet, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, transportFilter, effectiveSearchText, edoStatusFilterSet, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, cargoTransportByNumber, normCargoKey]);
 
     const documentsSummary = useMemo(
         () => buildDocsSummary(filteredItems, perevozkiItems),
@@ -2096,10 +2112,9 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             activeInn: effectiveActiveInn,
             useServiceRequest: effectiveServiceMode,
             customerFilter,
-            typeFilter,
-            routeFilter,
+            typeFilterSet,
+            routeFilterSet,
             deliveryStatusFilterSet,
-            routeFilterCargo,
             transportFilter: '',
             searchText: effectiveSearchText,
             sortBy,
@@ -2116,7 +2131,7 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             }
             return true;
         });
-    }, [ordersItems, effectiveActiveInn, effectiveServiceMode, customerFilter, typeFilter, routeFilter, deliveryStatusFilterSet, routeFilterCargo, effectiveSearchText, sortBy, sortOrder, orderReceiverFilter, orderSenderFilter, orderRouteFilter]);
+    }, [ordersItems, effectiveActiveInn, effectiveServiceMode, customerFilter, typeFilterSet, routeFilterSet, deliveryStatusFilterSet, effectiveSearchText, sortBy, sortOrder, orderReceiverFilter, orderSenderFilter, orderRouteFilter]);
     const ordersSummary = useMemo(() => buildDocsSummary(filteredOrders), [filteredOrders]);
     const filteredSendings = useMemo(() => {
         let res = buildFilteredOrders({
@@ -2124,24 +2139,23 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             activeInn: effectiveActiveInn,
             useServiceRequest: true,
             customerFilter,
-            typeFilter: 'all',
-            routeFilter,
+            typeFilterSet: new Set<TypeFilterKey>(),
+            routeFilterSet,
             deliveryStatusFilterSet: new Set<StatusFilter>(),
-            routeFilterCargo,
             transportFilter,
             searchText: effectiveSearchText,
             sortBy,
             sortOrder,
         });
-        if (typeFilter !== 'all' && res.length > 0) {
+        if (typeFilterSet.size > 0 && res.length > 0) {
             res = res.filter((row: any) => {
                 const vehicle = normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '');
                 const transportType = vehicle ? (/[A-ZА-Я][0-9]{3}[A-ZА-Я]{2}(?:\s*\/?\s*[0-9]{2,3})?/u.test(vehicle.toUpperCase()) ? 'auto' : 'ferry') : '';
-                return transportType === typeFilter;
+                return (typeFilterSet.has('auto') && transportType === 'auto') || (typeFilterSet.has('ferry') && transportType === 'ferry');
             });
         }
         return res;
-    }, [sendingsItems, effectiveActiveInn, customerFilter, typeFilter, routeFilter, routeFilterCargo, transportFilter, effectiveSearchText, sortBy, sortOrder, normalizeTransportDisplay]);
+    }, [sendingsItems, effectiveActiveInn, customerFilter, typeFilterSet, routeFilterSet, transportFilter, effectiveSearchText, sortBy, sortOrder, normalizeTransportDisplay]);
     const sendingsSummary = useMemo(() => buildDocsSummary(filteredSendings), [filteredSendings]);
     const filteredTariffs = useMemo(() => {
         const placeCode = (value: string) => cityToCode(value || '') || (value || '');
@@ -3290,25 +3304,25 @@ useEffect(() => {
                         {docSection === 'Отправки' && (
                         <>
                         <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
-                                Тип: {typeFilter === 'all' ? 'Все' : typeFilter === 'ferry' ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
+                            <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                Тип: {typeFilterSet.size === 0 ? 'Все' : typeFilterSet.size === 2 ? 'Паром, Авто' : typeFilterSet.has('ferry') ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
                         <FilterDropdownPortal triggerRef={typeButtonRef} isOpen={isTypeDropdownOpen} onClose={() => setIsTypeDropdownOpen(false)}>
-                            <div className="dropdown-item" onClick={() => { setTypeFilter('all'); setIsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                            <div className="dropdown-item" onClick={() => { setTypeFilter('ferry'); setIsTypeDropdownOpen(false); }}><Typography.Body>Паром</Typography.Body></div>
-                            <div className="dropdown-item" onClick={() => { setTypeFilter('auto'); setIsTypeDropdownOpen(false); }}><Typography.Body>Авто</Typography.Body></div>
+                            <div className="dropdown-item" onClick={() => { setTypeFilterSet(new Set()); setIsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                            <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setTypeFilterSet(prev => { const next = new Set(prev); if (next.has('ferry')) next.delete('ferry'); else next.add('ferry'); return next; }); }} style={{ background: typeFilterSet.has('ferry') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Паром {typeFilterSet.has('ferry') ? '✓' : ''}</Typography.Body></div>
+                            <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setTypeFilterSet(prev => { const next = new Set(prev); if (next.has('auto')) next.delete('auto'); else next.add('auto'); return next; }); }} style={{ background: typeFilterSet.has('auto') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Авто {typeFilterSet.has('auto') ? '✓' : ''}</Typography.Body></div>
                         </FilterDropdownPortal>
                         <div ref={routeCargoButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsRouteCargoDropdownOpen(!isRouteCargoDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
-                                Маршрут: {routeFilterCargo === 'all' ? 'Все' : routeFilterCargo} <ChevronDown className="w-4 h-4"/>
+                            <Button className="filter-button" onClick={() => { setIsRouteCargoDropdownOpen(!isRouteCargoDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                Маршрут: {routeFilterSet.size === 0 ? 'Все' : routeFilterSet.size === 2 ? 'Выбрано: 2' : routeKeyToCargoLabel([...routeFilterSet][0])} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
                         <FilterDropdownPortal triggerRef={routeCargoButtonRef} isOpen={isRouteCargoDropdownOpen} onClose={() => setIsRouteCargoDropdownOpen(false)}>
-                            <div className="dropdown-item" onClick={() => { setRouteFilterCargo('all'); setIsRouteCargoDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                            {uniqueSendingRoutes.map((route) => (
-                                <div key={route} className="dropdown-item" onClick={() => { setRouteFilterCargo(route); setIsRouteCargoDropdownOpen(false); }}>
-                                    <Typography.Body>{route}</Typography.Body>
+                            <div className="dropdown-item" onClick={() => { setRouteFilterSet(new Set()); setIsRouteCargoDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                            {(['MSK-KGD', 'KGD-MSK'] as const).map(key => (
+                                <div key={key} className="dropdown-item" onClick={(e) => { e.stopPropagation(); setRouteFilterSet(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; }); }} style={{ background: routeFilterSet.has(key) ? 'var(--color-bg-hover)' : undefined }}>
+                                    <Typography.Body>{routeKeyToCargoLabel(key)} {routeFilterSet.has(key) ? '✓' : ''}</Typography.Body>
                                 </div>
                             ))}
                         </FilterDropdownPortal>
@@ -3418,20 +3432,20 @@ useEffect(() => {
                         )}
                         {docSection === 'Счета' && (
                         <>
-                        <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
-                                Статус счёта: {statusFilterSet.size === 0 ? 'Все' : statusFilterSet.size === 1 ? (statusFilterSet.has(INVOICE_FAVORITES_VALUE) ? 'Избранные' : [...statusFilterSet][0]) : `Выбрано: ${statusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
+                        <div ref={billStatusButtonRef} style={{ display: 'inline-flex' }}>
+                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                Статус счёта: {billStatusFilterSet.size === 0 && !invoiceFavoritesOnly ? 'Все' : billStatusFilterSet.size === 1 && !invoiceFavoritesOnly ? BILL_STATUS_MAP[[...billStatusFilterSet][0]] : invoiceFavoritesOnly && billStatusFilterSet.size === 0 ? 'Избранные' : `Выбрано: ${billStatusFilterSet.size + (invoiceFavoritesOnly ? 1 : 0)}`} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
-                        <FilterDropdownPortal triggerRef={statusButtonRef} isOpen={isStatusDropdownOpen} onClose={() => setIsStatusDropdownOpen(false)}>
-                            <div className="dropdown-item" onClick={() => { setStatusFilterSet(new Set()); setIsStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                            {INVOICE_STATUS_OPTIONS.map(s => (
-                                <div key={s} className="dropdown-item" onClick={(e) => { e.stopPropagation(); setStatusFilterSet(prev => { const next = new Set(prev); if (next.has(s)) next.delete(s); else next.add(s); return next; }); }} style={{ background: statusFilterSet.has(s) ? 'var(--color-bg-hover)' : undefined }}>
-                                    <Typography.Body>{s} {statusFilterSet.has(s) ? '✓' : ''}</Typography.Body>
+                        <FilterDropdownPortal triggerRef={billStatusButtonRef} isOpen={isBillStatusDropdownOpen} onClose={() => setIsBillStatusDropdownOpen(false)}>
+                            <div className="dropdown-item" onClick={() => { setBillStatusFilterSet(new Set()); setInvoiceFavoritesOnly(false); setIsBillStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                            {(['paid', 'unpaid', 'partial', 'cancelled', 'unknown'] as const).map(key => (
+                                <div key={key} className="dropdown-item" onClick={(e) => { e.stopPropagation(); setBillStatusFilterSet(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; }); }} style={{ background: billStatusFilterSet.has(key) ? 'var(--color-bg-hover)' : undefined }}>
+                                    <Typography.Body>{BILL_STATUS_MAP[key]} {billStatusFilterSet.has(key) ? '✓' : ''}</Typography.Body>
                                 </div>
                             ))}
-                            <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setStatusFilterSet(prev => { const next = new Set(prev); if (next.has(INVOICE_FAVORITES_VALUE)) next.delete(INVOICE_FAVORITES_VALUE); else next.add(INVOICE_FAVORITES_VALUE); return next; }); }} style={{ background: statusFilterSet.has(INVOICE_FAVORITES_VALUE) ? 'var(--color-bg-hover)' : undefined }}>
-                                <Typography.Body>Избранные {statusFilterSet.has(INVOICE_FAVORITES_VALUE) ? '✓' : ''}</Typography.Body>
+                            <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setInvoiceFavoritesOnly(v => !v); }} style={{ background: invoiceFavoritesOnly ? 'var(--color-bg-hover)' : undefined }}>
+                                <Typography.Body>Избранные {invoiceFavoritesOnly ? '✓' : ''}</Typography.Body>
                             </div>
                         </FilterDropdownPortal>
                         <div ref={deliveryStatusButtonRef} style={{ display: 'inline-flex' }}>
@@ -3448,14 +3462,17 @@ useEffect(() => {
                             ))}
                         </FilterDropdownPortal>
                         <div ref={routeCargoButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsRouteCargoDropdownOpen(!isRouteCargoDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
-                                Маршрут: {routeFilterCargo === 'all' ? 'Все' : routeFilterCargo} <ChevronDown className="w-4 h-4"/>
+                            <Button className="filter-button" onClick={() => { setIsRouteCargoDropdownOpen(!isRouteCargoDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                Маршрут: {routeFilterSet.size === 0 ? 'Все' : routeFilterSet.size === 2 ? 'Выбрано: 2' : routeKeyToCargoLabel([...routeFilterSet][0])} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
                         <FilterDropdownPortal triggerRef={routeCargoButtonRef} isOpen={isRouteCargoDropdownOpen} onClose={() => setIsRouteCargoDropdownOpen(false)}>
-                            <div className="dropdown-item" onClick={() => { setRouteFilterCargo('all'); setIsRouteCargoDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                            <div className="dropdown-item" onClick={() => { setRouteFilterCargo('MSK – KGD'); setIsRouteCargoDropdownOpen(false); }}><Typography.Body>MSK – KGD</Typography.Body></div>
-                            <div className="dropdown-item" onClick={() => { setRouteFilterCargo('KGD – MSK'); setIsRouteCargoDropdownOpen(false); }}><Typography.Body>KGD – MSK</Typography.Body></div>
+                            <div className="dropdown-item" onClick={() => { setRouteFilterSet(new Set()); setIsRouteCargoDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                            {(['MSK-KGD', 'KGD-MSK'] as const).map(key => (
+                                <div key={key} className="dropdown-item" onClick={(e) => { e.stopPropagation(); setRouteFilterSet(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; }); }} style={{ background: routeFilterSet.has(key) ? 'var(--color-bg-hover)' : undefined }}>
+                                    <Typography.Body>{routeKeyToCargoLabel(key)} {routeFilterSet.has(key) ? '✓' : ''}</Typography.Body>
+                                </div>
+                            ))}
                         </FilterDropdownPortal>
                         </>
                         )}

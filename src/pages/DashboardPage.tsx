@@ -16,7 +16,19 @@ import {
     BILL_STATUS_MAP,
     STATUS_MAP,
 } from "../lib/statusUtils";
-import type { BillStatusFilterKey } from "../lib/statusUtils";
+import {
+    initSharedFilterSets,
+    loadSharedDateFilterState,
+    matchesRouteFilterSet,
+    matchesTypeFilterSet,
+    routeKeyToCargoLabel,
+    saveSharedListFilters,
+    sharedFromFilterSets,
+    type CargoStatusFilterKey,
+    type RouteFilterKey,
+    type SharedBillStatusKey,
+    type TypeFilterKey,
+} from "../lib/sharedListFilters";
 import { normalizeStatus } from "../lib/statusUtils";
 import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "../lib/slaWorkSchedule";
 import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry, getSlaPlanDeadlineMs } from "../lib/cargoUtils";
@@ -48,6 +60,7 @@ const {
     getFirstWorkingDayOnOrAfter,
     getFirstPaymentWeekdayOnOrAfter,
     isDateInRange,
+    saveDateFilterState,
 } = dateUtils;
 const MONTH_NAMES = dateUtils.MONTH_NAMES;
 
@@ -259,27 +272,11 @@ export function DashboardPage({
     const WIDGET_4_SLA = true;
     const WIDGET_5_PAYMENT_CALENDAR = !showOnlySla;
 
-    // Filters State (для Главной храним отдельно от Документов/Грузов)
-    const DASHBOARD_DATE_FILTER_STORAGE_KEY = "haulz.dashboard.dateFilterState";
-    const initDate = () => {
-        try {
-            const raw = typeof localStorage !== "undefined" ? localStorage.getItem(DASHBOARD_DATE_FILTER_STORAGE_KEY) : null;
-            return raw
-                ? JSON.parse(raw) as {
-                    dateFilter?: DateFilter;
-                    customDateFrom?: string;
-                    customDateTo?: string;
-                    selectedMonthForFilter?: { year: number; month: number } | null;
-                    selectedYearForFilter?: number | null;
-                    selectedWeekForFilter?: string | null;
-                }
-                : null;
-        } catch {
-            return null;
-        }
-    };
+    // Filters State (общие с Грузами и Документами)
+    const initDate = () => loadSharedDateFilterState();
     const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate()?.dateFilter ?? "месяц");
-    const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+    const sharedFiltersInit = initSharedFilterSets();
+    const [statusFilterSet, setStatusFilterSet] = useState<Set<CargoStatusFilterKey>>(() => sharedFiltersInit.statusFilterSet);
     const [customDateFrom, setCustomDateFrom] = useState(() => initDate()?.customDateFrom ?? DEFAULT_DATE_FROM);
     const [customDateTo, setCustomDateTo] = useState(() => initDate()?.customDateTo ?? DEFAULT_DATE_TO);
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
@@ -289,16 +286,7 @@ export function DashboardPage({
     const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(() => initDate()?.selectedYearForFilter ?? null);
     const [selectedWeekForFilter, setSelectedWeekForFilter] = useState<string | null>(() => initDate()?.selectedWeekForFilter ?? null);
     useEffect(() => {
-        try {
-            if (typeof localStorage !== "undefined") {
-                localStorage.setItem(
-                    DASHBOARD_DATE_FILTER_STORAGE_KEY,
-                    JSON.stringify({ dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter })
-                );
-            }
-        } catch {
-            // ignore
-        }
+        saveDateFilterState({ dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter });
     }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
     const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const monthWasLongPressRef = useRef(false);
@@ -309,9 +297,12 @@ export function DashboardPage({
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [senderFilter, setSenderFilter] = useState<string>('');
     const [receiverFilter, setReceiverFilter] = useState<string>('');
-    const [billStatusFilter, setBillStatusFilter] = useState<BillStatusFilterKey>('all');
-    const [typeFilter, setTypeFilter] = useState<'all' | 'ferry' | 'auto'>('all');
-    const [routeFilter, setRouteFilter] = useState<'all' | 'MSK-KGD' | 'KGD-MSK'>('all');
+    const [billStatusFilterSet, setBillStatusFilterSet] = useState<Set<SharedBillStatusKey>>(() => sharedFiltersInit.billStatusFilterSet);
+    const [typeFilterSet, setTypeFilterSet] = useState<Set<TypeFilterKey>>(() => sharedFiltersInit.typeFilterSet);
+    const [routeFilterSet, setRouteFilterSet] = useState<Set<RouteFilterKey>>(() => sharedFiltersInit.routeFilterSet);
+    useEffect(() => {
+        saveSharedListFilters(sharedFromFilterSets({ statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet }));
+    }, [statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet]);
     const [isSenderDropdownOpen, setIsSenderDropdownOpen] = useState(false);
     const [isReceiverDropdownOpen, setIsReceiverDropdownOpen] = useState(false);
     const [isBillStatusDropdownOpen, setIsBillStatusDropdownOpen] = useState(false);
@@ -619,22 +610,22 @@ export function DashboardPage({
     // Фильтрация
     const filteredItems = useMemo(() => {
         let res = items.filter(i => !isReceivedInfoStatus(i.State));
-        if (statusFilter === 'favorites') {
-            // Фильтр избранных (если нужно)
-            const favorites = JSON.parse(localStorage.getItem('haulz.favorites') || '[]') as string[];
-            res = res.filter(i => i.Number && favorites.includes(i.Number));
-        } else if (statusFilter !== 'all') {
-            res = res.filter(i => getFilterKeyByStatus(i.State) === statusFilter);
+        if (statusFilterSet.size > 0) {
+            res = res.filter(i => statusFilterSet.has(getFilterKeyByStatus(i.State) as CargoStatusFilterKey));
         }
         if (senderFilter) res = res.filter(i => (i.Sender ?? '').trim() === senderFilter);
         if (receiverFilter) res = res.filter(i => (i.Receiver ?? (i as any).receiver ?? '').trim() === receiverFilter);
-        if (billStatusFilter !== 'all') res = res.filter(i => getPaymentFilterKey(i.StateBill) === billStatusFilter);
-        if (typeFilter === 'ferry') res = res.filter(i => i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1);
-        if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
-        if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
-        if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
+        if (useServiceRequest && billStatusFilterSet.size > 0) {
+            res = res.filter(i => billStatusFilterSet.has(getPaymentFilterKey(i.StateBill)));
+        }
+        if (typeFilterSet.size > 0) {
+            res = res.filter(i => matchesTypeFilterSet(i?.AK, typeFilterSet));
+        }
+        if (routeFilterSet.size > 0) {
+            res = res.filter(i => matchesRouteFilterSet(i.CitySender, i.CityReceiver, routeFilterSet));
+        }
         return res;
-    }, [items, statusFilter, senderFilter, receiverFilter, billStatusFilter, typeFilter, routeFilter]);
+    }, [items, statusFilterSet, senderFilter, receiverFilter, billStatusFilterSet, typeFilterSet, routeFilterSet, useServiceRequest]);
 
     /** Монитор SLA: жёстко только перевозки с фактом доставки в выбранном периоде (DateVr ∈ [dateFrom, dateTo]), поверх фильтров дашборда. Иначе мин/макс тянут «лишние» строки из ответа API за интервал по другому полю. */
     const slaMonitorFilteredItems = useMemo(() => {
@@ -1056,21 +1047,22 @@ export function DashboardPage({
     const filteredPrevPeriodItems = useMemo(() => {
         if (!useServiceRequest || prevPeriodItems.length === 0) return [];
         let res = prevPeriodItems.filter(i => !isReceivedInfoStatus(i.State));
-        if (statusFilter === 'favorites') {
-            const favorites = JSON.parse(localStorage.getItem('haulz.favorites') || '[]') as string[];
-            res = res.filter(i => i.Number && favorites.includes(i.Number));
-        } else if (statusFilter !== 'all') {
-            res = res.filter(i => getFilterKeyByStatus(i.State) === statusFilter);
+        if (statusFilterSet.size > 0) {
+            res = res.filter(i => statusFilterSet.has(getFilterKeyByStatus(i.State) as CargoStatusFilterKey));
         }
         if (senderFilter) res = res.filter(i => (i.Sender ?? '').trim() === senderFilter);
         if (receiverFilter) res = res.filter(i => (i.Receiver ?? (i as any).receiver ?? '').trim() === receiverFilter);
-        if (billStatusFilter !== 'all') res = res.filter(i => getPaymentFilterKey(i.StateBill) === billStatusFilter);
-        if (typeFilter === 'ferry') res = res.filter(i => i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1);
-        if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
-        if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
-        if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
+        if (billStatusFilterSet.size > 0) {
+            res = res.filter(i => billStatusFilterSet.has(getPaymentFilterKey(i.StateBill)));
+        }
+        if (typeFilterSet.size > 0) {
+            res = res.filter(i => matchesTypeFilterSet(i?.AK, typeFilterSet));
+        }
+        if (routeFilterSet.size > 0) {
+            res = res.filter(i => matchesRouteFilterSet(i.CitySender, i.CityReceiver, routeFilterSet));
+        }
         return res;
-    }, [prevPeriodItems, useServiceRequest, statusFilter, senderFilter, receiverFilter, billStatusFilter, typeFilter, routeFilter]);
+    }, [prevPeriodItems, useServiceRequest, statusFilterSet, senderFilter, receiverFilter, billStatusFilterSet, typeFilterSet, routeFilterSet]);
 
     /** Плановое поступление по счетам: срок в календарных днях; при наступлении срока — первый платёжный день недели (если заданы) или первый рабочий день. */
     const plannedByDate = useMemo(() => {
@@ -1183,20 +1175,20 @@ export function DashboardPage({
     /** Монитор доставки: только статус «доставлено» с DateVr в выбранном периоде (без фильтра по заказчику) */
     const deliveryFilteredItems = useMemo(() => {
         let res = items.filter(i => !isReceivedInfoStatus(i.State));
-        if (statusFilter === 'favorites') {
-            const favorites = JSON.parse(localStorage.getItem('haulz.favorites') || '[]') as string[];
-            res = res.filter(i => i.Number && favorites.includes(i.Number));
-        }
         res = res.filter(i => getFilterKeyByStatus(i.State) === 'delivered' && isDateInRange(i.DateVr, apiDateRange.dateFrom, apiDateRange.dateTo));
         if (senderFilter) res = res.filter(i => (i.Sender ?? '').trim() === senderFilter);
         if (receiverFilter) res = res.filter(i => (i.Receiver ?? (i as any).receiver ?? '').trim() === receiverFilter);
-        if (billStatusFilter !== 'all') res = res.filter(i => getPaymentFilterKey(i.StateBill) === billStatusFilter);
-        if (typeFilter === 'ferry') res = res.filter(i => i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1);
-        if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
-        if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
-        if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
+        if (useServiceRequest && billStatusFilterSet.size > 0) {
+            res = res.filter(i => billStatusFilterSet.has(getPaymentFilterKey(i.StateBill)));
+        }
+        if (typeFilterSet.size > 0) {
+            res = res.filter(i => matchesTypeFilterSet(i?.AK, typeFilterSet));
+        }
+        if (routeFilterSet.size > 0) {
+            res = res.filter(i => matchesRouteFilterSet(i.CitySender, i.CityReceiver, routeFilterSet));
+        }
         return res;
-    }, [items, statusFilter, senderFilter, receiverFilter, billStatusFilter, typeFilter, routeFilter, apiDateRange]);
+    }, [items, senderFilter, receiverFilter, billStatusFilterSet, typeFilterSet, routeFilterSet, apiDateRange, useServiceRequest]);
     const deliveryStripTotals = useMemo(() => {
         let sum = 0, pw = 0, w = 0, vol = 0, mest = 0;
         deliveryFilteredItems.forEach(item => {
@@ -2705,13 +2697,14 @@ export function DashboardPage({
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                            Статус: {STATUS_MAP[statusFilter] ?? 'Все'} <ChevronDown className="w-4 h-4"/>
+                            Статус: {statusFilterSet.size === 0 ? 'Все' : statusFilterSet.size === 1 ? STATUS_MAP[[...statusFilterSet][0]] : `Выбрано: ${statusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={statusButtonRef} isOpen={isStatusDropdownOpen} onClose={() => setIsStatusDropdownOpen(false)}>
-                        {Object.keys(STATUS_MAP).map(key => (
-                            <div key={key} className="dropdown-item" onClick={() => { setStatusFilter(key as any); setIsStatusDropdownOpen(false); }}>
-                                <Typography.Body>{STATUS_MAP[key as StatusFilter]}</Typography.Body>
+                        <div className="dropdown-item" onClick={() => { setStatusFilterSet(new Set()); setIsStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        {(Object.keys(STATUS_MAP) as StatusFilter[]).filter(k => k !== 'favorites' && k !== 'all').map(key => (
+                            <div key={key} className="dropdown-item" onClick={(e) => { e.stopPropagation(); setStatusFilterSet(prev => { const next = new Set(prev); const k = key as CargoStatusFilterKey; if (next.has(k)) next.delete(k); else next.add(k); return next; }); }} style={{ background: statusFilterSet.has(key as CargoStatusFilterKey) ? 'var(--color-bg-hover)' : undefined }}>
+                                <Typography.Body>{STATUS_MAP[key]} {statusFilterSet.has(key as CargoStatusFilterKey) ? '✓' : ''}</Typography.Body>
                             </div>
                         ))}
                     </FilterDropdownPortal>
@@ -2746,13 +2739,14 @@ export function DashboardPage({
                     <div className="filter-group" style={{ flexShrink: 0 }}>
                         <div ref={billStatusButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                                Статус счёта: {BILL_STATUS_MAP[billStatusFilter]} <ChevronDown className="w-4 h-4"/>
+                                Статус счёта: {billStatusFilterSet.size === 0 ? 'Все' : billStatusFilterSet.size === 1 ? BILL_STATUS_MAP[[...billStatusFilterSet][0]] : `Выбрано: ${billStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
                         <FilterDropdownPortal triggerRef={billStatusButtonRef} isOpen={isBillStatusDropdownOpen} onClose={() => setIsBillStatusDropdownOpen(false)}>
-                            {(['all', 'paid', 'unpaid', 'partial', 'cancelled', 'unknown'] as const).map(key => (
-                                <div key={key} className="dropdown-item" onClick={() => { setBillStatusFilter(key); setIsBillStatusDropdownOpen(false); }}>
-                                    <Typography.Body>{BILL_STATUS_MAP[key]}</Typography.Body>
+                            <div className="dropdown-item" onClick={() => { setBillStatusFilterSet(new Set()); setIsBillStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                            {(['paid', 'unpaid', 'partial', 'cancelled', 'unknown'] as const).map(key => (
+                                <div key={key} className="dropdown-item" onClick={(e) => { e.stopPropagation(); setBillStatusFilterSet(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; }); }} style={{ background: billStatusFilterSet.has(key) ? 'var(--color-bg-hover)' : undefined }}>
+                                    <Typography.Body>{BILL_STATUS_MAP[key]} {billStatusFilterSet.has(key) ? '✓' : ''}</Typography.Body>
                                 </div>
                             ))}
                         </FilterDropdownPortal>
@@ -2761,25 +2755,28 @@ export function DashboardPage({
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                            Тип: {typeFilter === 'all' ? 'Все' : typeFilter === 'ferry' ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
+                            Тип: {typeFilterSet.size === 0 ? 'Все' : typeFilterSet.size === 2 ? 'Паром, Авто' : typeFilterSet.has('ferry') ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={typeButtonRef} isOpen={isTypeDropdownOpen} onClose={() => setIsTypeDropdownOpen(false)}>
-                        <div className="dropdown-item" onClick={() => { setTypeFilter('all'); setIsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                        <div className="dropdown-item" onClick={() => { setTypeFilter('ferry'); setIsTypeDropdownOpen(false); }}><Typography.Body>Паром</Typography.Body></div>
-                        <div className="dropdown-item" onClick={() => { setTypeFilter('auto'); setIsTypeDropdownOpen(false); }}><Typography.Body>Авто</Typography.Body></div>
+                        <div className="dropdown-item" onClick={() => { setTypeFilterSet(new Set()); setIsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setTypeFilterSet(prev => { const next = new Set(prev); if (next.has('ferry')) next.delete('ferry'); else next.add('ferry'); return next; }); }} style={{ background: typeFilterSet.has('ferry') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Паром {typeFilterSet.has('ferry') ? '✓' : ''}</Typography.Body></div>
+                        <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setTypeFilterSet(prev => { const next = new Set(prev); if (next.has('auto')) next.delete('auto'); else next.add('auto'); return next; }); }} style={{ background: typeFilterSet.has('auto') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Авто {typeFilterSet.has('auto') ? '✓' : ''}</Typography.Body></div>
                     </FilterDropdownPortal>
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={routeButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
-                            Маршрут: {routeFilter === 'all' ? 'Все' : routeFilter} <ChevronDown className="w-4 h-4"/>
+                            Маршрут: {routeFilterSet.size === 0 ? 'Все' : routeFilterSet.size === 2 ? 'Выбрано: 2' : routeKeyToCargoLabel([...routeFilterSet][0])} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={routeButtonRef} isOpen={isRouteDropdownOpen} onClose={() => setIsRouteDropdownOpen(false)}>
-                        <div className="dropdown-item" onClick={() => { setRouteFilter('all'); setIsRouteDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                        <div className="dropdown-item" onClick={() => { setRouteFilter('MSK-KGD'); setIsRouteDropdownOpen(false); }}><Typography.Body>MSK – KGD</Typography.Body></div>
-                        <div className="dropdown-item" onClick={() => { setRouteFilter('KGD-MSK'); setIsRouteDropdownOpen(false); }}><Typography.Body>KGD – MSK</Typography.Body></div>
+                        <div className="dropdown-item" onClick={() => { setRouteFilterSet(new Set()); setIsRouteDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        {(['MSK-KGD', 'KGD-MSK'] as const).map(key => (
+                            <div key={key} className="dropdown-item" onClick={(e) => { e.stopPropagation(); setRouteFilterSet(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; }); }} style={{ background: routeFilterSet.has(key) ? 'var(--color-bg-hover)' : undefined }}>
+                                <Typography.Body>{routeKeyToCargoLabel(key)} {routeFilterSet.has(key) ? '✓' : ''}</Typography.Body>
+                            </div>
+                        ))}
                     </FilterDropdownPortal>
                 </div>
             </div>

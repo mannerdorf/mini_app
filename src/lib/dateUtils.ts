@@ -43,6 +43,21 @@ export const loadDateFilterState = (): Partial<DateFilterState> | null => {
     try {
         const s = typeof localStorage !== 'undefined' && localStorage.getItem(DATE_FILTER_STORAGE_KEY);
         if (s) return JSON.parse(s) as Partial<DateFilterState>;
+        const legacy = typeof localStorage !== 'undefined' && localStorage.getItem('haulz.dashboard.dateFilterState');
+        if (legacy) {
+            const parsed = JSON.parse(legacy) as Partial<DateFilterState>;
+            if (parsed?.dateFilter) {
+                saveDateFilterState({
+                    dateFilter: parsed.dateFilter,
+                    customDateFrom: parsed.customDateFrom ?? DEFAULT_DATE_FROM,
+                    customDateTo: parsed.customDateTo ?? DEFAULT_DATE_TO,
+                    selectedMonthForFilter: parsed.selectedMonthForFilter ?? null,
+                    selectedYearForFilter: parsed.selectedYearForFilter ?? null,
+                    selectedWeekForFilter: parsed.selectedWeekForFilter ?? null,
+                });
+            }
+            return parsed;
+        }
     } catch {}
     return null;
 };
