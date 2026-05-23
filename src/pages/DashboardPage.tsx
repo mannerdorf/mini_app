@@ -332,11 +332,6 @@ export function DashboardPage({
     const [expandedAgingBucket, setExpandedAgingBucket] = useState<string | null>(null);
     const [agingSortCol, setAgingSortCol] = useState<'number' | 'customer' | 'status' | 'shipmentStatus' | 'sum' | 'days'>('sum');
     const [agingSortAsc, setAgingSortAsc] = useState(false);
-    /** Выбранная зона риска оттока: при клике на карточку показываем список клиентов этой зоны */
-    const [churnRiskZone, setChurnRiskZone] = useState<'red' | 'yellow' | 'green'>('red');
-    /** Сортировка таблицы «Риск оттока» */
-    const [churnSortCol, setChurnSortCol] = useState<'name' | 'orders' | 'avgInterval' | 'daysSinceLast' | 'status'>('daysSinceLast');
-    const [churnSortAsc, setChurnSortAsc] = useState(false);
     /** Раскрытый сегмент RFM: при клике показываем список заказчиков */
     const [expandedRfmSegment, setExpandedRfmSegment] = useState<string | null>(null);
     /** Список заказчиков для виджета "Повторные клиенты" */
@@ -527,6 +522,17 @@ export function DashboardPage({
         useServiceRequest,
         inn: !useServiceRequest ? auth.inn : undefined,
     });
+    const {
+        items: deliveryFactLookupItems,
+        loading: deliveryFactLookupLoading,
+    } = usePerevozki({
+        auth,
+        dateFrom: DEFAULT_DATE_FROM,
+        dateTo: apiDateRange.dateTo,
+        useServiceRequest,
+        inn: !useServiceRequest ? auth.inn : undefined,
+        enabled: !!useServiceRequest,
+    });
     const { items: prevPeriodItems, loading: prevPeriodLoading } = usePrevPeriodPerevozki({
         auth,
         dateFrom: apiDateRange.dateFrom,
@@ -606,15 +612,19 @@ export function DashboardPage({
     const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
 
     const dashboardTotalItems = useMemo(() => items.filter(i => !isReceivedInfoStatus(i.State)), [items]);
+    const deliveryFactItems = useMemo(
+        () => (useServiceRequest ? deliveryFactLookupItems : items).filter(i => !isReceivedInfoStatus(i.State)),
+        [deliveryFactLookupItems, items, useServiceRequest],
+    );
     
     /** Монитор SLA: жёстко только перевозки с фактом доставки в выбранном периоде (DateVr ∈ [dateFrom, dateTo]). */
     const slaMonitorFilteredItems = useMemo(() => {
-        return dashboardTotalItems.filter(
+        return deliveryFactItems.filter(
             (i) =>
                 getFilterKeyByStatus(i.State) === 'delivered'
                 && isDateInRange(String(i.DateVr ?? '').trim() || undefined, apiDateRange.dateFrom, apiDateRange.dateTo),
         );
-    }, [dashboardTotalItems, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    }, [deliveryFactItems, apiDateRange.dateFrom, apiDateRange.dateTo]);
 
     const parseDashboardDateOnly = useCallback((value: unknown): Date | null => {
         const raw = String(value ?? '').trim();
@@ -676,6 +686,26 @@ export function DashboardPage({
             if (parsed) return parsed;
         }
         return null;
+    }, [parseDashboardDateOnly]);
+    const getLastStatusDateKey = useCallback((item: CargoItem): string => {
+        const candidates = [
+            (item as any).StatusDate,
+            (item as any).DateStatus,
+            (item as any).DateState,
+            (item as any).UpdatedAt,
+            (item as any).updated_at,
+            (item as any).ДатаСтатуса,
+            (item as any).ДатаИзменения,
+            (item as any).DateVr,
+            (item as any).DatePrih,
+        ];
+        for (const candidate of candidates) {
+            const parsed = parseDashboardDateOnly(candidate);
+            if (parsed) {
+                return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+            }
+        }
+        return '';
     }, [parseDashboardDateOnly]);
     const getRouteTypePlanDays = useMemo(() => {
         const dayMs = 24 * 60 * 60 * 1000;
@@ -1138,8 +1168,8 @@ export function DashboardPage({
 
     /** Монитор доставки: только статус «доставлено» с DateVr в выбранном периоде (без фильтра по заказчику) */
     const deliveryFilteredItems = useMemo(() => {
-        return dashboardTotalItems.filter(i => getFilterKeyByStatus(i.State) === 'delivered' && isDateInRange(i.DateVr, apiDateRange.dateFrom, apiDateRange.dateTo));
-    }, [dashboardTotalItems, apiDateRange.dateFrom, apiDateRange.dateTo]);
+        return deliveryFactItems.filter(i => getFilterKeyByStatus(i.State) === 'delivered' && isDateInRange(i.DateVr, apiDateRange.dateFrom, apiDateRange.dateTo));
+    }, [deliveryFactItems, apiDateRange.dateFrom, apiDateRange.dateTo]);
     const deliveryStripTotals = useMemo(() => {
         let sum = 0, pw = 0, w = 0, vol = 0, mest = 0;
         deliveryFilteredItems.forEach(item => {
@@ -2176,7 +2206,8 @@ export function DashboardPage({
         const ferry = [0, 0, 0, 0, 0, 0, 0];
         const auto = [0, 0, 0, 0, 0, 0, 0];
         const weights = [0, 0, 0, 0, 0, 0, 0];
-        dashboardTotalItems.forEach((item) => {
+        const sourceItems = weekdayDistributionMode === "issued" ? deliveryFactItems : dashboardTotalItems;
+        sourceItems.forEach((item) => {
             let p: Date | null = null;
             if (weekdayDistributionMode === "received") {
                 const raw = String(item.DatePrih ?? "").trim();
@@ -2208,7 +2239,8 @@ export function DashboardPage({
             ferryPct: Math.round((ferry[i] / maxCount) * 100),
             autoPct: Math.round((auto[i] / maxCount) * 100),
         }));
-    }, [dashboardTotalItems, useServiceRequest, weekdayDistributionMode, getActualDeliveryDate, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    }, [dashboardTotalItems, deliveryFactItems, useServiceRequest, weekdayDistributionMode, getActualDeliveryDate, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    const weekdayDistributionLoading = loading || (weekdayDistributionMode === "issued" && deliveryFactLookupLoading);
 
     // ═══════ CLIENT ANALYTICS DATA ═══════
 
@@ -2306,56 +2338,6 @@ export function DashboardPage({
         const totalLtv = list.reduce((a, b) => a + b.sum, 0);
         const avgLtv = list.length > 0 ? totalLtv / list.length : 0;
         return { top10: list.slice(0, 10), avgLtv, totalCustomers: list.length };
-    }, [clientItems, useServiceRequest]);
-
-    const churnRisk = useMemo(() => {
-        if (!useServiceRequest || clientItems.length === 0) return null;
-        const byCustomer = new Map<string, Date[]>();
-        clientItems.forEach(item => {
-            const name = getCustomerName(item);
-            if (!name) return;
-            const d = getItemDate(item);
-            if (!d) return;
-            if (!byCustomer.has(name)) byCustomer.set(name, []);
-            byCustomer.get(name)!.push(d);
-        });
-        const now = new Date();
-        const results: { name: string; avgInterval: number; lastInterval: number; daysSinceLast: number; zone: 'green' | 'yellow' | 'red'; orders: number }[] = [];
-        byCustomer.forEach((dates, name) => {
-            if (dates.length < 2) {
-                const daysSinceLast = Math.round((now.getTime() - Math.max(...dates.map(d => d.getTime()))) / 86400000);
-                results.push({ name, avgInterval: 0, lastInterval: 0, daysSinceLast, zone: daysSinceLast > 90 ? 'red' : daysSinceLast > 45 ? 'yellow' : 'green', orders: 1 });
-                return;
-            }
-            dates.sort((a, b) => a.getTime() - b.getTime());
-            const intervals: number[] = [];
-            for (let i = 1; i < dates.length; i++) {
-                intervals.push(Math.round((dates[i].getTime() - dates[i - 1].getTime()) / 86400000));
-            }
-            const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-            const lastInterval = intervals[intervals.length - 1];
-            const daysSinceLast = Math.round((now.getTime() - dates[dates.length - 1].getTime()) / 86400000);
-            let zone: 'green' | 'yellow' | 'red' = 'green';
-            if (avgInterval <= 0) {
-                // Fallback for edge-cases: evaluate risk by absolute thresholds only.
-                if (daysSinceLast > 90) zone = 'red';
-                else if (daysSinceLast > 45) zone = 'yellow';
-            } else {
-                if (daysSinceLast > avgInterval * 3 || daysSinceLast > 90) zone = 'red';
-                else if (daysSinceLast > avgInterval * 2 || daysSinceLast > 45) zone = 'yellow';
-            }
-            results.push({ name, avgInterval: Math.round(avgInterval), lastInterval, daysSinceLast, zone, orders: dates.length });
-        });
-        results.sort((a, b) => {
-            const z = { red: 0, yellow: 1, green: 2 };
-            return z[a.zone] - z[b.zone] || b.daysSinceLast - a.daysSinceLast;
-        });
-        return {
-            items: results,
-            red: results.filter(r => r.zone === 'red').length,
-            yellow: results.filter(r => r.zone === 'yellow').length,
-            green: results.filter(r => r.zone === 'green').length,
-        };
     }, [clientItems, useServiceRequest]);
 
     const rfmSegments = useMemo(() => {
@@ -3283,7 +3265,7 @@ export function DashboardPage({
             {/* ═══════ ГРУППА 2: ОПЕРАЦИОННАЯ НАГРУЗКА ═══════ */}
 
             {/* 10. Распределение по дням недели */}
-            {useServiceRequest && !loading && !error && weekdayDistribution.length > 0 && (
+            {useServiceRequest && !weekdayDistributionLoading && !error && weekdayDistribution.length > 0 && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem" style={{ marginBottom: '0.25rem' }}>
                         <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600 }}>
@@ -3494,8 +3476,10 @@ export function DashboardPage({
                                                                         <thead>
                                                                             <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                                                 <th style={{ padding: '0.2rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
+                                                                                <th style={{ padding: '0.2rem 0.3rem', textAlign: 'center', fontWeight: 600 }}>Тип</th>
                                                                                 <th style={{ padding: '0.2rem 0.3rem', textAlign: 'center', fontWeight: 600 }}>Маршрут</th>
                                                                                 <th style={{ padding: '0.2rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
+                                                                                <th style={{ padding: '0.2rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Плановая дата</th>
                                                                                 {showSums && <th style={{ padding: '0.2rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>}
                                                                             </tr>
                                                                         </thead>
@@ -3503,14 +3487,29 @@ export function DashboardPage({
                                                                             {sortedItems.map((it, i) => {
                                                                                 const route = getCargoItemRoute(it);
                                                                                 const routeColor = routeBadgeColor(route);
+                                                                                const ferry = isFerry(it);
+                                                                                const plannedDate = getEffectivePlannedDate(it);
+                                                                                const plannedDateValue = plannedDate
+                                                                                    ? `${plannedDate.getFullYear()}-${String(plannedDate.getMonth() + 1).padStart(2, '0')}-${String(plannedDate.getDate()).padStart(2, '0')}`
+                                                                                    : '';
                                                                                 return (
                                                                                 <tr key={i} style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
                                                                                     <td style={{ padding: '0.2rem 0.3rem' }}>{String(it?.Number ?? it?.Номер ?? '—').trim() || '—'}</td>
+                                                                                    <td style={{ padding: '0.2rem 0.3rem', textAlign: 'center', whiteSpace: 'nowrap' }} title={ferry ? 'Паром' : 'Авто'}>
+                                                                                        {ferry ? (
+                                                                                            <Ship className="w-3 h-3" style={{ display: 'inline-block', color: '#f59e0b', verticalAlign: 'middle' }} aria-label="Паром" />
+                                                                                        ) : (
+                                                                                            <Truck className="w-3 h-3" style={{ display: 'inline-block', color: '#06b6d4', verticalAlign: 'middle' }} aria-label="Авто" />
+                                                                                        )}
+                                                                                    </td>
                                                                                     <td style={{ padding: '0.2rem 0.3rem', textAlign: 'center' }}>
                                                                                         <span style={{ fontSize: '0.65rem', padding: '0.12rem 0.4rem', borderRadius: 999, background: `${routeColor}18`, color: routeColor, border: `1px solid ${routeColor}44`, fontWeight: 600, whiteSpace: 'nowrap' }}>{route}</span>
                                                                                     </td>
                                                                                     <td style={{ padding: '0.2rem 0.3rem' }}>
                                                                                         <DateText value={String(it?.DatePrih ?? it?.DateOtpr ?? it?.Дата ?? '').trim()} />
+                                                                                    </td>
+                                                                                    <td style={{ padding: '0.2rem 0.3rem', whiteSpace: 'nowrap' }}>
+                                                                                        {plannedDateValue ? <DateText value={plannedDateValue} /> : '—'}
                                                                                     </td>
                                                                                     {showSums && <td style={{ padding: '0.2rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{it?.Sum != null ? formatCurrency(it.Sum as number, true) : '—'}</td>}
                                                                                 </tr>
@@ -3656,6 +3655,7 @@ export function DashboardPage({
                                         <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-card)' }}>
                                             <th style={{ ...DASH_PLAN_FACT_TYPO.tableTh, textAlign: 'left' }}>Перевозка</th>
                                             <th style={{ ...DASH_PLAN_FACT_TYPO.tableTh, textAlign: 'left' }}>План</th>
+                                            <th style={{ ...DASH_PLAN_FACT_TYPO.tableTh, textAlign: 'left' }}>Дата статуса</th>
                                             <th style={{ ...DASH_PLAN_FACT_TYPO.tableTh, textAlign: 'center' }}>Статус</th>
                                             <th style={{ ...DASH_PLAN_FACT_TYPO.tableTh, textAlign: 'left' }}>Маршрут</th>
                                             <th style={{ ...DASH_PLAN_FACT_TYPO.tableTh, textAlign: 'center' }}>Тип</th>
@@ -3665,7 +3665,7 @@ export function DashboardPage({
                                     <tbody>
                                         {cargoFlowDetailSorted.length === 0 ? (
                                             <tr>
-                                                <td colSpan={showSums ? 6 : 5} style={{ padding: '0.5rem', color: 'var(--color-text-secondary)' }}>
+                                                <td colSpan={showSums ? 7 : 6} style={{ padding: '0.5rem', color: 'var(--color-text-secondary)' }}>
                                                     Нет перевозок по этому фильтру.
                                                 </td>
                                             </tr>
@@ -3676,6 +3676,7 @@ export function DashboardPage({
                                                 const planKey = planD
                                                     ? `${planD.getFullYear()}-${String(planD.getMonth() + 1).padStart(2, '0')}-${String(planD.getDate()).padStart(2, '0')}`
                                                     : '';
+                                                const statusDateKey = getLastStatusDateKey(item);
                                                 const sk = getFilterKeyByStatus(item.State);
                                                 const stLabel = STATUS_MAP[sk] ?? (String(item.State ?? '').trim() || '—');
                                                 const stColor =
@@ -3695,6 +3696,9 @@ export function DashboardPage({
                                                         <td style={{ padding: '0.35rem 0.45rem', whiteSpace: 'nowrap' }}>{num}</td>
                                                         <td style={{ padding: '0.35rem 0.45rem', whiteSpace: 'nowrap' }}>
                                                             {planKey ? <DateText value={planKey} /> : '—'}
+                                                        </td>
+                                                        <td style={{ padding: '0.35rem 0.45rem', whiteSpace: 'nowrap' }}>
+                                                            {statusDateKey ? <DateText value={statusDateKey} /> : '—'}
                                                         </td>
                                                         <td style={{ padding: '0.35rem 0.45rem', textAlign: 'center' }}>
                                                             <span
@@ -4468,84 +4472,6 @@ export function DashboardPage({
                                 </div>
                             );
                         })}
-                    </div>
-                </Panel>
-            )}
-
-            {/* 5.3 Churn-risk */}
-            {useServiceRequest && !loading && !error && churnRisk && churnRisk.items.length > 0 && (
-                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
-                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>Риск оттока клиентов</Typography.Headline>
-                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
-                        Красная зона — нет заказов &gt;90 дней или интервал вырос в 3×. Жёлтая — &gt;45 дней или 2×. Зелёная — активные клиенты.
-                    </Typography.Body>
-                    <Flex gap="0.5rem" style={{ marginBottom: '0.6rem' }}>
-                        <button type="button" onClick={() => setChurnRiskZone('red')} style={{ flex: 1, padding: '0.4rem 0.5rem', borderRadius: 8, background: churnRiskZone === 'red' ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.1)', border: churnRiskZone === 'red' ? '2px solid #ef4444' : '1px solid rgba(239,68,68,0.25)', textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '0.15rem', alignItems: 'center', justifyContent: 'center' }}>
-                            <Typography.Body style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ef4444', display: 'block', lineHeight: 1.2 }}>{churnRisk.red}</Typography.Body>
-                            <Typography.Body style={{ fontSize: '0.65rem', color: '#ef4444', display: 'block', lineHeight: 1.2 }}>Высокий риск</Typography.Body>
-                        </button>
-                        <button type="button" onClick={() => setChurnRiskZone('yellow')} style={{ flex: 1, padding: '0.4rem 0.5rem', borderRadius: 8, background: churnRiskZone === 'yellow' ? 'rgba(245,158,11,0.2)' : 'rgba(245,158,11,0.1)', border: churnRiskZone === 'yellow' ? '2px solid #f59e0b' : '1px solid rgba(245,158,11,0.25)', textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '0.15rem', alignItems: 'center', justifyContent: 'center' }}>
-                            <Typography.Body style={{ fontSize: '1.1rem', fontWeight: 700, color: '#f59e0b', display: 'block', lineHeight: 1.2 }}>{churnRisk.yellow}</Typography.Body>
-                            <Typography.Body style={{ fontSize: '0.65rem', color: '#f59e0b', display: 'block', lineHeight: 1.2 }}>Средний риск</Typography.Body>
-                        </button>
-                        <button type="button" onClick={() => setChurnRiskZone('green')} style={{ flex: 1, padding: '0.4rem 0.5rem', borderRadius: 8, background: churnRiskZone === 'green' ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.1)', border: churnRiskZone === 'green' ? '2px solid #10b981' : '1px solid rgba(16,185,129,0.25)', textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '0.15rem', alignItems: 'center', justifyContent: 'center' }}>
-                            <Typography.Body style={{ fontSize: '1.1rem', fontWeight: 700, color: '#10b981', display: 'block', lineHeight: 1.2 }}>{churnRisk.green}</Typography.Body>
-                            <Typography.Body style={{ fontSize: '0.65rem', color: '#10b981', display: 'block', lineHeight: 1.2 }}>Активные</Typography.Body>
-                        </button>
-                    </Flex>
-                    <div style={{ overflowX: 'auto', fontSize: '0.7rem' }}>
-                        <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-                            <thead>
-                                <tr>
-                                    {(() => {
-                                        const toggleChurnSort = (col: typeof churnSortCol) => {
-                                            if (churnSortCol === col) setChurnSortAsc(!churnSortAsc);
-                                            else { setChurnSortCol(col); setChurnSortAsc(col === 'name' || col === 'status'); }
-                                        };
-                                        const churnArrow = (col: typeof churnSortCol) => churnSortCol === col ? (churnSortAsc ? ' ↑' : ' ↓') : '';
-                                        const churnTh = (label: string, col: typeof churnSortCol, align: 'left' | 'center') => (
-                                            <th key={col} style={{ padding: '0.3rem 0.4rem', textAlign: align, fontWeight: 600, borderBottom: '2px solid var(--color-border)', cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleChurnSort(col)} title="Сортировка">{label}{churnArrow(col)}</th>
-                                        );
-                                        return (
-                                            <>
-                                                {churnTh('Клиент', 'name', 'left')}
-                                                {churnTh('Заказы', 'orders', 'center')}
-                                                {churnTh('Ø интервал', 'avgInterval', 'center')}
-                                                {churnTh('Дней без заказа', 'daysSinceLast', 'center')}
-                                                {churnTh('Статус', 'status', 'center')}
-                                            </>
-                                        );
-                                    })()}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {[...churnRisk.items.filter(c => c.zone === churnRiskZone)]
-                                    .sort((a, b) => {
-                                        let cmp = 0;
-                                        if (churnSortCol === 'name') cmp = a.name.localeCompare(b.name);
-                                        else if (churnSortCol === 'orders') cmp = a.orders - b.orders;
-                                        else if (churnSortCol === 'avgInterval') cmp = a.avgInterval - b.avgInterval;
-                                        else if (churnSortCol === 'daysSinceLast') cmp = a.daysSinceLast - b.daysSinceLast;
-                                        else cmp = (a.zone === b.zone ? 0 : (a.zone < b.zone ? -1 : 1));
-                                        return churnSortAsc ? cmp : -cmp;
-                                    })
-                                    .map(c => {
-                                    const zColor = { red: '#ef4444', yellow: '#f59e0b', green: '#10b981' }[c.zone];
-                                    const zLabel = { red: 'Высокий', yellow: 'Средний', green: 'Активен' }[c.zone];
-                                    return (
-                                        <tr key={c.name}>
-                                            <td style={{ padding: '0.25rem 0.4rem', borderBottom: '1px solid var(--color-border)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</td>
-                                            <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>{c.orders}</td>
-                                            <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>{c.avgInterval > 0 ? `${c.avgInterval} дн` : '—'}</td>
-                                            <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>{c.daysSinceLast}</td>
-                                            <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>
-                                                <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: 999, background: `${zColor}18`, color: zColor, border: `1px solid ${zColor}44`, fontWeight: 600 }}>{zLabel}</span>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
                     </div>
                 </Panel>
             )}
