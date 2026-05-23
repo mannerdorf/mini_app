@@ -4,7 +4,7 @@ import { withErrorLog } from "../../../lib/requestErrorLog.js";
 import { resolvePartnerOrUserApiAuth } from "../../../lib/partnerOrUserApiAuth.js";
 import { assertBodyInnAllowedForApiKey, filterRowsByApiKeyInns } from "../../../lib/userApiKeyInnFilter.js";
 import { getPool } from "../../_db.js";
-import { readRegisteredPerevozkiFromCache, perevozkiItemInn } from "../../perevozki.js";
+import { readRegisteredPerevozkiFromCache, perevozkiItemInnForMode } from "../../perevozki.js";
 
 function readJsonBody(req: VercelRequest): Record<string, unknown> {
   let body: any = req.body;
@@ -54,8 +54,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     dateTo,
     body.inn,
     body.serviceMode,
+    body.mode,
   );
-  const out = filterRowsByApiKeyInns(rows, auth.keyAllowedInnsCanon, perevozkiItemInn);
+  const out = filterRowsByApiKeyInns(rows, auth.keyAllowedInnsCanon, (row) => perevozkiItemInnForMode(row, body.mode));
   return res.status(200).json(out);
 }
 

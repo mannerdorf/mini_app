@@ -18,8 +18,58 @@ const BASE_URL =
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 const CACHE_FRESH_MINUTES = 15;
 
-function itemInn(item: any): string {
-  const v = item?.INN ?? item?.Inn ?? item?.inn ?? "";
+type PerevozkiMode = "Customer" | "Sender" | "Receiver";
+
+function firstInn(item: any, keys: string[]): string {
+  for (const key of keys) {
+    const raw = item?.[key];
+    const value = String(raw ?? "").replace(/\D/g, "").trim();
+    if (value) return value;
+  }
+  return "";
+}
+
+function itemInn(item: any, mode?: unknown): string {
+  const normalizedMode = String(mode ?? "").trim() as PerevozkiMode | "";
+  if (normalizedMode === "Sender") {
+    return firstInn(item, [
+      "SenderINN",
+      "senderINN",
+      "SenderInn",
+      "senderInn",
+      "INNSender",
+      "InnSender",
+      "ОтправительИНН",
+      "ИННОтправителя",
+      "ИННОтправитель",
+      "INN_SENDER",
+    ]);
+  }
+  if (normalizedMode === "Receiver") {
+    return firstInn(item, [
+      "ReceiverINN",
+      "receiverINN",
+      "ReceiverInn",
+      "receiverInn",
+      "INNReceiver",
+      "InnReceiver",
+      "ПолучательИНН",
+      "ИННПолучателя",
+      "ИННПолучатель",
+      "INN_RECEIVER",
+    ]);
+  }
+  const v =
+    item?.INN ??
+    item?.Inn ??
+    item?.inn ??
+    item?.CustomerINN ??
+    item?.CustomerInn ??
+    item?.customerInn ??
+    item?.INNCustomer ??
+    item?.InnCustomer ??
+    item?.ЗаказчикИНН ??
+    "";
   return String(v).trim();
 }
 
@@ -54,6 +104,10 @@ function normalizeDateOnly(raw: unknown): string {
 
 export function perevozkiItemInn(item: any): string {
   return itemInn(item);
+}
+
+export function perevozkiItemInnForMode(item: any, mode?: unknown): string {
+  return itemInn(item, mode);
 }
 
 function normalizeCargoNumberForLookup(value: unknown): string {
@@ -107,6 +161,7 @@ export async function readRegisteredPerevozkiFromCache(
   dateTo: string,
   inn: unknown,
   serviceMode: unknown,
+  mode?: unknown,
 ): Promise<any[]> {
   try {
     let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
@@ -146,7 +201,7 @@ export async function readRegisteredPerevozkiFromCache(
     const list = Array.isArray(data) ? data : [];
     const filtered = list.filter((item) => {
       if (finalInns !== null) {
-        const itemInnVal = itemInn(item);
+        const itemInnVal = itemInn(item, mode);
         if (!finalInns.has(itemInnVal)) return false;
       }
       const d = itemDate(item);
@@ -237,7 +292,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!verified) {
         return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
       }
-      const filtered = await readRegisteredPerevozkiFromCache(pool, verified, login, dateFrom, dateTo, inn, serviceMode);
+      const filtered = await readRegisteredPerevozkiFromCache(pool, verified, login, dateFrom, dateTo, inn, serviceMode, mode);
       let result = Array.isArray(filtered) ? filtered : [];
       if (extraCargoNumbers.length > 0) {
         const extra = await readPerevozkiFromCacheByNumbers(pool, extraCargoNumbers);
@@ -250,8 +305,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // Попытка отдать из кэша: только если не serviceMode и есть БД
-  if (!serviceMode) {
+  const normalizedMode = String(mode ?? "").trim();
+  const canUseRoleAgnosticCache = !normalizedMode || normalizedMode === "Customer";
+
+  // Попытка отдать из кэша: только если не serviceMode и есть БД.
+  // Для Sender/Receiver обычных 1С-логинов идём в 1С: старый кэш часто содержит только заказчика и теряет role-выдачу.
+  if (!serviceMode && canUseRoleAgnosticCache) {
     try {
       const pool = getPool();
       let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
@@ -278,7 +337,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const data = cacheRow.rows[0].data as any[];
           const list = Array.isArray(data) ? data : [];
           const filtered = list.filter((item) => {
-            const itemInnVal = itemInn(item);
+            const itemInnVal = itemInn(item, mode);
             if (!filterInns.has(itemInnVal)) return false;
             const d = itemDate(item);
             return d >= dateFrom && d <= dateTo;
