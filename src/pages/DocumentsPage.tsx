@@ -1577,6 +1577,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
                 ? Object.values(rawParcels as Record<string, any>)
                 : []);
         parcels.forEach((parcel: any) => {
+            add(parcel?.Перевозка);
             add(parcel?.ИДОтправления);
             add(parcel?.НомерПеревозки);
             add(parcel?.CargoNumber);
@@ -1586,6 +1587,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
                 ? (goodsRaw[0] ?? {})
                 : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : null);
             if (goods && typeof goods === 'object') {
+                add((goods as any)?.Перевозка);
                 add((goods as any)?.ИДОтправления);
                 add((goods as any)?.НомерПеревозки);
                 add((goods as any)?.CargoNumber);
