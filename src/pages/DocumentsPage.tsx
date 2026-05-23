@@ -63,6 +63,7 @@ import {
     getFirstCargoNumberFromInvoice,
     getSendingParcelsFromRow,
     getSendingRowParcelMetrics,
+    getParcelFreightSum,
     sendingRowInSelectedPeriod,
 } from "./documentsPipeline";
 import {
@@ -4859,7 +4860,7 @@ useEffect(() => {
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcel?.ПлатныйВес ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem' }}>{goods?.ТМЦ ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.ОбъявленнаяСтоимостьТовараДляПечати ?? goods?.ОбъявленнаяСтоимостьТовара ?? '—'}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const sum = getParcelFreightSum(parcel); return sum > 0 ? formatCurrency(sum) : '—'; })()}</td>
                                                                             </tr>
                                                                         );
                                                                     })}

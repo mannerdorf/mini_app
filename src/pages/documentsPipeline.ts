@@ -711,21 +711,61 @@ export function getSendingParcelsFromRow(row: any): any[] {
   return [];
 }
 
-export function getParcelGoodsCost(parcel: any): number {
+function getParcelGoodsObject(parcel: any): Record<string, unknown> {
   const goodsRaw = parcel?.Товары;
-  const goods = Array.isArray(goodsRaw)
-    ? (goodsRaw[0] ?? {})
-    : goodsRaw && typeof goodsRaw === "object"
-      ? goodsRaw
-      : {};
-  return parseSendingMetricNumber(
-    goods?.ОбъявленнаяСтоимостьТовараДляПечати ??
-      goods?.ОбъявленнаяСтоимостьТовара ??
-      goods?.Стоимость ??
-      parcel?.Стоимость ??
-      parcel?.Sum ??
-      parcel?.sum
+  if (Array.isArray(goodsRaw)) return (goodsRaw[0] ?? {}) as Record<string, unknown>;
+  if (goodsRaw && typeof goodsRaw === "object") return goodsRaw as Record<string, unknown>;
+  return {};
+}
+
+function pickSendingFreightAmount(...sources: unknown[]): number {
+  for (const source of sources) {
+    const n = parseSendingMetricNumber(source);
+    if (n > 0) return n;
+  }
+  return 0;
+}
+
+/** Сумма перевозки по посылке (как «Сумма» в отчёте 1С), не объявленная стоимость товара. */
+export function getParcelFreightSum(parcel: any): number {
+  const goods = getParcelGoodsObject(parcel);
+  return pickSendingFreightAmount(
+    parcel?.Сумма,
+    parcel?.Sum,
+    parcel?.SumDoc,
+    parcel?.Amount,
+    parcel?.amount,
+    parcel?.sum,
+    goods?.Сумма,
+    goods?.Sum,
+    goods?.SumDoc,
+    goods?.Amount,
+    goods?.amount,
+    goods?.sum,
+    parcel?.Стоимость,
+    goods?.Стоимость,
   );
+}
+
+export function getSendingRowFreightSum(row: any): number {
+  const rowSum = pickSendingFreightAmount(
+    row?.Сумма,
+    row?.Sum,
+    row?.SumDoc,
+    row?.Amount,
+    row?.amount,
+    row?.sum,
+  );
+  if (rowSum > 0) return rowSum;
+
+  const parcels = getSendingParcelsFromRow(row);
+  if (parcels.length === 0) return 0;
+
+  let total = 0;
+  for (const parcel of parcels) {
+    total += getParcelFreightSum(parcel);
+  }
+  return total;
 }
 
 export function sumSendingParcelsMetrics(parcels: any[]): SendingParcelMetrics {
@@ -733,13 +773,21 @@ export function sumSendingParcelsMetrics(parcels: any[]): SendingParcelMetrics {
   let cost = 0;
   for (const parcel of parcels) {
     paidWeight += parseSendingMetricNumber(parcel?.ПлатныйВес);
-    cost += getParcelGoodsCost(parcel);
+    cost += getParcelFreightSum(parcel);
   }
   return { paidWeight, cost };
 }
 
 export function getSendingRowParcelMetrics(row: any): SendingParcelMetrics {
-  return sumSendingParcelsMetrics(getSendingParcelsFromRow(row));
+  const parcels = getSendingParcelsFromRow(row);
+  let paidWeight = 0;
+  for (const parcel of parcels) {
+    paidWeight += parseSendingMetricNumber(parcel?.ПлатныйВес);
+  }
+  return {
+    paidWeight,
+    cost: getSendingRowFreightSum(row),
+  };
 }
 
 export type SendingVehicleTotalRow = {
