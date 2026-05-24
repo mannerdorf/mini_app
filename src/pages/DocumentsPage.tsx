@@ -22,6 +22,7 @@ import {
 import {
     loadDateFilterState,
     saveDateFilterState,
+    getDefaultWeekMonday,
     getWeekRange,
     getYearsList,
     getWeeksList,
@@ -385,12 +386,12 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const prefersReducedMotion = useReducedMotion();
     const docsMotionEnabled = prefersReducedMotion !== true;
     const initDate = () => loadDateFilterState();
-    const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate()?.dateFilter ?? "месяц");
-    const [customDateFrom, setCustomDateFrom] = useState(() => initDate()?.customDateFrom ?? DEFAULT_DATE_FROM);
-    const [customDateTo, setCustomDateTo] = useState(() => initDate()?.customDateTo ?? DEFAULT_DATE_TO);
-    const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(() => initDate()?.selectedMonthForFilter ?? null);
-    const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(() => initDate()?.selectedYearForFilter ?? null);
-    const [selectedWeekForFilter, setSelectedWeekForFilter] = useState<string | null>(() => initDate()?.selectedWeekForFilter ?? null);
+    const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate().dateFilter);
+    const [customDateFrom, setCustomDateFrom] = useState(() => initDate().customDateFrom);
+    const [customDateTo, setCustomDateTo] = useState(() => initDate().customDateTo);
+    const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(() => initDate().selectedMonthForFilter);
+    const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(() => initDate().selectedYearForFilter);
+    const [selectedWeekForFilter, setSelectedWeekForFilter] = useState<string | null>(() => initDate().selectedWeekForFilter);
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
     const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
@@ -726,27 +727,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
             })
             .finally(() => setDogovorsLoading(false));
     }, [docSection, effectiveActiveInn, effectiveServiceMode]);
-    useEffect(() => {
-        if (docSection !== 'Договоры') return;
-        setDateFilter('все');
-        setSelectedMonthForFilter(null);
-        setSelectedYearForFilter(null);
-        setSelectedWeekForFilter(null);
-    }, [docSection]);
-    useEffect(() => {
-        if (docSection !== 'Акты сверок') return;
-        setDateFilter('год');
-        setSelectedMonthForFilter(null);
-        setSelectedYearForFilter(new Date().getFullYear());
-        setSelectedWeekForFilter(null);
-    }, [docSection]);
-    useEffect(() => {
-        if (docSection !== 'Тарифы') return;
-        setDateFilter('все');
-        setSelectedMonthForFilter(null);
-        setSelectedYearForFilter(null);
-        setSelectedWeekForFilter(null);
-    }, [docSection]);
     const reloadClaims = useCallback(async () => {
         const requestId = ++claimsRequestIdRef.current;
         if (docSection !== 'Претензии' || !auth?.login || !auth?.password) {
@@ -3233,7 +3213,7 @@ useEffect(() => {
                                                 setDateFilter(key as DateFilter);
                                                 if (key === 'месяц') setSelectedMonthForFilter(null);
                                                 if (key === 'год') setSelectedYearForFilter(null);
-                                                if (key === 'неделя') setSelectedWeekForFilter(null);
+                                                if (key === 'неделя') setSelectedWeekForFilter(getDefaultWeekMonday());
                                                 setIsDateDropdownOpen(false);
                                                 if (key === 'период') setIsCustomModalOpen(true);
                                             }}>
@@ -3475,6 +3455,58 @@ useEffect(() => {
                                 </FilterDropdownPortal>
                             </>
                         )}
+                        {docSection === 'Претензии' && (
+                            <>
+                                <div ref={claimsStatusButtonRef} style={{ display: 'inline-flex' }}>
+                                    <Button
+                                        className="filter-button"
+                                        onClick={() => {
+                                            setIsClaimsStatusDropdownOpen(!isClaimsStatusDropdownOpen);
+                                            setIsDateDropdownOpen(false);
+                                            setIsCustomerDropdownOpen(false);
+                                            setIsReceiverDropdownOpen(false);
+                                            setIsActCustomerDropdownOpen(false);
+                                            setIsSverkiCustomerDropdownOpen(false);
+                                            setIsDogovorsCustomerDropdownOpen(false);
+                                            setIsClaimsCustomerDropdownOpen(false);
+                                            setIsStatusDropdownOpen(false);
+                                            setIsTypeDropdownOpen(false);
+                                            setIsRouteDropdownOpen(false);
+                                            setIsDeliveryStatusDropdownOpen(false);
+                                            setIsRouteCargoDropdownOpen(false);
+                                            setIsEdoStatusDropdownOpen(false);
+                                            setIsTransportDropdownOpen(false);
+                                        }}
+                                    >
+                                        Статус: {claimsStatusFilter === 'all'
+                                            ? 'Все'
+                                            : (CLAIM_STATUS_LABELS[claimsStatusFilter as ClaimStatusKey] || 'Все')}
+                                        <ChevronDown className="w-4 h-4" />
+                                    </Button>
+                                </div>
+                                <FilterDropdownPortal
+                                    triggerRef={claimsStatusButtonRef}
+                                    isOpen={isClaimsStatusDropdownOpen}
+                                    onClose={() => setIsClaimsStatusDropdownOpen(false)}
+                                >
+                                    <div className="dropdown-item" onClick={() => { setClaimsStatusFilter('all'); setIsClaimsStatusDropdownOpen(false); }}>
+                                        <Typography.Body>Все</Typography.Body>
+                                    </div>
+                                    {Object.entries(CLAIM_STATUS_LABELS).map(([value, label]) => (
+                                        <div
+                                            key={value}
+                                            className="dropdown-item"
+                                            onClick={() => {
+                                                setClaimsStatusFilter(value);
+                                                setIsClaimsStatusDropdownOpen(false);
+                                            }}
+                                        >
+                                            <Typography.Body>{label}</Typography.Body>
+                                        </div>
+                                    ))}
+                                </FilterDropdownPortal>
+                            </>
+                        )}
                         {(docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'УПД') && (
                         <>
                         <div ref={edoStatusButtonRef} style={{ display: 'inline-flex' }}>
@@ -3599,11 +3631,8 @@ useEffect(() => {
                         )}
                     </div>
                 )}
-                </div>
-            </div>
-            {docSection === 'Заявки' && (
-                <DocumentsToolbarBelowSticky>
-                    <div className="documents-new-order-bar">
+                {docSection === 'Заявки' && (
+                    <div className="documents-new-order-bar documents-new-order-bar--in-sticky">
                         <Button
                             className="button-primary doc-section-action-btn"
                             onClick={() => setNewOrderModalOpen(true)}
@@ -3613,8 +3642,52 @@ useEffect(() => {
                             Новая заявка
                         </Button>
                     </div>
-                </DocumentsToolbarBelowSticky>
-            )}
+                )}
+                {docSection === 'Претензии' && (
+                    <div className="documents-new-order-bar documents-new-order-bar--in-sticky">
+                        <Button
+                            className="button-primary doc-section-action-btn"
+                            onClick={() => openClaimsCreateModal()}
+                            disabled={!auth?.login || !auth?.password}
+                        >
+                            + Создать претензию
+                        </Button>
+                    </div>
+                )}
+                {docSection === 'Акты сверок' && (
+                    <div className="documents-new-order-bar documents-new-order-bar--in-sticky">
+                        <Button
+                            className="button-primary doc-section-action-btn"
+                            disabled={!effectiveActiveInn || !auth?.login || !auth?.password}
+                            onClick={() => {
+                                setSverkiOrderError(null);
+                                setSverkiOrderContract('');
+                                setSverkiOrderContractOptions([]);
+                                const now = new Date();
+                                const year = now.getFullYear();
+                                const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+                                const quarterEndMonth = quarterStartMonth + 2;
+                                const pad = (n: number) => String(n).padStart(2, '0');
+                                const quarterLastDay = new Date(year, quarterEndMonth + 1, 0).getDate();
+                                setSverkiOrderPeriodFrom(`${year}-${pad(quarterStartMonth + 1)}-01`);
+                                setSverkiOrderPeriodTo(`${year}-${pad(quarterEndMonth + 1)}-${pad(quarterLastDay)}`);
+                                setSverkiOrderModalOpen(true);
+                                loadSverkiOrderContracts();
+                            }}
+                        >
+                            Заказать Акт сверки
+                        </Button>
+                        {sverkiRequestsLoading ? (
+                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Проверяем статус...</Typography.Body>
+                        ) : sverkiStatusBadge ? (
+                            <span style={{ fontSize: '0.78rem', padding: '0.2rem 0.5rem', borderRadius: 999, fontWeight: 600, background: sverkiStatusBadge.bg, color: sverkiStatusBadge.color }}>
+                                {sverkiStatusBadge.label}
+                            </span>
+                        ) : null}
+                    </div>
+                )}
+                </div>
+            </div>
             {docSection === 'Счета' && (
             <motion.div className="documents-summary-section-body">
             {(loading || !!error) && <DocumentsStateBlocks loading={loading} error={error} emptyText="" />}
@@ -6056,36 +6129,6 @@ useEffect(() => {
                     />
                 )}
                 <DocumentsToolbarBelowSticky>
-                    <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.75rem' }}>
-                        <Button
-                            className="button-primary"
-                            disabled={!effectiveActiveInn || !auth?.login || !auth?.password}
-                            onClick={() => {
-                                setSverkiOrderError(null);
-                                setSverkiOrderContract('');
-                                setSverkiOrderContractOptions([]);
-                                const now = new Date();
-                                const year = now.getFullYear();
-                                const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
-                                const quarterEndMonth = quarterStartMonth + 2;
-                                const pad = (n: number) => String(n).padStart(2, '0');
-                                const quarterLastDay = new Date(year, quarterEndMonth + 1, 0).getDate();
-                                setSverkiOrderPeriodFrom(`${year}-${pad(quarterStartMonth + 1)}-01`);
-                                setSverkiOrderPeriodTo(`${year}-${pad(quarterEndMonth + 1)}-${pad(quarterLastDay)}`);
-                                setSverkiOrderModalOpen(true);
-                                loadSverkiOrderContracts();
-                            }}
-                        >
-                            Заказать Акт сверки
-                        </Button>
-                        {sverkiRequestsLoading ? (
-                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Проверяем статус...</Typography.Body>
-                        ) : sverkiStatusBadge ? (
-                            <span style={{ fontSize: '0.78rem', padding: '0.2rem 0.5rem', borderRadius: 999, fontWeight: 600, background: sverkiStatusBadge.bg, color: sverkiStatusBadge.color }}>
-                                {sverkiStatusBadge.label}
-                            </span>
-                        ) : null}
-                    </Flex>
                     <div style={{ marginBottom: '0.9rem' }}>
                         {sverkiRequestsLoading ? (
                             <Typography.Body style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
@@ -6510,52 +6553,6 @@ useEffect(() => {
             )}
             {docSection === 'Претензии' && (
                 <DocumentsToolbarBelowSticky>
-                    <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.75rem' }}>
-                        <div ref={claimsStatusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button
-                                className="filter-button"
-                                onClick={() => setIsClaimsStatusDropdownOpen(!isClaimsStatusDropdownOpen)}
-                            >
-                                {claimsStatusFilter === 'all'
-                                    ? 'Все статусы'
-                                    : (CLAIM_STATUS_LABELS[claimsStatusFilter as ClaimStatusKey] || 'Все статусы')}
-                                <ChevronDown className="w-4 h-4" />
-                            </Button>
-                        </div>
-                        <FilterDropdownPortal
-                            triggerRef={claimsStatusButtonRef}
-                            isOpen={isClaimsStatusDropdownOpen}
-                            onClose={() => setIsClaimsStatusDropdownOpen(false)}
-                        >
-                            <div className="dropdown-item" onClick={() => { setClaimsStatusFilter('all'); setIsClaimsStatusDropdownOpen(false); }}>
-                                <Typography.Body>Все статусы</Typography.Body>
-                            </div>
-                            {Object.entries(CLAIM_STATUS_LABELS).map(([value, label]) => (
-                                <div
-                                    key={value}
-                                    className="dropdown-item"
-                                    onClick={() => {
-                                        setClaimsStatusFilter(value);
-                                        setIsClaimsStatusDropdownOpen(false);
-                                    }}
-                                >
-                                    <Typography.Body>{label}</Typography.Body>
-                                </div>
-                            ))}
-                        </FilterDropdownPortal>
-                    </Flex>
-                    <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.75rem' }}>
-                        <Button
-                            className="button-primary doc-section-action-btn"
-                            onClick={() => {
-                                openClaimsCreateModal();
-                            }}
-                            disabled={!auth?.login || !auth?.password}
-                            style={{ marginTop: 0 }}
-                        >
-                            + Создать претензию
-                        </Button>
-                    </Flex>
                     {claimsLoading ? (
                         <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
                             <Loader2 className="w-4 h-4 animate-spin" />

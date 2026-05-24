@@ -39,33 +39,87 @@ export type DateFilterState = {
     selectedWeekForFilter: string | null;
 };
 
-export const loadDateFilterState = (): Partial<DateFilterState> | null => {
-    try {
-        const s = typeof localStorage !== 'undefined' && localStorage.getItem(DATE_FILTER_STORAGE_KEY);
-        if (s) return JSON.parse(s) as Partial<DateFilterState>;
-        const legacy = typeof localStorage !== 'undefined' && localStorage.getItem('haulz.dashboard.dateFilterState');
-        if (legacy) {
-            const parsed = JSON.parse(legacy) as Partial<DateFilterState>;
-            if (parsed?.dateFilter) {
-                saveDateFilterState({
-                    dateFilter: parsed.dateFilter,
-                    customDateFrom: parsed.customDateFrom ?? DEFAULT_DATE_FROM,
-                    customDateTo: parsed.customDateTo ?? DEFAULT_DATE_TO,
-                    selectedMonthForFilter: parsed.selectedMonthForFilter ?? null,
-                    selectedYearForFilter: parsed.selectedYearForFilter ?? null,
-                    selectedWeekForFilter: parsed.selectedWeekForFilter ?? null,
-                });
-            }
-            return parsed;
-        }
-    } catch {}
-    return null;
-};
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const VALID_DATE_FILTERS: DateFilter[] = ['все', 'сегодня', 'вчера', 'неделя', 'месяц', 'год', 'период'];
+
+/** Понедельник текущей календарной недели (ISO YYYY-MM-DD). */
+export function getDefaultWeekMonday(): string {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const daysToMonday = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - daysToMonday);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Единое состояние фильтра даты: по умолчанию «неделя», без «все» после старых сбросов вкладок. */
+export function normalizeDateFilterState(partial: Partial<DateFilterState> | null | undefined): DateFilterState {
+    const now = new Date();
+    const defaultWeek = getDefaultWeekMonday();
+    const state: DateFilterState = {
+        dateFilter: 'неделя',
+        customDateFrom: DEFAULT_DATE_FROM,
+        customDateTo: DEFAULT_DATE_TO,
+        selectedMonthForFilter: null,
+        selectedYearForFilter: null,
+        selectedWeekForFilter: defaultWeek,
+    };
+
+    if (partial?.customDateFrom && ISO_DAY.test(partial.customDateFrom)) {
+        state.customDateFrom = partial.customDateFrom;
+    }
+    if (partial?.customDateTo && ISO_DAY.test(partial.customDateTo)) {
+        state.customDateTo = partial.customDateTo;
+    }
+    if (partial?.selectedMonthForFilter && Number.isFinite(partial.selectedMonthForFilter.year) && Number.isFinite(partial.selectedMonthForFilter.month)) {
+        state.selectedMonthForFilter = partial.selectedMonthForFilter;
+    }
+    if (partial?.selectedYearForFilter != null && Number.isFinite(partial.selectedYearForFilter)) {
+        state.selectedYearForFilter = partial.selectedYearForFilter;
+    }
+    if (partial?.selectedWeekForFilter && ISO_DAY.test(partial.selectedWeekForFilter)) {
+        state.selectedWeekForFilter = partial.selectedWeekForFilter;
+    }
+
+    const rawFilter = partial?.dateFilter;
+    if (rawFilter && VALID_DATE_FILTERS.includes(rawFilter)) {
+        // «Все» часто оставалось после переключения вкладок Договоры/Тарифы — возвращаем продуктовый дефолт
+        state.dateFilter = rawFilter === 'все' ? 'неделя' : rawFilter;
+    }
+
+    if (state.dateFilter === 'неделя' && !state.selectedWeekForFilter) {
+        state.selectedWeekForFilter = defaultWeek;
+    }
+    if (state.dateFilter === 'месяц' && !state.selectedMonthForFilter) {
+        state.selectedMonthForFilter = { year: now.getFullYear(), month: now.getMonth() + 1 };
+    }
+    if (state.dateFilter === 'год' && state.selectedYearForFilter == null) {
+        state.selectedYearForFilter = now.getFullYear();
+    }
+
+    return state;
+}
 
 export const saveDateFilterState = (state: DateFilterState) => {
     try {
         typeof localStorage !== 'undefined' && localStorage.setItem(DATE_FILTER_STORAGE_KEY, JSON.stringify(state));
     } catch {}
+};
+
+export const loadDateFilterState = (): DateFilterState => {
+    try {
+        const s = typeof localStorage !== 'undefined' && localStorage.getItem(DATE_FILTER_STORAGE_KEY);
+        if (s) return normalizeDateFilterState(JSON.parse(s) as Partial<DateFilterState>);
+        const legacy = typeof localStorage !== 'undefined' && localStorage.getItem('haulz.dashboard.dateFilterState');
+        if (legacy) {
+            const parsed = JSON.parse(legacy) as Partial<DateFilterState>;
+            const normalized = normalizeDateFilterState(parsed);
+            if (parsed?.dateFilter) {
+                saveDateFilterState(normalized);
+            }
+            return normalized;
+        }
+    } catch {}
+    return normalizeDateFilterState(null);
 };
 
 export const getDateRange = (filter: DateFilter) => {
