@@ -1,7 +1,7 @@
 import type { StatusFilter } from "../types";
 import type { BillStatusFilterKey } from "./statusUtils";
 import { cityToCode } from "./formatUtils";
-import { DATE_FILTER_STORAGE_KEY, type DateFilterState, loadDateFilterState as loadDateFilterStateBase } from "./dateUtils";
+import { type DateFilterState, loadDateFilterState as loadDateFilterStateBase } from "./dateUtils";
 
 export type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;
 export type TypeFilterKey = "ferry" | "auto";
@@ -71,40 +71,8 @@ export function saveSharedListFilters(state: SharedListFiltersState) {
   }
 }
 
-export function loadSharedDateFilterState(): Partial<DateFilterState> | null {
-  const main = loadDateFilterStateBase();
-  if (main) return main;
-  try {
-    const legacy = typeof localStorage !== "undefined" ? localStorage.getItem(LEGACY_DASHBOARD_DATE_KEY) : null;
-    if (!legacy) return null;
-    const parsed = JSON.parse(legacy) as Partial<DateFilterState>;
-    if (parsed && typeof parsed === "object") {
-      saveDateFilterStateFromPartial(parsed);
-      return parsed;
-    }
-  } catch {
-    /* ignore */
-  }
-  return null;
-}
-
-function saveDateFilterStateFromPartial(state: Partial<DateFilterState>) {
-  try {
-    if (typeof localStorage === "undefined" || !state.dateFilter) return;
-    localStorage.setItem(
-      DATE_FILTER_STORAGE_KEY,
-      JSON.stringify({
-        dateFilter: state.dateFilter,
-        customDateFrom: state.customDateFrom ?? "",
-        customDateTo: state.customDateTo ?? "",
-        selectedMonthForFilter: state.selectedMonthForFilter ?? null,
-        selectedYearForFilter: state.selectedYearForFilter ?? null,
-        selectedWeekForFilter: state.selectedWeekForFilter ?? null,
-      } satisfies DateFilterState)
-    );
-  } catch {
-    /* ignore */
-  }
+export function loadSharedDateFilterState(): DateFilterState {
+  return loadDateFilterStateBase();
 }
 
 export function keysToSet<T extends string>(keys: T[]): Set<T> {

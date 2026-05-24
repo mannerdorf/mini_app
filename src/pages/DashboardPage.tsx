@@ -286,17 +286,17 @@ export function DashboardPage({
 
     // Filters State (общие с Грузами и Документами)
     const initDate = () => loadSharedDateFilterState();
-    const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate()?.dateFilter ?? "месяц");
+    const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate().dateFilter);
     const sharedFiltersInit = initSharedFilterSets();
     const [statusFilterSet, setStatusFilterSet] = useState<Set<CargoStatusFilterKey>>(() => sharedFiltersInit.statusFilterSet);
-    const [customDateFrom, setCustomDateFrom] = useState(() => initDate()?.customDateFrom ?? DEFAULT_DATE_FROM);
-    const [customDateTo, setCustomDateTo] = useState(() => initDate()?.customDateTo ?? DEFAULT_DATE_TO);
+    const [customDateFrom, setCustomDateFrom] = useState(() => initDate().customDateFrom);
+    const [customDateTo, setCustomDateTo] = useState(() => initDate().customDateTo);
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
     const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
-    const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(() => initDate()?.selectedMonthForFilter ?? null);
-    const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(() => initDate()?.selectedYearForFilter ?? null);
-    const [selectedWeekForFilter, setSelectedWeekForFilter] = useState<string | null>(() => initDate()?.selectedWeekForFilter ?? null);
+    const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(() => initDate().selectedMonthForFilter);
+    const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(() => initDate().selectedYearForFilter);
+    const [selectedWeekForFilter, setSelectedWeekForFilter] = useState<string | null>(() => initDate().selectedWeekForFilter);
     useEffect(() => {
         saveDateFilterState({ dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter });
     }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
@@ -2628,7 +2628,7 @@ export function DashboardPage({
                                             setDateFilter(key as any);
                                             if (key === 'месяц') setSelectedMonthForFilter(null);
                                             if (key === 'год') setSelectedYearForFilter(null);
-                                            if (key === 'неделя') setSelectedWeekForFilter(null);
+                                            if (key === 'неделя') setSelectedWeekForFilter(dateUtils.getDefaultWeekMonday());
                                             setIsDateDropdownOpen(false);
                                             if (key === 'период') setIsCustomModalOpen(true);
                                         }}

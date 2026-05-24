@@ -353,8 +353,10 @@ body {
      * давал заметный зазор на Главной / Грузы / Документы. Формула: высота «тела» шапки + тот же верхний inset, что у хедера.
      */
     :root {
-        /* Высота «тела» шапки под safe-area: было 60px — лишний зazoр до «Грузов»/фильтров */
-        --app-mobile-header-inner-stack: 42px;
+        /* Высота «тела» шапки: переключатель компании + «Служ.» могут занимать 2 строки */
+        --app-mobile-header-inner-stack: 72px;
+        /* Просвет между fixed .app-header и первым блоком страницы (фон app-main) */
+        --app-mobile-content-below-header-gap: 0.85rem;
         /* Зазор под fixed tabbar; «воздух» после последнего блока страницы */
         --app-mobile-tabbar-clearance: 112px;
         --app-mobile-scroll-bottom-air: 3cm;
@@ -403,7 +405,10 @@ body {
         overflow-y: auto;
         overflow-x: auto; /* не обрезать табель и широкие таблицы слева */
         -webkit-overflow-scrolling: touch;
-        padding-top: calc(var(--app-mobile-header-inner-stack) + max(var(--space-4, 16px), env(safe-area-inset-top)));
+        padding-top: calc(
+            var(--app-mobile-header-inner-stack) + max(var(--space-4, 16px), env(safe-area-inset-top)) +
+                var(--app-mobile-content-below-header-gap)
+        );
         padding-bottom: 0;
         padding-left: max(var(--space-3, 12px), env(safe-area-inset-left));
         padding-right: max(var(--space-3, 12px), env(safe-area-inset-right));
@@ -1231,6 +1236,11 @@ body {
     z-index: 5;
     overflow: visible;
 }
+.documents-sticky-body .documents-new-order-bar--in-sticky {
+    margin-top: 0;
+    padding-top: 0.15rem;
+    padding-bottom: 0.15rem;
+}
 .documents-toolbar-below-sticky .documents-new-order-bar {
     margin-bottom: 0.15rem;
 }
@@ -1320,15 +1330,24 @@ body {
     .sendings-bulk-actions-sticky {
         top: 5rem;
     }
-    .cargo-page-sticky-header {
-        /* В мобильном режиме скролл в app-main; stick к верху видимой области */
-        top: 0;
+    .cargo-page-sticky-header,
+    .dashboard-sticky-filters {
+        /* В app-main sticky top:0 совпадает с верхом экрана — блок уезжает под fixed .app-header */
+        position: relative;
+        top: auto;
     }
-    /* Документы: карточка «Документы» + вкладки — единый зазор под app-header */
+    /* Просвет задаётся padding-top у .app-main — не дублируем на страницах */
+    .dashboard-page--saas-analytics,
+    .cargo-page-root--saas-analytics {
+        padding-top: 0;
+    }
+    .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters {
+        margin-top: 0;
+    }
     .documents-page {
-        --documents-page-top-gap: 0.5rem;
+        --documents-page-top-gap: 0;
         --documents-sticky-pad-top: 0.85rem;
-        padding-top: var(--documents-page-top-gap);
+        padding-top: 0;
     }
     .documents-page .cargo-page-sticky-header.documents-page-sticky-header,
     .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
@@ -1608,13 +1627,6 @@ body {
     .doc-section-table thead th,
     .doc-tariffs-table thead th {
         top: 180px; /* мобильный: хедер + вкладки + фильтры */
-    }
-}
-@media (max-width: 768px) {
-    .dashboard-sticky-filters {
-        top: 0;
-        padding-top: 0.5rem;
-        padding-bottom: 0.35rem;
     }
 }
 
@@ -2032,7 +2044,7 @@ body {
     }
 
     .cargo-page-root--saas-analytics .cargo-page-sticky-header {
-        margin-top: 0.5rem;
+        margin-top: 0;
         padding-top: 0.95rem;
         padding-bottom: 0.55rem;
     }

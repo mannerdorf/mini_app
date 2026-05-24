@@ -43,6 +43,22 @@ function CargoLastMileBadge({ item }: { item: CargoItem }) {
   );
 }
 
+function getCargoRouteLabel(item: CargoItem): string {
+  const from = cityToCode(item.CitySender);
+  const to = cityToCode(item.CityReceiver);
+  return [from, to].filter(Boolean).join(" – ") || "—";
+}
+
+function CargoRouteBadge({ item }: { item: CargoItem }) {
+  const route = getCargoRouteLabel(item);
+  if (route === "—") return <span>—</span>;
+  return (
+    <AppBadge tone="info" style={{ display: "inline-block", whiteSpace: "nowrap" }}>
+      {route}
+    </AppBadge>
+  );
+}
+
 type InnerTableSortCol = "number" | "datePrih" | "status" | "mest" | "pw" | "sum";
 
 type CargoCustomerTableProps = {
@@ -488,6 +504,16 @@ export function CargoCustomerTable({
                             <th
                               style={{
                                 padding: "0.35rem 0.3rem",
+                                textAlign: "left",
+                                fontWeight: 600,
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              Маршрут
+                            </th>
+                            <th
+                              style={{
+                                padding: "0.35rem 0.3rem",
                                 textAlign: "center",
                                 fontWeight: 600,
                                 width: "2.5rem",
@@ -651,6 +677,9 @@ export function CargoCustomerTable({
                                   <StatusBadge status={item.State} />
                                   <CargoLastMileBadge item={item} />
                                 </Flex>
+                              </td>
+                              <td style={{ padding: "0.35rem 0.3rem" }}>
+                                <CargoRouteBadge item={item} />
                               </td>
                               <td style={{ padding: "0.35rem 0.3rem", textAlign: "center" }}>
                                 {isFerry(item) ? (
@@ -910,14 +939,10 @@ export function CargoCardsList({
                 className="cargo-item-route"
               >
                 {(() => {
-                  const isFerry =
-                    item?.AK === true || item?.AK === "true" || item?.AK === "1" || item?.AK === 1;
-                  const from = cityToCode(item.CitySender);
-                  const to = cityToCode(item.CityReceiver);
-                  const route = [from, to].filter(Boolean).join(" – ") || "-";
+                  const ferry = isFerry(item);
                   return (
                     <>
-                      {isFerry ? (
+                      {ferry ? (
                         <Ship
                           className="w-4 h-4"
                           style={{ flexShrink: 0, color: "var(--color-primary-blue)" }}
@@ -930,17 +955,7 @@ export function CargoCardsList({
                           title="Авто"
                         />
                       )}
-                      <Typography.Label
-                        className="text-theme-secondary cargo-item-route-text"
-                        style={{
-                          fontSize: "0.85rem",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {route}
-                      </Typography.Label>
+                      <CargoRouteBadge item={item} />
                     </>
                   );
                 })()}
