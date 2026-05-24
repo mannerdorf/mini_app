@@ -148,6 +148,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          status_changed_at AS "statusChangedAt",
          sla_due_at AS "slaDueAt",
          customer_resolution AS "customerResolution",
+         customer_company_name AS "customerCompanyName",
          created_at AS "createdAt",
          updated_at AS "updatedAt"
        FROM claims

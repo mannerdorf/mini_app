@@ -42,7 +42,7 @@ import {
     type TypeFilterKey,
 } from "../lib/sharedListFilters";
 import type { AccountPermissions, AuthData, DateFilter, StatusFilter } from "../types";
-import { useDocumentsDateRange } from "./useDocumentsDateRange";
+import { useDocumentsDateRange, computeDocumentsApiDateRange } from "./useDocumentsDateRange";
 import { useDocumentsDataLoad } from "./useDocumentsDataLoad";
 import { useCargoTransportFilter, usePerevozki } from "../hooks/useApi";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
@@ -518,12 +518,14 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         requestedAmount: number | null;
         approvedAmount: number | null;
         status: ClaimStatusKey;
+        customerCompanyName?: string;
         createdAt: string;
         updatedAt: string;
     }[]>([]);
     const claimsRequestIdRef = useRef(0);
     const [claimsLoading, setClaimsLoading] = useState(false);
     const [claimsStatusFilter, setClaimsStatusFilter] = useState<string>('all');
+    const [claimsCustomerFilter, setClaimsCustomerFilter] = useState<string>('');
     const [claimsCreateOpen, setClaimsCreateOpen] = useState(false);
     const [claimsCreateSubmitting, setClaimsCreateSubmitting] = useState(false);
     const [claimsCreateError, setClaimsCreateError] = useState<string | null>(null);
@@ -755,6 +757,16 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         setClaimsLoading(true);
         const params = new URLSearchParams();
         if (claimsStatusFilter !== 'all') params.set('status', claimsStatusFilter);
+        const claimsDateRange = computeDocumentsApiDateRange({
+            dateFilter,
+            customDateFrom,
+            customDateTo,
+            selectedMonthForFilter,
+            selectedYearForFilter,
+            selectedWeekForFilter,
+        });
+        if (claimsDateRange.dateFrom) params.set('dateFrom', claimsDateRange.dateFrom);
+        if (claimsDateRange.dateTo) params.set('dateTo', claimsDateRange.dateTo);
         const selectedInn = String(effectiveActiveInn || auth?.inn || '').trim();
         if (selectedInn) params.set('inn', selectedInn);
         try {
@@ -779,7 +791,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
                 setClaimsLoading(false);
             }
         }
-    }, [docSection, auth?.login, auth?.password, auth?.inn, claimsStatusFilter, effectiveActiveInn]);
+    }, [docSection, auth?.login, auth?.password, auth?.inn, claimsStatusFilter, effectiveActiveInn, dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
     const loadSverkiOrderContracts = useCallback(async () => {
         if (!effectiveActiveInn) {
             setSverkiOrderContractOptions([]);
@@ -1047,6 +1059,8 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         setTariffsCustomerFilter('');
         setTariffsCustomerSearchQuery('');
         setIsTariffsCustomerDropdownOpen(false);
+        setClaimsCustomerFilter('');
+        setIsClaimsCustomerDropdownOpen(false);
     }, [effectiveServiceMode]);
     useEffect(() => {
         if (!showEorColumn || !auth?.login || !auth?.password) {
@@ -1140,6 +1154,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [isTariffsRouteDropdownOpen, setIsTariffsRouteDropdownOpen] = useState(false);
     const [isTariffsTypeDropdownOpen, setIsTariffsTypeDropdownOpen] = useState(false);
     const [isClaimsStatusDropdownOpen, setIsClaimsStatusDropdownOpen] = useState(false);
+    const [isClaimsCustomerDropdownOpen, setIsClaimsCustomerDropdownOpen] = useState(false);
     const [favVersion, setFavVersion] = useState(0);
     useEffect(() => {
         setSelectedByCustomerSummaryKeys(new Set());
@@ -1170,6 +1185,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const tariffsRouteButtonRef = useRef<HTMLDivElement | null>(null);
     const tariffsTypeButtonRef = useRef<HTMLDivElement | null>(null);
     const claimsStatusButtonRef = useRef<HTMLDivElement | null>(null);
+    const claimsCustomerButtonRef = useRef<HTMLDivElement | null>(null);
     const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const monthWasLongPressRef = useRef(false);
     const yearLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1722,6 +1738,10 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const uniqueDogovorsCustomers = useMemo(
         () => [...new Set(dogovorsList.map((row) => String(row.customerName || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
         [dogovorsList]
+    );
+    const uniqueClaimsCustomers = useMemo(
+        () => [...new Set(claimsList.map((row) => String(row.customerCompanyName || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
+        [claimsList]
     );
     const claimCargoOptions = useMemo(() => {
         const set = new Set<string>();
@@ -2371,7 +2391,17 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             setDogovorsDownloadingId(null);
         }
     }, []);
-    const filteredClaims = useMemo(() => claimsList, [claimsList]);
+    const filteredClaims = useMemo(() => {
+        let rows = claimsList;
+        if (effectiveServiceMode && claimsCustomerFilter) {
+            rows = rows.filter((row) => String(row.customerCompanyName || '').trim() === claimsCustomerFilter);
+        }
+        return [...rows].sort((a, b) => {
+            const da = new Date(a.createdAt || 0).getTime();
+            const db = new Date(b.createdAt || 0).getTime();
+            return sortOrder === 'asc' ? da - db : db - da;
+        });
+    }, [claimsList, effectiveServiceMode, claimsCustomerFilter, sortOrder]);
     const claimDetailStatusKey = useMemo(
         () => String(claimsDetailData?.claim?.status || 'new') as ClaimStatusKey,
         [claimsDetailData?.claim?.status]
@@ -3101,10 +3131,10 @@ useEffect(() => {
                     </Flex>
                 </Flex>
                 {/* Кнопки разделов: ниже «Документы», выше фильтров */}
+                <div className="documents-sticky-body">
                 <div
                     className="doc-sections-row"
                     style={{
-                        marginBottom: '0.55rem',
                         overflowX: 'auto',
                         WebkitOverflowScrolling: 'touch',
                         paddingBottom: '4px',
@@ -3126,16 +3156,16 @@ useEffect(() => {
                         })}
                     </Flex>
                 </div>
-                {(docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'УПД' || docSection === 'Заявки' || docSection === 'Отправки' || docSection === 'Тарифы' || docSection === 'Акты сверок' || docSection === 'Договоры') && (
+                {(docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'УПД' || docSection === 'Заявки' || docSection === 'Отправки' || docSection === 'Тарифы' || docSection === 'Акты сверок' || docSection === 'Договоры' || docSection === 'Претензии') && (
                 <div className="filters-container filters-row-scroll">
-                    <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
+                    <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
                         {docSection !== 'Тарифы' ? (
                             <Button className="filter-button" style={{ padding: '0.5rem', minWidth: 'auto' }} onClick={() => { setSortBy('date'); setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); }} title={sortOrder === 'desc' ? 'Дата по убыванию' : 'Дата по возрастанию'}>
                                 {sortOrder === 'desc' ? <ArrowDown className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />}
                             </Button>
                         ) : null}
                         <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsSverkiCustomerDropdownOpen(false); setIsDogovorsCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); setIsTariffsCustomerDropdownOpen(false); setIsTariffsRouteDropdownOpen(false); setIsTariffsTypeDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsSverkiCustomerDropdownOpen(false); setIsDogovorsCustomerDropdownOpen(false); setIsClaimsCustomerDropdownOpen(false); setIsClaimsStatusDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); setIsTariffsCustomerDropdownOpen(false); setIsTariffsRouteDropdownOpen(false); setIsTariffsTypeDropdownOpen(false); }}>
                                 Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8, 10)}.${r.dateFrom.slice(5, 7)} – ${r.dateTo.slice(8, 10)}.${r.dateTo.slice(5, 7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -3430,6 +3460,21 @@ useEffect(() => {
                                 </FilterDropdownPortal>
                             </>
                         )}
+                        {docSection === 'Претензии' && effectiveServiceMode && (
+                            <>
+                                <div ref={claimsCustomerButtonRef} style={{ display: 'inline-flex' }}>
+                                    <Button className="filter-button" onClick={() => { setIsClaimsCustomerDropdownOpen(!isClaimsCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsSverkiCustomerDropdownOpen(false); setIsDogovorsCustomerDropdownOpen(false); setIsClaimsStatusDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                        Заказчик: {claimsCustomerFilter ? stripOoo(claimsCustomerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
+                                    </Button>
+                                </div>
+                                <FilterDropdownPortal triggerRef={claimsCustomerButtonRef} isOpen={isClaimsCustomerDropdownOpen} onClose={() => setIsClaimsCustomerDropdownOpen(false)}>
+                                    <div className="dropdown-item" onClick={() => { setClaimsCustomerFilter(''); setIsClaimsCustomerDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                                    {uniqueClaimsCustomers.map(c => (
+                                        <div key={c} className="dropdown-item" onClick={() => { setClaimsCustomerFilter(c); setIsClaimsCustomerDropdownOpen(false); }}><Typography.Body>{stripOoo(c)}</Typography.Body></div>
+                                    ))}
+                                </FilterDropdownPortal>
+                            </>
+                        )}
                         {(docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'УПД') && (
                         <>
                         <div ref={edoStatusButtonRef} style={{ display: 'inline-flex' }}>
@@ -3530,18 +3575,6 @@ useEffect(() => {
                     </div>
                 </div>
                 )}
-                {docSection === 'Заявки' && (
-                    <div className="documents-new-order-bar documents-new-order-bar--in-sticky">
-                        <Button
-                            className="button-primary doc-section-action-btn"
-                            onClick={() => setNewOrderModalOpen(true)}
-                            disabled={!auth?.login || !auth?.password || !effectiveActiveInn}
-                            title={!effectiveActiveInn ? 'Выберите заказчика в хедере' : !auth?.login || !auth?.password ? 'Требуется авторизация' : undefined}
-                        >
-                            Новая заявка
-                        </Button>
-                    </div>
-                )}
                 {(docSection === 'Счета' || docSection === 'УПД') && (
                     <div className="documents-sticky-summary-wrap">
                         {docSection === 'Счета' && !loading && !error && filteredItems.length > 0 && (
@@ -3566,9 +3599,24 @@ useEffect(() => {
                         )}
                     </div>
                 )}
+                </div>
             </div>
+            {docSection === 'Заявки' && (
+                <DocumentsToolbarBelowSticky>
+                    <div className="documents-new-order-bar">
+                        <Button
+                            className="button-primary doc-section-action-btn"
+                            onClick={() => setNewOrderModalOpen(true)}
+                            disabled={!auth?.login || !auth?.password || !effectiveActiveInn}
+                            title={!effectiveActiveInn ? 'Выберите заказчика в хедере' : !auth?.login || !auth?.password ? 'Требуется авторизация' : undefined}
+                        >
+                            Новая заявка
+                        </Button>
+                    </div>
+                </DocumentsToolbarBelowSticky>
+            )}
             {docSection === 'Счета' && (
-            <>
+            <motion.div className="documents-summary-section-body">
             {(loading || !!error) && <DocumentsStateBlocks loading={loading} error={error} emptyText="" />}
             <AnimatePresence mode="wait">
             {!loading && !error && tableModeEffective && sortedGroupedByCustomer.length > 0 ? (
@@ -3787,9 +3835,9 @@ useEffect(() => {
                 />
             )}
             {!loading && !error && filteredItems.length === 0 && (
-                <Typography.Body className="text-empty-state" style={{ padding: '2rem 0' }}>Нет счетов за выбранный период</Typography.Body>
+                <Typography.Body className="text-empty-state documents-summary-empty-state">Нет счетов за выбранный период</Typography.Body>
             )}
-            </>
+            </motion.div>
             )}
             {docSection === 'ЭДО' && (
             <>
@@ -3833,7 +3881,7 @@ useEffect(() => {
             </>
             )}
             {docSection === 'УПД' && (
-            <>
+            <motion.div className="documents-summary-section-body">
             {(actsLoading || !!actsError) && <DocumentsStateBlocks loading={actsLoading} error={actsError} emptyText="" />}
             <AnimatePresence mode="wait">
             {!actsLoading && !actsError && tableModeEffective && sortedGroupedActsByCustomer.length > 0 ? (
@@ -4049,7 +4097,7 @@ useEffect(() => {
             ) : null}
             </AnimatePresence>
             {!actsLoading && !actsError && filteredActs.length === 0 && (
-                <Typography.Body className="text-empty-state" style={{ padding: '2rem 0' }}>Нет УПД за выбранный период</Typography.Body>
+                <Typography.Body className="text-empty-state documents-summary-empty-state">Нет УПД за выбранный период</Typography.Body>
             )}
             {selectedAct && (
                 <ActDetailModal
@@ -4069,7 +4117,7 @@ useEffect(() => {
                     auth={auth}
                 />
             )}
-            </>
+            </motion.div>
             )}
             {docSection === 'Заявки' && (
             <>
