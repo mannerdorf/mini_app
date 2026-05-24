@@ -514,6 +514,12 @@ body {
     font-size: var(--font-size-subhead, 14px);
     outline: none;
 }
+.search-container input::-webkit-search-cancel-button,
+.search-container input::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+    display: none;
+}
 .search-toggle-button {
     background: none;
     border: none;

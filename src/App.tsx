@@ -75,6 +75,7 @@ import {
     syncAppUrlWithActiveTab,
     WbOnlyAppLayout,
     useResetGlobalSearchOnWildberries,
+    isGlobalSearchTab,
     TABS_ALLOWED_ON_RESTORE,
 } from "./wb/appWb";
 import { PUBLIC_OFFER_TEXT, PERSONAL_DATA_CONSENT_TEXT } from "./constants/legalTexts";
@@ -2043,8 +2044,19 @@ export default function App() {
                                 )}
                             </div>
                         )}
-                        {!isWildberriesTab(activeTab) && (
-                            <Button className="search-toggle-button" onClick={() => { setIsSearchExpanded(!isSearchExpanded); if(isSearchExpanded) { handleSearch(''); setSearchText(''); } }}>
+                        {isGlobalSearchTab(activeTab) && (
+                            <Button
+                                className="search-toggle-button"
+                                onClick={() => {
+                                    setIsSearchExpanded(!isSearchExpanded);
+                                    if (isSearchExpanded) {
+                                        handleSearch("");
+                                        setSearchText("");
+                                    }
+                                }}
+                                title={isSearchExpanded ? "Закрыть поиск" : "Поиск"}
+                                aria-label={isSearchExpanded ? "Закрыть поиск" : "Поиск"}
+                            >
                                 {isSearchExpanded ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
                             </Button>
                         )}
@@ -2061,11 +2073,19 @@ export default function App() {
                         </Button>
                     </Flex>
                 </Flex>
-                {!isWildberriesTab(activeTab) && (
+                {isGlobalSearchTab(activeTab) && (
                     <div className={`search-container ${isSearchExpanded ? 'expanded' : 'collapsed'}`}>
                         <Search className="w-5 h-5 text-theme-secondary flex-shrink-0 ml-1" />
-                        <Input type="search" placeholder="Поиск..." className="search-input" value={searchText} onChange={(e) => { setSearchText(e.target.value); handleSearch(e.target.value); }} />
-                        {searchText && <Button className="search-toggle-button" onClick={() => { setSearchText(''); handleSearch(''); }} aria-label="Очистить поиск"><X className="w-4 h-4" /></Button>}
+                        <Input
+                            type="text"
+                            placeholder="Поиск..."
+                            className="search-input"
+                            value={searchText}
+                            onChange={(e) => {
+                                setSearchText(e.target.value);
+                                handleSearch(e.target.value);
+                            }}
+                        />
                     </div>
                 )}
             </header>
