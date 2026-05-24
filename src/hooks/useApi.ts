@@ -305,6 +305,7 @@ type InvoicesParams = {
     dateTo: string;
     activeInn?: string;
     useServiceRequest?: boolean;
+    enabled?: boolean;
 };
 
 async function fetcherInvoices(params: InvoicesParams): Promise<unknown[]> {
@@ -328,8 +329,8 @@ async function fetcherInvoices(params: InvoicesParams): Promise<unknown[]> {
 }
 
 export function useInvoices(params: InvoicesParams) {
-    const { auth, dateFrom, dateTo, activeInn, useServiceRequest } = params;
-    const key = auth?.login && auth?.password
+    const { auth, dateFrom, dateTo, activeInn, useServiceRequest, enabled = true } = params;
+    const key = enabled && auth?.login && auth?.password
         ? ["invoices", auth.login, dateFrom, dateTo, activeInn ?? "", !!useServiceRequest]
         : null;
     const { data, error, isLoading, mutate } = useSWR<unknown[]>(
@@ -352,6 +353,7 @@ type OrdersParams = {
     activeInn?: string;
     useServiceRequest?: boolean;
     mode?: "Customer" | "Sender" | "Receiver";
+    enabled?: boolean;
 };
 
 async function fetcherOrders(params: OrdersParams): Promise<unknown[]> {
@@ -376,8 +378,8 @@ async function fetcherOrders(params: OrdersParams): Promise<unknown[]> {
 }
 
 export function useOrders(params: OrdersParams) {
-    const { auth, dateFrom, dateTo, activeInn, useServiceRequest, mode } = params;
-    const key = auth?.login && auth?.password
+    const { auth, dateFrom, dateTo, activeInn, useServiceRequest, mode, enabled = true } = params;
+    const key = enabled && auth?.login && auth?.password
         ? ["orders", auth.login, dateFrom, dateTo, activeInn ?? "", !!useServiceRequest, mode ?? ""]
         : null;
     const { data, error, isLoading, mutate } = useSWR<unknown[]>(
@@ -399,6 +401,7 @@ type SendingsParams = {
     dateTo: string;
     activeInn?: string;
     useServiceRequest?: boolean;
+    enabled?: boolean;
 };
 
 async function fetcherSendings(params: SendingsParams): Promise<unknown[]> {
@@ -422,8 +425,8 @@ async function fetcherSendings(params: SendingsParams): Promise<unknown[]> {
 }
 
 export function useSendings(params: SendingsParams) {
-    const { auth, dateFrom, dateTo, activeInn, useServiceRequest } = params;
-    const key = auth?.login && auth?.password
+    const { auth, dateFrom, dateTo, activeInn, useServiceRequest, enabled = true } = params;
+    const key = enabled && auth?.login && auth?.password
         ? ["sendings", auth.login, dateFrom, dateTo, activeInn ?? "", !!useServiceRequest]
         : null;
     const { data, error, isLoading, mutate } = useSWR<unknown[]>(
@@ -489,6 +492,7 @@ type ActsParams = {
     dateTo: string;
     activeInn?: string;
     useServiceRequest?: boolean;
+    enabled?: boolean;
 };
 
 async function fetcherActs(params: ActsParams): Promise<unknown[]> {
@@ -512,8 +516,8 @@ async function fetcherActs(params: ActsParams): Promise<unknown[]> {
 }
 
 export function useActs(params: ActsParams) {
-    const { auth, dateFrom, dateTo, activeInn, useServiceRequest } = params;
-    const key = auth?.login && auth?.password
+    const { auth, dateFrom, dateTo, activeInn, useServiceRequest, enabled = true } = params;
+    const key = enabled && auth?.login && auth?.password
         ? ["acts", auth.login, dateFrom, dateTo, activeInn ?? "", !!useServiceRequest]
         : null;
     const { data, error, isLoading, mutate } = useSWR<unknown[]>(

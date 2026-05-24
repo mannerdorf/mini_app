@@ -1217,6 +1217,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         useServiceRequest: serviceModeForCurrentDocSection,
         apiDateRange,
         perevozkiDateRange,
+        docSection,
     });
 
     // При выходе из служебного режима прячем и сбрасываем "компанийные" фильтры.

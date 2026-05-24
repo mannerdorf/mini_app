@@ -2,16 +2,24 @@ import { useEffect } from "react";
 import { useActs, useInvoices, useOrders, usePerevozki, useSendings } from "../hooks/useApi";
 import type { AuthData } from "../types";
 
+type DocSectionKey = 'Счета' | 'ЭДО' | 'УПД' | 'Заявки' | 'Отправки' | 'Претензии' | 'Договоры' | 'Акты сверок' | 'Тарифы';
+
 type Params = {
   auth: AuthData;
   activeInn: string;
   useServiceRequest: boolean;
   apiDateRange: { dateFrom: string; dateTo: string };
   perevozkiDateRange: { dateFrom: string; dateTo: string };
+  docSection: DocSectionKey;
 };
 
 export function useDocumentsDataLoad(params: Params) {
-  const { auth, activeInn, useServiceRequest, apiDateRange, perevozkiDateRange } = params;
+  const { auth, activeInn, useServiceRequest, apiDateRange, perevozkiDateRange, docSection } = params;
+  const loadInvoices = docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'УПД';
+  const loadActs = docSection === 'УПД';
+  const loadOrders = docSection === 'Заявки';
+  const loadSendings = docSection === 'Отправки';
+  const loadPerevozki = docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'УПД';
 
   const {
     items,
@@ -24,6 +32,7 @@ export function useDocumentsDataLoad(params: Params) {
     dateTo: apiDateRange.dateTo,
     activeInn: activeInn || undefined,
     useServiceRequest,
+    enabled: loadInvoices,
   });
 
   const {
@@ -37,6 +46,7 @@ export function useDocumentsDataLoad(params: Params) {
     dateTo: apiDateRange.dateTo,
     activeInn: activeInn || undefined,
     useServiceRequest,
+    enabled: loadActs,
   });
 
   const {
@@ -50,6 +60,7 @@ export function useDocumentsDataLoad(params: Params) {
     dateTo: apiDateRange.dateTo,
     activeInn: activeInn || undefined,
     useServiceRequest,
+    enabled: loadOrders,
   });
   const {
     items: sendingsItems,
@@ -62,6 +73,7 @@ export function useDocumentsDataLoad(params: Params) {
     dateTo: apiDateRange.dateTo,
     activeInn: activeInn || undefined,
     useServiceRequest,
+    enabled: loadSendings,
   });
 
   const {
@@ -74,20 +86,21 @@ export function useDocumentsDataLoad(params: Params) {
     dateTo: perevozkiDateRange.dateTo,
     inn: activeInn || undefined,
     useServiceRequest: !!useServiceRequest,
+    enabled: loadPerevozki,
   });
 
   useEffect(() => {
     if (!useServiceRequest) return;
     const handler = () => {
-      void mutateInvoices(undefined, { revalidate: true });
-      void mutatePerevozki(undefined, { revalidate: true });
-      void mutateActs(undefined, { revalidate: true });
-      void mutateOrders(undefined, { revalidate: true });
-      void mutateSendings(undefined, { revalidate: true });
+      if (loadInvoices) void mutateInvoices(undefined, { revalidate: true });
+      if (loadPerevozki) void mutatePerevozki(undefined, { revalidate: true });
+      if (loadActs) void mutateActs(undefined, { revalidate: true });
+      if (loadOrders) void mutateOrders(undefined, { revalidate: true });
+      if (loadSendings) void mutateSendings(undefined, { revalidate: true });
     };
     window.addEventListener("haulz-service-refresh", handler);
     return () => window.removeEventListener("haulz-service-refresh", handler);
-  }, [useServiceRequest, mutateInvoices, mutatePerevozki, mutateActs, mutateOrders, mutateSendings]);
+  }, [useServiceRequest, loadInvoices, loadPerevozki, loadActs, loadOrders, loadSendings, mutateInvoices, mutatePerevozki, mutateActs, mutateOrders, mutateSendings]);
 
   return {
     items,
