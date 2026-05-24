@@ -491,7 +491,7 @@ export function HaulzDispatchSummary({
     const showHeader = Boolean(title || subtitle || showRefreshButton);
 
     return (
-        <div className="w-full" style={{ maxWidth: "100%", marginBottom: "1rem" }}>
+        <div className="w-full" style={{ maxWidth: "100%", minWidth: 0, marginBottom: "1rem" }}>
             {showHeader && (
                 <Flex align="flex-start" justify="space-between" wrap="wrap" gap="0.5rem" style={{ marginBottom: "0.75rem" }}>
                     <div>

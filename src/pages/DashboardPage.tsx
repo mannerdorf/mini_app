@@ -2512,7 +2512,7 @@ export function DashboardPage({
     }
 
     return (
-        <div className={`w-full dashboard-page-offset${saasDashboardMotion ? " dashboard-page--saas-analytics" : ""}`}>
+        <div className={`w-full dashboard-page-offset${saasDashboardMotion ? " dashboard-page--saas-analytics" : ""}`} style={{ minWidth: 0, maxWidth: "100%" }}>
             {/* === ВИДЖЕТ 1: Фильтры (включить: WIDGET_1_FILTERS = true) === */}
             {WIDGET_1_FILTERS && (
             <motion.div {...(dashboardMotionEnabled ? cargoSummaryMotion : { initial: false })}>
@@ -2727,7 +2727,6 @@ export function DashboardPage({
                         perevozkiLoading={loading}
                         perevozkiError={error}
                         perevozkiMutate={mutatePerevozki}
-                        showRefreshButton
                         showSums={showSums}
                     />
                 </div>
@@ -2738,9 +2737,6 @@ export function DashboardPage({
             {WIDGET_2_STRIP && showSums && (
             <DashboardMotionItem enabled={dashboardMotionEnabled}>
             <>
-            {useServiceRequest && (
-                <Typography.Body style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>Приемка</Typography.Body>
-            )}
             {/* Раскрывающаяся полоска: в свёрнутом виде — период + переключатели; в развёрнутом — переключатель и диаграммы */}
             <div
                 className="home-strip"

@@ -108,13 +108,17 @@ export function WbOnlyAppLayout({ desktopExpanded, onLogout, children, saasShell
   );
 }
 
+export function isGlobalSearchTab(activeTab: Tab): boolean {
+  return !isWildberriesTab(activeTab) && activeTab !== "dashboard" && activeTab !== "home";
+}
+
 export function useResetGlobalSearchOnWildberries(
   activeTab: Tab,
   setIsSearchExpanded: (v: boolean | ((p: boolean) => boolean)) => void,
   setSearchText: (t: string) => void,
 ) {
   useEffect(() => {
-    if (!isWildberriesTab(activeTab)) return;
+    if (isGlobalSearchTab(activeTab)) return;
     setIsSearchExpanded(false);
     setSearchText("");
   }, [activeTab, setIsSearchExpanded, setSearchText]);
