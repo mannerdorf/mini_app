@@ -1,0 +1,135 @@
+/**
+ * Haulz Design Tokens — единая типографика и размеры контролов.
+ * Импортировать до styles.css.
+ */
+:root {
+    /* Typography scale (16px base) */
+    --text-xs: 0.6875rem;   /* 11px — tab bar, micro labels */
+    --text-sm: 0.8125rem;   /* 13px — badges, table meta, empty states */
+    --text-base: 0.875rem;  /* 14px — filters, tabs, secondary body */
+    --text-md: 1rem;        /* 16px — body, inputs, primary buttons */
+    --text-lg: 1.125rem;    /* 18px — section / card titles */
+    --text-xl: 1.25rem;     /* 20px — page H1 */
+    --text-2xl: 1.625rem;   /* 26px — profile hero title */
+
+    /* Control metrics */
+    --control-height-chip: 36px;
+    --control-height-button: 40px;
+    --control-height-badge: 24px;
+    --control-padding-y-chip: 8px;
+    --control-padding-x-chip: 14px;
+    --control-padding-y-button: 10px;
+    --control-padding-x-button: 18px;
+    --control-padding-badge-y: 4px;
+    --control-padding-badge-x: 10px;
+
+    /* Unified primary (SaaS) */
+    --color-primary-blue: #2563eb;
+    --color-primary-blue-hover: #1d4ed8;
+
+    /* Dashboard plan/fact block (legacy DASH_PLAN_FACT_TYPO → tokens) */
+    --dash-section-title-size: var(--text-lg);
+    --dash-section-desc-size: var(--text-base);
+    --dash-badge-size: var(--text-sm);
+    --dash-subhead-size: var(--text-sm);
+    --dash-meta-size: var(--text-sm);
+    --dash-tile-date-size: var(--text-sm);
+    --dash-tile-line-size: var(--text-sm);
+    --dash-table-size: var(--text-sm);
+    --dash-status-pill-size: var(--text-sm);
+}
+
+/* --- Typography utilities --- */
+.text-page-title {
+    margin: 0;
+    font-family: "Manrope", "DM Sans", system-ui, sans-serif;
+    font-size: var(--text-xl);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    color: var(--color-text-primary);
+}
+
+.text-section-title {
+    margin: 0;
+    font-size: var(--text-lg);
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--color-text-primary);
+}
+
+.text-body {
+    font-size: var(--text-md);
+    line-height: 1.47;
+    color: var(--color-text-primary);
+}
+
+.text-secondary {
+    font-size: var(--text-base);
+    line-height: 1.45;
+    color: var(--color-text-secondary);
+}
+
+.text-caption {
+    font-size: var(--text-sm);
+    line-height: 1.35;
+    color: var(--color-text-secondary);
+}
+
+.text-empty-state {
+    font-size: var(--text-sm);
+    line-height: 1.45;
+    color: var(--color-text-secondary);
+}
+
+/* --- Dashboard analytics typography --- */
+.dash-analytics-title {
+    font-size: var(--dash-section-title-size);
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.dash-analytics-desc {
+    font-size: var(--dash-section-desc-size);
+    color: var(--color-text-secondary);
+    margin-bottom: 0.75rem;
+}
+
+.dash-analytics-badge {
+    font-size: var(--dash-badge-size);
+    padding: var(--control-padding-badge-y) var(--control-padding-badge-x);
+    border-radius: 999px;
+    min-height: var(--control-height-badge);
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+    line-height: 1;
+}
+
+.dash-analytics-subhead {
+    font-size: var(--dash-subhead-size);
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+}
+
+.dash-analytics-meta {
+    font-size: var(--dash-meta-size);
+    color: var(--color-text-secondary);
+}
+
+.dash-analytics-table {
+    font-size: var(--dash-table-size);
+}
+
+.dash-analytics-status-pill {
+    font-size: var(--dash-status-pill-size);
+    padding: var(--control-padding-badge-y) var(--control-padding-badge-x);
+    border-radius: 999px;
+    font-weight: 600;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--control-height-badge);
+    box-sizing: border-box;
+    line-height: 1;
+}

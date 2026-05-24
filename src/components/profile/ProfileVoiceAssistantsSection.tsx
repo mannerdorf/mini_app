@@ -25,7 +25,7 @@ export function ProfileVoiceAssistantsSection({ activeAccount, onBack }: Props) 
                     <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
                         <ArrowLeft className="w-4 h-4" />
                     </Button>
-                    <Typography.Headline style={{ fontSize: "1.25rem" }}>Голосовые помощники</Typography.Headline>
+                    <Typography.Headline className="text-page-title">Голосовые помощники</Typography.Headline>
                 </Flex>
                 <Panel className="cargo-card" style={{ padding: "1rem" }}>
                     <Typography.Body style={{ color: "var(--color-text-secondary)" }}>
@@ -42,7 +42,7 @@ export function ProfileVoiceAssistantsSection({ activeAccount, onBack }: Props) 
                 <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <Typography.Headline style={{ fontSize: "1.25rem" }}>Голосовые помощники</Typography.Headline>
+                <Typography.Headline className="text-page-title">Голосовые помощники</Typography.Headline>
             </Flex>
             <Typography.Body style={{ marginBottom: "0.75rem", fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>Алиса</Typography.Body>
             <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>

@@ -18,7 +18,7 @@ export function SupportRedirectPage({ onOpenSupport }: SupportRedirectPageProps)
 
   return (
     <div className="w-full p-8 text-center">
-      <Typography.Headline>Поддержка</Typography.Headline>
+      <Typography.Headline className="text-page-title">Поддержка</Typography.Headline>
       <Typography.Body style={{ color: "var(--color-text-secondary)" }}>
         {message}
       </Typography.Body>

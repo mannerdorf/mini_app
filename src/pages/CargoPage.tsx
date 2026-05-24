@@ -509,7 +509,7 @@ export function CargoPage({
         <div className={`w-full ${rootShellClass}`} style={{ minWidth: 0, maxWidth: '100%' }}>
             <div className="cargo-page-sticky-header">
             <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <Typography.Headline style={{ fontSize: '1.25rem' }}>Грузы</Typography.Headline>
+                <Typography.Headline className="text-page-title">Грузы</Typography.Headline>
                 <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                     <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
                     <span className="roles-switch-wrap" style={{ display: 'inline-flex' }} aria-label={tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}>

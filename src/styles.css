@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Manrope:wght@400;500;600;700&display=swap");
-
 /* Apple-style: системные шрифты (SF Pro на Mac, Segoe UI на Windows) */
 
 .light-mode .filter-dropdown .search-input,
@@ -93,7 +91,7 @@ body {
     --color-text-primary: #f5f5f7;
     --color-text-secondary: #a1a1a6;
     --color-border: #38383a;
-    --color-primary-blue: #0071e3; /* Apple blue */
+    --color-primary-blue: #2563eb;
     --color-tumbler-bg-off: #3a3a3c;
     --color-tumbler-bg-on: #0071e3;
     --color-tumbler-knob: #fff;
@@ -622,18 +620,24 @@ body {
 .checkbox-row a { color: var(--color-primary-blue); text-decoration: none; }
 .checkbox-row a:hover { text-decoration: underline; }
 .button-primary {
-    padding: var(--pad-button, 12px 20px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-height: var(--control-height-button, 40px);
+    padding: var(--control-padding-y-button, 10px) var(--control-padding-x-button, 18px);
     background-color: var(--color-primary-blue);
     color: #fff;
     border: none;
     border-radius: var(--radius-md, 12px);
     font-weight: 500;
-    font-size: var(--font-size-body, 17px);
+    font-size: var(--text-md, 1rem);
+    line-height: 1.2;
     cursor: pointer;
     transition: background-color 0.2s, opacity 0.2s;
     margin-top: var(--space-2, 8px);
 }
-.button-primary:hover:not(:disabled) { background-color: #0077ed; opacity: 0.95; }
+.button-primary:hover:not(:disabled) { background-color: var(--color-primary-blue-hover, #1d4ed8); opacity: 0.95; }
 .button-primary:disabled { background-color: var(--color-text-secondary); cursor: not-allowed; opacity: 0.7; }
 .login-error {
     display: flex;
@@ -832,20 +836,22 @@ body {
         min-width: 0;
         overflow: visible;
     }
-    /* Бейдж роли (Заказчик / Отправитель / Получатель): меньше шрифт, чуть шире плашка */
-    .cargo-list-item .cargo-item-row-1 .role-badge {
-        font-size: 0.58rem !important;
-        padding: 0.1rem 0.52rem !important;
-        min-height: 22px !important;
+    /* Бейдж роли (Заказчик / Отправитель / Получатель) */
+    .cargo-list-item .cargo-item-row-1 .role-badge,
+    .cargo-list-item .cargo-item-row-1 .app-badge {
+        font-size: var(--text-sm, 0.8125rem) !important;
+        padding: var(--control-padding-badge-y, 4px) var(--control-padding-badge-x, 10px) !important;
+        min-height: var(--control-height-badge, 24px) !important;
         min-width: 5.6rem;
         letter-spacing: -0.02em;
         white-space: nowrap;
         box-sizing: border-box;
     }
-    .modal-header .role-badge {
-        font-size: 0.6rem !important;
-        padding: 0.12rem 0.55rem !important;
-        min-height: 22px !important;
+    .modal-header .role-badge,
+    .modal-header .app-badge {
+        font-size: var(--text-sm, 0.8125rem) !important;
+        padding: var(--control-padding-badge-y, 4px) var(--control-padding-badge-x, 10px) !important;
+        min-height: var(--control-height-badge, 24px) !important;
         min-width: 5.6rem;
         max-width: none;
     }
@@ -910,15 +916,60 @@ body {
 
 /* Единая высота бейджей во всех разделах */
 .role-badge,
-.status-value {
+.status-value,
+.app-badge {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center;
-    min-height: 24px !important;
+    min-height: var(--control-height-badge, 24px) !important;
     box-sizing: border-box !important;
     line-height: 1 !important;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
+    padding: var(--control-padding-badge-y, 4px) var(--control-padding-badge-x, 10px) !important;
+    font-size: var(--text-sm, 0.8125rem) !important;
+    font-weight: 600;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.app-badge--default {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+}
+.app-badge--info {
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--color-primary-blue);
+    border: 1px solid rgba(59, 130, 246, 0.4);
+}
+.app-badge--success {
+    background: rgba(52, 211, 153, 0.2);
+    color: var(--color-success-status);
+    border: 1px solid rgba(52, 211, 153, 0.35);
+}
+.app-badge--warning {
+    background: rgba(250, 204, 21, 0.2);
+    color: var(--color-transit-status);
+    border: 1px solid rgba(250, 204, 21, 0.45);
+}
+.app-badge--danger {
+    background: rgba(239, 68, 68, 0.16);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+}
+.app-badge--purple {
+    background: rgba(139, 92, 246, 0.2);
+    color: #6d28d9;
+    border: 1px solid rgba(139, 92, 246, 0.45);
+}
+.app-badge--role {
+    background: var(--color-panel-secondary, var(--color-bg-hover));
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+}
+.app-badge--neutral {
+    background: var(--color-bg-hover);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
 }
 
 /* Документы: внутренняя таблица (дата, статус, маршрут) — на мобильной столбцы шире, данные без переноса */
@@ -1244,41 +1295,40 @@ body {
     background: var(--color-bg-primary);
 }
 @media (max-width: 768px) {
-    /* Мобильная «Отправки»: панель «Выбрано отправок» + EOR / Плановая дата — в 2 раза компактнее */
+    /* Мобильная «Отправки»: панель bulk — читаемые размеры, единая высота chip */
     .sendings-bulk-actions-bar {
-        padding: 0.3rem 0.375rem !important;
-        margin-bottom: 0.25rem !important;
+        padding: 0.45rem 0.5rem !important;
+        margin-bottom: 0.35rem !important;
         border-radius: 10px;
     }
     .sendings-bulk-actions-bar__row {
-        gap: 0.275rem !important;
+        gap: 0.4rem !important;
     }
     .sendings-bulk-actions-bar__label {
-        font-size: 0.45rem !important;
-        line-height: 1.2;
+        font-size: var(--text-sm, 0.8125rem) !important;
+        line-height: 1.3;
     }
     .sendings-bulk-actions-bar .filter-button {
-        padding: 0.175rem 0.3rem !important;
-        font-size: 0.4rem !important;
-        border-radius: 6px;
-        min-height: unset;
+        min-height: var(--control-height-chip, 36px) !important;
+        padding: var(--control-padding-y-chip, 8px) var(--control-padding-x-chip, 14px) !important;
+        font-size: var(--text-base, 0.875rem) !important;
+        border-radius: var(--radius-md, 12px);
     }
     .sendings-bulk-actions-bar .filter-button svg {
-        width: 0.5rem !important;
-        height: 0.5rem !important;
-        margin-right: 2px !important;
+        width: 0.875rem !important;
+        height: 0.875rem !important;
     }
     .sendings-bulk-actions-bar .button-primary {
-        padding: 0.175rem 0.28rem !important;
-        font-size: 0.4rem !important;
-        border-radius: 6px;
-        min-height: unset;
+        min-height: var(--control-height-chip, 36px) !important;
+        padding: var(--control-padding-y-chip, 8px) var(--control-padding-x-chip, 14px) !important;
+        font-size: var(--text-base, 0.875rem) !important;
+        border-radius: var(--radius-md, 12px);
     }
     .sendings-bulk-actions-bar > p,
     .sendings-bulk-actions-bar > span {
-        margin-top: 0.175rem !important;
-        font-size: 0.39rem !important;
-        line-height: 1.2;
+        margin-top: 0.25rem !important;
+        font-size: var(--text-sm, 0.8125rem) !important;
+        line-height: 1.3;
     }
     .sendings-bulk-actions-sticky {
         top: 5rem;
@@ -1540,16 +1590,20 @@ body {
 .filter-group { position: relative; z-index: 30; }
 
 .filter-button {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    padding: var(--space-2, 8px) var(--space-3, 12px);
+    justify-content: center;
+    box-sizing: border-box;
+    min-height: var(--control-height-chip, 36px);
+    padding: var(--control-padding-y-chip, 8px) var(--control-padding-x-chip, 14px);
     background-color: var(--color-bg-card);
     color: var(--color-text-primary);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md, 12px);
     cursor: pointer;
-    font-size: var(--font-size-subhead, 14px);
+    font-size: var(--text-base, 0.875rem);
     font-weight: 400;
+    line-height: 1.2;
     transition: background-color 0.2s, border-color 0.2s;
 }
 .filter-button:hover { background-color: var(--color-bg-hover); }
@@ -1571,16 +1625,45 @@ body {
     flex-shrink: 0;
 }
 
-.doc-section-tab:hover { opacity: 0.92; }
-.doc-section-tab:active { transform: scale(0.98); }
+.doc-section-tab {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-height: var(--control-height-chip, 36px);
+    padding: var(--control-padding-y-chip, 8px) 1rem;
+    font-size: var(--text-base, 0.875rem);
+    font-weight: 600;
+    line-height: 1.2;
+    border-radius: var(--radius-md, 12px);
+    border: 1px solid var(--color-border, #e5e7eb);
+    background: var(--color-panel-secondary, #f3f4f6);
+    color: var(--color-text-secondary, #6b7280);
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.doc-section-tab--active {
+    border: none;
+    background: var(--color-primary-blue, #2563eb);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+.doc-section-tab:hover:not(.doc-section-tab--active) {
+    background: var(--color-bg-hover, #e5e7eb);
+    border-color: var(--color-border, #d1d5db);
+}
+.doc-section-tab:active {
+    transform: scale(0.98);
+}
 
-/* Документы: кнопки действий в разделах (Заявки, Претензии) — не выше вкладок ЭДО/Счета */
+/* Документы: кнопки действий в разделах (Заявки, Претензии) — как вкладки разделов */
 .documents-page .doc-section-action-btn {
-    padding: 0.5rem 1rem !important;
-    font-size: 0.8rem !important;
+    min-height: var(--control-height-chip, 36px) !important;
+    padding: var(--control-padding-y-chip, 8px) 1rem !important;
+    font-size: var(--text-base, 0.875rem) !important;
     font-weight: 600 !important;
-    border-radius: 12px !important;
-    min-height: unset !important;
+    border-radius: var(--radius-md, 12px) !important;
     line-height: 1.2 !important;
     margin-top: 0 !important;
     box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
@@ -1757,16 +1840,16 @@ body {
         min-width: 0;
         width: 100%;
     }
-    /* Базовый режим: label 0.75rem → 0.375rem, value 0.9rem → 0.45rem */
+    /* Базовый режим KPI на mobile: читаемые размеры (≥11px / ≥14px) */
     .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals .summary-metrics > * > :first-child,
     .cargo-page-root .cargo-summary-totals .summary-metrics > * > :first-child {
-        font-size: 0.375rem !important;
-        line-height: 1.15 !important;
+        font-size: var(--text-xs, 0.6875rem) !important;
+        line-height: 1.2 !important;
     }
     .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals .summary-metrics > * > :last-child,
     .cargo-page-root .cargo-summary-totals .summary-metrics > * > :last-child {
-        font-size: 0.45rem !important;
-        line-height: 1.15 !important;
+        font-size: var(--text-base, 0.875rem) !important;
+        line-height: 1.2 !important;
     }
     .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals--saas-kpi.cargo-card,
     .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi.cargo-card {
@@ -1775,21 +1858,21 @@ body {
     }
     .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals--saas-kpi .summary-metrics > div,
     .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics > div {
-        padding: 0.31rem 0.225rem;
-        border-radius: 6px;
+        padding: 0.5rem 0.4rem;
+        border-radius: 8px;
     }
     .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals--saas-kpi .summary-metrics > div::before,
     .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics > div::before {
         height: 1.5px;
     }
-    /* SaaS KPI: label 0.68rem → 0.34rem, value 1.06rem → 0.53rem */
+    /* SaaS KPI mobile: label 11px, value 14px */
     .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals--saas-kpi .summary-metrics > div > :first-child,
     .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics > div > :first-child {
-        font-size: 0.34rem !important;
+        font-size: var(--text-xs, 0.6875rem) !important;
     }
     .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals--saas-kpi .summary-metrics > div > :last-child,
     .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics > div > :last-child {
-        font-size: 0.53rem !important;
+        font-size: var(--text-base, 0.875rem) !important;
     }
 }
 @media (max-width: 420px) {
@@ -4502,7 +4585,7 @@ body {
 .profile-saas-h1 {
     margin: 0;
     font-family: "Manrope", "DM Sans", system-ui, sans-serif;
-    font-size: 1.625rem;
+    font-size: var(--text-2xl, 1.625rem);
     font-weight: 700;
     letter-spacing: -0.025em;
     line-height: 1.2;

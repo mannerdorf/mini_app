@@ -81,8 +81,10 @@ import {
     DocumentsSummaryCard,
     DocumentsStateBlocks,
     DocumentsToolbarBelowSticky,
+    DocumentsRouteBadge,
     type DocumentsApiDebugSnapshot,
 } from "./documentsViewBlocks";
+import { AppBadge } from "../components/shared/AppBadge";
 import {
     cargoExpandMotionProps,
     cargoListContainerVariants,
@@ -3090,7 +3092,7 @@ useEffect(() => {
         <div className={`w-full documents-page${documentsServiceSaasUi ? " documents-page--saas-analytics" : ""}${(docSection === 'Счета' || docSection === 'УПД') ? " documents-page--with-summary-sections" : ""}${docSection === 'ЭДО' ? " documents-page--with-edo-section" : ""}${docSection === 'Заявки' ? " documents-page--with-orders-section" : ""}${docSection === 'Отправки' ? " documents-page--with-sendings-section" : ""}${docSection === 'Тарифы' ? " documents-page--with-tariffs-section" : ""}${docSection === 'Договоры' ? " documents-page--with-contracts-section" : ""}`} style={{ minWidth: 0, maxWidth: '100%' }}>
             <div className="cargo-page-sticky-header documents-page-sticky-header">
                 <Flex align="center" justify="space-between" style={{ marginBottom: '0.3rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Документы</Typography.Headline>
+                    <Typography.Headline className="text-page-title">Документы</Typography.Headline>
                     <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                         <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
                         <span className="roles-switch-wrap" style={{ display: 'inline-flex' }} aria-label={tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}>
@@ -3115,35 +3117,8 @@ useEffect(() => {
                                 <button
                                     key={key}
                                     type="button"
-                                    className="doc-section-tab"
+                                    className={isActive ? 'doc-section-tab doc-section-tab--active' : 'doc-section-tab'}
                                     onClick={() => setDocSection(key)}
-                                    style={{
-                                        flexShrink: 0,
-                                        padding: '0.5rem 1rem',
-                                        fontSize: '0.8rem',
-                                        fontWeight: 600,
-                                        borderRadius: 12,
-                                        border: isActive ? 'none' : '1px solid var(--color-border, #e5e7eb)',
-                                        background: isActive
-                                            ? 'var(--color-primary-blue, #2563eb)'
-                                            : 'var(--color-panel-secondary, #f3f4f6)',
-                                        color: isActive ? '#fff' : 'var(--color-text-secondary, #6b7280)',
-                                        cursor: 'pointer',
-                                        transition: 'background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s',
-                                        boxShadow: isActive ? '0 2px 8px rgba(37, 99, 235, 0.35)' : 'none',
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        if (!isActive) {
-                                            e.currentTarget.style.background = 'var(--color-bg-hover, #e5e7eb)';
-                                            e.currentTarget.style.borderColor = 'var(--color-border, #d1d5db)';
-                                        }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        if (!isActive) {
-                                            e.currentTarget.style.background = 'var(--color-panel-secondary, #f3f4f6)';
-                                            e.currentTarget.style.borderColor = 'var(--color-border, #e5e7eb)';
-                                        }
-                                    }}
                                 >
                                     {label}
                                 </button>
@@ -3652,12 +3627,12 @@ useEffect(() => {
                                                                     <tr key={inum || j} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={(ev) => { ev.stopPropagation(); setSelectedInvoice(inv); }} title="Открыть счёт">
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{formatInvoiceNumber(inum)}</td>
                                                                         <td className="doc-inner-table-date" style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} /></td>
-                                                                        <td className="doc-inner-table-status" style={{ padding: '0.35rem 0.3rem' }}>{ist ? <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: istBadgeStyle.bg, color: istBadgeStyle.color, border: '1px solid var(--color-border)', whiteSpace: 'nowrap', display: 'inline-block' }}>{ist}</span> : '—'}</td>
+                                                                        <td className="doc-inner-table-status" style={{ padding: '0.35rem 0.3rem' }}>{ist ? <AppBadge tone="neutral" style={{ display: 'inline-block', background: istBadgeStyle.bg, color: istBadgeStyle.color }}>{ist}</AppBadge> : '—'}</td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>
                                                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
                                                                         </td>
                                                                         <td className="doc-inner-table-route" style={{ padding: '0.35rem 0.3rem' }}>
-                                                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)', whiteSpace: 'nowrap', display: 'inline-block' }}>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</span>}
+                                                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
                                                                         </td>
                                                                         {showSums && <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{isum != null ? formatCurrency(isum) : '—'}</td>}
                                                                     </tr>
@@ -3709,12 +3684,12 @@ useEffect(() => {
                                     <tr key={inum || i} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={() => setSelectedInvoice(inv)} title="Открыть счёт">
                                         <td style={{ padding: '0.5rem 0.4rem' }}>{formatInvoiceNumber(inum)}</td>
                                         <td style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} /></td>
-                                        <td style={{ padding: '0.5rem 0.4rem' }}>{ist ? <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: istBadgeStyle.bg, color: istBadgeStyle.color, border: '1px solid var(--color-border)', whiteSpace: 'nowrap', display: 'inline-block' }}>{ist}</span> : '—'}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem' }}>{ist ? <AppBadge tone="neutral" style={{ display: 'inline-block', background: istBadgeStyle.bg, color: istBadgeStyle.color }}>{ist}</AppBadge> : '—'}</td>
                                         <td style={{ padding: '0.5rem 0.4rem' }}>
                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
                                         </td>
                                         <td style={{ padding: '0.5rem 0.4rem' }}>
-                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)', whiteSpace: 'nowrap', display: 'inline-block' }}>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</span>}
+                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
                                         </td>
                                         {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{isum != null ? formatCurrency(isum) : '—'}</td>}
                                     </tr>
@@ -3771,7 +3746,7 @@ useEffect(() => {
                                 </Flex>
                                 <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
                                     <Flex align="center" gap="0.35rem" style={{ minWidth: 0 }}>
-                                        {st && <span className="role-badge" style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.4rem', borderRadius: '999px', background: badgeStyle.bg, color: badgeStyle.color, border: '1px solid var(--color-border)', whiteSpace: 'nowrap' }}>{st}</span>}
+                                        {st && <AppBadge tone="neutral" style={{ background: badgeStyle.bg, color: badgeStyle.color }}>{st}</AppBadge>}
                                     </Flex>
                                     <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{sum != null ? formatCurrency(sum) : '—'}</Typography.Body>
                                 </Flex>
@@ -3812,7 +3787,7 @@ useEffect(() => {
                 />
             )}
             {!loading && !error && filteredItems.length === 0 && (
-                <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет счетов за выбранный период</Typography.Body>
+                <Typography.Body className="text-empty-state" style={{ padding: '2rem 0' }}>Нет счетов за выбранный период</Typography.Body>
             )}
             </>
             )}
@@ -3853,7 +3828,7 @@ useEffect(() => {
                 />
             )}
             {!loading && !error && filteredItems.length === 0 && (
-                <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет счетов за выбранный период</Typography.Body>
+                <Typography.Body className="text-empty-state" style={{ padding: '2rem 0' }}>Нет счетов за выбранный период</Typography.Body>
             )}
             </>
             )}
@@ -4074,7 +4049,7 @@ useEffect(() => {
             ) : null}
             </AnimatePresence>
             {!actsLoading && !actsError && filteredActs.length === 0 && (
-                <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет УПД за выбранный период</Typography.Body>
+                <Typography.Body className="text-empty-state" style={{ padding: '2rem 0' }}>Нет УПД за выбранный период</Typography.Body>
             )}
             {selectedAct && (
                 <ActDetailModal
@@ -4270,9 +4245,9 @@ useEffect(() => {
                                                 </div>
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>
-                                                <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)', whiteSpace: 'nowrap', display: 'inline-block' }}>
+                                                <DocumentsRouteBadge>
                                                     {route}
-                                                </span>
+                                                </DocumentsRouteBadge>
                                             </td>
                                             {effectiveServiceMode && <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>}
                                         </tr>
@@ -4401,9 +4376,9 @@ useEffect(() => {
                                             {requestNumber ? formatInvoiceNumber(requestNumber) : '—'}
                                         </Typography.Body>
                                         {customerRequestNumber && (
-                                            <span className="role-badge" style={{ fontSize: '0.68rem', fontWeight: 600, padding: '0.12rem 0.35rem', borderRadius: '999px', background: 'rgba(99,102,241,0.14)', color: '#4f46e5', border: '1px solid rgba(99,102,241,0.35)', whiteSpace: 'nowrap' }}>
+                                            <AppBadge tone="purple">
                                                 № клиента {customerRequestNumber}
-                                            </span>
+                                            </AppBadge>
                                         )}
                                     </Flex>
                                     <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem', flexShrink: 0 }}>
@@ -4411,9 +4386,9 @@ useEffect(() => {
                                     </Typography.Label>
                                 </Flex>
                                 <Flex justify="space-between" align="center" style={{ marginBottom: '0.45rem' }}>
-                                    <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)', whiteSpace: 'nowrap' }}>
+                                    <DocumentsRouteBadge>
                                         {route}
-                                    </span>
+                                    </DocumentsRouteBadge>
                                     <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
                                         Забор: <DateText value={pickupDate || undefined} />
                                     </Typography.Label>
@@ -4492,7 +4467,7 @@ useEffect(() => {
             ) : null}
             </AnimatePresence>
             {!ordersLoading && !ordersError && orderRowsSorted.length === 0 && (
-                <Typography.Body style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет заявок за выбранный период</Typography.Body>
+                <Typography.Body className="text-empty-state" style={{ padding: '2rem 0' }}>Нет заявок за выбранный период</Typography.Body>
             )}
             </>
             )}
@@ -4504,16 +4479,16 @@ useEffect(() => {
                 <div className="cargo-card documents-sendings-infographic" style={{ padding: '0.6rem 0.75rem', marginBottom: '0.5rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '0.35rem', overflowX: 'auto', whiteSpace: 'nowrap' }}>
-                        <span className="role-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: 'rgba(37,99,235,0.12)', color: 'var(--color-primary-blue)', border: '1px solid rgba(37,99,235,0.35)', flex: '0 0 auto' }}>
+                        <AppBadge tone="info" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', flex: '0 0 auto' }}>
                             <Ship className="w-3 h-3" /> {sendingsInfographic.ferry}
-                        </span>
-                        <span className="role-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: 'rgba(17,24,39,0.08)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)', flex: '0 0 auto' }}>
+                        </AppBadge>
+                        <AppBadge tone="neutral" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', flex: '0 0 auto' }}>
                             <Truck className="w-3 h-3" /> {sendingsInfographic.auto}
-                        </span>
+                        </AppBadge>
                         {sendingsInfographic.routes.map((item) => (
-                            <span key={item.route} className="role-badge" style={{ fontSize: '0.72rem', padding: '0.12rem 0.42rem', borderRadius: '999px', background: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)', whiteSpace: 'nowrap', flex: '0 0 auto' }}>
+                            <AppBadge key={item.route} tone="neutral" style={{ flex: '0 0 auto' }}>
                                 {item.route}: {item.count}
-                            </span>
+                            </AppBadge>
                         ))}
                     </div>
                     <div className="documents-sendings-infographic-status-row" style={{ display: 'flex', flexWrap: 'nowrap', gap: '0.35rem', overflowX: 'auto', whiteSpace: 'nowrap' }}>
@@ -4807,9 +4782,9 @@ useEffect(() => {
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}><DateText value={rawDate ? String(rawDate) : undefined} /></td>
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>{number ? formatInvoiceNumber(number) : '—'}</td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>
-                                                <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)', whiteSpace: 'nowrap', display: 'inline-block' }}>
+                                                <DocumentsRouteBadge>
                                                     {route}
-                                                </span>
+                                                </DocumentsRouteBadge>
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem', textAlign: 'center' }}>
                                                 {transportType === 'ferry' ? (
@@ -5748,9 +5723,9 @@ useEffect(() => {
                                         </Typography.Label>
                                     </Flex>
                                     <Flex justify="space-between" align="center" style={{ marginBottom: '0.45rem', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                        <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)', whiteSpace: 'nowrap' }}>
+                                        <DocumentsRouteBadge>
                                             {route}
-                                        </span>
+                                        </DocumentsRouteBadge>
                                         <Flex align="center" gap="0.35rem">
                                             {transportType === 'ferry' ? (
                                                 <Ship className="w-4 h-4" style={{ color: 'var(--color-primary-blue)' }} title="Паром" />
@@ -5838,7 +5813,7 @@ useEffect(() => {
                 </>
             )}
             {!sendingsLoading && !sendingsError && sendingRowsSorted.length === 0 && (
-                <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет отправок за выбранный период</Typography.Body>
+                <Typography.Body className="text-empty-state" style={{ padding: '2rem 0' }}>Нет отправок за выбранный период</Typography.Body>
             )}
             </>
             )}
@@ -5850,7 +5825,7 @@ useEffect(() => {
                             <Typography.Body>Загрузка тарифов...</Typography.Body>
                         </Flex>
                     ) : filteredTariffs.length === 0 ? (
-                        <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по тарифам</Typography.Body>
+                        <Typography.Body className="text-empty-state" style={{ padding: '2rem 0' }}>Нет данных по тарифам</Typography.Body>
                     ) : (
                         <AnimatePresence mode="wait">
                         {tableModeEffective ? (
@@ -5921,20 +5896,7 @@ useEffect(() => {
                                                 {(() => {
                                                     const fromCode = cityToCode(t.cityFrom || '') || t.cityFrom || '';
                                                     return fromCode ? (
-                                                        <span style={{
-                                                            display: 'inline-block',
-                                                            padding: '0.2rem 0.45rem',
-                                                            borderRadius: 999,
-                                                            background: 'rgba(59, 130, 246, 0.15)',
-                                                            border: '1px solid rgba(59, 130, 246, 0.4)',
-                                                            color: 'var(--color-primary-blue)',
-                                                            fontWeight: 600,
-                                                            fontSize: '0.78rem',
-                                                            lineHeight: 1.2,
-                                                            letterSpacing: '0.02em',
-                                                        }}>
-                                                            {fromCode}
-                                                        </span>
+                                                        <DocumentsRouteBadge>{fromCode}</DocumentsRouteBadge>
                                                     ) : '—';
                                                 })()}
                                             </td>
@@ -5942,20 +5904,7 @@ useEffect(() => {
                                                 {(() => {
                                                     const toCode = cityToCode(t.cityTo || '') || t.cityTo || '';
                                                     return toCode ? (
-                                                        <span style={{
-                                                            display: 'inline-block',
-                                                            padding: '0.2rem 0.45rem',
-                                                            borderRadius: 999,
-                                                            background: 'rgba(59, 130, 246, 0.15)',
-                                                            border: '1px solid rgba(59, 130, 246, 0.4)',
-                                                            color: 'var(--color-primary-blue)',
-                                                            fontWeight: 600,
-                                                            fontSize: '0.78rem',
-                                                            lineHeight: 1.2,
-                                                            letterSpacing: '0.02em',
-                                                        }}>
-                                                            {toCode}
-                                                        </span>
+                                                        <DocumentsRouteBadge>{toCode}</DocumentsRouteBadge>
                                                     ) : '—';
                                                 })()}
                                             </td>
@@ -6019,9 +5968,9 @@ useEffect(() => {
                                             </Flex>
                                         </Flex>
                                         <Flex justify="space-between" align="center" style={{ marginBottom: '0.35rem' }}>
-                                            <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)', whiteSpace: 'nowrap' }}>
+                                            <DocumentsRouteBadge>
                                                 {route}
-                                            </span>
+                                            </DocumentsRouteBadge>
                                             <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
                                                 {t.tariff != null ? formatCurrency(Number(t.tariff)) : '—'}
                                             </Typography.Body>

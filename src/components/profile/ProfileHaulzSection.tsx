@@ -26,7 +26,7 @@ export function ProfileHaulzSection({
                 <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <Typography.Headline style={{ fontSize: "1.25rem" }}>HAULZ</Typography.Headline>
+                <Typography.Headline className="text-page-title">HAULZ</Typography.Headline>
             </Flex>
             <Flex align="center" gap="0.6rem" wrap="wrap">
                 {activeAccount?.permissions?.supervisor === true && activeAccount?.permissions?.haulz === true && (

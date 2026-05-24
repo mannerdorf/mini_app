@@ -19,6 +19,7 @@ import {
   type InvoiceEdoMergedDocLabel,
 } from "../lib/edoStatus";
 import { DateText } from "../components/ui/DateText";
+import { AppBadge } from "../components/shared/AppBadge";
 import { cargoExpandMotionProps, cargoTableGroupRowVariants } from "./cargoMotion";
 import type { DocsSummaryTotals } from "./documentsPipeline";
 
@@ -487,5 +488,26 @@ export function DocumentsApiDebugPanel({ title, snapshot, loading }: DocumentsAp
         ) : null}
       </div>
     </details>
+  );
+}
+
+/** Маршрут / город в таблицах «Документы» — единый info-pill. */
+export function DocumentsRouteBadge({
+  children,
+  className,
+  style,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <AppBadge
+      tone="info"
+      className={className}
+      style={{ display: "inline-block", whiteSpace: "nowrap", ...style }}
+    >
+      {children}
+    </AppBadge>
   );
 }
