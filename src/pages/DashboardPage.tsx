@@ -2530,7 +2530,7 @@ export function DashboardPage({
             {/* === ВИДЖЕТ 1: Фильтры (включить: WIDGET_1_FILTERS = true) === */}
             {WIDGET_1_FILTERS && (
             <motion.div {...(dashboardMotionEnabled ? cargoSummaryMotion : { initial: false })}>
-            <div className="cargo-page-sticky-header dashboard-sticky-filters" style={{ marginBottom: 0 }}>
+            <div className="cargo-page-sticky-header dashboard-sticky-filters">
             <div className="filters-container filters-row-scroll">
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>

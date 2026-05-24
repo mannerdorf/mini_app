@@ -13,7 +13,7 @@ import {
 import { DateText } from "../components/ui/DateText";
 import { StatusBadge, StatusBillBadge } from "../components/shared/StatusBadges";
 import { AppBadge } from "../components/shared/AppBadge";
-import { getSlaInfo, cargoLastMileIsSelfPickup } from "../lib/cargoUtils";
+import { getSlaInfo, cargoLastMileIsSelfPickup, isFerry } from "../lib/cargoUtils";
 import { formatCurrency, stripOoo, cityToCode } from "../lib/formatUtils";
 import { getSumColorByPaymentStatus } from "../lib/statusUtils";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
@@ -488,6 +488,15 @@ export function CargoCustomerTable({
                             <th
                               style={{
                                 padding: "0.35rem 0.3rem",
+                                textAlign: "center",
+                                fontWeight: 600,
+                                width: "2.5rem",
+                              }}
+                              title="Тип перевозки"
+                            />
+                            <th
+                              style={{
+                                padding: "0.35rem 0.3rem",
                                 textAlign: "right",
                                 fontWeight: 600,
                                 cursor: "pointer",
@@ -642,6 +651,21 @@ export function CargoCustomerTable({
                                   <StatusBadge status={item.State} />
                                   <CargoLastMileBadge item={item} />
                                 </Flex>
+                              </td>
+                              <td style={{ padding: "0.35rem 0.3rem", textAlign: "center" }}>
+                                {isFerry(item) ? (
+                                  <Ship
+                                    className="w-4 h-4"
+                                    style={{ color: "var(--color-primary-blue)", display: "inline-block" }}
+                                    title="Паром"
+                                  />
+                                ) : (
+                                  <Truck
+                                    className="w-4 h-4"
+                                    style={{ color: "var(--color-text-secondary)", display: "inline-block" }}
+                                    title="Авто"
+                                  />
+                                )}
                               </td>
                               <td style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
                                 {item.Mest != null ? Math.round(Number(item.Mest)) : "—"}

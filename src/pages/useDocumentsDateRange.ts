@@ -56,6 +56,51 @@ function perevozkiWindowFromApi(api: { dateFrom: string; dateTo: string }): { da
   };
 }
 
+export function computeDocumentsApiDateRange(params: Params): { dateFrom: string; dateTo: string } {
+  const {
+    dateFilter,
+    customDateFrom,
+    customDateTo,
+    selectedMonthForFilter,
+    selectedYearForFilter,
+    selectedWeekForFilter,
+  } = params;
+
+  try {
+    let api: { dateFrom: string; dateTo: string };
+    if (dateFilter === "все") {
+      api = { dateFrom: "2000-01-01", dateTo: new Date().toISOString().slice(0, 10) };
+    } else if (dateFilter === "период") {
+      api = { dateFrom: customDateFrom, dateTo: customDateTo };
+    } else if (dateFilter === "месяц" && selectedMonthForFilter) {
+      const mr = monthRangeOrNull(selectedMonthForFilter.year, selectedMonthForFilter.month);
+      api = mr ?? getDateRange(dateFilter);
+    } else if (dateFilter === "год" && selectedYearForFilter != null && Number.isFinite(selectedYearForFilter)) {
+      const y = selectedYearForFilter;
+      api = { dateFrom: `${y}-01-01`, dateTo: `${y}-12-31` };
+    } else if (dateFilter === "неделя" && selectedWeekForFilter) {
+      api = getWeekRange(selectedWeekForFilter);
+    } else {
+      api = getDateRange(dateFilter);
+    }
+
+    if (!isValidApiRange(api)) {
+      api = getDateRange("месяц");
+    }
+    if (!isValidApiRange(api)) {
+      api = getDateRange("все");
+    }
+    if (!isValidApiRange(api)) {
+      const today = new Date().toISOString().slice(0, 10);
+      api = { dateFrom: "2000-01-01", dateTo: today };
+    }
+
+    return api;
+  } catch {
+    return getDateRange("все");
+  }
+}
+
 export function useDocumentsDateRange(params: Params) {
   const {
     dateFilter,
@@ -67,46 +112,18 @@ export function useDocumentsDateRange(params: Params) {
   } = params;
 
   return useMemo(() => {
-    try {
-      let api: { dateFrom: string; dateTo: string };
-      if (dateFilter === "все") {
-        api = { dateFrom: "2000-01-01", dateTo: new Date().toISOString().slice(0, 10) };
-      } else if (dateFilter === "период") {
-        api = { dateFrom: customDateFrom, dateTo: customDateTo };
-      } else if (dateFilter === "месяц" && selectedMonthForFilter) {
-        const mr = monthRangeOrNull(selectedMonthForFilter.year, selectedMonthForFilter.month);
-        api = mr ?? getDateRange(dateFilter);
-      } else if (dateFilter === "год" && selectedYearForFilter != null && Number.isFinite(selectedYearForFilter)) {
-        const y = selectedYearForFilter;
-        api = { dateFrom: `${y}-01-01`, dateTo: `${y}-12-31` };
-      } else if (dateFilter === "неделя" && selectedWeekForFilter) {
-        api = getWeekRange(selectedWeekForFilter);
-      } else {
-        api = getDateRange(dateFilter);
-      }
-
-      if (!isValidApiRange(api)) {
-        api = getDateRange("месяц");
-      }
-      if (!isValidApiRange(api)) {
-        api = getDateRange("все");
-      }
-      if (!isValidApiRange(api)) {
-        const today = new Date().toISOString().slice(0, 10);
-        api = { dateFrom: "2000-01-01", dateTo: today };
-      }
-
-      return {
-        apiDateRange: api,
-        perevozkiDateRange: perevozkiWindowFromApi(api),
-      };
-    } catch {
-      const api = getDateRange("все");
-      return {
-        apiDateRange: api,
-        perevozkiDateRange: perevozkiWindowFromApi(api),
-      };
-    }
+    const api = computeDocumentsApiDateRange({
+      dateFilter,
+      customDateFrom,
+      customDateTo,
+      selectedMonthForFilter,
+      selectedYearForFilter,
+      selectedWeekForFilter,
+    });
+    return {
+      apiDateRange: api,
+      perevozkiDateRange: perevozkiWindowFromApi(api),
+    };
   }, [
     dateFilter,
     customDateFrom,

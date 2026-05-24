@@ -1030,16 +1030,41 @@ body {
     }
 }
 
+/* Документы: единый зазор от app-header; липкая шапка не «подпрыгивает» при смене вкладок */
+.documents-page {
+    --documents-page-top-gap: 0.85rem;
+    --documents-sticky-pad-top: 0.85rem;
+    --documents-sticky-bottom-gap: 1rem;
+}
+
 /* Документы: зазор до таблиц; 1.5cm на широких экранах давал ощущение «дыры» под карточкой фильтров */
 .documents-page-sticky-header {
-    margin-bottom: 0.45rem;
+    margin-top: 0 !important;
+    margin-bottom: var(--documents-sticky-bottom-gap) !important;
     /* Не даём overflow-x: hidden «схлопнуть» overflow-y в auto — иначе обрезается контент у нижней границы блока */
     overflow-y: visible;
     /* Строка вкладок и фильтров скроллится в .doc-sections-row / .filters-container — родителю не нужен hidden по X, иначе подрезается верх текста */
     overflow-x: visible;
 }
 
-/* Вкладки разделов ↔ строка фильтров */
+.documents-sticky-body {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0.55rem;
+}
+
+.documents-sticky-body .doc-sections-row {
+    margin-bottom: 0 !important;
+}
+
+.documents-sticky-body .filters-container.filters-row-scroll {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+/* Вкладки разделов ↔ строка фильтров (вне sticky-body — fallback) */
 .documents-page .doc-sections-row {
     margin-bottom: 0.55rem;
 }
@@ -1051,14 +1076,13 @@ body {
     min-width: 0;
     overflow: visible;
 }
-.documents-page .documents-page-sticky-header:has(.documents-sticky-summary-wrap) {
-    margin-bottom: 0.9rem;
+.documents-sticky-summary-wrap:empty {
+    display: none;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 .documents-page--saas-analytics .documents-sticky-summary-wrap {
     margin-top: 0.28rem;
-}
-.documents-page--saas-analytics .documents-page-sticky-header:has(.documents-sticky-summary-wrap) {
-    margin-bottom: 1rem;
 }
 
 /* Надёжный отступ для секций с итогами (Счета/УПД), без зависимости от :has() */
@@ -1080,9 +1104,6 @@ body {
     .documents-page--with-summary-sections.documents-page--saas-analytics .documents-cards-offset-desktop {
         margin-top: 2.5cm;
     }
-    .documents-page .documents-page-sticky-header:has(.documents-sticky-summary-wrap) {
-        margin-bottom: 1.15rem;
-    }
     .documents-page--with-summary-sections .documents-table-offset-desktop .cargo-card thead th {
         top: 300px;
     }
@@ -1100,26 +1121,17 @@ body {
     margin-top: calc(1.05rem + 0.5cm);
 }
 @media (min-width: 769px) {
-    /* Десктоп: таблица/карточки заявок ниже липких вкладок + фильтров + «Новая заявка» */
+    /* Десктоп: таблица/карточки заявок ниже липких вкладок + фильтров; «Новая заявка» — под шапкой */
     .documents-page--with-orders-section .documents-table-offset-desktop,
     .documents-page--with-orders-section .documents-cards-offset-desktop {
-        margin-top: 2.75cm;
+        margin-top: 2cm;
     }
     .documents-page--with-orders-section.documents-page--saas-analytics .documents-table-offset-desktop,
     .documents-page--with-orders-section.documents-page--saas-analytics .documents-cards-offset-desktop {
-        margin-top: 3.25cm;
+        margin-top: 2.5cm;
     }
     .documents-page--with-orders-section .documents-zayavki-below-new-order {
         margin-top: 0.35rem;
-    }
-    .documents-page--with-orders-section .documents-page-sticky-header,
-    .documents-page--with-orders-section.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
-        margin-bottom: 1.35rem;
-        padding-bottom: 0.7rem;
-    }
-    .documents-page--with-orders-section .documents-new-order-bar--in-sticky {
-        margin-bottom: 0.55rem;
-        padding-bottom: 0.45rem;
     }
 }
 
@@ -1136,10 +1148,6 @@ body {
     }
     .documents-page--with-edo-section.documents-page--saas-analytics .documents-table-offset-desktop {
         margin-top: 4cm;
-    }
-    .documents-page--with-edo-section .documents-page-sticky-header,
-    .documents-page--with-edo-section.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
-        margin-bottom: 1.15rem;
     }
 }
 
@@ -1161,10 +1169,6 @@ body {
     .documents-page--with-tariffs-section.documents-page--saas-analytics .documents-table-offset-desktop,
     .documents-page--with-tariffs-section.documents-page--saas-analytics .documents-cards-offset-desktop {
         margin-top: calc(1.05rem + 1.55cm);
-    }
-    .documents-page--with-tariffs-section .documents-page-sticky-header,
-    .documents-page--with-tariffs-section.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
-        margin-bottom: 1.15rem;
     }
 }
 
@@ -1188,10 +1192,6 @@ body {
     }
     .documents-page--with-contracts-section .doc-contracts-table-offset-desktop {
         margin-top: 0;
-    }
-    .documents-page--with-contracts-section .documents-page-sticky-header,
-    .documents-page--with-contracts-section.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
-        margin-bottom: 1.15rem;
     }
 }
 
@@ -1222,7 +1222,7 @@ body {
     }
 }
 
-/* Заявки: кнопка «Новая заявка» (внутри липкого блока — не уезжает под него при скролле) */
+/* Заявки: кнопка «Новая заявка» под липкой шапкой */
 .documents-new-order-bar {
     display: flex;
     align-items: center;
@@ -1231,21 +1231,8 @@ body {
     z-index: 5;
     overflow: visible;
 }
-.documents-new-order-bar--in-sticky {
-    margin-top: 0.75rem;
-    padding-top: 0.5rem;
-    margin-bottom: 0.35rem;
-    padding-bottom: 0.35rem;
-    /* лёгкий разделитель от строки фильтров */
-    border-top: 1px solid var(--color-border);
-}
-@media (max-width: 768px) {
-    .documents-new-order-bar--in-sticky {
-        margin-top: 0.85rem;
-        padding-top: 0.65rem;
-        margin-bottom: 0.5rem;
-        padding-bottom: 0.45rem;
-    }
+.documents-toolbar-below-sticky .documents-new-order-bar {
+    margin-bottom: 0.15rem;
 }
 
 /* Контент заявок (таблица / карточки): зазор от кнопки «Новая заявка» */
@@ -1337,15 +1324,16 @@ body {
         /* В мобильном режиме скролл в app-main; stick к верху видимой области */
         top: 0;
     }
-    /* Документы: карточка «Документы» + вкладки — ниже фиксированного app-header */
+    /* Документы: карточка «Документы» + вкладки — единый зазор под app-header */
     .documents-page {
-        padding-top: 0.5rem;
+        --documents-page-top-gap: 0.5rem;
+        --documents-sticky-pad-top: 0.85rem;
+        padding-top: var(--documents-page-top-gap);
     }
     .documents-page .cargo-page-sticky-header.documents-page-sticky-header,
     .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
-        padding-top: 1rem !important;
-        margin-top: 0.35rem;
-        margin-bottom: 0.55rem !important;
+        padding-top: var(--documents-sticky-pad-top) !important;
+        margin-top: 0 !important;
     }
 }
 
@@ -1373,11 +1361,6 @@ body {
     }
     .documents-page--with-sendings-section.documents-page--saas-analytics .documents-sendings-infographic {
         margin-top: 3.25cm;
-    }
-    .documents-page--with-sendings-section .documents-page-sticky-header,
-    .documents-page--with-sendings-section.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
-        margin-bottom: 1.35rem;
-        padding-bottom: 0.7rem;
     }
     .documents-page--with-sendings-section.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .filters-container.filters-row-scroll {
         margin-bottom: 0.55rem;
@@ -1426,10 +1409,6 @@ body {
     box-shadow:
         0 1px 2px rgba(15, 23, 42, 0.05),
         0 12px 40px rgba(15, 23, 42, 0.06);
-}
-
-.dashboard-page--saas-analytics .filters-container {
-    margin-bottom: 0;
 }
 
 .dashboard-page--saas-analytics .home-strip {
@@ -1515,6 +1494,91 @@ body {
 @media (prefers-reduced-motion: reduce) {
     .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters {
         box-shadow: none;
+    }
+}
+
+/* Десктоп: зазоры app-header → фильтры → KPI-плитки (Главная, Грузы, Документы) */
+@media (min-width: 769px) {
+    .dashboard-page--saas-analytics,
+    .cargo-page-root--saas-analytics,
+    .documents-page--saas-analytics {
+        padding-top: 0.85rem;
+    }
+
+    .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters {
+        margin-bottom: 1rem;
+    }
+
+    .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters .filters-container,
+    .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters .filters-row-scroll {
+        margin-bottom: 0;
+    }
+
+    .dashboard-page--saas-analytics #haulz-dispatch-dashboard {
+        margin-top: 0.15rem;
+    }
+
+    .dashboard-page--saas-analytics #haulz-dispatch-dashboard .haulz-dispatch-stat-grid {
+        margin-top: 0;
+    }
+
+    .cargo-page-root--saas-analytics .cargo-page-sticky-header > :first-child {
+        margin-bottom: 0.85rem !important;
+    }
+
+    .cargo-page-root--saas-analytics .cargo-page-sticky-header .filters-container,
+    .cargo-page-root--saas-analytics .cargo-page-sticky-header .filters-row-scroll {
+        margin-bottom: 0.85rem;
+    }
+
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header > :first-child {
+        margin-bottom: 0.85rem !important;
+    }
+
+    .documents-page--saas-analytics .doc-sections-row {
+        margin-bottom: 0.75rem;
+    }
+
+    .documents-page--saas-analytics .documents-sticky-body .doc-sections-row {
+        margin-bottom: 0 !important;
+    }
+
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .documents-sticky-body .filters-container.filters-row-scroll {
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+    }
+
+    .documents-page--saas-analytics .documents-sticky-summary-wrap {
+        margin-top: 0.75rem;
+    }
+
+    .documents-page--saas-analytics .documents-sticky-body {
+        gap: 0.75rem;
+    }
+
+    /* Счета/УПД: контент под липким блоком (empty state, loader) */
+    .documents-page--with-summary-sections .documents-summary-section-body {
+        margin-top: 0.35rem;
+        padding-top: 0.25rem;
+    }
+
+    .documents-page--with-summary-sections .documents-summary-section-body:has(.documents-table-offset-desktop),
+    .documents-page--with-summary-sections .documents-summary-section-body:has(.documents-cards-offset-desktop) {
+        margin-top: 0;
+        padding-top: 0;
+    }
+
+    .documents-page--with-summary-sections .documents-summary-empty-state {
+        display: block;
+        margin-top: 1.25rem;
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
+        scroll-margin-top: 240px;
+    }
+
+    .documents-page--with-summary-sections .documents-summary-section-body > .py-8 {
+        margin-top: 1rem;
+        padding-top: 1.5rem;
     }
 }
 
@@ -1998,7 +2062,7 @@ body {
  */
 .documents-page--saas-analytics {
     margin-top: 0;
-    padding-top: 0;
+    padding-top: var(--documents-page-top-gap, 0.85rem);
     padding-bottom: 0.35rem;
     border-radius: 0;
     background: transparent;
@@ -2011,8 +2075,9 @@ body {
 .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
     background: var(--color-bg-card);
     border-radius: 14px;
-    padding: 0.4rem 0.75rem 0.45rem;
-    margin-bottom: 0.45rem;
+    padding: var(--documents-sticky-pad-top, 0.85rem) 0.75rem 0.55rem;
+    margin-top: 0 !important;
+    margin-bottom: var(--documents-sticky-bottom-gap, 1rem) !important;
     border: 1px solid rgba(148, 163, 184, 0.22);
     box-shadow:
         0 1px 2px rgba(15, 23, 42, 0.05),
@@ -2026,9 +2091,9 @@ body {
     }
 
     .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
-        margin-top: 0.5rem !important;
-        padding-top: 0.95rem !important;
+        padding-top: var(--documents-sticky-pad-top, 0.85rem) !important;
         padding-bottom: 0.55rem !important;
+        margin-top: 0 !important;
     }
 
     .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header > :first-child {
@@ -2039,16 +2104,9 @@ body {
         margin-bottom: 0.75rem !important;
     }
 
-    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .filters-container.filters-row-scroll {
-        margin-top: 0.55rem !important;
-        margin-bottom: 0.55rem !important;
-    }
-
-    .documents-page--saas-analytics .documents-new-order-bar--in-sticky {
-        margin-top: 0.55rem;
-        padding-top: 0.4rem;
-        padding-bottom: 0.2rem;
-        margin-bottom: 0.2rem;
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .documents-sticky-body .filters-container.filters-row-scroll {
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
     }
 
     .documents-page--saas-analytics .documents-toolbar-below-sticky {
@@ -2056,9 +2114,27 @@ body {
     }
 }
 
+/* Счета/УПД: контент под липким блоком (empty state, loader) — базовый зазор */
+.documents-page--with-summary-sections .documents-summary-empty-state {
+    display: block;
+    margin-top: 0.85rem;
+    padding-top: 1.5rem !important;
+    padding-bottom: 2rem !important;
+    scroll-margin-top: 220px;
+}
+
+.documents-page--with-summary-sections .documents-summary-section-body > .py-8 {
+    margin-top: 0.75rem;
+    padding-top: 1.25rem;
+}
+
 /* Под строкой фильтров — зазор до KPI; сверху — отступ от вкладок разделов */
+.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .documents-sticky-body .filters-container.filters-row-scroll {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
 .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .filters-container.filters-row-scroll {
-    margin-top: 0.35rem;
+    margin-top: 0;
     margin-bottom: 0.55rem;
 }
 .documents-page .cargo-page-sticky-header.documents-page-sticky-header .filters-container.filters-row-scroll {
@@ -2066,21 +2142,15 @@ body {
     margin-bottom: 0.5rem;
 }
 
-/* Сразу под шапкой — контент без KPI (тарифы/договоры) или панель с кнопками: 1.5cm лишний; WebView часто шире 768px */
-.documents-page .cargo-page-sticky-header.documents-page-sticky-header:has(+ .documents-toolbar-below-sticky),
-.documents-page .cargo-page-sticky-header.documents-page-sticky-header:has(+ .doc-section-content) {
-    margin-bottom: 0.45rem;
-}
-
 /* Узкий холст / миниапп: до 1024px ловим WebView с шириной > 768 */
 @media (max-width: 1024px) {
     .documents-page {
-        padding-top: 0.35rem;
+        --documents-page-top-gap: 0.85rem;
+        padding-top: var(--documents-page-top-gap);
     }
     .documents-page-sticky-header,
     .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
-        margin-bottom: 0.45rem;
-        padding-top: 0.85rem !important;
+        padding-top: var(--documents-sticky-pad-top, 0.85rem) !important;
     }
     /* Договоры / Тарифы: на узком холсте чуть плотнее к липкому блоку */
     .documents-page .doc-section-content {
