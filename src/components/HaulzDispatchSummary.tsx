@@ -181,7 +181,13 @@ function TileMetricsFooter({ items, showSums = true }: { items: CargoItem[]; sho
     const volStr = formatVolumeM3(vol);
     const money = sumMoney(items);
     return (
-        <Flex align="center" wrap="wrap" gap="0.35rem" style={{ marginTop: "0.2rem", rowGap: "0.15rem" }}>
+        <Flex
+            align="center"
+            wrap="wrap"
+            gap="0.35rem"
+            className="haulz-dispatch-stat-tile__metrics"
+            style={{ marginTop: "0.2rem", rowGap: "0.15rem" }}
+        >
             {showSums ? (
                 <>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem" }} title="Сумма">
@@ -523,6 +529,9 @@ export function HaulzDispatchSummary({
                     cursor: "pointer",
                     boxSizing: "border-box",
                     outline: "none",
+                    display: "flex",
+                    flexDirection: "column",
+                    height: "100%",
                 }}
             >
                 <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", marginBottom: "0.25rem" }}>{cardTitle}</Typography.Body>
@@ -572,7 +581,7 @@ export function HaulzDispatchSummary({
 
             {!loading && !error && (
                 <>
-                    <Flex className="haulz-dispatch-stat-grid" gap="0.55rem" wrap="wrap" style={{ marginBottom: "1rem" }}>
+                    <div className="haulz-dispatch-stat-grid" style={{ marginBottom: "1rem" }}>
                         <StatCard tileKey="total" cardTitle="Всего в выборке" count={stats.total} footer={<TileMetricsFooter items={items} showSums={showSums} />} accent="#2563eb" />
                         <StatCard
                             tileKey="delivered"
@@ -602,7 +611,7 @@ export function HaulzDispatchSummary({
                             footer={<TileMetricsFooter items={stats.delivering} showSums={showSums} />}
                             accent="#06b6d4"
                         />
-                    </Flex>
+                    </div>
 
                     <Panel className="cargo-card" style={{ padding: dispatchTableOpen ? "1rem 1.1rem" : "0.65rem 0.85rem", borderRadius: 12, background: "var(--color-bg-card)" }}>
                         {tableRows.length === 0 ? (

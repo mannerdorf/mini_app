@@ -22,7 +22,7 @@ import { DateText } from "../components/ui/DateText";
 import { AppBadge } from "../components/shared/AppBadge";
 import { StatusBadge } from "../components/shared/StatusBadges";
 import { cargoExpandMotionProps, cargoListContainerVariants, cargoTableGroupRowVariants, documentsListItemVariants } from "./cargoMotion";
-import type { DocsSummaryTotals, EdoCargoCardItem } from "./documentsPipeline";
+import { findInvoiceLinkedToAct, type DocsSummaryTotals, type EdoCargoCardItem } from "./documentsPipeline";
 
 export function DocumentsEdoTableStatus({ info }: { info: EdoStatusInfo }) {
   return (
@@ -526,6 +526,199 @@ export function DocumentsInvoiceCard({
   );
 }
 
+function actEdoSource(act: any, invoices: any[] | null | undefined): any {
+  return findInvoiceLinkedToAct(act, invoices) ?? act;
+}
+
+export type DocumentsActCardProps = {
+  act: any;
+  invoices?: any[] | null;
+  onOpen: () => void;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
+  showSums?: boolean;
+  showEdoBadges?: boolean;
+};
+
+/** Плитка УПД — тот же каркас, что у счёта, бейджи ЭДО из связанного счёта. */
+export function DocumentsActCard({
+  act,
+  invoices,
+  onOpen,
+  isFavorite,
+  onToggleFavorite,
+  showSums = true,
+  showEdoBadges = true,
+}: DocumentsActCardProps) {
+  const num = act.Number ?? act.number ?? "";
+  const dateDoc = act.DateDoc ?? act.Date ?? act.date ?? "";
+  const sumDoc = act.SumDoc ?? act.Sum ?? act.sum ?? 0;
+  const cust = act.Customer ?? act.customer ?? act.Контрагент ?? act.Contractor ?? act.Organization ?? "";
+  const invoiceNum = act.Invoice ?? act.invoice ?? "";
+  const isFerry = act.AK === true || act.AK === "true" || act.AK === "1" || act.AK === 1;
+  const edoSource = actEdoSource(act, invoices);
+
+  const onShare = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const lines = [
+      `УПД: ${formatInvoiceNumber(String(num))}`,
+      cust && `Заказчик: ${stripOoo(String(cust))}`,
+      sumDoc != null && `Сумма: ${formatCurrency(sumDoc)}`,
+      dateDoc && `Дата: ${typeof dateDoc === "string" ? dateDoc : String(dateDoc)}`,
+      invoiceNum && `Счёт: ${formatInvoiceNumber(String(invoiceNum))}`,
+    ].filter(Boolean);
+    const text = lines.join("\n");
+    if (typeof navigator !== "undefined" && (navigator as Navigator & { share?: (d: ShareData) => Promise<void> }).share) {
+      void (navigator as Navigator & { share: (d: ShareData) => Promise<void> })
+        .share({ title: `УПД ${formatInvoiceNumber(String(num))}`, text })
+        .catch(() => {});
+    } else {
+      try {
+        void navigator.clipboard?.writeText(text);
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+
+  return (
+    <Panel
+      className="cargo-card documents-invoice-card documents-act-card"
+      onClick={onOpen}
+      style={{ cursor: "pointer", marginBottom: "0.75rem", position: "relative" }}
+      title="Открыть УПД"
+    >
+      <Flex justify="space-between" align="start" style={{ marginBottom: "0.5rem", minWidth: 0, overflow: "visible" }}>
+        <Flex align="center" gap="0.5rem" style={{ flexWrap: "wrap", flex: "0 1 auto", minWidth: 0, maxWidth: "60%" }}>
+          <Typography.Body style={{ fontWeight: 600, fontSize: "1rem", color: "var(--color-text-primary)" }}>
+            {formatInvoiceNumber(String(num))}
+          </Typography.Body>
+        </Flex>
+        <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
+          <Button
+            style={{ padding: "0.25rem", minWidth: "auto", background: "transparent", border: "none", cursor: "pointer" }}
+            onClick={onShare}
+            title="Поделиться"
+          >
+            <Share2 className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
+          </Button>
+          <Button
+            style={{ padding: "0.25rem", minWidth: "auto", background: "transparent", border: "none", cursor: "pointer" }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite();
+            }}
+            title={isFavorite ? "Удалить из избранного" : "В избранное"}
+          >
+            <Heart
+              className="w-4 h-4"
+              style={{
+                fill: isFavorite ? "#ef4444" : "transparent",
+                color: isFavorite ? "#ef4444" : "var(--color-text-secondary)",
+              }}
+            />
+          </Button>
+          <Typography.Label className="text-theme-secondary" style={{ fontSize: "0.85rem" }}>
+            <DateText value={typeof dateDoc === "string" ? dateDoc : dateDoc ? String(dateDoc) : undefined} />
+          </Typography.Label>
+        </Flex>
+      </Flex>
+      {showSums ? (
+        <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem" }}>
+          <span />
+          <Typography.Body style={{ fontWeight: 600, fontSize: "1rem", color: "var(--color-text-primary)" }}>
+            {sumDoc != null ? formatCurrency(sumDoc) : "—"}
+          </Typography.Body>
+        </Flex>
+      ) : null}
+      <Flex justify="space-between" align="center" style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: showEdoBadges ? "0.4rem" : 0 }}>
+        <Typography.Label
+          style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}
+          title={stripOoo(String(cust || ""))}
+        >
+          {stripOoo(String(cust || "—"))}
+        </Typography.Label>
+        {isFerry ? (
+          <Ship className="w-4 h-4" style={{ flexShrink: 0, color: "var(--color-primary-blue)" }} title="Паром" />
+        ) : (act.CitySender || act.CityReceiver) ? (
+          <Typography.Label style={{ fontSize: "0.85rem" }}>
+            {[cityToCode(act.CitySender), cityToCode(act.CityReceiver)].filter(Boolean).join(" – ") || ""}
+          </Typography.Label>
+        ) : invoiceNum ? (
+          <Typography.Label style={{ fontSize: "0.85rem" }}>Счёт {formatInvoiceNumber(String(invoiceNum))}</Typography.Label>
+        ) : null}
+      </Flex>
+      {showEdoBadges ? (
+        <Flex
+          className="documents-invoice-card__edo-badges"
+          gap="0.25rem"
+          wrap="wrap"
+          justify="flex-start"
+          style={{ width: "100%", marginTop: "0.1rem", pointerEvents: "none" }}
+        >
+          {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
+            <DocumentsEdoCardBadge key={k} docLabel={k} compact info={getInvoiceEdoInfoByDocLabel(edoSource, k)} />
+          ))}
+        </Flex>
+      ) : null}
+    </Panel>
+  );
+}
+
+export type DocumentsActCardsListProps = {
+  acts: any[];
+  invoices?: any[] | null;
+  onOpenAct: (act: any) => void;
+  isActFavorite: (num: string) => boolean;
+  onToggleActFavorite: (num: string) => void;
+  docsMotionEnabled?: boolean;
+  showSums?: boolean;
+  showEdoBadges?: boolean;
+};
+
+/** Список плиток УПД — тот же вид, что в разделе «Счета» (с бейджами ЭДО). */
+export function DocumentsActCardsList({
+  acts,
+  invoices,
+  onOpenAct,
+  isActFavorite,
+  onToggleActFavorite,
+  docsMotionEnabled = false,
+  showSums = true,
+  showEdoBadges = true,
+}: DocumentsActCardsListProps) {
+  return (
+    <motion.div
+      className="cargo-list"
+      variants={docsMotionEnabled ? cargoListContainerVariants : undefined}
+      initial={docsMotionEnabled ? "hidden" : false}
+      animate={docsMotionEnabled ? "visible" : undefined}
+    >
+      {acts.map((act, idx) => {
+        const num = String(act.Number ?? act.number ?? "");
+        return (
+          <motion.div
+            key={num || idx}
+            variants={docsMotionEnabled ? documentsListItemVariants : undefined}
+            initial={docsMotionEnabled ? "hidden" : false}
+            animate={docsMotionEnabled ? "visible" : undefined}
+          >
+            <DocumentsActCard
+              act={act}
+              invoices={invoices}
+              onOpen={() => onOpenAct(act)}
+              isFavorite={isActFavorite(num)}
+              onToggleFavorite={() => onToggleActFavorite(num)}
+              showSums={showSums}
+              showEdoBadges={showEdoBadges}
+            />
+          </motion.div>
+        );
+      })}
+    </motion.div>
+  );
+}
+
 export type DocumentsEdoCargoCardProps = {
   item: EdoCargoCardItem;
   onOpen: () => void;
@@ -640,7 +833,7 @@ export function DocumentsEdoCargoCard({ item, onOpen, isFavorite, onToggleFavori
         </Flex>
       </Flex>
       <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem", gap: "0.35rem", flexWrap: "wrap" }}>
-        <Flex align="center" gap="0.35rem" wrap="wrap" style={{ minWidth: 0 }}>
+        <Flex align="center" gap="0.35rem" wrap="wrap" className="documents-invoice-card__status-badges" style={{ minWidth: 0 }}>
           {cargo?.State != null ? <StatusBadge status={cargo.State} /> : null}
           {st ? (
             <AppBadge tone="neutral" style={{ background: badgeStyle.bg, color: badgeStyle.color }}>

@@ -832,6 +832,21 @@ body {
     margin-top: 0.1rem;
 }
 
+/* Доставлено (max-badge) и Оплачен (app-badge) — одна высота в карточках счетов/ЭДО */
+.documents-invoice-card__status-badges .max-badge,
+.documents-invoice-card__status-badges .app-badge {
+    min-height: var(--control-height-badge, 24px) !important;
+    height: var(--control-height-badge, 24px) !important;
+    max-height: var(--control-height-badge, 24px) !important;
+    box-sizing: border-box !important;
+    padding: 0 var(--control-padding-badge-x, 10px) !important;
+    font-size: var(--text-sm, 0.8125rem) !important;
+    line-height: 1 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
 .documents-invoice-card .documents-edo-card-badge,
 .documents-edo-cargo-card .documents-edo-card-badge {
     flex-shrink: 0;
@@ -1240,6 +1255,23 @@ body {
         margin-top: calc(1.05rem + 1.55cm);
     }
 }
+.documents-page--with-tariffs-section .documents-toolbar-below-sticky {
+    padding-top: 0.85rem;
+}
+.documents-page--with-tariffs-section .documents-toolbar-below-sticky .documents-tariffs-empty-state {
+    display: block;
+    margin-top: 0.35rem;
+    padding-top: 1.5rem !important;
+    padding-bottom: 1.75rem !important;
+}
+@media (min-width: 769px) {
+    .documents-page--with-tariffs-section .documents-toolbar-below-sticky {
+        padding-top: 1.05rem;
+    }
+    .documents-page--with-tariffs-section .documents-toolbar-below-sticky .documents-tariffs-empty-state {
+        padding-top: 2rem !important;
+    }
+}
 
 /* Договоры: первая плитка/таблица под липкими вкладками и фильтрами */
 .documents-page--with-contracts-section .documents-table-offset-desktop,
@@ -1250,6 +1282,15 @@ body {
 .documents-page--with-contracts-section.documents-page--saas-analytics .documents-cards-offset-desktop {
     margin-top: calc(1.05rem + 0.55cm);
 }
+.documents-page--with-contracts-section .documents-toolbar-below-sticky {
+    padding-top: 0.85rem;
+}
+.documents-page--with-contracts-section .documents-toolbar-below-sticky .documents-contracts-empty-state {
+    display: block;
+    margin-top: 0.35rem;
+    padding-top: 1.5rem !important;
+    padding-bottom: 1.75rem !important;
+}
 @media (min-width: 769px) {
     .documents-page--with-contracts-section .documents-table-offset-desktop,
     .documents-page--with-contracts-section .documents-cards-offset-desktop {
@@ -1259,7 +1300,54 @@ body {
     .documents-page--with-contracts-section.documents-page--saas-analytics .documents-cards-offset-desktop {
         margin-top: calc(1.05rem + 1.55cm);
     }
+    .documents-page--with-contracts-section .documents-toolbar-below-sticky {
+        padding-top: 1.05rem;
+    }
+    .documents-page--with-contracts-section .documents-toolbar-below-sticky .documents-contracts-empty-state {
+        padding-top: 2rem !important;
+    }
     .documents-page--with-contracts-section .doc-contracts-table-offset-desktop {
+        margin-top: 0;
+    }
+}
+
+/* Акты сверок: липкий блок выше из-за кнопки «Заказать Акт сверки» — контент ниже карточки */
+.documents-page--with-sverki-section {
+    --documents-sticky-bottom-gap: 1.25rem;
+}
+.documents-page--with-sverki-section .documents-table-offset-desktop,
+.documents-page--with-sverki-section .documents-cards-offset-desktop {
+    margin-top: calc(0.95rem + 0.5cm);
+}
+.documents-page--with-sverki-section.documents-page--saas-analytics .documents-table-offset-desktop,
+.documents-page--with-sverki-section.documents-page--saas-analytics .documents-cards-offset-desktop {
+    margin-top: calc(1.05rem + 0.55cm);
+}
+.documents-page--with-sverki-section .documents-toolbar-below-sticky {
+    padding-top: 0.85rem;
+}
+.documents-page--with-sverki-section .documents-toolbar-below-sticky .documents-sverki-empty-state {
+    display: block;
+    margin-top: 0.35rem;
+    padding-top: 1.5rem !important;
+    padding-bottom: 1.75rem !important;
+}
+@media (min-width: 769px) {
+    .documents-page--with-sverki-section .documents-table-offset-desktop,
+    .documents-page--with-sverki-section .documents-cards-offset-desktop {
+        margin-top: calc(0.95rem + 1.5cm);
+    }
+    .documents-page--with-sverki-section.documents-page--saas-analytics .documents-table-offset-desktop,
+    .documents-page--with-sverki-section.documents-page--saas-analytics .documents-cards-offset-desktop {
+        margin-top: calc(1.05rem + 1.55cm);
+    }
+    .documents-page--with-sverki-section .documents-toolbar-below-sticky {
+        padding-top: 1.05rem;
+    }
+    .documents-page--with-sverki-section .documents-toolbar-below-sticky .documents-sverki-empty-state {
+        padding-top: 2rem !important;
+    }
+    .documents-page--with-sverki-section .doc-contracts-table-offset-desktop {
         margin-top: 0;
     }
 }
@@ -1517,6 +1605,29 @@ body {
     box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
 }
 
+/* HAULZ KPI-плитки: одна высота в ряду, место под 2 строки метрик */
+.haulz-dispatch-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.55rem;
+    align-items: stretch;
+    width: 100%;
+    min-width: 0;
+}
+
+.haulz-dispatch-stat-tile {
+    display: flex !important;
+    flex-direction: column;
+    height: 100%;
+    min-width: 0;
+}
+
+.haulz-dispatch-stat-tile__metrics {
+    min-height: 2.45rem;
+    align-content: flex-start;
+    margin-top: auto;
+}
+
 /* Дашборд HAULZ: на телефоне плитки — резиновая сетка 2 колонки, без горизонтального сжатия. */
 @media (max-width: 768px) {
     .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters {
@@ -1540,12 +1651,9 @@ body {
     }
 
     .haulz-dispatch-stat-grid {
-        display: grid !important;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 0.5rem !important;
         margin-bottom: 0.75rem !important;
-        width: 100%;
-        min-width: 0;
     }
 
     .haulz-dispatch-stat-grid .haulz-dispatch-stat-tile:last-child:nth-child(odd):not(:only-child) {
@@ -1554,12 +1662,15 @@ body {
 
     .haulz-dispatch-stat-tile {
         flex: unset !important;
-        min-width: 0 !important;
         width: auto !important;
         max-width: 100%;
         padding: 0.65rem 0.75rem !important;
         border-radius: 10px !important;
         border-left-width: 3px !important;
+    }
+
+    .haulz-dispatch-stat-tile__metrics {
+        min-height: 2.35rem;
     }
 
     .haulz-dispatch-stat-tile > *:first-child {
@@ -1998,7 +2109,9 @@ body {
 }
 
 .documents-invoices-inner-table .cargo-inner-table__delivery-inline,
-.documents-invoices-inner-table .cargo-inner-table__route-inline {
+.documents-invoices-inner-table .cargo-inner-table__route-inline,
+.documents-acts-inner-table .cargo-inner-table__delivery-inline,
+.documents-acts-inner-table .cargo-inner-table__route-inline {
     display: none;
 }
 
@@ -2056,7 +2169,8 @@ body {
     .cargo-inner-table .cargo-inner-table__col-route--desktop,
     .documents-invoices-inner-table .cargo-inner-table__col-delivery--desktop,
     .documents-invoices-inner-table .cargo-inner-table__col-route--desktop,
-    .documents-acts-inner-table .cargo-inner-table__col-sum {
+    .documents-acts-inner-table .cargo-inner-table__col-delivery--desktop,
+    .documents-acts-inner-table .cargo-inner-table__col-route--desktop {
         display: none;
     }
 
@@ -2068,8 +2182,14 @@ body {
         display: block;
     }
 
+    .documents-acts-inner-table .cargo-inner-table__delivery-inline {
+        display: block;
+    }
+
     .documents-invoices-inner-table .cargo-inner-table__badges--stack-mobile,
-    .documents-invoices-inner-table .documents-invoices-inner-table__badges {
+    .documents-invoices-inner-table .documents-invoices-inner-table__badges,
+    .documents-acts-inner-table .cargo-inner-table__badges--stack-mobile,
+    .documents-acts-inner-table .documents-invoices-inner-table__badges {
         flex-direction: column;
         align-items: stretch;
         gap: 0.16rem;
@@ -2082,8 +2202,16 @@ body {
         width: 100%;
     }
 
+    .documents-acts-inner-table .documents-invoice-inner-badge-wrap {
+        display: block;
+        width: 100%;
+    }
+
     .documents-invoices-inner-table .documents-invoice-inner-badge,
-    .documents-invoices-inner-table .documents-invoices-inner-table__badges .max-badge {
+    .documents-invoices-inner-table .documents-invoices-inner-table__badges .max-badge,
+    .documents-acts-inner-table .documents-invoice-inner-badge,
+    .documents-acts-inner-table .documents-invoices-inner-table__badges .max-badge,
+    .documents-acts-inner-table .documents-invoices-inner-table__badges .app-badge {
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
@@ -2106,7 +2234,17 @@ body {
         display: block;
     }
 
+    .documents-acts-inner-table .cargo-inner-table__route-inline {
+        display: block;
+    }
+
     .documents-invoices-inner-table .cargo-inner-table__col-sum {
+        width: 24% !important;
+        text-align: right !important;
+        vertical-align: middle !important;
+    }
+
+    .documents-acts-inner-table .cargo-inner-table__col-sum {
         width: 24% !important;
         text-align: right !important;
         vertical-align: middle !important;
@@ -2138,7 +2276,7 @@ body {
 
     .cargo-inner-table .cargo-inner-table__col-number,
     .documents-acts-inner-table .cargo-inner-table__col-number {
-        width: 22%;
+        width: 18%;
     }
 
     .documents-invoices-inner-table .cargo-inner-table__col-number {
@@ -2151,7 +2289,7 @@ body {
 
     .cargo-inner-table .cargo-inner-table__col-date,
     .documents-acts-inner-table .cargo-inner-table__col-date {
-        width: 24%;
+        width: 20%;
         white-space: nowrap;
     }
 
@@ -2164,15 +2302,12 @@ body {
         width: 19%;
     }
 
-    .documents-acts-inner-table .cargo-inner-table__col-invoice {
-        width: 54%;
-    }
-
     .cargo-inner-table .cargo-inner-table__col-status {
         width: 30%;
     }
 
-    .documents-invoices-inner-table .cargo-inner-table__col-status {
+    .documents-invoices-inner-table .cargo-inner-table__col-status,
+    .documents-acts-inner-table .cargo-inner-table__col-status {
         width: 38%;
     }
 
@@ -2629,6 +2764,12 @@ body {
     .documents-page--saas-analytics .documents-toolbar-below-sticky {
         padding-top: 0.55rem;
     }
+
+    .documents-page--saas-analytics.documents-page--with-sverki-section .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics.documents-page--with-contracts-section .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics.documents-page--with-tariffs-section .documents-toolbar-below-sticky {
+        padding-top: 1rem;
+    }
 }
 
 /* Счета/УПД: контент под липким блоком (empty state, loader) — базовый зазор */
@@ -2669,13 +2810,21 @@ body {
     .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
         padding-top: var(--documents-sticky-pad-top, 0.85rem) !important;
     }
-    /* Договоры / Тарифы: на узком холсте чуть плотнее к липкому блоку */
+    /* Договоры / Тарифы / Акты сверок: контент ниже липкого блока */
     .documents-page .doc-section-content {
-        padding-top: 0.35rem;
+        padding-top: 0.75rem;
     }
     .documents-page .documents-toolbar-below-sticky,
     .documents-page--saas-analytics .documents-toolbar-below-sticky {
         padding-top: 0.35rem;
+    }
+    .documents-page--with-contracts-section .documents-toolbar-below-sticky,
+    .documents-page--with-tariffs-section .documents-toolbar-below-sticky,
+    .documents-page--with-sverki-section .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics.documents-page--with-contracts-section .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics.documents-page--with-tariffs-section .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics.documents-page--with-sverki-section .documents-toolbar-below-sticky {
+        padding-top: 1rem;
     }
 }
 
