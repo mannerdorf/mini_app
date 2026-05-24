@@ -5,10 +5,8 @@ import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Heart, Loader2, AlertTriang
 import { cityToCode, formatCurrency, formatInvoiceNumber, normalizeInvoiceStatus, stripOoo } from "../lib/formatUtils";
 import { getPayTillDate, getPayTillDateColor } from "../lib/dateUtils";
 import {
-  EDO_LEGEND_ITEMS,
   aggregateInvoiceEdoDocStats,
   edoCardCornerBadgeStyle,
-  edoToneTextColor,
   edoTableCellTextStyle,
   formatEdoSignedRatio,
   getEdoCardDisplayLabel,
@@ -37,22 +35,6 @@ export function DocumentsEdoCardBadge({ info }: { info: EdoStatusInfo }) {
     <span className="documents-edo-card-badge" style={edoCardCornerBadgeStyle(info.tone)} title={info.label}>
       {getEdoCardDisplayLabel(info)}
     </span>
-  );
-}
-
-export function DocumentsEdoLegend({ style }: { style?: React.CSSProperties }) {
-  return (
-    <Flex gap="0.35rem" wrap="wrap" align="center" style={{ marginBottom: "0.75rem", flexShrink: 0, ...style }}>
-      <Typography.Label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", marginRight: "0.15rem" }}>
-        Легенда ЭДО:
-      </Typography.Label>
-      {EDO_LEGEND_ITEMS.map((item, index) => (
-        <React.Fragment key={item.label}>
-          {index > 0 ? <span style={{ color: "var(--color-text-secondary)", fontSize: "0.65rem" }}>·</span> : null}
-          <Typography.Label style={{ fontSize: "0.68rem", color: edoToneTextColor(item.tone) }}>{item.label}</Typography.Label>
-        </React.Fragment>
-      ))}
-    </Flex>
   );
 }
 
@@ -87,11 +69,11 @@ export function DocumentsEdoMonitorGroupedTable({
   const baseColCount = 2 + edoColCount;
 
   return (
-    <div className="cargo-card documents-edo-monitor-table" style={{ overflowX: "auto", marginBottom: "1rem" }}>
+    <div className="cargo-card cargo-customer-table-wrap documents-edo-monitor-table" style={{ marginBottom: "1rem" }}>
       <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.55rem" }}>
         Монитор ЭДО по счетам: подписано / всего с непустым статусом по типу документа.
       </Typography.Body>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+      <table className="documents-edo-monitor-table__grid" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
         <thead>
           <tr style={{ borderBottom: "1px solid var(--color-border)", background: "var(--color-bg-hover)" }}>
             <th
@@ -239,6 +221,134 @@ export function DocumentsEdoMonitorGroupedTable({
   );
 }
 
+type EdoMonitorCardsProps = {
+  rows: EdoMonitorCustomerRow[];
+  totals: Record<InvoiceEdoMergedDocLabel, InvoiceEdoDocAgg>;
+  invoicesCount: number;
+  expandedCustomer: string | null;
+  onToggleCustomer: (customer: string) => void;
+  onOpenInvoice: (inv: any) => void;
+  docsMotionEnabled?: boolean;
+};
+
+function edoColumnTitle(k: InvoiceEdoMergedDocLabel): string {
+  return k === "СЧЕТ" ? "Счета" : k;
+}
+
+export function DocumentsEdoMonitorGroupedCards({
+  rows,
+  totals,
+  invoicesCount,
+  expandedCustomer,
+  onToggleCustomer,
+  onOpenInvoice,
+  docsMotionEnabled = false,
+}: EdoMonitorCardsProps) {
+  return (
+    <div className="documents-edo-monitor-cards">
+      <Typography.Body className="documents-edo-monitor-cards__intro">
+        Монитор ЭДО по счетам: подписано / всего с непустым статусом по типу документа.
+      </Typography.Body>
+      <div className="cargo-list">
+        {rows.map((row, i) => {
+          const rowEdoAgg = aggregateInvoiceEdoDocStats(row.items);
+          const isExpanded = expandedCustomer === row.customer;
+          const customerLabel = stripOoo(row.customer) || "—";
+          return (
+            <motion.div
+              key={`${row.customer}-${i}`}
+              variants={docsMotionEnabled ? documentsListItemVariants : undefined}
+              initial={docsMotionEnabled ? "hidden" : false}
+              animate={docsMotionEnabled ? "visible" : undefined}
+            >
+              <Panel
+                className="cargo-card documents-edo-monitor-card"
+                onClick={() => onToggleCustomer(row.customer)}
+                style={{ cursor: "pointer", position: "relative" }}
+                title={isExpanded ? "Свернуть" : "Показать счета"}
+              >
+                <Flex className="documents-edo-monitor-card__header" justify="space-between" align="start" style={{ marginBottom: "0.55rem", minWidth: 0, gap: "0.5rem" }}>
+                  <Typography.Body className="documents-edo-monitor-card__customer" style={{ fontWeight: 600, fontSize: "1rem", minWidth: 0 }} title={customerLabel}>
+                    {customerLabel}
+                  </Typography.Body>
+                  <Flex className="documents-edo-monitor-card__header-actions" align="center" gap="0.35rem">
+                    <AppBadge tone="neutral">{row.items.length} сч.</AppBadge>
+                    {isExpanded ? (
+                      <ChevronUp className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
+                    )}
+                  </Flex>
+                </Flex>
+                <div className="documents-edo-monitor-card__stats">
+                  {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
+                    <div key={k} className="documents-edo-monitor-card__stat">
+                      <Typography.Label className="documents-edo-monitor-card__stat-label">{edoColumnTitle(k)}</Typography.Label>
+                      <Typography.Body className="documents-edo-monitor-card__stat-value" title="Подписано / всего">
+                        {formatEdoSignedRatio(rowEdoAgg[k].signed, rowEdoAgg[k].total)}
+                      </Typography.Body>
+                    </div>
+                  ))}
+                </div>
+                {isExpanded && (
+                  <motion.div
+                    {...(docsMotionEnabled ? cargoExpandMotionProps : { initial: false })}
+                    className="documents-edo-monitor-card__invoices"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {row.items.map((inv: any, j: number) => {
+                      const inum = inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? "";
+                      const idt = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? "";
+                      return (
+                        <button
+                          key={String(inum) || j}
+                          type="button"
+                          className="documents-edo-monitor-card__invoice-row"
+                          onClick={() => onOpenInvoice(inv)}
+                          title="Открыть счёт"
+                        >
+                          <Flex justify="space-between" align="center" wrap="wrap" gap="0.35rem" style={{ width: "100%", minWidth: 0 }}>
+                            <Typography.Body style={{ fontWeight: 600, fontSize: "0.9rem" }}>{formatInvoiceNumber(inum)}</Typography.Body>
+                            <Typography.Label style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
+                              <DateText value={typeof idt === "string" ? idt : idt ? String(idt) : undefined} />
+                            </Typography.Label>
+                          </Flex>
+                          <Flex className="documents-edo-monitor-card__edo-badges" gap="0.35rem" wrap="wrap" style={{ marginTop: "0.35rem" }}>
+                            {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
+                              <DocumentsEdoCardBadge key={k} info={getInvoiceEdoInfoByDocLabel(inv, k)} />
+                            ))}
+                          </Flex>
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </Panel>
+            </motion.div>
+          );
+        })}
+        <Panel className="cargo-card documents-edo-monitor-card documents-edo-monitor-card--totals">
+          <Typography.Body style={{ fontWeight: 700, fontSize: "0.95rem", marginBottom: "0.55rem" }}>Итого</Typography.Body>
+          <Flex justify="space-between" align="center" style={{ marginBottom: "0.45rem" }}>
+            <Typography.Label style={{ color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>Счетов</Typography.Label>
+            <Typography.Body style={{ fontWeight: 700 }}>{invoicesCount}</Typography.Body>
+          </Flex>
+          <div className="documents-edo-monitor-card__stats">
+            {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
+              <div key={k} className="documents-edo-monitor-card__stat">
+                <Typography.Label className="documents-edo-monitor-card__stat-label">{edoColumnTitle(k)}</Typography.Label>
+                <Typography.Body className="documents-edo-monitor-card__stat-value" title="Итого по всем счетам в выборке">
+                  {formatEdoSignedRatio(totals[k].signed, totals[k].total)}
+                </Typography.Body>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
 function invoicePaymentBadgeStyle(st: string): { bg: string; color: string } {
   if (st === "Оплачен") return { bg: "rgba(34, 197, 94, 0.2)", color: "#22c55e" };
   if (st === "Оплачен частично") return { bg: "rgba(234, 179, 8, 0.2)", color: "#ca8a04" };
@@ -251,7 +361,7 @@ export type DocumentsInvoiceCardProps = {
   onOpen: () => void;
   isFavorite: boolean;
   onToggleFavorite: () => void;
-  /** Бейджи ЭДО в правом нижнем углу (раздел «ЭДО»). */
+  /** Бейджи ЭДО в правом нижнем углу (плитки «Счета» / «ЭДО»). */
   showEdoCornerBadges?: boolean;
 };
 
@@ -303,7 +413,7 @@ export function DocumentsInvoiceCard({
         cursor: "pointer",
         marginBottom: "0.75rem",
         position: "relative",
-        paddingBottom: showEdoCornerBadges ? "1.55rem" : undefined,
+        paddingBottom: showEdoCornerBadges ? "1.85rem" : undefined,
       }}
     >
       <Flex justify="space-between" align="start" style={{ marginBottom: "0.5rem", minWidth: 0, overflow: "visible" }}>
@@ -386,10 +496,11 @@ export function DocumentsInvoiceCard({
       )}
       {showEdoCornerBadges ? (
         <Flex
+          className="documents-invoice-card__edo-badges"
           gap="0.2rem"
           wrap="wrap"
           justify="flex-end"
-          style={{ position: "absolute", right: 8, bottom: 8, zIndex: 2, maxWidth: "58%", pointerEvents: "none" }}
+          style={{ maxWidth: "58%", pointerEvents: "none" }}
         >
           {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
             <DocumentsEdoCardBadge key={k} info={getInvoiceEdoInfoByDocLabel(row, k)} />
@@ -406,7 +517,6 @@ export type DocumentsInvoiceCardsListProps = {
   isInvoiceFavorite: (num: string) => boolean;
   onToggleInvoiceFavorite: (num: string) => void;
   docsMotionEnabled?: boolean;
-  showEdoLegend?: boolean;
   showEdoCornerBadges?: boolean;
 };
 
@@ -417,12 +527,10 @@ export function DocumentsInvoiceCardsList({
   isInvoiceFavorite,
   onToggleInvoiceFavorite,
   docsMotionEnabled = false,
-  showEdoLegend = false,
   showEdoCornerBadges = false,
 }: DocumentsInvoiceCardsListProps) {
   return (
     <>
-      {showEdoLegend ? <DocumentsEdoLegend style={{ marginBottom: "0.55rem" }} /> : null}
       <motion.div
         className="cargo-list"
         variants={docsMotionEnabled ? cargoListContainerVariants : undefined}
@@ -631,7 +739,7 @@ export function DocumentsApiDebugPanel({ title, snapshot, loading }: DocumentsAp
       : [];
 
   return (
-    <details className="documents-api-debug-panel" open style={{ marginBottom: "0.85rem" }}>
+    <details className="documents-api-debug-panel" style={{ marginBottom: "0.85rem" }}>
       <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
         Отладка API: {title}
         {loading ? " (загрузка…)" : snapshot ? ` — HTTP ${snapshot.status ?? "—"}` : ""}

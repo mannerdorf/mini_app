@@ -814,8 +814,22 @@ body {
 }
 
 /* Плитки в списках «Документы»: .cargo-card с overflow-x:hidden подрезает верх; дети списка — через motion, не только прямые > .cargo-card */
-.documents-page .cargo-list .cargo-card {
+.documents-page .cargo-list .cargo-card,
+.documents-page .documents-edo-monitor-card.cargo-card,
+.documents-page .documents-edo-monitor-table.cargo-card,
+.documents-page .documents-invoice-card.cargo-card {
     overflow: visible;
+}
+
+.documents-invoice-card__edo-badges {
+    position: absolute;
+    right: 0.5rem;
+    bottom: 0.3rem;
+    z-index: 2;
+}
+
+.documents-invoice-card .documents-edo-card-badge {
+    flex-shrink: 0;
 }
 
 /* Глобально .cargo-list { overflow-x: hidden } даёт в браузерах усечение по Y — первая карточка в Документах «пропадала» при анимации */
@@ -1296,7 +1310,20 @@ body {
     padding-bottom: 1.5rem !important;
 }
 
-/* Панель bulk-действий в "Отправках" остаётся закреплённой при скролле */
+.documents-toolbar-below-sticky .documents-claims-empty-state {
+    display: block;
+    margin-top: 0.5rem;
+    padding-top: 2.25rem !important;
+    padding-bottom: 2rem !important;
+}
+
+@media (min-width: 769px) {
+    .documents-toolbar-below-sticky .documents-claims-empty-state {
+        padding-top: 2.75rem !important;
+    }
+}
+
+/* Панель bulk-действий в «Отправках» — в потоке документа, уезжает при скролле */
 .sendings-bulk-actions-bar {
     padding: 0.6rem 0.75rem;
     margin-bottom: 0.5rem;
@@ -1309,12 +1336,6 @@ body {
 }
 .sendings-bulk-actions-bar__label {
     font-size: 0.9rem;
-}
-.sendings-bulk-actions-sticky {
-    position: sticky;
-    top: calc(64px + 5.5rem);
-    z-index: 35;
-    background: var(--color-bg-primary);
 }
 @media (max-width: 768px) {
     /* Мобильная «Отправки»: панель bulk — читаемые размеры, единая высота chip */
@@ -1351,9 +1372,6 @@ body {
         margin-top: 0.25rem !important;
         font-size: var(--text-sm, 0.8125rem) !important;
         line-height: 1.3;
-    }
-    .sendings-bulk-actions-sticky {
-        top: 5rem;
     }
     .cargo-page-sticky-header,
     .dashboard-sticky-filters {
@@ -1601,18 +1619,22 @@ body {
     }
 
     /* Счета/УПД: контент под липким блоком (empty state, loader) */
-    .documents-page--with-summary-sections .documents-summary-section-body {
+    .documents-page--with-summary-sections .documents-summary-section-body,
+    .documents-page--with-edo-section .documents-summary-section-body {
         margin-top: 0.35rem;
         padding-top: 0.25rem;
     }
 
     .documents-page--with-summary-sections .documents-summary-section-body:has(.documents-table-offset-desktop),
-    .documents-page--with-summary-sections .documents-summary-section-body:has(.documents-cards-offset-desktop) {
+    .documents-page--with-summary-sections .documents-summary-section-body:has(.documents-cards-offset-desktop),
+    .documents-page--with-edo-section .documents-summary-section-body:has(.documents-table-offset-desktop),
+    .documents-page--with-edo-section .documents-summary-section-body:has(.documents-cards-offset-desktop) {
         margin-top: 0;
         padding-top: 0;
     }
 
-    .documents-page--with-summary-sections .documents-summary-empty-state {
+    .documents-page--with-summary-sections .documents-summary-empty-state,
+    .documents-page--with-edo-section .documents-summary-empty-state {
         display: block;
         margin-top: 1.25rem;
         padding-top: 2rem !important;
@@ -1939,6 +1961,15 @@ body {
     flex-shrink: 0;
 }
 
+.cargo-inner-table__route-inline {
+    display: none;
+}
+
+.documents-invoices-inner-table .cargo-inner-table__delivery-inline,
+.documents-invoices-inner-table .cargo-inner-table__route-inline {
+    display: none;
+}
+
 @media (max-width: 768px) {
     .cargo-inner-table-wrap,
     .doc-inner-table-wrap {
@@ -1946,14 +1977,16 @@ body {
     }
 
     .cargo-inner-table,
-    .documents-invoices-inner-table.cargo-inner-table {
+    .documents-invoices-inner-table.cargo-inner-table,
+    .documents-acts-inner-table.cargo-inner-table {
         table-layout: fixed;
         width: 100%;
         font-size: 0.64rem !important;
     }
 
     .cargo-inner-table thead th,
-    .documents-invoices-inner-table.cargo-inner-table thead th {
+    .documents-invoices-inner-table.cargo-inner-table thead th,
+    .documents-acts-inner-table.cargo-inner-table thead th {
         writing-mode: vertical-rl;
         transform: rotate(180deg);
         white-space: nowrap;
@@ -1988,28 +2021,76 @@ body {
     }
 
     .cargo-inner-table .cargo-inner-table__col-order,
-    .cargo-inner-table .cargo-inner-table__col-mest,
-    .cargo-inner-table .cargo-inner-table__col-pw,
-    .cargo-inner-table .cargo-inner-table__col-sum,
-    .documents-invoices-inner-table .cargo-inner-table__col-sum,
-    .documents-invoices-inner-table .cargo-inner-table__col-delivery {
+    .cargo-inner-table .cargo-inner-table__col-route--desktop,
+    .documents-invoices-inner-table .cargo-inner-table__col-delivery--desktop,
+    .documents-invoices-inner-table .cargo-inner-table__col-route--desktop,
+    .documents-acts-inner-table .cargo-inner-table__col-sum {
         display: none;
+    }
+
+    .cargo-inner-table__route-inline {
+        display: block;
     }
 
     .documents-invoices-inner-table .cargo-inner-table__delivery-inline {
         display: block;
     }
 
-    .documents-invoices-inner-table .cargo-inner-table__badges--stack-mobile {
+    .documents-invoices-inner-table .cargo-inner-table__badges--stack-mobile,
+    .documents-invoices-inner-table .documents-invoices-inner-table__badges {
         flex-direction: column;
-        align-items: flex-start;
-        gap: 0.18rem;
+        align-items: stretch;
+        gap: 0.16rem;
+        width: 100%;
+        max-width: 5.35rem;
+    }
+
+    .documents-invoices-inner-table .documents-invoice-inner-badge-wrap {
+        display: block;
+        width: 100%;
+    }
+
+    .documents-invoices-inner-table .documents-invoice-inner-badge,
+    .documents-invoices-inner-table .documents-invoices-inner-table__badges .max-badge {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0;
+        min-height: 1.15rem !important;
+        box-sizing: border-box;
+        text-align: center;
+        font-size: 0.56rem !important;
+        padding: 0.12rem 0.22rem !important;
+        line-height: 1.1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .documents-invoices-inner-table .cargo-inner-table__route-inline {
+        display: block;
+    }
+
+    .documents-invoices-inner-table .cargo-inner-table__col-sum {
+        width: 24% !important;
+        text-align: right !important;
+        vertical-align: middle !important;
+    }
+
+    .documents-invoices-inner-table__sum-value {
+        display: block;
+        font-size: 0.62rem !important;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        line-height: 1.15;
     }
 
     .cargo-inner-table td,
     .cargo-inner-table th,
     .documents-invoices-inner-table.cargo-inner-table td,
-    .documents-invoices-inner-table.cargo-inner-table th {
+    .documents-invoices-inner-table.cargo-inner-table th,
+    .documents-acts-inner-table.cargo-inner-table td,
+    .documents-acts-inner-table.cargo-inner-table th {
         padding: 0.28rem 0.12rem !important;
         vertical-align: top;
     }
@@ -2020,24 +2101,71 @@ body {
     }
 
     .cargo-inner-table .cargo-inner-table__col-number,
-    .documents-invoices-inner-table .cargo-inner-table__col-number {
+    .documents-acts-inner-table .cargo-inner-table__col-number {
         width: 22%;
     }
 
+    .documents-invoices-inner-table .cargo-inner-table__col-number {
+        width: 18%;
+    }
+
+    .cargo-inner-table .cargo-inner-table__col-number {
+        width: 17%;
+    }
+
     .cargo-inner-table .cargo-inner-table__col-date,
-    .documents-invoices-inner-table .cargo-inner-table__col-date {
+    .documents-acts-inner-table .cargo-inner-table__col-date {
         width: 24%;
         white-space: nowrap;
     }
 
-    .cargo-inner-table .cargo-inner-table__col-status,
-    .documents-invoices-inner-table .cargo-inner-table__col-status {
-        width: 28%;
+    .documents-invoices-inner-table .cargo-inner-table__col-date {
+        width: 20%;
+        white-space: nowrap;
     }
 
-    .cargo-inner-table .cargo-inner-table__col-route,
-    .documents-invoices-inner-table .cargo-inner-table__col-route {
+    .cargo-inner-table .cargo-inner-table__col-date {
+        width: 19%;
+    }
+
+    .documents-acts-inner-table .cargo-inner-table__col-invoice {
+        width: 54%;
+    }
+
+    .cargo-inner-table .cargo-inner-table__col-status {
+        width: 30%;
+    }
+
+    .documents-invoices-inner-table .cargo-inner-table__col-status {
+        width: 38%;
+    }
+
+    .cargo-inner-table .cargo-inner-table__col-route {
         width: 26%;
+    }
+
+    .cargo-inner-table .cargo-inner-table__col-mest {
+        width: 11%;
+        text-align: right !important;
+    }
+
+    .cargo-inner-table .cargo-inner-table__col-pw {
+        width: 13%;
+        text-align: right !important;
+        white-space: nowrap;
+    }
+
+    .cargo-inner-table .cargo-inner-table__col-sum {
+        width: 14%;
+        text-align: right !important;
+        white-space: nowrap;
+    }
+
+    .cargo-inner-table .cargo-inner-table__col-mest,
+    .cargo-inner-table .cargo-inner-table__col-pw,
+    .cargo-inner-table .cargo-inner-table__col-sum {
+        font-size: 0.62rem !important;
+        font-variant-numeric: tabular-nums;
     }
 
     .cargo-inner-table__number {
@@ -2535,6 +2663,35 @@ body {
     box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
 }
 
+/* ЭДО — монитор: не обрезать бейджи и счётчики в правом углу */
+.documents-edo-monitor-table.cargo-card,
+.documents-edo-monitor-card.cargo-card {
+    overflow: visible;
+}
+
+.documents-edo-monitor-card__header {
+    flex-wrap: wrap;
+}
+
+.documents-edo-monitor-card__customer {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.documents-edo-monitor-card__header-actions {
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+.documents-edo-monitor-card__edo-badges {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
 /* ЭДО — плитки монитора (режим без таблицы) */
 .documents-edo-monitor-cards__intro {
     font-size: 0.8rem;
@@ -2593,6 +2750,8 @@ body {
     border: 1px solid var(--color-border);
     background: var(--color-bg-primary);
     cursor: pointer;
+    overflow: visible;
+    box-sizing: border-box;
 }
 
 .documents-edo-monitor-card__invoice-row:hover {
@@ -2614,6 +2773,78 @@ body {
     font-weight: 600;
     line-height: 1;
     white-space: nowrap;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .documents-edo-monitor-table.cargo-card,
+    .documents-edo-monitor-card.cargo-card {
+        padding-left: 0.65rem;
+        padding-right: 0.65rem;
+    }
+
+    .documents-edo-monitor-card__header {
+        row-gap: 0.35rem;
+    }
+
+    .documents-edo-monitor-card__header-actions {
+        flex-shrink: 0;
+    }
+
+    .documents-edo-monitor-table__grid {
+        table-layout: fixed;
+        width: 100%;
+        font-size: 0.64rem !important;
+    }
+
+    .documents-edo-monitor-table__grid thead th {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        white-space: nowrap;
+        font-size: 0.56rem !important;
+        font-weight: 600;
+        line-height: 1.05;
+        padding: 0.22rem 0.1rem !important;
+        height: 3.1rem;
+        vertical-align: bottom;
+        text-align: left;
+    }
+
+    .documents-edo-monitor-table__grid td,
+    .documents-edo-monitor-table__grid th {
+        padding: 0.3rem 0.12rem !important;
+        vertical-align: middle;
+    }
+
+    .documents-edo-monitor-table__grid th:first-child,
+    .documents-edo-monitor-table__grid td:first-child {
+        writing-mode: horizontal-tb;
+        transform: none;
+        height: auto;
+        width: 34%;
+        max-width: 34%;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .documents-edo-monitor-table__grid th:nth-child(2),
+    .documents-edo-monitor-table__grid td:nth-child(2) {
+        width: 11%;
+    }
+
+    .documents-edo-monitor-table__grid th:nth-child(n + 3),
+    .documents-edo-monitor-table__grid td:nth-child(n + 3) {
+        width: 13.75%;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .documents-edo-monitor-table__grid .cargo-inner-table__sort-icon,
+    .documents-edo-monitor-table__grid thead th svg {
+        display: none !important;
+    }
 }
 
 /* Главная: компактный монитор здоровья ЭДО */

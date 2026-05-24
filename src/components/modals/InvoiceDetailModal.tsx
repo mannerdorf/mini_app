@@ -9,7 +9,6 @@ import { StatusBadge } from "../shared/StatusBadges";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { DOCUMENT_METHODS } from "../../documentMethods";
 import { edoDocButtonMiniBadgeStyle, getEdoTableDisplayLabel, getInvoiceEdoInfoByDocLabel } from "../../lib/edoStatus";
-import { DocumentsEdoLegend } from "../../pages/documentsViewBlocks";
 import type { AuthData } from "../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД", "Реестр"] as const;
@@ -230,7 +229,6 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                         })}
                     </Flex>
                 )}
-                {auth && <DocumentsEdoLegend />}
                 {downloadError && (
                     <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem', marginBottom: '0.5rem', flexShrink: 0 }}>{downloadError}</Typography.Body>
                 )}

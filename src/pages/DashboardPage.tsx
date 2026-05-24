@@ -589,8 +589,8 @@ export function DashboardPage({
     });
 
     const edoMonitorInvoices = useMemo(
-        () => filterItemsByActiveInn(invoiceItems, auth?.inn),
-        [invoiceItems, auth?.inn],
+        () => (useServiceRequest ? invoiceItems : filterItemsByActiveInn(invoiceItems, auth?.inn)),
+        [invoiceItems, auth?.inn, useServiceRequest],
     );
 
     const calendarYear = new Date().getFullYear();

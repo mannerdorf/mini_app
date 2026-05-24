@@ -74,7 +74,7 @@ function MicroDocBar({
 export function EdoHealthMonitor({ invoices, loading, onOpen }: EdoHealthMonitorProps) {
   const summary = useMemo(() => computeEdoHealthSummary(invoices), [invoices]);
 
-  if (!loading && summary.total <= 0) return null;
+  if (!loading && (invoices?.length ?? 0) === 0) return null;
 
   const statusLabel = edoHealthStatusLabel(summary.percent, summary.issues);
   const alert = summary.issues > 0 || (summary.percent != null && summary.percent < 50);
