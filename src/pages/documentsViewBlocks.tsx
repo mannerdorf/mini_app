@@ -6,9 +6,10 @@ import { cityToCode, formatCurrency, formatInvoiceNumber, normalizeInvoiceStatus
 import { getPayTillDate, getPayTillDateColor } from "../lib/dateUtils";
 import {
   aggregateInvoiceEdoDocStats,
-  edoCardCornerBadgeStyle,
+  edoCardBadgeSurfaceStyle,
   edoTableCellTextStyle,
   formatEdoSignedRatio,
+  getEdoCardCompactLabel,
   getEdoCardDisplayLabel,
   getEdoTableDisplayLabel,
   getInvoiceEdoInfoByDocLabel,
@@ -19,8 +20,9 @@ import {
 } from "../lib/edoStatus";
 import { DateText } from "../components/ui/DateText";
 import { AppBadge } from "../components/shared/AppBadge";
+import { StatusBadge } from "../components/shared/StatusBadges";
 import { cargoExpandMotionProps, cargoListContainerVariants, cargoTableGroupRowVariants, documentsListItemVariants } from "./cargoMotion";
-import type { DocsSummaryTotals } from "./documentsPipeline";
+import type { DocsSummaryTotals, EdoCargoCardItem } from "./documentsPipeline";
 
 export function DocumentsEdoTableStatus({ info }: { info: EdoStatusInfo }) {
   return (
@@ -30,10 +32,24 @@ export function DocumentsEdoTableStatus({ info }: { info: EdoStatusInfo }) {
   );
 }
 
-export function DocumentsEdoCardBadge({ info }: { info: EdoStatusInfo }) {
+export function DocumentsEdoCardBadge({
+  info,
+  docLabel,
+  compact = false,
+}: {
+  info: EdoStatusInfo;
+  docLabel?: InvoiceEdoMergedDocLabel;
+  compact?: boolean;
+}) {
+  const label = compact && docLabel ? getEdoCardCompactLabel(docLabel, info) : getEdoCardDisplayLabel(info);
+  const title = docLabel ? `${docLabel === "СЧЕТ" ? "Счета" : docLabel}: ${info.label}` : info.label;
   return (
-    <span className="documents-edo-card-badge" style={edoCardCornerBadgeStyle(info.tone)} title={info.label}>
-      {getEdoCardDisplayLabel(info)}
+    <span
+      className={`documents-edo-card-badge${compact ? " documents-edo-card-badge--compact" : ""}`}
+      style={edoCardBadgeSurfaceStyle(info.tone)}
+      title={title}
+    >
+      {label}
     </span>
   );
 }
@@ -315,7 +331,7 @@ export function DocumentsEdoMonitorGroupedCards({
                           </Flex>
                           <Flex className="documents-edo-monitor-card__edo-badges" gap="0.35rem" wrap="wrap" style={{ marginTop: "0.35rem" }}>
                             {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
-                              <DocumentsEdoCardBadge key={k} info={getInvoiceEdoInfoByDocLabel(inv, k)} />
+                              <DocumentsEdoCardBadge key={k} docLabel={k} compact info={getInvoiceEdoInfoByDocLabel(inv, k)} />
                             ))}
                           </Flex>
                         </button>
@@ -413,7 +429,6 @@ export function DocumentsInvoiceCard({
         cursor: "pointer",
         marginBottom: "0.75rem",
         position: "relative",
-        paddingBottom: showEdoCornerBadges ? "1.85rem" : undefined,
       }}
     >
       <Flex justify="space-between" align="start" style={{ marginBottom: "0.5rem", minWidth: 0, overflow: "visible" }}>
@@ -497,17 +512,217 @@ export function DocumentsInvoiceCard({
       {showEdoCornerBadges ? (
         <Flex
           className="documents-invoice-card__edo-badges"
-          gap="0.2rem"
+          gap="0.25rem"
           wrap="wrap"
-          justify="flex-end"
-          style={{ maxWidth: "58%", pointerEvents: "none" }}
+          justify="flex-start"
+          style={{ width: "100%", marginTop: "0.4rem", pointerEvents: "none" }}
         >
           {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
-            <DocumentsEdoCardBadge key={k} info={getInvoiceEdoInfoByDocLabel(row, k)} />
+            <DocumentsEdoCardBadge key={k} docLabel={k} compact info={getInvoiceEdoInfoByDocLabel(row, k)} />
           ))}
         </Flex>
       ) : null}
     </Panel>
+  );
+}
+
+export type DocumentsEdoCargoCardProps = {
+  item: EdoCargoCardItem;
+  onOpen: () => void;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
+};
+
+/** Плитка перевозки в разделе «ЭДО» — тот же каркас, что у счёта, статусы ЭДО в теле карточки. */
+export function DocumentsEdoCargoCard({ item, onOpen, isFavorite, onToggleFavorite }: DocumentsEdoCargoCardProps) {
+  const { cargoNumber, invoice, cargo } = item;
+  const invNum = invoice.Number ?? invoice.number ?? invoice.Номер ?? invoice.N ?? "";
+  const dt = cargo?.DatePrih ?? invoice.DateDoc ?? invoice.Date ?? invoice.date ?? invoice.Дата ?? "";
+  const cust =
+    cargo?.Customer ??
+    cargo?.customer ??
+    invoice.Customer ??
+    invoice.customer ??
+    invoice.Контрагент ??
+    invoice.Contractor ??
+    invoice.Organization ??
+    "";
+  const sum =
+    cargo?.Sum ??
+    cargo?.sum ??
+    invoice.SumDoc ??
+    invoice.Sum ??
+    invoice.sum ??
+    invoice.Сумма ??
+    invoice.Amount ??
+    0;
+  const rawStatus = invoice.Status ?? invoice.State ?? invoice.state ?? invoice.Статус ?? "";
+  const st = (normalizeInvoiceStatus(rawStatus) || rawStatus) as string;
+  const badgeStyle = invoicePaymentBadgeStyle(st);
+  const isFerry =
+    cargo?.AK === true ||
+    cargo?.AK === "true" ||
+    cargo?.AK === "1" ||
+    cargo?.AK === 1 ||
+    invoice.AK === true ||
+    invoice.AK === "true" ||
+    invoice.AK === "1" ||
+    invoice.AK === 1;
+  const routeFromCargo = [cityToCode(cargo?.CitySender), cityToCode(cargo?.CityReceiver)].filter(Boolean).join(" – ");
+  const routeFromInvoice = [cityToCode(invoice.CitySender), cityToCode(invoice.CityReceiver)].filter(Boolean).join(" – ");
+  const route = routeFromCargo || routeFromInvoice;
+
+  const onShare = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const lines = [
+      `Перевозка: ${formatInvoiceNumber(cargoNumber)}`,
+      invNum && `Счёт: ${formatInvoiceNumber(String(invNum))}`,
+      cust && `Заказчик: ${stripOoo(String(cust))}`,
+      cargo?.State && `Статус: ${String(cargo.State)}`,
+      sum != null && `Сумма: ${formatCurrency(sum)}`,
+      dt && `Дата: ${typeof dt === "string" ? dt : String(dt)}`,
+      route && `Маршрут: ${route}`,
+    ].filter(Boolean);
+    const text = lines.join("\n");
+    if (typeof navigator !== "undefined" && (navigator as Navigator & { share?: (d: ShareData) => Promise<void> }).share) {
+      void (navigator as Navigator & { share: (d: ShareData) => Promise<void> })
+        .share({ title: `Перевозка ${formatInvoiceNumber(cargoNumber)}`, text })
+        .catch(() => {});
+    } else {
+      try {
+        void navigator.clipboard?.writeText(text);
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+
+  return (
+    <Panel
+      className="cargo-card documents-invoice-card documents-edo-cargo-card"
+      onClick={onOpen}
+      style={{ cursor: "pointer", marginBottom: "0.75rem", position: "relative" }}
+      title="Открыть счёт"
+    >
+      <Flex justify="space-between" align="start" style={{ marginBottom: "0.5rem", minWidth: 0, overflow: "visible" }}>
+        <Flex align="center" gap="0.5rem" style={{ flexWrap: "wrap", flex: "0 1 auto", minWidth: 0, maxWidth: "60%" }}>
+          <Typography.Body style={{ fontWeight: 600, fontSize: "1rem", color: "var(--color-text-primary)" }}>
+            {formatInvoiceNumber(cargoNumber)}
+          </Typography.Body>
+        </Flex>
+        <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
+          <Button
+            style={{ padding: "0.25rem", minWidth: "auto", background: "transparent", border: "none", cursor: "pointer" }}
+            onClick={onShare}
+            title="Поделиться"
+          >
+            <Share2 className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
+          </Button>
+          <Button
+            style={{ padding: "0.25rem", minWidth: "auto", background: "transparent", border: "none", cursor: "pointer" }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite();
+            }}
+            title={isFavorite ? "Удалить из избранного" : "В избранное"}
+          >
+            <Heart
+              className="w-4 h-4"
+              style={{
+                fill: isFavorite ? "#ef4444" : "transparent",
+                color: isFavorite ? "#ef4444" : "var(--color-text-secondary)",
+              }}
+            />
+          </Button>
+          <Typography.Label className="text-theme-secondary" style={{ fontSize: "0.85rem" }}>
+            <DateText value={typeof dt === "string" ? dt : dt ? String(dt) : undefined} />
+          </Typography.Label>
+        </Flex>
+      </Flex>
+      <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem", gap: "0.35rem", flexWrap: "wrap" }}>
+        <Flex align="center" gap="0.35rem" wrap="wrap" style={{ minWidth: 0 }}>
+          {cargo?.State != null ? <StatusBadge status={cargo.State} /> : null}
+          {st ? (
+            <AppBadge tone="neutral" style={{ background: badgeStyle.bg, color: badgeStyle.color }}>
+              {st}
+            </AppBadge>
+          ) : null}
+        </Flex>
+        <Typography.Body style={{ fontWeight: 600, fontSize: "1rem", color: "var(--color-text-primary)", flexShrink: 0 }}>
+          {sum != null ? formatCurrency(sum) : "—"}
+        </Typography.Body>
+      </Flex>
+      <Flex justify="space-between" align="center" style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.45rem" }}>
+        <Typography.Label
+          style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}
+          title={stripOoo(String(cust || ""))}
+        >
+          {stripOoo(String(cust || "—"))}
+        </Typography.Label>
+        {isFerry ? (
+          <Ship className="w-4 h-4" style={{ flexShrink: 0, color: "var(--color-primary-blue)" }} title="Паром" />
+        ) : (
+          route && (
+            <Typography.Label style={{ fontSize: "0.85rem" }}>{route}</Typography.Label>
+          )
+        )}
+      </Flex>
+      {invNum ? (
+        <Typography.Label style={{ display: "block", fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.4rem" }}>
+          Счёт: {formatInvoiceNumber(String(invNum))}
+        </Typography.Label>
+      ) : null}
+      <Flex className="documents-edo-cargo-card__edo-badges" gap="0.35rem" wrap="wrap">
+        {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
+          <DocumentsEdoCardBadge key={k} docLabel={k} compact info={getInvoiceEdoInfoByDocLabel(invoice, k)} />
+        ))}
+      </Flex>
+    </Panel>
+  );
+}
+
+export type DocumentsEdoCardsListProps = {
+  items: EdoCargoCardItem[];
+  onOpenInvoice: (inv: any) => void;
+  isInvoiceFavorite: (num: string) => boolean;
+  onToggleInvoiceFavorite: (num: string) => void;
+  docsMotionEnabled?: boolean;
+};
+
+/** Список плиток ЭДО: 1 карточка = 1 перевозка. */
+export function DocumentsEdoCardsList({
+  items,
+  onOpenInvoice,
+  isInvoiceFavorite,
+  onToggleInvoiceFavorite,
+  docsMotionEnabled = false,
+}: DocumentsEdoCardsListProps) {
+  return (
+    <motion.div
+      className="cargo-list"
+      variants={docsMotionEnabled ? cargoListContainerVariants : undefined}
+      initial={docsMotionEnabled ? "hidden" : false}
+      animate={docsMotionEnabled ? "visible" : undefined}
+    >
+      {items.map((item, idx) => {
+        const invNum = String(item.invoice.Number ?? item.invoice.number ?? item.invoice.Номер ?? item.invoice.N ?? "");
+        return (
+          <motion.div
+            key={`${item.cargoKey}-${idx}`}
+            variants={docsMotionEnabled ? documentsListItemVariants : undefined}
+            initial={docsMotionEnabled ? "hidden" : false}
+            animate={docsMotionEnabled ? "visible" : undefined}
+          >
+            <DocumentsEdoCargoCard
+              item={item}
+              onOpen={() => onOpenInvoice(item.invoice)}
+              isFavorite={isInvoiceFavorite(invNum)}
+              onToggleFavorite={() => onToggleInvoiceFavorite(invNum)}
+            />
+          </motion.div>
+        );
+      })}
+    </motion.div>
   );
 }
 

@@ -71,11 +71,12 @@ import {
     getParcelDeclaredCost,
     collectSendingFreightCargoNumbers,
     sendingRowInSelectedPeriod,
+    buildEdoCargoCardItems,
 } from "./documentsPipeline";
 import {
     DocumentsApiDebugPanel,
     DocumentsEdoMonitorGroupedTable,
-    DocumentsEdoMonitorGroupedCards,
+    DocumentsEdoCardsList,
     DocumentsInvoiceCardsList,
     DocumentsSummaryCard,
     DocumentsStateBlocks,
@@ -2015,6 +2016,11 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
     /** ЭДО по типам документа для итоговой строки склеенной таблицы счетов (подписано / с непустым статусом) */
     const mergedInvoicesEdoTotals = useMemo(() => aggregateInvoiceEdoDocStats(filteredItems), [filteredItems]);
 
+    const edoCargoCardItems = useMemo(
+        () => buildEdoCargoCardItems(filteredItems, perevozkiItems, getFirstCargoNumberFromInvoice),
+        [filteredItems, perevozkiItems],
+    );
+
     const sortedActs = useMemo(() => {
         const list = [...(actsItems || [])];
         const getDate = (a: any) => (a.DateDoc ?? a.Date ?? a.date ?? '').toString();
@@ -3875,11 +3881,11 @@ useEffect(() => {
             <motion.div className="documents-summary-section-body">
             {(loading || !!error) && <DocumentsStateBlocks loading={loading} error={error} emptyText="" />}
             <AnimatePresence mode="wait">
-            {!loading && !error && sortedGroupedByCustomer.length > 0 ? (
+            {!loading && !error && (edoCargoCardItems.length > 0 || filteredItems.length > 0) ? (
                 tableModeEffective ? (
                 <motion.div key="docs-edo-monitor-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                     <DocumentsEdoMonitorGroupedTable
-                        rows={sortedGroupedByCustomer}
+                        rows={sortedGroupedByCustomer.length > 0 ? sortedGroupedByCustomer : [{ customer: '—', items: filteredItems, sum: documentsSummary.sum }]}
                         totals={mergedInvoicesEdoTotals}
                         invoicesCount={documentsSummary.count}
                         expandedCustomer={expandedTableCustomer}
@@ -3891,34 +3897,28 @@ useEffect(() => {
                         docsMotionEnabled={docsMotionEnabled}
                     />
                 </motion.div>
-                ) : (
-                <motion.div key="docs-edo-monitor-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                    <DocumentsEdoMonitorGroupedCards
-                        rows={sortedGroupedByCustomer}
-                        totals={mergedInvoicesEdoTotals}
-                        invoicesCount={documentsSummary.count}
-                        expandedCustomer={expandedTableCustomer}
-                        onToggleCustomer={(customer) => setExpandedTableCustomer((prev) => (prev === customer ? null : customer))}
+                ) : edoCargoCardItems.length > 0 ? (
+                <motion.div key="docs-edo-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
+                    <DocumentsEdoCardsList
+                        items={edoCargoCardItems}
                         onOpenInvoice={(inv) => setSelectedInvoice(inv)}
+                        isInvoiceFavorite={isInvoiceFavorite}
+                        onToggleInvoiceFavorite={toggleInvoiceFavorite}
                         docsMotionEnabled={docsMotionEnabled}
+                    />
+                </motion.div>
+                ) : (
+                <motion.div key="docs-edo-invoice-fallback" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
+                    <DocumentsInvoiceCardsList
+                        items={filteredItems}
+                        onOpenInvoice={setSelectedInvoice}
+                        isInvoiceFavorite={isInvoiceFavorite}
+                        onToggleInvoiceFavorite={toggleInvoiceFavorite}
+                        docsMotionEnabled={docsMotionEnabled}
+                        showEdoCornerBadges
                     />
                 </motion.div>
                 )
-            ) : !loading && !error && tableModeEffective && effectiveServiceMode && filteredItems.length > 0 && sortedGroupedByCustomer.length === 0 ? (
-                <motion.div key="docs-edo-monitor-flat" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                    <DocumentsEdoMonitorGroupedTable
-                        rows={[{ customer: '—', items: filteredItems, sum: documentsSummary.sum }]}
-                        totals={mergedInvoicesEdoTotals}
-                        invoicesCount={documentsSummary.count}
-                        expandedCustomer={expandedTableCustomer}
-                        onToggleCustomer={(customer) => setExpandedTableCustomer((prev) => (prev === customer ? null : customer))}
-                        onOpenInvoice={(inv) => setSelectedInvoice(inv)}
-                        sortColumn="count"
-                        sortOrder="desc"
-                        onSort={() => {}}
-                        docsMotionEnabled={docsMotionEnabled}
-                    />
-                </motion.div>
             ) : null}
             </AnimatePresence>
             {selectedInvoice && (

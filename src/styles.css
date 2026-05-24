@@ -822,14 +822,27 @@ body {
 }
 
 .documents-invoice-card__edo-badges {
-    position: absolute;
-    right: 0.5rem;
-    bottom: 0.3rem;
-    z-index: 2;
+    position: static;
+    width: 100%;
+    z-index: 1;
 }
 
-.documents-invoice-card .documents-edo-card-badge {
+.documents-edo-cargo-card__edo-badges {
+    width: 100%;
+    margin-top: 0.1rem;
+}
+
+.documents-invoice-card .documents-edo-card-badge,
+.documents-edo-cargo-card .documents-edo-card-badge {
     flex-shrink: 0;
+}
+
+.documents-edo-card-badge--compact {
+    font-size: 0.58rem !important;
+    min-height: 1.15rem;
+    padding: 0.14rem 0.38rem !important;
+    line-height: 1.15 !important;
+    letter-spacing: -0.01em;
 }
 
 /* Глобально .cargo-list { overflow-x: hidden } даёт в браузерах усечение по Y — первая карточка в Документах «пропадала» при анимации */
@@ -860,23 +873,42 @@ body {
     }
     /* Бейдж роли (Заказчик / Отправитель / Получатель) */
     .cargo-list-item .cargo-item-row-1 .role-badge,
+    .cargo-list-item .cargo-item-row-1 .cargo-role-badge,
     .cargo-list-item .cargo-item-row-1 .app-badge {
-        font-size: var(--text-sm, 0.8125rem) !important;
-        padding: var(--control-padding-badge-y, 4px) var(--control-padding-badge-x, 10px) !important;
-        min-height: var(--control-height-badge, 24px) !important;
-        min-width: 5.6rem;
+        font-size: 0.58rem !important;
+        padding: 2px 5px !important;
+        min-height: 1.1rem !important;
+        line-height: 1.15 !important;
         letter-spacing: -0.02em;
         white-space: nowrap;
         box-sizing: border-box;
+        overflow: visible !important;
+        text-overflow: unset !important;
     }
     .modal-header .role-badge,
     .modal-header .app-badge,
     .modal-header-role-badge {
-        font-size: var(--text-sm, 0.8125rem) !important;
-        padding: var(--control-padding-badge-y, 4px) var(--control-padding-badge-x, 10px) !important;
-        min-height: var(--control-height-badge, 24px) !important;
+        font-size: 0.58rem !important;
+        padding: 2px 5px !important;
+        min-height: 1.1rem !important;
+        line-height: 1.15 !important;
         min-width: 0 !important;
-        max-width: 100%;
+        max-width: none;
+        flex-shrink: 0;
+        overflow: visible !important;
+        text-overflow: unset !important;
+        letter-spacing: -0.02em;
+        white-space: nowrap;
+    }
+
+    .modal-header-main {
+        gap: 0.35rem;
+        overflow: visible;
+    }
+
+    .modal-header .modal-header-transport-icon {
+        width: 20px !important;
+        height: 20px !important;
     }
 
     .modal-header-actions {
@@ -2052,15 +2084,19 @@ body {
 
     .documents-invoices-inner-table .documents-invoice-inner-badge,
     .documents-invoices-inner-table .documents-invoices-inner-table__badges .max-badge {
-        display: block !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
         width: 100% !important;
         min-width: 0;
-        min-height: 1.15rem !important;
+        height: 1.2rem !important;
+        min-height: 1.2rem !important;
+        max-height: 1.2rem !important;
         box-sizing: border-box;
         text-align: center;
         font-size: 0.56rem !important;
-        padding: 0.12rem 0.22rem !important;
-        line-height: 1.1;
+        padding: 0 0.22rem !important;
+        line-height: 1 !important;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -2180,33 +2216,60 @@ body {
         height: 0.82rem;
     }
 
-    .cargo-inner-table__badges {
+    .cargo-inner-table__badges,
+    .cargo-inner-table__badges--stack-mobile {
         flex-direction: column;
-        align-items: flex-start;
-        gap: 0.18rem;
+        align-items: stretch;
+        gap: 0.16rem;
+        max-width: 5.35rem;
+    }
+
+    .cargo-inner-table__badges--stack-mobile > .cargo-inner-table__route-inline {
+        display: block;
+        width: 100%;
     }
 
     .cargo-inner-table__badges .max-badge,
+    .cargo-inner-table__badges .app-badge,
     .cargo-inner-table__badges .cargo-last-mile-self,
-    .cargo-inner-table__badges .cargo-last-mile-delivery {
-        font-size: 0.58rem !important;
-        padding: 0.1rem 0.28rem !important;
-        min-height: 1.1rem !important;
-        line-height: 1.1;
-        max-width: 100%;
-        white-space: normal;
-        text-align: left;
-    }
-
-    .cargo-inner-table .cargo-inner-table__col-route .app-badge,
-    .documents-invoices-inner-table .cargo-inner-table__col-route .app-badge {
-        font-size: 0.58rem !important;
-        padding: 0.1rem 0.28rem !important;
+    .cargo-inner-table__badges .cargo-last-mile-delivery,
+    .cargo-inner-table__badges--stack-mobile .max-badge,
+    .cargo-inner-table__badges--stack-mobile .app-badge,
+    .cargo-inner-table__badges--stack-mobile .cargo-last-mile-self,
+    .cargo-inner-table__badges--stack-mobile .cargo-last-mile-delivery {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100% !important;
+        min-width: 0;
+        height: 1.2rem !important;
+        min-height: 1.2rem !important;
+        max-height: 1.2rem !important;
+        box-sizing: border-box;
+        font-size: 0.56rem !important;
+        padding: 0 0.22rem !important;
+        line-height: 1 !important;
         max-width: 100%;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        display: block;
+        text-align: center;
+    }
+
+    .cargo-inner-table .cargo-inner-table__col-route .app-badge,
+    .documents-invoices-inner-table .cargo-inner-table__col-route .app-badge {
+        font-size: 0.56rem !important;
+        padding: 0 0.22rem !important;
+        height: 1.2rem !important;
+        min-height: 1.2rem !important;
+        max-height: 1.2rem !important;
+        max-width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
 }
 .modal-header {
@@ -2236,10 +2299,8 @@ body {
 
 .modal-header-role-badge {
     min-width: 0 !important;
-    max-width: 100%;
-    flex: 0 1 auto;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex: 0 0 auto;
+    white-space: nowrap;
     background: var(--color-panel-secondary);
     color: var(--color-text-secondary);
     border: 1px solid var(--color-border);
@@ -2766,14 +2827,15 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 22px;
-    padding: 0.12rem 0.4rem;
+    min-height: 1.15rem;
+    padding: 0.14rem 0.38rem;
     border-radius: 999px;
-    font-size: 0.68rem;
+    font-size: 0.58rem;
     font-weight: 600;
-    line-height: 1;
+    line-height: 1.15;
     white-space: nowrap;
     flex-shrink: 0;
+    box-sizing: border-box;
 }
 
 @media (max-width: 768px) {
@@ -2855,7 +2917,8 @@ body {
     width: 100%;
     min-width: 0;
     padding: 0.55rem 0.65rem !important;
-    margin-bottom: 0 !important;
+    margin-top: 0.75rem;
+    margin-bottom: 0.75rem !important;
     border-radius: 12px !important;
     text-align: left;
     cursor: pointer;

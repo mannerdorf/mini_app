@@ -367,6 +367,13 @@ export function getEdoTableDisplayLabel(info: EdoStatusInfo): string {
   return info.label;
 }
 
+/** Короткая подпись на плитке: «ЭР П», «Сч —» */
+export function getEdoCardCompactLabel(docLabel: InvoiceEdoMergedDocLabel, info: EdoStatusInfo): string {
+  const prefix = docLabel === "СЧЕТ" ? "Сч" : docLabel;
+  if (!info.raw) return `${prefix} —`;
+  return `${prefix} ${info.shortLabel}`;
+}
+
 /** Подпись на карточке: полный статус с префиксом «ЭДО» */
 export function getEdoCardDisplayLabel(info: EdoStatusInfo): string {
   return `ЭДО ${getEdoTableDisplayLabel(info)}`;
@@ -390,26 +397,14 @@ export function edoTableCellTextStyle(tone: EdoTone): CSSProperties {
   };
 }
 
-/** Карточка: мини-бейдж в правом нижнем углу */
+/** Карточка: цвет фона/рамки бейджа (без позиционирования) */
+export function edoCardBadgeSurfaceStyle(tone: EdoTone): CSSProperties {
+  return edoToneSurfaceStyle(tone);
+}
+
+/** @deprecated Используйте edoCardBadgeSurfaceStyle + CSS-класс documents-edo-card-badge */
 export function edoCardCornerBadgeStyle(tone: EdoTone): CSSProperties {
-  return {
-    position: "absolute",
-    right: 8,
-    bottom: 8,
-    zIndex: 2,
-    maxWidth: "54%",
-    fontSize: "0.5rem",
-    fontWeight: 600,
-    lineHeight: 1.2,
-    padding: "0.1rem 0.3rem",
-    borderRadius: 999,
-    textAlign: "right",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    pointerEvents: "none",
-    ...edoToneSurfaceStyle(tone),
-  };
+  return edoCardBadgeSurfaceStyle(tone);
 }
 
 /** Пункты легенды в модалках (без сокращений ОП/П/НП) */

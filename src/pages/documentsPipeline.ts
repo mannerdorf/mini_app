@@ -315,6 +315,55 @@ function pickCargoRecordSum(c: any): number {
   return parseSendingMetricNumber(c?.Sum ?? c?.sum ?? c?.Сумма ?? c?.Amount ?? c?.amount);
 }
 
+export type EdoCargoCardItem = {
+  cargoKey: string;
+  cargoNumber: string;
+  invoice: any;
+  cargo: any | null;
+};
+
+/** Одна плитка ЭДО = одна перевозка; ЭДО берётся из связанного счёта. */
+export function buildEdoCargoCardItems(
+  invoices: any[],
+  perevozkiItems: any[] | null | undefined,
+  getFirstCargoNumberFromInvoice: (inv: any) => string | null,
+): EdoCargoCardItem[] {
+  const perevozkiByKey = new Map<string, any>();
+  (perevozkiItems || []).forEach((c) => {
+    const raw = pickCargoRecordNumber(c);
+    if (!raw) return;
+    const key = normCargoKey(raw);
+    perevozkiByKey.set(key, c);
+    if (key !== raw) perevozkiByKey.set(raw, c);
+  });
+
+  const map = new Map<string, EdoCargoCardItem>();
+  for (const inv of invoices || []) {
+    const nums = collectInvoiceLinkedCargoNumbers(inv);
+    if (!nums.length) {
+      const first = getFirstCargoNumberFromInvoice(inv);
+      if (first) nums.push(first);
+    }
+    if (!nums.length) continue;
+    for (const num of nums) {
+      const key = normCargoKey(num);
+      if (map.has(key)) continue;
+      map.set(key, {
+        cargoKey: key,
+        cargoNumber: num,
+        invoice: inv,
+        cargo: perevozkiByKey.get(key) ?? perevozkiByKey.get(num) ?? null,
+      });
+    }
+  }
+
+  return [...map.values()].sort((a, b) => {
+    const da = a.cargo?.DatePrih ?? a.invoice?.DateDoc ?? a.invoice?.Date ?? "";
+    const db = b.cargo?.DatePrih ?? b.invoice?.DateDoc ?? b.invoice?.Date ?? "";
+    return String(db).localeCompare(String(da));
+  });
+}
+
 /** Сумма перевозки (freight) из getperevozka по номеру груза. */
 export function buildCargoSumByNumber(perevozkiItems: any[]): Map<string, number> {
   const m = new Map<string, number>();
