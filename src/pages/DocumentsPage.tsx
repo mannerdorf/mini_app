@@ -11,6 +11,12 @@ import { NewOrderModal } from "../components/modals/NewOrderModal";
 import { DateText } from "../components/ui/DateText";
 import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode } from "../lib/formatUtils";
 import { downloadBase64File } from "../utils";
+import {
+    checkSanctionsByNomenclature,
+    mergeSanctionVerdicts,
+    pickNomenclatureText,
+    type SanctionCheckResult,
+} from "../lib/sanctions";
 import { normalizeStatus, STATUS_MAP, getFilterKeyByStatus, BILL_STATUS_MAP } from "../lib/statusUtils";
 import { StatusBadge } from "../components/shared/StatusBadges";
 import {
@@ -447,8 +453,11 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const canEditEor = (permissions?.eor === true) || isSuperAdmin;
     /** Плановую дату могут менять руководители подразделений, eor-редакторы и суперадмин */
     const canEditPlanDate = canEditEor || (permissions?.supervisor === true);
+    const canRunSanctionsCheck = hasAnalytics === true;
+    const canSelectSendingRows = canEditPlanDate || canRunSanctionsCheck;
     const [eorStatusMap, setEorStatusMap] = useState<Record<string, EorStatus[]>>({});
     const [selectedSendingRowKeys, setSelectedSendingRowKeys] = useState<Set<string>>(() => new Set());
+    const [sendingSanctionMap, setSendingSanctionMap] = useState<Record<string, SanctionCheckResult>>({});
     const [bulkEorMenuOpen, setBulkEorMenuOpen] = useState(false);
     const [bulkPlanDateOpen, setBulkPlanDateOpen] = useState(false);
     const [bulkPlanDateValue, setBulkPlanDateValue] = useState("");
@@ -2904,7 +2913,36 @@ useEffect(() => {
         setOrdersParcelsSortOrder('asc');
     }, [ordersParcelsSortColumn]);
     const getRequestParcels = useCallback((row: any): any[] => getSendingParcelsFromRow(row), []);
-    const sendingsAnalyticsExtraColCount = hasAnalytics ? (1 + (showSums ? 2 : 0)) : 0;
+    const getParcelTnvedCode = useCallback((parcel: any): string => {
+        const goodsRaw = parcel?.Товары ?? parcel?.Goods ?? parcel?.goods;
+        const goods = Array.isArray(goodsRaw) ? goodsRaw[0] : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : {});
+        return checkSanctionsByNomenclature(
+            pickNomenclatureText(parcel),
+            goods?.ТНВЭД ?? goods?.TNVED ?? goods?.tnved ?? goods?.HsCode ?? goods?.HSCode ?? parcel?.ТНВЭД ?? parcel?.TNVED ?? parcel?.tnved
+        ).tnvedCode;
+    }, []);
+    const getParcelSanctionResult = useCallback((parcel: any): SanctionCheckResult => {
+        const goodsRaw = parcel?.Товары ?? parcel?.Goods ?? parcel?.goods;
+        const goods = Array.isArray(goodsRaw) ? goodsRaw[0] : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : {});
+        return checkSanctionsByNomenclature(
+            pickNomenclatureText(parcel),
+            goods?.ТНВЭД ?? goods?.TNVED ?? goods?.tnved ?? goods?.HsCode ?? goods?.HSCode ?? parcel?.ТНВЭД ?? parcel?.TNVED ?? parcel?.tnved
+        );
+    }, []);
+    const getSendingSanctionResult = useCallback((row: any): SanctionCheckResult => {
+        const parcels = getRequestParcels(row);
+        if (parcels.length === 0) {
+            return { verdict: 'review', tnvedCode: '', reason: 'нет данных по посылкам для проверки', matchedBy: 'none' };
+        }
+        return mergeSanctionVerdicts(parcels.map(getParcelSanctionResult));
+    }, [getParcelSanctionResult, getRequestParcels]);
+    const renderSanctionBadge = useCallback((result?: SanctionCheckResult | null) => {
+        if (!result) return <AppBadge tone="neutral">Не проверено</AppBadge>;
+        if (result.verdict === 'sanctioned') return <AppBadge tone="danger" title={result.reason}>Санкции</AppBadge>;
+        if (result.verdict === 'review') return <AppBadge tone="warning" title={result.reason}>Проверить</AppBadge>;
+        return <AppBadge tone="success" title={result.reason}>Нет</AppBadge>;
+    }, []);
+    const sendingsAnalyticsExtraColCount = hasAnalytics ? (2 + (showSums ? 2 : 0)) : 0;
     const getSendingRowKey = useCallback((row: any, idx: number): string => {
         const number = String(row?.Номер ?? row?.Number ?? row?.number ?? '').trim();
         return number || `${idx}`;
@@ -2916,6 +2954,7 @@ useEffect(() => {
                 const sendingNumber = String(row?.Номер ?? row?.Number ?? row?.number ?? '').trim();
                 return {
                     rowKey: getSendingRowKey(row, idx),
+                    row,
                     sendingNumber,
                     sendingDate: rawDate ? String(rawDate) : '',
                     cargoNumbers: getSendingCargoNumbers(row),
@@ -2943,6 +2982,18 @@ useEffect(() => {
         () => visibleSendingMeta.filter((row) => selectedSendingRowKeys.has(row.rowKey)),
         [visibleSendingMeta, selectedSendingRowKeys]
     );
+    const applyBulkSanctionsCheck = useCallback(() => {
+        if (!canRunSanctionsCheck || selectedSendingRowsMeta.length === 0) return;
+        const next: Record<string, SanctionCheckResult> = {};
+        selectedSendingRowsMeta.forEach((row) => {
+            next[row.rowKey] = getSendingSanctionResult(row.row);
+        });
+        setSendingSanctionMap((prev) => ({ ...prev, ...next }));
+        const sanctionedCount = Object.values(next).filter((item) => item.verdict === 'sanctioned').length;
+        const reviewCount = Object.values(next).filter((item) => item.verdict === 'review').length;
+        setBulkSendingActionError(null);
+        setBulkSendingActionInfo(`Санкции проверены: ${selectedSendingRowsMeta.length}. Санкции: ${sanctionedCount}, проверить: ${reviewCount}.`);
+    }, [canRunSanctionsCheck, selectedSendingRowsMeta, getSendingSanctionResult]);
     const applyBulkEorStatus = useCallback(async (status: EorStatus) => {
         if (!canEditEor || selectedSendingRowsMeta.length === 0) return;
         setBulkSendingActionLoading(true);
@@ -4596,7 +4647,7 @@ useEffect(() => {
                     </div>
                     </div>
                 </div>
-                {canEditPlanDate && tableModeEffective && (
+                {(canEditPlanDate || canRunSanctionsCheck) && tableModeEffective && (
                     <div className="cargo-card sendings-bulk-actions-bar" style={{ overflow: 'visible' }}>
                         <div className="sendings-bulk-actions-bar__row">
                             <Typography.Body className="sendings-bulk-actions-bar__label" style={{ color: 'var(--color-text-secondary)' }}>
@@ -4639,6 +4690,7 @@ useEffect(() => {
                                     )}
                                 </div>
                             )}
+                            {canEditPlanDate && (
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
                                 <Button
                                     type="button"
@@ -4689,6 +4741,18 @@ useEffect(() => {
                                     </div>
                                 )}
                             </div>
+                            )}
+                            {canRunSanctionsCheck && (
+                                <Button
+                                    type="button"
+                                    className="filter-button"
+                                    disabled={selectedVisibleSendingCount === 0}
+                                    onClick={applyBulkSanctionsCheck}
+                                    style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
+                                >
+                                    Санкции
+                                </Button>
+                            )}
                         </div>
                         {(bulkSendingActionError || bulkSendingActionInfo) && (
                             <Typography.Body style={{ marginTop: '0.35rem', fontSize: '0.78rem', color: bulkSendingActionError ? 'var(--color-error)' : 'var(--color-text-secondary)' }}>
@@ -4794,7 +4858,7 @@ useEffect(() => {
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                {canEditPlanDate && (
+                                {canSelectSendingRows && (
                                     <th style={{ padding: '0.5rem 0.35rem', textAlign: 'center', width: 34 }}>
                                         <input
                                             type="checkbox"
@@ -4824,6 +4888,9 @@ useEffect(() => {
                                 {hasAnalytics && showSums && (
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('declaredCost')} title="Объявленная стоимость товара">Объявл. стоимость {sendingsSortColumn === 'declaredCost' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 )}
+                                {hasAnalytics && (
+                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Санкции</th>
+                                )}
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('comment')} title="Сортировка">Комментарий {sendingsSortColumn === 'comment' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                             </tr>
                         </thead>
@@ -4851,6 +4918,7 @@ useEffect(() => {
                                 const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
                                 const expanded = expandedSendingRow === rowKey;
                                 const sendingParcelMetrics = getSendingRowParcelMetrics(row, cargoSumByNumber);
+                                const rowSanctionResult = sendingSanctionMap[rowKey];
                                 return (
                                     <React.Fragment key={rowKey}>
                                         <tr
@@ -4858,7 +4926,7 @@ useEffect(() => {
                                             onClick={() => setExpandedSendingRow((prev) => (prev === rowKey ? null : rowKey))}
                                             title={expanded ? 'Свернуть посылки' : 'Показать посылки'}
                                         >
-                                            {canEditPlanDate && (
+                                            {canSelectSendingRows && (
                                                 <td style={{ padding: '0.5rem 0.35rem', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                                                     <input
                                                         type="checkbox"
@@ -4924,11 +4992,16 @@ useEffect(() => {
                                                     {formatCurrency(sendingParcelMetrics.declaredCost, true)}
                                                 </td>
                                             )}
+                                            {hasAnalytics && (
+                                                <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>
+                                                    {renderSanctionBadge(rowSanctionResult)}
+                                                </td>
+                                            )}
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>
                                         </tr>
                                         {expanded && (
                                             <tr>
-                                                <td colSpan={9 + sendingsAnalyticsExtraColCount + (canEditPlanDate ? 1 : 0)} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <td colSpan={9 + sendingsAnalyticsExtraColCount + (canSelectSendingRows ? 1 : 0)} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                     <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                                             <Button
@@ -4986,6 +5059,8 @@ useEffect(() => {
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Объем</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Платный вес</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Номенклатура</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>ТН ВЭД</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Санкции</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Кол-во</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }} title="Сумма за перевозку">Стоимость</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Объявл. стоимость</th>
@@ -4995,6 +5070,8 @@ useEffect(() => {
                                                                     {parcelsToRender.map((parcel: any, parcelIdx: number) => {
                                                                         const goodsRaw = parcel?.Товары;
                                                                         const goods = Array.isArray(goodsRaw) ? goodsRaw[0] : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : {});
+                                                                        const parcelNomenclature = pickNomenclatureText(parcel) || String(goods?.ТМЦ ?? '');
+                                                                        const parcelSanctionResult = getParcelSanctionResult(parcel);
                                                                         return (
                                                                             <tr
                                                                                 key={`${rowKey}-parcel-${parcel?.Посылка ?? parcelIdx}`}
@@ -5010,7 +5087,9 @@ useEffect(() => {
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcel?.ВесДляОтчета ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcel?.ОбъемДляОтчета ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const w = parseSendingMetricNumber(parcel?.ПлатныйВес); return w > 0 ? formatSendingMetricNum(w) : '—'; })()}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem' }}>{goods?.ТМЦ ?? '—'}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem' }}>{parcelNomenclature || '—'}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{getParcelTnvedCode(parcel) || '—'}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{renderSanctionBadge(rowSanctionResult ? parcelSanctionResult : null)}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const sum = getParcelFreightSum(parcel, cargoSumByNumber); return sum > 0 ? formatCurrency(sum, true) : '—'; })()}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const sum = getParcelDeclaredCost(parcel); return sum > 0 ? formatCurrency(sum, true) : '—'; })()}</td>
@@ -5662,7 +5741,7 @@ useEffect(() => {
                 ) : (
                 <motion.div key="docs-send-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                     <div className="cargo-list">
-                        {canEditPlanDate && (
+                        {(canEditPlanDate || canRunSanctionsCheck) && (
                             <div className="cargo-card sendings-bulk-actions-bar" style={{ overflow: 'visible' }}>
                                 <div className="sendings-bulk-actions-bar__row">
                                     <Typography.Body className="sendings-bulk-actions-bar__label" style={{ color: 'var(--color-text-secondary)' }}>
@@ -5705,6 +5784,7 @@ useEffect(() => {
                                             )}
                                         </div>
                                     )}
+                                    {canEditPlanDate && (
                                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
                                         <Button
                                             type="button"
@@ -5755,6 +5835,18 @@ useEffect(() => {
                                             </div>
                                         )}
                                     </div>
+                                    )}
+                                    {canRunSanctionsCheck && (
+                                        <Button
+                                            type="button"
+                                            className="filter-button"
+                                            disabled={selectedVisibleSendingCount === 0}
+                                            onClick={applyBulkSanctionsCheck}
+                                            style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
+                                        >
+                                            Санкции
+                                        </Button>
+                                    )}
                                 </div>
                                 {(bulkSendingActionError || bulkSendingActionInfo) && (
                                     <Typography.Body style={{ marginTop: '0.35rem', fontSize: '0.78rem', color: bulkSendingActionError ? 'var(--color-error)' : 'var(--color-text-secondary)' }}>
@@ -5785,15 +5877,16 @@ useEffect(() => {
                             const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
                             const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
                             const expanded = expandedSendingRow === rowKey;
+                            const rowSanctionResult = sendingSanctionMap[rowKey];
                             return (
                                 <Panel
                                     key={rowKey}
                                     className="cargo-card"
                                     onClick={() => setExpandedSendingRow((prev) => (prev === rowKey ? null : rowKey))}
-                                    style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative', paddingBottom: canEditPlanDate ? '1.5rem' : undefined }}
+                                    style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative', paddingBottom: canSelectSendingRows ? '1.5rem' : undefined }}
                                     title={expanded ? 'Свернуть отправку' : 'Показать детали отправки'}
                                 >
-                                    {canEditPlanDate && (
+                                    {canSelectSendingRows && (
                                         <div style={{ position: 'absolute', right: 10, bottom: 10, zIndex: 2 }} onClick={(e) => e.stopPropagation()}>
                                             <input
                                                 type="checkbox"
@@ -5847,6 +5940,11 @@ useEffect(() => {
                                             План: {plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : 'нет'}
                                         </Typography.Label>
                                     </Flex>
+                                    {hasAnalytics && (
+                                        <div style={{ marginBottom: '0.35rem' }}>
+                                            {renderSanctionBadge(rowSanctionResult)}
+                                        </div>
+                                    )}
                                     <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={vehicle || '—'}>
                                         ТС: {vehicle || '—'}
                                     </Typography.Label>
@@ -5872,6 +5970,8 @@ useEffect(() => {
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Посылка</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Номенклатура</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>ТН ВЭД</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Санкции</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Кол-во</th>
                                                             </tr>
                                                         </thead>
@@ -5879,6 +5979,8 @@ useEffect(() => {
                                                             {parcelsToRender.map((parcel: any, parcelIdx: number) => {
                                                                 const goodsRaw = parcel?.Товары;
                                                                 const goods = Array.isArray(goodsRaw) ? goodsRaw[0] : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : {});
+                                                                const parcelNomenclature = pickNomenclatureText(parcel) || String(goods?.ТМЦ ?? '');
+                                                                const parcelSanctionResult = getParcelSanctionResult(parcel);
                                                                 return (
                                                                     <tr
                                                                         key={`${rowKey}-card-parcel-${parcel?.Посылка ?? parcelIdx}`}
@@ -5889,7 +5991,9 @@ useEffect(() => {
                                                                     >
                                                                         <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.ПосылкаНаименование ?? parcel?.Посылка ?? '—'}</td>
                                                                         <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.Перевозка ?? '—'}</td>
-                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{goods?.ТМЦ ?? '—'}</td>
+                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{parcelNomenclature || '—'}</td>
+                                                                        <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{getParcelTnvedCode(parcel) || '—'}</td>
+                                                                        <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{renderSanctionBadge(rowSanctionResult ? parcelSanctionResult : null)}</td>
                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
                                                                     </tr>
                                                                 );
