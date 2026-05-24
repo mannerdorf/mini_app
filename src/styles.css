@@ -357,9 +357,9 @@ body {
     :root {
         /* Высота «тела» шапки под safe-area: было 60px — лишний зazoр до «Грузов»/фильтров */
         --app-mobile-header-inner-stack: 42px;
-        /* Зазор под fixed tabbar + FAB; доп. «воздух» после последней строки списка */
+        /* Зазор под fixed tabbar; «воздух» после последнего блока страницы */
         --app-mobile-tabbar-clearance: 112px;
-        --app-mobile-scroll-bottom-air: 2cm;
+        --app-mobile-scroll-bottom-air: 3cm;
     }
     .app-container {
         padding-top: 0;
@@ -406,10 +406,20 @@ body {
         overflow-x: auto; /* не обрезать табель и широкие таблицы слева */
         -webkit-overflow-scrolling: touch;
         padding-top: calc(var(--app-mobile-header-inner-stack) + max(var(--space-4, 16px), env(safe-area-inset-top)));
-        /* Таббар fixed + FAB + 2cm свободного скролла после последней строки */
-        padding-bottom: calc(var(--app-mobile-tabbar-clearance) + var(--app-mobile-scroll-bottom-air) + env(safe-area-inset-bottom));
+        padding-bottom: 0;
         padding-left: max(var(--space-3, 12px), env(safe-area-inset-left));
         padding-right: max(var(--space-3, 12px), env(safe-area-inset-right));
+    }
+    /* После последнего блока страницы: 3cm «воздуха» + высота tabbar (скролл до самого низа) */
+    .app-main > div::after {
+        content: "";
+        display: block;
+        width: 100%;
+        height: calc(
+            var(--app-mobile-tabbar-clearance) + var(--app-mobile-scroll-bottom-air) + env(safe-area-inset-bottom, 0px)
+        );
+        flex-shrink: 0;
+        pointer-events: none;
     }
     .cargo-page-sticky-header {
         padding-top: 1rem;

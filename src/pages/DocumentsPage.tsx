@@ -3733,7 +3733,6 @@ useEffect(() => {
                 <motion.div key="docs-inv-c" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                 <motion.div
                     className="cargo-list"
-                    style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}
                     variants={docsMotionEnabled ? cargoListContainerVariants : undefined}
                     initial={docsMotionEnabled ? "hidden" : false}
                     animate={docsMotionEnabled ? "visible" : undefined}
@@ -4005,7 +4004,6 @@ useEffect(() => {
                 <motion.div key="docs-act-c" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                 <motion.div
                     className="cargo-list"
-                    style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}
                     variants={docsMotionEnabled ? cargoListContainerVariants : undefined}
                     initial={docsMotionEnabled ? "hidden" : false}
                     animate={docsMotionEnabled ? "visible" : undefined}
@@ -5590,7 +5588,7 @@ useEffect(() => {
                 </motion.div>
                 ) : (
                 <motion.div key="docs-send-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                    <div className="cargo-list" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
+                    <div className="cargo-list">
                         {canEditPlanDate && (
                             <div className="cargo-card sendings-bulk-actions-bar" style={{ overflow: 'visible' }}>
                                 <div className="sendings-bulk-actions-bar__row">
