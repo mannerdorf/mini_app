@@ -2858,6 +2858,19 @@ useEffect(() => {
             { sendingsCount: 0, paidWeight: 0, cost: 0, declaredCost: 0 }
         );
     }, [sendingsRepeatedVehicleTotals]);
+    const sendingsTableTotals = useMemo(() => {
+        return sendingRowsSorted.reduce(
+            (acc, row: any) => {
+                const metrics = getSendingRowParcelMetrics(row, cargoSumByNumber);
+                acc.sendingsCount += 1;
+                acc.paidWeight += metrics.paidWeight;
+                acc.cost += metrics.cost;
+                acc.declaredCost += metrics.declaredCost;
+                return acc;
+            },
+            { sendingsCount: 0, paidWeight: 0, cost: 0, declaredCost: 0 }
+        );
+    }, [sendingRowsSorted, cargoSumByNumber]);
     const handleSendingsSort = useCallback((column: 'date' | 'number' | 'route' | 'type' | 'transitHours' | 'vehicle' | 'comment' | 'paidWeight' | 'cost' | 'declaredCost') => {
         if (sendingsSortColumn === column) {
             setSendingsSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
@@ -4746,6 +4759,38 @@ useEffect(() => {
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+                )}
+                {hasAnalytics && sendingRowsSorted.length > 0 && (
+                    <div className="cargo-card documents-sendings-table-summary" style={{ marginBottom: '0.65rem', padding: '0.55rem 0.65rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '0.5rem' }}>
+                        <div>
+                            <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.15rem' }}>
+                                Итого в таблице
+                            </Typography.Body>
+                            <Typography.Body style={{ fontWeight: 700 }}>{sendingsTableTotals.sendingsCount}</Typography.Body>
+                        </div>
+                        <div>
+                            <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.15rem' }}>
+                                Плат. вес
+                            </Typography.Body>
+                            <Typography.Body style={{ fontWeight: 700 }}>{formatSendingMetricNum(sendingsTableTotals.paidWeight)}</Typography.Body>
+                        </div>
+                        {showSums && (
+                            <div>
+                                <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.15rem' }}>
+                                    Стоимость
+                                </Typography.Body>
+                                <Typography.Body style={{ fontWeight: 700 }}>{formatCurrency(sendingsTableTotals.cost, true)}</Typography.Body>
+                            </div>
+                        )}
+                        {showSums && (
+                            <div>
+                                <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.15rem' }}>
+                                    Объявл. стоимость
+                                </Typography.Body>
+                                <Typography.Body style={{ fontWeight: 700 }}>{formatCurrency(sendingsTableTotals.declaredCost, true)}</Typography.Body>
+                            </div>
+                        )}
                     </div>
                 )}
                 <AnimatePresence mode="wait">

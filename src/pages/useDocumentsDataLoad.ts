@@ -19,7 +19,7 @@ export function useDocumentsDataLoad(params: Params) {
   const loadActs = docSection === 'УПД';
   const loadOrders = docSection === 'Заявки';
   const loadSendings = docSection === 'Отправки';
-  const loadPerevozki = docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'УПД';
+  const loadPerevozki = docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'УПД' || docSection === 'Отправки';
 
   const {
     items,
