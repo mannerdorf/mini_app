@@ -2,13 +2,14 @@
  * Сводка по выдаче грузов: плитки и таблица по датам верхнего фильтра дашборда.
  */
 import React, { useMemo, useCallback, useState, useEffect } from "react";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, List, Loader2, RefreshCw, RussianRuble, Scale, Weight } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, List, Loader2, RefreshCw, RussianRuble, Scale, Ship, Truck, Weight } from "lucide-react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
+import { AppBadge } from "./shared/AppBadge";
 import type { AuthData, CargoItem, PerevozkaTimelineStep } from "../types";
 import { formatTimelineDate, formatTimelineTime, parseDateOnly } from "../lib/dateUtils";
 import { getFilterKeyByStatus, isReceivedInfoStatus } from "../lib/statusUtils";
-import { formatCurrency, formatInvoiceNumber, stripOoo } from "../lib/formatUtils";
-import { getPlanDays, getSlaInfo, getSlaPlanAnchorDateString, getSlaPlanDeadlineMs } from "../lib/cargoUtils";
+import { cityToCode, formatCurrency, formatInvoiceNumber, stripOoo } from "../lib/formatUtils";
+import { getPlanDays, getSlaInfo, getSlaPlanAnchorDateString, getSlaPlanDeadlineMs, isFerry } from "../lib/cargoUtils";
 import { fetchPerevozkaTimeline } from "../lib/perevozkaDetails";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
 import type { KeyedMutator } from "swr";
@@ -32,8 +33,41 @@ export type HaulzDispatchSummaryProps = {
 type DispatchTileKey = "ready" | "delivering" | "transit" | "delivered" | "total";
 
 const TABLE_MAX_ROWS = 60;
+const DISPATCH_TABLE_COLS = 8;
 
 type DispatchTableSortCol = "number" | "customer" | "statusDate" | "datePrih" | "pw" | "sum";
+
+function getDispatchRouteLabel(item: CargoItem): string {
+    const from = cityToCode(item.CitySender);
+    const to = cityToCode(item.CityReceiver);
+    return [from, to].filter(Boolean).join(" – ") || "—";
+}
+
+function DispatchRouteBadge({ item }: { item: CargoItem }) {
+    const route = getDispatchRouteLabel(item);
+    if (route === "—") return <span>—</span>;
+    return (
+        <AppBadge tone="info" style={{ display: "inline-block", whiteSpace: "nowrap", fontSize: "0.72rem" }}>
+            {route}
+        </AppBadge>
+    );
+}
+
+function DispatchTransportIcon({ item }: { item: CargoItem }) {
+    return isFerry(item) ? (
+        <Ship
+            className="w-4 h-4"
+            style={{ color: "var(--color-primary-blue)", display: "inline-block" }}
+            title="Паром"
+        />
+    ) : (
+        <Truck
+            className="w-4 h-4"
+            style={{ color: "var(--color-text-secondary)", display: "inline-block" }}
+            title="Авто"
+        />
+    );
+}
 
 function compareCargoNumbersForSort(a: string, b: string): number {
     const na = parseInt(a.replace(/\D/g, ""), 10) || 0;
@@ -574,31 +608,38 @@ export function HaulzDispatchSummary({
                                                     { col: "customer" as const, label: "Заказчик", align: "left" as const },
                                                     { col: "statusDate" as const, label: "Дата статуса", align: "left" as const },
                                                     { col: "datePrih" as const, label: "Приход", align: "left" as const },
+                                                    { col: null, label: "Маршрут", align: "left" as const, title: "Маршрут" },
+                                                    { col: null, label: "", align: "center" as const, title: "Тип перевозки" },
                                                     { col: "pw" as const, label: "Плат. вес", align: "right" as const },
                                                     { col: "sum" as const, label: "Сумма", align: "right" as const },
                                                 ] as const
-                                            ).map(({ col, label, align }) => {
-                                                const active = dispatchTableSort.column === col;
+                                            ).map(({ col, label, align, title: thTitle }) => {
+                                                const active = col != null && dispatchTableSort.column === col;
                                                 const SortIcon = dispatchTableSort.order === "asc" ? ArrowUp : ArrowDown;
                                                 return (
                                                     <th
-                                                        key={col}
+                                                        key={col ?? (label || thTitle)}
                                                         role="columnheader"
                                                         aria-sort={
                                                             !active ? "none" : dispatchTableSort.order === "asc" ? "ascending" : "descending"
                                                         }
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            onDispatchSortHeaderClick(col);
-                                                        }}
-                                                        title="Сортировка по столбцу"
+                                                        onClick={
+                                                            col
+                                                                ? (e) => {
+                                                                      e.stopPropagation();
+                                                                      onDispatchSortHeaderClick(col);
+                                                                  }
+                                                                : undefined
+                                                        }
+                                                        title={col ? "Сортировка по столбцу" : thTitle}
                                                         style={{
                                                             padding: "0.4rem 0.35rem",
                                                             fontWeight: 600,
                                                             textAlign: align,
-                                                            cursor: "pointer",
+                                                            cursor: col ? "pointer" : "default",
                                                             userSelect: "none",
                                                             whiteSpace: "nowrap",
+                                                            width: col == null && label === "" ? "2.5rem" : undefined,
                                                         }}
                                                     >
                                                         <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", justifyContent: align === "right" ? "flex-end" : "flex-start", width: align === "right" ? "100%" : undefined }}>
@@ -667,6 +708,8 @@ export function HaulzDispatchSummary({
                                                             —
                                                         </td>
                                                         <td style={{ padding: "0.35rem", whiteSpace: "nowrap", color: "var(--color-text-secondary)" }}>—</td>
+                                                        <td style={{ padding: "0.35rem", whiteSpace: "nowrap", color: "var(--color-text-secondary)" }}>—</td>
+                                                        <td style={{ padding: "0.35rem", whiteSpace: "nowrap", color: "var(--color-text-secondary)" }}>—</td>
                                                         <td style={{ padding: "0.35rem", textAlign: "right" }}>{Math.round(totalPw).toLocaleString("ru-RU")}</td>
                                                         <td style={{ padding: "0.35rem", textAlign: "right" }}>{formatCurrency(totalSum, true)}</td>
                                                     </tr>
@@ -734,13 +777,19 @@ export function HaulzDispatchSummary({
                                                                             {statusDateCell}
                                                                         </td>
                                                                         <td style={{ padding: "0.35rem", whiteSpace: "nowrap" }}>{dp || "—"}</td>
+                                                                        <td style={{ padding: "0.35rem", whiteSpace: "nowrap" }}>
+                                                                            <DispatchRouteBadge item={row} />
+                                                                        </td>
+                                                                        <td style={{ padding: "0.35rem", textAlign: "center" }}>
+                                                                            <DispatchTransportIcon item={row} />
+                                                                        </td>
                                                                         <td style={{ padding: "0.35rem", textAlign: "right" }}>{Math.round(pw).toLocaleString("ru-RU")}</td>
                                                                         <td style={{ padding: "0.35rem", textAlign: "right" }}>{formatCurrency(sum, true)}</td>
                                                                     </tr>
                                                                     {expanded && expandedDispatchItem && (
                                                                         <tr>
                                                                             <td
-                                                                                colSpan={6}
+                                                                                colSpan={DISPATCH_TABLE_COLS}
                                                                                 style={{
                                                                                     padding: "0.5rem",
                                                                                     borderBottom: "1px solid var(--color-border)",

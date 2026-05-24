@@ -78,6 +78,7 @@ import {
     DocumentsApiDebugPanel,
     DocumentsEdoCardBadge,
     DocumentsEdoMonitorGroupedTable,
+    DocumentsEdoMonitorGroupedCards,
     DocumentsEdoTableStatus,
     DocumentsSummaryCard,
     DocumentsStateBlocks,
@@ -3099,7 +3100,7 @@ useEffect(() => {
     }, [auth?.login, auth?.password, ferriesList, effectiveActiveInn]);
 
     return (
-        <div className={`w-full documents-page${documentsServiceSaasUi ? " documents-page--saas-analytics" : ""}${(docSection === 'Счета' || docSection === 'УПД') ? " documents-page--with-summary-sections" : ""}${docSection === 'ЭДО' ? " documents-page--with-edo-section" : ""}${docSection === 'Заявки' ? " documents-page--with-orders-section" : ""}${docSection === 'Отправки' ? " documents-page--with-sendings-section" : ""}${docSection === 'Тарифы' ? " documents-page--with-tariffs-section" : ""}${docSection === 'Договоры' ? " documents-page--with-contracts-section" : ""}`} style={{ minWidth: 0, maxWidth: '100%' }}>
+        <div className={`w-full documents-page${documentsServiceSaasUi ? " documents-page--saas-analytics" : ""}${(docSection === 'Счета' || docSection === 'УПД') ? " documents-page--with-summary-sections" : ""}${docSection === 'ЭДО' ? " documents-page--with-edo-section" : ""}${docSection === 'Заявки' ? " documents-page--with-orders-section" : ""}${docSection === 'Отправки' ? " documents-page--with-sendings-section" : ""}${docSection === 'Тарифы' ? " documents-page--with-tariffs-section" : ""}${docSection === 'Договоры' ? " documents-page--with-contracts-section" : ""}${docSection === 'Акты сверок' ? " documents-page--with-sverki-section" : ""}`} style={{ minWidth: 0, maxWidth: '100%' }}>
             <div className="cargo-page-sticky-header documents-page-sticky-header">
                 <Flex align="center" justify="space-between" style={{ marginBottom: '0.3rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <Typography.Headline className="text-page-title">Документы</Typography.Headline>
@@ -3112,14 +3113,7 @@ useEffect(() => {
                 </Flex>
                 {/* Кнопки разделов: ниже «Документы», выше фильтров */}
                 <div className="documents-sticky-body">
-                <div
-                    className="doc-sections-row"
-                    style={{
-                        overflowX: 'auto',
-                        WebkitOverflowScrolling: 'touch',
-                        paddingBottom: '4px',
-                    }}
-                >
+                <div className="doc-sections-row">
                     <Flex align="center" gap="0.5rem" style={{ flexWrap: 'nowrap', minWidth: 'min-content' }}>
                         {allowedDocSections.map(({ key, label }) => {
                             const isActive = docSection === key;
@@ -3917,7 +3911,8 @@ useEffect(() => {
             {(loading || !!error) && <DocumentsStateBlocks loading={loading} error={error} emptyText="" />}
             <AnimatePresence mode="wait">
             {!loading && !error && sortedGroupedByCustomer.length > 0 ? (
-                <motion.div key="docs-edo-monitor" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
+                tableModeEffective ? (
+                <motion.div key="docs-edo-monitor-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                     <DocumentsEdoMonitorGroupedTable
                         rows={sortedGroupedByCustomer}
                         totals={mergedInvoicesEdoTotals}
@@ -3931,6 +3926,19 @@ useEffect(() => {
                         docsMotionEnabled={docsMotionEnabled}
                     />
                 </motion.div>
+                ) : (
+                <motion.div key="docs-edo-monitor-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
+                    <DocumentsEdoMonitorGroupedCards
+                        rows={sortedGroupedByCustomer}
+                        totals={mergedInvoicesEdoTotals}
+                        invoicesCount={documentsSummary.count}
+                        expandedCustomer={expandedTableCustomer}
+                        onToggleCustomer={(customer) => setExpandedTableCustomer((prev) => (prev === customer ? null : customer))}
+                        onOpenInvoice={(inv) => setSelectedInvoice(inv)}
+                        docsMotionEnabled={docsMotionEnabled}
+                    />
+                </motion.div>
+                )
             ) : null}
             </AnimatePresence>
             {selectedInvoice && (
@@ -5941,12 +5949,12 @@ useEffect(() => {
             {docSection === 'Тарифы' && (
                 <div className="doc-section-content">
                     {tariffsLoading ? (
-                        <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
+                        <Flex align="center" gap="0.5rem" className="documents-section-empty-state">
                             <Loader2 className="w-4 h-4 animate-spin" />
                             <Typography.Body>Загрузка тарифов...</Typography.Body>
                         </Flex>
                     ) : filteredTariffs.length === 0 ? (
-                        <Typography.Body className="text-empty-state" style={{ padding: '2rem 0' }}>Нет данных по тарифам</Typography.Body>
+                        <Typography.Body className="text-empty-state documents-section-empty-state">Нет данных по тарифам</Typography.Body>
                     ) : (
                         <AnimatePresence mode="wait">
                         {tableModeEffective ? (
@@ -6129,14 +6137,14 @@ useEffect(() => {
                     />
                 )}
                 <DocumentsToolbarBelowSticky>
-                    <div style={{ marginBottom: '0.9rem' }}>
+                    <div>
                         {sverkiRequestsLoading ? (
-                            <Typography.Body style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
+                            <Typography.Body className="text-empty-state documents-section-empty-state" style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
                                 Загрузка заявок...
                             </Typography.Body>
                         ) : sverkiRequests.length === 0 ? (
-                            <Typography.Body style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
-                                {'   '}Заявок пока нет
+                            <Typography.Body className="text-empty-state documents-section-empty-state" style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
+                                Заявок пока нет
                             </Typography.Body>
                         ) : (
                             <AnimatePresence mode="wait">
@@ -6248,12 +6256,12 @@ useEffect(() => {
                         )}
                     </div>
                     {sverkiLoading ? (
-                        <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
+                        <Flex align="center" gap="0.5rem" className="documents-section-empty-state">
                             <Loader2 className="w-4 h-4 animate-spin" />
                             <Typography.Body>Загрузка актов сверок...</Typography.Body>
                         </Flex>
                     ) : filteredSverki.length === 0 ? (
-                        <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по актам сверок</Typography.Body>
+                        <Typography.Body className="text-empty-state documents-section-empty-state" style={{ color: 'var(--color-text-secondary)' }}>Нет данных по актам сверок</Typography.Body>
                     ) : (
                         <AnimatePresence mode="wait">
                         {tableModeEffective ? (
@@ -6410,12 +6418,12 @@ useEffect(() => {
                         />
                     )}
                     {dogovorsLoading ? (
-                        <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
+                        <Flex align="center" gap="0.5rem" className="documents-section-empty-state">
                             <Loader2 className="w-4 h-4 animate-spin" />
                             <Typography.Body>Загрузка договоров...</Typography.Body>
                         </Flex>
                     ) : filteredDogovors.length === 0 ? (
-                        <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по договорам</Typography.Body>
+                        <Typography.Body className="text-empty-state documents-section-empty-state" style={{ color: 'var(--color-text-secondary)' }}>Нет данных по договорам</Typography.Body>
                     ) : (
                         <AnimatePresence mode="wait">
                         {tableModeEffective ? (
@@ -6554,12 +6562,12 @@ useEffect(() => {
             {docSection === 'Претензии' && (
                 <DocumentsToolbarBelowSticky>
                     {claimsLoading ? (
-                        <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
+                        <Flex align="center" gap="0.5rem" className="documents-section-empty-state">
                             <Loader2 className="w-4 h-4 animate-spin" />
                             <Typography.Body>Загрузка претензий...</Typography.Body>
                         </Flex>
                     ) : filteredClaims.length === 0 ? (
-                        <Typography.Body style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Претензий пока нет</Typography.Body>
+                        <Typography.Body className="text-empty-state documents-section-empty-state" style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>Претензий пока нет</Typography.Body>
                     ) : (
                         <AnimatePresence mode="wait">
                         {tableModeEffective ? (

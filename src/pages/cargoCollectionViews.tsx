@@ -13,7 +13,7 @@ import {
 import { DateText } from "../components/ui/DateText";
 import { StatusBadge, StatusBillBadge } from "../components/shared/StatusBadges";
 import { AppBadge } from "../components/shared/AppBadge";
-import { getSlaInfo, cargoLastMileIsSelfPickup, isFerry } from "../lib/cargoUtils";
+import { getSlaInfo, cargoLastMileIsSelfPickup, isFerry, getCargoDisplayRoleLabel, getCargoRoleSet } from "../lib/cargoUtils";
 import { formatCurrency, stripOoo, cityToCode } from "../lib/formatUtils";
 import { getSumColorByPaymentStatus } from "../lib/statusUtils";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
@@ -801,13 +801,9 @@ export function CargoCardsList({
                 >
                   {item.Number || "—"}
                 </Typography.Body>
-                {item._role && (
+                {getCargoDisplayRoleLabel(item) && (
                   <AppBadge tone="role" className="cargo-role-badge" style={{ flexShrink: 0, alignSelf: "flex-start" }}>
-                    {item._role === "Customer"
-                      ? "Заказчик"
-                      : item._role === "Sender"
-                        ? "Отправитель"
-                        : "Получатель"}
+                    {getCargoDisplayRoleLabel(item)}
                   </AppBadge>
                 )}
                 <CargoLastMileBadge item={item} />
@@ -902,7 +898,7 @@ export function CargoCardsList({
             </Flex>
             <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem" }}>
               <StatusBadge status={item.State} />
-              {showSums && item._role === "Customer" && (
+              {showSums && getCargoRoleSet(item).has("Customer") && (
                 <Typography.Body
                   style={{
                     fontWeight: 600,

@@ -225,6 +225,7 @@ export function AppMainContent({
             saasDashboardMotion={profileSaasShellActive}
             canAccessHaulzDispatch={canAccessHaulzDispatch}
             onOpenCargo={openCargoFromChat}
+            onOpenDocumentsEdo={() => openDocumentsWithSection("ЭДО")}
           />
         </Suspense>
         </SectionBoundary>
@@ -354,6 +355,7 @@ export function AppMainContent({
             saasDashboardMotion={profileSaasShellActive}
             canAccessHaulzDispatch={canAccessHaulzDispatch}
             onOpenCargo={openCargoFromChat}
+            onOpenDocumentsEdo={() => openDocumentsWithSection("ЭДО")}
           />
         </Suspense>
         </SectionBoundary>

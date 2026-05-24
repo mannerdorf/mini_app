@@ -87,6 +87,8 @@ export type CargoItem = {
     Customer?: string;
     /** Роль авторизованного лица по этой перевозке (для бейджа и скрытия финансов) */
     _role?: PerevozkiRole;
+    /** Все роли контрагента по перевозке (Customer / Sender / Receiver из разных mode API) */
+    _roles?: PerevozkiRole[];
     [key: string]: any;
 };
 

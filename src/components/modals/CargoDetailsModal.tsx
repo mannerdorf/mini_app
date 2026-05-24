@@ -8,7 +8,7 @@ import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { formatCurrency, stripOoo, cityToCode, transliterateFilename, formatInvoiceNumber } from "../../lib/formatUtils";
 import { normalizeStatus, getFilterKeyByStatus, getSumColorByPaymentStatus } from "../../lib/statusUtils";
 import { formatDate } from "../../lib/dateUtils";
-import { getPlanDays } from "../../lib/cargoUtils";
+import { getPlanDays, getCargoDisplayRoleLabel, getCargoRoleSet } from "../../lib/cargoUtils";
 import { DetailItem } from "../ui/DetailItem";
 import { DateText } from "../ui/DateText";
 import { StatusBadge, StatusBillBadge } from "../shared/StatusBadges";
@@ -219,8 +219,9 @@ export function CargoDetailsModal({
         }
     };
 
-    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', '_role', 'Driver', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel'];
-    const isCustomerRole = item._role === "Customer";
+    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', '_role', '_roles', 'Driver', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel'];
+    const isCustomerRole = getCargoRoleSet(item).has("Customer");
+    const roleLabel = getCargoDisplayRoleLabel(item);
     const FIELD_LABELS: Record<string, string> = {
         CitySender: 'Место отправления',
         CityReceiver: 'Место получения',
@@ -242,19 +243,18 @@ export function CargoDetailsModal({
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-content" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                    <Flex align="center" justify="space-between" style={{ width: '100%', minWidth: 0 }}>
-                        <Flex align="center" gap="0.5rem" style={{ flexShrink: 1, minWidth: 0, maxWidth: '55%' }}>
-                            {(() => {
-                                const isFerry = item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
-                                return isFerry ? <Ship className="modal-header-transport-icon" style={{ color: 'var(--color-primary-blue)', width: 24, height: 24, flexShrink: 0 }} title="Паром" /> : <Truck className="modal-header-transport-icon" style={{ color: 'var(--color-primary-blue)', width: 24, height: 24, flexShrink: 0 }} title="Авто" />;
-                            })()}
-                            {item._role && (
-                                <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.2rem 0.5rem', borderRadius: '999px', background: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {item._role === 'Customer' ? 'Заказчик' : item._role === 'Sender' ? 'Отправитель' : 'Получатель'}
-                                </span>
-                            )}
-                        </Flex>
-                        <Flex align="center" gap="0.25rem" style={{ flexShrink: 0 }}>
+                    <div className="modal-header-main">
+                        {(() => {
+                            const isFerry = item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
+                            return isFerry ? <Ship className="modal-header-transport-icon" style={{ color: 'var(--color-primary-blue)', width: 24, height: 24, flexShrink: 0 }} title="Паром" /> : <Truck className="modal-header-transport-icon" style={{ color: 'var(--color-primary-blue)', width: 24, height: 24, flexShrink: 0 }} title="Авто" />;
+                        })()}
+                        {roleLabel && (
+                            <span className="role-badge modal-header-role-badge">
+                                {roleLabel}
+                            </span>
+                        )}
+                    </div>
+                    <div className="modal-header-actions">
                             <button
                                 type="button"
                                 className="modal-header-icon-btn"
@@ -276,7 +276,7 @@ export function CargoDetailsModal({
                                         lines.push(`Место отправления: ${fromC || '-'}`);
                                         lines.push(`Место получения: ${toC || '-'}`);
                                         if (item.Mest !== undefined) lines.push(`Мест: ${item.Mest}`);
-                                        if (item._role === 'Customer') {
+                                        if (isCustomerRole) {
                                             if (item.PW !== undefined) lines.push(`Плат. вес: ${item.PW} кг`);
                                             if (item.Sum !== undefined) lines.push(`Стоимость: ${formatCurrency(item.Sum as any)}`);
                                             if (item.StateBill) lines.push(`Статус счета: ${item.StateBill}`);
@@ -324,8 +324,7 @@ export function CargoDetailsModal({
                             <button type="button" className="modal-header-icon-btn" onClick={onClose} aria-label="Закрыть" title="Закрыть">
                                 <X size={20} style={{ color: 'var(--color-text-secondary)' }} />
                             </button>
-                        </Flex>
-                    </Flex>
+                    </div>
                 </div>
                 <div className="details-grid-modal">
                     <DetailItem label="Номер" value={item.Number || '—'} />
@@ -524,7 +523,7 @@ export function CargoDetailsModal({
                 <Typography.Headline style={{ marginTop: '1rem', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>Документы</Typography.Headline>
                 {(() => {
                     const isPaid = item.StateBill?.toLowerCase().includes('оплачен') || item.StateBill?.toLowerCase().includes('paid') || item.StateBill === 'Оплачен';
-                    const isCustomer = item._role === 'Customer';
+                    const isCustomer = isCustomerRole;
                     const availableDocs = isCustomer ? ['ЭР', 'АПП', 'СЧЕТ', 'УПД'] : ['АПП'];
                     return (
                         <div className="document-buttons">

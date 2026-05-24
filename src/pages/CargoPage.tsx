@@ -170,20 +170,6 @@ export function CargoPage({
     useEffect(() => {
         if (!availableRoleFilters.includes(roleFilter)) setRoleFilter("all");
     }, [availableRoleFilters, roleFilter]);
-    const { effectiveRoleCustomer, effectiveRoleSender, effectiveRoleReceiver } = useMemo(() => {
-        if (roleFilter === "all") {
-            return {
-                effectiveRoleCustomer: roleCustomer,
-                effectiveRoleSender: roleSender,
-                effectiveRoleReceiver: roleReceiver,
-            };
-        }
-        return {
-            effectiveRoleCustomer: roleFilter === "customer" && roleCustomer,
-            effectiveRoleSender: roleFilter === "sender" && roleSender,
-            effectiveRoleReceiver: roleFilter === "receiver" && roleReceiver,
-        };
-    }, [roleFilter, roleCustomer, roleSender, roleReceiver]);
 
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
@@ -297,9 +283,9 @@ export function CargoPage({
         apiDateRange,
         prevRange,
         useServiceRequest: effectiveServiceMode,
-        roleCustomer: effectiveRoleCustomer,
-        roleSender: effectiveRoleSender,
-        roleReceiver: effectiveRoleReceiver,
+        roleCustomer,
+        roleSender,
+        roleReceiver,
         onCustomerDetected,
     });
 
@@ -361,9 +347,9 @@ export function CargoPage({
         dateFrom: apiDateRange.dateFrom,
         dateTo: apiDateRange.dateTo,
         useServiceRequest: effectiveServiceMode,
-        roleCustomer: effectiveRoleCustomer,
-        roleSender: effectiveRoleSender,
-        roleReceiver: effectiveRoleReceiver,
+        roleCustomer,
+        roleSender,
+        roleReceiver,
         includeCargoNumbers: includeCargoNumbersForTransport,
         enabled: !!effectiveServiceMode && !!transportFilter && includeCargoNumbersForTransport.length > 0,
     });
@@ -446,10 +432,11 @@ export function CargoPage({
             typeFilterSet,
             routeFilterSet,
             lastMileFilter,
+            roleFilter,
             sortBy,
             sortOrder,
         });
-    }, [itemsForFiltering, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, transportFilter, transportLinkedCargoNumbers, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, lastMileFilter, sortBy, sortOrder]);
+    }, [itemsForFiltering, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, transportFilter, transportLinkedCargoNumbers, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, lastMileFilter, roleFilter, sortBy, sortOrder]);
 
     const summary = useMemo(() => buildCargoSummary(filteredItems), [filteredItems]);
 

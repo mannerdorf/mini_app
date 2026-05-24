@@ -38,6 +38,7 @@ import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { DateText } from "../components/ui/DateText";
 import { FilterDialog } from "../components/shared/FilterDialog";
 import { HaulzDispatchSummary } from "../components/HaulzDispatchSummary";
+import { EdoHealthMonitor } from "../components/EdoHealthMonitor";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
 import { getWebApp, isMaxWebApp } from "../webApp";
 import type { AuthData, CargoItem, DateFilter, PerevozkaTimelineStep, StatusFilter } from "../types";
@@ -240,6 +241,7 @@ export type DashboardPageProps = {
     /** Сводка «Выдача грузов» на главной при праве haulz (данные с фильтрами дашборда). */
     canAccessHaulzDispatch?: boolean;
     onOpenCargo?: (cargoNumber: string) => void;
+    onOpenDocumentsEdo?: () => void;
 };
 
 export function DashboardPage({
@@ -253,6 +255,7 @@ export function DashboardPage({
     saasDashboardMotion = false,
     canAccessHaulzDispatch = false,
     onOpenCargo,
+    onOpenDocumentsEdo,
 }: DashboardPageProps) {
     const prefersReducedMotion = useReducedMotion();
     const dashboardMotionEnabled = !!saasDashboardMotion && prefersReducedMotion !== true;
@@ -556,7 +559,7 @@ export function DashboardPage({
         useServiceRequest: true,
         enabled: !!useServiceRequest && !!prevRange,
     });
-    const { items: invoiceItems } = useInvoices({
+    const { items: invoiceItems, loading: invoicesLoading } = useInvoices({
         auth,
         dateFrom: apiDateRange.dateFrom,
         dateTo: apiDateRange.dateTo,
@@ -2744,6 +2747,14 @@ export function DashboardPage({
                         showSums={showSums}
                     />
                 </div>
+            )}
+
+            {useServiceRequest && !showOnlySla && (
+                <EdoHealthMonitor
+                    invoices={invoiceItems}
+                    loading={invoicesLoading}
+                    onOpen={onOpenDocumentsEdo}
+                />
             )}
 
             <DashboardMotionGroup enabled={dashboardMotionEnabled}>

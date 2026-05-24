@@ -7,7 +7,7 @@ import { useCallback } from "react";
 import { apiFetchJson } from "../utils";
 import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_INVOICES_URL, PROXY_API_ACTS_URL, PROXY_API_ORDERS_URL, PROXY_API_SENDINGS_URL, PROXY_API_CARGO_TRANSPORT_FILTER_URL } from "../constants/config";
 import type { AuthData, CargoItem, PerevozkiRole } from "../types";
-import { mergePerevozkiRoleDuplicates } from "../lib/cargoUtils";
+import { mergePerevozkiRoleDuplicates, applyCargoRolesToItem } from "../lib/cargoUtils";
 
 /** SWR config: 60s consider fresh, 5min cache */
 const SWR_OPTIONS = {
@@ -155,6 +155,14 @@ async function fetcherPerevozkiMulti(params: PerevozkiMultiRoleParams): Promise<
         return (rolePriority[(a._role as PerevozkiRole) || "Receiver"] >= rolePriority[(b._role as PerevozkiRole) || "Receiver"]) ? a : b;
     };
 
+    const rolesByNumber = new Map<string, Set<PerevozkiRole>>();
+    allMapped.forEach((item) => {
+        const key = String(item.Number || "").trim();
+        if (!key || !item._role) return;
+        if (!rolesByNumber.has(key)) rolesByNumber.set(key, new Set());
+        rolesByNumber.get(key)!.add(item._role);
+    });
+
     const byNumber = new Map<string, CargoItem>();
     allMapped.forEach((item) => {
         const key = String(item.Number || "").trim();
@@ -168,7 +176,9 @@ async function fetcherPerevozkiMulti(params: PerevozkiMultiRoleParams): Promise<
         const other = best === existing ? item : existing;
         byNumber.set(key, mergePerevozkiRoleDuplicates(best, other));
     });
-    return Array.from(byNumber.values());
+    return Array.from(byNumber.entries()).map(([key, item]) =>
+        applyCargoRolesToItem(item, rolesByNumber.get(key) ?? item._roles ?? (item._role ? [item._role] : [])),
+    );
 }
 
 export function usePerevozkiMulti(params: PerevozkiMultiRoleParams) {

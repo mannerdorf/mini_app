@@ -22,7 +22,7 @@ export function ProfileRolesSection({ activeAccount, activeAccountId, onBack, on
                 <Typography.Headline className="text-page-title">Роли</Typography.Headline>
             </Flex>
             <Typography.Body style={{ marginBottom: "1rem", color: "var(--color-text-secondary)", fontSize: "0.9rem" }}>
-                Включите роли, если хотите видеть перевозки, где вы выступаете в качестве заказчика, отправителя или получателя.
+                Включите роли для загрузки перевозок из 1С. Если вы заказчик (даже вместе с отправителем или получателем) — перевозка показывается как «Заказчик». Если только отправитель и/или получатель — фильтр «Роль» на вкладке «Грузы» разделяет эти выборки.
             </Typography.Body>
             {!activeAccountId || !activeAccount ? (
                 <Panel className="cargo-card" style={{ padding: "1rem", textAlign: "center" }}>
