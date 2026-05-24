@@ -7,7 +7,7 @@ import { useCallback } from "react";
 import { apiFetchJson } from "../utils";
 import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_INVOICES_URL, PROXY_API_ACTS_URL, PROXY_API_ORDERS_URL, PROXY_API_SENDINGS_URL, PROXY_API_CARGO_TRANSPORT_FILTER_URL } from "../constants/config";
 import type { AuthData, CargoItem, PerevozkiRole } from "../types";
-import { mergePerevozkiRoleDuplicates, applyCargoRolesToItem } from "../lib/cargoUtils";
+import { mergePerevozkiRoleDuplicates } from "../lib/cargoUtils";
 
 /** SWR config: 60s consider fresh, 5min cache */
 const SWR_OPTIONS = {
@@ -56,24 +56,12 @@ type PerevozkiParams = {
 async function fetcherPerevozki(params: PerevozkiParams): Promise<CargoItem[]> {
     const { auth, dateFrom, dateTo, useServiceRequest, inn, includeCargoNumbers } = params;
     if (!auth?.login || !auth?.password) return [];
-    if (useServiceRequest) {
-        return fetcherPerevozkiMulti({
-            auth,
-            dateFrom,
-            dateTo,
-            useServiceRequest: true,
-            roleCustomer: true,
-            roleSender: true,
-            roleReceiver: true,
-            inn: inn ?? auth.inn ?? undefined,
-            includeCargoNumbers,
-        });
-    }
     const body: Record<string, unknown> = {
         login: auth.login,
         password: auth.password,
         dateFrom,
         dateTo,
+        ...(useServiceRequest ? { serviceMode: true } : {}),
         ...(inn ? { inn } : auth.inn ? { inn: auth.inn } : {}),
         ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
         ...(includeCargoNumbers?.length ? { includeCargoNumbers } : {}),
@@ -84,7 +72,7 @@ async function fetcherPerevozki(params: PerevozkiParams): Promise<CargoItem[]> {
         body: JSON.stringify(body),
     });
     const list = Array.isArray(data) ? data : (data && typeof data === "object" && "items" in data ? (data as { items: unknown[] }).items : []);
-    return list.map((item: Record<string, unknown>) => mapCargoItem(item));
+    return list.map((item: Record<string, unknown>) => mapCargoItem(item, useServiceRequest ? "Customer" : undefined));
 }
 
 export function usePerevozki(params: PerevozkiParams) {
@@ -116,13 +104,22 @@ async function fetcherPerevozkiMulti(params: PerevozkiMultiRoleParams): Promise<
     const { auth, dateFrom, dateTo, useServiceRequest, roleCustomer, roleSender, roleReceiver, includeCargoNumbers } = params;
     if (!auth?.login || !auth?.password) return [];
 
-    const modes: PerevozkiRole[] = useServiceRequest
-        ? ["Customer", "Sender", "Receiver"]
-        : ([
-              roleCustomer ? "Customer" : null,
-              roleSender ? "Sender" : null,
-              roleReceiver ? "Receiver" : null,
-          ].filter(Boolean) as PerevozkiRole[]);
+    if (useServiceRequest) {
+        const list = await fetcherPerevozki({
+            auth,
+            dateFrom,
+            dateTo,
+            useServiceRequest: true,
+            inn: params.inn ?? auth.inn ?? undefined,
+            includeCargoNumbers,
+        });
+        return list.map((i) => ({ ...i, _role: "Customer" as PerevozkiRole }));
+    }
+
+    const modes: PerevozkiRole[] = [];
+    if (roleCustomer) modes.push("Customer");
+    if (roleSender) modes.push("Sender");
+    if (roleReceiver) modes.push("Receiver");
     if (modes.length === 0) return [];
 
     const basePayload = {
@@ -130,7 +127,6 @@ async function fetcherPerevozkiMulti(params: PerevozkiMultiRoleParams): Promise<
         password: auth.password,
         dateFrom,
         dateTo,
-        ...(useServiceRequest ? { serviceMode: true } : {}),
         ...((params.inn ?? auth.inn) ? { inn: params.inn ?? auth.inn ?? undefined } : {}),
         ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
         ...(includeCargoNumbers?.length ? { includeCargoNumbers } : {}),
@@ -160,14 +156,6 @@ async function fetcherPerevozkiMulti(params: PerevozkiMultiRoleParams): Promise<
         return (rolePriority[(a._role as PerevozkiRole) || "Receiver"] >= rolePriority[(b._role as PerevozkiRole) || "Receiver"]) ? a : b;
     };
 
-    const rolesByNumber = new Map<string, Set<PerevozkiRole>>();
-    allMapped.forEach((item) => {
-        const key = String(item.Number || "").trim();
-        if (!key || !item._role) return;
-        if (!rolesByNumber.has(key)) rolesByNumber.set(key, new Set());
-        rolesByNumber.get(key)!.add(item._role);
-    });
-
     const byNumber = new Map<string, CargoItem>();
     allMapped.forEach((item) => {
         const key = String(item.Number || "").trim();
@@ -181,9 +169,7 @@ async function fetcherPerevozkiMulti(params: PerevozkiMultiRoleParams): Promise<
         const other = best === existing ? item : existing;
         byNumber.set(key, mergePerevozkiRoleDuplicates(best, other));
     });
-    return Array.from(byNumber.entries()).map(([key, item]) =>
-        applyCargoRolesToItem(item, rolesByNumber.get(key) ?? item._roles ?? (item._role ? [item._role] : [])),
-    );
+    return Array.from(byNumber.values());
 }
 
 export function usePerevozkiMulti(params: PerevozkiMultiRoleParams) {

@@ -154,19 +154,11 @@ export function CargoPage({
     useEffect(() => {
         try { localStorage.setItem(CARGO_ROLE_FILTER_KEY, roleFilter); } catch { /* ignore */ }
     }, [roleFilter]);
-    const showRoleFilter =
-        effectiveServiceMode || [roleCustomer, roleSender, roleReceiver].filter(Boolean).length > 1;
-    const availableRoleFilters = useMemo((): CargoRoleFilter[] => {
-        if (effectiveServiceMode) return ["all", "customer", "sender", "receiver"];
-        const opts: CargoRoleFilter[] = ["all"];
-        if (roleCustomer) opts.push("customer");
-        if (roleSender) opts.push("sender");
-        if (roleReceiver) opts.push("receiver");
-        return opts;
-    }, [effectiveServiceMode, roleCustomer, roleSender, roleReceiver]);
+    const showRoleFilter = false;
+    const availableRoleFilters = useMemo((): CargoRoleFilter[] => ["all"], []);
     useEffect(() => {
-        if (!availableRoleFilters.includes(roleFilter)) setRoleFilter("all");
-    }, [availableRoleFilters, roleFilter]);
+        if (roleFilter !== "all") setRoleFilter("all");
+    }, [roleFilter]);
 
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
@@ -429,11 +421,11 @@ export function CargoPage({
             typeFilterSet,
             routeFilterSet,
             lastMileFilter,
-            roleFilter,
+            roleFilter: "all",
             sortBy,
             sortOrder,
         });
-    }, [itemsForFiltering, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, transportFilter, transportLinkedCargoNumbers, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, lastMileFilter, roleFilter, sortBy, sortOrder]);
+    }, [itemsForFiltering, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, transportFilter, transportLinkedCargoNumbers, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, lastMileFilter, sortBy, sortOrder]);
 
     const summary = useMemo(() => buildCargoSummary(filteredItems), [filteredItems]);
 

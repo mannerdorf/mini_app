@@ -335,8 +335,8 @@ export function DashboardPage({
         try { localStorage.setItem(DASH_ROLE_FILTER_KEY, roleFilter); } catch { /* ignore */ }
     }, [roleFilter, useServiceRequest]);
     useEffect(() => {
-        if (!useServiceRequest && roleFilter !== "all") setRoleFilter("all");
-    }, [useServiceRequest, roleFilter]);
+        if (roleFilter !== "all") setRoleFilter("all");
+    }, [roleFilter]);
     const [isSenderDropdownOpen, setIsSenderDropdownOpen] = useState(false);
     const [isReceiverDropdownOpen, setIsReceiverDropdownOpen] = useState(false);
     const [isBillStatusDropdownOpen, setIsBillStatusDropdownOpen] = useState(false);
@@ -657,7 +657,7 @@ export function DashboardPage({
                 typeFilterSet,
                 routeFilterSet,
                 lastMileFilter: "all",
-                roleFilter: useServiceRequest ? roleFilter : "all",
+                roleFilter: "all",
                 sortBy: null,
                 sortOrder: "desc",
             }),
@@ -2723,7 +2723,7 @@ export function DashboardPage({
                         ))}
                     </FilterDropdownPortal>
                 </div>
-                {useServiceRequest && (
+                {false && useServiceRequest && (
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={roleButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsRoleDropdownOpen(!isRoleDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>

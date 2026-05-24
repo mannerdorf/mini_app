@@ -291,8 +291,8 @@ export function AppMainContent({
                 ? (activeAccount?.isRegisteredUser ? true : (activeAccount?.roleCustomer ?? true))
                 : (activeAccount?.roleCustomer ?? true)
             }
-            roleSender={activeAccount?.roleSender ?? true}
-            roleReceiver={activeAccount?.roleReceiver ?? true}
+            roleSender={false}
+            roleReceiver={false}
             useServiceRequest={useServiceRequest}
             showSums={activeAccount?.financialAccess ?? true}
             CargoDetailsModal={CargoDetailsModal}
