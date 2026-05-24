@@ -288,7 +288,7 @@ export function DashboardPage({
     };
     // Календарь по выбранному заказчику доступен при dashboard=true.
     // Сводный календарь по всей компании (service mode) — только при analytics=true.
-    const showPaymentCalendar = hasDashboard && (!useServiceRequest || hasAnalytics);
+    const showPaymentCalendar = false;
     const [debugInfo, setDebugInfo] = useState<string>("");
     // Если отключены дашборды правом dashboard — оставляем только SLA.
     const showOnlySla = !hasDashboard;
@@ -296,7 +296,7 @@ export function DashboardPage({
     const WIDGET_2_STRIP = !showOnlySla;
     const WIDGET_3_CHART = !showOnlySla;
     const WIDGET_4_SLA = true;
-    const WIDGET_5_PAYMENT_CALENDAR = !showOnlySla;
+    const WIDGET_5_PAYMENT_CALENDAR = false;
 
     // Filters State (общие с Грузами и Документами)
     const initDate = () => loadSharedDateFilterState();
