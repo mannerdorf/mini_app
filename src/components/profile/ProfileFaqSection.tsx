@@ -15,7 +15,7 @@ export function ProfileFaqSection({ onBack }: Props) {
                 <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <Typography.Headline style={{ fontSize: "1.25rem" }}>FAQ</Typography.Headline>
+                <Typography.Headline className="text-page-title">FAQ</Typography.Headline>
             </Flex>
             <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
                 Актуальные ответы по HAULZ: вход и 2FA, компании и заказчик в шапке, сотрудники, Главная и Грузы (фильтры, служебный режим, роли), Документы (вкладки, таблица/карточки, претензии), тема и браузер, модули WB и расходы, поддержка.

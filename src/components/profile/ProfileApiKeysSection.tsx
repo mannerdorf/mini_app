@@ -140,7 +140,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                     <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
                         <ArrowLeft className="w-4 h-4" />
                     </Button>
-                    <Typography.Headline style={{ fontSize: "1.25rem" }}>API</Typography.Headline>
+                    <Typography.Headline className="text-page-title">API</Typography.Headline>
                 </Flex>
                 <Panel className="cargo-card" style={{ padding: "1rem" }}>
                     <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
@@ -158,7 +158,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                     <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
                         <ArrowLeft className="w-4 h-4" />
                     </Button>
-                    <Typography.Headline style={{ fontSize: "1.25rem" }}>API</Typography.Headline>
+                    <Typography.Headline className="text-page-title">API</Typography.Headline>
                 </Flex>
                 <Panel className="cargo-card" style={{ padding: "1rem" }}>
                     <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
@@ -176,7 +176,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                 <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <Typography.Headline style={{ fontSize: "1.25rem" }}>API</Typography.Headline>
+                <Typography.Headline className="text-page-title">API</Typography.Headline>
             </Flex>
 
             <Typography.Body style={{ marginBottom: "0.75rem", color: "var(--color-text-secondary)", fontSize: "0.9rem" }}>

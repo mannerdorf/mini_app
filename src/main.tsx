@@ -5,6 +5,13 @@ import { MaxUI } from "@maxhub/max-ui";
 import "@maxhub/max-ui/dist/styles.css";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import App from "./App";
+import "@fontsource/dm-sans/400.css";
+import "@fontsource/dm-sans/500.css";
+import "@fontsource/dm-sans/600.css";
+import "@fontsource/dm-sans/700.css";
+import "@fontsource/manrope/600.css";
+import "@fontsource/manrope/700.css";
+import "./design-tokens.css";
 import "./styles.css";
 
 const swrConfig = {

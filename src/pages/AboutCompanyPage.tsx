@@ -56,7 +56,7 @@ export function AboutCompanyPage({ onBack }: Props) {
                 <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <Typography.Headline style={{ fontSize: "1.25rem" }}>О компании</Typography.Headline>
+                <Typography.Headline className="text-page-title">О компании</Typography.Headline>
             </Flex>
 
             <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "1rem" }}>

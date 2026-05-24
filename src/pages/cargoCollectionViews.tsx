@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { DateText } from "../components/ui/DateText";
 import { StatusBadge, StatusBillBadge } from "../components/shared/StatusBadges";
+import { AppBadge } from "../components/shared/AppBadge";
 import { getSlaInfo, cargoLastMileIsSelfPickup } from "../lib/cargoUtils";
 import { formatCurrency, stripOoo, cityToCode } from "../lib/formatUtils";
 import { getSumColorByPaymentStatus } from "../lib/statusUtils";
@@ -748,26 +749,13 @@ export function CargoCardsList({
                   {item.Number || "—"}
                 </Typography.Body>
                 {item._role && (
-                  <span
-                    className="role-badge cargo-role-badge"
-                    style={{
-                      fontSize: "0.65rem",
-                      fontWeight: 600,
-                      padding: "0.15rem 0.4rem",
-                      borderRadius: "999px",
-                      background: "var(--color-panel-secondary)",
-                      color: "var(--color-text-secondary)",
-                      border: "1px solid var(--color-border)",
-                      flexShrink: 0,
-                      alignSelf: "flex-start",
-                    }}
-                  >
+                  <AppBadge tone="role" className="cargo-role-badge" style={{ flexShrink: 0, alignSelf: "flex-start" }}>
                     {item._role === "Customer"
                       ? "Заказчик"
                       : item._role === "Sender"
                         ? "Отправитель"
                         : "Получатель"}
-                  </span>
+                  </AppBadge>
                 )}
                 <CargoLastMileBadge item={item} />
               </Flex>

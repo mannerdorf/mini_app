@@ -1241,7 +1241,7 @@ export function ProfilePage({
                     <Button className="filter-button" onClick={() => setCurrentView('haulz')} style={{ padding: '0.5rem' }}>
                         <ArrowLeft className="w-4 h-4" />
                     </Button>
-                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Бухгалтерия</Typography.Headline>
+                    <Typography.Headline className="text-page-title">Бухгалтерия</Typography.Headline>
                 </Flex>
                 <Panel className="cargo-card" style={{ padding: '0.75rem 1rem', marginBottom: '1rem' }}>
                     <Typography.Body style={{ fontWeight: 600, marginBottom: '0.55rem' }}>Бухгалтерия — подразделы</Typography.Body>
@@ -1653,7 +1653,7 @@ export function ProfilePage({
                     <Button className="filter-button" onClick={() => setCurrentView('haulz')} style={{ padding: '0.5rem' }}>
                         <ArrowLeft className="w-4 h-4" />
                     </Button>
-                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Табель учета рабочего времени</Typography.Headline>
+                    <Typography.Headline className="text-page-title">Табель учета рабочего времени</Typography.Headline>
                     {!departmentTimesheetMobilePicker && (
                         <Button
                             type="button"
@@ -2572,7 +2572,7 @@ export function ProfilePage({
                     <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
                         <ArrowLeft className="w-4 h-4" />
                     </Button>
-                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Справочник сотрудников</Typography.Headline>
+                    <Typography.Headline className="text-page-title">Справочник сотрудников</Typography.Headline>
                 </Flex>
                 <Typography.Body style={{ marginBottom: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
                     Регистрируйте сотрудников компании: укажите ФИО и пресет роли. Пароль для входа отправляется на email.

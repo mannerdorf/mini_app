@@ -285,7 +285,7 @@ export function ProfileParcelScannerSection({ activeAccount, onBack }: Props) {
                 <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <Typography.Headline style={{ fontSize: "1.25rem" }}>Сканер посылки</Typography.Headline>
+                <Typography.Headline className="text-page-title">Сканер посылки</Typography.Headline>
             </Flex>
             <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "1rem" }}>
                 <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.65rem" }}>

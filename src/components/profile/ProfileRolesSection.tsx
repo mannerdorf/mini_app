@@ -19,7 +19,7 @@ export function ProfileRolesSection({ activeAccount, activeAccountId, onBack, on
                 <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <Typography.Headline style={{ fontSize: "1.25rem" }}>Роли</Typography.Headline>
+                <Typography.Headline className="text-page-title">Роли</Typography.Headline>
             </Flex>
             <Typography.Body style={{ marginBottom: "1rem", color: "var(--color-text-secondary)", fontSize: "0.9rem" }}>
                 Включите роли, если хотите видеть перевозки, где вы выступаете в качестве заказчика, отправителя или получателя.
