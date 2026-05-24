@@ -23,6 +23,7 @@ import { initSharedFilterSets, saveSharedListFilters, sharedFromFilterSets } fro
 import { buildTransportOptionsFromSendingsInPeriod, buildTransportLinkedCargoNumbersInPeriod } from "./documentsPipeline";
 import { normCargoKey } from "./documentsPipeline";
 import { useCargoTransportFilter, usePerevozkiMultiAccounts, useSendings } from "../hooks/useApi";
+import { CARGO_ROLE_FILTER_LABELS, type CargoRoleFilterKey } from "../lib/cargoUtils";
 import { CargoSummaryCard, CargoStateBlocks } from "./cargoViewBlocks";
 import { CargoCustomerTable, CargoCardsList } from "./cargoCollectionViews";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
@@ -32,14 +33,8 @@ const { loadDateFilterState, saveDateFilterState, getDateRange, getWeekRange, ge
 type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;
 const CARGO_STATUS_FILTER_KEYS: CargoStatusFilterKey[] = ["in_transit", "ready", "delivering", "delivered"];
 
-type CargoRoleFilter = "all" | "customer" | "sender" | "receiver";
+type CargoRoleFilter = CargoRoleFilterKey;
 const CARGO_ROLE_FILTER_KEY = "haulz.cargo.roleFilter";
-const CARGO_ROLE_LABELS: Record<CargoRoleFilter, string> = {
-    all: "Все",
-    customer: "Заказчик",
-    sender: "Отправитель",
-    receiver: "Получатель",
-};
 
 function loadCargoRoleFilter(): CargoRoleFilter {
     try {
@@ -159,14 +154,16 @@ export function CargoPage({
     useEffect(() => {
         try { localStorage.setItem(CARGO_ROLE_FILTER_KEY, roleFilter); } catch { /* ignore */ }
     }, [roleFilter]);
-    const showRoleFilter = !effectiveServiceMode && [roleCustomer, roleSender, roleReceiver].filter(Boolean).length > 1;
+    const showRoleFilter =
+        effectiveServiceMode || [roleCustomer, roleSender, roleReceiver].filter(Boolean).length > 1;
     const availableRoleFilters = useMemo((): CargoRoleFilter[] => {
+        if (effectiveServiceMode) return ["all", "customer", "sender", "receiver"];
         const opts: CargoRoleFilter[] = ["all"];
         if (roleCustomer) opts.push("customer");
         if (roleSender) opts.push("sender");
         if (roleReceiver) opts.push("receiver");
         return opts;
-    }, [roleCustomer, roleSender, roleReceiver]);
+    }, [effectiveServiceMode, roleCustomer, roleSender, roleReceiver]);
     useEffect(() => {
         if (!availableRoleFilters.includes(roleFilter)) setRoleFilter("all");
     }, [availableRoleFilters, roleFilter]);
@@ -706,7 +703,7 @@ export function CargoPage({
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={roleButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsRoleDropdownOpen(!isRoleDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
-                            Роль: {CARGO_ROLE_LABELS[roleFilter]} <ChevronDown className="w-4 h-4"/>
+                            Роль: {CARGO_ROLE_FILTER_LABELS[roleFilter]} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={roleButtonRef} isOpen={isRoleDropdownOpen} onClose={() => setIsRoleDropdownOpen(false)}>
@@ -717,7 +714,7 @@ export function CargoPage({
                                 onClick={() => { setRoleFilter(key); setIsRoleDropdownOpen(false); }}
                                 style={{ background: roleFilter === key ? 'var(--color-bg-hover)' : undefined }}
                             >
-                                <Typography.Body>{CARGO_ROLE_LABELS[key]} {roleFilter === key ? '✓' : ''}</Typography.Body>
+                                <Typography.Body>{CARGO_ROLE_FILTER_LABELS[key]} {roleFilter === key ? '✓' : ''}</Typography.Body>
                             </div>
                         ))}
                     </FilterDropdownPortal>

@@ -23,6 +23,13 @@ export function isRouteKgdMsk(item: CargoItem): boolean {
 
 export type CargoRoleFilterKey = "all" | "customer" | "sender" | "receiver";
 
+export const CARGO_ROLE_FILTER_LABELS: Record<CargoRoleFilterKey, string> = {
+    all: "Все",
+    customer: "Заказчик",
+    sender: "Отправитель",
+    receiver: "Получатель",
+};
+
 /** Все роли контрагента по перевозке (из API mode или из _roles после merge). */
 export function getCargoRoleSet(item: CargoItem): Set<PerevozkiRole> {
     const fromArray = item._roles?.filter(Boolean);

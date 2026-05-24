@@ -317,6 +317,8 @@ export function HaulzDispatchSummary({
     const [dispatchTimelineSteps, setDispatchTimelineSteps] = useState<PerevozkaTimelineStep[]>([]);
     const [dispatchTimelineLoading, setDispatchTimelineLoading] = useState(false);
     const [dispatchTimelineError, setDispatchTimelineError] = useState<string | null>(null);
+    /** Таблица под плитками: по умолчанию свёрнута. */
+    const [dispatchTableOpen, setDispatchTableOpen] = useState(false);
     /** Свернутая таблица по заказчику; по клику — строки перевозок этого заказчика. */
     const [expandedCustomerKey, setExpandedCustomerKey] = useState<string | null>(null);
 
@@ -399,12 +401,20 @@ export function HaulzDispatchSummary({
         setExpandedDispatchNumber(null);
         setExpandedDispatchItem(null);
         setExpandedCustomerKey(null);
+        setDispatchTableOpen(false);
     }, [selectedTile]);
 
     useEffect(() => {
         setExpandedDispatchNumber(null);
         setExpandedDispatchItem(null);
     }, [expandedCustomerKey]);
+
+    useEffect(() => {
+        if (dispatchTableOpen) return;
+        setExpandedCustomerKey(null);
+        setExpandedDispatchNumber(null);
+        setExpandedDispatchItem(null);
+    }, [dispatchTableOpen]);
 
     useEffect(() => {
         if (!expandedDispatchNumber || !expandedDispatchItem || !auth?.login || !auth?.password) {
@@ -594,11 +604,45 @@ export function HaulzDispatchSummary({
                         />
                     </Flex>
 
-                    <Panel className="cargo-card" style={{ padding: "1rem 1.1rem", borderRadius: 12, background: "var(--color-bg-card)" }}>
+                    <Panel className="cargo-card" style={{ padding: dispatchTableOpen ? "1rem 1.1rem" : "0.65rem 0.85rem", borderRadius: 12, background: "var(--color-bg-card)" }}>
                         {tableRows.length === 0 ? (
                             <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет перевозок в этом разделе за период.</Typography.Body>
                         ) : (
-                            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => setDispatchTableOpen((open) => !open)}
+                                    aria-expanded={dispatchTableOpen}
+                                    title={dispatchTableOpen ? "Свернуть таблицу" : "Развернуть таблицу"}
+                                    style={{
+                                        width: "100%",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "0.45rem",
+                                        padding: 0,
+                                        margin: 0,
+                                        border: "none",
+                                        background: "transparent",
+                                        cursor: "pointer",
+                                        textAlign: "left",
+                                        color: "inherit",
+                                    }}
+                                >
+                                    {dispatchTableOpen ? (
+                                        <ChevronDown className="w-4 h-4" style={{ flexShrink: 0, opacity: 0.85 }} aria-hidden />
+                                    ) : (
+                                        <ChevronRight className="w-4 h-4" style={{ flexShrink: 0, opacity: 0.85 }} aria-hidden />
+                                    )}
+                                    <List className="w-4 h-4" style={{ flexShrink: 0, opacity: 0.75 }} aria-hidden />
+                                    <Typography.Body style={{ fontSize: "0.82rem", fontWeight: 600, flex: 1 }}>
+                                        Перевозки по заказчикам
+                                    </Typography.Body>
+                                    <Typography.Label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>
+                                        {customerGroups.length} зак. · {tableRows.length} пер.
+                                    </Typography.Label>
+                                </button>
+                                {dispatchTableOpen && (
+                            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", marginTop: "0.75rem" }}>
                                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
                                     <thead>
                                         <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
@@ -911,6 +955,8 @@ export function HaulzDispatchSummary({
                                     </tbody>
                                 </table>
                             </div>
+                                )}
+                            </>
                         )}
                     </Panel>
                 </>

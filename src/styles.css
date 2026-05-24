@@ -128,8 +128,6 @@ body {
     --section-gap: 48px;
     --block-gap: 24px;
     --element-gap: 16px;
-    /* Единый зазор между соседними блоками/карточками (без «склеек») */
-    --app-block-stack-gap: var(--block-gap, 24px);
     --inline-gap: 12px;
     --tight-gap: 8px;
     /* Padding */
@@ -236,72 +234,6 @@ body {
 .gap-element { gap: var(--element-gap, 16px); }
 .gap-block { gap: var(--block-gap, 24px); }
 .gap-section { gap: var(--section-gap, 48px); }
-
-/* --- UNIFIED BLOCK STACK SPACING --- */
-.cargo-page-root--saas-analytics,
-.documents-page--saas-analytics,
-.dashboard-page--saas-analytics {
-    display: flex;
-    flex-direction: column;
-    gap: var(--app-block-stack-gap);
-}
-
-.cargo-page-sticky-header,
-.documents-page-sticky-header,
-.dashboard-sticky-filters {
-    margin-bottom: var(--app-block-stack-gap) !important;
-}
-
-.cargo-page-root--saas-analytics .cargo-page-sticky-header,
-.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header,
-.dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters {
-    margin-bottom: 0 !important;
-}
-
-.cargo-list,
-.documents-toolbar-below-sticky,
-.doc-section-content,
-.documents-summary-section-body {
-    display: flex;
-    flex-direction: column;
-    gap: var(--app-block-stack-gap);
-}
-
-.cargo-list > *,
-.documents-toolbar-below-sticky > .cargo-list > *,
-.documents-page .documents-toolbar-below-sticky .cargo-card,
-.documents-page .doc-section-content .cargo-card {
-    margin-bottom: 0 !important;
-}
-
-.documents-toolbar-below-sticky,
-.doc-section-content {
-    padding-top: 0;
-}
-
-.documents-toolbar-below-sticky .documents-section-empty-state {
-    margin-top: 0;
-    padding-top: 1rem !important;
-    padding-bottom: 1.5rem !important;
-}
-
-.haulz-dispatch-stat-grid {
-    margin-bottom: var(--app-block-stack-gap);
-}
-
-/* SaaS-страницы: один зазор от липкой шапки — без дублирующих margin-top у offset-обёрток */
-.cargo-page-root--saas-analytics .cargo-table-offset-desktop,
-.cargo-page-root--saas-analytics .cargo-cards-offset-desktop,
-.documents-page--saas-analytics .documents-table-offset-desktop,
-.documents-page--saas-analytics .documents-cards-offset-desktop,
-.documents-page--saas-analytics .doc-contracts-table-offset-desktop,
-.documents-page--saas-analytics .documents-zayavki-below-new-order,
-.documents-page--saas-analytics .documents-sendings-infographic,
-.documents-page--saas-analytics .documents-summary-empty-state {
-    margin-top: 0 !important;
-}
-
-/* --- END UNIFIED BLOCK STACK --- */
 .pad-card { padding: var(--pad-card, 24px); }
 .pad-modal { padding: var(--pad-modal, 28px); }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -892,19 +824,11 @@ body {
     overflow-y: visible;
 }
 
-/* Зазор таблицы / списка карточек от липкого блока: на уровне страницы задаётся --app-block-stack-gap */
+/* Зазор таблицы / списка карточек от липкого блока (фильтры + KPI): без него верх первой плитки визуально подрезается тенью/краем блока, на ≤1024px ранее margin не задавался */
 .documents-page .documents-cards-offset-desktop,
 .documents-page .documents-table-offset-desktop {
-    margin-top: 0;
+    margin-top: 0.5rem;
     overflow: visible;
-}
-.documents-toolbar-below-sticky .documents-cards-offset-desktop,
-.documents-toolbar-below-sticky .documents-table-offset-desktop,
-.doc-section-content .documents-cards-offset-desktop,
-.doc-section-content .documents-table-offset-desktop,
-.documents-summary-section-body .documents-cards-offset-desktop,
-.documents-summary-section-body .documents-table-offset-desktop {
-    margin-top: 0;
 }
 .documents-page .documents-cards-offset-desktop .cargo-list {
     padding-top: 0.2rem;
@@ -1067,19 +991,10 @@ body {
     border: 1px solid var(--color-border);
 }
 
-/* Документы: внутренняя таблица (дата, статус, маршрут) — на мобильной столбцы шире, данные без переноса */
+/* Документы: внутренние таблицы счетов — на мобильной без горизонтального скролла (см. .cargo-inner-table) */
 @media (max-width: 768px) {
-    .doc-inner-table .doc-inner-table-date {
-        white-space: nowrap;
-        min-width: 4.25rem;
-    }
-    .doc-inner-table .doc-inner-table-status {
-        white-space: nowrap;
-        min-width: 6rem;
-    }
-    .doc-inner-table .doc-inner-table-route {
-        white-space: nowrap;
-        min-width: 6.5rem;
+    .documents-grouped-table.cargo-customer-table .cargo-customer-table__col-count {
+        width: 18%;
     }
 }
 
@@ -1103,6 +1018,7 @@ body {
     /* Не обрезать верх/низ внутренних карточек и таблиц */
     overflow-y: visible;
     padding-bottom: 0.5rem;
+    margin-bottom: 0.6rem;
 }
 
 @media (min-width: 769px) {
@@ -1128,21 +1044,17 @@ body {
 .documents-page {
     --documents-page-top-gap: 0.85rem;
     --documents-sticky-pad-top: 0.85rem;
-    --documents-sticky-bottom-gap: var(--app-block-stack-gap);
+    --documents-sticky-bottom-gap: 1rem;
 }
 
-/* Документы: зазор до контента — на SaaS-странице через flex gap родителя */
+/* Документы: зазор до таблиц; 1.5cm на широких экранах давал ощущение «дыры» под карточкой фильтров */
 .documents-page-sticky-header {
     margin-top: 0 !important;
     margin-bottom: var(--documents-sticky-bottom-gap) !important;
-    /* Не даём overflow-x: hidden «схлопнуть» overflow-y в auto — иначе подрезается верх вкладок */
-    overflow-x: visible;
+    /* Не даём overflow-x: hidden «схлопнуть» overflow-y в auto — иначе обрезается контент у нижней границы блока */
     overflow-y: visible;
-}
-
-.documents-page--saas-analytics .documents-page-sticky-header,
-.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
-    margin-bottom: 0 !important;
+    /* Строка вкладок и фильтров скроллится в .doc-sections-row / .filters-container — родителю не нужен hidden по X, иначе подрезается верх текста */
+    overflow-x: visible;
 }
 
 .documents-sticky-body {
@@ -1243,17 +1155,21 @@ body {
 }
 
 /* ЭДО: монитор подписания по счетам */
-.documents-page--with-edo-section .documents-table-offset-desktop {
+.documents-page--with-edo-section .documents-table-offset-desktop,
+.documents-page--with-edo-section .documents-cards-offset-desktop {
     margin-top: calc(0.95rem + 0.5cm);
 }
-.documents-page--with-edo-section.documents-page--saas-analytics .documents-table-offset-desktop {
+.documents-page--with-edo-section.documents-page--saas-analytics .documents-table-offset-desktop,
+.documents-page--with-edo-section.documents-page--saas-analytics .documents-cards-offset-desktop {
     margin-top: calc(1.05rem + 0.55cm);
 }
 @media (min-width: 769px) {
-    .documents-page--with-edo-section .documents-table-offset-desktop {
+    .documents-page--with-edo-section .documents-table-offset-desktop,
+    .documents-page--with-edo-section .documents-cards-offset-desktop {
         margin-top: 3.5cm;
     }
-    .documents-page--with-edo-section.documents-page--saas-analytics .documents-table-offset-desktop {
+    .documents-page--with-edo-section.documents-page--saas-analytics .documents-table-offset-desktop,
+    .documents-page--with-edo-section.documents-page--saas-analytics .documents-cards-offset-desktop {
         margin-top: 4cm;
     }
 }
@@ -1352,11 +1268,25 @@ body {
     margin-top: 0.35rem;
 }
 
-/* Инструменты под липкой карточкой вкладок/фильтров (претензии, акты сверок и т.п.) */
+/* Инструменты под липкой карточкой вкладок/фильтров (претензии, акты сверок и т.п.) — буфер, чтобы кнопки не подрезались тенью / краем блока */
 .documents-toolbar-below-sticky {
+    padding-top: 0.75rem;
     overflow: visible;
     position: relative;
     z-index: 1;
+}
+@media (min-width: 769px) {
+    .documents-toolbar-below-sticky {
+        padding-top: 1rem;
+    }
+}
+.documents-page--saas-analytics .documents-toolbar-below-sticky {
+    padding-top: 0.85rem;
+}
+@media (min-width: 769px) {
+    .documents-page--saas-analytics .documents-toolbar-below-sticky {
+        padding-top: 1.05rem;
+    }
 }
 
 /* Пустое состояние / загрузка под липкой шапкой (претензии, акты сверок и т.п.) */
@@ -1518,6 +1448,7 @@ body {
     background: var(--color-bg-card);
     border-radius: 14px;
     padding: 0.85rem 0.95rem 0.95rem;
+    margin-bottom: 0.75rem;
     border: 1px solid rgba(148, 163, 184, 0.22);
     box-shadow:
         0 1px 2px rgba(15, 23, 42, 0.05),
@@ -1695,9 +1626,9 @@ body {
     }
 }
 
-/* Контент раздела Договоры/Тарифы (только DocumentsPage). */
+/* Контент раздела Договоры/Тарифы (только DocumentsPage). Раньше 5rem давал пустую «полосу» между липким блоком фильтров и карточками на широких экранах. */
 .doc-section-content {
-    padding-top: 0;
+    padding-top: 0.5rem;
     padding-bottom: 1rem;
     min-height: 2rem;
 }
@@ -1920,6 +1851,236 @@ body {
 .modal-content td {
     color: inherit;
 }
+
+/* Грузы: таблица по заказчикам — на мобильном 4 колонки без горизонтального скролла */
+.cargo-customer-table__head-short {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .cargo-customer-table-wrap {
+        overflow-x: hidden !important;
+    }
+
+    .cargo-customer-table {
+        table-layout: fixed;
+        width: 100%;
+        font-size: 0.72rem;
+    }
+
+    .cargo-customer-table .cargo-customer-table__col-mest,
+    .cargo-customer-table .cargo-customer-table__col-w,
+    .cargo-customer-table .cargo-customer-table__col-vol {
+        display: none;
+    }
+
+    .cargo-customer-table .cargo-customer-table__head-long {
+        display: none;
+    }
+
+    .cargo-customer-table .cargo-customer-table__head-short {
+        display: inline;
+    }
+
+    .cargo-customer-table th,
+    .cargo-customer-table td {
+        padding: 0.35rem 0.18rem !important;
+        vertical-align: middle;
+    }
+
+    .cargo-customer-table .cargo-customer-table__col-customer {
+        width: 30%;
+        max-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .cargo-customer-table .cargo-customer-table__col-sum {
+        width: 28%;
+    }
+
+    .cargo-customer-table .cargo-customer-table__col-pw {
+        width: 24%;
+        min-width: 0 !important;
+    }
+
+    .cargo-customer-table .cargo-customer-table__col-count {
+        width: 18%;
+    }
+
+    .cargo-customer-table .cargo-customer-table__col-sum,
+    .cargo-customer-table .cargo-customer-table__col-pw,
+    .cargo-customer-table .cargo-customer-table__col-count {
+        font-size: 0.68rem;
+        white-space: nowrap;
+    }
+}
+
+/* Вложенная таблица перевозок (раскрытие по заказчику) */
+.cargo-inner-table__head-short {
+    display: none;
+}
+
+.cargo-inner-table__badges {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.cargo-inner-table__delivery-inline {
+    display: none;
+}
+
+.cargo-inner-table__type-icon {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .cargo-inner-table-wrap,
+    .doc-inner-table-wrap {
+        overflow-x: hidden !important;
+    }
+
+    .cargo-inner-table,
+    .documents-invoices-inner-table.cargo-inner-table {
+        table-layout: fixed;
+        width: 100%;
+        font-size: 0.64rem !important;
+    }
+
+    .cargo-inner-table thead th,
+    .documents-invoices-inner-table.cargo-inner-table thead th {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        white-space: nowrap;
+        font-size: 0.56rem !important;
+        font-weight: 600;
+        line-height: 1.05;
+        padding: 0.22rem 0.1rem !important;
+        height: 3.25rem;
+        vertical-align: bottom;
+        text-align: left;
+    }
+
+    .cargo-inner-table thead th.cargo-inner-table__col-type {
+        writing-mode: horizontal-tb;
+        transform: none;
+        height: auto;
+        max-width: 1.35rem;
+        width: 1.35rem;
+        padding: 0.2rem 0.08rem !important;
+    }
+
+    .cargo-inner-table__sort-icon {
+        display: none !important;
+    }
+
+    .cargo-inner-table__head-long {
+        display: none;
+    }
+
+    .cargo-inner-table__head-short {
+        display: inline;
+    }
+
+    .cargo-inner-table .cargo-inner-table__col-order,
+    .cargo-inner-table .cargo-inner-table__col-mest,
+    .cargo-inner-table .cargo-inner-table__col-pw,
+    .cargo-inner-table .cargo-inner-table__col-sum,
+    .documents-invoices-inner-table .cargo-inner-table__col-sum,
+    .documents-invoices-inner-table .cargo-inner-table__col-delivery {
+        display: none;
+    }
+
+    .documents-invoices-inner-table .cargo-inner-table__delivery-inline {
+        display: block;
+    }
+
+    .documents-invoices-inner-table .cargo-inner-table__badges--stack-mobile {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.18rem;
+    }
+
+    .cargo-inner-table td,
+    .cargo-inner-table th,
+    .documents-invoices-inner-table.cargo-inner-table td,
+    .documents-invoices-inner-table.cargo-inner-table th {
+        padding: 0.28rem 0.12rem !important;
+        vertical-align: top;
+    }
+
+    .cargo-inner-table .cargo-inner-table__col-type {
+        width: 7%;
+        max-width: 1.35rem;
+    }
+
+    .cargo-inner-table .cargo-inner-table__col-number,
+    .documents-invoices-inner-table .cargo-inner-table__col-number {
+        width: 22%;
+    }
+
+    .cargo-inner-table .cargo-inner-table__col-date,
+    .documents-invoices-inner-table .cargo-inner-table__col-date {
+        width: 24%;
+        white-space: nowrap;
+    }
+
+    .cargo-inner-table .cargo-inner-table__col-status,
+    .documents-invoices-inner-table .cargo-inner-table__col-status {
+        width: 28%;
+    }
+
+    .cargo-inner-table .cargo-inner-table__col-route,
+    .documents-invoices-inner-table .cargo-inner-table__col-route {
+        width: 26%;
+    }
+
+    .cargo-inner-table__number {
+        font-size: 0.64rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        word-break: break-all;
+    }
+
+    .cargo-inner-table__type-icon {
+        width: 0.82rem;
+        height: 0.82rem;
+    }
+
+    .cargo-inner-table__badges {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.18rem;
+    }
+
+    .cargo-inner-table__badges .max-badge,
+    .cargo-inner-table__badges .cargo-last-mile-self,
+    .cargo-inner-table__badges .cargo-last-mile-delivery {
+        font-size: 0.58rem !important;
+        padding: 0.1rem 0.28rem !important;
+        min-height: 1.1rem !important;
+        line-height: 1.1;
+        max-width: 100%;
+        white-space: normal;
+        text-align: left;
+    }
+
+    .cargo-inner-table .cargo-inner-table__col-route .app-badge,
+    .documents-invoices-inner-table .cargo-inner-table__col-route .app-badge {
+        font-size: 0.58rem !important;
+        padding: 0.1rem 0.28rem !important;
+        max-width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: block;
+    }
+}
 .modal-header {
     display: flex;
     justify-content: space-between;
@@ -2131,6 +2292,7 @@ body {
     background: var(--color-bg-card);
     border-radius: 14px;
     padding: 0.85rem 0.95rem 0.95rem;
+    margin-bottom: 0.75rem;
     border: 1px solid rgba(148, 163, 184, 0.22);
     box-shadow:
         0 1px 2px rgba(15, 23, 42, 0.05),
@@ -2242,7 +2404,7 @@ body {
     border-radius: 14px;
     padding: var(--documents-sticky-pad-top, 0.85rem) 0.75rem 0.55rem;
     margin-top: 0 !important;
-    margin-bottom: 0 !important;
+    margin-bottom: var(--documents-sticky-bottom-gap, 1rem) !important;
     border: 1px solid rgba(148, 163, 184, 0.22);
     box-shadow:
         0 1px 2px rgba(15, 23, 42, 0.05),
@@ -2273,6 +2435,10 @@ body {
     .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .documents-sticky-body .filters-container.filters-row-scroll {
         margin-top: 0 !important;
         margin-bottom: 0 !important;
+    }
+
+    .documents-page--saas-analytics .documents-toolbar-below-sticky {
+        padding-top: 0.55rem;
     }
 }
 
@@ -2313,6 +2479,14 @@ body {
     .documents-page-sticky-header,
     .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
         padding-top: var(--documents-sticky-pad-top, 0.85rem) !important;
+    }
+    /* Договоры / Тарифы: на узком холсте чуть плотнее к липкому блоку */
+    .documents-page .doc-section-content {
+        padding-top: 0.35rem;
+    }
+    .documents-page .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics .documents-toolbar-below-sticky {
+        padding-top: 0.35rem;
     }
 }
 
@@ -2609,12 +2783,20 @@ button.edo-health-monitor {
     }
 }
 
+@media (min-width: 1025px) {
+    /* Немного больше воздуха под липким блоком в SaaS-оболочке (кроме Счета/УПД с KPI) */
+    .documents-page--saas-analytics:not(.documents-page--with-summary-sections):not(.documents-page--with-edo-section):not(.documents-page--with-tariffs-section):not(.documents-page--with-orders-section):not(.documents-page--with-sendings-section):not(.documents-page--with-contracts-section) .documents-table-offset-desktop,
+    .documents-page--saas-analytics:not(.documents-page--with-summary-sections):not(.documents-page--with-edo-section):not(.documents-page--with-tariffs-section):not(.documents-page--with-orders-section):not(.documents-page--with-sendings-section):not(.documents-page--with-contracts-section) .documents-cards-offset-desktop {
+        margin-top: 0.65rem;
+    }
+}
+
 /* Документы — табличные разделы (тарифы, акты сверок, договоры, претензии и т.д.) */
 .documents-page .doc-section-content {
-    padding-top: 0;
+    padding-top: 0.9rem;
 }
 .documents-page--saas-analytics .doc-section-content {
-    padding-top: 0;
+    padding-top: 1rem;
     padding-left: 0.15rem;
     padding-right: 0.15rem;
 }
