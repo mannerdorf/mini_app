@@ -2866,6 +2866,60 @@ body {
     opacity: 0.88;
 }
 
+.documents-sendings-table-summary.documents-summary-card.cargo-card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0.35rem 0 0.45rem !important;
+    margin-bottom: 0.65rem !important;
+}
+
+.documents-sendings-table-summary .summary-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+    gap: 0.55rem;
+    width: 100%;
+    align-items: stretch;
+}
+
+.documents-sendings-table-summary .summary-metrics > div {
+    position: relative;
+    min-height: 58px;
+    padding: 0.62rem 0.45rem;
+    border-radius: 12px;
+    background: var(--color-bg-card);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+}
+
+.documents-sendings-table-summary .summary-metrics > div::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #2563eb, #6366f1, #0ea5e9);
+    opacity: 0.88;
+}
+
+.documents-sendings-table-summary .summary-metrics > div > :first-child {
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs, 0.6875rem);
+    font-weight: 600;
+    line-height: 1.15;
+    text-align: center;
+}
+
+.documents-sendings-table-summary .summary-metrics > div > :last-child {
+    color: var(--color-text-primary);
+    font-size: var(--text-lg, 1rem);
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+}
+
 .documents-page--saas-analytics .documents-table-offset-desktop > .cargo-card,
 .documents-page--saas-analytics .documents-cards-offset-desktop .cargo-list .cargo-card {
     border-radius: 14px !important;

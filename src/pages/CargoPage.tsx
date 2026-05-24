@@ -20,8 +20,7 @@ import {
     sortGroupedByCustomer,
 } from "./cargoPipeline";
 import { initSharedFilterSets, saveSharedListFilters, sharedFromFilterSets } from "../lib/sharedListFilters";
-import { buildTransportOptionsFromSendingsInPeriod, buildTransportLinkedCargoNumbersInPeriod } from "./documentsPipeline";
-import { normCargoKey } from "./documentsPipeline";
+import { buildTransportOptionsFromSendingsInPeriod, buildTransportLinkedCargoNumbersInPeriod, collectSendingFreightCargoNumbers, normCargoKey } from "./documentsPipeline";
 import { useCargoTransportFilter, usePerevozkiMultiAccounts, useSendings } from "../hooks/useApi";
 import { CARGO_ROLE_FILTER_LABELS, type CargoRoleFilterKey } from "../lib/cargoUtils";
 import { CargoSummaryCard, CargoStateBlocks } from "./cargoViewBlocks";
@@ -42,6 +41,44 @@ function loadCargoRoleFilter(): CargoRoleFilter {
         if (v === "customer" || v === "sender" || v === "receiver" || v === "all") return v;
     } catch { /* ignore */ }
     return "all";
+}
+
+const MAX_SENDINGS_SEARCH_DEPTH = 6;
+
+function appendSendingSearchParts(value: unknown, depth: number, parts: string[]): void {
+    if (depth > MAX_SENDINGS_SEARCH_DEPTH || value == null) return;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        const text = String(value).trim();
+        if (text) parts.push(text);
+        return;
+    }
+    if (Array.isArray(value)) {
+        value.forEach((item) => appendSendingSearchParts(item, depth + 1, parts));
+        return;
+    }
+    if (typeof value === "object") {
+        Object.values(value as Record<string, unknown>).forEach((item) => appendSendingSearchParts(item, depth + 1, parts));
+    }
+}
+
+function buildCargoSearchTextByNumberFromSendings(sendingsItems: unknown[]): Map<string, string> {
+    const map = new Map<string, string[]>();
+    (sendingsItems || []).forEach((row: any) => {
+        const cargoNumbers = collectSendingFreightCargoNumbers(row)
+            .map((raw) => normCargoKey(raw))
+            .filter(Boolean);
+        if (cargoNumbers.length === 0) return;
+        const parts: string[] = [];
+        appendSendingSearchParts(row, 0, parts);
+        const text = parts.join(" ");
+        if (!text) return;
+        Array.from(new Set(cargoNumbers)).forEach((key) => {
+            const prev = map.get(key) ?? [];
+            prev.push(text);
+            map.set(key, prev);
+        });
+    });
+    return new Map(Array.from(map.entries()).map(([key, parts]) => [key, parts.join(" ")]));
 }
 
 function mergeCargoItemsByNumber(primary: CargoItem[], extra: CargoItem[]): CargoItem[] {
@@ -348,6 +385,11 @@ export function CargoPage({
         return mergeCargoItemsByNumber(items, transportLinkedItems);
     }, [items, transportLinkedItems, effectiveServiceMode, transportFilter]);
 
+    const cargoSearchTextByNumber = useMemo(
+        () => buildCargoSearchTextByNumberFromSendings(sendingsItems || []),
+        [sendingsItems],
+    );
+
     useEffect(() => {
         if (!transportFilter) return;
         if (transportOptions.includes(transportFilter)) return;
@@ -416,6 +458,7 @@ export function CargoPage({
             receiverFilter,
             transportFilter: effectiveServiceMode ? transportFilter : '',
             transportLinkedCargoNumbers,
+            cargoSearchTextByNumber,
             useServiceRequest: effectiveServiceMode,
             billStatusFilterSet,
             typeFilterSet,
@@ -425,7 +468,7 @@ export function CargoPage({
             sortBy,
             sortOrder,
         });
-    }, [itemsForFiltering, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, transportFilter, transportLinkedCargoNumbers, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, lastMileFilter, sortBy, sortOrder]);
+    }, [itemsForFiltering, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, transportFilter, transportLinkedCargoNumbers, cargoSearchTextByNumber, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, lastMileFilter, sortBy, sortOrder]);
 
     const summary = useMemo(() => buildCargoSummary(filteredItems), [filteredItems]);
 

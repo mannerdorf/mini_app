@@ -4762,35 +4762,29 @@ useEffect(() => {
                     </div>
                 )}
                 {hasAnalytics && sendingRowsSorted.length > 0 && (
-                    <div className="cargo-card documents-sendings-table-summary" style={{ marginBottom: '0.65rem', padding: '0.55rem 0.65rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '0.5rem' }}>
-                        <div>
-                            <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.15rem' }}>
-                                Итого в таблице
-                            </Typography.Body>
-                            <Typography.Body style={{ fontWeight: 700 }}>{sendingsTableTotals.sendingsCount}</Typography.Body>
+                    <div className="cargo-card documents-summary-card documents-summary-totals documents-summary-totals--saas-kpi cargo-summary-totals--saas-kpi documents-sendings-table-summary">
+                        <div className="summary-metrics">
+                            {showSums && (
+                                <Flex direction="column" align="center">
+                                    <Typography.Label>Стоимость</Typography.Label>
+                                    <Typography.Body>{formatCurrency(sendingsTableTotals.cost, true)}</Typography.Body>
+                                </Flex>
+                            )}
+                            <Flex direction="column" align="center">
+                                <Typography.Label>Отправок</Typography.Label>
+                                <Typography.Body>{sendingsTableTotals.sendingsCount}</Typography.Body>
+                            </Flex>
+                            <Flex direction="column" align="center">
+                                <Typography.Label>Плат. вес</Typography.Label>
+                                <Typography.Body>{formatSendingMetricNum(sendingsTableTotals.paidWeight)}</Typography.Body>
+                            </Flex>
+                            {showSums && (
+                                <Flex direction="column" align="center">
+                                    <Typography.Label>Объявл. стоимость</Typography.Label>
+                                    <Typography.Body>{formatCurrency(sendingsTableTotals.declaredCost, true)}</Typography.Body>
+                                </Flex>
+                            )}
                         </div>
-                        <div>
-                            <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.15rem' }}>
-                                Плат. вес
-                            </Typography.Body>
-                            <Typography.Body style={{ fontWeight: 700 }}>{formatSendingMetricNum(sendingsTableTotals.paidWeight)}</Typography.Body>
-                        </div>
-                        {showSums && (
-                            <div>
-                                <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.15rem' }}>
-                                    Стоимость
-                                </Typography.Body>
-                                <Typography.Body style={{ fontWeight: 700 }}>{formatCurrency(sendingsTableTotals.cost, true)}</Typography.Body>
-                            </div>
-                        )}
-                        {showSums && (
-                            <div>
-                                <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.15rem' }}>
-                                    Объявл. стоимость
-                                </Typography.Body>
-                                <Typography.Body style={{ fontWeight: 700 }}>{formatCurrency(sendingsTableTotals.declaredCost, true)}</Typography.Body>
-                            </div>
-                        )}
                     </div>
                 )}
                 <AnimatePresence mode="wait">

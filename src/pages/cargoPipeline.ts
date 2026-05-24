@@ -22,6 +22,8 @@ export type CargoFilterPipelineParams = {
   cargoTransportByNumber?: Map<string, string>;
   /** Номера перевозок с выбранным ТС по отправкам за период. */
   transportLinkedCargoNumbers?: Set<string>;
+  /** Дополнительный поисковый текст по номеру перевозки: посылки, товары, номенклатура из отправок. */
+  cargoSearchTextByNumber?: Map<string, string>;
   useServiceRequest: boolean;
   billStatusFilterSet: Set<
     "paid" | "unpaid" | "partial" | "cancelled" | "unknown"
@@ -179,6 +181,7 @@ export function buildFilteredCargoItems(
     transportFilter,
     cargoTransportByNumber,
     transportLinkedCargoNumbers,
+    cargoSearchTextByNumber,
     useServiceRequest,
     billStatusFilterSet,
     typeFilterSet,
@@ -197,7 +200,11 @@ export function buildFilteredCargoItems(
 
   if (searchText) {
     const lower = searchText.toLowerCase();
-    res = res.filter((i) => cargoItemSearchHaystack(i).toLowerCase().includes(lower));
+    res = res.filter((i) => {
+      const cargoKey = normCargoKey(String(i.Number ?? ""));
+      const linkedSearchText = cargoSearchTextByNumber?.get(cargoKey) ?? "";
+      return `${cargoItemSearchHaystack(i)} ${linkedSearchText}`.toLowerCase().includes(lower);
+    });
   }
 
   if (statusFilterSet.size > 0) {
