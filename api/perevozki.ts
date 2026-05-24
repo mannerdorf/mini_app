@@ -308,9 +308,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const normalizedMode = String(mode ?? "").trim();
   const canUseRoleAgnosticCache = !normalizedMode || normalizedMode === "Customer";
 
-  // Попытка отдать из кэша: только если не serviceMode и есть БД.
-  // Для Sender/Receiver обычных 1С-логинов идём в 1С: старый кэш часто содержит только заказчика и теряет role-выдачу.
-  if (!serviceMode && canUseRoleAgnosticCache) {
+  // Быстрый путь: в serviceMode всегда отдаём cache_perevozki, без ожидания 1С.
+  if (serviceMode || canUseRoleAgnosticCache) {
     try {
       const pool = getPool();
       let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
@@ -323,19 +322,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
       }
       if (cacheRow.rows.length > 0) {
+        const data = cacheRow.rows[0].data as any[];
+        const list = Array.isArray(data) ? data : [];
+        if (serviceMode) {
+          const filtered = list.filter((item) => {
+            const d = itemDate(item);
+            return d >= dateFrom && d <= dateTo;
+          });
+          return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+        }
         const userInnsRow = await pool.query<{ inn: string }>(
           "SELECT inn FROM account_companies WHERE login = $1",
           [String(login).trim().toLowerCase()]
         );
         const allowedInns = new Set(userInnsRow.rows.map((r) => r.inn.trim()).filter(Boolean));
         const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
-        // Если выбран конкретный заказчик (inn) — отдаём только его перевозки; иначе — все доступные по логину
         const filterInns = requestedInn
           ? (allowedInns.has(requestedInn) ? new Set([requestedInn]) : new Set<string>())
           : allowedInns;
         if (filterInns.size > 0) {
-          const data = cacheRow.rows[0].data as any[];
-          const list = Array.isArray(data) ? data : [];
           const filtered = list.filter((item) => {
             const itemInnVal = itemInn(item, mode);
             if (!filterInns.has(itemInnVal)) return false;

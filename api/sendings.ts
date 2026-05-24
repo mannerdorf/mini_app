@@ -346,7 +346,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const list = Array.isArray(cacheRow.rows[0].data) ? (cacheRow.rows[0].data as any[]) : [];
       const filtered = filterCachedItems(list, finalInns);
       const withMetrics = await attachMetricsToSendings(pool, filtered);
-      if ((isService || (finalInns && finalInns.size > 0)) && filtered.length > 0) {
+      if (isService || (finalInns && finalInns.size > 0)) {
         return res.status(200).json(withMetrics);
       }
     }

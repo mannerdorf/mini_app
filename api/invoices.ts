@@ -125,45 +125,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // Попытка отдать из кэша (не в serviceMode)
-  if (!serviceMode) {
-    try {
-      const pool = getPool();
-      let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-        "SELECT data, fetched_at FROM cache_invoices WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
-        [CACHE_FRESH_MINUTES]
+  // Быстрый путь: в serviceMode всегда отдаём cache_invoices, без ожидания 1С.
+  try {
+    const pool = getPool();
+    let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+      "SELECT data, fetched_at FROM cache_invoices WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
+      [CACHE_FRESH_MINUTES]
+    );
+    if (cacheRow.rows.length === 0) {
+      cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+        "SELECT data, fetched_at FROM cache_invoices WHERE id = 1"
       );
-      if (cacheRow.rows.length === 0) {
-        cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-          "SELECT data, fetched_at FROM cache_invoices WHERE id = 1"
-        );
-      }
-      if (cacheRow.rows.length > 0) {
-        const userInnsRow = await pool.query<{ inn: string }>(
-          "SELECT inn FROM account_companies WHERE login = $1",
-          [String(login).trim().toLowerCase()]
-        );
-        const allowedInns = new Set(userInnsRow.rows.map((r) => r.inn.trim()).filter(Boolean));
-        const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
-        // Если выбран конкретный заказчик (inn) — отдаём только его счета; иначе — все доступные по логину
-        const filterInns = requestedInn
-          ? (allowedInns.has(requestedInn) ? new Set([requestedInn]) : new Set<string>())
-          : allowedInns;
-        if (filterInns.size > 0) {
-          const data = cacheRow.rows[0].data as any[];
-          const list = Array.isArray(data) ? data : [];
-          const filtered = list.filter((item) => {
-            const itemInnVal = invoiceInn(item);
-            if (!filterInns.has(itemInnVal)) return false;
-            const d = invoiceDate(item);
-            return d >= dateFrom && d <= dateTo;
-          });
-          return res.status(200).json(Array.isArray(filtered) ? filtered : []);
-        }
-      }
-    } catch {
-      // БД недоступна или кэш пустой — идём в 1С
     }
+    if (cacheRow.rows.length > 0) {
+      const data = cacheRow.rows[0].data as any[];
+      const list = Array.isArray(data) ? data : [];
+      if (serviceMode) {
+        const filtered = list.filter((item) => {
+          const d = invoiceDate(item);
+          return d >= dateFrom && d <= dateTo;
+        });
+        return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+      }
+      const userInnsRow = await pool.query<{ inn: string }>(
+        "SELECT inn FROM account_companies WHERE login = $1",
+        [String(login).trim().toLowerCase()]
+      );
+      const allowedInns = new Set(userInnsRow.rows.map((r) => r.inn.trim()).filter(Boolean));
+      const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+      const filterInns = requestedInn
+        ? (allowedInns.has(requestedInn) ? new Set([requestedInn]) : new Set<string>())
+        : allowedInns;
+      if (filterInns.size > 0) {
+        const filtered = list.filter((item) => {
+          const itemInnVal = invoiceInn(item);
+          if (!filterInns.has(itemInnVal)) return false;
+          const d = invoiceDate(item);
+          return d >= dateFrom && d <= dateTo;
+        });
+        return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+      }
+    }
+  } catch {
+    // БД недоступна или кэш пустой — идём в 1С
   }
 
   const url = new URL(BASE_URL);

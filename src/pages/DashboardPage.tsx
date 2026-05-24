@@ -597,7 +597,8 @@ export function DashboardPage({
     const calendarDateFrom = `${calendarYear - 1}-01-01`;
     const calendarDateTo = `${calendarYear + 1}-12-31`;
     const { items: calendarInvoiceItems, mutate: mutateCalendarInvoices } = useInvoices({
-        auth: showPaymentCalendar ? auth : null,
+        // Тяжёлый 3-летний диапазон не грузим на первом рендере дашборда.
+        auth: null,
         dateFrom: calendarDateFrom,
         dateTo: calendarDateTo,
         activeInn: !useServiceRequest ? auth?.inn : undefined,
