@@ -29,15 +29,17 @@ import {
 } from "../lib/sharedListFilters";
 import { normalizeStatus } from "../lib/statusUtils";
 import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "../lib/slaWorkSchedule";
-import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry, getSlaPlanDeadlineMs } from "../lib/cargoUtils";
+import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry, getSlaPlanDeadlineMs, CARGO_ROLE_FILTER_LABELS, type CargoRoleFilterKey } from "../lib/cargoUtils";
+import { buildFilteredCargoItems } from "./cargoPipeline";
 import { formatCurrency, formatInvoiceNumber, stripOoo, cityToCode, normalizeInvoiceStatus } from "../lib/formatUtils";
-import { getFirstCargoNumberFromInvoice, buildCargoStateByNumber } from "./documentsPipeline";
+import { getFirstCargoNumberFromInvoice, buildCargoStateByNumber, filterItemsByActiveInn } from "./documentsPipeline";
 import { usePerevozki, usePrevPeriodPerevozki, useInvoices } from "../hooks/useApi";
 import { fetchPerevozkaTimeline } from "../lib/perevozkaDetails";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { DateText } from "../components/ui/DateText";
 import { FilterDialog } from "../components/shared/FilterDialog";
 import { HaulzDispatchSummary } from "../components/HaulzDispatchSummary";
+import { EdoHealthMonitor } from "../components/EdoHealthMonitor";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
 import { getWebApp, isMaxWebApp } from "../webApp";
 import type { AuthData, CargoItem, DateFilter, PerevozkaTimelineStep, StatusFilter } from "../types";
@@ -61,6 +63,16 @@ const {
     saveDateFilterState,
 } = dateUtils;
 const MONTH_NAMES = dateUtils.MONTH_NAMES;
+
+const DASH_ROLE_FILTER_KEY = "haulz.dashboard.roleFilter";
+
+function loadDashboardRoleFilter(): CargoRoleFilterKey {
+    try {
+        const v = localStorage.getItem(DASH_ROLE_FILTER_KEY);
+        if (v === "customer" || v === "sender" || v === "receiver" || v === "all") return v;
+    } catch { /* ignore */ }
+    return "all";
+}
 
 /** Единая типографика панелей «План-Факт», «Грузовой поток» и аналогичных блоков */
 const DASH_PLAN_FACT_TYPO = {
@@ -240,6 +252,7 @@ export type DashboardPageProps = {
     /** Сводка «Выдача грузов» на главной при праве haulz (данные с фильтрами дашборда). */
     canAccessHaulzDispatch?: boolean;
     onOpenCargo?: (cargoNumber: string) => void;
+    onOpenDocumentsEdo?: () => void;
 };
 
 export function DashboardPage({
@@ -253,6 +266,7 @@ export function DashboardPage({
     saasDashboardMotion = false,
     canAccessHaulzDispatch = false,
     onOpenCargo,
+    onOpenDocumentsEdo,
 }: DashboardPageProps) {
     const prefersReducedMotion = useReducedMotion();
     const dashboardMotionEnabled = !!saasDashboardMotion && prefersReducedMotion !== true;
@@ -312,14 +326,23 @@ export function DashboardPage({
     const [billStatusFilterSet, setBillStatusFilterSet] = useState<Set<SharedBillStatusKey>>(() => sharedFiltersInit.billStatusFilterSet);
     const [typeFilterSet, setTypeFilterSet] = useState<Set<TypeFilterKey>>(() => sharedFiltersInit.typeFilterSet);
     const [routeFilterSet, setRouteFilterSet] = useState<Set<RouteFilterKey>>(() => sharedFiltersInit.routeFilterSet);
+    const [roleFilter, setRoleFilter] = useState<CargoRoleFilterKey>(() => loadDashboardRoleFilter());
     useEffect(() => {
         saveSharedListFilters(sharedFromFilterSets({ statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet }));
     }, [statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet]);
+    useEffect(() => {
+        if (!useServiceRequest) return;
+        try { localStorage.setItem(DASH_ROLE_FILTER_KEY, roleFilter); } catch { /* ignore */ }
+    }, [roleFilter, useServiceRequest]);
+    useEffect(() => {
+        if (!useServiceRequest && roleFilter !== "all") setRoleFilter("all");
+    }, [useServiceRequest, roleFilter]);
     const [isSenderDropdownOpen, setIsSenderDropdownOpen] = useState(false);
     const [isReceiverDropdownOpen, setIsReceiverDropdownOpen] = useState(false);
     const [isBillStatusDropdownOpen, setIsBillStatusDropdownOpen] = useState(false);
     const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
     const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
+    const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
     const dateButtonRef = useRef<HTMLDivElement>(null);
     const statusButtonRef = useRef<HTMLDivElement>(null);
     const senderButtonRef = useRef<HTMLDivElement>(null);
@@ -331,6 +354,7 @@ export function DashboardPage({
     const maChartWrapRef = useRef<HTMLDivElement | null>(null);
     const [maChartOuterWidthPx, setMaChartOuterWidthPx] = useState(800);
     const routeButtonRef = useRef<HTMLDivElement>(null);
+    const roleButtonRef = useRef<HTMLDivElement>(null);
     const [slaDetailsOpen, setSlaDetailsOpen] = useState(false);
     
     // Chart type selector: деньги / вес / объём (при !showSums доступны только вес и объём)
@@ -556,13 +580,18 @@ export function DashboardPage({
         useServiceRequest: true,
         enabled: !!useServiceRequest && !!prevRange,
     });
-    const { items: invoiceItems } = useInvoices({
+    const { items: invoiceItems, loading: invoicesLoading } = useInvoices({
         auth,
         dateFrom: apiDateRange.dateFrom,
         dateTo: apiDateRange.dateTo,
-        activeInn: !useServiceRequest ? auth?.inn : undefined,
+        activeInn: auth?.inn || undefined,
         useServiceRequest,
     });
+
+    const edoMonitorInvoices = useMemo(
+        () => (useServiceRequest ? invoiceItems : filterItemsByActiveInn(invoiceItems, auth?.inn)),
+        [invoiceItems, auth?.inn, useServiceRequest],
+    );
 
     const calendarYear = new Date().getFullYear();
     const calendarDateFrom = `${calendarYear - 1}-01-01`;
@@ -614,21 +643,60 @@ export function DashboardPage({
         return () => { cancelled = true; };
     }, [showPaymentCalendar, auth?.login, auth?.password]);
 
+    const filterCargoItems = useCallback(
+        (source: CargoItem[]) =>
+            buildFilteredCargoItems({
+                items: source,
+                searchText: "",
+                statusFilterSet,
+                senderFilter,
+                receiverFilter,
+                transportFilter: "",
+                useServiceRequest: !!useServiceRequest,
+                billStatusFilterSet,
+                typeFilterSet,
+                routeFilterSet,
+                lastMileFilter: "all",
+                roleFilter: useServiceRequest ? roleFilter : "all",
+                sortBy: null,
+                sortOrder: "desc",
+            }),
+        [
+            statusFilterSet,
+            senderFilter,
+            receiverFilter,
+            useServiceRequest,
+            billStatusFilterSet,
+            typeFilterSet,
+            routeFilterSet,
+            roleFilter,
+        ],
+    );
+
+    const filteredCargoItems = useMemo(() => filterCargoItems(items), [items, filterCargoItems]);
+
     const unpaidCount = useMemo(() => {
-        return items.filter(item => !isReceivedInfoStatus(item.State) && getPaymentFilterKey(item.StateBill) === "unpaid").length;
-    }, [items]);
+        return filteredCargoItems.filter((item) => getPaymentFilterKey(item.StateBill) === "unpaid").length;
+    }, [filteredCargoItems]);
 
     const readyCount = useMemo(() => {
-        return items.filter(item => !isReceivedInfoStatus(item.State) && getFilterKeyByStatus(item.State) === "ready").length;
-    }, [items]);
+        return filteredCargoItems.filter((item) => getFilterKeyByStatus(item.State) === "ready").length;
+    }, [filteredCargoItems]);
 
-    const uniqueSenders = useMemo(() => [...new Set(items.map(i => (i.Sender ?? '').trim()).filter(Boolean))].sort(), [items]);
-    const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
+    const uniqueSenders = useMemo(
+        () => [...new Set(filteredCargoItems.map((i) => (i.Sender ?? "").trim()).filter(Boolean))].sort(),
+        [filteredCargoItems],
+    );
+    const uniqueReceivers = useMemo(
+        () =>
+            [...new Set(filteredCargoItems.map((i) => (i.Receiver ?? (i as { receiver?: string }).receiver ?? "").trim()).filter(Boolean))].sort(),
+        [filteredCargoItems],
+    );
 
-    const dashboardTotalItems = useMemo(() => items.filter(i => !isReceivedInfoStatus(i.State)), [items]);
+    const dashboardTotalItems = useMemo(() => filteredCargoItems, [filteredCargoItems]);
     const deliveryFactItems = useMemo(
-        () => (useServiceRequest ? deliveryFactLookupItems : items).filter(i => !isReceivedInfoStatus(i.State)),
-        [deliveryFactLookupItems, items, useServiceRequest],
+        () => filterCargoItems(useServiceRequest ? deliveryFactLookupItems : items),
+        [deliveryFactLookupItems, items, useServiceRequest, filterCargoItems],
     );
     
     /** Монитор SLA: жёстко только перевозки с фактом доставки в выбранном периоде (DateVr ∈ [dateFrom, dateTo]). */
@@ -1069,8 +1137,8 @@ export function DashboardPage({
 
     const dashboardTotalPrevPeriodItems = useMemo(() => {
         if (!useServiceRequest || prevPeriodItems.length === 0) return [] as CargoItem[];
-        return prevPeriodItems.filter(i => !isReceivedInfoStatus(i.State));
-    }, [prevPeriodItems, useServiceRequest]);
+        return filterCargoItems(prevPeriodItems);
+    }, [prevPeriodItems, useServiceRequest, filterCargoItems]);
 
     /** Плановое поступление по счетам: срок в календарных днях; при наступлении срока — первый платёжный день недели (если заданы) или первый рабочий день. */
     const plannedByDate = useMemo(() => {
@@ -2534,7 +2602,7 @@ export function DashboardPage({
             <div className="filters-container filters-row-scroll">
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
                             Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8,10)}.${r.dateFrom.slice(5,7)} – ${r.dateTo.slice(8,10)}.${r.dateTo.slice(5,7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -2642,7 +2710,7 @@ export function DashboardPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
                             Статус: {statusFilterSet.size === 0 ? 'Все' : statusFilterSet.size === 1 ? STATUS_MAP[[...statusFilterSet][0]] : `Выбрано: ${statusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -2655,9 +2723,30 @@ export function DashboardPage({
                         ))}
                     </FilterDropdownPortal>
                 </div>
+                {useServiceRequest && (
+                <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <div ref={roleButtonRef} style={{ display: 'inline-flex' }}>
+                        <Button className="filter-button" onClick={() => { setIsRoleDropdownOpen(!isRoleDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                            Роль: {CARGO_ROLE_FILTER_LABELS[roleFilter]} <ChevronDown className="w-4 h-4"/>
+                        </Button>
+                    </div>
+                    <FilterDropdownPortal triggerRef={roleButtonRef} isOpen={isRoleDropdownOpen} onClose={() => setIsRoleDropdownOpen(false)}>
+                        {(["all", "customer", "sender", "receiver"] as const).map((key) => (
+                            <div
+                                key={key}
+                                className="dropdown-item"
+                                onClick={() => { setRoleFilter(key); setIsRoleDropdownOpen(false); }}
+                                style={{ background: roleFilter === key ? 'var(--color-bg-hover)' : undefined }}
+                            >
+                                <Typography.Body>{CARGO_ROLE_FILTER_LABELS[key]} {roleFilter === key ? '✓' : ''}</Typography.Body>
+                            </div>
+                        ))}
+                    </FilterDropdownPortal>
+                </div>
+                )}
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={senderButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
                             Отправитель: {senderFilter ? stripOoo(senderFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -2670,7 +2759,7 @@ export function DashboardPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={receiverButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
                             Получатель: {receiverFilter ? stripOoo(receiverFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -2684,7 +2773,7 @@ export function DashboardPage({
                 {useServiceRequest && (
                     <div className="filter-group" style={{ flexShrink: 0 }}>
                         <div ref={billStatusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
                                 Статус счёта: {billStatusFilterSet.size === 0 ? 'Все' : billStatusFilterSet.size === 1 ? BILL_STATUS_MAP[[...billStatusFilterSet][0]] : `Выбрано: ${billStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -2700,7 +2789,7 @@ export function DashboardPage({
                 )}
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
                             Тип: {typeFilterSet.size === 0 ? 'Все' : typeFilterSet.size === 2 ? 'Паром, Авто' : typeFilterSet.has('ferry') ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -2737,13 +2826,21 @@ export function DashboardPage({
                         auth={auth}
                         useServiceRequest={useServiceRequest}
                         onOpenCargo={onOpenCargo}
-                        perevozkiItems={items}
+                        perevozkiItems={filteredCargoItems}
                         perevozkiLoading={loading}
                         perevozkiError={error}
                         perevozkiMutate={mutatePerevozki}
                         showSums={showSums}
                     />
                 </div>
+            )}
+
+            {!showOnlySla && (
+                <EdoHealthMonitor
+                    invoices={edoMonitorInvoices}
+                    loading={invoicesLoading}
+                    onOpen={onOpenDocumentsEdo}
+                />
             )}
 
             <DashboardMotionGroup enabled={dashboardMotionEnabled}>

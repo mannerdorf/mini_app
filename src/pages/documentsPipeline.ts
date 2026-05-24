@@ -70,6 +70,13 @@ function getItemInn(item: any): string {
   );
 }
 
+/** Оставить только строки выбранной в шапке компании (по ИНН). */
+export function filterItemsByActiveInn<T>(items: T[], activeInn?: string): T[] {
+  const normalizedActiveInn = normalizeInn(activeInn);
+  if (!normalizedActiveInn) return items;
+  return items.filter((i) => getItemInn(i) === normalizedActiveInn);
+}
+
 export function getInvoiceSearchText(inv: any): string {
   const parts: string[] = [
     String(inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? ""),
@@ -163,6 +170,17 @@ export function findInvoiceLinkedToAct(act: any, invoices: any[] | undefined | n
   for (const inv of invoices) {
     const num = String(inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? inv?.numberDoc ?? "").trim();
     if (actInvoiceLinkMatches(link, num)) return inv;
+  }
+  return null;
+}
+
+/** УПД, связанный со счётом (обратный поиск к findInvoiceLinkedToAct). */
+export function findActLinkedToInvoice(inv: any, acts: any[] | undefined | null): any | null {
+  const invNum = String(inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? inv?.numberDoc ?? "").trim();
+  if (!invNum || !acts?.length) return null;
+  for (const act of acts) {
+    const link = String(act?.Invoice ?? act?.invoice ?? act?.Счёт ?? act?.Счет ?? "").trim();
+    if (link && actInvoiceLinkMatches(link, invNum)) return act;
   }
   return null;
 }
@@ -295,6 +313,55 @@ function pickCargoRecordNumber(c: any): string {
 
 function pickCargoRecordSum(c: any): number {
   return parseSendingMetricNumber(c?.Sum ?? c?.sum ?? c?.Сумма ?? c?.Amount ?? c?.amount);
+}
+
+export type EdoCargoCardItem = {
+  cargoKey: string;
+  cargoNumber: string;
+  invoice: any;
+  cargo: any | null;
+};
+
+/** Одна плитка ЭДО = одна перевозка; ЭДО берётся из связанного счёта. */
+export function buildEdoCargoCardItems(
+  invoices: any[],
+  perevozkiItems: any[] | null | undefined,
+  getFirstCargoNumberFromInvoice: (inv: any) => string | null,
+): EdoCargoCardItem[] {
+  const perevozkiByKey = new Map<string, any>();
+  (perevozkiItems || []).forEach((c) => {
+    const raw = pickCargoRecordNumber(c);
+    if (!raw) return;
+    const key = normCargoKey(raw);
+    perevozkiByKey.set(key, c);
+    if (key !== raw) perevozkiByKey.set(raw, c);
+  });
+
+  const map = new Map<string, EdoCargoCardItem>();
+  for (const inv of invoices || []) {
+    const nums = collectInvoiceLinkedCargoNumbers(inv);
+    if (!nums.length) {
+      const first = getFirstCargoNumberFromInvoice(inv);
+      if (first) nums.push(first);
+    }
+    if (!nums.length) continue;
+    for (const num of nums) {
+      const key = normCargoKey(num);
+      if (map.has(key)) continue;
+      map.set(key, {
+        cargoKey: key,
+        cargoNumber: num,
+        invoice: inv,
+        cargo: perevozkiByKey.get(key) ?? perevozkiByKey.get(num) ?? null,
+      });
+    }
+  }
+
+  return [...map.values()].sort((a, b) => {
+    const da = a.cargo?.DatePrih ?? a.invoice?.DateDoc ?? a.invoice?.Date ?? "";
+    const db = b.cargo?.DatePrih ?? b.invoice?.DateDoc ?? b.invoice?.Date ?? "";
+    return String(db).localeCompare(String(da));
+  });
 }
 
 /** Сумма перевозки (freight) из getperevozka по номеру груза. */
@@ -610,6 +677,12 @@ function parseCargoMetric(value: unknown): number {
   return typeof value === "string" ? parseFloat(value) || 0 : Number(value) || 0;
 }
 
+/** Сумма документа — как в разделе УПД (SumDoc / Sum / sum). */
+function pickUpdStyleDocSum(row: any): number {
+  const v = row?.SumDoc ?? row?.Sum ?? row?.sum ?? 0;
+  return typeof v === "string" ? parseFloat(v) || 0 : (v || 0);
+}
+
 function buildLinkedCargoMetrics(list: any[], perevozkiItems: any[] | undefined): Pick<DocsSummaryTotals, "mest" | "pw" | "w" | "vol"> {
   const metrics = { mest: 0, pw: 0, w: 0, vol: 0 };
   if (!perevozkiItems?.length || !list.length) return metrics;
@@ -651,11 +724,28 @@ export function buildDocsSummary(list: any[], perevozkiItems?: any[]): DocsSumma
   return { sum, count: list.length, ...buildLinkedCargoMetrics(list, perevozkiItems) };
 }
 
+/** Итоги Счетов: сумма и грузы — как в УПД (из связанного УПД, иначе из счёта). */
+export function buildInvoicesSummary(
+  filteredInvoices: any[],
+  acts: any[] | undefined | null,
+  perevozkiItems?: any[],
+): DocsSummaryTotals {
+  const sources = filteredInvoices.map((inv) => findActLinkedToInvoice(inv, acts) ?? inv);
+  let sum = 0;
+  sources.forEach((row) => {
+    sum += pickUpdStyleDocSum(row);
+  });
+  return {
+    sum,
+    count: filteredInvoices.length,
+    ...buildLinkedCargoMetrics(sources, perevozkiItems),
+  };
+}
+
 export function buildActsSummary(list: any[], perevozkiItems?: any[]): DocsSummaryTotals {
   let sum = 0;
   list.forEach((a: any) => {
-    const v = a.SumDoc ?? a.Sum ?? a.sum ?? 0;
-    sum += typeof v === "string" ? parseFloat(v) || 0 : (v || 0);
+    sum += pickUpdStyleDocSum(a);
   });
   return { sum, count: list.length, ...buildLinkedCargoMetrics(list, perevozkiItems) };
 }

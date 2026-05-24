@@ -244,6 +244,64 @@ export function aggregateInvoiceEdoDocStats(invoices: any[] | undefined | null):
   return out;
 }
 
+export type EdoHealthSummary = {
+  byDoc: Record<InvoiceEdoMergedDocLabel, InvoiceEdoDocAgg>;
+  signed: number;
+  total: number;
+  /** 0–100 или null, если нет статусов ЭДО */
+  percent: number | null;
+  pending: number;
+  issues: number;
+  invoiceCount: number;
+};
+
+/** Сводка «здоровья ЭДО» для компактного виджета на главной */
+export function computeEdoHealthSummary(invoices: any[] | undefined | null): EdoHealthSummary {
+  const byDoc = aggregateInvoiceEdoDocStats(invoices);
+  let signed = 0;
+  let total = 0;
+  let pending = 0;
+  let issues = 0;
+  for (const label of INVOICE_EDO_MERGED_COLUMNS) {
+    signed += byDoc[label].signed;
+    total += byDoc[label].total;
+  }
+  for (const inv of invoices || []) {
+    for (const label of INVOICE_EDO_MERGED_COLUMNS) {
+      const info = getInvoiceEdoInfoByDocLabel(inv, label);
+      if (!info.raw) continue;
+      if (info.tone === "warning") pending += 1;
+      if (info.tone === "danger") issues += 1;
+    }
+  }
+  const percent = total > 0 ? Math.round((signed / total) * 100) : null;
+  return {
+    byDoc,
+    signed,
+    total,
+    percent,
+    pending,
+    issues,
+    invoiceCount: (invoices || []).length,
+  };
+}
+
+export function edoHealthPercentColor(percent: number): string {
+  if (percent >= 90) return "#22c55e";
+  if (percent >= 70) return "#10b981";
+  if (percent >= 50) return "#f59e0b";
+  return "#ef4444";
+}
+
+export function edoHealthStatusLabel(percent: number | null, issues: number): string {
+  if (percent == null) return "Нет данных";
+  if (issues > 0 && percent < 70) return "Риск";
+  if (issues > 0 || percent < 50) return "Внимание";
+  if (percent >= 90) return "Отлично";
+  if (percent >= 70) return "Хорошо";
+  return "Норма";
+}
+
 /** Отображение «3/10» — подписано / всего с известным статусом ЭДО по этому типу документа */
 export function formatEdoSignedRatio(signed: number, total: number): string {
   if (total <= 0) return "—";
@@ -309,6 +367,13 @@ export function getEdoTableDisplayLabel(info: EdoStatusInfo): string {
   return info.label;
 }
 
+/** Короткая подпись на плитке: «ЭР П», «Сч —» */
+export function getEdoCardCompactLabel(docLabel: InvoiceEdoMergedDocLabel, info: EdoStatusInfo): string {
+  const prefix = docLabel === "СЧЕТ" ? "Сч" : docLabel;
+  if (!info.raw) return `${prefix} —`;
+  return `${prefix} ${info.shortLabel}`;
+}
+
 /** Подпись на карточке: полный статус с префиксом «ЭДО» */
 export function getEdoCardDisplayLabel(info: EdoStatusInfo): string {
   return `ЭДО ${getEdoTableDisplayLabel(info)}`;
@@ -332,26 +397,14 @@ export function edoTableCellTextStyle(tone: EdoTone): CSSProperties {
   };
 }
 
-/** Карточка: мини-бейдж в правом нижнем углу */
+/** Карточка: цвет фона/рамки бейджа (без позиционирования) */
+export function edoCardBadgeSurfaceStyle(tone: EdoTone): CSSProperties {
+  return edoToneSurfaceStyle(tone);
+}
+
+/** @deprecated Используйте edoCardBadgeSurfaceStyle + CSS-класс documents-edo-card-badge */
 export function edoCardCornerBadgeStyle(tone: EdoTone): CSSProperties {
-  return {
-    position: "absolute",
-    right: 8,
-    bottom: 8,
-    zIndex: 2,
-    maxWidth: "54%",
-    fontSize: "0.5rem",
-    fontWeight: 600,
-    lineHeight: 1.2,
-    padding: "0.1rem 0.3rem",
-    borderRadius: 999,
-    textAlign: "right",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    pointerEvents: "none",
-    ...edoToneSurfaceStyle(tone),
-  };
+  return edoCardBadgeSurfaceStyle(tone);
 }
 
 /** Пункты легенды в модалках (без сокращений ОП/П/НП) */

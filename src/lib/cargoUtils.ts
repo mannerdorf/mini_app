@@ -6,6 +6,7 @@ import { getFilterKeyByStatus } from "./statusUtils";
 import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "./slaWorkSchedule";
 import { mapTimelineStageLabel } from "./perevozkaDetails";
 import type { CargoItem } from "../types";
+import type { PerevozkiRole } from "../types";
 
 /** Плановые сроки доставки (дней): MSK-KGD авто 7 / паром 20; KGD-MSK авто и паром 60 */
 export const AUTO_PLAN_DAYS = 7;
@@ -18,6 +19,68 @@ export function isFerry(item: CargoItem): boolean {
 
 export function isRouteKgdMsk(item: CargoItem): boolean {
     return cityToCode(item.CitySender) === 'KGD' && cityToCode(item.CityReceiver) === 'MSK';
+}
+
+export type CargoRoleFilterKey = "all" | "customer" | "sender" | "receiver";
+
+export const CARGO_ROLE_FILTER_LABELS: Record<CargoRoleFilterKey, string> = {
+    all: "Все",
+    customer: "Заказчик",
+    sender: "Отправитель",
+    receiver: "Получатель",
+};
+
+/** Все роли контрагента по перевозке (из API mode или из _roles после merge). */
+export function getCargoRoleSet(item: CargoItem): Set<PerevozkiRole> {
+    const fromArray = item._roles?.filter(Boolean);
+    if (fromArray?.length) return new Set(fromArray);
+    if (item._role) return new Set([item._role]);
+    return new Set();
+}
+
+/** Приоритет отображения: заказчик, если есть хотя бы одна роль заказчика. */
+export function pickCargoDisplayRole(roles: Iterable<PerevozkiRole>): PerevozkiRole | undefined {
+    const set = roles instanceof Set ? roles : new Set(roles);
+    if (set.size === 0) return undefined;
+    if (set.has("Customer")) return "Customer";
+    if (set.has("Sender")) return "Sender";
+    return "Receiver";
+}
+
+export function getCargoDisplayRoleLabel(item: CargoItem): string {
+    const roles = getCargoRoleSet(item);
+    if (roles.has("Customer")) return "Заказчик";
+    const hasSender = roles.has("Sender");
+    const hasReceiver = roles.has("Receiver");
+    if (hasSender && hasReceiver) return "Отправитель · Получатель";
+    if (hasSender) return "Отправитель";
+    if (hasReceiver) return "Получатель";
+    return "";
+}
+
+/** Клиентский фильтр «Роль»: отправитель/получатель без заказчика; заказчик — всегда «Заказчик». */
+export function cargoMatchesRoleFilter(item: CargoItem, filter: CargoRoleFilterKey): boolean {
+    if (filter === "all") return true;
+    const roles = getCargoRoleSet(item);
+    if (filter === "customer") return roles.has("Customer");
+    if (filter === "sender") return roles.has("Sender") && !roles.has("Customer");
+    if (filter === "receiver") return roles.has("Receiver") && !roles.has("Customer");
+    return true;
+}
+
+export function unionCargoRoles(a: CargoItem, b: CargoItem): PerevozkiRole[] {
+    return [...new Set([...getCargoRoleSet(a), ...getCargoRoleSet(b)])];
+}
+
+export function applyCargoRolesToItem(item: CargoItem, roles: Iterable<PerevozkiRole>): CargoItem {
+    const roleSet = roles instanceof Set ? roles : new Set(roles);
+    const rolesArr = [...roleSet];
+    const displayRole = pickCargoDisplayRole(roleSet);
+    return {
+        ...item,
+        ...(rolesArr.length ? { _roles: rolesArr } : {}),
+        ...(displayRole ? { _role: displayRole } : {}),
+    };
 }
 
 export function getPlanDays(item: CargoItem): number {
@@ -202,6 +265,12 @@ export function mergePerevozkiRoleDuplicates(winner: CargoItem, loser: CargoItem
     }
 
     if (role !== undefined) out._role = role;
+    const mergedRoles = unionCargoRoles(winner, loser);
+    if (mergedRoles.length) {
+        out._roles = mergedRoles;
+        const displayRole = pickCargoDisplayRole(mergedRoles);
+        if (displayRole) out._role = displayRole;
+    }
     return out as CargoItem;
 }
 

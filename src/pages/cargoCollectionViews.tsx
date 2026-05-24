@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import {
@@ -13,8 +13,8 @@ import {
 import { DateText } from "../components/ui/DateText";
 import { StatusBadge, StatusBillBadge } from "../components/shared/StatusBadges";
 import { AppBadge } from "../components/shared/AppBadge";
-import { getSlaInfo, cargoLastMileIsSelfPickup, isFerry } from "../lib/cargoUtils";
-import { formatCurrency, stripOoo, cityToCode } from "../lib/formatUtils";
+import { getSlaInfo, cargoLastMileIsSelfPickup, isFerry, getCargoDisplayRoleLabel, getCargoRoleSet } from "../lib/cargoUtils";
+import { formatCurrency, stripOoo, cityToCode, formatInvoiceNumber } from "../lib/formatUtils";
 import { getSumColorByPaymentStatus } from "../lib/statusUtils";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
 import type { CargoItem } from "../types";
@@ -95,17 +95,29 @@ export function CargoCustomerTable({
   onSelectCargo,
   motionEnabled = false,
 }: CargoCustomerTableProps) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  const mainColSpan = isMobile ? (showSums ? 4 : 3) : showSums ? 7 : 6;
+
   return (
     <div
-      className="cargo-card"
+      className="cargo-card cargo-customer-table-wrap"
       style={{
-        overflowX: "auto",
+        overflowX: isMobile ? "hidden" : "auto",
         overflowY: "visible",
         marginBottom: "1rem",
         paddingTop: "0.45rem",
       }}
     >
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+      <table className="cargo-customer-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
         <thead>
           <tr
             style={{
@@ -114,6 +126,7 @@ export function CargoCustomerTable({
             }}
           >
             <th
+              className="cargo-customer-table__col-customer"
               style={{
                 padding: "0.5rem 0.4rem",
                 textAlign: "left",
@@ -140,6 +153,7 @@ export function CargoCustomerTable({
             </th>
             {showSums && (
               <th
+                className="cargo-customer-table__col-sum"
                 style={{
                   padding: "0.5rem 0.4rem",
                   textAlign: "right",
@@ -166,6 +180,7 @@ export function CargoCustomerTable({
               </th>
             )}
             <th
+              className="cargo-customer-table__col-mest"
               style={{
                 padding: "0.5rem 0.4rem",
                 textAlign: "right",
@@ -191,6 +206,7 @@ export function CargoCustomerTable({
                 ))}
             </th>
             <th
+              className="cargo-customer-table__col-pw"
               style={{
                 padding: "0.5rem 0.4rem",
                 textAlign: "right",
@@ -203,7 +219,8 @@ export function CargoCustomerTable({
               onClick={() => onTableSort("pw")}
               title="Сортировка: первый клик А–Я, второй Я–А"
             >
-              Плат. вес{" "}
+              <span className="cargo-customer-table__head-long">Плат. вес</span>
+              <span className="cargo-customer-table__head-short">Пл. в.</span>{" "}
               {tableSortColumn === "pw" &&
                 (tableSortOrder === "asc" ? (
                   <ArrowUp
@@ -218,6 +235,7 @@ export function CargoCustomerTable({
                 ))}
             </th>
             <th
+              className="cargo-customer-table__col-w"
               style={{
                 padding: "0.5rem 0.4rem",
                 textAlign: "right",
@@ -243,6 +261,7 @@ export function CargoCustomerTable({
                 ))}
             </th>
             <th
+              className="cargo-customer-table__col-vol"
               style={{
                 padding: "0.5rem 0.4rem",
                 textAlign: "right",
@@ -268,6 +287,7 @@ export function CargoCustomerTable({
                 ))}
             </th>
             <th
+              className="cargo-customer-table__col-count"
               style={{
                 padding: "0.5rem 0.4rem",
                 textAlign: "right",
@@ -278,7 +298,8 @@ export function CargoCustomerTable({
               onClick={() => onTableSort("count")}
               title="Сортировка: первый клик А–Я, второй Я–А"
             >
-              Перевозок{" "}
+              <span className="cargo-customer-table__head-long">Перевозок</span>
+              <span className="cargo-customer-table__head-short">Пер.</span>{" "}
               {tableSortColumn === "count" &&
                 (tableSortOrder === "asc" ? (
                   <ArrowUp
@@ -297,7 +318,7 @@ export function CargoCustomerTable({
         <tbody>
           <tr aria-hidden>
             <td
-              colSpan={showSums ? 7 : 6}
+              colSpan={mainColSpan}
               style={{ height: "0.5rem", padding: 0, border: "none", background: "transparent" }}
             />
           </tr>
@@ -322,6 +343,7 @@ export function CargoCustomerTable({
                 }
               >
                 <td
+                  className="cargo-customer-table__col-customer"
                   style={{
                     padding: "0.5rem 0.4rem",
                     maxWidth: 180,
@@ -334,14 +356,15 @@ export function CargoCustomerTable({
                   {stripOoo(row.customer)}
                 </td>
                 {showSums && (
-                  <td style={{ padding: "0.5rem 0.4rem", textAlign: "right", whiteSpace: "nowrap" }}>
+                  <td className="cargo-customer-table__col-sum" style={{ padding: "0.5rem 0.4rem", textAlign: "right", whiteSpace: "nowrap" }}>
                     {formatCurrency(row.sum, true)}
                   </td>
                 )}
-                <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>
+                <td className="cargo-customer-table__col-mest" style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>
                   {Math.round(row.mest)}
                 </td>
                 <td
+                  className="cargo-customer-table__col-pw"
                   style={{
                     padding: "0.5rem 0.4rem",
                     textAlign: "right",
@@ -349,20 +372,20 @@ export function CargoCustomerTable({
                     minWidth: "4rem",
                   }}
                 >
-                  {Math.round(row.pw)} кг
+                  {isMobile ? Math.round(row.pw).toLocaleString("ru-RU") : `${Math.round(row.pw)} кг`}
                 </td>
-                <td style={{ padding: "0.5rem 0.4rem", textAlign: "right", whiteSpace: "nowrap" }}>
+                <td className="cargo-customer-table__col-w" style={{ padding: "0.5rem 0.4rem", textAlign: "right", whiteSpace: "nowrap" }}>
                   {Math.round(row.w)} кг
                 </td>
-                <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>
+                <td className="cargo-customer-table__col-vol" style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>
                   {Math.round(row.vol)} м³
                 </td>
-                <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>{row.items.length}</td>
+                <td className="cargo-customer-table__col-count" style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>{row.items.length}</td>
               </motion.tr>
               {expandedTableCustomer === row.customer && (
                 <tr key={`${i}-detail`}>
                   <td
-                    colSpan={showSums ? 7 : 6}
+                    colSpan={mainColSpan}
                     style={{
                       padding: 0,
                       borderBottom: "1px solid var(--color-border)",
@@ -372,19 +395,30 @@ export function CargoCustomerTable({
                   >
                     <motion.div
                       {...(motionEnabled ? cargoExpandMotionProps : { initial: false })}
-                      style={{ padding: "0.5rem", overflowX: "auto" }}
+                      className="cargo-inner-table-wrap"
+                      style={{ padding: isMobile ? "0.35rem 0.2rem" : "0.5rem", overflowX: isMobile ? "hidden" : "auto" }}
                     >
-                      <table
-                        style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}
-                      >
+                      <table className="cargo-inner-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: isMobile ? "0.68rem" : "0.8rem" }}>
                         <thead>
                           <tr
+                            className="cargo-inner-table__head-row"
                             style={{
                               borderBottom: "1px solid var(--color-border)",
                               background: "var(--color-bg-hover)",
                             }}
                           >
                             <th
+                              className="cargo-inner-table__col-type"
+                              style={{
+                                padding: "0.35rem 0.3rem",
+                                textAlign: "center",
+                                fontWeight: 600,
+                                width: "2.5rem",
+                              }}
+                              title="Тип перевозки"
+                            />
+                            <th
+                              className="cargo-inner-table__col-number"
                               style={{
                                 padding: "0.35rem 0.3rem",
                                 textAlign: "left",
@@ -398,11 +432,12 @@ export function CargoCustomerTable({
                               }}
                               title="Сортировка"
                             >
-                              Номер
+                              <span className="cargo-inner-table__head-long">Номер</span>
+                              <span className="cargo-inner-table__head-short">№</span>
                               {innerTableSortColumn === "number" &&
                                 (innerTableSortOrder === "asc" ? (
                                   <ArrowUp
-                                    className="w-3 h-3"
+                                    className="w-3 h-3 cargo-inner-table__sort-icon"
                                     style={{
                                       verticalAlign: "middle",
                                       marginLeft: 2,
@@ -411,7 +446,7 @@ export function CargoCustomerTable({
                                   />
                                 ) : (
                                   <ArrowDown
-                                    className="w-3 h-3"
+                                    className="w-3 h-3 cargo-inner-table__sort-icon"
                                     style={{
                                       verticalAlign: "middle",
                                       marginLeft: 2,
@@ -425,11 +460,15 @@ export function CargoCustomerTable({
                                 (i as { Order?: string }).Order != null &&
                                 String((i as { Order?: string }).Order).trim() !== ""
                             ) && (
-                              <th style={{ padding: "0.35rem 0.3rem", textAlign: "left", fontWeight: 600 }}>
+                              <th
+                                className="cargo-inner-table__col-order"
+                                style={{ padding: "0.35rem 0.3rem", textAlign: "left", fontWeight: 600 }}
+                              >
                                 Номер заявки заказчика
                               </th>
                             )}
                             <th
+                              className="cargo-inner-table__col-date"
                               style={{
                                 padding: "0.35rem 0.3rem",
                                 textAlign: "left",
@@ -443,11 +482,12 @@ export function CargoCustomerTable({
                               }}
                               title="Сортировка"
                             >
-                              Дата прихода
+                              <span className="cargo-inner-table__head-long">Дата прихода</span>
+                              <span className="cargo-inner-table__head-short">Дата</span>
                               {innerTableSortColumn === "datePrih" &&
                                 (innerTableSortOrder === "asc" ? (
                                   <ArrowUp
-                                    className="w-3 h-3"
+                                    className="w-3 h-3 cargo-inner-table__sort-icon"
                                     style={{
                                       verticalAlign: "middle",
                                       marginLeft: 2,
@@ -456,7 +496,7 @@ export function CargoCustomerTable({
                                   />
                                 ) : (
                                   <ArrowDown
-                                    className="w-3 h-3"
+                                    className="w-3 h-3 cargo-inner-table__sort-icon"
                                     style={{
                                       verticalAlign: "middle",
                                       marginLeft: 2,
@@ -466,6 +506,7 @@ export function CargoCustomerTable({
                                 ))}
                             </th>
                             <th
+                              className="cargo-inner-table__col-status"
                               style={{
                                 padding: "0.35rem 0.3rem",
                                 textAlign: "left",
@@ -477,13 +518,14 @@ export function CargoCustomerTable({
                                 e.stopPropagation();
                                 onInnerTableSort("status");
                               }}
-                              title="Сортировка"
+                              title="Сортировка: статус, доставка, маршрут"
                             >
-                              Статус
+                              <span className="cargo-inner-table__head-long">Статус / маршрут</span>
+                              <span className="cargo-inner-table__head-short">Ст.</span>
                               {innerTableSortColumn === "status" &&
                                 (innerTableSortOrder === "asc" ? (
                                   <ArrowUp
-                                    className="w-3 h-3"
+                                    className="w-3 h-3 cargo-inner-table__sort-icon"
                                     style={{
                                       verticalAlign: "middle",
                                       marginLeft: 2,
@@ -492,7 +534,7 @@ export function CargoCustomerTable({
                                   />
                                 ) : (
                                   <ArrowDown
-                                    className="w-3 h-3"
+                                    className="w-3 h-3 cargo-inner-table__sort-icon"
                                     style={{
                                       verticalAlign: "middle",
                                       marginLeft: 2,
@@ -502,6 +544,7 @@ export function CargoCustomerTable({
                                 ))}
                             </th>
                             <th
+                              className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop"
                               style={{
                                 padding: "0.35rem 0.3rem",
                                 textAlign: "left",
@@ -512,15 +555,7 @@ export function CargoCustomerTable({
                               Маршрут
                             </th>
                             <th
-                              style={{
-                                padding: "0.35rem 0.3rem",
-                                textAlign: "center",
-                                fontWeight: 600,
-                                width: "2.5rem",
-                              }}
-                              title="Тип перевозки"
-                            />
-                            <th
+                              className="cargo-inner-table__col-mest"
                               style={{
                                 padding: "0.35rem 0.3rem",
                                 textAlign: "right",
@@ -534,11 +569,12 @@ export function CargoCustomerTable({
                               }}
                               title="Сортировка"
                             >
-                              Мест
+                              <span className="cargo-inner-table__head-long">Мест</span>
+                              <span className="cargo-inner-table__head-short">Мест</span>
                               {innerTableSortColumn === "mest" &&
                                 (innerTableSortOrder === "asc" ? (
                                   <ArrowUp
-                                    className="w-3 h-3"
+                                    className="w-3 h-3 cargo-inner-table__sort-icon"
                                     style={{
                                       verticalAlign: "middle",
                                       marginLeft: 2,
@@ -547,7 +583,7 @@ export function CargoCustomerTable({
                                   />
                                 ) : (
                                   <ArrowDown
-                                    className="w-3 h-3"
+                                    className="w-3 h-3 cargo-inner-table__sort-icon"
                                     style={{
                                       verticalAlign: "middle",
                                       marginLeft: 2,
@@ -557,6 +593,7 @@ export function CargoCustomerTable({
                                 ))}
                             </th>
                             <th
+                              className="cargo-inner-table__col-pw"
                               style={{
                                 padding: "0.35rem 0.3rem",
                                 textAlign: "right",
@@ -572,11 +609,12 @@ export function CargoCustomerTable({
                               }}
                               title="Сортировка"
                             >
-                              Плат. вес
+                              <span className="cargo-inner-table__head-long">Плат. вес</span>
+                              <span className="cargo-inner-table__head-short">Пл.в.</span>
                               {innerTableSortColumn === "pw" &&
                                 (innerTableSortOrder === "asc" ? (
                                   <ArrowUp
-                                    className="w-3 h-3"
+                                    className="w-3 h-3 cargo-inner-table__sort-icon"
                                     style={{
                                       verticalAlign: "middle",
                                       marginLeft: 2,
@@ -585,7 +623,7 @@ export function CargoCustomerTable({
                                   />
                                 ) : (
                                   <ArrowDown
-                                    className="w-3 h-3"
+                                    className="w-3 h-3 cargo-inner-table__sort-icon"
                                     style={{
                                       verticalAlign: "middle",
                                       marginLeft: 2,
@@ -596,6 +634,7 @@ export function CargoCustomerTable({
                             </th>
                             {showSums && (
                               <th
+                                className="cargo-inner-table__col-sum"
                                 style={{
                                   padding: "0.35rem 0.3rem",
                                   textAlign: "right",
@@ -609,11 +648,12 @@ export function CargoCustomerTable({
                                 }}
                                 title="Сортировка"
                               >
-                                Сумма
+                              <span className="cargo-inner-table__head-long">Сумма</span>
+                              <span className="cargo-inner-table__head-short">Сум.</span>
                                 {innerTableSortColumn === "sum" &&
                                   (innerTableSortOrder === "asc" ? (
                                     <ArrowUp
-                                      className="w-3 h-3"
+                                      className="w-3 h-3 cargo-inner-table__sort-icon"
                                       style={{
                                         verticalAlign: "middle",
                                         marginLeft: 2,
@@ -622,7 +662,7 @@ export function CargoCustomerTable({
                                     />
                                   ) : (
                                     <ArrowDown
-                                      className="w-3 h-3"
+                                      className="w-3 h-3 cargo-inner-table__sort-icon"
                                       style={{
                                         verticalAlign: "middle",
                                         marginLeft: 2,
@@ -638,6 +678,7 @@ export function CargoCustomerTable({
                           {sortInnerItems(row.items).map((item, j) => (
                             <tr
                               key={item.Number || j}
+                              className="cargo-inner-table__row"
                               style={{ borderBottom: "1px solid var(--color-border)", cursor: "pointer" }}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -645,8 +686,24 @@ export function CargoCustomerTable({
                               }}
                               title="Открыть карточку перевозки"
                             >
-                              <td style={{ padding: "0.35rem 0.3rem" }}>
+                              <td className="cargo-inner-table__col-type" style={{ padding: "0.35rem 0.3rem", textAlign: "center" }}>
+                                {isFerry(item) ? (
+                                  <Ship
+                                    className="cargo-inner-table__type-icon"
+                                    style={{ color: "var(--color-primary-blue)", display: "inline-block" }}
+                                    title="Паром"
+                                  />
+                                ) : (
+                                  <Truck
+                                    className="cargo-inner-table__type-icon"
+                                    style={{ color: "var(--color-text-secondary)", display: "inline-block" }}
+                                    title="Авто"
+                                  />
+                                )}
+                              </td>
+                              <td className="cargo-inner-table__col-number" style={{ padding: "0.35rem 0.3rem" }}>
                                 <span
+                                  className="cargo-inner-table__number"
                                   style={{
                                     color: (() => {
                                       const s = getSlaInfo(item, workScheduleByInn);
@@ -654,7 +711,7 @@ export function CargoCustomerTable({
                                     })(),
                                   }}
                                 >
-                                  {item.Number || "—"}
+                                  {item.Number ? formatInvoiceNumber(String(item.Number)) : "—"}
                                 </span>
                               </td>
                               {row.items.some(
@@ -662,44 +719,33 @@ export function CargoCustomerTable({
                                   (i as { Order?: string }).Order != null &&
                                   String((i as { Order?: string }).Order).trim() !== ""
                               ) && (
-                                <td style={{ padding: "0.35rem 0.3rem" }}>
+                                <td className="cargo-inner-table__col-order" style={{ padding: "0.35rem 0.3rem" }}>
                                   {(item as { Order?: string }).Order != null &&
                                   String((item as { Order?: string }).Order).trim() !== ""
                                     ? String((item as { Order?: string }).Order).trim()
                                     : "—"}
                                 </td>
                               )}
-                              <td style={{ padding: "0.35rem 0.3rem" }}>
-                                <DateText value={item.DatePrih} />
+                              <td className="cargo-inner-table__col-date" style={{ padding: "0.35rem 0.3rem" }}>
+                                <DateText value={item.DatePrih} omitYear={isMobile} />
                               </td>
-                              <td style={{ padding: "0.35rem 0.3rem" }}>
-                                <Flex align="center" gap="0.35rem" wrap="wrap">
+                              <td className="cargo-inner-table__col-status" style={{ padding: "0.35rem 0.3rem" }}>
+                                <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile">
                                   <StatusBadge status={item.State} />
                                   <CargoLastMileBadge item={item} />
-                                </Flex>
+                                  <span className="cargo-inner-table__route-inline">
+                                    <CargoRouteBadge item={item} />
+                                  </span>
+                                </div>
                               </td>
-                              <td style={{ padding: "0.35rem 0.3rem" }}>
+                              <td className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: "0.35rem 0.3rem" }}>
                                 <CargoRouteBadge item={item} />
                               </td>
-                              <td style={{ padding: "0.35rem 0.3rem", textAlign: "center" }}>
-                                {isFerry(item) ? (
-                                  <Ship
-                                    className="w-4 h-4"
-                                    style={{ color: "var(--color-primary-blue)", display: "inline-block" }}
-                                    title="Паром"
-                                  />
-                                ) : (
-                                  <Truck
-                                    className="w-4 h-4"
-                                    style={{ color: "var(--color-text-secondary)", display: "inline-block" }}
-                                    title="Авто"
-                                  />
-                                )}
-                              </td>
-                              <td style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
+                              <td className="cargo-inner-table__col-mest" style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
                                 {item.Mest != null ? Math.round(Number(item.Mest)) : "—"}
                               </td>
                               <td
+                                className="cargo-inner-table__col-pw"
                                 style={{
                                   padding: "0.35rem 0.3rem",
                                   textAlign: "right",
@@ -710,7 +756,7 @@ export function CargoCustomerTable({
                                 {item.PW != null ? `${Math.round(Number(item.PW))} кг` : "—"}
                               </td>
                               {showSums && (
-                                <td style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
+                                <td className="cargo-inner-table__col-sum" style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
                                   {item.Sum != null ? formatCurrency(item.Sum as number, true) : "—"}
                                 </td>
                               )}
@@ -801,13 +847,9 @@ export function CargoCardsList({
                 >
                   {item.Number || "—"}
                 </Typography.Body>
-                {item._role && (
+                {getCargoDisplayRoleLabel(item) && (
                   <AppBadge tone="role" className="cargo-role-badge" style={{ flexShrink: 0, alignSelf: "flex-start" }}>
-                    {item._role === "Customer"
-                      ? "Заказчик"
-                      : item._role === "Sender"
-                        ? "Отправитель"
-                        : "Получатель"}
+                    {getCargoDisplayRoleLabel(item)}
                   </AppBadge>
                 )}
                 <CargoLastMileBadge item={item} />
@@ -902,7 +944,7 @@ export function CargoCardsList({
             </Flex>
             <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem" }}>
               <StatusBadge status={item.State} />
-              {showSums && item._role === "Customer" && (
+              {showSums && getCargoRoleSet(item).has("Customer") && (
                 <Typography.Body
                   style={{
                     fontWeight: 600,

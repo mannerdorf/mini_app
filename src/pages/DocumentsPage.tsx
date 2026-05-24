@@ -16,8 +16,6 @@ import { StatusBadge } from "../components/shared/StatusBadges";
 import {
     aggregateInvoiceEdoDocStats,
     collectUniqueInvoiceEdoTableLabels,
-    formatEdoSignedRatio,
-    INVOICE_EDO_MERGED_COLUMNS,
 } from "../lib/edoStatus";
 import {
     loadDateFilterState,
@@ -55,8 +53,8 @@ import {
     buildCargoSumByNumber,
     buildCargoTransportByNumber,
     buildDocsSummary,
+    buildInvoicesSummary,
     buildFilteredActs,
-    aggregateActsEdoDocStats,
     getActUpdEdoInfo,
     buildFilteredInvoices,
     buildFilteredOrders,
@@ -73,12 +71,15 @@ import {
     getParcelDeclaredCost,
     collectSendingFreightCargoNumbers,
     sendingRowInSelectedPeriod,
+    buildEdoCargoCardItems,
+    findInvoiceLinkedToAct,
 } from "./documentsPipeline";
 import {
     DocumentsApiDebugPanel,
-    DocumentsEdoCardBadge,
     DocumentsEdoMonitorGroupedTable,
-    DocumentsEdoTableStatus,
+    DocumentsEdoCardsList,
+    DocumentsInvoiceCardsList,
+    DocumentsActCardsList,
     DocumentsSummaryCard,
     DocumentsStateBlocks,
     DocumentsToolbarBelowSticky,
@@ -1113,7 +1114,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
     const [innerTableSortColumn, setInnerTableSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'deliveryStatus' | 'route'>('date');
     const [innerTableSortOrder, setInnerTableSortOrder] = useState<'asc' | 'desc'>('desc');
-    const [innerTableActSortColumn, setInnerTableActSortColumn] = useState<'number' | 'date' | 'invoice' | 'sum'>('date');
+    const [innerTableActSortColumn, setInnerTableActSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'deliveryStatus' | 'route'>('date');
     const [innerTableActSortOrder, setInnerTableActSortOrder] = useState<'asc' | 'desc'>('desc');
     const [sendingsSortColumn, setSendingsSortColumn] = useState<'date' | 'number' | 'route' | 'type' | 'transitHours' | 'vehicle' | 'comment' | 'paidWeight' | 'cost' | 'declaredCost'>('date');
     const [sendingsSortOrder, setSendingsSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -2010,12 +2011,17 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
     }, [items, effectiveActiveInn, effectiveServiceMode, customerFilter, invoiceFavoritesOnly, billStatusFilterSet, typeFilterSet, routeFilterSet, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, transportFilter, transportLinkedCargoNumbers, effectiveSearchText, edoStatusFilterSet, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, cargoTransportByNumber, normCargoKey]);
 
     const documentsSummary = useMemo(
-        () => buildDocsSummary(filteredItems, perevozkiItems),
-        [filteredItems, perevozkiItems],
+        () => buildInvoicesSummary(filteredItems, actsItems, perevozkiItems),
+        [filteredItems, actsItems, perevozkiItems],
     );
 
     /** ЭДО по типам документа для итоговой строки склеенной таблицы счетов (подписано / с непустым статусом) */
     const mergedInvoicesEdoTotals = useMemo(() => aggregateInvoiceEdoDocStats(filteredItems), [filteredItems]);
+
+    const edoCargoCardItems = useMemo(
+        () => buildEdoCargoCardItems(filteredItems, perevozkiItems, getFirstCargoNumberFromInvoice),
+        [filteredItems, perevozkiItems],
+    );
 
     const sortedActs = useMemo(() => {
         const list = [...(actsItems || [])];
@@ -2047,7 +2053,6 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
         () => buildActsSummary(filteredActs, perevozkiItems),
         [filteredActs, perevozkiItems],
     );
-    const mergedActsEdoTotals = useMemo(() => aggregateActsEdoDocStats(filteredActs, items), [filteredActs, items]);
     const filteredOrders = useMemo(() => {
         const base = buildFilteredOrders({
             items: ordersItems || [],
@@ -2559,7 +2564,7 @@ useEffect(() => {
         else { setInnerTableSortColumn(column); setInnerTableSortOrder(column === 'date' ? 'desc' : 'asc'); }
     };
 
-    const handleInnerTableActSort = (column: 'number' | 'date' | 'invoice' | 'sum') => {
+    const handleInnerTableActSort = (column: 'number' | 'date' | 'status' | 'sum' | 'deliveryStatus' | 'route') => {
         if (innerTableActSortColumn === column) setInnerTableActSortOrder(o => o === 'asc' ? 'desc' : 'asc');
         else { setInnerTableActSortColumn(column); setInnerTableActSortOrder(column === 'date' ? 'desc' : 'asc'); }
     };
@@ -2567,19 +2572,78 @@ useEffect(() => {
     const sortActs = useCallback((acts: any[]) => {
         const getNum = (a: any) => (a.Number ?? a.number ?? '').toString().replace(/^0000-/, '');
         const getDate = (a: any) => (a.DateDoc ?? a.Date ?? a.date ?? '').toString();
-        const getInvoice = (a: any) => (a.Invoice ?? a.invoice ?? a.Счёт ?? '').toString();
         const getSum = (a: any) => Number(a.SumDoc ?? a.Sum ?? a.sum ?? 0) || 0;
+        const getLinkedInv = (a: any) => findInvoiceLinkedToAct(a, items);
+        const getStatus = (a: any) => {
+            const inv = getLinkedInv(a);
+            return normalizeInvoiceStatus(inv?.Status ?? inv?.State ?? inv?.state ?? inv?.Статус ?? inv?.status ?? inv?.PaymentStatus ?? '');
+        };
+        const getDeliveryState = (a: any) => {
+            const inv = getLinkedInv(a) ?? a;
+            const num = getFirstCargoNumberFromInvoice(inv);
+            return (num ? cargoStateByNumber.get(normCargoKey(num)) : undefined) ?? '';
+        };
+        const getRoute = (a: any) => {
+            const inv = getLinkedInv(a) ?? a;
+            const num = getFirstCargoNumberFromInvoice(inv);
+            const route = num ? cargoRouteByNumber.get(normCargoKey(num)) : undefined;
+            if (route) return route;
+            const ainv = a.Invoice ?? a.invoice ?? a.Счёт ?? '';
+            return ainv ? `Сч. ${formatInvoiceNumber(String(ainv))}` : '';
+        };
         return [...acts].sort((a, b) => {
             let cmp = 0;
             switch (innerTableActSortColumn) {
                 case 'number': cmp = (getNum(a) || '').localeCompare(getNum(b) || '', undefined, { numeric: true }); break;
                 case 'date': cmp = (getDate(a) || '').localeCompare(getDate(b) || ''); break;
-                case 'invoice': cmp = (getInvoice(a) || '').localeCompare(getInvoice(b) || '', undefined, { numeric: true }); break;
+                case 'status': cmp = (getStatus(a) || '').localeCompare(getStatus(b) || ''); break;
                 case 'sum': cmp = getSum(a) - getSum(b); break;
+                case 'deliveryStatus': cmp = (getDeliveryState(a) || '').localeCompare(getDeliveryState(b) || ''); break;
+                case 'route': cmp = (getRoute(a) || '').localeCompare(getRoute(b) || ''); break;
             }
             return innerTableActSortOrder === 'asc' ? cmp : -cmp;
         });
-    }, [innerTableActSortColumn, innerTableActSortOrder]);
+    }, [innerTableActSortColumn, innerTableActSortOrder, items, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, normCargoKey]);
+
+    const renderActInnerTableRow = useCallback((act: any, rowKey: string | number, cellPad: string) => {
+        const linkedInv = findInvoiceLinkedToAct(act, items);
+        const invSource = linkedInv ?? act;
+        const anum = act.Number ?? act.number ?? '';
+        const adt = act.DateDoc ?? act.Date ?? act.date ?? '';
+        const ainv = act.Invoice ?? act.invoice ?? act.Счёт ?? '';
+        const asum = act.SumDoc ?? act.Sum ?? act.sum ?? 0;
+        const ist = normalizeInvoiceStatus(linkedInv?.Status ?? linkedInv?.State ?? linkedInv?.state ?? linkedInv?.Статус ?? linkedInv?.status ?? linkedInv?.PaymentStatus ?? '');
+        const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
+        const firstCargoNum = getFirstCargoNumberFromInvoice(invSource);
+        const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
+        const routeFromCargo = firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null;
+        const routeLabel = routeFromCargo || (ainv ? `Сч. ${formatInvoiceNumber(String(ainv))}` : null);
+        return (
+            <tr key={rowKey} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={(ev) => { ev.stopPropagation(); setSelectedAct(act); }} title="Открыть УПД">
+                <td className="cargo-inner-table__col-number" style={{ padding: cellPad }}><span className="cargo-inner-table__number">{formatInvoiceNumber(String(anum))}</span></td>
+                <td className="cargo-inner-table__col-date doc-inner-table-date" style={{ padding: cellPad }}><DateText value={typeof adt === 'string' ? adt : adt ? String(adt) : undefined} omitYear /></td>
+                <td className="cargo-inner-table__col-status doc-inner-table-status" style={{ padding: cellPad }}>
+                    <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile documents-invoices-inner-table__badges">
+                        {ist ? <AppBadge tone="neutral" className="documents-invoice-inner-badge" style={{ background: istBadgeStyle.bg, color: istBadgeStyle.color }}>{ist}</AppBadge> : null}
+                        <span className="cargo-inner-table__delivery-inline documents-invoice-inner-badge-wrap">
+                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
+                        </span>
+                        <span className="cargo-inner-table__route-inline documents-invoice-inner-badge-wrap">
+                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : routeLabel ? <DocumentsRouteBadge className="documents-invoice-inner-badge">{routeLabel}</DocumentsRouteBadge> : null}
+                        </span>
+                        {!ist && !deliveryState && !routeLabel ? '—' : null}
+                    </div>
+                </td>
+                <td className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: cellPad }}>
+                    {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
+                </td>
+                <td className="cargo-inner-table__col-route doc-inner-table-route cargo-inner-table__col-route--desktop" style={{ padding: cellPad }}>
+                    {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : routeLabel ? <DocumentsRouteBadge>{routeLabel}</DocumentsRouteBadge> : '—'}
+                </td>
+                {showSums && <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={{ padding: cellPad, textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{asum != null ? formatCurrency(asum, true) : '—'}</span></td>}
+            </tr>
+        );
+    }, [items, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, normCargoKey, perevozkiLoading, showSums]);
 
     const sortInvoices = useCallback((items: any[]) => {
         const getNum = (inv: any) => (inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '').toString().replace(/^0000-/, '');
@@ -3099,7 +3163,7 @@ useEffect(() => {
     }, [auth?.login, auth?.password, ferriesList, effectiveActiveInn]);
 
     return (
-        <div className={`w-full documents-page${documentsServiceSaasUi ? " documents-page--saas-analytics" : ""}${(docSection === 'Счета' || docSection === 'УПД') ? " documents-page--with-summary-sections" : ""}${docSection === 'ЭДО' ? " documents-page--with-edo-section" : ""}${docSection === 'Заявки' ? " documents-page--with-orders-section" : ""}${docSection === 'Отправки' ? " documents-page--with-sendings-section" : ""}${docSection === 'Тарифы' ? " documents-page--with-tariffs-section" : ""}${docSection === 'Договоры' ? " documents-page--with-contracts-section" : ""}`} style={{ minWidth: 0, maxWidth: '100%' }}>
+        <div className={`w-full documents-page${documentsServiceSaasUi ? " documents-page--saas-analytics" : ""}${(docSection === 'Счета' || docSection === 'УПД') ? " documents-page--with-summary-sections" : ""}${docSection === 'ЭДО' ? " documents-page--with-edo-section" : ""}${docSection === 'Заявки' ? " documents-page--with-orders-section" : ""}${docSection === 'Отправки' ? " documents-page--with-sendings-section" : ""}${docSection === 'Тарифы' ? " documents-page--with-tariffs-section" : ""}${docSection === 'Договоры' ? " documents-page--with-contracts-section" : ""}${docSection === 'Акты сверок' ? " documents-page--with-sverki-section" : ""}`} style={{ minWidth: 0, maxWidth: '100%' }}>
             <div className="cargo-page-sticky-header documents-page-sticky-header">
                 <Flex align="center" justify="space-between" style={{ marginBottom: '0.3rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <Typography.Headline className="text-page-title">Документы</Typography.Headline>
@@ -3112,14 +3176,7 @@ useEffect(() => {
                 </Flex>
                 {/* Кнопки разделов: ниже «Документы», выше фильтров */}
                 <div className="documents-sticky-body">
-                <div
-                    className="doc-sections-row"
-                    style={{
-                        overflowX: 'auto',
-                        WebkitOverflowScrolling: 'touch',
-                        paddingBottom: '4px',
-                    }}
-                >
+                <div className="doc-sections-row">
                     <Flex align="center" gap="0.5rem" style={{ flexWrap: 'nowrap', minWidth: 'min-content' }}>
                         {allowedDocSections.map(({ key, label }) => {
                             const isActive = docSection === key;
@@ -3694,13 +3751,13 @@ useEffect(() => {
             <AnimatePresence mode="wait">
             {!loading && !error && tableModeEffective && sortedGroupedByCustomer.length > 0 ? (
                 <motion.div key="docs-inv-g" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <div className="cargo-card cargo-customer-table-wrap" style={{ marginBottom: '1rem' }}>
+                    <table className="cargo-customer-table documents-grouped-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка">Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                {showSums && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка">Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('count')} title="Сортировка">Счетов {tableSortColumn === 'count' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th className="cargo-customer-table__col-customer" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка">Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                {showSums && <th className="cargo-customer-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка">Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
+                                <th className="cargo-customer-table__col-count" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('count')} title="Сортировка"><span className="cargo-customer-table__head-long">Счетов</span><span className="cargo-customer-table__head-short">Сч.</span> {tableSortColumn === 'count' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -3716,23 +3773,23 @@ useEffect(() => {
                                         onClick={() => setExpandedTableCustomer(prev => prev === row.customer ? null : row.customer)}
                                         title={expandedTableCustomer === row.customer ? 'Свернуть' : 'Показать счета'}
                                     >
-                                        <td style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
-                                        {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>}
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
+                                        <td className="cargo-customer-table__col-customer" style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
+                                        {showSums && <td className="cargo-customer-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum, true)}</td>}
+                                        <td className="cargo-customer-table__col-count" style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
                                     </motion.tr>
                                     {expandedTableCustomer === row.customer && (
                                         <tr key={`${i}-detail`}>
                                             <td colSpan={showSums ? 3 : 2} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
-                                                <motion.div {...(docsMotionEnabled ? cargoExpandMotionProps : { initial: false })} style={{ padding: '0.5rem', overflowX: 'auto' }}>
-                                                    <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                                <motion.div {...(docsMotionEnabled ? cargoExpandMotionProps : { initial: false })} className="cargo-inner-table-wrap doc-inner-table-wrap" style={{ padding: '0.5rem' }}>
+                                                    <table className="doc-inner-table cargo-inner-table documents-invoices-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                         <thead>
                                                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('number'); }} title="Сортировка">Номер {innerTableSortColumn === 'number' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} className="doc-inner-table-date" onClick={(e) => { e.stopPropagation(); handleInnerTableSort('date'); }} title="Сортировка">Дата {innerTableSortColumn === 'date' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('status'); }} title="Сортировка">Статус {innerTableSortColumn === 'status' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('deliveryStatus'); }} title="Сортировка">Статус перевозки {innerTableSortColumn === 'deliveryStatus' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} className="doc-inner-table-route" onClick={(e) => { e.stopPropagation(); handleInnerTableSort('route'); }} title="Сортировка">Маршрут {innerTableSortColumn === 'route' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                {showSums && <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('sum'); }} title="Сортировка">Сумма {innerTableSortColumn === 'sum' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
+                                                                <th className="cargo-inner-table__col-number" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('number'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Номер</span><span className="cargo-inner-table__head-short">№</span> {innerTableSortColumn === 'number' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th className="cargo-inner-table__col-date doc-inner-table-date" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('date'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Дата</span><span className="cargo-inner-table__head-short">Дата</span> {innerTableSortColumn === 'date' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th className="cargo-inner-table__col-status doc-inner-table-status" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('status'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Статус</span><span className="cargo-inner-table__head-short">Ст.</span> {innerTableSortColumn === 'status' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('deliveryStatus'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span> {innerTableSortColumn === 'deliveryStatus' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th className="cargo-inner-table__col-route doc-inner-table-route cargo-inner-table__col-route--desktop" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('route'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span> {innerTableSortColumn === 'route' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                {showSums && <th className="cargo-inner-table__col-sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('sum'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Сумма</span><span className="cargo-inner-table__head-short">Сум.</span> {innerTableSortColumn === 'sum' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
                                                             </tr>
                                                         </thead>
                                                         <tbody>
@@ -3746,16 +3803,27 @@ useEffect(() => {
                                                                 const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
                                                                 return (
                                                                     <tr key={inum || j} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={(ev) => { ev.stopPropagation(); setSelectedInvoice(inv); }} title="Открыть счёт">
-                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{formatInvoiceNumber(inum)}</td>
-                                                                        <td className="doc-inner-table-date" style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} /></td>
-                                                                        <td className="doc-inner-table-status" style={{ padding: '0.35rem 0.3rem' }}>{ist ? <AppBadge tone="neutral" style={{ display: 'inline-block', background: istBadgeStyle.bg, color: istBadgeStyle.color }}>{ist}</AppBadge> : '—'}</td>
-                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>
+                                                                        <td className="cargo-inner-table__col-number" style={{ padding: '0.35rem 0.3rem' }}><span className="cargo-inner-table__number">{formatInvoiceNumber(inum)}</span></td>
+                                                                        <td className="cargo-inner-table__col-date doc-inner-table-date" style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} omitYear /></td>
+                                                                        <td className="cargo-inner-table__col-status doc-inner-table-status" style={{ padding: '0.35rem 0.3rem' }}>
+                                                                            <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile documents-invoices-inner-table__badges">
+                                                                                {ist ? <AppBadge tone="neutral" className="documents-invoice-inner-badge" style={{ background: istBadgeStyle.bg, color: istBadgeStyle.color }}>{ist}</AppBadge> : null}
+                                                                                <span className="cargo-inner-table__delivery-inline documents-invoice-inner-badge-wrap">
+                                                                                    {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
+                                                                                </span>
+                                                                                <span className="cargo-inner-table__route-inline documents-invoice-inner-badge-wrap">
+                                                                                    {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge className="documents-invoice-inner-badge">{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
+                                                                                </span>
+                                                                                {!ist && !deliveryState && !(firstCargoNum && cargoRouteByNumber.get(normCargoKey(firstCargoNum))) ? '—' : null}
+                                                                            </div>
+                                                                        </td>
+                                                                        <td className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.35rem 0.3rem' }}>
                                                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
                                                                         </td>
-                                                                        <td className="doc-inner-table-route" style={{ padding: '0.35rem 0.3rem' }}>
+                                                                        <td className="cargo-inner-table__col-route doc-inner-table-route cargo-inner-table__col-route--desktop" style={{ padding: '0.35rem 0.3rem' }}>
                                                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
                                                                         </td>
-                                                                        {showSums && <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{isum != null ? formatCurrency(isum) : '—'}</td>}
+                                                                        {showSums && <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{isum != null ? formatCurrency(isum, true) : '—'}</span></td>}
                                                                     </tr>
                                                                 );
                                                             })}
@@ -3770,9 +3838,9 @@ useEffect(() => {
                         </tbody>
                         <tfoot>
                             <tr style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <td style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
-                                {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrency(documentsSummary.sum)}</td>}
-                                <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700 }}>{documentsSummary.count}</td>
+                                <td className="cargo-customer-table__col-customer" style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
+                                {showSums && <td className="cargo-customer-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrency(documentsSummary.sum, true)}</td>}
+                                <td className="cargo-customer-table__col-count" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700 }}>{documentsSummary.count}</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -3780,16 +3848,16 @@ useEffect(() => {
                 </motion.div>
             ) : !loading && !error && tableModeEffective && effectiveServiceMode && filteredItems.length > 0 && sortedGroupedByCustomer.length === 0 ? (
                 <motion.div key="docs-inv-f" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <div className="cargo-card cargo-customer-table-wrap" style={{ marginBottom: '1rem' }}>
+                    <table className="cargo-inner-table documents-invoices-inner-table documents-invoices-flat-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус перевозки</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Маршрут</th>
-                                {showSums && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>}
+                                <th className="cargo-inner-table__col-number" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Номер</span><span className="cargo-inner-table__head-short">№</span></th>
+                                <th className="cargo-inner-table__col-date" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
+                                <th className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус</span><span className="cargo-inner-table__head-short">Ст.</span></th>
+                                <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span></th>
+                                <th className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span></th>
+                                {showSums && <th className="cargo-inner-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Сумма</span><span className="cargo-inner-table__head-short">Сум.</span></th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -3803,16 +3871,27 @@ useEffect(() => {
                                 const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
                                 return (
                                     <tr key={inum || i} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={() => setSelectedInvoice(inv)} title="Открыть счёт">
-                                        <td style={{ padding: '0.5rem 0.4rem' }}>{formatInvoiceNumber(inum)}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} /></td>
-                                        <td style={{ padding: '0.5rem 0.4rem' }}>{ist ? <AppBadge tone="neutral" style={{ display: 'inline-block', background: istBadgeStyle.bg, color: istBadgeStyle.color }}>{ist}</AppBadge> : '—'}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem' }}>
+                                        <td className="cargo-inner-table__col-number" style={{ padding: '0.5rem 0.4rem' }}><span className="cargo-inner-table__number">{formatInvoiceNumber(inum)}</span></td>
+                                        <td className="cargo-inner-table__col-date" style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} omitYear /></td>
+                                        <td className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem' }}>
+                                            <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile documents-invoices-inner-table__badges">
+                                                {ist ? <AppBadge tone="neutral" className="documents-invoice-inner-badge" style={{ background: istBadgeStyle.bg, color: istBadgeStyle.color }}>{ist}</AppBadge> : null}
+                                                <span className="cargo-inner-table__delivery-inline documents-invoice-inner-badge-wrap">
+                                                    {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
+                                                </span>
+                                                <span className="cargo-inner-table__route-inline documents-invoice-inner-badge-wrap">
+                                                    {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge className="documents-invoice-inner-badge">{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
+                                                </span>
+                                                {!ist && !deliveryState && !(firstCargoNum && cargoRouteByNumber.get(normCargoKey(firstCargoNum))) ? '—' : null}
+                                            </div>
+                                        </td>
+                                        <td className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.5rem 0.4rem' }}>
                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
                                         </td>
-                                        <td style={{ padding: '0.5rem 0.4rem' }}>
+                                        <td className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem' }}>
                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
                                         </td>
-                                        {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{isum != null ? formatCurrency(isum) : '—'}</td>}
+                                        {showSums && <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{isum != null ? formatCurrency(isum, true) : '—'}</span></td>}
                                     </tr>
                                 );
                             })}
@@ -3828,67 +3907,14 @@ useEffect(() => {
                 </motion.div>
             ) : !loading && !error && filteredItems.length > 0 && !tableModeEffective ? (
                 <motion.div key="docs-inv-c" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                <motion.div
-                    className="cargo-list"
-                    variants={docsMotionEnabled ? cargoListContainerVariants : undefined}
-                    initial={docsMotionEnabled ? "hidden" : false}
-                    animate={docsMotionEnabled ? "visible" : undefined}
-                >
-                    {filteredItems.map((row, idx) => {
-                        const num = row.Number ?? row.number ?? row.Номер ?? row.N ?? '';
-                        const dt = row.DateDoc ?? row.Date ?? row.date ?? row.Дата ?? '';
-                        const payTill = getPayTillDate(typeof dt === 'string' ? dt : dt ? String(dt) : undefined);
-                        const cust = row.Customer ?? row.customer ?? row.Контрагент ?? row.Contractor ?? row.Organization ?? '';
-                        const sum = row.SumDoc ?? row.Sum ?? row.sum ?? row.Сумма ?? row.Amount ?? 0;
-                        const rawStatus = row.Status ?? row.State ?? row.state ?? row.Статус ?? '';
-                        const st = (normalizeInvoiceStatus(rawStatus) || rawStatus) as string;
-                        const badgeStyle = st === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : st === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : st === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
-                        return (
-                            <motion.div
-                                key={num || idx}
-                                variants={docsMotionEnabled ? documentsListItemVariants : undefined}
-                                initial={docsMotionEnabled ? "hidden" : false}
-                                animate={docsMotionEnabled ? "visible" : undefined}
-                            >
-                            <Panel className="cargo-card" onClick={() => setSelectedInvoice(row)} style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}>
-                                <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'visible' }}>
-                                    <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '60%' }}>
-                                        <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: badgeStyle.color }}>{formatInvoiceNumber(num)}</Typography.Body>
-                                    </Flex>
-                                    <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
-                                        <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); const lines = [`Счёт: ${formatInvoiceNumber(num)}`, cust && `Заказчик: ${stripOoo(String(cust))}`, sum != null && `Сумма: ${formatCurrency(sum)}`, dt && `Дата: ${typeof dt === 'string' ? dt : String(dt)}`, payTill && `Оплата до: ${payTill}`].filter(Boolean); const text = lines.join('\n'); if (typeof navigator !== 'undefined' && (navigator as any).share) { (navigator as any).share({ title: `Счёт ${formatInvoiceNumber(num)}`, text }).catch(() => {}); } else { try { navigator.clipboard?.writeText(text); } catch {} } }} title="Поделиться"><Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
-                                        <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); toggleInvoiceFavorite(String(num || '')); }} title={isInvoiceFavorite(String(num || '')) ? 'Удалить из избранного' : 'В избранное'}>
-                                            <Heart className="w-4 h-4" style={{ fill: isInvoiceFavorite(String(num || '')) ? '#ef4444' : 'transparent', color: isInvoiceFavorite(String(num || '')) ? '#ef4444' : 'var(--color-text-secondary)' }} />
-                                        </Button>
-                                        <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
-                                            <DateText value={typeof dt === 'string' ? dt : dt ? String(dt) : undefined} />
-                                        </Typography.Label>
-                                    </Flex>
-                                </Flex>
-                                <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
-                                    <Flex align="center" gap="0.35rem" style={{ minWidth: 0 }}>
-                                        {st && <AppBadge tone="neutral" style={{ background: badgeStyle.bg, color: badgeStyle.color }}>{st}</AppBadge>}
-                                    </Flex>
-                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{sum != null ? formatCurrency(sum) : '—'}</Typography.Body>
-                                </Flex>
-                                <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                    <Typography.Label style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={stripOoo(String(cust || ''))}>{stripOoo(String(cust || '—'))}</Typography.Label>
-                                    {(row.AK === true || row.AK === 'true' || row.AK === '1' || row.AK === 1) && <Ship className="w-4 h-4" style={{ flexShrink: 0, color: 'var(--color-primary-blue)' }} title="Паром" />}
-                                    {!(row?.AK === true || row?.AK === 'true' || row?.AK === '1' || row?.AK === 1) && (row.CitySender || row.CityReceiver) && (
-                                        <Typography.Label style={{ fontSize: '0.85rem' }}>{[cityToCode(row.CitySender), cityToCode(row.CityReceiver)].filter(Boolean).join(' – ') || ''}</Typography.Label>
-                                    )}
-                                </Flex>
-                                {payTill && (
-                                    <Flex align="center" gap="0.35rem" style={{ fontSize: '0.8rem', color: getPayTillDateColor(payTill, st === 'Оплачен') ?? 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
-                                        <Typography.Label>Оплата до:</Typography.Label>
-                                        <DateText value={payTill} />
-                                    </Flex>
-                                )}
-                            </Panel>
-                            </motion.div>
-                        );
-                    })}
-                </motion.div>
+                    <DocumentsInvoiceCardsList
+                        items={filteredItems}
+                        onOpenInvoice={setSelectedInvoice}
+                        isInvoiceFavorite={isInvoiceFavorite}
+                        onToggleInvoiceFavorite={toggleInvoiceFavorite}
+                        docsMotionEnabled={docsMotionEnabled}
+                        showEdoCornerBadges
+                    />
                 </motion.div>
             ) : null}
             </AnimatePresence>
@@ -3913,13 +3939,14 @@ useEffect(() => {
             </motion.div>
             )}
             {docSection === 'ЭДО' && (
-            <>
+            <motion.div className="documents-summary-section-body">
             {(loading || !!error) && <DocumentsStateBlocks loading={loading} error={error} emptyText="" />}
             <AnimatePresence mode="wait">
-            {!loading && !error && sortedGroupedByCustomer.length > 0 ? (
-                <motion.div key="docs-edo-monitor" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
+            {!loading && !error && (edoCargoCardItems.length > 0 || filteredItems.length > 0) ? (
+                tableModeEffective ? (
+                <motion.div key="docs-edo-monitor-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                     <DocumentsEdoMonitorGroupedTable
-                        rows={sortedGroupedByCustomer}
+                        rows={sortedGroupedByCustomer.length > 0 ? sortedGroupedByCustomer : [{ customer: '—', items: filteredItems, sum: documentsSummary.sum }]}
                         totals={mergedInvoicesEdoTotals}
                         invoicesCount={documentsSummary.count}
                         expandedCustomer={expandedTableCustomer}
@@ -3931,6 +3958,28 @@ useEffect(() => {
                         docsMotionEnabled={docsMotionEnabled}
                     />
                 </motion.div>
+                ) : edoCargoCardItems.length > 0 ? (
+                <motion.div key="docs-edo-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
+                    <DocumentsEdoCardsList
+                        items={edoCargoCardItems}
+                        onOpenInvoice={(inv) => setSelectedInvoice(inv)}
+                        isInvoiceFavorite={isInvoiceFavorite}
+                        onToggleInvoiceFavorite={toggleInvoiceFavorite}
+                        docsMotionEnabled={docsMotionEnabled}
+                    />
+                </motion.div>
+                ) : (
+                <motion.div key="docs-edo-invoice-fallback" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
+                    <DocumentsInvoiceCardsList
+                        items={filteredItems}
+                        onOpenInvoice={setSelectedInvoice}
+                        isInvoiceFavorite={isInvoiceFavorite}
+                        onToggleInvoiceFavorite={toggleInvoiceFavorite}
+                        docsMotionEnabled={docsMotionEnabled}
+                        showEdoCornerBadges
+                    />
+                </motion.div>
+                )
             ) : null}
             </AnimatePresence>
             {selectedInvoice && (
@@ -3949,9 +3998,9 @@ useEffect(() => {
                 />
             )}
             {!loading && !error && filteredItems.length === 0 && (
-                <Typography.Body className="text-empty-state" style={{ padding: '2rem 0' }}>Нет счетов за выбранный период</Typography.Body>
+                <Typography.Body className="text-empty-state documents-summary-empty-state">Нет счетов за выбранный период</Typography.Body>
             )}
-            </>
+            </motion.div>
             )}
             {docSection === 'УПД' && (
             <motion.div className="documents-summary-section-body">
@@ -3959,27 +4008,17 @@ useEffect(() => {
             <AnimatePresence mode="wait">
             {!actsLoading && !actsError && tableModeEffective && sortedGroupedActsByCustomer.length > 0 ? (
                 <motion.div key="docs-act-g" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <div className="cargo-card cargo-customer-table-wrap" style={{ marginBottom: '1rem' }}>
+                    <table className="cargo-customer-table documents-grouped-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка">Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                {showSums && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка">Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('count')} title="Сортировка">УПД {tableSortColumn === 'count' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
-                                    <th
-                                        key={k}
-                                        style={{ padding: '0.5rem 0.35rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}
-                                        title="ЭДО по строкам УПД (данные из связанного счёта): подписано / всего"
-                                    >
-                                        {k === "СЧЕТ" ? "СЧЕТА" : k}
-                                    </th>
-                                ))}
+                                <th className="cargo-customer-table__col-customer" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка">Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                {showSums && <th className="cargo-customer-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка">Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
+                                <th className="cargo-customer-table__col-count" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('count')} title="Сортировка"><span className="cargo-customer-table__head-long">УПД</span><span className="cargo-customer-table__head-short">УПД</span> {tableSortColumn === 'count' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                             </tr>
                         </thead>
                         <tbody>
                             {sortedGroupedActsByCustomer.map((row, i) => {
-                                const actRowEdoAgg = aggregateActsEdoDocStats(row.items, items);
                                 return (
                                 <React.Fragment key={i}>
                                     <motion.tr
@@ -3991,52 +4030,27 @@ useEffect(() => {
                                         onClick={() => setExpandedTableActCustomer(prev => prev === row.customer ? null : row.customer)}
                                         title={expandedTableActCustomer === row.customer ? 'Свернуть' : 'Показать УПД'}
                                     >
-                                        <td style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
-                                        {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>}
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
-                                        {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
-                                            <td
-                                                key={k}
-                                                style={{ padding: '0.5rem 0.35rem', textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: "tabular-nums" }}
-                                                title="Подписано / всего по ЭДО"
-                                            >
-                                                {formatEdoSignedRatio(actRowEdoAgg[k].signed, actRowEdoAgg[k].total)}
-                                            </td>
-                                        ))}
+                                        <td className="cargo-customer-table__col-customer" style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
+                                        {showSums && <td className="cargo-customer-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum, true)}</td>}
+                                        <td className="cargo-customer-table__col-count" style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
                                     </motion.tr>
                                     {expandedTableActCustomer === row.customer && (
                                         <tr key={`${i}-detail`}>
-                                            <td colSpan={showSums ? 7 : 6} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
-                                                <motion.div {...(docsMotionEnabled ? cargoExpandMotionProps : { initial: false })} style={{ padding: '0.5rem', overflowX: 'auto' }}>
-                                                    <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                            <td colSpan={showSums ? 3 : 2} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <motion.div {...(docsMotionEnabled ? cargoExpandMotionProps : { initial: false })} className="cargo-inner-table-wrap doc-inner-table-wrap" style={{ padding: '0.5rem' }}>
+                                                    <table className="doc-inner-table cargo-inner-table documents-invoices-inner-table documents-acts-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                         <thead>
                                                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('number'); }} title="Сортировка">Номер {innerTableActSortColumn === 'number' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} className="doc-inner-table-date" onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('date'); }} title="Сортировка">Дата {innerTableActSortColumn === 'date' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('invoice'); }} title="Сортировка">Счёт {innerTableActSortColumn === 'invoice' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }} title="ЭДО по УПД из связанного счёта">ЭДО</th>
-                                                                {showSums && <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('sum'); }} title="Сортировка">Сумма {innerTableActSortColumn === 'sum' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
+                                                                <th className="cargo-inner-table__col-number" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('number'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Номер</span><span className="cargo-inner-table__head-short">№</span> {innerTableActSortColumn === 'number' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th className="cargo-inner-table__col-date doc-inner-table-date" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('date'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Дата</span><span className="cargo-inner-table__head-short">Дата</span> {innerTableActSortColumn === 'date' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th className="cargo-inner-table__col-status doc-inner-table-status" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('status'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Статус</span><span className="cargo-inner-table__head-short">Ст.</span> {innerTableActSortColumn === 'status' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('deliveryStatus'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span> {innerTableActSortColumn === 'deliveryStatus' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th className="cargo-inner-table__col-route doc-inner-table-route cargo-inner-table__col-route--desktop" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('route'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span> {innerTableActSortColumn === 'route' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                {showSums && <th className="cargo-inner-table__col-sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('sum'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Сумма</span><span className="cargo-inner-table__head-short">Сум.</span> {innerTableActSortColumn === 'sum' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
                                                             </tr>
                                                         </thead>
                                                         <tbody>
-                                                            {sortActs(row.items).map((act: any, j: number) => {
-                                                                const anum = act.Number ?? act.number ?? '';
-                                                                const adt = act.DateDoc ?? act.Date ?? act.date ?? '';
-                                                                const ainv = act.Invoice ?? act.invoice ?? act.Счёт ?? '';
-                                                                const asum = act.SumDoc ?? act.Sum ?? act.sum ?? 0;
-                                                                const updEdo = getActUpdEdoInfo(act, items);
-                                                                return (
-                                                                    <tr key={anum || j} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={(ev) => { ev.stopPropagation(); setSelectedAct(act); }} title="Открыть УПД">
-                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{formatInvoiceNumber(String(anum))}</td>
-                                                                        <td className="doc-inner-table-date" style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof adt === 'string' ? adt : adt ? String(adt) : undefined} /></td>
-                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{ainv ? formatInvoiceNumber(String(ainv)) : '—'}</td>
-                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>
-                                                                            <DocumentsEdoTableStatus info={updEdo} />
-                                                                        </td>
-                                                                        {showSums && <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{asum != null ? formatCurrency(asum) : '—'}</td>}
-                                                                    </tr>
-                                                                );
-                                                            })}
+                                                            {sortActs(row.items).map((act: any, j: number) => renderActInnerTableRow(act, act.Number ?? act.number ?? j, '0.35rem 0.3rem'))}
                                                         </tbody>
                                                     </table>
                                                 </motion.div>
@@ -4048,14 +4062,9 @@ useEffect(() => {
                         </tbody>
                         <tfoot>
                             <tr style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <td style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
-                                {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrency(actsSummary.sum)}</td>}
-                                <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700 }}>{actsSummary.count}</td>
-                                {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
-                                    <td key={k} style={{ padding: '0.5rem 0.35rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', fontVariantNumeric: "tabular-nums" }} title="Итого по всем УПД в таблице">
-                                        {formatEdoSignedRatio(mergedActsEdoTotals[k].signed, mergedActsEdoTotals[k].total)}
-                                    </td>
-                                ))}
+                                <td className="cargo-customer-table__col-customer" style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
+                                {showSums && <td className="cargo-customer-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrency(actsSummary.sum, true)}</td>}
+                                <td className="cargo-customer-table__col-count" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700 }}>{actsSummary.count}</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -4063,109 +4072,36 @@ useEffect(() => {
                 </motion.div>
             ) : !actsLoading && !actsError && tableModeEffective && effectiveServiceMode && filteredActs.length > 0 && sortedGroupedActsByCustomer.length === 0 ? (
                 <motion.div key="docs-act-f" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <div className="cargo-card cargo-inner-table-wrap" style={{ marginBottom: '1rem' }}>
+                    <table className="cargo-inner-table documents-invoices-inner-table documents-acts-inner-table documents-invoices-flat-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Счёт</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }} title="ЭДО по УПД из связанного счёта">ЭДО</th>
-                                {showSums && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>}
+                                <th className="cargo-inner-table__col-number" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Номер</span><span className="cargo-inner-table__head-short">№</span></th>
+                                <th className="cargo-inner-table__col-date" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
+                                <th className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус</span><span className="cargo-inner-table__head-short">Ст.</span></th>
+                                <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span></th>
+                                <th className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span></th>
+                                {showSums && <th className="cargo-inner-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Сумма</span><span className="cargo-inner-table__head-short">Сум.</span></th>}
                             </tr>
                         </thead>
                         <tbody>
-                            {sortActs(filteredActs).map((act: any, i: number) => {
-                                const anum = act.Number ?? act.number ?? '';
-                                const adt = act.DateDoc ?? act.Date ?? act.date ?? '';
-                                const ainv = act.Invoice ?? act.invoice ?? act.Счёт ?? '';
-                                const asum = act.SumDoc ?? act.Sum ?? act.sum ?? 0;
-                                const updEdo = getActUpdEdoInfo(act, items);
-                                return (
-                                    <tr key={anum || i} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={() => setSelectedAct(act)} title="Открыть УПД">
-                                        <td style={{ padding: '0.5rem 0.4rem' }}>{formatInvoiceNumber(String(anum))}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof adt === 'string' ? adt : adt ? String(adt) : undefined} /></td>
-                                        <td style={{ padding: '0.5rem 0.4rem' }}>{ainv ? formatInvoiceNumber(String(ainv)) : '—'}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem' }}>
-                                            <DocumentsEdoTableStatus info={updEdo} />
-                                        </td>
-                                        {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{asum != null ? formatCurrency(asum) : '—'}</td>}
-                                    </tr>
-                                );
-                            })}
+                            {sortActs(filteredActs).map((act: any, i: number) => renderActInnerTableRow(act, act.Number ?? act.number ?? i, '0.5rem 0.4rem'))}
                         </tbody>
                     </table>
                 </div>
                 </motion.div>
             ) : !actsLoading && !actsError && filteredActs.length > 0 && !tableModeEffective ? (
                 <motion.div key="docs-act-c" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                <motion.div
-                    className="cargo-list"
-                    variants={docsMotionEnabled ? cargoListContainerVariants : undefined}
-                    initial={docsMotionEnabled ? "hidden" : false}
-                    animate={docsMotionEnabled ? "visible" : undefined}
-                >
-                    {filteredActs.map((act: any, idx: number) => {
-                        const num = act.Number ?? act.number ?? '';
-                        const dateDoc = act.DateDoc ?? act.Date ?? act.date ?? '';
-                        const sumDoc = act.SumDoc ?? act.Sum ?? act.sum ?? 0;
-                        const cust = act.Customer ?? act.customer ?? act.Контрагент ?? act.Contractor ?? act.Organization ?? '';
-                        const invoiceNum = act.Invoice ?? act.invoice ?? '';
-                        const updEdo = getActUpdEdoInfo(act, items);
-                        return (
-                            <motion.div
-                                key={num || idx}
-                                variants={docsMotionEnabled ? documentsListItemVariants : undefined}
-                                initial={docsMotionEnabled ? "hidden" : false}
-                                animate={docsMotionEnabled ? "visible" : undefined}
-                            >
-                            <Panel className="cargo-card" onClick={() => setSelectedAct(act)} style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative', paddingBottom: '1.65rem' }}>
-                                <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'visible' }}>
-                                    <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '60%' }}>
-                                        <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{formatInvoiceNumber(String(num))}</Typography.Body>
-                                    </Flex>
-                                    <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
-                                        <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); const lines = [`УПД: ${formatInvoiceNumber(String(num))}`, cust && `Заказчик: ${stripOoo(String(cust))}`, sumDoc != null && `Сумма: ${formatCurrency(sumDoc)}`, dateDoc && `Дата: ${typeof dateDoc === 'string' ? dateDoc : String(dateDoc)}`, invoiceNum && `Счёт: ${formatInvoiceNumber(String(invoiceNum))}`].filter(Boolean); const text = lines.join('\n'); if (typeof navigator !== 'undefined' && (navigator as any).share) { (navigator as any).share({ title: `УПД ${formatInvoiceNumber(String(num))}`, text }).catch(() => {}); } else { try { navigator.clipboard?.writeText(text); } catch {} } }} title="Поделиться"><Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
-                                        <Button
-                                            style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                                            onClick={e => { e.stopPropagation(); toggleInvoiceFavorite(String(num || '')); }}
-                                            title={isInvoiceFavorite(String(num || '')) ? 'Удалить из избранного' : 'В избранное'}
-                                        >
-                                            <Heart
-                                                className="w-4 h-4"
-                                                style={{
-                                                    fill: isInvoiceFavorite(String(num || '')) ? '#ef4444' : 'transparent',
-                                                    color: isInvoiceFavorite(String(num || '')) ? '#ef4444' : 'var(--color-text-secondary)',
-                                                }}
-                                            />
-                                        </Button>
-                                        <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
-                                            <DateText value={typeof dateDoc === 'string' ? dateDoc : dateDoc ? String(dateDoc) : undefined} />
-                                        </Typography.Label>
-                                    </Flex>
-                                </Flex>
-                                {showSums && (
-                                <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
-                                    <span />
-                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{sumDoc != null ? formatCurrency(sumDoc) : '—'}</Typography.Body>
-                                </Flex>
-                                )}
-                                <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                    <Typography.Label style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={stripOoo(String(cust || ''))}>{stripOoo(String(cust || '—'))}</Typography.Label>
-                                    {(act.AK === true || act.AK === 'true' || act.AK === '1' || act.AK === 1) && <Ship className="w-4 h-4" style={{ flexShrink: 0, color: 'var(--color-primary-blue)' }} title="Паром" />}
-                                    {!(act?.AK === true || act?.AK === 'true' || act?.AK === '1' || act?.AK === 1) && (act.CitySender || act.CityReceiver) && (
-                                        <Typography.Label style={{ fontSize: '0.85rem' }}>{[cityToCode(act.CitySender), cityToCode(act.CityReceiver)].filter(Boolean).join(' – ') || ''}</Typography.Label>
-                                    )}
-                                    {!(act?.AK === true || act?.AK === 'true' || act?.AK === '1' || act?.AK === 1) && !(act.CitySender || act.CityReceiver) && invoiceNum && (
-                                        <Typography.Label style={{ fontSize: '0.85rem' }}>Счёт {formatInvoiceNumber(String(invoiceNum))}</Typography.Label>
-                                    )}
-                                </Flex>
-                                <DocumentsEdoCardBadge info={updEdo} />
-                            </Panel>
-                            </motion.div>
-                        );
-                    })}
-                </motion.div>
+                    <DocumentsActCardsList
+                        acts={filteredActs}
+                        invoices={items}
+                        onOpenAct={setSelectedAct}
+                        isActFavorite={isInvoiceFavorite}
+                        onToggleActFavorite={toggleInvoiceFavorite}
+                        docsMotionEnabled={docsMotionEnabled}
+                        showSums={showSums}
+                        showEdoBadges
+                    />
                 </motion.div>
             ) : null}
             </AnimatePresence>
@@ -4647,7 +4583,7 @@ useEffect(() => {
                     </div>
                 </div>
                 {canEditPlanDate && tableModeEffective && (
-                    <div className="cargo-card sendings-bulk-actions-bar sendings-bulk-actions-sticky" style={{ overflow: 'visible' }}>
+                    <div className="cargo-card sendings-bulk-actions-bar" style={{ overflow: 'visible' }}>
                         <div className="sendings-bulk-actions-bar__row">
                             <Typography.Body className="sendings-bulk-actions-bar__label" style={{ color: 'var(--color-text-secondary)' }}>
                                 Выбрано отправок: {selectedVisibleSendingCount}
@@ -5939,14 +5875,14 @@ useEffect(() => {
             </>
             )}
             {docSection === 'Тарифы' && (
-                <div className="doc-section-content">
+                <DocumentsToolbarBelowSticky>
                     {tariffsLoading ? (
-                        <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
+                        <Flex align="center" gap="0.5rem" className="documents-section-empty-state documents-tariffs-empty-state">
                             <Loader2 className="w-4 h-4 animate-spin" />
                             <Typography.Body>Загрузка тарифов...</Typography.Body>
                         </Flex>
                     ) : filteredTariffs.length === 0 ? (
-                        <Typography.Body className="text-empty-state" style={{ padding: '2rem 0' }}>Нет данных по тарифам</Typography.Body>
+                        <Typography.Body className="text-empty-state documents-section-empty-state documents-tariffs-empty-state">Нет данных по тарифам</Typography.Body>
                     ) : (
                         <AnimatePresence mode="wait">
                         {tableModeEffective ? (
@@ -6113,7 +6049,7 @@ useEffect(() => {
                         )}
                         </AnimatePresence>
                     )}
-                </div>
+                </DocumentsToolbarBelowSticky>
             )}
             {docSection === 'Акты сверок' && (
                 <>
@@ -6129,14 +6065,14 @@ useEffect(() => {
                     />
                 )}
                 <DocumentsToolbarBelowSticky>
-                    <div style={{ marginBottom: '0.9rem' }}>
+                    <div>
                         {sverkiRequestsLoading ? (
-                            <Typography.Body style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
+                            <Typography.Body className="text-empty-state documents-section-empty-state documents-sverki-empty-state" style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
                                 Загрузка заявок...
                             </Typography.Body>
                         ) : sverkiRequests.length === 0 ? (
-                            <Typography.Body style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
-                                {'   '}Заявок пока нет
+                            <Typography.Body className="text-empty-state documents-section-empty-state documents-sverki-empty-state" style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
+                                Заявок пока нет
                             </Typography.Body>
                         ) : (
                             <AnimatePresence mode="wait">
@@ -6248,12 +6184,12 @@ useEffect(() => {
                         )}
                     </div>
                     {sverkiLoading ? (
-                        <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
+                        <Flex align="center" gap="0.5rem" className="documents-section-empty-state documents-sverki-empty-state">
                             <Loader2 className="w-4 h-4 animate-spin" />
                             <Typography.Body>Загрузка актов сверок...</Typography.Body>
                         </Flex>
                     ) : filteredSverki.length === 0 ? (
-                        <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по актам сверок</Typography.Body>
+                        <Typography.Body className="text-empty-state documents-section-empty-state documents-sverki-empty-state" style={{ color: 'var(--color-text-secondary)' }}>Нет данных по актам сверок</Typography.Body>
                     ) : (
                         <AnimatePresence mode="wait">
                         {tableModeEffective ? (
@@ -6397,7 +6333,7 @@ useEffect(() => {
                 </>
             )}
             {docSection === 'Договоры' && (
-                <div className="doc-section-content">
+                <DocumentsToolbarBelowSticky>
                     {effectiveServiceMode && (
                         <DocumentsApiDebugPanel
                             title="GET /api/dogovors"
@@ -6410,12 +6346,12 @@ useEffect(() => {
                         />
                     )}
                     {dogovorsLoading ? (
-                        <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
+                        <Flex align="center" gap="0.5rem" className="documents-section-empty-state documents-contracts-empty-state">
                             <Loader2 className="w-4 h-4 animate-spin" />
                             <Typography.Body>Загрузка договоров...</Typography.Body>
                         </Flex>
                     ) : filteredDogovors.length === 0 ? (
-                        <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по договорам</Typography.Body>
+                        <Typography.Body className="text-empty-state documents-section-empty-state documents-contracts-empty-state" style={{ color: 'var(--color-text-secondary)' }}>Нет данных по договорам</Typography.Body>
                     ) : (
                         <AnimatePresence mode="wait">
                         {tableModeEffective ? (
@@ -6549,17 +6485,17 @@ useEffect(() => {
                             {dogovorsDownloadError}
                         </Typography.Body>
                     )}
-                </div>
+                </DocumentsToolbarBelowSticky>
             )}
             {docSection === 'Претензии' && (
                 <DocumentsToolbarBelowSticky>
                     {claimsLoading ? (
-                        <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
+                        <Flex align="center" gap="0.5rem" className="documents-section-empty-state">
                             <Loader2 className="w-4 h-4 animate-spin" />
                             <Typography.Body>Загрузка претензий...</Typography.Body>
                         </Flex>
                     ) : filteredClaims.length === 0 ? (
-                        <Typography.Body style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Претензий пока нет</Typography.Body>
+                        <Typography.Body className="text-empty-state documents-section-empty-state documents-claims-empty-state" style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>Претензий пока нет</Typography.Body>
                     ) : (
                         <AnimatePresence mode="wait">
                         {tableModeEffective ? (
