@@ -506,7 +506,7 @@ export function CargoPage({
     const rootShellClass = cargoServiceSaasUi ? "cargo-page-root cargo-page-root--saas-analytics" : "cargo-page-root";
 
     return (
-        <div className={`w-full ${rootShellClass}`}>
+        <div className={`w-full ${rootShellClass}`} style={{ minWidth: 0, maxWidth: '100%' }}>
             <div className="cargo-page-sticky-header">
             <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <Typography.Headline style={{ fontSize: '1.25rem' }}>Грузы</Typography.Headline>

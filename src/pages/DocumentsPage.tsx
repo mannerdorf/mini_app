@@ -3087,7 +3087,7 @@ useEffect(() => {
     }, [auth?.login, auth?.password, ferriesList, effectiveActiveInn]);
 
     return (
-        <div className={`w-full documents-page${documentsServiceSaasUi ? " documents-page--saas-analytics" : ""}${(docSection === 'Счета' || docSection === 'УПД') ? " documents-page--with-summary-sections" : ""}${docSection === 'ЭДО' ? " documents-page--with-edo-section" : ""}${docSection === 'Заявки' ? " documents-page--with-orders-section" : ""}${docSection === 'Отправки' ? " documents-page--with-sendings-section" : ""}${docSection === 'Тарифы' ? " documents-page--with-tariffs-section" : ""}${docSection === 'Договоры' ? " documents-page--with-contracts-section" : ""}`}>
+        <div className={`w-full documents-page${documentsServiceSaasUi ? " documents-page--saas-analytics" : ""}${(docSection === 'Счета' || docSection === 'УПД') ? " documents-page--with-summary-sections" : ""}${docSection === 'ЭДО' ? " documents-page--with-edo-section" : ""}${docSection === 'Заявки' ? " documents-page--with-orders-section" : ""}${docSection === 'Отправки' ? " documents-page--with-sendings-section" : ""}${docSection === 'Тарифы' ? " documents-page--with-tariffs-section" : ""}${docSection === 'Договоры' ? " documents-page--with-contracts-section" : ""}`} style={{ minWidth: 0, maxWidth: '100%' }}>
             <div className="cargo-page-sticky-header documents-page-sticky-header">
                 <Flex align="center" justify="space-between" style={{ marginBottom: '0.3rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Документы</Typography.Headline>
@@ -3558,6 +3558,7 @@ useEffect(() => {
                 {docSection === 'Заявки' && (
                     <div className="documents-new-order-bar documents-new-order-bar--in-sticky">
                         <Button
+                            className="button-primary doc-section-action-btn"
                             onClick={() => setNewOrderModalOpen(true)}
                             disabled={!auth?.login || !auth?.password || !effectiveActiveInn}
                             title={!effectiveActiveInn ? 'Выберите заказчика в хедере' : !auth?.login || !auth?.password ? 'Требуется авторизация' : undefined}
@@ -4491,7 +4492,7 @@ useEffect(() => {
             ) : null}
             </AnimatePresence>
             {!ordersLoading && !ordersError && orderRowsSorted.length === 0 && (
-                <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет заявок за выбранный период</Typography.Body>
+                <Typography.Body style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет заявок за выбранный период</Typography.Body>
             )}
             </>
             )}
@@ -6089,9 +6090,6 @@ useEffect(() => {
                         ) : null}
                     </Flex>
                     <div style={{ marginBottom: '0.9rem' }}>
-                        <Typography.Body style={{ fontWeight: 600, marginBottom: '0.45rem' }}>
-                            Заказанные акты сверки
-                        </Typography.Body>
                         {sverkiRequestsLoading ? (
                             <Typography.Body style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
                                 Загрузка заявок...
@@ -6551,7 +6549,7 @@ useEffect(() => {
                     </Flex>
                     <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.75rem' }}>
                         <Button
-                            className="button-primary"
+                            className="button-primary doc-section-action-btn"
                             onClick={() => {
                                 openClaimsCreateModal();
                             }}
@@ -6567,7 +6565,7 @@ useEffect(() => {
                             <Typography.Body>Загрузка претензий...</Typography.Body>
                         </Flex>
                     ) : filteredClaims.length === 0 ? (
-                        <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Претензий пока нет</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Претензий пока нет</Typography.Body>
                     ) : (
                         <AnimatePresence mode="wait">
                         {tableModeEffective ? (

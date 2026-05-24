@@ -1394,40 +1394,71 @@ body {
     box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
 }
 
-/* Дашборд HAULZ: на телефоне верхние статусные плитки примерно в 1.5 раза компактнее. */
+/* Дашборд HAULZ: на телефоне плитки — резиновая сетка 2 колонки, без горизонтального сжатия. */
 @media (max-width: 768px) {
+    .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters {
+        overflow-x: visible;
+        overflow-y: visible;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters .filters-row-scroll {
+        overflow-x: auto;
+        overflow-y: visible;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    .dashboard-page--saas-analytics #haulz-dispatch-dashboard {
+        min-width: 0;
+        max-width: 100%;
+    }
+
     .haulz-dispatch-stat-grid {
-        gap: 0.37rem !important;
-        margin-bottom: 0.67rem !important;
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.5rem !important;
+        margin-bottom: 0.75rem !important;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .haulz-dispatch-stat-grid .haulz-dispatch-stat-tile:last-child:nth-child(odd):not(:only-child) {
+        grid-column: 1 / -1;
     }
 
     .haulz-dispatch-stat-tile {
-        flex: 1 1 93px !important;
-        min-width: 93px !important;
-        padding: 0.57rem 0.67rem !important;
-        border-radius: 8px !important;
+        flex: unset !important;
+        min-width: 0 !important;
+        width: auto !important;
+        max-width: 100%;
+        padding: 0.65rem 0.75rem !important;
+        border-radius: 10px !important;
         border-left-width: 3px !important;
     }
 
     .haulz-dispatch-stat-tile > *:first-child {
-        font-size: 0.48rem !important;
-        margin-bottom: 0.17rem !important;
+        font-size: 0.58rem !important;
+        margin-bottom: 0.2rem !important;
+        line-height: 1.2 !important;
     }
 
     .haulz-dispatch-stat-tile > *:nth-child(2) {
-        font-size: 0.9rem !important;
+        font-size: 1.05rem !important;
         line-height: 1.15 !important;
     }
 
     .haulz-dispatch-stat-tile span,
     .haulz-dispatch-stat-tile p {
-        font-size: 0.41rem !important;
-        line-height: 1.15 !important;
+        font-size: 0.5rem !important;
+        line-height: 1.2 !important;
     }
 
     .haulz-dispatch-stat-tile svg {
-        width: 9px !important;
-        height: 9px !important;
+        width: 10px !important;
+        height: 10px !important;
     }
 }
 
@@ -1542,6 +1573,19 @@ body {
 
 .doc-section-tab:hover { opacity: 0.92; }
 .doc-section-tab:active { transform: scale(0.98); }
+
+/* Документы: кнопки действий в разделах (Заявки, Претензии) — не выше вкладок ЭДО/Счета */
+.documents-page .doc-section-action-btn {
+    padding: 0.5rem 1rem !important;
+    font-size: 0.8rem !important;
+    font-weight: 600 !important;
+    border-radius: 12px !important;
+    min-height: unset !important;
+    line-height: 1.2 !important;
+    margin-top: 0 !important;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
 .filter-button:active { opacity: 0.85; }
 .filter-dropdown {
     position: absolute;
@@ -1726,7 +1770,8 @@ body {
     }
     .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals--saas-kpi.cargo-card,
     .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi.cargo-card {
-        padding: 0.175rem 0 0.425rem !important;
+        padding: 0.2rem 0 0.15rem !important;
+        margin-bottom: 0 !important;
     }
     .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals--saas-kpi .summary-metrics > div,
     .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics > div {
@@ -1833,11 +1878,35 @@ body {
     }
 }
 
-/* Мобильный: KPI в одной карточке с фильтрами — меньше зазор между строкой фильтров и плитками */
+/* Мобильный: карточка «Грузы» — зазор под app-header, интервалы между строками, компактный KPI */
 @media (max-width: 768px) {
+    .cargo-page-root--saas-analytics {
+        min-width: 0;
+    }
+
+    .cargo-page-root--saas-analytics .cargo-page-sticky-header {
+        margin-top: 0.5rem;
+        padding-top: 0.95rem;
+        padding-bottom: 0.55rem;
+    }
+
+    .cargo-page-root--saas-analytics .cargo-page-sticky-header > :first-child {
+        margin-bottom: 0.85rem !important;
+    }
+
     .cargo-page-root--saas-analytics .cargo-page-sticky-header .filters-container,
     .cargo-page-root--saas-analytics .cargo-page-sticky-header .filters-row-scroll {
+        margin-bottom: 0.65rem !important;
+    }
+
+    .cargo-page-root--saas-analytics .cargo-page-sticky-header .cargo-summary-totals-toggle {
+        margin-top: 0.15rem;
         margin-bottom: 0.35rem;
+    }
+
+    .cargo-page-root--saas-analytics .cargo-page-sticky-header .cargo-summary-totals--saas-kpi.cargo-card {
+        padding-bottom: 0.1rem !important;
+        margin-bottom: 0 !important;
     }
 }
 
@@ -1865,6 +1934,43 @@ body {
     box-shadow:
         0 1px 2px rgba(15, 23, 42, 0.05),
         0 12px 40px rgba(15, 23, 42, 0.06);
+}
+
+/* Мобильный: карточка «Документы» — зазор под app-header, интервалы между строками, компактные action-кнопки */
+@media (max-width: 768px) {
+    .documents-page--saas-analytics {
+        min-width: 0;
+    }
+
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
+        margin-top: 0.5rem !important;
+        padding-top: 0.95rem !important;
+        padding-bottom: 0.55rem !important;
+    }
+
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header > :first-child {
+        margin-bottom: 0.85rem !important;
+    }
+
+    .documents-page--saas-analytics .doc-sections-row {
+        margin-bottom: 0.75rem !important;
+    }
+
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .filters-container.filters-row-scroll {
+        margin-top: 0.55rem !important;
+        margin-bottom: 0.55rem !important;
+    }
+
+    .documents-page--saas-analytics .documents-new-order-bar--in-sticky {
+        margin-top: 0.55rem;
+        padding-top: 0.4rem;
+        padding-bottom: 0.2rem;
+        margin-bottom: 0.2rem;
+    }
+
+    .documents-page--saas-analytics .documents-toolbar-below-sticky {
+        padding-top: 0.55rem;
+    }
 }
 
 /* Под строкой фильтров — зазор до KPI; сверху — отступ от вкладок разделов */
@@ -1990,17 +2096,19 @@ body {
     }
 }
 
-/* Заявки на расходы и Wildberries — холст при SaaS-оболочке приложения */
+/* Заявки на расходы и Wildberries — без промежуточного холста, только фон страницы и карточки */
 .profile-saas-shell .expense-requests-shell {
     padding: 0.85rem 1rem 1.25rem;
-    border-radius: 18px;
-    background: linear-gradient(165deg, rgba(248, 250, 252, 0.97) 0%, rgba(241, 245, 249, 0.55) 42%, rgba(238, 242, 255, 0.35) 100%);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
 }
 
 .profile-saas-shell .wb-page.wb-page--saas-analytics-shell {
     padding: 0.85rem 1rem 1.25rem;
-    border-radius: 18px;
-    background: linear-gradient(165deg, rgba(248, 250, 252, 0.97) 0%, rgba(241, 245, 249, 0.55) 42%, rgba(238, 242, 255, 0.35) 100%);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2010,7 +2118,7 @@ body {
     }
 }
 
-/* CMS /admin — холст SaaS analytics (standalone, корень — .light-mode.admin-page-root) */
+/* CMS /admin — без промежуточного холста (standalone, корень — .light-mode.admin-page-root) */
 .admin-page-root.admin-page-root--saas-analytics {
     --saas-color-primary: #2563eb;
     --saas-color-primary-soft: rgba(37, 99, 235, 0.12);
@@ -2018,11 +2126,9 @@ body {
     --radius-lg: 18px;
     box-sizing: border-box;
     padding: 0.85rem 1rem 1.25rem;
-    border-radius: 18px;
-    background: linear-gradient(165deg, rgba(248, 250, 252, 0.97) 0%, rgba(241, 245, 249, 0.55) 42%, rgba(238, 242, 255, 0.35) 100%);
-    box-shadow:
-        0 1px 2px rgba(15, 23, 42, 0.05),
-        0 22px 50px -20px rgba(15, 23, 42, 0.1);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
 }
 
 .admin-page-root--saas-analytics .cargo-card {
