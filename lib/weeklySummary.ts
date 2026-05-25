@@ -6,6 +6,7 @@ import {
 } from "./edoStatusServer.js";
 import { getInvoicePaymentFilterKey } from "./invoicePaymentFilter.js";
 import { cityToCode } from "./cityToCode.js";
+import { buildSummaryUnsubscribeUrl } from "./haulzSummaryUnsubscribe.js";
 import {
   emailBodyStyle,
   emailFinanceValueStyle,
@@ -396,6 +397,10 @@ export function renderWeeklySummaryHtml(data: WeeklySummaryData): string {
       ? `ИНН ${data.inn}`
       : "Компания";
 
+  const hasUnpaidDebt = data.unpaidInvoices.count > 0 || data.unpaidInvoices.totalDebt > 0;
+  const financeTileCountColor = hasUnpaidDebt ? "#b91c1c" : "#059669";
+  const financeTileSumColor = hasUnpaidDebt ? "#dc2626" : "#16a34a";
+
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">${HAULZ_EMAIL_HEAD_LINKS}</head>
 <body style="${emailBodyStyle()}">
@@ -463,8 +468,8 @@ export function renderWeeklySummaryHtml(data: WeeklySummaryData): string {
       ${sectionTitle("Финансы")}
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;">
         <tr>
-          ${financeCard("Счетов", String(data.unpaidInvoices.count), "#b91c1c")}
-          ${financeCard("Сумма", `${formatMoney(data.unpaidInvoices.totalDebt)} ₽`, "#dc2626")}
+          ${financeCard("Счетов", String(data.unpaidInvoices.count), financeTileCountColor)}
+          ${financeCard("Сумма", `${formatMoney(data.unpaidInvoices.totalDebt)} ₽`, financeTileSumColor)}
         </tr>
       </table>
       ${renderUnpaidInvoicesTableHtml(data.unpaidInvoices.rows, data.unpaidInvoices.count)}
@@ -474,7 +479,10 @@ export function renderWeeklySummaryHtml(data: WeeklySummaryData): string {
       </p>
 
       <p style="margin:24px 0 0;font-size:14px;color:#374151;">С уважением к вашему бизнесу,<br/><strong>команда HAULZ</strong></p>
-      <p style="margin:12px 0 0;font-size:12px;color:#9ca3af;">Письмо сформировано автоматически. Команда HAULZ</p>
+      <p style="margin:12px 0 0;font-size:12px;color:#9ca3af;">Письмо сформировано автоматически.</p>
+      <p style="margin:10px 0 0;font-size:12px;color:#9ca3af;">
+        <a href="${buildSummaryUnsubscribeUrl(data.targetLogin)}" style="color:#6b7280;text-decoration:underline;">Отписаться от рассылки</a>
+      </p>
     </td></tr>
   </table>
 </body></html>`;
@@ -486,6 +494,10 @@ export async function sendWeeklySummaryEmail(
   subject: string,
   html: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  const { isSummaryEmailUnsubscribed } = await import("./haulzSummaryUnsubscribe.js");
+  if (await isSummaryEmailUnsubscribed(pool, to)) {
+    return { ok: false, error: "Получатель отписан от рассылки" };
+  }
   const { sendHaulzEmail } = await import("./sendRegistrationEmail.js");
   return sendHaulzEmail(pool, { to, subject, html });
 }

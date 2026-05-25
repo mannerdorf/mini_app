@@ -76,6 +76,11 @@ type SummaryCronConfig = {
   periodMode: "prev_week" | "prev_month" | "custom_days";
   periodDays: number;
   criteria: SummaryCronCriteria;
+  batchSize: number;
+  emailPauseSec: number;
+  batchPauseSec: number;
+  spreadWindowHours: number;
+  sendJob?: { status: string; cursor: number; sent: number; failed: number; recipients: { length: number } } | null;
   lastRunAt: string | null;
   lastRunStatus: string | null;
   lastRunSummary: Record<string, unknown> | null;

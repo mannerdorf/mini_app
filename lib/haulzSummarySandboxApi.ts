@@ -125,6 +125,18 @@ function parseCronPatch(body: HaulzSummarySandboxBody): Partial<SummaryCronConfi
       unpaid_invoices: cr.unpaid_invoices !== false,
     };
   }
+  if (typeof c.batchSize === "number" && Number.isFinite(c.batchSize)) {
+    patch.batchSize = Math.max(1, Math.min(30, Math.round(c.batchSize)));
+  }
+  if (typeof c.emailPauseSec === "number" && Number.isFinite(c.emailPauseSec)) {
+    patch.emailPauseSec = Math.max(1, Math.min(60, Math.round(c.emailPauseSec)));
+  }
+  if (typeof c.batchPauseSec === "number" && Number.isFinite(c.batchPauseSec)) {
+    patch.batchPauseSec = Math.max(10, Math.min(600, Math.round(c.batchPauseSec)));
+  }
+  if (typeof c.spreadWindowHours === "number" && Number.isFinite(c.spreadWindowHours)) {
+    patch.spreadWindowHours = Math.max(1, Math.min(12, Math.round(c.spreadWindowHours)));
+  }
   if (body.login) patch.updatedBy = String(body.login).trim();
   return patch;
 }
@@ -237,6 +249,11 @@ export async function handleHaulzSummarySandboxRequest(
     }
 
     if (action === "send") {
+      const { isSummaryEmailUnsubscribed } = await import("./haulzSummaryUnsubscribe.js");
+      if (await isSummaryEmailUnsubscribed(pool, targetLogin)) {
+        res.status(400).json({ error: "Получатель отписан от рассылки", request_id: requestId });
+        return true;
+      }
       const sendResult = await sendWeeklySummaryEmail(pool, targetLogin, subject, html);
       if (!sendResult.ok) {
         res.status(500).json({ error: sendResult.error || "Ошибка отправки", request_id: requestId });

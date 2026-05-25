@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import { normalizeCargoDateOnly } from "./cargoDateFilter.js";
 import { loadCustomersDirectory, loadUsersWithCompanies } from "./haulzSummaryDirectories.js";
+import { loadUnsubscribedSummaryEmails } from "./haulzSummaryUnsubscribe.js";
 import { getInvoicePaymentFilterKey } from "./invoicePaymentFilter.js";
 import {
   buildWeeklySummaryData,
@@ -18,12 +19,29 @@ export type SummaryCronCriteria = {
   unpaid_invoices: boolean;
 };
 
+export type SummaryCronSendJob = {
+  status: "running" | "completed";
+  period: { dateFrom: string; dateTo: string };
+  recipients: SummaryCronRecipient[];
+  cursor: number;
+  sent: number;
+  failed: number;
+  errors: Array<{ targetLogin: string; inn: string; error: string }>;
+  startedAt: string;
+  updatedAt: string;
+};
+
 export type SummaryCronConfig = {
   enabled: boolean;
   schedule: SummaryCronSchedule;
   periodMode: SummaryCronPeriodMode;
   periodDays: number;
   criteria: SummaryCronCriteria;
+  batchSize: number;
+  emailPauseSec: number;
+  batchPauseSec: number;
+  spreadWindowHours: number;
+  sendJob: SummaryCronSendJob | null;
   lastRunAt: string | null;
   lastRunStatus: string | null;
   lastRunSummary: Record<string, unknown> | null;
@@ -104,6 +122,31 @@ function parseCriteria(raw: unknown): SummaryCronCriteria {
   };
 }
 
+function parseSendJob(raw: unknown): SummaryCronSendJob | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  if (o.status !== "running" && o.status !== "completed") return null;
+  const period = o.period as { dateFrom?: string; dateTo?: string } | undefined;
+  const dateFrom = String(period?.dateFrom ?? "");
+  const dateTo = String(period?.dateTo ?? "");
+  if (!dateFrom || !dateTo) return null;
+  const recipients = Array.isArray(o.recipients) ? (o.recipients as SummaryCronRecipient[]) : [];
+  const errors = Array.isArray(o.errors)
+    ? (o.errors as Array<{ targetLogin: string; inn: string; error: string }>)
+    : [];
+  return {
+    status: o.status,
+    period: { dateFrom, dateTo },
+    recipients,
+    cursor: Math.max(0, Number(o.cursor) || 0),
+    sent: Math.max(0, Number(o.sent) || 0),
+    failed: Math.max(0, Number(o.failed) || 0),
+    errors,
+    startedAt: String(o.startedAt ?? o.started_at ?? new Date().toISOString()),
+    updatedAt: String(o.updatedAt ?? o.updated_at ?? new Date().toISOString()),
+  };
+}
+
 function parseConfigRow(row: Record<string, unknown> | undefined): SummaryCronConfig {
   if (!row) {
     return {
@@ -112,6 +155,11 @@ function parseConfigRow(row: Record<string, unknown> | undefined): SummaryCronCo
       periodMode: "prev_week",
       periodDays: 7,
       criteria: { ...DEFAULT_CRITERIA },
+      batchSize: 6,
+      emailPauseSec: 4,
+      batchPauseSec: 120,
+      spreadWindowHours: 4,
+      sendJob: null,
       lastRunAt: null,
       lastRunStatus: null,
       lastRunSummary: null,
@@ -128,6 +176,11 @@ function parseConfigRow(row: Record<string, unknown> | undefined): SummaryCronCo
       periodMode === "prev_month" || periodMode === "custom_days" ? (periodMode as SummaryCronPeriodMode) : "prev_week",
     periodDays: Math.max(1, Math.min(90, Number(row.period_days) || 7)),
     criteria: parseCriteria(row.criteria),
+    batchSize: Math.max(1, Math.min(30, Number(row.batch_size) || 6)),
+    emailPauseSec: Math.max(1, Math.min(60, Number(row.email_pause_sec) || 4)),
+    batchPauseSec: Math.max(10, Math.min(600, Number(row.batch_pause_sec) || 120)),
+    spreadWindowHours: Math.max(1, Math.min(12, Number(row.spread_window_hours) || 4)),
+    sendJob: parseSendJob(row.send_job),
     lastRunAt: row.last_run_at ? new Date(String(row.last_run_at)).toISOString() : null,
     lastRunStatus: row.last_run_status ? String(row.last_run_status) : null,
     lastRunSummary:
@@ -181,17 +234,27 @@ export async function saveSummaryCronConfig(
     ...current,
     ...patch,
     criteria: patch.criteria ? { ...current.criteria, ...patch.criteria } : current.criteria,
+    batchSize: patch.batchSize ?? current.batchSize,
+    emailPauseSec: patch.emailPauseSec ?? current.emailPauseSec,
+    batchPauseSec: patch.batchPauseSec ?? current.batchPauseSec,
+    spreadWindowHours: patch.spreadWindowHours ?? current.spreadWindowHours,
   };
   await pool.query(
     `INSERT INTO haulz_summary_cron_config (
-       id, enabled, schedule, period_mode, period_days, criteria, updated_at, updated_by
-     ) VALUES (1, $1, $2, $3, $4, $5::jsonb, now(), $6)
+       id, enabled, schedule, period_mode, period_days, criteria,
+       batch_size, email_pause_sec, batch_pause_sec, spread_window_hours,
+       updated_at, updated_by
+     ) VALUES (1, $1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, now(), $10)
      ON CONFLICT (id) DO UPDATE SET
        enabled = EXCLUDED.enabled,
        schedule = EXCLUDED.schedule,
        period_mode = EXCLUDED.period_mode,
        period_days = EXCLUDED.period_days,
        criteria = EXCLUDED.criteria,
+       batch_size = EXCLUDED.batch_size,
+       email_pause_sec = EXCLUDED.email_pause_sec,
+       batch_pause_sec = EXCLUDED.batch_pause_sec,
+       spread_window_hours = EXCLUDED.spread_window_hours,
        updated_at = now(),
        updated_by = EXCLUDED.updated_by`,
     [
@@ -200,6 +263,10 @@ export async function saveSummaryCronConfig(
       next.periodMode,
       next.periodDays,
       JSON.stringify(next.criteria),
+      next.batchSize,
+      next.emailPauseSec,
+      next.batchPauseSec,
+      next.spreadWindowHours,
       patch.updatedBy || next.updatedBy || null,
     ],
   );
@@ -271,10 +338,11 @@ export async function buildSummaryCronRecipients(
 
   const recipients: SummaryCronRecipient[] = [];
   const seen = new Set<string>();
+  const unsubscribed = await loadUnsubscribedSummaryEmails(pool);
 
   for (const user of users) {
-    const login = String(user.login || "").trim();
-    if (!login) continue;
+    const login = String(user.login || "").trim().toLowerCase();
+    if (!login || unsubscribed.has(login)) continue;
     let companies = user.companies;
     if (user.access_all_inns && customers.length > 0) {
       companies = customers.map((c) => ({ inn: c.inn, name: c.name || nameByInn.get(c.inn) || c.inn }));
@@ -306,15 +374,154 @@ export async function buildSummaryCronRecipients(
   );
 }
 
+export function isSummaryCronSpreadWindow(config: SummaryCronConfig, now = new Date()): boolean {
+  if (now.getUTCDay() !== 1) return false;
+  const startHour = 6;
+  const endHour = startHour + config.spreadWindowHours;
+  const h = now.getUTCHours();
+  return h >= startHour && h < endHour;
+}
+
 export function shouldRunSummaryCronNow(config: SummaryCronConfig, now = new Date()): boolean {
   if (!config.enabled) return false;
-  if (!config.lastRunAt) return true;
+  if (config.sendJob?.status === "running") return isSummaryCronSpreadWindow(config, now);
+  if (!config.lastRunAt) return now.getUTCDay() === 1;
   const last = new Date(config.lastRunAt);
-  if (Number.isNaN(last.getTime())) return true;
+  if (Number.isNaN(last.getTime())) return now.getUTCDay() === 1;
   const hoursSince = (now.getTime() - last.getTime()) / 3600000;
-  if (config.schedule === "weekly") return hoursSince >= 24 * 6 && now.getDay() === 1;
-  if (config.schedule === "biweekly") return hoursSince >= 24 * 13 && now.getDay() === 1;
-  return hoursSince >= 24 * 27 && now.getDate() <= 3;
+  if (config.schedule === "weekly") return hoursSince >= 24 * 6 && now.getUTCDay() === 1;
+  if (config.schedule === "biweekly") return hoursSince >= 24 * 13 && now.getUTCDay() === 1;
+  return hoursSince >= 24 * 27 && now.getUTCDate() <= 3;
+}
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+}
+
+async function persistSendJob(pool: Pool, job: SummaryCronSendJob | null): Promise<void> {
+  try {
+    await pool.query(`UPDATE haulz_summary_cron_config SET send_job = $1::jsonb WHERE id = 1`, [
+      job ? JSON.stringify(job) : null,
+    ]);
+  } catch {
+    /* ignore */
+  }
+}
+
+async function finalizeSendRun(
+  pool: Pool,
+  job: SummaryCronSendJob,
+  status: string,
+): Promise<void> {
+  const summary = {
+    sent: job.sent,
+    failed: job.failed,
+    recipients: job.recipients.length,
+    period: job.period,
+    errors: job.errors.slice(0, 20),
+    batches: Math.ceil(job.recipients.length / Math.max(1, job.recipients.length)),
+  };
+  try {
+    await pool.query(
+      `UPDATE haulz_summary_cron_config SET
+         send_job = NULL,
+         last_run_at = now(),
+         last_run_status = $1,
+         last_run_summary = $2::jsonb
+       WHERE id = 1`,
+      [status, JSON.stringify(summary)],
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+async function sendOneSummaryEmail(
+  pool: Pool,
+  r: SummaryCronRecipient,
+  period: { dateFrom: string; dateTo: string },
+): Promise<{ ok: boolean; error?: string; skippedUnsubscribed?: boolean }> {
+  const { isSummaryEmailUnsubscribed } = await import("./haulzSummaryUnsubscribe.js");
+  if (await isSummaryEmailUnsubscribed(pool, r.targetLogin)) {
+    return { ok: false, skippedUnsubscribed: true, error: "отписан от рассылки" };
+  }
+  const data = await buildWeeklySummaryData(pool, {
+    inn: r.inn,
+    companyName: r.companyName,
+    targetLogin: r.targetLogin,
+    dateFrom: period.dateFrom,
+    dateTo: period.dateTo,
+  });
+  const html = renderWeeklySummaryHtml(data);
+  const subject = `HAULZ: сводка за ${data.periodLabel}`;
+  return sendWeeklySummaryEmail(pool, r.targetLogin, subject, html);
+}
+
+async function processSendJobBatch(
+  pool: Pool,
+  config: SummaryCronConfig,
+  job: SummaryCronSendJob,
+): Promise<{ job: SummaryCronSendJob; batchSent: number; batchFailed: number; done: boolean }> {
+  const batch = job.recipients.slice(job.cursor, job.cursor + config.batchSize);
+  let batchSent = 0;
+  let batchFailed = 0;
+
+  for (let i = 0; i < batch.length; i += 1) {
+    const r = batch[i];
+    try {
+      const sendResult = await sendOneSummaryEmail(pool, r, job.period);
+      if (sendResult.ok) {
+        job.sent += 1;
+        batchSent += 1;
+      } else if (sendResult.skippedUnsubscribed) {
+        /* пропуск без ошибки */
+      } else {
+        job.failed += 1;
+        batchFailed += 1;
+        job.errors.push({ targetLogin: r.targetLogin, inn: r.inn, error: sendResult.error || "send failed" });
+      }
+    } catch (e: unknown) {
+      job.failed += 1;
+      batchFailed += 1;
+      job.errors.push({ targetLogin: r.targetLogin, inn: r.inn, error: (e as Error)?.message || "error" });
+    }
+    job.cursor += 1;
+    if (i < batch.length - 1) await sleepMs(config.emailPauseSec * 1000);
+  }
+
+  job.updatedAt = new Date().toISOString();
+  const done = job.cursor >= job.recipients.length;
+  if (done) {
+    job.status = "completed";
+    const status = job.failed === 0 ? "ok" : job.sent > 0 ? "partial" : "failed";
+    await finalizeSendRun(pool, job, status);
+    await persistSendJob(pool, null);
+  } else {
+    await persistSendJob(pool, job);
+  }
+
+  return { job, batchSent, batchFailed, done };
+}
+
+async function startSendJob(
+  pool: Pool,
+  config: SummaryCronConfig,
+  recipients: SummaryCronRecipient[],
+  period: { dateFrom: string; dateTo: string },
+): Promise<SummaryCronSendJob> {
+  const job: SummaryCronSendJob = {
+    status: "running",
+    period,
+    recipients,
+    cursor: 0,
+    sent: 0,
+    failed: 0,
+    errors: [],
+    startedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  await persistSendJob(pool, job);
+  return job;
 }
 
 export type SummaryCronRunResult = {
@@ -325,35 +532,41 @@ export type SummaryCronRunResult = {
   sent: number;
   failed: number;
   recipients: number;
+  batchSent?: number;
+  jobRunning?: boolean;
+  jobProgress?: { cursor: number; total: number };
   errors: Array<{ targetLogin: string; inn: string; error: string }>;
 };
+
+function runResultFromJob(
+  job: SummaryCronSendJob,
+  extra: Partial<SummaryCronRunResult> = {},
+): SummaryCronRunResult {
+  return {
+    ok: job.failed === 0,
+    period: job.period,
+    sent: job.sent,
+    failed: job.failed,
+    recipients: job.recipients.length,
+    jobProgress: { cursor: job.cursor, total: job.recipients.length },
+    errors: job.errors.slice(-20),
+    ...extra,
+  };
+}
 
 export async function runPartnerSummaryCron(
   pool: Pool,
   options: { force?: boolean; dryRun?: boolean } = {},
 ): Promise<SummaryCronRunResult> {
   const config = await loadSummaryCronConfig(pool);
-  if (!options.force && !shouldRunSummaryCronNow(config)) {
-    return {
-      ok: true,
-      skipped: true,
-      reason: config.enabled ? "Ещё не наступило время по расписанию" : "Автоотправка выключена",
-      period: resolveSummaryCronPeriod(config),
-      sent: 0,
-      failed: 0,
-      recipients: 0,
-      errors: [],
-    };
-  }
-
   const period = resolveSummaryCronPeriod(config);
-  const recipients = await buildSummaryCronRecipients(pool, {
-    dateFrom: period.dateFrom,
-    dateTo: period.dateTo,
-    criteria: config.criteria,
-  });
 
   if (options.dryRun) {
+    const recipients = await buildSummaryCronRecipients(pool, {
+      dateFrom: period.dateFrom,
+      dateTo: period.dateTo,
+      criteria: config.criteria,
+    });
     return {
       ok: true,
       period,
@@ -364,44 +577,115 @@ export async function runPartnerSummaryCron(
     };
   }
 
-  let sent = 0;
-  let failed = 0;
-  const errors: Array<{ targetLogin: string; inn: string; error: string }> = [];
+  if (!config.enabled && !options.force) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: "Автоотправка выключена",
+      period,
+      sent: 0,
+      failed: 0,
+      recipients: 0,
+      errors: [],
+    };
+  }
 
-  for (const r of recipients) {
-    try {
-      const data = await buildWeeklySummaryData(pool, {
-        inn: r.inn,
-        companyName: r.companyName,
-        targetLogin: r.targetLogin,
+  let job = config.sendJob?.status === "running" ? config.sendJob : null;
+
+  if (options.force) {
+    if (!job) {
+      const recipients = await buildSummaryCronRecipients(pool, {
         dateFrom: period.dateFrom,
         dateTo: period.dateTo,
+        criteria: config.criteria,
       });
-      const html = renderWeeklySummaryHtml(data);
-      const subject = `HAULZ: сводка за ${data.periodLabel}`;
-      const sendResult = await sendWeeklySummaryEmail(pool, r.targetLogin, subject, html);
-      if (sendResult.ok) sent += 1;
-      else {
-        failed += 1;
-        errors.push({ targetLogin: r.targetLogin, inn: r.inn, error: sendResult.error || "send failed" });
+      if (recipients.length === 0) {
+        return { ok: true, period, sent: 0, failed: 0, recipients: 0, errors: [] };
       }
-    } catch (e: unknown) {
-      failed += 1;
-      errors.push({ targetLogin: r.targetLogin, inn: r.inn, error: (e as Error)?.message || "error" });
+      job = await startSendJob(pool, config, recipients, period);
     }
+    const deadline = Date.now() + 270_000;
+    let lastBatch = { batchSent: 0, batchFailed: 0, done: false };
+    while (!lastBatch.done && Date.now() < deadline) {
+      lastBatch = await processSendJobBatch(pool, config, job);
+      job = lastBatch.job;
+      if (!lastBatch.done) await sleepMs(config.batchPauseSec * 1000);
+    }
+    return runResultFromJob(job, {
+      batchSent: lastBatch.batchSent,
+      jobRunning: !lastBatch.done,
+      reason: lastBatch.done ? undefined : "Отправка продолжится по cron (партиями)",
+    });
   }
 
-  const status = failed === 0 ? "ok" : sent > 0 ? "partial" : "failed";
-  const summary = { sent, failed, recipients: recipients.length, period, errors: errors.slice(0, 20) };
+  if (job) {
+    if (!isSummaryCronSpreadWindow(config)) {
+      return runResultFromJob(job, {
+        ok: true,
+        skipped: true,
+        reason: "Ожидание окна рассылки (понедельник)",
+        jobRunning: true,
+      });
+    }
+    const { job: updated, batchSent, done } = await processSendJobBatch(pool, config, job);
+    return runResultFromJob(updated, {
+      batchSent,
+      jobRunning: !done,
+      skipped: false,
+    });
+  }
 
-  try {
-    await pool.query(
-      `UPDATE haulz_summary_cron_config SET last_run_at = now(), last_run_status = $1, last_run_summary = $2::jsonb WHERE id = 1`,
-      [status, JSON.stringify(summary)],
+  if (!shouldRunSummaryCronNow(config)) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: config.enabled ? "Ещё не наступило время по расписанию" : "Автоотправка выключена",
+      period,
+      sent: 0,
+      failed: 0,
+      recipients: 0,
+      errors: [],
+    };
+  }
+
+  if (!isSummaryCronSpreadWindow(config)) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: "Вне окна рассылки (понедельник, утро по UTC)",
+      period,
+      sent: 0,
+      failed: 0,
+      recipients: 0,
+      errors: [],
+    };
+  }
+
+  const recipients = await buildSummaryCronRecipients(pool, {
+    dateFrom: period.dateFrom,
+    dateTo: period.dateTo,
+    criteria: config.criteria,
+  });
+  if (recipients.length === 0) {
+    await finalizeSendRun(
+      pool,
+      {
+        status: "completed",
+        period,
+        recipients: [],
+        cursor: 0,
+        sent: 0,
+        failed: 0,
+        errors: [],
+        startedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      "ok",
     );
-  } catch {
-    /* table may not exist yet */
+    return { ok: true, period, sent: 0, failed: 0, recipients: 0, errors: [] };
   }
 
-  return { ok: failed === 0, period, sent, failed, recipients: recipients.length, errors };
+  job = await startSendJob(pool, config, recipients, period);
+  const { job: updated, batchSent, done } = await processSendJobBatch(pool, config, job);
+  return runResultFromJob(updated, { batchSent, jobRunning: !done });
 }
