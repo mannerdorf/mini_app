@@ -331,31 +331,6 @@ export async function sendWeeklySummaryEmail(
   subject: string,
   html: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const nodemailer = await import("nodemailer");
-  const { getEmailSettings } = await import("./sendRegistrationEmail.js");
-  const settings = await getEmailSettings(pool);
-  if (!settings.smtp_host || !settings.from_email) {
-    return { ok: false, error: "Настройки почты не заданы (SMTP)" };
-  }
-  const transporter = nodemailer.default.createTransport({
-    host: settings.smtp_host,
-    port: settings.smtp_port || 587,
-    secure: settings.smtp_port === 465,
-    auth:
-      settings.smtp_user && settings.smtp_password
-        ? { user: settings.smtp_user, pass: settings.smtp_password }
-        : undefined,
-  });
-  try {
-    await transporter.sendMail({
-      from: settings.from_name ? `"${settings.from_name}" <${settings.from_email}>` : settings.from_email,
-      to,
-      subject,
-      html,
-    });
-    return { ok: true };
-  } catch (e: unknown) {
-    const err = e as Error;
-    return { ok: false, error: err?.message || "Ошибка отправки" };
-  }
+  const { sendHaulzEmail } = await import("./sendRegistrationEmail.js");
+  return sendHaulzEmail(pool, { to, subject, html });
 }

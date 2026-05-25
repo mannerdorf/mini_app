@@ -16,7 +16,14 @@ if (fs.existsSync(ENV_PATH)) {
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "127.0.0.1";
-const routeIndex = buildRouteIndex();
+let routeIndex = buildRouteIndex();
+
+function matchApiRoute(pathname: string) {
+  let matched = matchRoute(routeIndex, pathname);
+  if (matched) return matched;
+  routeIndex = buildRouteIndex();
+  return matchRoute(routeIndex, pathname);
+}
 
 console.log(
   JSON.stringify({
@@ -58,7 +65,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    const matched = matchRoute(routeIndex, pathname);
+    const matched = matchApiRoute(pathname);
     if (!matched) {
       res.statusCode = 404;
       res.setHeader("Content-Type", "application/json");

@@ -124,17 +124,14 @@ const DEFAULT_PASSWORD_RESET_HTML = (login: string, password: string, companyNam
 </html>`;
 };
 
-export async function sendRegistrationEmail(
+/** Общая отправка HTML-письма (сброс пароля, сводка, доступ по ИНН и т.д.). SMTP — из env, шаблоны регистрации — из БД. */
+export async function sendHaulzEmail(
   pool: Pool,
-  to: string,
-  login: string,
-  password: string,
-  companyName: string,
-  options?: { isPasswordReset?: boolean }
+  params: { to: string; subject: string; html: string; text?: string },
 ): Promise<{ ok: boolean; error?: string }> {
   const settings = await getEmailSettings(pool);
   if (!settings.smtp_host || !settings.from_email) {
-    return { ok: false, error: "Настройки почты не заданы" };
+    return { ok: false, error: "Настройки почты не заданы (SMTP_HOST, FROM_EMAIL)" };
   }
 
   const transporter = nodemailer.createTransport({
@@ -146,6 +143,35 @@ export async function sendRegistrationEmail(
         ? { user: settings.smtp_user, pass: settings.smtp_password }
         : undefined,
   });
+
+  const text = params.text ?? params.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+  try {
+    await transporter.sendMail({
+      from: settings.from_name
+        ? `"${settings.from_name}" <${settings.from_email}>`
+        : settings.from_email,
+      to: params.to,
+      subject: params.subject,
+      text,
+      html: params.html,
+    });
+    return { ok: true };
+  } catch (e: unknown) {
+    const err = e as Error;
+    return { ok: false, error: err?.message || "Ошибка отправки" };
+  }
+}
+
+export async function sendRegistrationEmail(
+  pool: Pool,
+  to: string,
+  login: string,
+  password: string,
+  companyName: string,
+  options?: { isPasswordReset?: boolean }
+): Promise<{ ok: boolean; error?: string }> {
+  const settings = await getEmailSettings(pool);
 
   const vars: Record<string, string> = {
     login,
@@ -165,21 +191,7 @@ export async function sendRegistrationEmail(
   } else {
     html = DEFAULT_REGISTRATION_HTML(companyName, login, password);
   }
-  const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
-  try {
-    await transporter.sendMail({
-      from: settings.from_name
-        ? `"${settings.from_name}" <${settings.from_email}>`
-        : settings.from_email,
-      to,
-      subject: "Регистрация в HAULZ",
-      text,
-      html,
-    });
-    return { ok: true };
-  } catch (e: unknown) {
-    const err = e as Error;
-    return { ok: false, error: err?.message || "Ошибка отправки" };
-  }
+  const subject = isReset ? "Новый пароль для входа в HAULZ" : "Регистрация в HAULZ";
+  return sendHaulzEmail(pool, { to, subject, html });
 }
