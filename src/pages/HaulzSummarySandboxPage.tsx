@@ -4,11 +4,22 @@ import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import type { Account } from "../types";
 import { getPreviousCalendarWeekRangeClient } from "../lib/weeklySummaryClient";
 
+const SUMMARY_API_PATHS = ["/api/invoices", "/api/admin-weekly-summary", "/api/perevozki"] as const;
+
+type CompanyOption = { inn: string; name: string };
+
 type SandboxUser = {
   id: number;
   login: string;
   company_name?: string;
-  companies: Array<{ inn: string; name: string }>;
+  access_all_inns?: boolean;
+  companies: CompanyOption[];
+};
+
+type CustomerDirectoryRow = {
+  inn: string;
+  name: string;
+  email?: string;
 };
 
 type Props = {
@@ -16,11 +27,35 @@ type Props = {
   onBack: () => void;
 };
 
+async function postSummaryApi<T extends Record<string, unknown>>(
+  paths: readonly string[],
+  body: Record<string, unknown>,
+): Promise<T> {
+  let lastErr = "Ошибка запроса";
+  for (const path of paths) {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = (await res.json().catch(() => ({}))) as T & { error?: string; path?: string };
+    if (res.ok) return data;
+    const msg = data.error || `HTTP ${res.status}`;
+    lastErr = msg;
+    if (msg !== "API route not found" && !String(data.path || "").includes("not found")) {
+      throw new Error(msg);
+    }
+  }
+  throw new Error(lastErr);
+}
+
 export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
   const defaultPeriod = useMemo(() => getPreviousCalendarWeekRangeClient(), []);
   const [users, setUsers] = useState<SandboxUser[]>([]);
+  const [customers, setCustomers] = useState<CustomerDirectoryRow[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [usersError, setUsersError] = useState<string | null>(null);
+  const [customerSearch, setCustomerSearch] = useState("");
 
   const [targetLogin, setTargetLogin] = useState("");
   const [inn, setInn] = useState("");
@@ -49,22 +84,38 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
     [users, targetLogin],
   );
 
-  const companyOptions = selectedUser?.companies ?? [];
+  const companyOptions = useMemo((): CompanyOption[] => {
+    if (!selectedUser) return [];
+    const nameByInn = new Map(customers.map((c) => [c.inn, c.name]));
+    if (selectedUser.access_all_inns && customers.length > 0) {
+      return customers.map((c) => ({ inn: c.inn, name: c.name || nameByInn.get(c.inn) || c.inn }));
+    }
+    return selectedUser.companies.map((c) => ({
+      inn: c.inn,
+      name: c.name || nameByInn.get(c.inn) || c.inn,
+    }));
+  }, [selectedUser, customers]);
+
+  const filteredCompanyOptions = useMemo(() => {
+    const q = customerSearch.trim().toLowerCase();
+    if (!q) return companyOptions;
+    return companyOptions.filter(
+      (c) => c.inn.toLowerCase().includes(q) || c.name.toLowerCase().includes(q),
+    );
+  }, [companyOptions, customerSearch]);
 
   const fetchUsers = useCallback(async () => {
     if (!authBody) return;
     setLoadingUsers(true);
     setUsersError(null);
     try {
-      const res = await fetch("/api/admin-weekly-summary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...authBody, action: "users" }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Ошибка загрузки пользователей");
-      const list = Array.isArray(data.users) ? data.users : [];
-      setUsers(list);
+      const data = await postSummaryApi<{
+        users?: SandboxUser[];
+        customers?: CustomerDirectoryRow[];
+        defaultPeriod?: { dateFrom: string; dateTo: string };
+      }>(SUMMARY_API_PATHS, { ...authBody, action: "users" });
+      setUsers(Array.isArray(data.users) ? data.users : []);
+      setCustomers(Array.isArray(data.customers) ? data.customers : []);
       if (data.defaultPeriod?.dateFrom && data.defaultPeriod?.dateTo) {
         setDateFrom(data.defaultPeriod.dateFrom);
         setDateTo(data.defaultPeriod.dateTo);
@@ -72,6 +123,7 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
     } catch (e: unknown) {
       setUsersError((e as Error)?.message || "Ошибка");
       setUsers([]);
+      setCustomers([]);
     } finally {
       setLoadingUsers(false);
     }
@@ -85,6 +137,7 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
     if (!targetLogin) {
       setInn("");
       setCompanyName("");
+      setCustomerSearch("");
       return;
     }
     const first = companyOptions[0];
@@ -114,13 +167,10 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
       setSendMessage(null);
     }
     try {
-      const res = await fetch("/api/admin-weekly-summary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Ошибка запроса");
+      const data = await postSummaryApi<{ html?: string; subject?: string; sentTo?: string }>(
+        SUMMARY_API_PATHS,
+        payload,
+      );
       if (action === "preview") {
         setPreviewHtml(typeof data.html === "string" ? data.html : null);
         setPreviewSubject(typeof data.subject === "string" ? data.subject : "");
@@ -158,7 +208,8 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
       </Flex>
 
       <Typography.Body style={{ fontSize: "0.88rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
-        Выберите пользователя и контрагента, проверьте HTML-письмо и отправьте на email входа. По умолчанию — прошлая календарная неделя.
+        Справочники: пользователи из БД, контрагенты из cache_customers (с учётом привязок и email). По умолчанию — прошлая
+        календарная неделя.
       </Typography.Body>
 
       {usersError && (
@@ -170,7 +221,9 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
       <Panel style={{ padding: "1rem", marginBottom: "1rem" }}>
         <Flex direction="column" gap="0.75rem">
           <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-            <Typography.Body style={{ fontSize: "0.82rem", fontWeight: 600 }}>Пользователь (email входа)</Typography.Body>
+            <Typography.Body style={{ fontSize: "0.82rem", fontWeight: 600 }}>
+              Пользователь (email входа) {users.length > 0 ? `· ${users.length}` : ""}
+            </Typography.Body>
             <select
               className="admin-form-input"
               value={targetLogin}
@@ -194,7 +247,19 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
           </label>
 
           <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-            <Typography.Body style={{ fontSize: "0.82rem", fontWeight: 600 }}>Контрагент</Typography.Body>
+            <Typography.Body style={{ fontSize: "0.82rem", fontWeight: 600 }}>
+              Контрагент (cache_customers)
+              {companyOptions.length > 0 ? ` · ${companyOptions.length}` : customers.length > 0 ? ` · справ. ${customers.length}` : ""}
+            </Typography.Body>
+            {targetLogin && companyOptions.length > 8 && (
+              <input
+                type="search"
+                className="admin-form-input"
+                placeholder="Поиск по ИНН или названию"
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+              />
+            )}
             <select
               className="admin-form-input"
               value={inn}
@@ -209,12 +274,17 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
               style={{ width: "100%" }}
             >
               <option value="">— выберите ИНН —</option>
-              {companyOptions.map((c) => (
+              {filteredCompanyOptions.map((c) => (
                 <option key={c.inn} value={c.inn}>
                   {c.name || c.inn} · {c.inn}
                 </option>
               ))}
             </select>
+            {targetLogin && companyOptions.length === 0 && !loadingUsers && (
+              <Typography.Body style={{ fontSize: "0.8rem", color: "#b45309" }}>
+                Нет контрагентов для пользователя. Проверьте account_companies, email в cache_customers или право «все ИНН».
+              </Typography.Body>
+            )}
           </label>
 
           <Flex gap="0.5rem" wrap="wrap">
@@ -263,6 +333,9 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
               {sendLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
               <span style={{ marginLeft: "0.35rem" }}>Отправить</span>
             </Button>
+            <Button type="button" className="filter-button" disabled={loadingUsers} onClick={() => void fetchUsers()}>
+              Обновить справочники
+            </Button>
           </Flex>
 
           {previewError && (
@@ -295,7 +368,7 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
       {loadingUsers && (
         <Flex align="center" gap="0.5rem" style={{ marginTop: "0.5rem" }}>
           <Loader2 className="w-4 h-4 animate-spin" />
-          <Typography.Body style={{ fontSize: "0.85rem" }}>Загрузка пользователей…</Typography.Body>
+          <Typography.Body style={{ fontSize: "0.85rem" }}>Загрузка справочников…</Typography.Body>
         </Flex>
       )}
     </div>

@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { handleHaulzSummarySandboxRequest, isHaulzSummarySandboxAction } from "../lib/haulzSummarySandboxApi.js";
 
 /**
  * Прокси для GetIinvoices: счета.
@@ -49,6 +50,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch {
       return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
     }
+  }
+
+  if (isHaulzSummarySandboxAction(body?.action)) {
+    const handled = await handleHaulzSummarySandboxRequest(req, res, ctx.requestId);
+    if (handled) return;
   }
 
   const {
