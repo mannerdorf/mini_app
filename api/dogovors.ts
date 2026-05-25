@@ -25,6 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          customer_name AS "customerName",
          customer_inn AS "customerInn",
          title,
+         edo_status AS "edoStatus",
          data,
          sort_order AS "sortOrder",
          fetched_at AS "fetchedAt"

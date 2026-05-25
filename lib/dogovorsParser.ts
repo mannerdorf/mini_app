@@ -1,3 +1,5 @@
+import { pickCachedDocumentEdoRawFromData } from "./cachedDocumentEdo.js";
+
 type RawRow = Record<string, unknown>;
 
 export type NormalizedDogovor = {
@@ -6,6 +8,7 @@ export type NormalizedDogovor = {
   customerName: string;
   customerInn: string;
   title: string;
+  edoStatus: string;
   data: RawRow;
 };
 
@@ -132,6 +135,7 @@ export function normalizeDogovors(raw: unknown): NormalizedDogovor[] {
       customerName: getStr(el, CUSTOMER_NAME_KEYS),
       customerInn,
       title: getStr(el, TITLE_KEYS),
+      edoStatus: pickCachedDocumentEdoRawFromData(el),
       data: el,
     });
   }

@@ -63,9 +63,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const r = rows[i];
       await pool.query(
         `INSERT INTO cache_sverki (
-          doc_number, doc_date, period_from, period_to, customer_name, customer_inn, data, sort_order, fetched_at
+          doc_number, doc_date, period_from, period_to, customer_name, customer_inn, edo_status, data, sort_order, fetched_at
         )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())`,
         [
           r.docNumber || "",
           r.docDate,
@@ -73,6 +73,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           r.periodTo,
           r.customerName || "",
           r.customerInn || "",
+          r.edoStatus || "",
           JSON.stringify(r.data),
           i,
         ]

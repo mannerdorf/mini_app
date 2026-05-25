@@ -509,6 +509,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         periodTo: string | null;
         customerName: string;
         customerInn: string;
+        edoStatus?: string | null;
         data?: Record<string, unknown> | null;
     }[]>([]);
     const [sverkiLoading, setSverkiLoading] = useState(false);
@@ -521,6 +522,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         customerName: string;
         customerInn: string;
         title: string;
+        edoStatus?: string | null;
         data?: Record<string, unknown> | null;
     }[]>([]);
     const [dogovorsLoading, setDogovorsLoading] = useState(false);
@@ -2308,7 +2310,7 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
         const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
         return sverkiList.filter((row) => {
             if (effectiveServiceMode && sverkiCustomerFilter && String(row.customerName || '').trim() !== sverkiCustomerFilter) return false;
-            if (!cachedDocumentMatchesEdoStatusFilter(row.data, edoStatusFilterSet)) return false;
+            if (!cachedDocumentMatchesEdoStatusFilter(row, edoStatusFilterSet)) return false;
             if (!row.docDate) return true;
             const d = new Date(row.docDate);
             return d >= fromDate && d <= toDate;
@@ -2355,7 +2357,7 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
         const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
         return dogovorsList.filter((row) => {
             if (effectiveServiceMode && dogovorsCustomerFilter && String(row.customerName || '').trim() !== dogovorsCustomerFilter) return false;
-            if (!cachedDocumentMatchesEdoStatusFilter(row.data, edoStatusFilterSet)) return false;
+            if (!cachedDocumentMatchesEdoStatusFilter(row, edoStatusFilterSet)) return false;
             if (!row.docDate) return true;
             const d = new Date(row.docDate);
             return d >= fromDate && d <= toDate;
@@ -6401,7 +6403,7 @@ useEffect(() => {
                                         const number = String(row.docNumber || '').trim();
                                         const hasDownload = number && row.docDate;
                                         const isDownloading = sverkiDownloadingId === row.id;
-                                        const edoInfo = getCachedDocumentEdoInfo(row.data);
+                                        const edoInfo = getCachedDocumentEdoInfo(row);
                                         return (
                                             <tr key={row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                 <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{row.docNumber || '—'}</td>
@@ -6441,7 +6443,7 @@ useEffect(() => {
                                 const number = String(row.docNumber || '').trim();
                                 const hasDownload = number && row.docDate;
                                 const isDownloading = sverkiDownloadingId === row.id;
-                                const edoInfo = getCachedDocumentEdoInfo(row.data);
+                                const edoInfo = getCachedDocumentEdoInfo(row);
                                 const favorite = isDocFavorite('reconciliation', `act-${row.id}`);
                                 const shareLines = [
                                     `Акт сверки: ${row.docNumber || '—'}`,
@@ -6568,7 +6570,7 @@ useEffect(() => {
                                     {filteredDogovors.map((row) => {
                                         const hasDownload = row.docNumber && row.docDate && row.customerInn;
                                         const isDownloading = dogovorsDownloadingId === row.id;
-                                        const edoInfo = getCachedDocumentEdoInfo(row.data);
+                                        const edoInfo = getCachedDocumentEdoInfo(row);
                                         return (
                                             <tr key={row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                 <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{row.docNumber || '—'}</td>
@@ -6606,7 +6608,7 @@ useEffect(() => {
                             {filteredDogovors.map((row) => {
                                 const hasDownload = row.docNumber && row.docDate && row.customerInn;
                                 const isDownloading = dogovorsDownloadingId === row.id;
-                                const edoInfo = getCachedDocumentEdoInfo(row.data);
+                                const edoInfo = getCachedDocumentEdoInfo(row);
                                 const favorite = isDocFavorite('contracts', row.id);
                                 const shareLines = [
                                     `Договор: ${row.docNumber || '—'}`,

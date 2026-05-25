@@ -686,6 +686,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     customerName: string;
     customerInn: string;
     fetchedAt: string;
+    edoStatus?: string | null;
     data?: Record<string, unknown> | null;
   }[]>([]);
   const [sverkiLoading, setSverkiLoading] = useState(false);
@@ -704,6 +705,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     customerInn: string;
     title: string;
     fetchedAt: string;
+    edoStatus?: string | null;
     data?: Record<string, unknown> | null;
   }[]>([]);
   const [dogovorsLoading, setDogovorsLoading] = useState(false);
@@ -6035,7 +6037,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     const docDateRaw = row.docDate;
                     const hasDownload = number && docDateRaw;
                     const isDownloading = sverkiDownloadingId === row.id;
-                    const edoInfo = getCachedDocumentEdoInfo(row.data);
+                    const edoInfo = getCachedDocumentEdoInfo(row);
                     return (
                       <tr key={row.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docNumber || "—"}</td>
@@ -6187,7 +6189,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   {dogovorsList.map((row) => {
                     const hasDownload = row.docNumber && row.docDate && row.customerInn;
                     const isDownloading = dogovorsDownloadingId === row.id;
-                    const edoInfo = getCachedDocumentEdoInfo(row.data);
+                    const edoInfo = getCachedDocumentEdoInfo(row);
                     return (
                       <tr key={row.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docNumber || "—"}</td>

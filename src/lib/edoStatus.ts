@@ -130,30 +130,45 @@ function pickCachedDocEdoString(obj: Record<string, unknown>): string {
   return "";
 }
 
-/** Сырой код статуса ЭДО из `data` записи кэша договора / акта сверки. */
-export function getCachedDocumentEdoRaw(data: unknown): string {
+export type CachedDocumentEdoRow = {
+  edoStatus?: string | null;
+  data?: unknown;
+};
+
+function pickEdoRawFromData(data: unknown): string {
   if (!data || typeof data !== "object" || Array.isArray(data)) return "";
   return pickCachedDocEdoString(data as Record<string, unknown>);
 }
 
+/** Сырой код ЭДО: сначала колонка `edoStatus` из БД, иначе поля в `data`. */
+export function getCachedDocumentEdoRaw(rowOrData: CachedDocumentEdoRow | unknown): string {
+  if (rowOrData && typeof rowOrData === "object" && !Array.isArray(rowOrData)) {
+    const row = rowOrData as CachedDocumentEdoRow;
+    const fromColumn = typeof row.edoStatus === "string" ? row.edoStatus.trim() : "";
+    if (fromColumn) return fromColumn;
+    if ("data" in row) return pickEdoRawFromData(row.data);
+  }
+  return pickEdoRawFromData(rowOrData);
+}
+
 /** Статус ЭДО для договора или акта сверки (маппинг как у счетов). */
-export function getCachedDocumentEdoInfo(data: unknown): EdoStatusInfo {
-  return getEdoStatusInfo(getCachedDocumentEdoRaw(data));
+export function getCachedDocumentEdoInfo(rowOrData: CachedDocumentEdoRow | unknown): EdoStatusInfo {
+  return getEdoStatusInfo(getCachedDocumentEdoRaw(rowOrData));
 }
 
 /** Фильтр «Статус ЭДО» для договоров / актов сверки. */
-export function cachedDocumentMatchesEdoStatusFilter(data: unknown, filterSet: Set<string>): boolean {
+export function cachedDocumentMatchesEdoStatusFilter(rowOrData: CachedDocumentEdoRow | unknown, filterSet: Set<string>): boolean {
   if (filterSet.size === 0) return true;
-  return filterSet.has(getCachedDocumentEdoInfo(data).label);
+  return filterSet.has(getCachedDocumentEdoInfo(rowOrData).label);
 }
 
 /** Уникальные подписи статусов ЭДО из кэша договоров или актов сверки. */
 export function collectUniqueCachedDocumentEdoLabels(
-  rows: Array<{ data?: unknown }> | undefined | null,
+  rows: Array<CachedDocumentEdoRow> | undefined | null,
 ): string[] {
   const set = new Set<string>();
   for (const row of rows || []) {
-    set.add(getCachedDocumentEdoInfo(row?.data).label);
+    set.add(getCachedDocumentEdoInfo(row).label);
   }
   return [...set].sort((a, b) => {
     if (a === EMPTY_EDO.label) return 1;

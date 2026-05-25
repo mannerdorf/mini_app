@@ -63,10 +63,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const r = rows[i];
       await pool.query(
         `INSERT INTO cache_dogovors (
-          doc_number, doc_date, customer_name, customer_inn, title, data, sort_order, fetched_at
+          doc_number, doc_date, customer_name, customer_inn, title, edo_status, data, sort_order, fetched_at
         )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, now())`,
-        [r.docNumber || "", r.docDate, r.customerName || "", r.customerInn || "", r.title || "", JSON.stringify(r.data), i]
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())`,
+        [r.docNumber || "", r.docDate, r.customerName || "", r.customerInn || "", r.title || "", r.edoStatus || "", JSON.stringify(r.data), i]
       );
     }
 

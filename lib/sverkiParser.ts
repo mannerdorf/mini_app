@@ -1,3 +1,5 @@
+import { pickCachedDocumentEdoRawFromData } from "./cachedDocumentEdo.js";
+
 type RawRow = Record<string, unknown>;
 
 export type NormalizedSverka = {
@@ -7,6 +9,7 @@ export type NormalizedSverka = {
   periodTo: string | null;
   customerName: string;
   customerInn: string;
+  edoStatus: string;
   data: RawRow;
 };
 
@@ -135,6 +138,7 @@ export function normalizeSverki(raw: unknown): NormalizedSverka[] {
       periodTo: getStr(el, PERIOD_TO_KEYS) || null,
       customerName: getStr(el, CUSTOMER_NAME_KEYS),
       customerInn,
+      edoStatus: pickCachedDocumentEdoRawFromData(el),
       data: el,
     });
   }
