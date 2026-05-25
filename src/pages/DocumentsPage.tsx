@@ -27,7 +27,10 @@ import {
 import { StatusBadge } from "../components/shared/StatusBadges";
 import {
     aggregateInvoiceEdoDocStats,
+    cachedDocumentMatchesEdoStatusFilter,
+    collectUniqueCachedDocumentEdoLabels,
     collectUniqueInvoiceEdoTableLabels,
+    getCachedDocumentEdoInfo,
 } from "../lib/edoStatus";
 import {
     loadDateFilterState,
@@ -90,6 +93,8 @@ import {
     DocumentsApiDebugPanel,
     DocumentsEdoMonitorGroupedTable,
     DocumentsEdoCardsList,
+    DocumentsEdoCardBadge,
+    DocumentsEdoTableStatus,
     DocumentsInvoiceCardsList,
     DocumentsActCardsList,
     DocumentsSummaryCard,
@@ -504,6 +509,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         periodTo: string | null;
         customerName: string;
         customerInn: string;
+        data?: Record<string, unknown> | null;
     }[]>([]);
     const [sverkiLoading, setSverkiLoading] = useState(false);
     const [sverkiDownloadingId, setSverkiDownloadingId] = useState<number | null>(null);
@@ -515,6 +521,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         customerName: string;
         customerInn: string;
         title: string;
+        data?: Record<string, unknown> | null;
     }[]>([]);
     const [dogovorsLoading, setDogovorsLoading] = useState(false);
     const [dogovorsDownloadingId, setDogovorsDownloadingId] = useState<number | null>(null);
@@ -1847,6 +1854,12 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         if (docSection === 'Счета' || docSection === 'ЭДО') {
             return collectUniqueInvoiceEdoTableLabels(items);
         }
+        if (docSection === 'Договоры') {
+            return collectUniqueCachedDocumentEdoLabels(dogovorsList);
+        }
+        if (docSection === 'Акты сверок') {
+            return collectUniqueCachedDocumentEdoLabels(sverkiList);
+        }
         const set = new Set<string>();
         if (docSection === 'УПД') {
             (actsItems || []).forEach((a: any) => {
@@ -1855,7 +1868,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
             });
         }
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [docSection, items, actsItems]);
+    }, [docSection, items, actsItems, dogovorsList, sverkiList]);
 
     const toggleInvoiceFavorite = useCallback((invNum: string | undefined) => {
         if (!invNum) return;
@@ -2295,11 +2308,12 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
         const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
         return sverkiList.filter((row) => {
             if (effectiveServiceMode && sverkiCustomerFilter && String(row.customerName || '').trim() !== sverkiCustomerFilter) return false;
+            if (!cachedDocumentMatchesEdoStatusFilter(row.data, edoStatusFilterSet)) return false;
             if (!row.docDate) return true;
             const d = new Date(row.docDate);
             return d >= fromDate && d <= toDate;
         });
-    }, [sverkiList, apiDateRange.dateFrom, apiDateRange.dateTo, effectiveServiceMode, sverkiCustomerFilter]);
+    }, [sverkiList, apiDateRange.dateFrom, apiDateRange.dateTo, effectiveServiceMode, sverkiCustomerFilter, edoStatusFilterSet]);
     const downloadSverkaFile = useCallback(async (row: { id: number; docNumber: string; docDate: string | null }) => {
         const number = String(row.docNumber || '').trim();
         const docDateRaw = row.docDate;
@@ -2341,11 +2355,12 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
         const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
         return dogovorsList.filter((row) => {
             if (effectiveServiceMode && dogovorsCustomerFilter && String(row.customerName || '').trim() !== dogovorsCustomerFilter) return false;
+            if (!cachedDocumentMatchesEdoStatusFilter(row.data, edoStatusFilterSet)) return false;
             if (!row.docDate) return true;
             const d = new Date(row.docDate);
             return d >= fromDate && d <= toDate;
         });
-    }, [dogovorsList, apiDateRange.dateFrom, apiDateRange.dateTo, effectiveServiceMode, dogovorsCustomerFilter]);
+    }, [dogovorsList, apiDateRange.dateFrom, apiDateRange.dateTo, effectiveServiceMode, dogovorsCustomerFilter, edoStatusFilterSet]);
     const downloadDogovorFile = useCallback(async (row: { id: number; docNumber: string; docDate: string | null; customerInn: string }) => {
         const number = String(row.docNumber || '').trim();
         const docDateRaw = row.docDate;
@@ -3630,7 +3645,7 @@ useEffect(() => {
                                 </FilterDropdownPortal>
                             </>
                         )}
-                        {(docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'УПД') && (
+                        {(docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'УПД' || docSection === 'Договоры' || docSection === 'Акты сверок') && (
                         <>
                         <div ref={edoStatusButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsEdoStatusDropdownOpen(!isEdoStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
@@ -6377,6 +6392,7 @@ useEffect(() => {
                                         <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Период с</th>
                                         <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Период по</th>
                                         {effectiveServiceMode ? <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Контрагент</th> : null}
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>ЭДО</th>
                                         <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600 }}></th>
                                     </tr>
                                 </thead>
@@ -6385,6 +6401,7 @@ useEffect(() => {
                                         const number = String(row.docNumber || '').trim();
                                         const hasDownload = number && row.docDate;
                                         const isDownloading = sverkiDownloadingId === row.id;
+                                        const edoInfo = getCachedDocumentEdoInfo(row.data);
                                         return (
                                             <tr key={row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                 <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{row.docNumber || '—'}</td>
@@ -6392,6 +6409,7 @@ useEffect(() => {
                                                 <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.periodFrom || undefined} /></td>
                                                 <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.periodTo || undefined} /></td>
                                                 {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{stripOoo(row.customerName) || '—'}</td> : null}
+                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DocumentsEdoTableStatus info={edoInfo} /></td>
                                                 <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>
                                                     {hasDownload ? (
                                                         <button
@@ -6423,6 +6441,7 @@ useEffect(() => {
                                 const number = String(row.docNumber || '').trim();
                                 const hasDownload = number && row.docDate;
                                 const isDownloading = sverkiDownloadingId === row.id;
+                                const edoInfo = getCachedDocumentEdoInfo(row.data);
                                 const favorite = isDocFavorite('reconciliation', `act-${row.id}`);
                                 const shareLines = [
                                     `Акт сверки: ${row.docNumber || '—'}`,
@@ -6430,6 +6449,7 @@ useEffect(() => {
                                     row.periodFrom ? `Период с: ${row.periodFrom}` : '',
                                     row.periodTo ? `Период по: ${row.periodTo}` : '',
                                     effectiveServiceMode ? `Контрагент: ${stripOoo(row.customerName) || '—'}` : '',
+                                    edoInfo.raw ? `ЭДО: ${edoInfo.label}` : '',
                                 ].filter(Boolean);
                                 return (
                                     <Panel key={row.id} className="cargo-card" style={{ marginBottom: '0.75rem' }}>
@@ -6438,6 +6458,7 @@ useEffect(() => {
                                                 {row.docNumber || '—'}
                                             </Typography.Body>
                                             <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
+                                                <DocumentsEdoCardBadge info={edoInfo} />
                                                 <Button
                                                     style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
                                                     onClick={() => {
@@ -6539,6 +6560,7 @@ useEffect(() => {
                                         <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
                                         {effectiveServiceMode ? <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Контрагент</th> : null}
                                         <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Наименование</th>
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>ЭДО</th>
                                         <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600 }}></th>
                                     </tr>
                                 </thead>
@@ -6546,12 +6568,14 @@ useEffect(() => {
                                     {filteredDogovors.map((row) => {
                                         const hasDownload = row.docNumber && row.docDate && row.customerInn;
                                         const isDownloading = dogovorsDownloadingId === row.id;
+                                        const edoInfo = getCachedDocumentEdoInfo(row.data);
                                         return (
                                             <tr key={row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                 <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{row.docNumber || '—'}</td>
                                                 <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.docDate || undefined} /></td>
                                                 {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{stripOoo(row.customerName) || '—'}</td> : null}
                                                 <td style={{ padding: '0.5rem 0.75rem' }}>{row.title || '—'}</td>
+                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DocumentsEdoTableStatus info={edoInfo} /></td>
                                                 <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>
                                                     {hasDownload ? (
                                                         <button
@@ -6582,12 +6606,14 @@ useEffect(() => {
                             {filteredDogovors.map((row) => {
                                 const hasDownload = row.docNumber && row.docDate && row.customerInn;
                                 const isDownloading = dogovorsDownloadingId === row.id;
+                                const edoInfo = getCachedDocumentEdoInfo(row.data);
                                 const favorite = isDocFavorite('contracts', row.id);
                                 const shareLines = [
                                     `Договор: ${row.docNumber || '—'}`,
                                     row.docDate ? `Дата: ${row.docDate}` : '',
                                     effectiveServiceMode ? `Контрагент: ${stripOoo(row.customerName) || '—'}` : '',
                                     `Наименование: ${row.title || '—'}`,
+                                    edoInfo.raw ? `ЭДО: ${edoInfo.label}` : '',
                                 ].filter(Boolean);
                                 return (
                                     <Panel key={row.id} className="cargo-card" style={{ marginBottom: '0.75rem' }}>
@@ -6596,6 +6622,7 @@ useEffect(() => {
                                                 {row.docNumber || '—'}
                                             </Typography.Body>
                                             <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
+                                                <DocumentsEdoCardBadge info={edoInfo} />
                                                 <Button
                                                     style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
                                                     onClick={() => {

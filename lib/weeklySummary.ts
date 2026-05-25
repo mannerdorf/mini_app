@@ -491,16 +491,41 @@ export function renderWeeklySummaryHtml(data: WeeklySummaryData): string {
 </body></html>`;
 }
 
+export type WeeklySummarySendMeta = {
+  targetLogin?: string;
+  inn?: string;
+  dispatchLogId?: number;
+};
+
 export async function sendWeeklySummaryEmail(
   pool: Pool,
   to: string,
   subject: string,
   html: string,
-): Promise<{ ok: boolean; error?: string }> {
+  meta?: WeeklySummarySendMeta,
+): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   const { isSummaryEmailUnsubscribed } = await import("./haulzSummaryUnsubscribe.js");
   if (await isSummaryEmailUnsubscribed(pool, to)) {
     return { ok: false, error: "Получатель отписан от рассылки" };
   }
+  const {
+    createSummaryMessageId,
+    injectSummaryEmailTracking,
+    recordSummaryEmailSend,
+  } = await import("./haulzSummaryEmailTrack.js");
+  const messageId = createSummaryMessageId();
+  const trackedHtml = injectSummaryEmailTracking(html, messageId, meta?.targetLogin);
   const { sendHaulzEmail } = await import("./sendRegistrationEmail.js");
-  return sendHaulzEmail(pool, { to, subject, html });
+  const result = await sendHaulzEmail(pool, { to, subject, html: trackedHtml });
+  if (result.ok) {
+    await recordSummaryEmailSend(pool, {
+      messageId,
+      toEmail: to,
+      subject,
+      targetLogin: meta?.targetLogin,
+      inn: meta?.inn,
+      dispatchLogId: meta?.dispatchLogId,
+    });
+  }
+  return { ...result, messageId };
 }

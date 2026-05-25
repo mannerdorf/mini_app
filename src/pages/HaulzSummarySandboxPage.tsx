@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Loader2, Mail, Eye, Play, Users, Save } from "lucide-react";
+import { ArrowLeft, Loader2, Mail, Eye, Play, Users, Save, RefreshCw, ScrollText } from "lucide-react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import type { Account } from "../types";
 import { getPreviousCalendarWeekRangeClient } from "../lib/weeklySummaryClient";
@@ -80,10 +80,50 @@ type SummaryCronConfig = {
   emailPauseSec: number;
   batchPauseSec: number;
   spreadWindowHours: number;
-  sendJob?: { status: string; cursor: number; sent: number; failed: number; recipients: { length: number } } | null;
+  sendJob?: SummarySendJob | null;
   lastRunAt: string | null;
   lastRunStatus: string | null;
   lastRunSummary: Record<string, unknown> | null;
+};
+
+type SummarySendJob = {
+  status: string;
+  cursor: number;
+  sent: number;
+  failed: number;
+  skippedUnsubscribed: number;
+  total: number;
+  progressPct: number;
+  startedAt: string;
+  updatedAt?: string;
+  trigger: "auto" | "manual";
+  logId?: number;
+  period?: { dateFrom: string; dateTo: string };
+};
+
+type DispatchLogRow = {
+  id: number;
+  startedAt: string;
+  finishedAt: string | null;
+  updatedAt: string;
+  trigger: "auto" | "manual";
+  status: string;
+  period: { dateFrom: string; dateTo: string };
+  recipientsTotal: number;
+  uniqueUsers: number;
+  uniqueCompanies: number;
+  sent: number;
+  failed: number;
+  skippedUnsubscribed: number;
+  cursorPos: number;
+  reasonBreakdown: { acceptance: number; delivery: number; unpaid: number };
+  errors: Array<{ targetLogin: string; inn: string; error: string }>;
+  progressPct: number;
+  isRunning: boolean;
+  trackingOpens: number;
+  trackingClicks: number;
+  trackingOpenedEmails: number;
+  trackingClickedEmails: number;
 };
 
 type CronRecipient = {
@@ -218,6 +258,10 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
   const [cronRecipients, setCronRecipients] = useState<CronRecipient[]>([]);
   const [cronBusy, setCronBusy] = useState<string | null>(null);
   const [cronMessage, setCronMessage] = useState<string | null>(null);
+  const [activeSendJob, setActiveSendJob] = useState<SummarySendJob | null>(null);
+  const [dispatchLogs, setDispatchLogs] = useState<DispatchLogRow[]>([]);
+  const [expandedLogId, setExpandedLogId] = useState<number | null>(null);
+  const [logsLoading, setLogsLoading] = useState(false);
 
   const authBody = useMemo(() => {
     if (!activeAccount?.login || !activeAccount?.password) return null;
@@ -338,7 +382,74 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
     setCronCriteria(cfg.criteria);
     setCronLastRun(cfg.lastRunAt);
     setCronLastStatus(cfg.lastRunStatus);
+    if (cfg.sendJob) setActiveSendJob(cfg.sendJob);
   };
+
+  const statusLabel = (status: string) => {
+    if (status === "ok" || status === "completed") return "Успешно";
+    if (status === "partial") return "Частично";
+    if (status === "failed") return "Ошибка";
+    if (status === "running") return "Идёт рассылка";
+    return status || "—";
+  };
+
+  const refreshCronStatus = useCallback(async () => {
+    if (!authBody) return;
+    try {
+      const data = await postSummaryApi<{
+        cronConfig: SummaryCronConfig;
+        sendJob: SummarySendJob | null;
+        activeLog: DispatchLogRow | null;
+      }>(SUMMARY_API_PATHS, { ...authBody, action: "cron_get" }, authBody.login, authBody.password);
+      if (data.cronConfig) applyCronConfig(data.cronConfig);
+      setActiveSendJob(data.sendJob ?? data.cronConfig?.sendJob ?? null);
+      if (data.activeLog) {
+        setDispatchLogs((prev) => {
+          const rest = prev.filter((l) => l.id !== data.activeLog!.id);
+          return [data.activeLog!, ...rest];
+        });
+      }
+    } catch {
+      /* ignore poll errors */
+    }
+  }, [authBody]);
+
+  const loadDispatchLogs = useCallback(async () => {
+    if (!authBody) return;
+    setLogsLoading(true);
+    try {
+      const data = await postSummaryApi<{ logs: DispatchLogRow[] }>(
+        SUMMARY_API_PATHS,
+        { ...authBody, action: "cron_logs", limit: 40 },
+        authBody.login,
+        authBody.password,
+      );
+      setDispatchLogs(Array.isArray(data.logs) ? data.logs : []);
+    } catch {
+      setDispatchLogs([]);
+    } finally {
+      setLogsLoading(false);
+    }
+  }, [authBody]);
+
+  useEffect(() => {
+    if (!authBody) return;
+    void loadDispatchLogs();
+  }, [authBody, loadDispatchLogs]);
+
+  const sendJobRunning = activeSendJob?.status === "running";
+
+  useEffect(() => {
+    if (!sendJobRunning || !authBody) return;
+    const timer = window.setInterval(() => void refreshCronStatus(), 4000);
+    return () => window.clearInterval(timer);
+  }, [sendJobRunning, authBody, refreshCronStatus]);
+
+  useEffect(() => {
+    if (!sendJobRunning) {
+      void loadDispatchLogs();
+    }
+  }, [sendJobRunning, loadDispatchLogs]);
 
   const cronPayload = () => ({
     ...authBody,
@@ -398,14 +509,24 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
     setCronBusy("run");
     setCronMessage(null);
     try {
-      const data = await postSummaryApi<{ sent: number; failed: number; recipients: number; errors?: Array<{ error: string }> }>(
-        SUMMARY_API_PATHS,
-        { ...authBody, action: "cron_run" },
-        authBody.login,
-        authBody.password,
+      const data = await postSummaryApi<{
+        sent: number;
+        failed: number;
+        recipients: number;
+        jobRunning?: boolean;
+        sendJob?: SummarySendJob | null;
+        errors?: Array<{ error: string }>;
+      }>(SUMMARY_API_PATHS, { ...authBody, action: "cron_run" }, authBody.login, authBody.password);
+      if (data.sendJob) setActiveSendJob(data.sendJob);
+      const running = data.jobRunning || data.sendJob?.status === "running";
+      setCronMessage(
+        running
+          ? `Рассылка запущена: ${data.sendJob?.sent ?? data.sent ?? 0} из ${data.sendJob?.total ?? data.recipients ?? 0}. Прогресс обновляется автоматически.`
+          : `Готово: отправлено ${data.sent ?? 0}, ошибок ${data.failed ?? 0}, в выборке ${data.recipients ?? 0}`,
       );
-      setCronMessage(`Готово: отправлено ${data.sent ?? 0}, ошибок ${data.failed ?? 0}, в выборке ${data.recipients ?? 0}`);
       void fetchUsers();
+      void refreshCronStatus();
+      void loadDispatchLogs();
     } catch (e: unknown) {
       setCronMessage((e as Error)?.message || "Ошибка");
     } finally {
@@ -758,6 +879,129 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
             </div>
           )}
         </Flex>
+      </Panel>
+
+      <Panel className="cargo-card haulz-summary-sandbox" style={{ padding: "var(--pad-card, 1rem)", marginBottom: "1rem" }}>
+        <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem" style={{ marginBottom: "0.65rem" }}>
+          <Flex align="center" gap="0.4rem">
+            <ScrollText className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
+            <Typography.Body style={{ ...LABEL_STYLE, margin: 0 }}>Журнал рассылок</Typography.Body>
+          </Flex>
+          <Button type="button" className="filter-button" disabled={logsLoading} onClick={() => void loadDispatchLogs()}>
+            {logsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            <span style={{ marginLeft: "0.35rem" }}>Обновить</span>
+          </Button>
+        </Flex>
+
+        {sendJobRunning && activeSendJob && (
+          <div style={{ marginBottom: "0.85rem", padding: "0.65rem 0.75rem", borderRadius: "8px", background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.25)" }}>
+            <Typography.Body style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--color-text-primary)" }}>
+              Рассылка в процессе ({activeSendJob.trigger === "manual" ? "ручная" : "авто"})
+            </Typography.Body>
+            <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginTop: "0.25rem" }}>
+              {activeSendJob.sent} отправлено · {activeSendJob.failed} ошибок · {activeSendJob.skippedUnsubscribed} отписок ·{" "}
+              {activeSendJob.cursor} / {activeSendJob.total}
+            </Typography.Body>
+            <div style={{ marginTop: "0.45rem", height: "8px", borderRadius: "999px", background: "var(--color-border)", overflow: "hidden" }}>
+              <div
+                style={{
+                  width: `${activeSendJob.progressPct}%`,
+                  height: "100%",
+                  background: "linear-gradient(90deg,#1e3a8a,#2563eb)",
+                  transition: "width 0.4s ease",
+                }}
+              />
+            </div>
+            <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.3rem" }}>
+              Обновление каждые 4 с. Отчёт на info@haulz.pro — после завершения очереди.
+            </Typography.Body>
+          </div>
+        )}
+
+        {dispatchLogs.length === 0 && !logsLoading ? (
+          <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
+            Запусков пока нет. Примените миграции 070–071 и отправьте рассылку.
+          </Typography.Body>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
+                  <th style={{ padding: "0.35rem 0.4rem" }}>Старт</th>
+                  <th style={{ padding: "0.35rem 0.4rem" }}>Тип</th>
+                  <th style={{ padding: "0.35rem 0.4rem" }}>Статус</th>
+                  <th style={{ padding: "0.35rem 0.4rem" }}>Период</th>
+                  <th style={{ padding: "0.35rem 0.4rem", textAlign: "right" }}>В выборке</th>
+                  <th style={{ padding: "0.35rem 0.4rem", textAlign: "right" }}>Отпр.</th>
+                  <th style={{ padding: "0.35rem 0.4rem", textAlign: "right" }}>Ошиб.</th>
+                  <th style={{ padding: "0.35rem 0.4rem", textAlign: "right" }}>Отписка</th>
+                  <th style={{ padding: "0.35rem 0.4rem", textAlign: "right" }} title="Уникальных писем с открытием">Открыт.</th>
+                  <th style={{ padding: "0.35rem 0.4rem", textAlign: "right" }}>Клики</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dispatchLogs.map((log) => (
+                  <React.Fragment key={log.id}>
+                    <tr
+                      style={{ borderBottom: "1px solid var(--color-border)", cursor: log.errors.length ? "pointer" : "default" }}
+                      onClick={() => setExpandedLogId((id) => (id === log.id ? null : log.id))}
+                    >
+                      <td style={{ padding: "0.4rem" }}>{new Date(log.startedAt).toLocaleString("ru-RU")}</td>
+                      <td style={{ padding: "0.4rem" }}>{log.trigger === "manual" ? "Ручная" : "Авто"}</td>
+                      <td style={{ padding: "0.4rem" }}>
+                        {log.isRunning ? `${statusLabel(log.status)} (${log.progressPct}%)` : statusLabel(log.status)}
+                      </td>
+                      <td style={{ padding: "0.4rem", whiteSpace: "nowrap" }}>
+                        {log.period.dateFrom} — {log.period.dateTo}
+                      </td>
+                      <td style={{ padding: "0.4rem", textAlign: "right" }}>{log.recipientsTotal}</td>
+                      <td style={{ padding: "0.4rem", textAlign: "right", color: "#059669" }}>{log.sent}</td>
+                      <td style={{ padding: "0.4rem", textAlign: "right", color: log.failed ? "#b91c1c" : undefined }}>{log.failed}</td>
+                      <td style={{ padding: "0.4rem", textAlign: "right" }}>{log.skippedUnsubscribed}</td>
+                      <td style={{ padding: "0.4rem", textAlign: "right" }}>
+                        {log.trackingOpenedEmails}
+                        {log.trackingOpens > log.trackingOpenedEmails ? (
+                          <span style={{ color: "var(--color-text-secondary)", fontSize: "0.72rem" }}> ({log.trackingOpens})</span>
+                        ) : null}
+                      </td>
+                      <td style={{ padding: "0.4rem", textAlign: "right" }}>{log.trackingClicks}</td>
+                    </tr>
+                    {expandedLogId === log.id && (
+                      <tr>
+                        <td colSpan={10} style={{ padding: "0.5rem 0.65rem", background: "var(--color-bg-hover)", fontSize: "0.76rem" }}>
+                          <div>
+                            Пользователей: {log.uniqueUsers} · контрагентов: {log.uniqueCompanies} · приёмки: {log.reasonBreakdown.acceptance} ·
+                            доставки: {log.reasonBreakdown.delivery} · счета: {log.reasonBreakdown.unpaid}
+                          </div>
+                          <div style={{ marginTop: "0.25rem" }}>
+                            Трекинг: открыли {log.trackingOpenedEmails} писем ({log.trackingOpens} загрузок пикселя), кликнули в{" "}
+                            {log.trackingClickedEmails} ({log.trackingClicks} переходов). Ссылки и отписка не трекаются.
+                          </div>
+                          {log.errors.length > 0 ? (
+                            <ul style={{ margin: "0.35rem 0 0", paddingLeft: "1.1rem" }}>
+                              {log.errors.map((e, i) => (
+                                <li key={`${e.targetLogin}-${e.inn}-${i}`}>
+                                  {e.targetLogin} · {e.inn}: {e.error}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <Typography.Body style={{ marginTop: "0.35rem", color: "var(--color-text-secondary)" }}>Ошибок нет.</Typography.Body>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <Typography.Body style={{ marginTop: "0.65rem", fontSize: "0.78rem", color: "var(--color-text-secondary)", lineHeight: 1.45 }}>
+          Трекинг включён: пиксель <code>/api/haulz-summary-email-open</code>, клики через{" "}
+          <code>/api/haulz-summary-email-click</code>. Нужны миграции 070 и 071. «Спам» по ящику SMTP не показывает — только ESP/Postmaster.
+        </Typography.Body>
       </Panel>
 
       {previewHtml && (

@@ -26,6 +26,9 @@ export type SummaryCronSendJob = {
   cursor: number;
   sent: number;
   failed: number;
+  skippedUnsubscribed: number;
+  trigger: "auto" | "manual";
+  logId: number;
   errors: Array<{ targetLogin: string; inn: string; error: string }>;
   startedAt: string;
   updatedAt: string;
@@ -141,6 +144,9 @@ function parseSendJob(raw: unknown): SummaryCronSendJob | null {
     cursor: Math.max(0, Number(o.cursor) || 0),
     sent: Math.max(0, Number(o.sent) || 0),
     failed: Math.max(0, Number(o.failed) || 0),
+    skippedUnsubscribed: Math.max(0, Number(o.skippedUnsubscribed) || 0),
+    trigger: o.trigger === "manual" ? "manual" : "auto",
+    logId: Math.max(0, Number(o.logId) || 0),
     errors,
     startedAt: String(o.startedAt ?? o.started_at ?? new Date().toISOString()),
     updatedAt: String(o.updatedAt ?? o.updated_at ?? new Date().toISOString()),
@@ -214,6 +220,26 @@ export function resolveSummaryCronPeriod(config: Pick<SummaryCronConfig, "period
   const dateFrom = new Date(dateTo);
   dateFrom.setDate(dateTo.getDate() - (days - 1));
   return { dateFrom: formatIsoDate(dateFrom), dateTo: formatIsoDate(dateTo) };
+}
+
+export function serializeSendJobForApi(job: SummaryCronSendJob | null | undefined) {
+  if (!job) return null;
+  const total = job.recipients.length;
+  const progressPct = total > 0 ? Math.min(100, Math.round((job.cursor / total) * 100)) : 0;
+  return {
+    status: job.status,
+    cursor: job.cursor,
+    sent: job.sent,
+    failed: job.failed,
+    skippedUnsubscribed: job.skippedUnsubscribed,
+    total,
+    progressPct,
+    startedAt: job.startedAt,
+    updatedAt: job.updatedAt,
+    trigger: job.trigger,
+    logId: job.logId,
+    period: job.period,
+  };
 }
 
 export async function loadSummaryCronConfig(pool: Pool): Promise<SummaryCronConfig> {
@@ -412,12 +438,22 @@ async function finalizeSendRun(
   pool: Pool,
   job: SummaryCronSendJob,
   status: string,
+  criteria: SummaryCronCriteria,
 ): Promise<void> {
+  try {
+    const { insertDispatchLog, finishDispatchLog } = await import("./haulzSummaryDispatchLog.js");
+    if (!job.logId) job.logId = await insertDispatchLog(pool, job, criteria);
+    if (job.logId) await finishDispatchLog(pool, job.logId, job, status);
+  } catch {
+    /* ignore */
+  }
   const summary = {
     sent: job.sent,
     failed: job.failed,
+    skippedUnsubscribed: job.skippedUnsubscribed,
     recipients: job.recipients.length,
     period: job.period,
+    trigger: job.trigger,
     errors: job.errors.slice(0, 20),
     batches: Math.ceil(job.recipients.length / Math.max(1, job.recipients.length)),
   };
@@ -434,12 +470,33 @@ async function finalizeSendRun(
   } catch {
     /* ignore */
   }
+
+  try {
+    const { buildDispatchReportFromJob, sendSummaryDispatchReportEmail } = await import(
+      "./haulzSummaryDispatchReport.js"
+    );
+    const report = buildDispatchReportFromJob(job, criteria, status, job.trigger);
+    if (job.logId) {
+      try {
+        const { aggregateTrackingByDispatchLogIds } = await import("./haulzSummaryEmailTrack.js");
+        const agg = await aggregateTrackingByDispatchLogIds(pool, [job.logId]);
+        const t = agg.get(job.logId);
+        if (t) Object.assign(report, t);
+      } catch {
+        /* ignore */
+      }
+    }
+    await sendSummaryDispatchReportEmail(pool, report);
+  } catch {
+    /* отчёт на info@ не должен ломать рассылку */
+  }
 }
 
 async function sendOneSummaryEmail(
   pool: Pool,
   r: SummaryCronRecipient,
   period: { dateFrom: string; dateTo: string },
+  dispatchLogId?: number,
 ): Promise<{ ok: boolean; error?: string; skippedUnsubscribed?: boolean }> {
   const { isSummaryEmailUnsubscribed } = await import("./haulzSummaryUnsubscribe.js");
   if (await isSummaryEmailUnsubscribed(pool, r.targetLogin)) {
@@ -454,7 +511,11 @@ async function sendOneSummaryEmail(
   });
   const html = renderWeeklySummaryHtml(data);
   const subject = `HAULZ: сводка за ${data.periodLabel}`;
-  return sendWeeklySummaryEmail(pool, r.targetLogin, subject, html);
+  return sendWeeklySummaryEmail(pool, r.targetLogin, subject, html, {
+    targetLogin: r.targetLogin,
+    inn: r.inn,
+    dispatchLogId: dispatchLogId && dispatchLogId > 0 ? dispatchLogId : undefined,
+  });
 }
 
 async function processSendJobBatch(
@@ -469,12 +530,12 @@ async function processSendJobBatch(
   for (let i = 0; i < batch.length; i += 1) {
     const r = batch[i];
     try {
-      const sendResult = await sendOneSummaryEmail(pool, r, job.period);
+      const sendResult = await sendOneSummaryEmail(pool, r, job.period, job.logId);
       if (sendResult.ok) {
         job.sent += 1;
         batchSent += 1;
       } else if (sendResult.skippedUnsubscribed) {
-        /* пропуск без ошибки */
+        job.skippedUnsubscribed += 1;
       } else {
         job.failed += 1;
         batchFailed += 1;
@@ -491,10 +552,18 @@ async function processSendJobBatch(
 
   job.updatedAt = new Date().toISOString();
   const done = job.cursor >= job.recipients.length;
+  if (job.logId) {
+    try {
+      const { updateDispatchLogProgress } = await import("./haulzSummaryDispatchLog.js");
+      await updateDispatchLogProgress(pool, job.logId, job);
+    } catch {
+      /* ignore */
+    }
+  }
   if (done) {
     job.status = "completed";
     const status = job.failed === 0 ? "ok" : job.sent > 0 ? "partial" : "failed";
-    await finalizeSendRun(pool, job, status);
+    await finalizeSendRun(pool, job, status, config.criteria);
     await persistSendJob(pool, null);
   } else {
     await persistSendJob(pool, job);
@@ -508,6 +577,7 @@ async function startSendJob(
   config: SummaryCronConfig,
   recipients: SummaryCronRecipient[],
   period: { dateFrom: string; dateTo: string },
+  trigger: "auto" | "manual",
 ): Promise<SummaryCronSendJob> {
   const job: SummaryCronSendJob = {
     status: "running",
@@ -516,10 +586,19 @@ async function startSendJob(
     cursor: 0,
     sent: 0,
     failed: 0,
+    skippedUnsubscribed: 0,
+    trigger,
+    logId: 0,
     errors: [],
     startedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
+  try {
+    const { insertDispatchLog } = await import("./haulzSummaryDispatchLog.js");
+    job.logId = await insertDispatchLog(pool, job, config.criteria);
+  } catch {
+    job.logId = 0;
+  }
   await persistSendJob(pool, job);
   return job;
 }
@@ -600,9 +679,28 @@ export async function runPartnerSummaryCron(
         criteria: config.criteria,
       });
       if (recipients.length === 0) {
+        await finalizeSendRun(
+          pool,
+          {
+            status: "completed",
+            period,
+            recipients: [],
+            cursor: 0,
+            sent: 0,
+            failed: 0,
+            skippedUnsubscribed: 0,
+            trigger: "manual",
+            logId: 0,
+            errors: [],
+            startedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          "ok",
+          config.criteria,
+        );
         return { ok: true, period, sent: 0, failed: 0, recipients: 0, errors: [] };
       }
-      job = await startSendJob(pool, config, recipients, period);
+      job = await startSendJob(pool, config, recipients, period, "manual");
     }
     const deadline = Date.now() + 270_000;
     let lastBatch = { batchSent: 0, batchFailed: 0, done: false };
@@ -676,16 +774,20 @@ export async function runPartnerSummaryCron(
         cursor: 0,
         sent: 0,
         failed: 0,
+        skippedUnsubscribed: 0,
+        trigger: "auto",
+        logId: 0,
         errors: [],
         startedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
       "ok",
+      config.criteria,
     );
     return { ok: true, period, sent: 0, failed: 0, recipients: 0, errors: [] };
   }
 
-  job = await startSendJob(pool, config, recipients, period);
+  job = await startSendJob(pool, config, recipients, period, "auto");
   const { job: updated, batchSent, done } = await processSendJobBatch(pool, config, job);
   return runResultFromJob(updated, { batchSent, jobRunning: !done });
 }

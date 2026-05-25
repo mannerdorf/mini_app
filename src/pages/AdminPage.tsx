@@ -9,6 +9,8 @@ import { PnlSection } from "../pnl/PnlSection";
 import { RefSubdivisionsView } from "../pnl/RefSubdivisionsView";
 import { SUBDIVISIONS } from "../pnl/constants";
 import { stripOoo } from "../lib/formatUtils";
+import { getCachedDocumentEdoInfo } from "../lib/edoStatus";
+import { DocumentsEdoTableStatus } from "./documentsViewBlocks";
 import { getCurrentMonthYm } from "../lib/dateUtils";
 import { downloadBase64File } from "../utils";
 import { AdminDashboardsPanel } from "../components/AdminDashboardsPanel";
@@ -684,6 +686,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     customerName: string;
     customerInn: string;
     fetchedAt: string;
+    data?: Record<string, unknown> | null;
   }[]>([]);
   const [sverkiLoading, setSverkiLoading] = useState(false);
   const [sverkiFetchTrigger, setSverkiFetchTrigger] = useState(0);
@@ -701,6 +704,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     customerInn: string;
     title: string;
     fetchedAt: string;
+    data?: Record<string, unknown> | null;
   }[]>([]);
   const [dogovorsLoading, setDogovorsLoading] = useState(false);
   const [dogovorsFetchTrigger, setDogovorsFetchTrigger] = useState(0);
@@ -6021,6 +6025,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Период по</th>
                     <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Контрагент</th>
                     <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>ИНН</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>ЭДО</th>
                     <th style={{ padding: "0.5rem 0.75rem", textAlign: "right", fontWeight: 600 }}></th>
                   </tr>
                 </thead>
@@ -6030,6 +6035,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     const docDateRaw = row.docDate;
                     const hasDownload = number && docDateRaw;
                     const isDownloading = sverkiDownloadingId === row.id;
+                    const edoInfo = getCachedDocumentEdoInfo(row.data);
                     return (
                       <tr key={row.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docNumber || "—"}</td>
@@ -6038,6 +6044,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.periodTo ? new Date(row.periodTo).toLocaleDateString("ru-RU") : "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem" }}>{stripOoo(row.customerName) || "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.customerInn || "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}><DocumentsEdoTableStatus info={edoInfo} /></td>
                         <td style={{ padding: "0.5rem 0.75rem", textAlign: "right" }}>
                           {hasDownload ? (
                             <Button
@@ -6172,6 +6179,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Контрагент</th>
                     <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>ИНН</th>
                     <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Наименование</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>ЭДО</th>
                     <th style={{ padding: "0.5rem 0.75rem", textAlign: "right", fontWeight: 600 }}></th>
                   </tr>
                 </thead>
@@ -6179,6 +6187,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   {dogovorsList.map((row) => {
                     const hasDownload = row.docNumber && row.docDate && row.customerInn;
                     const isDownloading = dogovorsDownloadingId === row.id;
+                    const edoInfo = getCachedDocumentEdoInfo(row.data);
                     return (
                       <tr key={row.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docNumber || "—"}</td>
@@ -6186,6 +6195,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <td style={{ padding: "0.5rem 0.75rem" }}>{stripOoo(row.customerName) || "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.customerInn || "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem" }}>{row.title || "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}><DocumentsEdoTableStatus info={edoInfo} /></td>
                         <td style={{ padding: "0.5rem 0.75rem", textAlign: "right" }}>
                           {hasDownload ? (
                             <Button

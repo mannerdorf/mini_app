@@ -106,6 +106,62 @@ function resolveCanonicalKey(raw: string): keyof typeof EDO_STATUS_MAP | null {
   return null;
 }
 
+/** Поля статуса ЭДО в кэше договоров и актов сверки (GETdogovors / GETsverki). */
+const CACHED_DOC_EDO_STATUS_KEYS = [
+  "RecipientResponseStatus",
+  "recipientResponseStatus",
+  "DDRecipientResponseStatus",
+  "ddRecipientResponseStatus",
+  "EdoStatus",
+  "edoStatus",
+  "EdoState",
+  "EDO",
+  "StatusEDO",
+  "ЭДО",
+  "DocumentStatus",
+  "documentStatus",
+] as const;
+
+function pickCachedDocEdoString(obj: Record<string, unknown>): string {
+  for (const key of CACHED_DOC_EDO_STATUS_KEYS) {
+    const v = obj[key];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return "";
+}
+
+/** Сырой код статуса ЭДО из `data` записи кэша договора / акта сверки. */
+export function getCachedDocumentEdoRaw(data: unknown): string {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return "";
+  return pickCachedDocEdoString(data as Record<string, unknown>);
+}
+
+/** Статус ЭДО для договора или акта сверки (маппинг как у счетов). */
+export function getCachedDocumentEdoInfo(data: unknown): EdoStatusInfo {
+  return getEdoStatusInfo(getCachedDocumentEdoRaw(data));
+}
+
+/** Фильтр «Статус ЭДО» для договоров / актов сверки. */
+export function cachedDocumentMatchesEdoStatusFilter(data: unknown, filterSet: Set<string>): boolean {
+  if (filterSet.size === 0) return true;
+  return filterSet.has(getCachedDocumentEdoInfo(data).label);
+}
+
+/** Уникальные подписи статусов ЭДО из кэша договоров или актов сверки. */
+export function collectUniqueCachedDocumentEdoLabels(
+  rows: Array<{ data?: unknown }> | undefined | null,
+): string[] {
+  const set = new Set<string>();
+  for (const row of rows || []) {
+    set.add(getCachedDocumentEdoInfo(row?.data).label);
+  }
+  return [...set].sort((a, b) => {
+    if (a === EMPTY_EDO.label) return 1;
+    if (b === EMPTY_EDO.label) return -1;
+    return a.localeCompare(b, "ru");
+  });
+}
+
 export function getEdoStatusInfo(raw: unknown): EdoStatusInfo {
   const key = String(raw ?? "").trim();
   if (!key) return { ...EMPTY_EDO };

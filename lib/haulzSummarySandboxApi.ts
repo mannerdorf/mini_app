@@ -8,9 +8,11 @@ import {
   resolveSummaryCronPeriod,
   runPartnerSummaryCron,
   saveSummaryCronConfig,
+  serializeSendJobForApi,
   type SummaryCronConfig,
   type SummaryCronCriteria,
 } from "./haulzSummaryCron.js";
+import { getDispatchLogById, listDispatchLogs } from "./haulzSummaryDispatchLog.js";
 import { loadHaulzSummaryDirectories } from "./haulzSummaryDirectories.js";
 import {
   buildWeeklySummaryData,
@@ -51,6 +53,7 @@ const SANDBOX_ACTIONS = new Set([
   "cron_save",
   "cron_recipients",
   "cron_run",
+  "cron_logs",
 ]);
 
 export function isHaulzSummarySandboxAction(action: unknown): boolean {
@@ -176,7 +179,19 @@ export async function handleHaulzSummarySandboxRequest(
     if (action === "cron_get") {
       const cronConfig = await loadSummaryCronConfig(pool);
       const period = resolveSummaryCronPeriod(cronConfig);
-      res.status(200).json({ cronConfig, period, request_id: requestId });
+      const sendJob = serializeSendJobForApi(cronConfig.sendJob);
+      let activeLog = null;
+      if (cronConfig.sendJob?.logId) {
+        activeLog = await getDispatchLogById(pool, cronConfig.sendJob.logId);
+      }
+      res.status(200).json({ cronConfig, period, sendJob, activeLog, request_id: requestId });
+      return true;
+    }
+
+    if (action === "cron_logs") {
+      const limit = Math.max(1, Math.min(100, Number(body.limit) || 30));
+      const logs = await listDispatchLogs(pool, limit);
+      res.status(200).json({ logs, request_id: requestId });
       return true;
     }
 
@@ -209,7 +224,9 @@ export async function handleHaulzSummarySandboxRequest(
 
     if (action === "cron_run") {
       const result = await runPartnerSummaryCron(pool, { force: true });
-      res.status(200).json({ ...result, request_id: requestId });
+      const cronConfig = await loadSummaryCronConfig(pool);
+      const sendJob = serializeSendJobForApi(cronConfig.sendJob);
+      res.status(200).json({ ...result, sendJob, request_id: requestId });
       return true;
     }
 
