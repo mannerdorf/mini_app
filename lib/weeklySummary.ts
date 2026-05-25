@@ -336,10 +336,9 @@ function metricsSubline(m: GroupMetrics): string {
   return `${formatMoney(m.sum)} ₽ · ${Math.round(m.pw)} кг · ${Math.round(m.mest)} мест<br/>${Math.round(m.w)} кг · ${formatVol(m.vol)} м³`;
 }
 
-/** Плитки письма: масштаб ~70% от исходного (уменьшение на 30%). */
 const TILE_CELL_PAD = "6px";
 const TILE_RADIUS = "8px";
-const TILE_INNER_PAD = "11px 8px";
+const TILE_INNER_PAD = "14px 10px";
 
 function sectionTitle(text: string): string {
   return `<p style="${emailSectionTitleStyle()}">${text}</p>`;
@@ -429,15 +428,6 @@ export function renderWeeklySummaryHtml(data: WeeklySummaryData): string {
         </tr>
       </table>
 
-      ${sectionTitle("Сейчас в работе")}
-      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:11px;">
-        <tr>
-          ${kpiCard("Готов к выдаче", data.readyNow, "#0d9488", "33%")}
-          ${kpiCard("В пути", data.inTransitNow, "#ca8a04", "33%")}
-          ${kpiCard("На доставке", data.deliveringNow, "#7c3aed", "34%")}
-        </tr>
-      </table>
-
       ${sectionTitle("Последняя миля")}
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:11px;">
         <tr>
@@ -454,6 +444,15 @@ export function renderWeeklySummaryHtml(data: WeeklySummaryData): string {
         </tr>
       </table>
 
+      ${sectionTitle("Сейчас в работе")}
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:11px;">
+        <tr>
+          ${kpiCard("Готов к выдаче", data.readyNow, "#0d9488", "33%")}
+          ${kpiCard("В пути", data.inTransitNow, "#ca8a04", "33%")}
+          ${kpiCard("На доставке", data.deliveringNow, "#7c3aed", "34%")}
+        </tr>
+      </table>
+
       ${sectionTitle("ЭДО за период")}
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:11px;">
         <tr>
@@ -461,6 +460,7 @@ export function renderWeeklySummaryHtml(data: WeeklySummaryData): string {
         </tr>
       </table>
 
+      ${sectionTitle("Финансы")}
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;">
         <tr>
           ${financeCard("Счетов", String(data.unpaidInvoices.count), "#b91c1c")}

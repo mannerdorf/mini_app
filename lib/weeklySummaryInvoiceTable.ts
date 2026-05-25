@@ -270,7 +270,7 @@ export function renderUnpaidInvoicesTableHtml(rows: UnpaidInvoiceRow[], totalCou
       <thead>
         <tr style="background:#f9fafb;">
           <th style="${headCell}">Номер</th>
-          <th style="${headCell}">Дата</th>
+          <th style="${headCell}">Дата счёта</th>
           <th style="${headCell}">Плановая дата доставки</th>
           <th style="${headCell}">Дата доставки</th>
           <th style="${headCell}">Статус</th>
