@@ -17,7 +17,8 @@ import {
     pickNomenclatureText,
     type SanctionCheckResult,
 } from "../lib/sanctions";
-import { normalizeStatus, STATUS_MAP, getFilterKeyByStatus, BILL_STATUS_MAP } from "../lib/statusUtils";
+import { normalizeStatus, STATUS_MAP, getFilterKeyByStatus, BILL_STATUS_MAP, getSumColorByPaymentStatus } from "../lib/statusUtils";
+import { invoiceBalance, invoiceDocSum, invoiceSumPaid } from "../../lib/invoiceAmounts.js";
 import { StatusBadge } from "../components/shared/StatusBadges";
 import {
     aggregateInvoiceEdoDocStats,
@@ -1108,7 +1109,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     }, [docSection]);
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
-    const [innerTableSortColumn, setInnerTableSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'deliveryStatus' | 'route'>('date');
+    const [innerTableSortColumn, setInnerTableSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'paid' | 'balance' | 'deliveryStatus' | 'route'>('date');
     const [innerTableSortOrder, setInnerTableSortOrder] = useState<'asc' | 'desc'>('desc');
     const [innerTableActSortColumn, setInnerTableActSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'deliveryStatus' | 'route'>('date');
     const [innerTableActSortOrder, setInnerTableActSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -2556,7 +2557,7 @@ useEffect(() => {
         else { setTableSortColumn(column); setTableSortOrder('asc'); }
     };
 
-    const handleInnerTableSort = (column: 'number' | 'date' | 'status' | 'sum' | 'deliveryStatus' | 'route') => {
+    const handleInnerTableSort = (column: 'number' | 'date' | 'status' | 'sum' | 'paid' | 'balance' | 'deliveryStatus' | 'route') => {
         if (innerTableSortColumn === column) setInnerTableSortOrder(o => o === 'asc' ? 'desc' : 'asc');
         else { setInnerTableSortColumn(column); setInnerTableSortOrder(column === 'date' ? 'desc' : 'asc'); }
     };
@@ -2646,7 +2647,9 @@ useEffect(() => {
         const getNum = (inv: any) => (inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '').toString().replace(/^0000-/, '');
         const getDate = (inv: any) => (inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '').toString();
         const getStatus = (inv: any) => normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
-        const getSum = (inv: any) => Number(inv.SumDoc ?? inv.Sum ?? inv.sum ?? inv.Сумма ?? inv.Amount ?? 0) || 0;
+        const getSum = (inv: any) => invoiceDocSum(inv);
+        const getPaid = (inv: any) => invoiceSumPaid(inv);
+        const getBalance = (inv: any) => invoiceBalance(inv);
         const getDeliveryState = (inv: any) => {
             const num = getFirstCargoNumberFromInvoice(inv);
             return (num ? cargoStateByNumber.get(normCargoKey(num)) : undefined) ?? '';
@@ -2662,6 +2665,8 @@ useEffect(() => {
                 case 'date': cmp = (getDate(a) || '').localeCompare(getDate(b) || ''); break;
                 case 'status': cmp = (getStatus(a) || '').localeCompare(getStatus(b) || ''); break;
                 case 'sum': cmp = getSum(a) - getSum(b); break;
+                case 'paid': cmp = getPaid(a) - getPaid(b); break;
+                case 'balance': cmp = getBalance(a) - getBalance(b); break;
                 case 'deliveryStatus': cmp = (getDeliveryState(a) || '').localeCompare(getDeliveryState(b) || ''); break;
                 case 'route': cmp = (getRoute(a) || '').localeCompare(getRoute(b) || ''); break;
             }
@@ -3842,13 +3847,18 @@ useEffect(() => {
                                                                 <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('deliveryStatus'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span> {innerTableSortColumn === 'deliveryStatus' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th className="cargo-inner-table__col-route doc-inner-table-route cargo-inner-table__col-route--desktop" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('route'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span> {innerTableSortColumn === 'route' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 {showSums && <th className="cargo-inner-table__col-sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('sum'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Сумма</span><span className="cargo-inner-table__head-short">Сум.</span> {innerTableSortColumn === 'sum' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
+                                                                {showSums && <th className="cargo-inner-table__col-paid" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('paid'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Оплачено</span><span className="cargo-inner-table__head-short">Опл.</span> {innerTableSortColumn === 'paid' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
+                                                                {showSums && <th className="cargo-inner-table__col-balance" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('balance'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Остаток</span><span className="cargo-inner-table__head-short">Ост.</span> {innerTableSortColumn === 'balance' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
                                                             </tr>
                                                         </thead>
                                                         <tbody>
                                                             {sortInvoices(row.items).map((inv: any, j: number) => {
                                                                 const inum = inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '';
                                                                 const idt = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '';
-                                                                const isum = inv.SumDoc ?? inv.Sum ?? inv.sum ?? inv.Сумма ?? inv.Amount ?? 0;
+                                                                const isum = invoiceDocSum(inv);
+                                                                const ipaid = invoiceSumPaid(inv);
+                                                                const ibalance = invoiceBalance(inv);
+                                                                const ipayState = String(inv.StateBill ?? inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
                                                                 const ist = normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
                                                                 const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
                                                                 const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
@@ -3875,7 +3885,9 @@ useEffect(() => {
                                                                         <td className="cargo-inner-table__col-route doc-inner-table-route cargo-inner-table__col-route--desktop" style={{ padding: '0.35rem 0.3rem' }}>
                                                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
                                                                         </td>
-                                                                        {showSums && <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{isum != null ? formatCurrency(isum, true) : '—'}</span></td>}
+                                                                        {showSums && <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(isum, true)}</span></td>}
+                                                                        {showSums && <td className="cargo-inner-table__col-paid documents-invoices-inner-table__sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(ipaid, true)}</span></td>}
+                                                                        {showSums && <td className="cargo-inner-table__col-balance documents-invoices-inner-table__sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value" style={{ color: getSumColorByPaymentStatus(ipayState) }}>{formatCurrency(ibalance, true)}</span></td>}
                                                                     </tr>
                                                                 );
                                                             })}
@@ -3910,13 +3922,18 @@ useEffect(() => {
                                 <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span></th>
                                 <th className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span></th>
                                 {showSums && <th className="cargo-inner-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Сумма</span><span className="cargo-inner-table__head-short">Сум.</span></th>}
+                                {showSums && <th className="cargo-inner-table__col-paid" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Оплачено</span><span className="cargo-inner-table__head-short">Опл.</span></th>}
+                                {showSums && <th className="cargo-inner-table__col-balance" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Остаток</span><span className="cargo-inner-table__head-short">Ост.</span></th>}
                             </tr>
                         </thead>
                         <tbody>
                             {sortInvoices(filteredItems).map((inv: any, i: number) => {
                                 const inum = inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '';
                                 const idt = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '';
-                                const isum = inv.SumDoc ?? inv.Sum ?? inv.sum ?? inv.Сумма ?? inv.Amount ?? 0;
+                                const isum = invoiceDocSum(inv);
+                                const ipaid = invoiceSumPaid(inv);
+                                const ibalance = invoiceBalance(inv);
+                                const ipayState = String(inv.StateBill ?? inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
                                 const ist = normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
                                 const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
                                 const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
@@ -3943,7 +3960,9 @@ useEffect(() => {
                                         <td className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem' }}>
                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
                                         </td>
-                                        {showSums && <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{isum != null ? formatCurrency(isum, true) : '—'}</span></td>}
+                                        {showSums && <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(isum, true)}</span></td>}
+                                        {showSums && <td className="cargo-inner-table__col-paid documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(ipaid, true)}</span></td>}
+                                        {showSums && <td className="cargo-inner-table__col-balance documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value" style={{ color: getSumColorByPaymentStatus(ipayState) }}>{formatCurrency(ibalance, true)}</span></td>}
                                     </tr>
                                 );
                             })}
@@ -3952,6 +3971,8 @@ useEffect(() => {
                             <tr style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                                 <td colSpan={showSums ? 5 : 4} style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
                                 {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrency(documentsSummary.sum)}</td>}
+                                {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>—</td>}
+                                {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>—</td>}
                             </tr>
                         </tfoot>
                     </table>

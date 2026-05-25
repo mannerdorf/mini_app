@@ -2,6 +2,7 @@
 
 import { cargoPlannedDeliveryDateFromItem, normalizeCargoDateOnly } from "./cargoDateFilter.js";
 import { formatCargoRoute } from "./cityToCode.js";
+import { invoiceBalance, invoiceSumPaid } from "./invoiceAmounts.js";
 import { emailTableBodyCellStyle, emailTableHeadCellStyle } from "./emailTypography.js";
 
 export type UnpaidInvoiceRow = {
@@ -14,6 +15,8 @@ export type UnpaidInvoiceRow = {
   deliveryDate: string;
   deliveryDateDisplay: string;
   sum: number;
+  sumPaid: number;
+  balance: number;
   paymentStatus: string;
   deliveryStatus: string;
   route: string;
@@ -230,6 +233,8 @@ export function buildUnpaidInvoiceRow(
     deliveryDate,
     deliveryDateDisplay: deliveryDate ? formatShortInvoiceDate(deliveryDate) : "",
     sum: invoiceSum,
+    sumPaid: invoiceSumPaid(inv),
+    balance: invoiceBalance(inv),
     paymentStatus,
     deliveryStatus,
     route,
@@ -246,7 +251,11 @@ export function renderUnpaidInvoicesTableHtml(rows: UnpaidInvoiceRow[], totalCou
     .map((r) => {
       const payStyle = paymentBadgeStyle(r.paymentStatus);
       const delStyle = deliveryBadgeStyle(r.deliveryStatus);
-      const sum = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(Math.round(r.sum));
+      const fmt = (n: number) =>
+        new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(Math.round(n));
+      const sum = fmt(r.sum);
+      const paid = fmt(r.sumPaid);
+      const balance = fmt(r.balance);
       return `<tr>
         <td style="${bodyCell}font-weight:600;">${r.numberDisplay}</td>
         <td style="${bodyCell}color:#4b5563;white-space:nowrap;">${r.dateDisplay}</td>
@@ -277,6 +286,8 @@ export function renderUnpaidInvoicesTableHtml(rows: UnpaidInvoiceRow[], totalCou
           <th style="${headCell}">Статус перевозки</th>
           <th style="${headCell}">Маршрут</th>
           <th style="${headCell}text-align:right;">Сумма</th>
+          <th style="${headCell}text-align:right;">Оплачено</th>
+          <th style="${headCell}text-align:right;">Остаток</th>
         </tr>
       </thead>
       <tbody>${bodyRows}</tbody>
