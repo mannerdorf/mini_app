@@ -5,7 +5,20 @@ import {
   type InvoiceEdoDocLabel,
 } from "./edoStatusServer.js";
 import { getInvoicePaymentFilterKey } from "./invoicePaymentFilter.js";
+import { cityToCode } from "./cityToCode.js";
 import {
+  emailBodyStyle,
+  emailFinanceValueStyle,
+  emailSectionTitleStyle,
+  emailTileLabelStyle,
+  emailTileMetricSmStyle,
+  emailTileMetricStyle,
+  emailTileSublineStyle,
+  edoDocDisplayLabel,
+  HAULZ_EMAIL_HEAD_LINKS,
+} from "./emailTypography.js";
+import {
+  buildCargoPlannedDeliveryDateByNumber,
   buildCargoDeliveryDateByNumber,
   buildCargoRouteByNumber,
   buildCargoStateByNumber,
@@ -86,13 +99,6 @@ function getCargoStatusKey(state: unknown): CargoStatusKey {
   if (s.includes("готов")) return "ready";
   if (s.includes("доставке")) return "delivering";
   return "other";
-}
-
-function cityToCode(city: unknown): string {
-  const s = String(city ?? "").trim().toUpperCase();
-  if (s.includes("МОСК") || s === "MSK" || s.includes("MOSCOW")) return "MSK";
-  if (s.includes("КАЛИН") || s === "KGD" || s.includes("KALININGRAD")) return "KGD";
-  return s.slice(0, 3);
 }
 
 function normalizePzvText(v: unknown): string {
@@ -221,6 +227,7 @@ export async function buildWeeklySummaryData(
 
   const cargoStateByNumber = buildCargoStateByNumber(perevozkiAllInn);
   const cargoRouteByNumber = buildCargoRouteByNumber(perevozkiAllInn);
+  const cargoPlannedDeliveryDateByNumber = buildCargoPlannedDeliveryDateByNumber(perevozkiAllInn);
   const cargoDeliveryDateByNumber = buildCargoDeliveryDateByNumber(perevozkiAllInn);
 
   const acceptedInPeriod = emptyMetrics();
@@ -270,7 +277,15 @@ export async function buildWeeklySummaryData(
     const sum = invoiceSum(inv);
     totalDebt += sum;
     unpaidRows.push(
-      buildUnpaidInvoiceRow(inv, cargoStateByNumber, cargoRouteByNumber, cargoDeliveryDateByNumber, d, sum),
+      buildUnpaidInvoiceRow(
+        inv,
+        cargoStateByNumber,
+        cargoRouteByNumber,
+        cargoPlannedDeliveryDateByNumber,
+        cargoDeliveryDateByNumber,
+        d,
+        sum,
+      ),
     );
   }
   unpaidRows.sort((a, b) => b.sum - a.sum);
@@ -326,13 +341,17 @@ const TILE_CELL_PAD = "6px";
 const TILE_RADIUS = "8px";
 const TILE_INNER_PAD = "11px 8px";
 
+function sectionTitle(text: string): string {
+  return `<p style="${emailSectionTitleStyle()}">${text}</p>`;
+}
+
 function kpiCard(label: string, m: GroupMetrics, color: string, width = "25%"): string {
   return `
     <td style="padding:${TILE_CELL_PAD};vertical-align:top;width:${width};">
       <div style="background:${color};border-radius:${TILE_RADIUS};padding:${TILE_INNER_PAD};text-align:center;">
-        <div style="font-size:20px;font-weight:700;color:#fff;line-height:1.1;">${m.count}</div>
-        <div style="font-size:8px;color:rgba(255,255,255,0.95);margin-top:4px;">${label}</div>
-        <div style="font-size:7px;color:rgba(255,255,255,0.85);margin-top:6px;line-height:1.35;">${metricsSubline(m)}</div>
+        <div style="${emailTileMetricStyle()}">${m.count}</div>
+        <div style="${emailTileLabelStyle()}">${label}</div>
+        <div style="${emailTileSublineStyle()}">${metricsSubline(m)}</div>
       </div>
     </td>`;
 }
@@ -341,8 +360,8 @@ function financeCard(label: string, value: string, color: string): string {
   return `
     <td style="padding:${TILE_CELL_PAD};vertical-align:top;width:50%;">
       <div style="background:${color};border-radius:${TILE_RADIUS};padding:${TILE_INNER_PAD};text-align:center;">
-        <div style="font-size:18px;font-weight:700;color:#fff;line-height:1.1;">${value}</div>
-        <div style="font-size:8px;color:rgba(255,255,255,0.95);margin-top:4px;">${label}</div>
+        <div style="${emailFinanceValueStyle()}">${value}</div>
+        <div style="${emailTileLabelStyle()}">${label}</div>
       </div>
     </td>`;
 }
@@ -350,14 +369,15 @@ function financeCard(label: string, value: string, color: string): string {
 function edoCard(label: string, agg: { signed: number; total: number }, color: string): string {
   const main = agg.total > 0 ? `${agg.signed} / ${agg.total}` : "0";
   const pct = agg.total > 0 ? Math.round((agg.signed / agg.total) * 100) : 0;
-  const subLabel = label === "СЧЕТ" ? "получено" : "Подписано";
+  const subLabel = label === "СЧЕТ" ? "Получено" : "Подписано";
   const sub = agg.total > 0 ? `${subLabel} ${pct}%` : "Нет статусов";
+  const title = edoDocDisplayLabel(label);
   return `
     <td style="padding:${TILE_CELL_PAD};vertical-align:top;width:25%;">
       <div style="background:${color};border-radius:${TILE_RADIUS};padding:10px 7px;text-align:center;">
-        <div style="font-size:15px;font-weight:700;color:#fff;line-height:1.1;">${main}</div>
-        <div style="font-size:8px;color:rgba(255,255,255,0.95);margin-top:4px;">${label}</div>
-        <div style="font-size:7px;color:rgba(255,255,255,0.85);margin-top:4px;">${sub}</div>
+        <div style="${emailTileMetricSmStyle()}">${main}</div>
+        <div style="${emailTileLabelStyle()}">${title}</div>
+        <div style="${emailTileSublineStyle()}">${sub}</div>
       </div>
     </td>`;
 }
@@ -378,8 +398,8 @@ export function renderWeeklySummaryHtml(data: WeeklySummaryData): string {
       : "Компания";
 
   return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
-<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">${HAULZ_EMAIL_HEAD_LINKS}</head>
+<body style="${emailBodyStyle()}">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;background:#fff;">
     <tr><td style="background:linear-gradient(135deg,#1e3a8a,#2563eb);padding:20px;color:#fff;">
       <table width="100%" cellpadding="0" cellspacing="0">
@@ -401,7 +421,7 @@ export function renderWeeklySummaryHtml(data: WeeklySummaryData): string {
         Краткая сводка по вашим перевозкам и документам за прошедшую неделю.
       </p>
 
-      <p style="margin:0 0 7px;font-size:13px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:0.04em;">За период</p>
+      ${sectionTitle("За период")}
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:11px;">
         <tr>
           ${kpiCard("Принято", data.acceptedInPeriod, "#2563eb", "50%")}
@@ -409,7 +429,7 @@ export function renderWeeklySummaryHtml(data: WeeklySummaryData): string {
         </tr>
       </table>
 
-      <p style="margin:0 0 7px;font-size:13px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:0.04em;">Сейчас в работе (на дату письма)</p>
+      ${sectionTitle("Сейчас в работе")}
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:11px;">
         <tr>
           ${kpiCard("Готов к выдаче", data.readyNow, "#0d9488", "33%")}
@@ -418,7 +438,7 @@ export function renderWeeklySummaryHtml(data: WeeklySummaryData): string {
         </tr>
       </table>
 
-      <p style="margin:0 0 7px;font-size:13px;font-weight:600;color:#374151;">Последняя миля</p>
+      ${sectionTitle("Последняя миля")}
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:11px;">
         <tr>
           ${kpiCard("Самовывоз", data.lastMile.selfPickup, "#1d4ed8", "50%")}
@@ -426,15 +446,15 @@ export function renderWeeklySummaryHtml(data: WeeklySummaryData): string {
         </tr>
       </table>
 
-      <p style="margin:0 0 7px;font-size:13px;font-weight:600;color:#374151;">Заборная логистика</p>
+      ${sectionTitle("Заборная логистика")}
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:11px;">
         <tr>
-          ${kpiCard("PickUP", data.pickupLogistics.pickup, "#0369a1", "50%")}
-          ${kpiCard("terminal-to", data.pickupLogistics.terminalTo, "#0f766e", "50%")}
+          ${kpiCard("Pickup", data.pickupLogistics.pickup, "#0369a1", "50%")}
+          ${kpiCard("Terminal-to", data.pickupLogistics.terminalTo, "#0f766e", "50%")}
         </tr>
       </table>
 
-      <p style="margin:0 0 7px;font-size:13px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:0.04em;">ЭДО за период</p>
+      ${sectionTitle("ЭДО за период")}
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:11px;">
         <tr>
           ${INVOICE_EDO_DOC_LABELS.map((label) => edoCard(label, data.edoByDoc[label], EDO_COLORS[label])).join("")}

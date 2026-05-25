@@ -38,3 +38,39 @@ export function isCargoInDateRange(
   const d = cargoItemDate(item);
   return !!d && d >= dateFrom && d <= dateTo;
 }
+
+/** Поля плановой даты доставки — как в «Документы» / карточка груза (DateArrival и др.). */
+const CARGO_PLANNED_DELIVERY_KEYS = [
+  "DateArrival",
+  "PlannedDeliveryDate",
+  "PlanDeliveryDate",
+  "DateDeliveryPlan",
+  "ПлановаяДатаДоставки",
+  "ПланДатаДоставки",
+  "ПлановаяДата",
+  "PlanDate",
+  "ДатаПрибытияПлан",
+  "ДатаДоставкиПлан",
+  "ПланДатаПрибытия",
+  "ПлановаяДатаПрибытия",
+  "DateVrPlan",
+  "DatePrihPlan",
+  "ДатаПлан",
+] as const;
+
+function isValidPlannedDateIso(iso: string): boolean {
+  if (!iso || iso < "1990-01-01") return false;
+  if (iso === "0001-01-01" || iso === "1900-01-01" || iso === "1901-01-01") return false;
+  return true;
+}
+
+/** Ближайшая (минимальная) плановая дата доставки по полям перевозки. */
+export function cargoPlannedDeliveryDateFromItem(item: Record<string, unknown>): string {
+  let earliest = "";
+  for (const k of CARGO_PLANNED_DELIVERY_KEYS) {
+    const d = normalizeCargoDateOnly(item[k]);
+    if (!isValidPlannedDateIso(d)) continue;
+    if (!earliest || d < earliest) earliest = d;
+  }
+  return earliest;
+}

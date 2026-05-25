@@ -219,7 +219,15 @@ export function CargoDetailsModal({
         }
     };
 
-    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', 'PZV_Sender', 'PZV_Receiver', 'PZV_Sender_Id', 'PZV_Receiver_Id', '_role', '_roles', 'Driver', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel'];
+    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'Sum_paid', 'SumPaid', 'sum_paid', 'sumPaid', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', 'PZV_Sender', 'PZV_Receiver', 'PZV_Sender_Id', 'PZV_Receiver_Id', '_role', '_roles', 'Driver', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel'];
+    const parseAmount = (val: unknown): number => {
+        if (val === undefined || val === null || (typeof val === 'string' && val.trim() === '')) return 0;
+        const num = typeof val === 'string' ? parseFloat(val.replace(',', '.')) : Number(val);
+        return Number.isFinite(num) ? num : 0;
+    };
+    const cargoSum = parseAmount(item.Sum);
+    const cargoSumPaid = parseAmount((item as any).Sum_paid ?? (item as any).SumPaid ?? (item as any).sum_paid ?? (item as any).sumPaid);
+    const cargoBalance = cargoSum - cargoSumPaid;
     const isCustomerRole = getCargoRoleSet(item).has("Customer");
     const roleLabel = getCargoDisplayRoleLabel(item);
     const selfPickup = cargoLastMileIsSelfPickup(item);
@@ -281,6 +289,8 @@ export function CargoDetailsModal({
                                         if (isCustomerRole) {
                                             if (item.PW !== undefined) lines.push(`Плат. вес: ${item.PW} кг`);
                                             if (item.Sum !== undefined) lines.push(`Стоимость: ${formatCurrency(item.Sum as any)}`);
+                                            lines.push(`Оплачено: ${formatCurrency(cargoSumPaid)}`);
+                                            lines.push(`Остаток: ${formatCurrency(cargoBalance)}`);
                                             if (item.StateBill) lines.push(`Статус счета: ${item.StateBill}`);
                                         }
                                         const text = lines.join("\n");
@@ -380,6 +390,12 @@ export function CargoDetailsModal({
                         </>
                     )}
                 </div>
+                {isCustomerRole && showSums && (
+                    <div className="details-grid-modal cargo-finance-extra">
+                        <DetailItem label="Оплачено" value={formatCurrency(cargoSumPaid)} />
+                        <DetailItem label="Остаток" value={formatCurrency(cargoBalance)} textColor={getSumColorByPaymentStatus(item.StateBill)} />
+                    </div>
+                )}
                 {hasLastMileBlock && (
                     <div style={{ marginTop: '0.75rem' }}>
                         <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>

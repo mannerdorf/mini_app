@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import type { Pool } from "pg";
+import { emailBodyStyle, HAULZ_EMAIL_HEAD_LINKS } from "./emailTypography.js";
 
 export type EmailSettings = {
   smtp_host: string | null;
@@ -87,8 +88,8 @@ const DEFAULT_REGISTRATION_HTML = (
   return `
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"></head>
-<body style="font-family: Arial, sans-serif; line-height: 1.5; color: #333;">
+<head><meta charset="utf-8">${HAULZ_EMAIL_HEAD_LINKS}</head>
+<body style="${emailBodyStyle("line-height:1.5;")}">
   <p>Здравствуйте!</p>
   <p>Вы зарегистрированы в мини-приложении HAULZ${companyName ? ` для компании ${companyName}` : ""}.</p>
   <p><strong>Данные для входа:</strong></p>
@@ -108,8 +109,8 @@ const DEFAULT_PASSWORD_RESET_HTML = (login: string, password: string, companyNam
   return `
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"></head>
-<body style="font-family: Arial, sans-serif; line-height: 1.5; color: #333;">
+<head><meta charset="utf-8">${HAULZ_EMAIL_HEAD_LINKS}</head>
+<body style="${emailBodyStyle("line-height:1.5;")}">
   <p>Здравствуйте!</p>
   <p>Вам выдан новый временный пароль для входа в HAULZ.</p>
   <p><strong>Данные для входа:</strong></p>

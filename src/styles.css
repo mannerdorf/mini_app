@@ -2541,6 +2541,10 @@ body {
     }
 }
 
+.details-grid-modal.cargo-finance-extra {
+    margin-top: calc(-1 * var(--space-6, 24px) + var(--element-gap, 16px));
+}
+
 /* Суммирующая строка: 1 ряд на десктопе, на телефонах 2 ряда (3+2) */
 .summary-metrics { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.5rem; align-items: center; max-width: fit-content; margin: 0 auto; }
 @media (max-width: 480px) {

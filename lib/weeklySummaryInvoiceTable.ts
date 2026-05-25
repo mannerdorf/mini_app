@@ -1,12 +1,16 @@
 /** Таблица счетов в письме «Самери» — стиль как в разделе «Документы → Счета». */
 
-import { normalizeCargoDateOnly } from "./cargoDateFilter.js";
+import { cargoPlannedDeliveryDateFromItem, normalizeCargoDateOnly } from "./cargoDateFilter.js";
+import { formatCargoRoute } from "./cityToCode.js";
+import { emailTableBodyCellStyle, emailTableHeadCellStyle } from "./emailTypography.js";
 
 export type UnpaidInvoiceRow = {
   number: string;
   numberDisplay: string;
   date: string;
   dateDisplay: string;
+  plannedDeliveryDate: string;
+  plannedDeliveryDateDisplay: string;
   deliveryDate: string;
   deliveryDateDisplay: string;
   sum: number;
@@ -55,11 +59,11 @@ function normalizeCargoStatusLabel(status: string): string {
   return s;
 }
 
-function cityToCode(city: unknown): string {
-  const s = String(city ?? "").trim().toLowerCase();
-  if (/калининград|кгд/.test(s)) return "KGD";
-  if (/москва|мск|moscow/.test(s)) return "MSK";
-  return String(city ?? "").trim().toUpperCase().slice(0, 3);
+/** Как в разделе «Грузы»: дата доставки и статус счёта — только для доставленных перевозок. */
+export function cargoIsDelivered(state: unknown): boolean {
+  const label = normalizeCargoStatusLabel(coerceCargoStatusDisplay(state));
+  const lower = label.toLowerCase();
+  return lower.includes("доставлен") || lower.includes("заверш");
 }
 
 export function normCargoKey(num: string | null | undefined): string {
@@ -118,12 +122,29 @@ export function buildCargoRouteByNumber(perevozkiItems: Record<string, unknown>[
       .trim();
     if (!raw) continue;
     const key = raw.replace(/^0+/, "") || raw;
-    const from = cityToCode(c.CitySender ?? c.citySender);
-    const to = cityToCode(c.CityReceiver ?? c.cityReceiver);
-    const route = [from, to].filter(Boolean).join(" – ");
+    const route = formatCargoRoute(c.CitySender ?? c.citySender, c.CityReceiver ?? c.cityReceiver);
     if (!route) continue;
     m.set(key, route);
     if (key !== raw) m.set(raw, route);
+  }
+  return m;
+}
+
+/** Плановая дата доставки по номеру груза. */
+export function buildCargoPlannedDeliveryDateByNumber(
+  perevozkiItems: Record<string, unknown>[],
+): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const c of perevozkiItems) {
+    const raw = String(c.Number ?? c.number ?? "")
+      .replace(/^0000-/, "")
+      .trim();
+    if (!raw) continue;
+    const planDate = cargoPlannedDeliveryDateFromItem(c);
+    if (!planDate) continue;
+    const key = raw.replace(/^0+/, "") || raw;
+    m.set(key, planDate);
+    if (key !== raw) m.set(raw, planDate);
   }
   return m;
 }
@@ -135,9 +156,9 @@ export function buildCargoDeliveryDateByNumber(perevozkiItems: Record<string, un
     const raw = String(c.Number ?? c.number ?? "")
       .replace(/^0000-/, "")
       .trim();
-    if (!raw) continue;
+    if (!raw || !cargoIsDelivered(c.State)) continue;
     const dateVr = normalizeCargoDateOnly(c.DateVr);
-    if (!dateVr) continue;
+    if (!dateVr || dateVr < "1990-01-01") continue;
     const key = raw.replace(/^0+/, "") || raw;
     m.set(key, dateVr);
     if (key !== raw) m.set(raw, dateVr);
@@ -180,28 +201,34 @@ export function buildUnpaidInvoiceRow(
   inv: Record<string, unknown>,
   cargoStateByNumber: Map<string, string>,
   cargoRouteByNumber: Map<string, string>,
+  cargoPlannedDeliveryDateByNumber: Map<string, string>,
   cargoDeliveryDateByNumber: Map<string, string>,
   invoiceDateIso: string,
   invoiceSum: number,
 ): UnpaidInvoiceRow {
   const number = String(inv.Number ?? inv.number ?? inv.Номер ?? "").trim();
-  const paymentStatus =
-    normalizeInvoiceStatusLabel(
-      inv.StateBill ?? inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.PaymentStatus,
-    ) || "Не оплачен";
   const cargoNum = getFirstCargoNumberFromInvoice(inv);
   const key = cargoNum ? normCargoKey(cargoNum) : "";
   const deliveryStatus = key ? cargoStateByNumber.get(key) || "" : "";
+  const isDelivered = key ? cargoIsDelivered(deliveryStatus) : false;
+  const paymentStatus = isDelivered
+    ? normalizeInvoiceStatusLabel(
+        inv.StateBill ?? inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.PaymentStatus,
+      ) || "Не оплачен"
+    : "";
   const route = key ? cargoRouteByNumber.get(key) || "" : "";
-  const deliveryDate = key ? cargoDeliveryDateByNumber.get(key) || "" : "";
+  const plannedDeliveryDate = key ? cargoPlannedDeliveryDateByNumber.get(key) || "" : "";
+  const deliveryDate = isDelivered && key ? cargoDeliveryDateByNumber.get(key) || "" : "";
 
   return {
     number,
     numberDisplay: formatInvoiceNumberDisplay(number),
     date: invoiceDateIso,
     dateDisplay: formatShortInvoiceDate(invoiceDateIso),
+    plannedDeliveryDate,
+    plannedDeliveryDateDisplay: plannedDeliveryDate ? formatShortInvoiceDate(plannedDeliveryDate) : "",
     deliveryDate,
-    deliveryDateDisplay: deliveryDate ? formatShortInvoiceDate(deliveryDate) : "—",
+    deliveryDateDisplay: deliveryDate ? formatShortInvoiceDate(deliveryDate) : "",
     sum: invoiceSum,
     paymentStatus,
     deliveryStatus,
@@ -212,9 +239,8 @@ export function buildUnpaidInvoiceRow(
 export function renderUnpaidInvoicesTableHtml(rows: UnpaidInvoiceRow[], totalCount: number): string {
   if (rows.length === 0) return "";
 
-  const headCell =
-    "padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.03em;border-bottom:1px solid #e5e7eb;";
-  const bodyCell = "padding:10px;border-bottom:1px solid #f3f4f6;vertical-align:middle;font-size:13px;color:#111827;";
+  const headCell = emailTableHeadCellStyle();
+  const bodyCell = emailTableBodyCellStyle();
 
   const bodyRows = rows
     .map((r) => {
@@ -224,8 +250,9 @@ export function renderUnpaidInvoicesTableHtml(rows: UnpaidInvoiceRow[], totalCou
       return `<tr>
         <td style="${bodyCell}font-weight:600;">${r.numberDisplay}</td>
         <td style="${bodyCell}color:#4b5563;white-space:nowrap;">${r.dateDisplay}</td>
-        <td style="${bodyCell}color:#4b5563;white-space:nowrap;">${r.deliveryDateDisplay}</td>
-        <td style="${bodyCell}">${badgeHtml(r.paymentStatus, payStyle)}</td>
+        <td style="${bodyCell}color:#4b5563;white-space:nowrap;">${r.plannedDeliveryDateDisplay || ""}</td>
+        <td style="${bodyCell}color:#4b5563;white-space:nowrap;">${r.deliveryDateDisplay || ""}</td>
+        <td style="${bodyCell}">${r.paymentStatus ? badgeHtml(r.paymentStatus, payStyle) : ""}</td>
         <td style="${bodyCell}">${badgeHtml(r.deliveryStatus, delStyle)}</td>
         <td style="${bodyCell}">${r.route ? badgeHtml(r.route, { bg: "rgba(37,99,235,0.08)", color: "#2563eb" }, true) : "—"}</td>
         <td style="${bodyCell}text-align:right;font-weight:600;white-space:nowrap;">${sum} ₽</td>
@@ -244,6 +271,7 @@ export function renderUnpaidInvoicesTableHtml(rows: UnpaidInvoiceRow[], totalCou
         <tr style="background:#f9fafb;">
           <th style="${headCell}">Номер</th>
           <th style="${headCell}">Дата</th>
+          <th style="${headCell}">Плановая дата доставки</th>
           <th style="${headCell}">Дата доставки</th>
           <th style="${headCell}">Статус</th>
           <th style="${headCell}">Статус перевозки</th>

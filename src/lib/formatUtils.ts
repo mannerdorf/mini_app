@@ -12,16 +12,7 @@ export const formatCurrency = (value: number | string | undefined, integers?: bo
     }).format(rounded);
 };
 
-/** Все города Калининградской области → KGD; все города Московской области → MSK */
-export const cityToCode = (city: string | number | undefined | null): string => {
-    if (city === undefined || city === null) return '';
-    const s = String(city).trim().toLowerCase();
-    if (/калининградская\s*область|калининград|кгд/.test(s)) return 'KGD';
-    if (/советск|черняховск|балтийск|гусев|светлый|гурьевск|зеленоградск|светлогорск|пионерский|багратионовск|нестеров|озёрск|правдинск|полесск|лаврово|мамоново|янтарный/.test(s)) return 'KGD';
-    if (/московская\s*область|москва|мск|msk/.test(s)) return 'MSK';
-    if (/подольск|балашиха|химки|королёв|мытищи|люберцы|электросталь|коломна|одинцово|серпухов|орехово-зуево|раменское|жуковский|пушкино|сергиев\s*посад|воскресенск|лобня|клин|дубна|егорьевск|чехов|дмитров|ступино|ногинск|долгопрудный|реутов|андреевск|фрязино|троицк|ивантеевка|дзержинский|видное|красногорск|домодедово|железнодорожный|котельники/.test(s)) return 'MSK';
-    return String(city).trim();
-};
+export { cityToCode } from "../../lib/cityToCode.js";
 
 /** Извлекает номера перевозок из текста (5–9 цифр или 0000-XXXX) */
 export const parseCargoNumbersFromText = (text: string): Array<{ type: 'text' | 'cargo'; value: string }> => {
