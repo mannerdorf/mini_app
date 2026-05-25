@@ -62,6 +62,11 @@ export function ProfileHaulzSection({
                         Wildberries
                     </Button>
                 )}
+                {activeAccount?.permissions?.haulz === true && activeAccount?.permissions?.service_mode === true && (
+                    <Button type="button" className="button-primary" onClick={() => navigateTo("haulzSummary")}>
+                        Самери
+                    </Button>
+                )}
             </Flex>
         </div>
     );

@@ -1,0 +1,303 @@
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowLeft, Loader2, Mail, Eye } from "lucide-react";
+import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
+import type { Account } from "../types";
+import { getPreviousCalendarWeekRangeClient } from "../lib/weeklySummaryClient";
+
+type SandboxUser = {
+  id: number;
+  login: string;
+  company_name?: string;
+  companies: Array<{ inn: string; name: string }>;
+};
+
+type Props = {
+  activeAccount: Account | null;
+  onBack: () => void;
+};
+
+export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
+  const defaultPeriod = useMemo(() => getPreviousCalendarWeekRangeClient(), []);
+  const [users, setUsers] = useState<SandboxUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [usersError, setUsersError] = useState<string | null>(null);
+
+  const [targetLogin, setTargetLogin] = useState("");
+  const [inn, setInn] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [dateFrom, setDateFrom] = useState(defaultPeriod.dateFrom);
+  const [dateTo, setDateTo] = useState(defaultPeriod.dateTo);
+
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewSubject, setPreviewSubject] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [sendLoading, setSendLoading] = useState(false);
+  const [sendMessage, setSendMessage] = useState<string | null>(null);
+
+  const authBody = useMemo(() => {
+    if (!activeAccount?.login || !activeAccount?.password) return null;
+    return {
+      login: activeAccount.login,
+      password: activeAccount.password,
+      isRegisteredUser: activeAccount.isRegisteredUser === true,
+    };
+  }, [activeAccount?.login, activeAccount?.password, activeAccount?.isRegisteredUser]);
+
+  const selectedUser = useMemo(
+    () => users.find((u) => u.login.toLowerCase() === targetLogin.toLowerCase()),
+    [users, targetLogin],
+  );
+
+  const companyOptions = selectedUser?.companies ?? [];
+
+  const fetchUsers = useCallback(async () => {
+    if (!authBody) return;
+    setLoadingUsers(true);
+    setUsersError(null);
+    try {
+      const res = await fetch("/api/admin-weekly-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...authBody, action: "users" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Ошибка загрузки пользователей");
+      const list = Array.isArray(data.users) ? data.users : [];
+      setUsers(list);
+      if (data.defaultPeriod?.dateFrom && data.defaultPeriod?.dateTo) {
+        setDateFrom(data.defaultPeriod.dateFrom);
+        setDateTo(data.defaultPeriod.dateTo);
+      }
+    } catch (e: unknown) {
+      setUsersError((e as Error)?.message || "Ошибка");
+      setUsers([]);
+    } finally {
+      setLoadingUsers(false);
+    }
+  }, [authBody]);
+
+  useEffect(() => {
+    void fetchUsers();
+  }, [fetchUsers]);
+
+  useEffect(() => {
+    if (!targetLogin) {
+      setInn("");
+      setCompanyName("");
+      return;
+    }
+    const first = companyOptions[0];
+    if (first && !inn) {
+      setInn(first.inn);
+      setCompanyName(first.name || "");
+    }
+  }, [targetLogin, companyOptions, inn]);
+
+  const callApi = async (action: "preview" | "send") => {
+    if (!authBody || !targetLogin || !inn) return;
+    const payload = {
+      ...authBody,
+      action,
+      targetLogin,
+      inn,
+      companyName,
+      dateFrom,
+      dateTo,
+    };
+    if (action === "preview") {
+      setPreviewLoading(true);
+      setPreviewError(null);
+      setSendMessage(null);
+    } else {
+      setSendLoading(true);
+      setSendMessage(null);
+    }
+    try {
+      const res = await fetch("/api/admin-weekly-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Ошибка запроса");
+      if (action === "preview") {
+        setPreviewHtml(typeof data.html === "string" ? data.html : null);
+        setPreviewSubject(typeof data.subject === "string" ? data.subject : "");
+      } else {
+        setSendMessage(`Письмо отправлено на ${data.sentTo || targetLogin}`);
+      }
+    } catch (e: unknown) {
+      const msg = (e as Error)?.message || "Ошибка";
+      if (action === "preview") setPreviewError(msg);
+      else setSendMessage(msg);
+    } finally {
+      if (action === "preview") setPreviewLoading(false);
+      else setSendLoading(false);
+    }
+  };
+
+  if (!authBody) {
+    return (
+      <div className="w-full">
+        <Typography.Body>Нет данных для авторизации.</Typography.Body>
+        <Button className="filter-button" onClick={onBack} style={{ marginTop: "1rem" }}>
+          Назад
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full">
+      <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
+        <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }} aria-label="Назад">
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        <Typography.Headline className="text-page-title">Самери — песочница</Typography.Headline>
+      </Flex>
+
+      <Typography.Body style={{ fontSize: "0.88rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
+        Выберите пользователя и контрагента, проверьте HTML-письмо и отправьте на email входа. По умолчанию — прошлая календарная неделя.
+      </Typography.Body>
+
+      {usersError && (
+        <Panel style={{ marginBottom: "0.75rem", padding: "0.75rem", borderColor: "#fecaca", background: "#fef2f2" }}>
+          <Typography.Body style={{ color: "#b91c1c", fontSize: "0.88rem" }}>{usersError}</Typography.Body>
+        </Panel>
+      )}
+
+      <Panel style={{ padding: "1rem", marginBottom: "1rem" }}>
+        <Flex direction="column" gap="0.75rem">
+          <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+            <Typography.Body style={{ fontSize: "0.82rem", fontWeight: 600 }}>Пользователь (email входа)</Typography.Body>
+            <select
+              className="admin-form-input"
+              value={targetLogin}
+              onChange={(e) => {
+                setTargetLogin(e.target.value);
+                setInn("");
+                setCompanyName("");
+                setPreviewHtml(null);
+              }}
+              disabled={loadingUsers}
+              style={{ width: "100%" }}
+            >
+              <option value="">— выберите —</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.login}>
+                  {u.login}
+                  {u.company_name ? ` (${u.company_name})` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+            <Typography.Body style={{ fontSize: "0.82rem", fontWeight: 600 }}>Контрагент</Typography.Body>
+            <select
+              className="admin-form-input"
+              value={inn}
+              onChange={(e) => {
+                const v = e.target.value;
+                setInn(v);
+                const c = companyOptions.find((x) => x.inn === v);
+                setCompanyName(c?.name || "");
+                setPreviewHtml(null);
+              }}
+              disabled={!targetLogin || companyOptions.length === 0}
+              style={{ width: "100%" }}
+            >
+              <option value="">— выберите ИНН —</option>
+              {companyOptions.map((c) => (
+                <option key={c.inn} value={c.inn}>
+                  {c.name || c.inn} · {c.inn}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <Flex gap="0.5rem" wrap="wrap">
+            <label style={{ flex: "1 1 140px", display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+              <Typography.Body style={{ fontSize: "0.82rem", fontWeight: 600 }}>С</Typography.Body>
+              <input
+                type="date"
+                className="admin-form-input"
+                value={dateFrom}
+                onChange={(e) => {
+                  setDateFrom(e.target.value);
+                  setPreviewHtml(null);
+                }}
+              />
+            </label>
+            <label style={{ flex: "1 1 140px", display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+              <Typography.Body style={{ fontSize: "0.82rem", fontWeight: 600 }}>По</Typography.Body>
+              <input
+                type="date"
+                className="admin-form-input"
+                value={dateTo}
+                onChange={(e) => {
+                  setDateTo(e.target.value);
+                  setPreviewHtml(null);
+                }}
+              />
+            </label>
+          </Flex>
+
+          <Flex gap="0.5rem" wrap="wrap">
+            <Button
+              type="button"
+              className="button-primary"
+              disabled={!targetLogin || !inn || previewLoading}
+              onClick={() => void callApi("preview")}
+            >
+              {previewLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+              <span style={{ marginLeft: "0.35rem" }}>Предпросмотр</span>
+            </Button>
+            <Button
+              type="button"
+              className="button-primary"
+              disabled={!targetLogin || !inn || sendLoading || !previewHtml}
+              onClick={() => void callApi("send")}
+            >
+              {sendLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+              <span style={{ marginLeft: "0.35rem" }}>Отправить</span>
+            </Button>
+          </Flex>
+
+          {previewError && (
+            <Typography.Body style={{ color: "#b91c1c", fontSize: "0.88rem" }}>{previewError}</Typography.Body>
+          )}
+          {sendMessage && (
+            <Typography.Body style={{ color: sendMessage.includes("отправлено") ? "#059669" : "#b91c1c", fontSize: "0.88rem" }}>
+              {sendMessage}
+            </Typography.Body>
+          )}
+          {previewSubject && (
+            <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
+              Тема: {previewSubject}
+            </Typography.Body>
+          )}
+        </Flex>
+      </Panel>
+
+      {previewHtml && (
+        <Panel style={{ padding: 0, overflow: "hidden" }}>
+          <iframe
+            title="Предпросмотр письма"
+            srcDoc={previewHtml}
+            style={{ width: "100%", minHeight: "480px", border: "none", background: "#f3f4f6" }}
+            sandbox=""
+          />
+        </Panel>
+      )}
+
+      {loadingUsers && (
+        <Flex align="center" gap="0.5rem" style={{ marginTop: "0.5rem" }}>
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <Typography.Body style={{ fontSize: "0.85rem" }}>Загрузка пользователей…</Typography.Body>
+        </Flex>
+      )}
+    </div>
+  );
+}

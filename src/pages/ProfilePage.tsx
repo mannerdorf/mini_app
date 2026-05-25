@@ -25,6 +25,7 @@ import { ProfileVoiceAssistantsSection } from "../components/profile/ProfileVoic
 import { ProfileFaqSection } from "../components/profile/ProfileFaqSection";
 import { ProfileRolesSection } from "../components/profile/ProfileRolesSection";
 import { ProfileHaulzSection } from "../components/profile/ProfileHaulzSection";
+import { HaulzSummarySandboxPage } from "./HaulzSummarySandboxPage";
 import { ProfileParcelScannerSection } from "../components/profile/ProfileParcelScannerSection";
 import { ProfileExpenseRequestsSection } from "../components/profile/ProfileExpenseRequestsSection";
 import { ProfileApiKeysSection } from "../components/profile/ProfileApiKeysSection";
@@ -1150,6 +1151,15 @@ export function ProfilePage({
                 navigateTo={(view) => setCurrentView(view)}
                 onOpenDocumentsWithSection={onOpenDocumentsWithSection}
                 onOpenWildberries={onOpenWildberries}
+            />
+        );
+    }
+
+    if (currentView === 'haulzSummary') {
+        return (
+            <HaulzSummarySandboxPage
+                activeAccount={activeAccount}
+                onBack={() => setCurrentView("haulz")}
             />
         );
     }

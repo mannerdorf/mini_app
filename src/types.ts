@@ -129,6 +129,7 @@ export type ProfileView =
     | "notifications"
     | "accounting"
     | "ais"
+    | "haulzSummary"
     | "admin"
     | "tinyurl-test"
     | "chat"
