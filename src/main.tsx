@@ -110,13 +110,25 @@ const setupDebugOverlay = () => {
 
 setupDebugOverlay();
 
+/** VPS/legacy API; нативное приложение. Веб на Vercel — same-origin /api без переписывания. */
 const FALLBACK_API_ORIGIN = "https://api.haulz.ru";
 
 const normalizeOrigin = (value: string): string => value.trim().replace(/\/+$/, "");
 
+const isCapacitorNative = (): boolean => {
+  if (typeof window === "undefined") return false;
+  const protocol = String(window.location?.protocol || "").toLowerCase();
+  if (protocol === "capacitor:" || protocol === "ionic:") return true;
+  return typeof window.Capacitor?.isNativePlatform === "function" ? !!window.Capacitor.isNativePlatform() : false;
+};
+
 const resolveApiOrigin = (): string => {
   const envOrigin = normalizeOrigin(String(import.meta.env.VITE_API_ORIGIN || ""));
-  return envOrigin || FALLBACK_API_ORIGIN;
+  if (envOrigin) return envOrigin;
+  if (typeof window !== "undefined" && !isCapacitorNative()) {
+    return normalizeOrigin(window.location.origin);
+  }
+  return FALLBACK_API_ORIGIN;
 };
 
 const rewriteNativeApiUrl = (url: string, apiOrigin: string): string => {
@@ -146,43 +158,22 @@ const installFetchRewrite = (apiOrigin: string) => {
   };
 };
 
-const isCapacitorNative = (): boolean => {
-  if (typeof window === "undefined") return false;
-  const protocol = String(window.location?.protocol || "").toLowerCase();
-  if (protocol === "capacitor:" || protocol === "ionic:") return true;
-  return typeof window.Capacitor?.isNativePlatform === "function" ? !!window.Capacitor.isNativePlatform() : false;
-};
-
 const isLikelyLocalDev = (): boolean => {
   if (typeof window === "undefined") return false;
   const h = window.location.hostname;
   return h === "localhost" || h === "127.0.0.1" || h === "[::1]" || h.endsWith(".local");
 };
 
-const apiOriginHostMatchesPage = (apiOrigin: string): boolean => {
-  try {
-    return new URL(apiOrigin).hostname === window.location.hostname;
-  } catch {
-    return false;
-  }
-};
-
 /**
- * Нативное приложение: всегда /api → resolveApiOrigin().
- * Веб: при VITE_API_ORIGIN — на указанный хост;
- * иначе в production, если страница не на том же хосте, что API (статика haulz.ru, API на Vercel) — переписываем на FALLBACK/VITE.
- * Локальная разработка (localhost) без VITE_API_ORIGIN — без перепривязки.
+ * /api/* → serverless functions в api/*.ts (Vercel) на том же origin, что и фронт.
+ * Переписываем fetch только если API на другом хосте: VITE_API_ORIGIN, Capacitor → FALLBACK/VITE.
+ * Статика на haulz.ru + API на Vercel: задайте VITE_API_ORIGIN=https://<project>.vercel.app при сборке.
  */
 if (typeof window !== "undefined") {
-  if (isCapacitorNative()) {
-    installFetchRewrite(resolveApiOrigin());
-  } else {
-    const apiOrigin = resolveApiOrigin();
-    const explicitApiOrigin = normalizeOrigin(String(import.meta.env.VITE_API_ORIGIN || ""));
-    const shouldRewrite =
-      !!explicitApiOrigin ||
-      (import.meta.env.PROD && !isLikelyLocalDev() && !apiOriginHostMatchesPage(apiOrigin));
-    if (shouldRewrite) installFetchRewrite(explicitApiOrigin || apiOrigin);
+  const apiOrigin = resolveApiOrigin();
+  const pageOrigin = normalizeOrigin(window.location.origin);
+  if (apiOrigin !== pageOrigin) {
+    installFetchRewrite(apiOrigin);
   }
 }
 

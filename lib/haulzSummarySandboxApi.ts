@@ -44,15 +44,19 @@ function normalizeLogin(v: unknown): string {
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
-async function assertSandboxAuth(
+export type HaulzSummarySandboxAuthResult =
+  | { ok: true }
+  | { ok: false; status: number; error: string };
+
+export async function assertHaulzSummarySandboxAccess(
   req: VercelRequest,
-  body: HaulzSummarySandboxBody,
-): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  credentials: { login?: string; password?: string },
+): Promise<HaulzSummarySandboxAuthResult> {
   if (verifyAdminToken(getAdminTokenFromRequest(req))) {
     return { ok: true };
   }
-  const login = normalizeLogin(body.login);
-  const password = String(body.password ?? "");
+  const login = normalizeLogin(credentials.login);
+  const password = String(credentials.password ?? "");
   if (!login || !password) {
     return { ok: false, status: 401, error: "Требуется авторизация админа или логин/пароль HAULZ" };
   }
@@ -101,6 +105,11 @@ async function loadCustomersDirectory(pool: Pool): Promise<Array<{ inn: string; 
   } catch {
     return [];
   }
+}
+
+export async function loadHaulzSummaryDirectories(pool: Pool) {
+  const [users, customers] = await Promise.all([loadUsersWithCompanies(pool), loadCustomersDirectory(pool)]);
+  return { users, customers, defaultPeriod: getPreviousCalendarWeekRange() };
 }
 
 async function loadUsersWithCompanies(pool: Pool) {
@@ -195,7 +204,10 @@ export async function handleHaulzSummarySandboxRequest(
     return false;
   }
 
-  const auth = await assertSandboxAuth(req, body);
+  const auth = await assertHaulzSummarySandboxAccess(req, {
+    login: body.login,
+    password: body.password,
+  });
   if (!auth.ok) {
     res.status(auth.status).json({ error: auth.error, request_id: requestId });
     return true;
@@ -207,8 +219,7 @@ export async function handleHaulzSummarySandboxRequest(
     const pool = getPool();
 
     if (action === "users") {
-      const [users, customers] = await Promise.all([loadUsersWithCompanies(pool), loadCustomersDirectory(pool)]);
-      const defaultPeriod = getPreviousCalendarWeekRange();
+      const { users, customers, defaultPeriod } = await loadHaulzSummaryDirectories(pool);
       res.status(200).json({ users, customers, defaultPeriod, request_id: requestId });
       return true;
     }

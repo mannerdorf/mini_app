@@ -22,24 +22,76 @@ type CustomerDirectoryRow = {
   email?: string;
 };
 
+type DirectoryPayload = {
+  users?: SandboxUser[];
+  customers?: CustomerDirectoryRow[];
+  defaultPeriod?: { dateFrom: string; dateTo: string };
+};
+
+function isDirectoryPayload(data: unknown): data is DirectoryPayload {
+  return !!data && typeof data === "object" && !Array.isArray(data) && ("users" in data || "customers" in data);
+}
+
 type Props = {
   activeAccount: Account | null;
   onBack: () => void;
 };
 
+async function fetchSummaryDirectories(login: string, password: string): Promise<DirectoryPayload> {
+  const headers = { "x-login": login, "x-password": password };
+
+  const companiesRes = await fetch("/api/companies?sandbox=1", { headers });
+  const companiesData = (await companiesRes.json().catch(() => ({}))) as DirectoryPayload & { error?: string };
+  if (companiesRes.ok && isDirectoryPayload(companiesData)) {
+    return companiesData;
+  }
+  if (!companiesRes.ok && companiesData.error) {
+    throw new Error(companiesData.error);
+  }
+
+  let lastErr = "Справочники недоступны. Задеплойте api/companies.ts на Vercel (режим ?sandbox=1).";
+  for (const path of SUMMARY_API_PATHS) {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify({ login, password, isRegisteredUser: true, action: "users" }),
+    });
+    const data = (await res.json().catch(() => ({}))) as DirectoryPayload & { error?: string; path?: string };
+    if (res.ok && isDirectoryPayload(data)) return data;
+    const msg = data.error || `HTTP ${res.status}`;
+    lastErr = msg;
+    if (msg !== "API route not found" && !String(data.path || "").includes("not found")) {
+      throw new Error(msg);
+    }
+  }
+  throw new Error(lastErr);
+}
+
 async function postSummaryApi<T extends Record<string, unknown>>(
   paths: readonly string[],
   body: Record<string, unknown>,
+  login: string,
+  password: string,
 ): Promise<T> {
   let lastErr = "Ошибка запроса";
   for (const path of paths) {
     const res = await fetch(path, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-login": login,
+        "x-password": password,
+      },
       body: JSON.stringify(body),
     });
     const data = (await res.json().catch(() => ({}))) as T & { error?: string; path?: string };
-    if (res.ok) return data;
+    if (res.ok) {
+      if (body.action === "users" && !isDirectoryPayload(data)) {
+        lastErr = "Устаревший API: обновите сервер (haulz-summary / invoices action=users)";
+        continue;
+      }
+      return data;
+    }
     const msg = data.error || `HTTP ${res.status}`;
     lastErr = msg;
     if (msg !== "API route not found" && !String(data.path || "").includes("not found")) {
@@ -109,16 +161,19 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
     setLoadingUsers(true);
     setUsersError(null);
     try {
-      const data = await postSummaryApi<{
-        users?: SandboxUser[];
-        customers?: CustomerDirectoryRow[];
-        defaultPeriod?: { dateFrom: string; dateTo: string };
-      }>(SUMMARY_API_PATHS, { ...authBody, action: "users" });
-      setUsers(Array.isArray(data.users) ? data.users : []);
-      setCustomers(Array.isArray(data.customers) ? data.customers : []);
+      const data = await fetchSummaryDirectories(authBody.login, authBody.password);
+      const list = Array.isArray(data.users) ? data.users : [];
+      const cust = Array.isArray(data.customers) ? data.customers : [];
+      setUsers(list);
+      setCustomers(cust);
       if (data.defaultPeriod?.dateFrom && data.defaultPeriod?.dateTo) {
         setDateFrom(data.defaultPeriod.dateFrom);
         setDateTo(data.defaultPeriod.dateTo);
+      }
+      if (list.length === 0) {
+        setUsersError("Нет активных пользователей в registered_users.");
+      } else if (cust.length === 0) {
+        setUsersError("Справочник cache_customers пуст. Запустите cron refresh-cache.");
       }
     } catch (e: unknown) {
       setUsersError((e as Error)?.message || "Ошибка");
@@ -170,6 +225,8 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
       const data = await postSummaryApi<{ html?: string; subject?: string; sentTo?: string }>(
         SUMMARY_API_PATHS,
         payload,
+        authBody.login,
+        authBody.password,
       );
       if (action === "preview") {
         setPreviewHtml(typeof data.html === "string" ? data.html : null);
