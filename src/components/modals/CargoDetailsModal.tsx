@@ -8,7 +8,7 @@ import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { formatCurrency, stripOoo, cityToCode, transliterateFilename, formatInvoiceNumber } from "../../lib/formatUtils";
 import { normalizeStatus, getFilterKeyByStatus, getSumColorByPaymentStatus } from "../../lib/statusUtils";
 import { formatDate } from "../../lib/dateUtils";
-import { getPlanDays, getCargoDisplayRoleLabel, getCargoRoleSet } from "../../lib/cargoUtils";
+import { getPlanDays, getCargoDisplayRoleLabel, getCargoRoleSet, cargoLastMileIsSelfPickup, cargoPickupLogisticsIsTerminalTo } from "../../lib/cargoUtils";
 import { DetailItem } from "../ui/DetailItem";
 import { DateText } from "../ui/DateText";
 import { StatusBadge, StatusBillBadge } from "../shared/StatusBadges";
@@ -222,6 +222,8 @@ export function CargoDetailsModal({
     const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', 'PZV_Sender', 'PZV_Receiver', 'PZV_Sender_Id', 'PZV_Receiver_Id', '_role', '_roles', 'Driver', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel'];
     const isCustomerRole = getCargoRoleSet(item).has("Customer");
     const roleLabel = getCargoDisplayRoleLabel(item);
+    const selfPickup = cargoLastMileIsSelfPickup(item);
+    const terminalTo = cargoPickupLogisticsIsTerminalTo(item);
     const FIELD_LABELS: Record<string, string> = {
         CitySender: 'Место отправления',
         CityReceiver: 'Место получения',
@@ -329,6 +331,22 @@ export function CargoDetailsModal({
                 <div className="details-grid-modal">
                     <DetailItem label="Номер" value={item.Number || '—'} />
                     <DetailItem label="Статус" value={<StatusBadge status={item.State} />} />
+                    <DetailItem
+                        label="Последняя миля"
+                        value={
+                            <span className={`max-badge ${selfPickup ? "cargo-last-mile-self" : "cargo-last-mile-delivery"}`}>
+                                {selfPickup ? "Самовывоз" : "Доставка"}
+                            </span>
+                        }
+                    />
+                    <DetailItem
+                        label="Заборная"
+                        value={
+                            <span className={`max-badge ${terminalTo ? "cargo-pickup-terminal-to" : "cargo-pickup-pickup"}`}>
+                                {terminalTo ? "terminal-to" : "PickUP"}
+                            </span>
+                        }
+                    />
                     <DetailItem label="Приход" value={<DateText value={item.DatePrih} />} />
                     <DetailItem label="Доставка" value={(() => {
                         const status = normalizeStatus(item.State);
