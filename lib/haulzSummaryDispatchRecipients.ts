@@ -138,6 +138,20 @@ export async function listDispatchRecipients(pool: Pool, logId: number): Promise
   }
 }
 
+/** Список получателей для возобновления send_job из журнала рассылки. */
+export async function listDispatchRecipientsAsCronRecipients(
+  pool: Pool,
+  logId: number,
+): Promise<SummaryCronRecipient[]> {
+  const rows = await listDispatchRecipients(pool, logId);
+  return rows.map((r) => ({
+    targetLogin: r.targetLogin,
+    inn: r.inn,
+    companyName: r.companyName,
+    reasons: r.reasons,
+  }));
+}
+
 export function dispatchRecipientStatusLabel(status: DispatchRecipientStatus | string): string {
   if (status === "sent") return "Отправлено";
   if (status === "failed") return "Ошибка";

@@ -569,14 +569,40 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
     };
   }, [cronRecipients]);
 
+  const continueCronSend = useCallback(async () => {
+    if (!authBody) return;
+    try {
+      const data = await postSummaryApi<{
+        jobRunning?: boolean;
+        sendJob?: SummarySendJob | null;
+        skipped?: boolean;
+      }>(SUMMARY_API_PATHS, { ...authBody, action: "cron_continue" }, authBody.login, authBody.password);
+      if (data.sendJob) {
+        setActiveSendJob(data.sendJob.status === "running" ? data.sendJob : null);
+      } else if (!data.jobRunning) {
+        setActiveSendJob(null);
+      }
+      void loadDispatchLogs();
+    } catch {
+      /* ignore background continue errors */
+    }
+  }, [authBody, loadDispatchLogs]);
+
   useEffect(() => {
     if (!sendJobRunning || !authBody) return;
-    const timer = window.setInterval(() => {
+    void continueCronSend();
+    const statusTimer = window.setInterval(() => {
       void refreshCronStatus();
       void loadDispatchLogs();
     }, 4000);
-    return () => window.clearInterval(timer);
-  }, [sendJobRunning, authBody, refreshCronStatus, loadDispatchLogs]);
+    const continueTimer = window.setInterval(() => {
+      void continueCronSend();
+    }, 20_000);
+    return () => {
+      window.clearInterval(statusTimer);
+      window.clearInterval(continueTimer);
+    };
+  }, [sendJobRunning, authBody, refreshCronStatus, loadDispatchLogs, continueCronSend]);
 
   useEffect(() => {
     if (!sendJobRunning) {
@@ -1151,7 +1177,7 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
             </div>
             <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem" style={{ marginTop: "0.45rem" }}>
               <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", margin: 0 }}>
-                Обновление каждые 4 с. Отчёт на info@haulz.pro — после завершения или остановки.
+                Обновление каждые 4 с, отправка — каждые 20 с. Отчёт на info@haulz.pro — после завершения или остановки.
               </Typography.Body>
               <Button
                 type="button"

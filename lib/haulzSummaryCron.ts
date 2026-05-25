@@ -537,10 +537,7 @@ async function sendOneSummaryEmail(
 }
 
 async function isSendJobStillActive(pool: Pool): Promise<SummaryCronSendJob | null> {
-  const config = await loadSummaryCronConfig(pool);
-  const job = config.sendJob;
-  if (!job || job.status !== "running") return null;
-  return job;
+  return resolveActiveSendJob(pool);
 }
 
 async function loadRunningDispatchLogRow(pool: Pool): Promise<Record<string, unknown> | null> {
@@ -557,38 +554,84 @@ async function loadRunningDispatchLogRow(pool: Pool): Promise<Record<string, unk
   }
 }
 
-function jobFromRunningDispatchLog(row: Record<string, unknown>): SummaryCronSendJob {
-  const total = Math.max(0, Number(row.recipients_total) || 0);
+async function recoverSendJobFromDispatchLog(
+  pool: Pool,
+  row: Record<string, unknown>,
+): Promise<SummaryCronSendJob | null> {
+  const logId = Math.max(0, Number(row.id) || 0);
+  if (!logId) return null;
+  const { listDispatchRecipientsAsCronRecipients } = await import("./haulzSummaryDispatchRecipients.js");
+  const recipients = await listDispatchRecipientsAsCronRecipients(pool, logId);
+  if (recipients.length === 0) return null;
   const criteriaRaw = row.criteria;
-  const criteria =
-    criteriaRaw && typeof criteriaRaw === "object"
-      ? parseCriteria(criteriaRaw)
-      : { ...DEFAULT_CRITERIA };
-  void criteria;
+  void criteriaRaw;
+  const errors = Array.isArray(row.errors)
+    ? (row.errors as Array<{ targetLogin: string; inn: string; error: string }>)
+    : [];
   return {
     status: "running",
     period: {
       dateFrom: String(row.period_from ?? "").slice(0, 10),
       dateTo: String(row.period_to ?? "").slice(0, 10),
     },
-    recipients: Array.from({ length: total }, () => ({
-      targetLogin: "",
-      inn: "",
-      companyName: "",
-      reasons: [] as string[],
-    })),
+    recipients,
     cursor: Math.max(0, Number(row.cursor_pos) || 0),
     sent: Math.max(0, Number(row.sent) || 0),
     failed: Math.max(0, Number(row.failed) || 0),
     skippedUnsubscribed: Math.max(0, Number(row.skipped_unsubscribed) || 0),
     trigger: String(row.trigger) === "manual" ? "manual" : "auto",
-    logId: Math.max(0, Number(row.id) || 0),
-    errors: Array.isArray(row.errors)
-      ? (row.errors as Array<{ targetLogin: string; inn: string; error: string }>)
-      : [],
+    logId,
+    errors,
     startedAt: new Date(String(row.started_at ?? Date.now())).toISOString(),
     updatedAt: new Date().toISOString(),
   };
+}
+
+/** Активная рассылка: send_job в конфиге или незавершённая строка журнала. */
+async function resolveActiveSendJob(pool: Pool): Promise<SummaryCronSendJob | null> {
+  const config = await loadSummaryCronConfig(pool);
+  if (config.sendJob?.status === "running") {
+    const job = config.sendJob;
+    if (job.recipients.length > 0) return job;
+    if (job.logId) {
+      const row = await loadRunningDispatchLogRow(pool);
+      if (row && Number(row.id) === job.logId) {
+        const recovered = await recoverSendJobFromDispatchLog(pool, row);
+        if (recovered) {
+          await persistSendJob(pool, recovered);
+          return recovered;
+        }
+      }
+    }
+    return null;
+  }
+  const row = await loadRunningDispatchLogRow(pool);
+  if (!row) return null;
+  const recovered = await recoverSendJobFromDispatchLog(pool, row);
+  if (recovered) await persistSendJob(pool, recovered);
+  return recovered;
+}
+
+async function runSendJobBatchesUntilDeadline(
+  pool: Pool,
+  config: SummaryCronConfig,
+  job: SummaryCronSendJob,
+  deadlineMs: number,
+): Promise<{ job: SummaryCronSendJob; batchSent: number; batchFailed: number; done: boolean }> {
+  const deadline = Date.now() + deadlineMs;
+  let lastBatch = { job, batchSent: 0, batchFailed: 0, done: false };
+  while (!lastBatch.done && Date.now() < deadline) {
+    const active = await resolveActiveSendJob(pool);
+    if (!active) {
+      lastBatch = { job: lastBatch.job, batchSent: 0, batchFailed: 0, done: true };
+      break;
+    }
+    job = active;
+    lastBatch = await processSendJobBatch(pool, config, job);
+    job = lastBatch.job;
+    if (!lastBatch.done) await sleepMs(config.batchPauseSec * 1000);
+  }
+  return lastBatch;
 }
 
 export async function cancelPartnerSummarySendJob(pool: Pool): Promise<{
@@ -599,19 +642,16 @@ export async function cancelPartnerSummarySendJob(pool: Pool): Promise<{
   recipients?: number;
 }> {
   const config = await loadSummaryCronConfig(pool);
-  let job = config.sendJob?.status === "running" ? config.sendJob : null;
+  let job = await resolveActiveSendJob(pool);
   let criteria = config.criteria;
 
   if (!job) {
-    const row = await loadRunningDispatchLogRow(pool);
-    if (!row) {
-      return { ok: false, message: "Нет активной рассылки" };
-    }
-    job = jobFromRunningDispatchLog(row);
-    const criteriaRaw = row.criteria;
-    if (criteriaRaw && typeof criteriaRaw === "object") {
-      criteria = parseCriteria(criteriaRaw);
-    }
+    return { ok: false, message: "Нет активной рассылки" };
+  }
+
+  const row = await loadRunningDispatchLogRow(pool);
+  if (row?.criteria && typeof row.criteria === "object") {
+    criteria = parseCriteria(row.criteria);
   }
 
   job.status = "completed";
@@ -768,7 +808,7 @@ function runResultFromJob(
 
 export async function runPartnerSummaryCron(
   pool: Pool,
-  options: { force?: boolean; dryRun?: boolean } = {},
+  options: { force?: boolean; dryRun?: boolean; continueOnly?: boolean; maxRunMs?: number } = {},
 ): Promise<SummaryCronRunResult> {
   const config = await loadSummaryCronConfig(pool);
   const period = resolveSummaryCronPeriod(config);
@@ -789,7 +829,7 @@ export async function runPartnerSummaryCron(
     };
   }
 
-  if (!config.enabled && !options.force) {
+  if (!config.enabled && !options.force && !options.continueOnly) {
     return {
       ok: true,
       skipped: true,
@@ -802,7 +842,33 @@ export async function runPartnerSummaryCron(
     };
   }
 
-  let job = config.sendJob?.status === "running" ? config.sendJob : null;
+  let job = await resolveActiveSendJob(pool);
+
+  if (options.continueOnly) {
+    if (!job) {
+      return {
+        ok: true,
+        skipped: true,
+        reason: "Нет активной рассылки",
+        period,
+        sent: 0,
+        failed: 0,
+        recipients: 0,
+        errors: [],
+      };
+    }
+    const lastBatch = await runSendJobBatchesUntilDeadline(
+      pool,
+      config,
+      job,
+      Math.max(5000, options.maxRunMs ?? 50_000),
+    );
+    return runResultFromJob(lastBatch.job, {
+      batchSent: lastBatch.batchSent,
+      jobRunning: !lastBatch.done,
+      reason: lastBatch.done ? undefined : "Отправка продолжается",
+    });
+  }
 
   if (options.force) {
     if (!job) {
@@ -835,49 +901,21 @@ export async function runPartnerSummaryCron(
       }
       job = await startSendJob(pool, config, recipients, period, "manual");
     }
-    const deadline = Date.now() + 270_000;
-    let lastBatch = { batchSent: 0, batchFailed: 0, done: false };
-    while (!lastBatch.done && Date.now() < deadline) {
-      const active = await isSendJobStillActive(pool);
-      if (!active) {
-        lastBatch = { job, batchSent: 0, batchFailed: 0, done: true };
-        break;
-      }
-      job = active;
-      lastBatch = await processSendJobBatch(pool, config, job);
-      job = lastBatch.job;
-      if (!lastBatch.done) await sleepMs(config.batchPauseSec * 1000);
-    }
-    return runResultFromJob(job, {
+    const lastBatch = await runSendJobBatchesUntilDeadline(
+      pool,
+      config,
+      job,
+      Math.max(10_000, options.maxRunMs ?? 270_000),
+    );
+    return runResultFromJob(lastBatch.job, {
       batchSent: lastBatch.batchSent,
       jobRunning: !lastBatch.done,
-      reason: lastBatch.done ? undefined : "Отправка продолжится по cron (партиями)",
+      reason: lastBatch.done ? undefined : "Отправка продолжается (следующая партия автоматически)",
     });
   }
 
   if (job) {
-    const active = await isSendJobStillActive(pool);
-    if (!active) {
-      return {
-        ok: true,
-        skipped: true,
-        reason: "Рассылка остановлена",
-        period,
-        sent: 0,
-        failed: 0,
-        recipients: 0,
-        errors: [],
-      };
-    }
-    job = active;
-    if (!isSummaryCronSpreadWindow(config)) {
-      return runResultFromJob(job, {
-        ok: true,
-        skipped: true,
-        reason: "Ожидание окна рассылки (понедельник)",
-        jobRunning: true,
-      });
-    }
+    job = (await resolveActiveSendJob(pool)) ?? job;
     const { job: updated, batchSent, done } = await processSendJobBatch(pool, config, job);
     return runResultFromJob(updated, {
       batchSent,

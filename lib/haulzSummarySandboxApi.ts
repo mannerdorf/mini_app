@@ -57,6 +57,7 @@ const SANDBOX_ACTIONS = new Set([
   "cron_stop",
   "cron_logs",
   "cron_dispatch_recipients",
+  "cron_continue",
 ]);
 
 export function isHaulzSummarySandboxAction(action: unknown): boolean {
@@ -187,6 +188,14 @@ export async function handleHaulzSummarySandboxRequest(
       let activeLog = null;
       if (cronConfig.sendJob?.logId) {
         activeLog = await getDispatchLogById(pool, cronConfig.sendJob.logId);
+      } else {
+        const { rows } = await pool.query(
+          `SELECT id FROM haulz_summary_dispatch_log
+           WHERE finished_at IS NULL AND status = 'running'
+           ORDER BY started_at DESC LIMIT 1`,
+        );
+        const logId = Number(rows[0]?.id) || 0;
+        if (logId) activeLog = await getDispatchLogById(pool, logId);
       }
       res.status(200).json({ cronConfig, period, sendJob, activeLog, request_id: requestId });
       return true;
@@ -240,6 +249,14 @@ export async function handleHaulzSummarySandboxRequest(
 
     if (action === "cron_run") {
       const result = await runPartnerSummaryCron(pool, { force: true });
+      const cronConfig = await loadSummaryCronConfig(pool);
+      const sendJob = serializeSendJobForApi(cronConfig.sendJob);
+      res.status(200).json({ ...result, sendJob, request_id: requestId });
+      return true;
+    }
+
+    if (action === "cron_continue") {
+      const result = await runPartnerSummaryCron(pool, { continueOnly: true, maxRunMs: 55_000 });
       const cronConfig = await loadSummaryCronConfig(pool);
       const sendJob = serializeSendJobForApi(cronConfig.sendJob);
       res.status(200).json({ ...result, sendJob, request_id: requestId });
