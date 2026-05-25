@@ -13,7 +13,7 @@ import {
 import { DateText } from "../components/ui/DateText";
 import { StatusBadge, StatusBillBadge } from "../components/shared/StatusBadges";
 import { AppBadge } from "../components/shared/AppBadge";
-import { getSlaInfo, cargoLastMileIsSelfPickup, isFerry, getCargoDisplayRoleLabel, getCargoRoleSet } from "../lib/cargoUtils";
+import { getSlaInfo, cargoLastMileIsSelfPickup, cargoPickupLogisticsIsTerminalTo, isFerry, getCargoDisplayRoleLabel, getCargoRoleSet } from "../lib/cargoUtils";
 import { formatCurrency, stripOoo, cityToCode, formatInvoiceNumber } from "../lib/formatUtils";
 import { getSumColorByPaymentStatus } from "../lib/statusUtils";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
@@ -39,6 +39,23 @@ function CargoLastMileBadge({ item }: { item: CargoItem }) {
       style={{ flexShrink: 0 }}
     >
       {selfPickup ? "Самовывоз" : "Доставка"}
+    </span>
+  );
+}
+
+function CargoPickupLogisticsBadge({ item }: { item: CargoItem }) {
+  const terminalTo = cargoPickupLogisticsIsTerminalTo(item);
+  return (
+    <span
+      title={
+        terminalTo
+          ? "terminal-to по PZV_Sender и маршруту"
+          : "PickUP по PZV_Sender и маршруту"
+      }
+      className={`max-badge ${terminalTo ? "cargo-pickup-terminal-to" : "cargo-pickup-pickup"}`}
+      style={{ flexShrink: 0 }}
+    >
+      {terminalTo ? "terminal-to" : "PickUP"}
     </span>
   );
 }
@@ -733,6 +750,7 @@ export function CargoCustomerTable({
                                 <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile">
                                   <StatusBadge status={item.State} />
                                   <CargoLastMileBadge item={item} />
+                                  <CargoPickupLogisticsBadge item={item} />
                                   <span className="cargo-inner-table__route-inline">
                                     <CargoRouteBadge item={item} />
                                   </span>
@@ -853,6 +871,7 @@ export function CargoCardsList({
                   </AppBadge>
                 )}
                 <CargoLastMileBadge item={item} />
+                <CargoPickupLogisticsBadge item={item} />
               </Flex>
               <Flex
                 align="center"

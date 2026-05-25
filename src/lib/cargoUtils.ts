@@ -222,6 +222,10 @@ export const CARGO_DESTINATION_EXPLICIT_KEYS = [
 const MSK_KGD_SELF_PICKUP_RECEIVER_ID = "d5d52d44-c5d9-11f0-9e9d-0cc47a39bad5";
 const KGD_MSK_SELF_PICKUP_RECEIVER_ID = "419df7bb-4874-11f1-9e9f-0cc47a39bad5";
 
+function normalizePzvText(value: unknown): string {
+    return String(value ?? "").toLowerCase().replace(/ё/g, "е");
+}
+
 function pickRicherDestinationString(primary: string, secondary: string): string {
     if (!secondary.trim()) return primary;
     if (!primary.trim()) return secondary;
@@ -271,7 +275,7 @@ export function mergePerevozkiRoleDuplicates(winner: CargoItem, loser: CargoItem
 export function cargoLastMileIsSelfPickup(item: CargoItem): boolean {
     const record = item as Record<string, unknown>;
     const receiverId = String(record.PZV_Receiver_Id ?? "").trim().toLowerCase();
-    const pzvReceiver = String(record.PZV_Receiver ?? "").toLowerCase().replace(/ё/g, "е");
+    const pzvReceiver = normalizePzvText(record.PZV_Receiver);
     const from = cityToCode(item.CitySender);
     const to = cityToCode(item.CityReceiver);
     if (from === "MSK" && to === "KGD") {
@@ -280,5 +284,15 @@ export function cargoLastMileIsSelfPickup(item: CargoItem): boolean {
     if (from === "KGD" && to === "MSK") {
         return receiverId === KGD_MSK_SELF_PICKUP_RECEIVER_ID || pzvReceiver.includes("андреевское");
     }
+    return false;
+}
+
+export function cargoPickupLogisticsIsTerminalTo(item: CargoItem): boolean {
+    const record = item as Record<string, unknown>;
+    const pzvSender = normalizePzvText(record.PZV_Sender);
+    const from = cityToCode(item.CitySender);
+    const to = cityToCode(item.CityReceiver);
+    if (from === "MSK" && to === "KGD") return pzvSender.includes("андреевское");
+    if (from === "KGD" && to === "MSK") return pzvSender.includes("железнодорожная");
     return false;
 }

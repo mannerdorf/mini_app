@@ -2386,10 +2386,14 @@ body {
     .cargo-inner-table__badges .app-badge,
     .cargo-inner-table__badges .cargo-last-mile-self,
     .cargo-inner-table__badges .cargo-last-mile-delivery,
+    .cargo-inner-table__badges .cargo-pickup-pickup,
+    .cargo-inner-table__badges .cargo-pickup-terminal-to,
     .cargo-inner-table__badges--stack-mobile .max-badge,
     .cargo-inner-table__badges--stack-mobile .app-badge,
     .cargo-inner-table__badges--stack-mobile .cargo-last-mile-self,
-    .cargo-inner-table__badges--stack-mobile .cargo-last-mile-delivery {
+    .cargo-inner-table__badges--stack-mobile .cargo-last-mile-delivery,
+    .cargo-inner-table__badges--stack-mobile .cargo-pickup-pickup,
+    .cargo-inner-table__badges--stack-mobile .cargo-pickup-terminal-to {
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
@@ -4789,6 +4793,16 @@ button.edo-health-monitor {
     color: #1d4ed8;
     border: 1px solid rgba(37, 99, 235, 0.32);
 }
+.max-badge.cargo-pickup-pickup {
+    background-color: rgba(245, 158, 11, 0.14);
+    color: #b45309;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+}
+.max-badge.cargo-pickup-terminal-to {
+    background-color: rgba(124, 58, 237, 0.13);
+    color: #6d28d9;
+    border: 1px solid rgba(124, 58, 237, 0.36);
+}
 /* Улучшаем видимость границ бейджей в темном режиме */
 .dark-mode .max-badge-success {
     border: 1px solid rgba(52, 211, 153, 0.6);
@@ -4813,6 +4827,12 @@ button.edo-health-monitor {
 }
 .dark-mode .max-badge.cargo-last-mile-delivery {
     border: 1px solid rgba(37, 99, 235, 0.45);
+}
+.dark-mode .max-badge.cargo-pickup-pickup {
+    border: 1px solid rgba(245, 158, 11, 0.5);
+}
+.dark-mode .max-badge.cargo-pickup-terminal-to {
+    border: 1px solid rgba(124, 58, 237, 0.48);
 }
 
 /* Вертикальный таймлайн статусов перевозки (объёмный, в стиле бейджей) */

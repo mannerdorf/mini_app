@@ -6,7 +6,7 @@ import {
   getFilterKeyByStatus,
 } from "../lib/statusUtils";
 import { cityToCode, formatInvoiceNumber } from "../lib/formatUtils";
-import { cargoLastMileIsSelfPickup, cargoMatchesRoleFilter, type CargoRoleFilterKey } from "../lib/cargoUtils";
+import { cargoLastMileIsSelfPickup, cargoMatchesRoleFilter, cargoPickupLogisticsIsTerminalTo, type CargoRoleFilterKey } from "../lib/cargoUtils";
 import { normCargoKey } from "./documentsPipeline";
 
 type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;
@@ -32,6 +32,8 @@ export type CargoFilterPipelineParams = {
   routeFilterSet: Set<"MSK-KGD" | "KGD-MSK">;
   /** Фильтр последней мили: самовывоз (ПВЗ Андреевское / ж/д) vs доставка. */
   lastMileFilter: "all" | "self_pickup" | "delivery";
+  /** Фильтр заборной логистики: забор у клиента vs сдача на терминал. */
+  pickupLogisticsFilter?: "all" | "pickup" | "terminal_to";
   /** Клиентский фильтр роли контрагента (не меняет API, только отображение выборки). */
   roleFilter?: CargoRoleFilterKey;
   sortBy: "datePrih" | "dateVr" | null;
@@ -187,6 +189,7 @@ export function buildFilteredCargoItems(
     typeFilterSet,
     routeFilterSet,
     lastMileFilter,
+    pickupLogisticsFilter = "all",
     roleFilter = "all",
     sortBy,
     sortOrder,
@@ -266,6 +269,11 @@ export function buildFilteredCargoItems(
     res = res.filter((i) => cargoLastMileIsSelfPickup(i));
   } else if (lastMileFilter === "delivery") {
     res = res.filter((i) => !cargoLastMileIsSelfPickup(i));
+  }
+  if (pickupLogisticsFilter === "terminal_to") {
+    res = res.filter((i) => cargoPickupLogisticsIsTerminalTo(i));
+  } else if (pickupLogisticsFilter === "pickup") {
+    res = res.filter((i) => !cargoPickupLogisticsIsTerminalTo(i));
   }
 
   if (sortBy) {
