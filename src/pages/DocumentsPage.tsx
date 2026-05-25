@@ -2423,14 +2423,6 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
         () => extractCustomerClaimPayloadFromEvents(Array.isArray(claimsDetailData?.events) ? claimsDetailData.events : []),
         [claimsDetailData?.events]
     );
-    const latestSverkiRequest = useMemo(() => sverkiRequests[0] || null, [sverkiRequests]);
-    const sverkiStatusBadge = useMemo(() => {
-        if (!latestSverkiRequest) return null;
-        if (latestSverkiRequest.status === 'edo_sent') {
-            return { label: 'Отправлена в ЭДО', bg: 'rgba(16,185,129,0.15)', color: '#10b981' };
-        }
-        return { label: 'Ожидает формирования', bg: 'rgba(59,130,246,0.15)', color: '#3b82f6' };
-    }, [latestSverkiRequest]);
     const getSendingStatusKey = useCallback((row: any): StatusFilter => {
         const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
         const firstParcel = Array.isArray(rawParcels)
@@ -3817,13 +3809,6 @@ useEffect(() => {
                         >
                             Заказать Акт сверки
                         </Button>
-                        {sverkiRequestsLoading ? (
-                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Проверяем статус...</Typography.Body>
-                        ) : sverkiStatusBadge ? (
-                            <span style={{ fontSize: '0.78rem', padding: '0.2rem 0.5rem', borderRadius: 999, fontWeight: 600, background: sverkiStatusBadge.bg, color: sverkiStatusBadge.color }}>
-                                {sverkiStatusBadge.label}
-                            </span>
-                        ) : null}
                     </div>
                 )}
                 </div>
@@ -4921,7 +4906,7 @@ useEffect(() => {
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'center', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('type')} title="Сортировка">Тип {sendingsSortColumn === 'type' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('transitHours')} title="Сортировка">В пути, ч {sendingsSortColumn === 'transitHours' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус доставки</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Плановая дата прибытия</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, lineHeight: 1.15 }}>Плановая дата<br />прибытия</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('vehicle')} title="Сортировка">Транспортное средство {sendingsSortColumn === 'vehicle' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 {hasAnalytics && (
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('paidWeight')} title="Сортировка">Плат. вес {sendingsSortColumn === 'paidWeight' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
