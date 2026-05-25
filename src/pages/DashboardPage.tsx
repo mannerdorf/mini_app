@@ -29,7 +29,7 @@ import {
 } from "../lib/sharedListFilters";
 import { normalizeStatus } from "../lib/statusUtils";
 import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "../lib/slaWorkSchedule";
-import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry, getSlaPlanDeadlineMs, CARGO_ROLE_FILTER_LABELS, type CargoRoleFilterKey } from "../lib/cargoUtils";
+import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry, getSlaPlanDeadlineMs, cargoLastMileIsSelfPickup, CARGO_ROLE_FILTER_LABELS, type CargoRoleFilterKey } from "../lib/cargoUtils";
 import { buildFilteredCargoItems } from "./cargoPipeline";
 import { formatCurrency, formatInvoiceNumber, stripOoo, cityToCode, normalizeInvoiceStatus } from "../lib/formatUtils";
 import { getFirstCargoNumberFromInvoice, buildCargoStateByNumber, filterItemsByActiveInn } from "./documentsPipeline";
@@ -1240,6 +1240,43 @@ export function DashboardPage({
             mest += typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
         });
         return { sum, pw, w, vol, mest };
+    }, [dashboardTotalItems]);
+    const lastMileTerminalLoad = useMemo(() => {
+        const toNum = (value: unknown) => {
+            const n = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : Number(value ?? 0);
+            return Number.isFinite(n) ? n : 0;
+        };
+        const makeBucket = (key: 'selfPickup' | 'delivery', label: string, color: string) => ({
+            key,
+            label,
+            color,
+            count: 0,
+            w: 0,
+            vol: 0,
+            pw: 0,
+            mest: 0,
+            sum: 0,
+        });
+        const selfPickup = makeBucket('selfPickup', 'Самовывоз', '#2563eb');
+        const delivery = makeBucket('delivery', 'Доставка', '#10b981');
+        dashboardTotalItems.forEach((item) => {
+            const bucket = cargoLastMileIsSelfPickup(item) ? selfPickup : delivery;
+            bucket.count += 1;
+            bucket.w += toNum(item.W);
+            bucket.vol += toNum((item as any).Value ?? (item as any).Volume ?? (item as any).V);
+            bucket.pw += toNum(item.PW);
+            bucket.mest += toNum(item.Mest);
+            bucket.sum += toNum(item.Sum);
+        });
+        const totals = {
+            count: selfPickup.count + delivery.count,
+            w: selfPickup.w + delivery.w,
+            vol: selfPickup.vol + delivery.vol,
+            pw: selfPickup.pw + delivery.pw,
+            mest: selfPickup.mest + delivery.mest,
+            sum: selfPickup.sum + delivery.sum,
+        };
+        return { rows: [selfPickup, delivery], totals };
     }, [dashboardTotalItems]);
     const getValForChart = useCallback((item: CargoItem) => {
         if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
@@ -4839,6 +4876,82 @@ export function DashboardPage({
                         <Flex align="center" gap="0.2rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6' }} /><Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)' }}>Паром</Typography.Body></Flex>
                         <Flex align="center" gap="0.2rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} /><Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)' }}>Авто</Typography.Body></Flex>
                     </Flex>
+                </Panel>
+            )}
+
+            {!loading && !error && lastMileTerminalLoad.totals.count > 0 && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>
+                        Загрузка терминалов: самовывоз / доставка
+                    </Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.65rem' }}>
+                        Разбивка текущего периода по последней миле. Проценты считаются от общего итога по каждой метрике.
+                    </Typography.Body>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
+                        {lastMileTerminalLoad.rows.map((row, rowIndex) => {
+                            const pct = (value: number, total: number) => total > 0 ? Math.round((value / total) * 100) : 0;
+                            const metrics = [
+                                { key: 'w', label: 'Кг', value: row.w, total: lastMileTerminalLoad.totals.w, suffix: 'кг' },
+                                { key: 'vol', label: 'Объём', value: row.vol, total: lastMileTerminalLoad.totals.vol, suffix: 'м³', digits: 2 },
+                                { key: 'pw', label: 'Платный вес', value: row.pw, total: lastMileTerminalLoad.totals.pw, suffix: 'кг' },
+                                { key: 'mest', label: 'Шт / мест', value: row.mest, total: lastMileTerminalLoad.totals.mest, suffix: 'шт' },
+                                ...(showSums ? [{ key: 'sum', label: 'Рубли', value: row.sum, total: lastMileTerminalLoad.totals.sum, suffix: '₽', money: true }] : []),
+                            ];
+                            const countPct = pct(row.count, lastMileTerminalLoad.totals.count);
+                            return (
+                                <div key={row.key} style={{ border: '1px solid var(--color-border)', borderRadius: 12, padding: '0.75rem', background: 'var(--color-bg-hover)' }}>
+                                    <Flex align="center" justify="space-between" style={{ gap: '0.5rem', marginBottom: '0.6rem' }}>
+                                        <Flex align="center" gap="0.4rem" style={{ minWidth: 0 }}>
+                                            <span style={{ width: 10, height: 10, borderRadius: '50%', background: row.color, flexShrink: 0 }} />
+                                            <Typography.Body style={{ fontSize: '0.9rem', fontWeight: 700 }}>{row.label}</Typography.Body>
+                                        </Flex>
+                                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
+                                            {row.count.toLocaleString('ru-RU')} перевозок · {countPct}%
+                                        </Typography.Body>
+                                    </Flex>
+                                    <div style={{ height: 10, borderRadius: 999, background: 'var(--color-bg-card)', overflow: 'hidden', marginBottom: '0.7rem' }}>
+                                        <DashboardChartBarH
+                                            enabled={chartBarFillEnabled}
+                                            widthPercent={countPct}
+                                            delay={rowIndex * 0.08}
+                                            style={{ background: row.color, borderRadius: 999, minWidth: countPct > 0 ? 4 : 0 }}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(118px, 1fr))', gap: '0.45rem' }}>
+                                        {metrics.map((metric, metricIndex) => {
+                                            const metricPct = pct(metric.value, metric.total);
+                                            const formattedValue = metric.money
+                                                ? formatCurrency(metric.value, true)
+                                                : `${metric.value.toLocaleString('ru-RU', { maximumFractionDigits: metric.digits ?? 0 })} ${metric.suffix}`;
+                                            return (
+                                                <div key={metric.key} style={{ borderRadius: 10, background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', padding: '0.5rem 0.55rem' }}>
+                                                    <Typography.Body style={{ fontSize: '0.66rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>
+                                                        {metric.label}
+                                                    </Typography.Body>
+                                                    <Typography.Body style={{ fontSize: '0.86rem', fontWeight: 700, marginBottom: '0.25rem' }}>
+                                                        {formattedValue}
+                                                    </Typography.Body>
+                                                    <Flex align="center" gap="0.35rem">
+                                                        <div style={{ flex: 1, height: 6, borderRadius: 999, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
+                                                            <DashboardChartBarH
+                                                                enabled={chartBarFillEnabled}
+                                                                widthPercent={metricPct}
+                                                                delay={rowIndex * 0.08 + metricIndex * 0.035}
+                                                                style={{ background: row.color, borderRadius: 999, minWidth: metricPct > 0 ? 3 : 0 }}
+                                                            />
+                                                        </div>
+                                                        <Typography.Body style={{ fontSize: '0.66rem', color: 'var(--color-text-secondary)', minWidth: 30, textAlign: 'right' }}>
+                                                            {metricPct}%
+                                                        </Typography.Body>
+                                                    </Flex>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </Panel>
             )}
 
