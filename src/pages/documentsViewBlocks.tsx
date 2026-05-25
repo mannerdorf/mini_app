@@ -1147,7 +1147,7 @@ export function DocumentsApiDebugPanel({ title, snapshot, loading }: DocumentsAp
       : [];
 
   return (
-    <details className="documents-api-debug-panel" style={{ marginBottom: "0.85rem" }}>
+    <details className="documents-api-debug-panel" open style={{ marginBottom: "0.85rem" }}>
       <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
         Отладка API: {title}
         {loading ? " (загрузка…)" : snapshot ? ` — HTTP ${snapshot.status ?? "—"}` : ""}

@@ -6461,7 +6461,7 @@ useEffect(() => {
                 </>
             )}
             {docSection === 'Договоры' && (
-                <>
+                <div className="doc-section-content">
                 <DocumentsApiDebugPanel
                     title="GET /api/dogovors"
                     loading={dogovorsLoading}
@@ -6613,7 +6613,7 @@ useEffect(() => {
                         </Typography.Body>
                     )}
                 </DocumentsToolbarBelowSticky>
-                </>
+                </div>
             )}
             {docSection === 'Претензии' && (
                 <DocumentsToolbarBelowSticky>
