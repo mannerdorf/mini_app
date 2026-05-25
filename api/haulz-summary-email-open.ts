@@ -3,7 +3,7 @@ import { getPool } from "./_db.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import { getTrackingGifBuffer, recordSummaryEmailOpen } from "../lib/haulzSummaryEmailTrack.js";
 
-/** GET: пиксель трекинга открытия письма «Самери» (?id=message_id). */
+/** GET: пиксель трекинга открытия письма «Отчёт» (?id=message_id). */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "haulz-summary-email-open");
   if (req.method !== "GET" && req.method !== "HEAD") {

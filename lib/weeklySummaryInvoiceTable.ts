@@ -1,4 +1,4 @@
-/** Таблица счетов в письме «Самери» — стиль как в разделе «Документы → Счета». */
+/** Таблица счетов в письме «Отчёт» — стиль как в разделе «Документы → Счета». */
 
 import { cargoPlannedDeliveryDateFromItem, normalizeCargoDateOnly } from "./cargoDateFilter.js";
 import { formatCargoRoute } from "./cityToCode.js";

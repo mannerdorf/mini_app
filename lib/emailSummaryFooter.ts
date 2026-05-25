@@ -18,7 +18,7 @@ const HAULZ_LEGAL = {
 export const HAULZ_EMAIL_BRAND_BAR_ATTRS =
   'bgcolor="#1e3a8a" style="background-color:#1e3a8a;background-image:linear-gradient(135deg,#1e3a8a,#2563eb);padding:20px;color:#ffffff;"';
 
-/** Подвал письма «Самери» — тот же стиль, что шапка (синий градиент). */
+/** Подвал письма «Отчёт» — тот же стиль, что шапка (синий градиент). */
 export function renderWeeklySummaryFooterHtml(targetLogin: string): string {
   const appUrl = getAppUrl().replace(/\/$/, "");
   const unsubUrl = buildSummaryUnsubscribeUrl(targetLogin);

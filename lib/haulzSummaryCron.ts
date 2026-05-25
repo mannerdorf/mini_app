@@ -353,7 +353,7 @@ async function buildInnActivityIndex(
   return index;
 }
 
-/** Служебные аккаунты не участвуют в массовой рассылке «Самери». */
+/** Служебные аккаунты не участвуют в массовой рассылке «Отчёт». */
 export function isSummaryBroadcastExcludedUser(user: {
   access_all_inns?: boolean;
   permissions?: Record<string, unknown> | null;

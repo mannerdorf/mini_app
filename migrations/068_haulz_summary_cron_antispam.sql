@@ -1,4 +1,4 @@
--- Антиспам: партии и паузы для автоотправки «Самери»
+-- Антиспам: партии и паузы для автоотправки «Отчёт»
 alter table haulz_summary_cron_config
   add column if not exists batch_size int not null default 6,
   add column if not exists email_pause_sec int not null default 4,

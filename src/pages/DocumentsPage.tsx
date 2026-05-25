@@ -4618,8 +4618,7 @@ useEffect(() => {
             {!sendingsLoading && !sendingsError && sendingRowsSorted.length > 0 && (
                 <>
                 <div className="cargo-card documents-sendings-infographic" style={{ padding: '0.6rem 0.75rem', marginBottom: '0.5rem' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '0.35rem', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+                    <div className="documents-sendings-infographic-row">
                         <AppBadge tone="info" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', flex: '0 0 auto' }}>
                             <Ship className="w-3 h-3" /> {sendingsInfographic.ferry}
                         </AppBadge>
@@ -4631,15 +4630,13 @@ useEffect(() => {
                                 {item.route}: {item.count}
                             </AppBadge>
                         ))}
-                    </div>
-                    <div className="documents-sendings-infographic-status-row" style={{ display: 'flex', flexWrap: 'nowrap', gap: '0.35rem', overflowX: 'auto', whiteSpace: 'nowrap' }}>
                         {sendingsInfographic.statusBadges.map((item) => {
                             const isActive = deliveryStatusFilterSet.has(item.key as StatusFilter);
                             return (
                                 <button
                                     key={item.key}
                                     type="button"
-                                    className="role-badge"
+                                    className="role-badge documents-sendings-infographic-filter-badge"
                                     onClick={() => {
                                         setDeliveryStatusFilterSet((prev) => {
                                             if (prev.size === 1 && prev.has(item.key as StatusFilter)) return new Set<StatusFilter>();
@@ -4647,13 +4644,9 @@ useEffect(() => {
                                         });
                                     }}
                                     style={{
-                                        fontSize: '0.72rem',
-                                        padding: '0.12rem 0.42rem',
-                                        borderRadius: '999px',
                                         background: item.bg,
                                         color: item.color,
                                         border: isActive ? `1px solid ${item.color}` : '1px solid var(--color-border)',
-                                        whiteSpace: 'nowrap',
                                         flex: '0 0 auto',
                                         cursor: 'pointer',
                                         opacity: isActive || deliveryStatusFilterSet.size === 0 ? 1 : 0.75,
@@ -4663,7 +4656,6 @@ useEffect(() => {
                                 </button>
                             );
                         })}
-                    </div>
                     </div>
                 </div>
                 {(canEditPlanDate || canRunSanctionsCheck) && tableModeEffective && (
@@ -4915,7 +4907,7 @@ useEffect(() => {
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('cost')} title="Сумма за перевозку">Стоимость {sendingsSortColumn === 'cost' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 )}
                                 {hasAnalytics && showSums && (
-                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('declaredCost')} title="Объявленная стоимость товара">Объявл. стоимость {sendingsSortColumn === 'declaredCost' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, lineHeight: 1.15, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('declaredCost')} title="Объявленная стоимость товара">Объявл.<br />стоимость {sendingsSortColumn === 'declaredCost' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 )}
                                 {hasAnalytics && (
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Санкции</th>

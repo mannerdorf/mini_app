@@ -64,7 +64,7 @@ export function ProfileHaulzSection({
                 )}
                 {activeAccount?.permissions?.haulz === true && activeAccount?.permissions?.service_mode === true && (
                     <Button type="button" className="button-primary" onClick={() => navigateTo("haulzSummary")}>
-                        Самери
+                        Отчёт
                     </Button>
                 )}
             </Flex>

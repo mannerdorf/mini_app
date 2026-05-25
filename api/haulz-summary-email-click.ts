@@ -21,7 +21,7 @@ function decodeDestination(raw: string): string | null {
   return null;
 }
 
-/** GET: редирект по клику в письме «Самери» (?id=message_id&u=base64url). */
+/** GET: редирект по клику в письме «Отчёт» (?id=message_id&u=base64url). */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "haulz-summary-email-click");
   if (req.method !== "GET") {

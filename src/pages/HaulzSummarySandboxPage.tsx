@@ -764,7 +764,7 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
         <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }} aria-label="Назад">
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <Typography.Headline className="text-page-title">Самери — песочница</Typography.Headline>
+        <Typography.Headline className="text-page-title">Отчёт — песочница</Typography.Headline>
       </Flex>
 
       <Typography.Body style={{ fontSize: "0.88rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>

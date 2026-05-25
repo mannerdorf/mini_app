@@ -1,4 +1,4 @@
--- Получатели массовой рассылки «Самери» (статус по каждому адресу).
+-- Получатели массовой рассылки «Отчёт» (статус по каждому адресу).
 create table if not exists haulz_summary_dispatch_recipient (
   id bigserial primary key,
   dispatch_log_id bigint not null references haulz_summary_dispatch_log(id) on delete cascade,

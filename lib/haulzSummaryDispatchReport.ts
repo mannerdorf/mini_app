@@ -179,7 +179,7 @@ export function renderSummaryDispatchReportHtml(report: SummaryDispatchReport): 
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;background:#fff;">
     <tr><td ${HAULZ_EMAIL_BRAND_BAR_ATTRS}>
       <div style="font-size:22px;font-weight:700;">HAULZ</div>
-      <div style="font-size:14px;opacity:0.9;margin-top:4px;">Отчёт о рассылке «Самери»</div>
+      <div style="font-size:14px;opacity:0.9;margin-top:4px;">Рассылка «Отчёт»</div>
     </td></tr>
     <tr><td style="padding:20px;">
       <p style="margin:0 0 14px;font-size:14px;color:#4b5563;line-height:1.5;">
@@ -233,7 +233,7 @@ export async function sendSummaryDispatchReportEmail(
   report: SummaryDispatchReport,
 ): Promise<{ ok: boolean; error?: string }> {
   const periodLabel = `${formatRuPeriodDate(report.period.dateFrom)} — ${formatRuPeriodDate(report.period.dateTo)}`;
-  const subject = `HAULZ: отчёт о рассылке «Самери» (${periodLabel}) — ${statusLabel(report.status)}`;
+  const subject = `HAULZ: рассылка «Отчёт» (${periodLabel}) — ${statusLabel(report.status)}`;
   const html = renderSummaryDispatchReportHtml(report);
   return sendHaulzEmail(pool, {
     to: HAULZ_SUMMARY_OPS_EMAIL,

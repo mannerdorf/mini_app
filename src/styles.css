@@ -1535,7 +1535,6 @@ body {
     margin-top: calc(0.5rem + 0.5cm);
     position: relative;
     z-index: 2;
-    /* .cargo-card { overflow-x: hidden } иначе подрезает второй ряд бейджей (В пути / Доставлено) */
     overflow: visible;
 }
 .documents-page--with-sendings-section .documents-sendings-infographic {
@@ -1544,22 +1543,32 @@ body {
 .documents-page--with-sendings-section.documents-page--saas-analytics .documents-sendings-infographic {
     margin-top: calc(0.95rem + 0.7cm);
 }
-.documents-sendings-infographic-status-row {
-    padding-top: 0.15rem;
+.documents-sendings-infographic-row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.35rem;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+.documents-sendings-infographic-row .app-badge,
+.documents-sendings-infographic-row .documents-sendings-infographic-filter-badge {
+    flex: 0 0 auto;
+    min-height: var(--control-height-badge, 24px) !important;
+    padding: var(--control-padding-badge-y, 4px) var(--control-padding-badge-x, 10px) !important;
+    font-size: var(--text-sm, 0.8125rem) !important;
+    line-height: 1 !important;
 }
 @media (min-width: 769px) {
-    /* Десктоп: два ряда фильтров + липкая SaaS-карточка — нужен больший зазор, чем 1cm */
+    /* Десктоп: липкая шапка с фильтрами — зазор поднят на ~1 см */
     .documents-page--with-sendings-section .documents-sendings-infographic {
-        margin-top: 2.75cm;
+        margin-top: 1.75cm;
     }
     .documents-page--with-sendings-section.documents-page--saas-analytics .documents-sendings-infographic {
-        margin-top: 3.25cm;
+        margin-top: 2.25cm;
     }
     .documents-page--with-sendings-section.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .filters-container.filters-row-scroll {
         margin-bottom: 0.55rem;
-    }
-    .documents-sendings-infographic-status-row {
-        padding-top: 0.65cm;
     }
     .documents-page--with-sendings-section .documents-sendings-infographic {
         padding-top: 0.35rem !important;
@@ -3754,7 +3763,7 @@ button.edo-health-monitor {
     font-size: var(--font-size-subhead, 14px);
 }
 
-/* Самери: как карточки в админке / документах, не тёмный Panel max-ui */
+/* Отчёт: как карточки в админке / документах, не тёмный Panel max-ui */
 .haulz-summary-sandbox,
 .haulz-summary-sandbox label,
 .haulz-summary-sandbox .Typography,

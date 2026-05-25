@@ -1,4 +1,4 @@
--- Отписка от партнёрской рассылки «Самери»
+-- Отписка от партнёрской рассылки «Отчёт»
 create table if not exists haulz_summary_unsubscribe (
   email text primary key,
   unsubscribed_at timestamptz not null default now()

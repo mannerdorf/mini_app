@@ -1,4 +1,4 @@
--- Настройки автоматической рассылки «Самери» (партнёрская сводка)
+-- Настройки автоматической рассылки «Отчёт» (партнёрская сводка)
 create table if not exists haulz_summary_cron_config (
   id int primary key default 1 check (id = 1),
   enabled boolean not null default false,

@@ -147,7 +147,7 @@ function parseCronPatch(body: HaulzSummarySandboxBody): Partial<SummaryCronConfi
   return patch;
 }
 
-/** Песочница «Самери»: users / preview / send / cron_*. */
+/** Песочница «Отчёт»: users / preview / send / cron_*. */
 export async function handleHaulzSummarySandboxRequest(
   req: VercelRequest,
   res: VercelResponse,

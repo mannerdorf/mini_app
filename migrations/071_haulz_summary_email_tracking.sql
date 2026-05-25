@@ -1,4 +1,4 @@
--- Трекинг открытий и кликов в письмах «Самери»
+-- Трекинг открытий и кликов в письмах «Отчёт»
 create table if not exists haulz_summary_email_send (
   message_id text primary key,
   dispatch_log_id bigint references haulz_summary_dispatch_log(id) on delete set null,

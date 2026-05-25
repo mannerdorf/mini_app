@@ -1,4 +1,4 @@
--- Журнал массовых рассылок «Самери»
+-- Журнал массовых рассылок «Отчёт»
 create table if not exists haulz_summary_dispatch_log (
   id bigserial primary key,
   started_at timestamptz not null default now(),
