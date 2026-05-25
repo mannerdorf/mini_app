@@ -2,7 +2,7 @@
 
 import { cargoPlannedDeliveryDateFromItem, normalizeCargoDateOnly } from "./cargoDateFilter.js";
 import { formatCargoRoute } from "./cityToCode.js";
-import { invoiceBalance, invoiceSumPaid } from "./invoiceAmounts.js";
+import { formatInvoiceMoney, invoiceBalance, invoiceSumPaid } from "./invoiceAmounts.js";
 import { emailTableBodyCellStyle, emailTableHeadCellStyle } from "./emailTypography.js";
 
 export type UnpaidInvoiceRow = {
@@ -206,6 +206,7 @@ export function buildUnpaidInvoiceRow(
   cargoRouteByNumber: Map<string, string>,
   cargoPlannedDeliveryDateByNumber: Map<string, string>,
   cargoDeliveryDateByNumber: Map<string, string>,
+  cargoSumPaidByNumber: Map<string, number>,
   invoiceDateIso: string,
   invoiceSum: number,
 ): UnpaidInvoiceRow {
@@ -214,11 +215,16 @@ export function buildUnpaidInvoiceRow(
   const key = cargoNum ? normCargoKey(cargoNum) : "";
   const deliveryStatus = key ? cargoStateByNumber.get(key) || "" : "";
   const isDelivered = key ? cargoIsDelivered(deliveryStatus) : false;
-  const paymentStatus = isDelivered
-    ? normalizeInvoiceStatusLabel(
-        inv.StateBill ?? inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.PaymentStatus,
-      ) || "Не оплачен"
-    : "";
+  const paymentStatus =
+    normalizeInvoiceStatusLabel(
+      inv.StateBill ??
+        inv.Status ??
+        inv.State ??
+        inv.state ??
+        inv.Статус ??
+        inv.status ??
+        inv.PaymentStatus,
+    ) || "";
   const route = key ? cargoRouteByNumber.get(key) || "" : "";
   const plannedDeliveryDate = key ? cargoPlannedDeliveryDateByNumber.get(key) || "" : "";
   const deliveryDate = isDelivered && key ? cargoDeliveryDateByNumber.get(key) || "" : "";
@@ -233,8 +239,8 @@ export function buildUnpaidInvoiceRow(
     deliveryDate,
     deliveryDateDisplay: deliveryDate ? formatShortInvoiceDate(deliveryDate) : "",
     sum: invoiceSum,
-    sumPaid: invoiceSumPaid(inv),
-    balance: invoiceBalance(inv),
+    sumPaid: invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice),
+    balance: invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice),
     paymentStatus,
     deliveryStatus,
     route,
@@ -251,11 +257,9 @@ export function renderUnpaidInvoicesTableHtml(rows: UnpaidInvoiceRow[], totalCou
     .map((r) => {
       const payStyle = paymentBadgeStyle(r.paymentStatus);
       const delStyle = deliveryBadgeStyle(r.deliveryStatus);
-      const fmt = (n: number) =>
-        new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(Math.round(n));
-      const sum = fmt(r.sum);
-      const paid = fmt(r.sumPaid);
-      const balance = fmt(r.balance);
+      const sum = formatInvoiceMoney(r.sum);
+      const paid = formatInvoiceMoney(r.sumPaid);
+      const balance = formatInvoiceMoney(r.balance);
       return `<tr>
         <td style="${bodyCell}font-weight:600;">${r.numberDisplay}</td>
         <td style="${bodyCell}color:#4b5563;white-space:nowrap;">${r.dateDisplay}</td>
@@ -265,6 +269,8 @@ export function renderUnpaidInvoicesTableHtml(rows: UnpaidInvoiceRow[], totalCou
         <td style="${bodyCell}">${badgeHtml(r.deliveryStatus, delStyle)}</td>
         <td style="${bodyCell}">${r.route ? badgeHtml(r.route, { bg: "rgba(37,99,235,0.08)", color: "#2563eb" }, true) : "—"}</td>
         <td style="${bodyCell}text-align:right;font-weight:600;white-space:nowrap;">${sum} ₽</td>
+        <td style="${bodyCell}text-align:right;white-space:nowrap;">${paid} ₽</td>
+        <td style="${bodyCell}text-align:right;font-weight:600;white-space:nowrap;">${balance} ₽</td>
       </tr>`;
     })
     .join("");

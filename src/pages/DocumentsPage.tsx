@@ -18,7 +18,12 @@ import {
     type SanctionCheckResult,
 } from "../lib/sanctions";
 import { normalizeStatus, STATUS_MAP, getFilterKeyByStatus, BILL_STATUS_MAP, getSumColorByPaymentStatus } from "../lib/statusUtils";
-import { invoiceBalance, invoiceDocSum, invoiceSumPaid } from "../../lib/invoiceAmounts.js";
+import {
+    buildCargoSumPaidByNumber,
+    invoiceBalance,
+    invoiceDocSum,
+    invoiceSumPaid,
+} from "../../lib/invoiceAmounts.js";
 import { StatusBadge } from "../components/shared/StatusBadges";
 import {
     aggregateInvoiceEdoDocStats,
@@ -1316,6 +1321,10 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const cargoSumByNumber = useMemo(
         () => buildCargoSumByNumber(perevozkiItems || []),
         [perevozkiItems]
+    );
+    const cargoSumPaidByNumber = useMemo(
+        () => buildCargoSumPaidByNumber((perevozkiItems || []) as Record<string, unknown>[]),
+        [perevozkiItems],
     );
 
     const cargoTransportByNumber = useMemo(() => {
@@ -2648,8 +2657,8 @@ useEffect(() => {
         const getDate = (inv: any) => (inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '').toString();
         const getStatus = (inv: any) => normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
         const getSum = (inv: any) => invoiceDocSum(inv);
-        const getPaid = (inv: any) => invoiceSumPaid(inv);
-        const getBalance = (inv: any) => invoiceBalance(inv);
+        const getPaid = (inv: any) => invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
+        const getBalance = (inv: any) => invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
         const getDeliveryState = (inv: any) => {
             const num = getFirstCargoNumberFromInvoice(inv);
             return (num ? cargoStateByNumber.get(normCargoKey(num)) : undefined) ?? '';
@@ -2672,7 +2681,7 @@ useEffect(() => {
             }
             return innerTableSortOrder === 'asc' ? cmp : -cmp;
         });
-    }, [innerTableSortColumn, innerTableSortOrder, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, normCargoKey]);
+    }, [innerTableSortColumn, innerTableSortOrder, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, cargoSumPaidByNumber, normCargoKey]);
     const sortOrders = useCallback((items: any[]) => {
         const getNum = (row: any) => (row.Number ?? row.number ?? row.Номер ?? row.N ?? '').toString().replace(/^0000-/, '');
         const getDate = (row: any) => (row.DateZayavki ?? row.DateOtpr ?? row.DateSend ?? row.DatePrih ?? row.DateVr ?? row.DateDoc ?? row.Date ?? row.date ?? '').toString();
@@ -3856,8 +3865,8 @@ useEffect(() => {
                                                                 const inum = inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '';
                                                                 const idt = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '';
                                                                 const isum = invoiceDocSum(inv);
-                                                                const ipaid = invoiceSumPaid(inv);
-                                                                const ibalance = invoiceBalance(inv);
+                                                                const ipaid = invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
+                                                                const ibalance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
                                                                 const ipayState = String(inv.StateBill ?? inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
                                                                 const ist = normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
                                                                 const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
@@ -3885,9 +3894,9 @@ useEffect(() => {
                                                                         <td className="cargo-inner-table__col-route doc-inner-table-route cargo-inner-table__col-route--desktop" style={{ padding: '0.35rem 0.3rem' }}>
                                                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
                                                                         </td>
-                                                                        {showSums && <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(isum, true)}</span></td>}
-                                                                        {showSums && <td className="cargo-inner-table__col-paid documents-invoices-inner-table__sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(ipaid, true)}</span></td>}
-                                                                        {showSums && <td className="cargo-inner-table__col-balance documents-invoices-inner-table__sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value" style={{ color: getSumColorByPaymentStatus(ipayState) }}>{formatCurrency(ibalance, true)}</span></td>}
+                                                                        {showSums && <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(isum)}</span></td>}
+                                                                        {showSums && <td className="cargo-inner-table__col-paid documents-invoices-inner-table__sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(ipaid)}</span></td>}
+                                                                        {showSums && <td className="cargo-inner-table__col-balance documents-invoices-inner-table__sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value" style={{ color: getSumColorByPaymentStatus(ipayState) }}>{formatCurrency(ibalance)}</span></td>}
                                                                     </tr>
                                                                 );
                                                             })}
@@ -3931,8 +3940,8 @@ useEffect(() => {
                                 const inum = inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '';
                                 const idt = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '';
                                 const isum = invoiceDocSum(inv);
-                                const ipaid = invoiceSumPaid(inv);
-                                const ibalance = invoiceBalance(inv);
+                                const ipaid = invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
+                                const ibalance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
                                 const ipayState = String(inv.StateBill ?? inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
                                 const ist = normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
                                 const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
@@ -3960,9 +3969,9 @@ useEffect(() => {
                                         <td className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem' }}>
                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
                                         </td>
-                                        {showSums && <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(isum, true)}</span></td>}
-                                        {showSums && <td className="cargo-inner-table__col-paid documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(ipaid, true)}</span></td>}
-                                        {showSums && <td className="cargo-inner-table__col-balance documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value" style={{ color: getSumColorByPaymentStatus(ipayState) }}>{formatCurrency(ibalance, true)}</span></td>}
+                                        {showSums && <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(isum)}</span></td>}
+                                        {showSums && <td className="cargo-inner-table__col-paid documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(ipaid)}</span></td>}
+                                        {showSums && <td className="cargo-inner-table__col-balance documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value" style={{ color: getSumColorByPaymentStatus(ipayState) }}>{formatCurrency(ibalance)}</span></td>}
                                     </tr>
                                 );
                             })}

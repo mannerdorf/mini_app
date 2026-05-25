@@ -4,7 +4,12 @@ import {
   INVOICE_EDO_DOC_LABELS,
   type InvoiceEdoDocLabel,
 } from "./edoStatusServer.js";
-import { invoiceBalance, invoiceDocSum } from "./invoiceAmounts.js";
+import {
+  buildCargoSumPaidByNumber,
+  invoiceBalance,
+  invoiceDocSum,
+  isOutstandingFinanceInvoice,
+} from "./invoiceAmounts.js";
 import { getInvoicePaymentFilterKey } from "./invoicePaymentFilter.js";
 import { cityToCode } from "./cityToCode.js";
 import { HAULZ_EMAIL_BRAND_BAR_ATTRS, renderWeeklySummaryFooterHtml } from "./emailSummaryFooter.js";
@@ -25,6 +30,7 @@ import {
   buildCargoRouteByNumber,
   buildCargoStateByNumber,
   buildUnpaidInvoiceRow,
+  getFirstCargoNumberFromInvoice,
   renderUnpaidInvoicesTableHtml,
   type UnpaidInvoiceRow,
 } from "./weeklySummaryInvoiceTable.js";
@@ -231,6 +237,7 @@ export async function buildWeeklySummaryData(
   const cargoRouteByNumber = buildCargoRouteByNumber(perevozkiAllInn);
   const cargoPlannedDeliveryDateByNumber = buildCargoPlannedDeliveryDateByNumber(perevozkiAllInn);
   const cargoDeliveryDateByNumber = buildCargoDeliveryDateByNumber(perevozkiAllInn);
+  const cargoSumPaidByNumber = buildCargoSumPaidByNumber(perevozkiAllInn);
 
   const acceptedInPeriod = emptyMetrics();
   const deliveredInPeriod = emptyMetrics();
@@ -275,9 +282,9 @@ export async function buildWeeklySummaryData(
     const d = invoiceDate(inv);
     if (!d || d < dateFrom || d > dateTo) continue;
     invoicesInPeriod.push(inv);
-    if (getInvoicePaymentFilterKey(inv) !== "unpaid") continue;
+    if (!isOutstandingFinanceInvoice(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice)) continue;
     const sum = invoiceDocSum(inv);
-    totalDebt += invoiceBalance(inv);
+    totalDebt += invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
     unpaidRows.push(
       buildUnpaidInvoiceRow(
         inv,
@@ -285,6 +292,7 @@ export async function buildWeeklySummaryData(
         cargoRouteByNumber,
         cargoPlannedDeliveryDateByNumber,
         cargoDeliveryDateByNumber,
+        cargoSumPaidByNumber,
         d,
         sum,
       ),
@@ -327,7 +335,10 @@ function formatRuDate(iso: string): string {
 }
 
 function formatMoney(n: number): string {
-  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(Math.round(n));
+  return new Intl.NumberFormat("ru-RU", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
 }
 
 function formatVol(n: number): string {
@@ -469,7 +480,7 @@ export function renderWeeklySummaryHtml(data: WeeklySummaryData): string {
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;">
         <tr>
           ${financeCard("Счетов", String(data.unpaidInvoices.count), financeTileCountColor)}
-          ${financeCard("Сумма", `${formatMoney(data.unpaidInvoices.totalDebt)} ₽`, financeTileSumColor)}
+          ${financeCard("Остаток", `${formatMoney(data.unpaidInvoices.totalDebt)} ₽`, financeTileSumColor)}
         </tr>
       </table>
       ${renderUnpaidInvoicesTableHtml(data.unpaidInvoices.rows, data.unpaidInvoices.count)}
