@@ -901,12 +901,17 @@ export async function runPartnerSummaryCron(
       }
       job = await startSendJob(pool, config, recipients, period, "manual");
     }
-    const lastBatch = await runSendJobBatchesUntilDeadline(
-      pool,
-      config,
-      job,
-      Math.max(10_000, options.maxRunMs ?? 270_000),
-    );
+    // Быстрый ответ HTTP: одна партия; остальное — cron_continue / cron на сервере.
+    const shortDeadline = Math.max(5000, options.maxRunMs ?? 20_000);
+    if (shortDeadline <= 25_000) {
+      const { job: updated, batchSent, done } = await processSendJobBatch(pool, config, job);
+      return runResultFromJob(updated, {
+        batchSent,
+        jobRunning: !done,
+        reason: done ? undefined : "Рассылка продолжается автоматически",
+      });
+    }
+    const lastBatch = await runSendJobBatchesUntilDeadline(pool, config, job, shortDeadline);
     return runResultFromJob(lastBatch.job, {
       batchSent: lastBatch.batchSent,
       jobRunning: !lastBatch.done,

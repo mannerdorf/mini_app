@@ -248,7 +248,7 @@ export async function handleHaulzSummarySandboxRequest(
     }
 
     if (action === "cron_run") {
-      const result = await runPartnerSummaryCron(pool, { force: true });
+      const result = await runPartnerSummaryCron(pool, { force: true, maxRunMs: 20_000 });
       const cronConfig = await loadSummaryCronConfig(pool);
       const sendJob = serializeSendJobForApi(cronConfig.sendJob);
       res.status(200).json({ ...result, sendJob, request_id: requestId });
@@ -256,7 +256,7 @@ export async function handleHaulzSummarySandboxRequest(
     }
 
     if (action === "cron_continue") {
-      const result = await runPartnerSummaryCron(pool, { continueOnly: true, maxRunMs: 55_000 });
+      const result = await runPartnerSummaryCron(pool, { continueOnly: true, maxRunMs: 45_000 });
       const cronConfig = await loadSummaryCronConfig(pool);
       const sendJob = serializeSendJobForApi(cronConfig.sendJob);
       res.status(200).json({ ...result, sendJob, request_id: requestId });

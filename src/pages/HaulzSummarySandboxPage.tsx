@@ -5,6 +5,8 @@ import type { Account } from "../types";
 import { getPreviousCalendarWeekRangeClient } from "../lib/weeklySummaryClient";
 
 const SUMMARY_API_PATHS = ["/api/invoices", "/api/admin-weekly-summary", "/api/perevozki"] as const;
+/** Cron/рассылка — сначала лёгкий endpoint, чтобы не упираться в таймаут invoices. */
+const SUMMARY_CRON_API_PATHS = ["/api/admin-weekly-summary", "/api/invoices", "/api/perevozki"] as const;
 
 const SUMMARY_FORM_STORAGE_PREFIX = "haulz.summarySandbox.lastSend";
 
@@ -576,7 +578,7 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
         jobRunning?: boolean;
         sendJob?: SummarySendJob | null;
         skipped?: boolean;
-      }>(SUMMARY_API_PATHS, { ...authBody, action: "cron_continue" }, authBody.login, authBody.password);
+      }>(SUMMARY_CRON_API_PATHS, { ...authBody, action: "cron_continue" }, authBody.login, authBody.password);
       if (data.sendJob) {
         setActiveSendJob(data.sendJob.status === "running" ? data.sendJob : null);
       } else if (!data.jobRunning) {
@@ -677,7 +679,7 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
         failed?: number;
         recipients?: number;
         sendJob?: SummarySendJob | null;
-      }>(SUMMARY_API_PATHS, { ...authBody, action: "cron_stop" }, authBody.login, authBody.password);
+      }>(SUMMARY_CRON_API_PATHS, { ...authBody, action: "cron_stop" }, authBody.login, authBody.password);
       setActiveSendJob(data.sendJob ?? null);
       setCronMessage(
         data.ok
@@ -706,7 +708,7 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
         jobRunning?: boolean;
         sendJob?: SummarySendJob | null;
         errors?: Array<{ error: string }>;
-      }>(SUMMARY_API_PATHS, { ...authBody, action: "cron_run" }, authBody.login, authBody.password);
+      }>(SUMMARY_CRON_API_PATHS, { ...authBody, action: "cron_run" }, authBody.login, authBody.password);
       if (data.sendJob) setActiveSendJob(data.sendJob);
       const running = data.jobRunning || data.sendJob?.status === "running";
       setCronMessage(
@@ -717,8 +719,13 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
       void fetchUsers();
       void refreshCronStatus();
       void loadDispatchLogs();
+      if (running) void continueCronSend();
     } catch (e: unknown) {
-      setCronMessage((e as Error)?.message || "Ошибка");
+      const msg = (e as Error)?.message || "Ошибка";
+      setCronMessage(msg.includes("504") ? `${msg} — проверяем, могла ли рассылка стартовать…` : msg);
+      void refreshCronStatus();
+      void loadDispatchLogs();
+      void continueCronSend();
     } finally {
       setCronBusy(null);
     }
