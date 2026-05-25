@@ -68,3 +68,15 @@ sudo crontab -e
 ```bash
 cd /opt/haulz/app && sudo git pull && sudo npm ci && sudo systemctl restart haulz-api
 ```
+
+## Статика haulz.ru
+
+Фронт на **haulz.ru** (Caddy/nginx) не обслуживает `POST /api/*` — только **api.haulz.ru**.
+
+При сборке для VPS можно явно задать:
+
+```bash
+VITE_API_ORIGIN=https://api.haulz.ru npm run build
+```
+
+В актуальных сборках `main.tsx` сам перенаправляет `/api/*` с `haulz.ru` на `api.haulz.ru`, если `VITE_API_ORIGIN` не задан.
