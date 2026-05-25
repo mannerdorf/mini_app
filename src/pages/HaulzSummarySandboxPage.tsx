@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Loader2, Mail, Eye, Play, Users, Save, RefreshCw, ScrollText, Square } from "lucide-react";
+import { ArrowLeft, Loader2, Mail, Eye, Play, Users, Save, RefreshCw, ScrollText, Square, ListChecks } from "lucide-react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import type { Account } from "../types";
 import { getPreviousCalendarWeekRangeClient } from "../lib/weeklySummaryClient";
@@ -138,6 +138,7 @@ type DirectoryPayload = {
   customers?: CustomerDirectoryRow[];
   defaultPeriod?: { dateFrom: string; dateTo: string };
   cronConfig?: SummaryCronConfig;
+  sendJob?: SummarySendJob | null;
 };
 
 const LABEL_STYLE: React.CSSProperties = {
@@ -256,6 +257,7 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
   const [cronLastRun, setCronLastRun] = useState<string | null>(null);
   const [cronLastStatus, setCronLastStatus] = useState<string | null>(null);
   const [cronRecipients, setCronRecipients] = useState<CronRecipient[]>([]);
+  const [cronRecipientsPeriod, setCronRecipientsPeriod] = useState<{ dateFrom: string; dateTo: string } | null>(null);
   const [cronBusy, setCronBusy] = useState<string | null>(null);
   const [cronMessage, setCronMessage] = useState<string | null>(null);
   const [activeSendJob, setActiveSendJob] = useState<SummarySendJob | null>(null);
@@ -307,6 +309,48 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
     );
   }, [companyOptions, customerSearch]);
 
+  const normalizeSendJobForUi = (job: SummarySendJob & { recipients?: unknown[] }): SummarySendJob => {
+    const total =
+      job.total ??
+      (Array.isArray(job.recipients) ? job.recipients.length : 0);
+    const cursor = Math.max(0, Number(job.cursor) || 0);
+    return {
+      ...job,
+      total,
+      progressPct:
+        job.progressPct ??
+        (total > 0 ? Math.min(100, Math.round((cursor / total) * 100)) : 0),
+      skippedUnsubscribed: job.skippedUnsubscribed ?? 0,
+    };
+  };
+
+  const sendJobFromDispatchLog = (log: DispatchLogRow): SummarySendJob => ({
+    status: "running",
+    cursor: log.cursorPos,
+    sent: log.sent,
+    failed: log.failed,
+    skippedUnsubscribed: log.skippedUnsubscribed,
+    total: log.recipientsTotal,
+    progressPct: log.progressPct,
+    startedAt: log.startedAt,
+    trigger: log.trigger,
+    logId: log.id,
+    period: log.period,
+  });
+
+  const applyCronConfig = (cfg: SummaryCronConfig) => {
+    setCronEnabled(!!cfg.enabled);
+    setCronSchedule(cfg.schedule);
+    setCronPeriodMode(cfg.periodMode);
+    setCronPeriodDays(cfg.periodDays);
+    setCronCriteria(cfg.criteria);
+    setCronLastRun(cfg.lastRunAt);
+    setCronLastStatus(cfg.lastRunStatus);
+    if (cfg.sendJob?.status === "running") {
+      setActiveSendJob(normalizeSendJobForUi(cfg.sendJob as SummarySendJob & { recipients?: unknown[] }));
+    }
+  };
+
   const fetchUsers = useCallback(async () => {
     if (!authBody) return;
     setLoadingUsers(true);
@@ -318,13 +362,12 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
       setUsers(list);
       setCustomers(cust);
       if (data.cronConfig) {
-        setCronEnabled(!!data.cronConfig.enabled);
-        setCronSchedule(data.cronConfig.schedule || "weekly");
-        setCronPeriodMode(data.cronConfig.periodMode || "prev_week");
-        setCronPeriodDays(data.cronConfig.periodDays || 7);
-        setCronCriteria(data.cronConfig.criteria || { acceptance: true, delivery: true, unpaid_invoices: true });
-        setCronLastRun(data.cronConfig.lastRunAt);
-        setCronLastStatus(data.cronConfig.lastRunStatus);
+        applyCronConfig(data.cronConfig);
+      }
+      if (data.sendJob) {
+        setActiveSendJob(data.sendJob);
+      } else if (data.cronConfig?.sendJob) {
+        setActiveSendJob(normalizeSendJobForUi(data.cronConfig.sendJob));
       }
       if (!savedForm && data.defaultPeriod?.dateFrom && data.defaultPeriod?.dateTo) {
         setDateFrom(data.defaultPeriod.dateFrom);
@@ -374,17 +417,6 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
     setCompanyName(first.name || "");
   }, [targetLogin, companyOptions, inn]);
 
-  const applyCronConfig = (cfg: SummaryCronConfig) => {
-    setCronEnabled(!!cfg.enabled);
-    setCronSchedule(cfg.schedule);
-    setCronPeriodMode(cfg.periodMode);
-    setCronPeriodDays(cfg.periodDays);
-    setCronCriteria(cfg.criteria);
-    setCronLastRun(cfg.lastRunAt);
-    setCronLastStatus(cfg.lastRunStatus);
-    if (cfg.sendJob) setActiveSendJob(cfg.sendJob);
-  };
-
   const statusLabel = (status: string) => {
     if (status === "ok" || status === "completed") return "Успешно";
     if (status === "partial") return "Частично";
@@ -403,7 +435,8 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
         activeLog: DispatchLogRow | null;
       }>(SUMMARY_API_PATHS, { ...authBody, action: "cron_get" }, authBody.login, authBody.password);
       if (data.cronConfig) applyCronConfig(data.cronConfig);
-      setActiveSendJob(data.sendJob ?? data.cronConfig?.sendJob ?? null);
+      const nextJob = data.sendJob ?? (data.cronConfig?.sendJob ? normalizeSendJobForUi(data.cronConfig.sendJob as SummarySendJob & { recipients?: unknown[] }) : null);
+      setActiveSendJob(nextJob?.status === "running" ? nextJob : null);
       if (data.activeLog) {
         setDispatchLogs((prev) => {
           const rest = prev.filter((l) => l.id !== data.activeLog!.id);
@@ -425,26 +458,68 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
         authBody.login,
         authBody.password,
       );
-      setDispatchLogs(Array.isArray(data.logs) ? data.logs : []);
+      const logs = Array.isArray(data.logs) ? data.logs : [];
+      setDispatchLogs(logs);
+      if (logs.some((l) => l.isRunning)) {
+        void refreshCronStatus();
+      }
     } catch {
       setDispatchLogs([]);
     } finally {
       setLogsLoading(false);
     }
-  }, [authBody]);
+  }, [authBody, refreshCronStatus]);
 
   useEffect(() => {
     if (!authBody) return;
     void loadDispatchLogs();
-  }, [authBody, loadDispatchLogs]);
+    void refreshCronStatus();
+  }, [authBody, loadDispatchLogs, refreshCronStatus]);
 
-  const sendJobRunning = activeSendJob?.status === "running";
+  const runningDispatchLog = useMemo(
+    () => dispatchLogs.find((l) => l.isRunning) ?? null,
+    [dispatchLogs],
+  );
+
+  const sendJobRunning = activeSendJob?.status === "running" || Boolean(runningDispatchLog);
+
+  const progressSendJob = useMemo((): SummarySendJob | null => {
+    if (activeSendJob?.status === "running") return activeSendJob;
+    if (runningDispatchLog) return sendJobFromDispatchLog(runningDispatchLog);
+    return null;
+  }, [activeSendJob, runningDispatchLog]);
+
+  const recipientListSummary = useMemo(() => {
+    const users = new Set<string>();
+    const companies = new Set<string>();
+    let acceptance = 0;
+    let delivery = 0;
+    let unpaid = 0;
+    for (const r of cronRecipients) {
+      users.add(r.targetLogin.toLowerCase());
+      companies.add(r.inn);
+      if (r.reasons.some((x) => x.includes("приём"))) acceptance += 1;
+      if (r.reasons.some((x) => x.includes("достав"))) delivery += 1;
+      if (r.reasons.some((x) => x.includes("счет") || x.includes("счёт"))) unpaid += 1;
+    }
+    return {
+      users: users.size,
+      companies: companies.size,
+      acceptance,
+      delivery,
+      unpaid,
+      total: cronRecipients.length,
+    };
+  }, [cronRecipients]);
 
   useEffect(() => {
     if (!sendJobRunning || !authBody) return;
-    const timer = window.setInterval(() => void refreshCronStatus(), 4000);
+    const timer = window.setInterval(() => {
+      void refreshCronStatus();
+      void loadDispatchLogs();
+    }, 4000);
     return () => window.clearInterval(timer);
-  }, [sendJobRunning, authBody, refreshCronStatus]);
+  }, [sendJobRunning, authBody, refreshCronStatus, loadDispatchLogs]);
 
   useEffect(() => {
     if (!sendJobRunning) {
@@ -490,15 +565,17 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
     try {
       const data = await postSummaryApi<{ recipients: CronRecipient[]; count: number; period: { dateFrom: string; dateTo: string } }>(
         SUMMARY_API_PATHS,
-        { ...cronPayload(), action: "cron_recipients", dateFrom, dateTo },
+        { ...cronPayload(), action: "cron_recipients" },
         authBody.login,
         authBody.password,
       );
       setCronRecipients(Array.isArray(data.recipients) ? data.recipients : []);
+      setCronRecipientsPeriod(data.period?.dateFrom && data.period?.dateTo ? data.period : null);
       setCronMessage(`В выборке: ${data.count ?? 0} писем (период ${data.period?.dateFrom} — ${data.period?.dateTo})`);
     } catch (e: unknown) {
       setCronMessage((e as Error)?.message || "Ошибка");
       setCronRecipients([]);
+      setCronRecipientsPeriod(null);
     } finally {
       setCronBusy(null);
     }
@@ -917,25 +994,97 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
             <ScrollText className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
             <Typography.Body style={{ ...LABEL_STYLE, margin: 0 }}>Журнал рассылок</Typography.Body>
           </Flex>
-          <Button type="button" className="filter-button" disabled={logsLoading} onClick={() => void loadDispatchLogs()}>
-            {logsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            <span style={{ marginLeft: "0.35rem" }}>Обновить</span>
-          </Button>
+          <Flex align="center" gap="0.5rem" wrap="wrap">
+            <Button
+              type="button"
+              className="button-primary"
+              disabled={!authBody || cronBusy === "recipients" || !!cronBusy}
+              onClick={() => void loadCronRecipients()}
+            >
+              {cronBusy === "recipients" ? <Loader2 className="w-4 h-4 animate-spin" /> : <ListChecks className="w-4 h-4" />}
+              <span style={{ marginLeft: "0.35rem" }}>Сформировать список для рассылки</span>
+            </Button>
+            {sendJobRunning ? (
+              <Button
+                type="button"
+                className="filter-button"
+                disabled={cronBusy === "stop"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void stopCronSend();
+                }}
+                style={{ color: "#b91c1c", borderColor: "rgba(185,28,28,0.35)", fontWeight: 600 }}
+              >
+                {cronBusy === "stop" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Square className="w-4 h-4" />}
+                <span style={{ marginLeft: "0.35rem" }}>Остановить рассылку</span>
+              </Button>
+            ) : null}
+            <Button type="button" className="filter-button" disabled={logsLoading} onClick={() => void loadDispatchLogs()}>
+              {logsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              <span style={{ marginLeft: "0.35rem" }}>Обновить</span>
+            </Button>
+          </Flex>
         </Flex>
 
-        {sendJobRunning && activeSendJob && (
+        {(cronRecipientsPeriod || cronRecipients.length > 0) && (
+          <div
+            style={{
+              marginBottom: "0.85rem",
+              padding: "0.65rem 0.75rem",
+              borderRadius: "8px",
+              background: "var(--color-bg-hover)",
+              border: "1px solid var(--color-border)",
+            }}
+          >
+            <Typography.Body style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--color-text-primary)" }}>
+              Список для рассылки: {recipientListSummary.total} писем
+              {cronRecipientsPeriod ? ` · период ${cronRecipientsPeriod.dateFrom} — ${cronRecipientsPeriod.dateTo}` : ""}
+            </Typography.Body>
+            {recipientListSummary.total > 0 ? (
+              <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginTop: "0.3rem" }}>
+                Пользователей: {recipientListSummary.users} · контрагентов: {recipientListSummary.companies} · приёмки:{" "}
+                {recipientListSummary.acceptance} · доставки: {recipientListSummary.delivery} · счета: {recipientListSummary.unpaid}
+              </Typography.Body>
+            ) : (
+              <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginTop: "0.3rem" }}>
+                По текущим правилам и периоду получателей нет.
+              </Typography.Body>
+            )}
+            {cronRecipients.length > 0 ? (
+              <details style={{ marginTop: "0.45rem" }}>
+                <summary style={{ cursor: "pointer", fontSize: "0.78rem", color: "var(--color-primary-blue)" }}>
+                  Показать первые {Math.min(50, cronRecipients.length)} адресатов
+                </summary>
+                <ul style={{ margin: "0.35rem 0 0", paddingLeft: "1.1rem", fontSize: "0.76rem", color: "var(--color-text-primary)" }}>
+                  {cronRecipients.slice(0, 50).map((r) => (
+                    <li key={`${r.targetLogin}-${r.inn}`}>
+                      {r.targetLogin} · {r.companyName} ({r.inn}) — {r.reasons.join(", ")}
+                    </li>
+                  ))}
+                </ul>
+                {cronRecipients.length > 50 ? (
+                  <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.25rem" }}>
+                    … и ещё {cronRecipients.length - 50}
+                  </Typography.Body>
+                ) : null}
+              </details>
+            ) : null}
+          </div>
+        )}
+
+        {sendJobRunning && progressSendJob && (
           <div style={{ marginBottom: "0.85rem", padding: "0.65rem 0.75rem", borderRadius: "8px", background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.25)" }}>
             <Typography.Body style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--color-text-primary)" }}>
-              Рассылка в процессе ({activeSendJob.trigger === "manual" ? "ручная" : "авто"})
+              Рассылка в процессе ({progressSendJob.trigger === "manual" ? "ручная" : "авто"})
             </Typography.Body>
             <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginTop: "0.25rem" }}>
-              {activeSendJob.sent} отправлено · {activeSendJob.failed} ошибок · {activeSendJob.skippedUnsubscribed} отписок ·{" "}
-              {activeSendJob.cursor} / {activeSendJob.total}
+              {progressSendJob.sent} отправлено · {progressSendJob.failed} ошибок · {progressSendJob.skippedUnsubscribed} отписок ·{" "}
+              {progressSendJob.cursor} / {progressSendJob.total}
             </Typography.Body>
             <div style={{ marginTop: "0.45rem", height: "8px", borderRadius: "999px", background: "var(--color-border)", overflow: "hidden" }}>
               <div
                 style={{
-                  width: `${activeSendJob.progressPct}%`,
+                  width: `${progressSendJob.progressPct}%`,
                   height: "100%",
                   background: "linear-gradient(90deg,#1e3a8a,#2563eb)",
                   transition: "width 0.4s ease",
@@ -951,10 +1100,10 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
                 className="filter-button"
                 disabled={cronBusy === "stop"}
                 onClick={() => void stopCronSend()}
-                style={{ fontSize: "0.78rem", color: "#b91c1c", borderColor: "rgba(185,28,28,0.35)" }}
+                style={{ fontSize: "0.78rem", color: "#b91c1c", borderColor: "rgba(185,28,28,0.35)", fontWeight: 600 }}
               >
                 {cronBusy === "stop" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Square className="w-4 h-4" />}
-                <span style={{ marginLeft: "0.3rem" }}>Остановить</span>
+                <span style={{ marginLeft: "0.3rem" }}>Остановить рассылку</span>
               </Button>
             </Flex>
           </div>

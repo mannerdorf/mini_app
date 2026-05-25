@@ -525,6 +525,54 @@ async function isSendJobStillActive(pool: Pool): Promise<SummaryCronSendJob | nu
   return job;
 }
 
+async function loadRunningDispatchLogRow(pool: Pool): Promise<Record<string, unknown> | null> {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM haulz_summary_dispatch_log
+       WHERE finished_at IS NULL AND status = 'running'
+       ORDER BY started_at DESC
+       LIMIT 1`,
+    );
+    return (rows[0] as Record<string, unknown>) || null;
+  } catch {
+    return null;
+  }
+}
+
+function jobFromRunningDispatchLog(row: Record<string, unknown>): SummaryCronSendJob {
+  const total = Math.max(0, Number(row.recipients_total) || 0);
+  const criteriaRaw = row.criteria;
+  const criteria =
+    criteriaRaw && typeof criteriaRaw === "object"
+      ? parseCriteria(criteriaRaw)
+      : { ...DEFAULT_CRITERIA };
+  void criteria;
+  return {
+    status: "running",
+    period: {
+      dateFrom: String(row.period_from ?? "").slice(0, 10),
+      dateTo: String(row.period_to ?? "").slice(0, 10),
+    },
+    recipients: Array.from({ length: total }, () => ({
+      targetLogin: "",
+      inn: "",
+      companyName: "",
+      reasons: [] as string[],
+    })),
+    cursor: Math.max(0, Number(row.cursor_pos) || 0),
+    sent: Math.max(0, Number(row.sent) || 0),
+    failed: Math.max(0, Number(row.failed) || 0),
+    skippedUnsubscribed: Math.max(0, Number(row.skipped_unsubscribed) || 0),
+    trigger: String(row.trigger) === "manual" ? "manual" : "auto",
+    logId: Math.max(0, Number(row.id) || 0),
+    errors: Array.isArray(row.errors)
+      ? (row.errors as Array<{ targetLogin: string; inn: string; error: string }>)
+      : [],
+    startedAt: new Date(String(row.started_at ?? Date.now())).toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export async function cancelPartnerSummarySendJob(pool: Pool): Promise<{
   ok: boolean;
   message?: string;
@@ -533,19 +581,31 @@ export async function cancelPartnerSummarySendJob(pool: Pool): Promise<{
   recipients?: number;
 }> {
   const config = await loadSummaryCronConfig(pool);
-  const job = config.sendJob;
-  if (!job || job.status !== "running") {
-    return { ok: false, message: "Нет активной рассылки" };
+  let job = config.sendJob?.status === "running" ? config.sendJob : null;
+  let criteria = config.criteria;
+
+  if (!job) {
+    const row = await loadRunningDispatchLogRow(pool);
+    if (!row) {
+      return { ok: false, message: "Нет активной рассылки" };
+    }
+    job = jobFromRunningDispatchLog(row);
+    const criteriaRaw = row.criteria;
+    if (criteriaRaw && typeof criteriaRaw === "object") {
+      criteria = parseCriteria(criteriaRaw);
+    }
   }
+
   job.status = "completed";
   job.updatedAt = new Date().toISOString();
-  await finalizeSendRun(pool, job, "cancelled", config.criteria);
+  await finalizeSendRun(pool, job, "cancelled", criteria);
+  const recipients = job.recipients.length > 0 ? job.recipients.length : Math.max(job.cursor, 0);
   return {
     ok: true,
     message: "Рассылка остановлена",
     sent: job.sent,
     failed: job.failed,
-    recipients: job.recipients.length,
+    recipients,
   };
 }
 

@@ -174,7 +174,8 @@ export async function handleHaulzSummarySandboxRequest(
     if (action === "users") {
       const { users, customers, defaultPeriod } = await loadHaulzSummaryDirectories(pool);
       const cronConfig = await loadSummaryCronConfig(pool);
-      res.status(200).json({ users, customers, defaultPeriod, cronConfig, request_id: requestId });
+      const sendJob = serializeSendJobForApi(cronConfig.sendJob);
+      res.status(200).json({ users, customers, defaultPeriod, cronConfig, sendJob, request_id: requestId });
       return true;
     }
 
