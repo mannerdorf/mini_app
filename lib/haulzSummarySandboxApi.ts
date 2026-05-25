@@ -4,6 +4,7 @@ import { verifyPassword } from "./passwordUtils.js";
 import { verifyAdminToken, getAdminTokenFromRequest } from "./adminAuth.js";
 import {
   buildSummaryCronRecipients,
+  cancelPartnerSummarySendJob,
   loadSummaryCronConfig,
   resolveSummaryCronPeriod,
   runPartnerSummaryCron,
@@ -53,6 +54,7 @@ const SANDBOX_ACTIONS = new Set([
   "cron_save",
   "cron_recipients",
   "cron_run",
+  "cron_stop",
   "cron_logs",
 ]);
 
@@ -227,6 +229,14 @@ export async function handleHaulzSummarySandboxRequest(
       const cronConfig = await loadSummaryCronConfig(pool);
       const sendJob = serializeSendJobForApi(cronConfig.sendJob);
       res.status(200).json({ ...result, sendJob, request_id: requestId });
+      return true;
+    }
+
+    if (action === "cron_stop") {
+      const result = await cancelPartnerSummarySendJob(pool);
+      const cronConfig = await loadSummaryCronConfig(pool);
+      const sendJob = serializeSendJobForApi(cronConfig.sendJob);
+      res.status(result.ok ? 200 : 400).json({ ...result, sendJob, request_id: requestId });
       return true;
     }
 

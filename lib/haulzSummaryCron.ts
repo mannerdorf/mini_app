@@ -518,16 +518,60 @@ async function sendOneSummaryEmail(
   });
 }
 
+async function isSendJobStillActive(pool: Pool): Promise<SummaryCronSendJob | null> {
+  const config = await loadSummaryCronConfig(pool);
+  const job = config.sendJob;
+  if (!job || job.status !== "running") return null;
+  return job;
+}
+
+export async function cancelPartnerSummarySendJob(pool: Pool): Promise<{
+  ok: boolean;
+  message?: string;
+  sent?: number;
+  failed?: number;
+  recipients?: number;
+}> {
+  const config = await loadSummaryCronConfig(pool);
+  const job = config.sendJob;
+  if (!job || job.status !== "running") {
+    return { ok: false, message: "Нет активной рассылки" };
+  }
+  job.status = "completed";
+  job.updatedAt = new Date().toISOString();
+  await finalizeSendRun(pool, job, "cancelled", config.criteria);
+  return {
+    ok: true,
+    message: "Рассылка остановлена",
+    sent: job.sent,
+    failed: job.failed,
+    recipients: job.recipients.length,
+  };
+}
+
 async function processSendJobBatch(
   pool: Pool,
   config: SummaryCronConfig,
   job: SummaryCronSendJob,
 ): Promise<{ job: SummaryCronSendJob; batchSent: number; batchFailed: number; done: boolean }> {
+  const active = await isSendJobStillActive(pool);
+  if (!active) {
+    return { job, batchSent: 0, batchFailed: 0, done: true };
+  }
+  job = active;
+
   const batch = job.recipients.slice(job.cursor, job.cursor + config.batchSize);
   let batchSent = 0;
   let batchFailed = 0;
 
   for (let i = 0; i < batch.length; i += 1) {
+    if (i > 0) {
+      const stillActive = await isSendJobStillActive(pool);
+      if (!stillActive) {
+        return { job, batchSent, batchFailed, done: true };
+      }
+      job = stillActive;
+    }
     const r = batch[i];
     try {
       const sendResult = await sendOneSummaryEmail(pool, r, job.period, job.logId);
@@ -705,6 +749,12 @@ export async function runPartnerSummaryCron(
     const deadline = Date.now() + 270_000;
     let lastBatch = { batchSent: 0, batchFailed: 0, done: false };
     while (!lastBatch.done && Date.now() < deadline) {
+      const active = await isSendJobStillActive(pool);
+      if (!active) {
+        lastBatch = { job, batchSent: 0, batchFailed: 0, done: true };
+        break;
+      }
+      job = active;
       lastBatch = await processSendJobBatch(pool, config, job);
       job = lastBatch.job;
       if (!lastBatch.done) await sleepMs(config.batchPauseSec * 1000);
@@ -717,6 +767,20 @@ export async function runPartnerSummaryCron(
   }
 
   if (job) {
+    const active = await isSendJobStillActive(pool);
+    if (!active) {
+      return {
+        ok: true,
+        skipped: true,
+        reason: "Рассылка остановлена",
+        period,
+        sent: 0,
+        failed: 0,
+        recipients: 0,
+        errors: [],
+      };
+    }
+    job = active;
     if (!isSummaryCronSpreadWindow(config)) {
       return runResultFromJob(job, {
         ok: true,

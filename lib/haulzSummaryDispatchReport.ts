@@ -91,6 +91,7 @@ function statusLabel(status: string): string {
   if (status === "ok") return "Успешно";
   if (status === "partial") return "Частично (есть ошибки)";
   if (status === "failed") return "Ошибка";
+  if (status === "cancelled") return "Остановлена";
   return status;
 }
 

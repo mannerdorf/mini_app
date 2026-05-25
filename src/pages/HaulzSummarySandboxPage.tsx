@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Loader2, Mail, Eye, Play, Users, Save, RefreshCw, ScrollText } from "lucide-react";
+import { ArrowLeft, Loader2, Mail, Eye, Play, Users, Save, RefreshCw, ScrollText, Square } from "lucide-react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import type { Account } from "../types";
 import { getPreviousCalendarWeekRangeClient } from "../lib/weeklySummaryClient";
@@ -390,6 +390,7 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
     if (status === "partial") return "Частично";
     if (status === "failed") return "Ошибка";
     if (status === "running") return "Идёт рассылка";
+    if (status === "cancelled") return "Остановлена";
     return status || "—";
   };
 
@@ -498,6 +499,35 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
     } catch (e: unknown) {
       setCronMessage((e as Error)?.message || "Ошибка");
       setCronRecipients([]);
+    } finally {
+      setCronBusy(null);
+    }
+  };
+
+  const stopCronSend = async () => {
+    if (!authBody) return;
+    if (!window.confirm("Остановить рассылку? Уже отправленные письма не отзываются.")) return;
+    setCronBusy("stop");
+    setCronMessage(null);
+    try {
+      const data = await postSummaryApi<{
+        ok: boolean;
+        message?: string;
+        sent?: number;
+        failed?: number;
+        recipients?: number;
+        sendJob?: SummarySendJob | null;
+      }>(SUMMARY_API_PATHS, { ...authBody, action: "cron_stop" }, authBody.login, authBody.password);
+      setActiveSendJob(data.sendJob ?? null);
+      setCronMessage(
+        data.ok
+          ? `${data.message || "Рассылка остановлена"}: отправлено ${data.sent ?? 0} из ${data.recipients ?? 0}.`
+          : data.message || "Не удалось остановить",
+      );
+      void refreshCronStatus();
+      void loadDispatchLogs();
+    } catch (e: unknown) {
+      setCronMessage((e as Error)?.message || "Ошибка остановки");
     } finally {
       setCronBusy(null);
     }
@@ -912,9 +942,21 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
                 }}
               />
             </div>
-            <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.3rem" }}>
-              Обновление каждые 4 с. Отчёт на info@haulz.pro — после завершения очереди.
-            </Typography.Body>
+            <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem" style={{ marginTop: "0.45rem" }}>
+              <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", margin: 0 }}>
+                Обновление каждые 4 с. Отчёт на info@haulz.pro — после завершения или остановки.
+              </Typography.Body>
+              <Button
+                type="button"
+                className="filter-button"
+                disabled={cronBusy === "stop"}
+                onClick={() => void stopCronSend()}
+                style={{ fontSize: "0.78rem", color: "#b91c1c", borderColor: "rgba(185,28,28,0.35)" }}
+              >
+                {cronBusy === "stop" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Square className="w-4 h-4" />}
+                <span style={{ marginLeft: "0.3rem" }}>Остановить</span>
+              </Button>
+            </Flex>
           </div>
         )}
 
