@@ -4,9 +4,10 @@ import {
   INVOICE_EDO_DOC_LABELS,
   type InvoiceEdoDocLabel,
 } from "./edoStatusServer.js";
+import { invoiceBalance, invoiceDocSum } from "./invoiceAmounts.js";
 import { getInvoicePaymentFilterKey } from "./invoicePaymentFilter.js";
 import { cityToCode } from "./cityToCode.js";
-import { buildSummaryUnsubscribeUrl } from "./haulzSummaryUnsubscribe.js";
+import { HAULZ_EMAIL_BRAND_BAR_ATTRS, renderWeeklySummaryFooterHtml } from "./emailSummaryFooter.js";
 import {
   emailBodyStyle,
   emailFinanceValueStyle,
@@ -275,8 +276,8 @@ export async function buildWeeklySummaryData(
     if (!d || d < dateFrom || d > dateTo) continue;
     invoicesInPeriod.push(inv);
     if (getInvoicePaymentFilterKey(inv) !== "unpaid") continue;
-    const sum = invoiceSum(inv);
-    totalDebt += sum;
+    const sum = invoiceDocSum(inv);
+    totalDebt += invoiceBalance(inv);
     unpaidRows.push(
       buildUnpaidInvoiceRow(
         inv,
@@ -289,7 +290,7 @@ export async function buildWeeklySummaryData(
       ),
     );
   }
-  unpaidRows.sort((a, b) => b.sum - a.sum);
+  unpaidRows.sort((a, b) => b.balance - a.balance);
 
   const edoByDoc = aggregateInvoiceEdoDocStats(invoicesInPeriod);
 
@@ -390,7 +391,6 @@ const EDO_COLORS: Record<InvoiceEdoDocLabel, string> = {
 };
 
 export function renderWeeklySummaryHtml(data: WeeklySummaryData): string {
-  const appUrl = "https://haulz.ru";
   const companyHeader = data.companyName
     ? `${data.companyName}${data.inn ? ` (ИНН ${data.inn})` : ""}`
     : data.inn
@@ -405,7 +405,7 @@ export function renderWeeklySummaryHtml(data: WeeklySummaryData): string {
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">${HAULZ_EMAIL_HEAD_LINKS}</head>
 <body style="${emailBodyStyle()}">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;background:#fff;">
-    <tr><td style="background:linear-gradient(135deg,#1e3a8a,#2563eb);padding:20px;color:#fff;">
+    <tr><td ${HAULZ_EMAIL_BRAND_BAR_ATTRS}>
       <table width="100%" cellpadding="0" cellspacing="0">
         <tr>
           <td style="vertical-align:top;">
@@ -474,16 +474,8 @@ export function renderWeeklySummaryHtml(data: WeeklySummaryData): string {
       </table>
       ${renderUnpaidInvoicesTableHtml(data.unpaidInvoices.rows, data.unpaidInvoices.count)}
 
-      <p style="margin:20px 0 0;font-size:14px;">
-        <a href="${appUrl}" style="color:#2563eb;font-weight:600;">Открыть личный кабинет HAULZ</a>
-      </p>
-
-      <p style="margin:24px 0 0;font-size:14px;color:#374151;">С уважением к вашему бизнесу,<br/><strong>команда HAULZ</strong></p>
-      <p style="margin:12px 0 0;font-size:12px;color:#9ca3af;">Письмо сформировано автоматически.</p>
-      <p style="margin:10px 0 0;font-size:12px;color:#9ca3af;">
-        <a href="${buildSummaryUnsubscribeUrl(data.targetLogin)}" style="color:#6b7280;text-decoration:underline;">Отписаться от рассылки</a>
-      </p>
     </td></tr>
+    ${renderWeeklySummaryFooterHtml(data.targetLogin)}
   </table>
 </body></html>`;
 }
