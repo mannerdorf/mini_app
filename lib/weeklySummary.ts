@@ -1,5 +1,11 @@
 import type { Pool } from "pg";
-import { getPaymentKey } from "./notificationPoll.js";
+import { isCargoInDateRange } from "./cargoDateFilter.js";
+import {
+  aggregateInvoiceEdoDocStats,
+  INVOICE_EDO_DOC_LABELS,
+  type InvoiceEdoDocLabel,
+} from "./edoStatusServer.js";
+import { getInvoicePaymentFilterKey } from "./invoicePaymentFilter.js";
 
 function perevozkiItemInn(item: Record<string, unknown>): string {
   const v =
@@ -114,6 +120,11 @@ function invoiceInn(item: Record<string, unknown>): string {
   return String(v).replace(/\D/g, "").trim() || String(v).trim();
 }
 
+function invoiceMatchesInn(item: Record<string, unknown>, innCanon: string): boolean {
+  const invInn = invoiceInn(item);
+  return invInn === innCanon || invInn.replace(/\D/g, "") === innCanon;
+}
+
 function invoiceSum(item: Record<string, unknown>): number {
   const v = item.SumDoc ?? item.Sum ?? item.sum ?? item.Amount ?? 0;
   const n = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."));
@@ -126,6 +137,34 @@ function invoiceNumber(item: Record<string, unknown>): string {
 
 function invoiceDate(item: Record<string, unknown>): string {
   return normalizeDateOnly(item.DateDoc ?? item.Date ?? item.date);
+}
+
+function toNum(v: unknown): number {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  const n = parseFloat(String(v ?? "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
+export type GroupMetrics = {
+  count: number;
+  mest: number;
+  pw: number;
+  w: number;
+  vol: number;
+  sum: number;
+};
+
+function emptyMetrics(): GroupMetrics {
+  return { count: 0, mest: 0, pw: 0, w: 0, vol: 0, sum: 0 };
+}
+
+function addCargoMetrics(m: GroupMetrics, item: Record<string, unknown>): void {
+  m.count += 1;
+  m.mest += toNum(item.Mest);
+  m.pw += toNum(item.PW);
+  m.w += toNum(item.W);
+  m.vol += toNum(item.Value ?? item.Volume ?? item.V);
+  m.sum += toNum(item.Sum);
 }
 
 async function loadCacheJson(pool: Pool, table: string): Promise<unknown[]> {
@@ -145,15 +184,45 @@ export type WeeklySummaryData = {
   dateFrom: string;
   dateTo: string;
   periodLabel: string;
-  acceptedInPeriod: number;
-  deliveredInPeriod: number;
-  readyNow: number;
-  inTransitNow: number;
-  deliveringNow: number;
-  lastMile: { selfPickup: number; delivery: number };
-  pickupLogistics: { pickup: number; terminalTo: number };
+  weeklyFact: string;
+  acceptedInPeriod: GroupMetrics;
+  deliveredInPeriod: GroupMetrics;
+  readyNow: GroupMetrics;
+  inTransitNow: GroupMetrics;
+  deliveringNow: GroupMetrics;
+  lastMile: { selfPickup: GroupMetrics; delivery: GroupMetrics };
+  pickupLogistics: { pickup: GroupMetrics; terminalTo: GroupMetrics };
+  edoByDoc: Record<InvoiceEdoDocLabel, { signed: number; total: number }>;
   unpaidInvoices: { count: number; totalDebt: number; top: Array<{ number: string; date: string; sum: number }> };
 };
+
+const WEEKLY_PARTNER_FACTS: string[] = [
+  "Платный вес в авиаперевозках часто отличается от фактического — тариф считается по большему значению.",
+  "Своевременная передача документов в ЭДО ускоряет закрытие перевозки и оплату.",
+  "Маршрут MSK–KGD — один из самых загруженных: планируйте отгрузку заранее в пиковые дни.",
+  "Самовывоз с терминала снижает срок «последней мили» при готовности груза к выдаче.",
+  "Сверка счетов раз в неделю помогает не копить неоплаченные документы.",
+  "Объём груза (м³) влияет на тариф не меньше веса — проверяйте оба показателя в заявке.",
+  "Статус «В пути» обновляется по факту событий перевозки — следите за уведомлениями в кабинете.",
+  "Подписанные УПД и счета в ЭДО — обязательный шаг для бухгалтерского закрытия периода.",
+  "Группировка отправок по заказчику в кабинете экономит время при сверке нескольких юрлиц.",
+  "Регулярный экспорт отчётов из HAULZ упрощает внутренний контроль логистики.",
+  "Чем раньше переданы корректные реквизиты в счёте, тем быстрее проходит оплата.",
+  "Калининградское направление чувствительно к сезонности — закладывайте запас по срокам в праздники.",
+];
+
+function isoWeekIndex(isoDate: string): number {
+  const m = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return 0;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const start = new Date(d.getFullYear(), 0, 1);
+  const dayOfYear = Math.floor((d.getTime() - start.getTime()) / 86400000) + 1;
+  return Math.floor(dayOfYear / 7);
+}
+
+export function getWeeklyPartnerFact(dateFrom: string): string {
+  return WEEKLY_PARTNER_FACTS[isoWeekIndex(dateFrom) % WEEKLY_PARTNER_FACTS.length] ?? WEEKLY_PARTNER_FACTS[0];
+}
 
 export async function buildWeeklySummaryData(
   pool: Pool,
@@ -169,48 +238,54 @@ export async function buildWeeklySummaryData(
   const perevozki = perevozkiRaw.filter((row) => {
     const item = row as Record<string, unknown>;
     const itemInnVal = perevozkiItemInn(item).replace(/\D/g, "").trim() || perevozkiItemInn(item).trim();
-    return itemInnVal === innCanon || perevozkiItemInn(item).trim() === innCanon;
+    if (itemInnVal !== innCanon && perevozkiItemInn(item).trim() !== innCanon) return false;
+    return isCargoInDateRange(item, dateFrom, dateTo);
   }) as Record<string, unknown>[];
 
-  let acceptedInPeriod = 0;
-  let deliveredInPeriod = 0;
-  let readyNow = 0;
-  let inTransitNow = 0;
-  let deliveringNow = 0;
-  const lastMile = { selfPickup: 0, delivery: 0 };
-  const pickupLogistics = { pickup: 0, terminalTo: 0 };
+  const acceptedInPeriod = emptyMetrics();
+  const deliveredInPeriod = emptyMetrics();
+  const readyNow = emptyMetrics();
+  const inTransitNow = emptyMetrics();
+  const deliveringNow = emptyMetrics();
+  const lastMile = { selfPickup: emptyMetrics(), delivery: emptyMetrics() };
+  const pickupLogistics = { pickup: emptyMetrics(), terminalTo: emptyMetrics() };
 
   for (const item of perevozki) {
     const status = getCargoStatusKey(item.State);
     const datePrih = normalizeDateOnly(item.DatePrih);
     const dateVr = normalizeDateOnly(item.DateVr);
 
-    if (datePrih && datePrih >= dateFrom && datePrih <= dateTo) acceptedInPeriod += 1;
-    if (status === "delivered" && dateVr && dateVr >= dateFrom && dateVr <= dateTo) deliveredInPeriod += 1;
+    if (datePrih && datePrih >= dateFrom && datePrih <= dateTo) addCargoMetrics(acceptedInPeriod, item);
+    if (status === "delivered" && dateVr && dateVr >= dateFrom && dateVr <= dateTo) addCargoMetrics(deliveredInPeriod, item);
 
-    if (status === "ready") readyNow += 1;
-    if (status === "in_transit") inTransitNow += 1;
-    if (status === "delivering") deliveringNow += 1;
+    if (status === "ready") addCargoMetrics(readyNow, item);
+    if (status === "in_transit") addCargoMetrics(inTransitNow, item);
+    if (status === "delivering") addCargoMetrics(deliveringNow, item);
 
-    if (cargoLastMileIsSelfPickup(item)) lastMile.selfPickup += 1;
-    else lastMile.delivery += 1;
-    if (cargoPickupLogisticsIsTerminalTo(item)) pickupLogistics.terminalTo += 1;
-    else pickupLogistics.pickup += 1;
+    if (cargoLastMileIsSelfPickup(item)) addCargoMetrics(lastMile.selfPickup, item);
+    else addCargoMetrics(lastMile.delivery, item);
+    if (cargoPickupLogisticsIsTerminalTo(item)) addCargoMetrics(pickupLogistics.terminalTo, item);
+    else addCargoMetrics(pickupLogistics.pickup, item);
   }
 
+  const invoicesInPeriod: Record<string, unknown>[] = [];
   const unpaid: Array<{ number: string; date: string; sum: number }> = [];
   let totalDebt = 0;
+
   for (const row of invoicesRaw) {
     const inv = row as Record<string, unknown>;
-    const invInn = invoiceInn(inv);
-    if (invInn !== innCanon && invInn.replace(/\D/g, "") !== innCanon) continue;
-    const payKey = getPaymentKey(String(inv.StateBill ?? inv.Status ?? inv.state ?? ""));
-    if (payKey !== "unpaid") continue;
+    if (!invoiceMatchesInn(inv, innCanon)) continue;
+    const d = invoiceDate(inv);
+    if (!d || d < dateFrom || d > dateTo) continue;
+    invoicesInPeriod.push(inv);
+    if (getInvoicePaymentFilterKey(inv) !== "unpaid") continue;
     const sum = invoiceSum(inv);
     totalDebt += sum;
-    unpaid.push({ number: invoiceNumber(inv), date: invoiceDate(inv), sum });
+    unpaid.push({ number: invoiceNumber(inv), date: d, sum });
   }
   unpaid.sort((a, b) => b.sum - a.sum);
+
+  const edoByDoc = aggregateInvoiceEdoDocStats(invoicesInPeriod);
 
   const fromLabel = formatRuDate(dateFrom);
   const toLabel = formatRuDate(dateTo);
@@ -222,6 +297,7 @@ export async function buildWeeklySummaryData(
     dateFrom,
     dateTo,
     periodLabel: `${fromLabel} — ${toLabel}`,
+    weeklyFact: getWeeklyPartnerFact(dateFrom),
     acceptedInPeriod,
     deliveredInPeriod,
     readyNow,
@@ -229,6 +305,7 @@ export async function buildWeeklySummaryData(
     deliveringNow,
     lastMile,
     pickupLogistics,
+    edoByDoc,
     unpaidInvoices: {
       count: unpaid.length,
       totalDebt,
@@ -247,79 +324,153 @@ function formatMoney(n: number): string {
   return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(Math.round(n));
 }
 
-function kpiCard(label: string, value: number | string, color: string): string {
+function formatVol(n: number): string {
+  return new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
+
+function metricsSubline(m: GroupMetrics): string {
+  return `${formatMoney(m.sum)} ₽ · ${Math.round(m.pw)} кг · ${Math.round(m.mest)} мест<br/>${Math.round(m.w)} кг · ${formatVol(m.vol)} м³`;
+}
+
+function kpiCard(label: string, m: GroupMetrics, color: string, width = "25%"): string {
   return `
-    <td style="padding:8px;vertical-align:top;width:25%;">
+    <td style="padding:8px;vertical-align:top;width:${width};">
       <div style="background:${color};border-radius:12px;padding:16px 12px;text-align:center;">
-        <div style="font-size:28px;font-weight:700;color:#fff;line-height:1.1;">${value}</div>
-        <div style="font-size:12px;color:rgba(255,255,255,0.9);margin-top:6px;">${label}</div>
+        <div style="font-size:28px;font-weight:700;color:#fff;line-height:1.1;">${m.count}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.95);margin-top:6px;">${label}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.85);margin-top:8px;line-height:1.35;">${metricsSubline(m)}</div>
       </div>
     </td>`;
 }
 
+function financeCard(label: string, value: string, color: string): string {
+  return `
+    <td style="padding:8px;vertical-align:top;width:50%;">
+      <div style="background:${color};border-radius:12px;padding:16px 12px;text-align:center;">
+        <div style="font-size:26px;font-weight:700;color:#fff;line-height:1.1;">${value}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.95);margin-top:6px;">${label}</div>
+      </div>
+    </td>`;
+}
+
+function edoCard(label: string, agg: { signed: number; total: number }, color: string): string {
+  const main = agg.total > 0 ? `${agg.signed} / ${agg.total}` : "0";
+  const pct = agg.total > 0 ? Math.round((agg.signed / agg.total) * 100) : 0;
+  const sub = agg.total > 0 ? `Подписано ${pct}%` : "Нет статусов";
+  return `
+    <td style="padding:8px;vertical-align:top;width:25%;">
+      <div style="background:${color};border-radius:12px;padding:14px 10px;text-align:center;">
+        <div style="font-size:22px;font-weight:700;color:#fff;line-height:1.1;">${main}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.95);margin-top:6px;">${label}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.85);margin-top:6px;">${sub}</div>
+      </div>
+    </td>`;
+}
+
+const EDO_COLORS: Record<InvoiceEdoDocLabel, string> = {
+  ЭР: "#0f766e",
+  АПП: "#0369a1",
+  УПД: "#4f46e5",
+  СЧЕТ: "#7c3aed",
+};
+
 export function renderWeeklySummaryHtml(data: WeeklySummaryData): string {
   const appUrl = "https://haulz.ru";
-  const debtBlock =
+  const companyHeader = data.companyName
+    ? `${data.companyName}${data.inn ? ` (ИНН ${data.inn})` : ""}`
+    : data.inn
+      ? `ИНН ${data.inn}`
+      : "Компания";
+
+  const unpaidList =
     data.unpaidInvoices.count > 0
-      ? `<p style="margin:12px 0 0;color:#b91c1c;font-weight:600;">Неоплаченных счетов: ${data.unpaidInvoices.count}, на сумму ${formatMoney(data.unpaidInvoices.totalDebt)} ₽</p>
-         <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;color:#444;">
+      ? `<ul style="margin:10px 0 0;padding-left:20px;font-size:13px;color:#444;">
            ${data.unpaidInvoices.top
-             .map((i) => `<li>${i.number || "—"} · ${i.date ? formatRuDate(i.date) : "—"} · ${formatMoney(i.sum)} ₽</li>`)
+             .map((i) => `<li>${i.number || "—"} · ${formatRuDate(i.date)} · ${formatMoney(i.sum)} ₽</li>`)
              .join("")}
          </ul>`
-      : `<p style="margin:12px 0 0;color:#059669;">Неоплаченных счетов нет.</p>`;
+      : "";
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;background:#fff;">
-    <tr><td style="background:linear-gradient(135deg,#1e3a8a,#2563eb);padding:24px 20px;color:#fff;">
-      <div style="font-size:22px;font-weight:700;">HAULZ</div>
-      <div style="font-size:14px;opacity:0.9;margin-top:4px;">Сводка за неделю</div>
+    <tr><td style="background:linear-gradient(135deg,#1e3a8a,#2563eb);padding:20px;color:#fff;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="vertical-align:top;">
+            <div style="font-size:22px;font-weight:700;">HAULZ</div>
+            <div style="font-size:14px;opacity:0.9;margin-top:4px;">Сводка за неделю</div>
+          </td>
+          <td style="vertical-align:top;text-align:right;font-size:13px;line-height:1.45;opacity:0.95;">
+            <div style="font-weight:600;">${companyHeader}</div>
+            <div style="margin-top:4px;">Период: ${data.periodLabel}</div>
+          </td>
+        </tr>
+      </table>
     </td></tr>
     <tr><td style="padding:20px;">
-      <p style="margin:0 0 8px;font-size:15px;">Здравствуйте!</p>
-      <p style="margin:0 0 16px;font-size:14px;color:#4b5563;">
-        <strong>${data.companyName || "Компания"}</strong> (ИНН ${data.inn})<br/>
-        Период: <strong>${data.periodLabel}</strong>
+      <p style="margin:0 0 8px;font-size:17px;font-weight:600;color:#111827;">Добрый день, партнёры!</p>
+      <p style="margin:0 0 16px;font-size:14px;color:#4b5563;line-height:1.5;">
+        Краткая сводка по вашим перевозкам и документам за прошедшую неделю.
+        <br/><span style="color:#6b7280;font-size:13px;"><em>Факт недели:</em> ${data.weeklyFact}</span>
       </p>
+
       <p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:0.04em;">За период</p>
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
         <tr>
-          ${kpiCard("Принято", data.acceptedInPeriod, "#2563eb")}
-          ${kpiCard("Доставлено", data.deliveredInPeriod, "#059669")}
+          ${kpiCard("Принято", data.acceptedInPeriod, "#2563eb", "50%")}
+          ${kpiCard("Доставлено", data.deliveredInPeriod, "#059669", "50%")}
         </tr>
       </table>
-      <p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:0.04em;">Сейчас в работе</p>
+
+      <p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:0.04em;">В выборке за период</p>
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
         <tr>
-          ${kpiCard("Готов к выдаче", data.readyNow, "#0d9488")}
-          ${kpiCard("В пути", data.inTransitNow, "#ca8a04")}
-          ${kpiCard("На доставке", data.deliveringNow, "#7c3aed")}
+          ${kpiCard("Готов к выдаче", data.readyNow, "#0d9488", "33%")}
+          ${kpiCard("В пути", data.inTransitNow, "#ca8a04", "33%")}
+          ${kpiCard("На доставке", data.deliveringNow, "#7c3aed", "34%")}
         </tr>
       </table>
+
       <p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">Последняя миля</p>
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
         <tr>
-          ${kpiCard("Самовывоз", data.lastMile.selfPickup, "#1d4ed8")}
-          ${kpiCard("Доставка", data.lastMile.delivery, "#4f46e5")}
+          ${kpiCard("Самовывоз", data.lastMile.selfPickup, "#1d4ed8", "50%")}
+          ${kpiCard("Доставка", data.lastMile.delivery, "#4f46e5", "50%")}
         </tr>
       </table>
+
       <p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">Заборная логистика</p>
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
         <tr>
-          ${kpiCard("PickUP", data.pickupLogistics.pickup, "#0369a1")}
-          ${kpiCard("terminal-to", data.pickupLogistics.terminalTo, "#0f766e")}
+          ${kpiCard("PickUP", data.pickupLogistics.pickup, "#0369a1", "50%")}
+          ${kpiCard("terminal-to", data.pickupLogistics.terminalTo, "#0f766e", "50%")}
         </tr>
       </table>
-      <div style="background:#f9fafb;border-radius:10px;padding:14px 16px;border:1px solid #e5e7eb;">
-        <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Финансы</div>
-        ${debtBlock}
-      </div>
+
+      <p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:0.04em;">ЭДО за период</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
+        <tr>
+          ${INVOICE_EDO_DOC_LABELS.map((label) => edoCard(label, data.edoByDoc[label], EDO_COLORS[label])).join("")}
+        </tr>
+      </table>
+
+      <p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:0.04em;">Финансы (неоплаченные счета за период)</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;">
+        <tr>
+          ${financeCard("Счетов", String(data.unpaidInvoices.count), "#b91c1c")}
+          ${financeCard("Сумма", `${formatMoney(data.unpaidInvoices.totalDebt)} ₽`, "#dc2626")}
+        </tr>
+      </table>
+      ${unpaidList}
+
       <p style="margin:20px 0 0;font-size:14px;">
         <a href="${appUrl}" style="color:#2563eb;font-weight:600;">Открыть личный кабинет HAULZ</a>
       </p>
-      <p style="margin:16px 0 0;font-size:12px;color:#9ca3af;">Письмо сформировано в песочнице HAULZ. Команда HAULZ</p>
+
+      <p style="margin:24px 0 0;font-size:14px;color:#374151;">С уважением к вашему бизнесу,<br/><strong>команда HAULZ</strong></p>
+      <p style="margin:12px 0 0;font-size:12px;color:#9ca3af;">Письмо сформировано автоматически. Команда HAULZ</p>
     </td></tr>
   </table>
 </body></html>`;

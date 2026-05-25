@@ -1,8 +1,17 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import type { Pool } from "pg";
 import { getPool } from "../api/_db.js";
 import { verifyPassword } from "./passwordUtils.js";
 import { verifyAdminToken, getAdminTokenFromRequest } from "./adminAuth.js";
+import {
+  buildSummaryCronRecipients,
+  loadSummaryCronConfig,
+  resolveSummaryCronPeriod,
+  runPartnerSummaryCron,
+  saveSummaryCronConfig,
+  type SummaryCronConfig,
+  type SummaryCronCriteria,
+} from "./haulzSummaryCron.js";
+import { loadHaulzSummaryDirectories } from "./haulzSummaryDirectories.js";
 import {
   buildWeeklySummaryData,
   getPreviousCalendarWeekRange,
@@ -19,6 +28,7 @@ export type HaulzSummarySandboxBody = {
   companyName?: string;
   dateFrom?: string;
   dateTo?: string;
+  cron?: Partial<SummaryCronConfig>;
 };
 
 export function parseHaulzSummarySandboxBody(req: VercelRequest): HaulzSummarySandboxBody {
@@ -33,9 +43,18 @@ export function parseHaulzSummarySandboxBody(req: VercelRequest): HaulzSummarySa
   return (body && typeof body === "object" ? body : {}) as HaulzSummarySandboxBody;
 }
 
+const SANDBOX_ACTIONS = new Set([
+  "users",
+  "preview",
+  "send",
+  "cron_get",
+  "cron_save",
+  "cron_recipients",
+  "cron_run",
+]);
+
 export function isHaulzSummarySandboxAction(action: unknown): boolean {
-  const a = String(action ?? "").trim().toLowerCase();
-  return a === "users" || a === "preview" || a === "send";
+  return SANDBOX_ACTIONS.has(String(action ?? "").trim().toLowerCase());
 }
 
 function normalizeLogin(v: unknown): string {
@@ -84,116 +103,33 @@ export async function assertHaulzSummarySandboxAccess(
   }
 }
 
-async function loadCustomersDirectory(pool: Pool): Promise<Array<{ inn: string; name: string; email: string }>> {
-  try {
-    const { rows } = await pool.query<{ inn: string; customer_name: string | null; email: string | null }>(
-      `SELECT inn, customer_name, email FROM cache_customers ORDER BY customer_name NULLS LAST, inn`,
-    );
-    const unique = new Map<string, { inn: string; name: string; email: string }>();
-    for (const r of rows) {
-      const inn = String(r.inn || "").trim();
-      if (!inn) continue;
-      if (!unique.has(inn)) {
-        unique.set(inn, {
-          inn,
-          name: String(r.customer_name || "").trim(),
-          email: String(r.email || "").trim().toLowerCase(),
-        });
-      }
-    }
-    return [...unique.values()];
-  } catch {
-    return [];
+export { loadHaulzSummaryDirectories };
+
+function parseCronPatch(body: HaulzSummarySandboxBody): Partial<SummaryCronConfig> & { updatedBy?: string } {
+  const c = body.cron;
+  if (!c || typeof c !== "object") return {};
+  const patch: Partial<SummaryCronConfig> & { updatedBy?: string } = {};
+  if (typeof c.enabled === "boolean") patch.enabled = c.enabled;
+  if (c.schedule === "weekly" || c.schedule === "biweekly" || c.schedule === "monthly") patch.schedule = c.schedule;
+  if (c.periodMode === "prev_week" || c.periodMode === "prev_month" || c.periodMode === "custom_days") {
+    patch.periodMode = c.periodMode;
   }
-}
-
-export async function loadHaulzSummaryDirectories(pool: Pool) {
-  const [users, customers] = await Promise.all([loadUsersWithCompanies(pool), loadCustomersDirectory(pool)]);
-  return { users, customers, defaultPeriod: getPreviousCalendarWeekRange() };
-}
-
-async function loadUsersWithCompanies(pool: Pool) {
-  const baseSelect = `SELECT id, login, inn, company_name, permissions, financial_access, COALESCE(access_all_inns, false) as access_all_inns, active, created_at`;
-  type UserRow = {
-    id: number;
-    login: string;
-    inn: string;
-    company_name: string;
-    access_all_inns: boolean;
-    active: boolean;
-  };
-  let users: UserRow[];
-  try {
-    const result = await pool.query<UserRow>(`${baseSelect} FROM registered_users WHERE active = true ORDER BY login`);
-    users = result.rows;
-  } catch {
-    const result = await pool.query<UserRow>(`${baseSelect} FROM registered_users ORDER BY login`);
-    users = result.rows.filter((u) => u.active);
+  if (typeof c.periodDays === "number" && Number.isFinite(c.periodDays)) {
+    patch.periodDays = Math.max(1, Math.min(90, Math.round(c.periodDays)));
   }
-
-  const { rows: companies } = await pool.query<{ login: string; inn: string; name: string }>(
-    `SELECT login, inn, name FROM account_companies ORDER BY login, name`,
-  );
-  const byLogin = new Map<string, { inn: string; name: string }[]>();
-  for (const c of companies) {
-    const key = normalizeLogin(c.login);
-    if (!key) continue;
-    if (!byLogin.has(key)) byLogin.set(key, []);
-    byLogin.get(key)!.push({ inn: c.inn, name: c.name || "" });
-  }
-
-  const userLogins = users.map((u) => normalizeLogin(u.login)).filter(Boolean);
-  const uniqueUserLogins = [...new Set(userLogins)];
-  const byEmail = new Map<string, { inn: string; name: string }[]>();
-  if (uniqueUserLogins.length > 0) {
-    try {
-      const { rows: customersByEmail } = await pool.query<{
-        inn: string;
-        customer_name: string | null;
-        email: string | null;
-      }>(
-        `SELECT inn, customer_name, email
-         FROM cache_customers
-         WHERE email IS NOT NULL
-           AND lower(trim(email)) = ANY($1::text[])`,
-        [uniqueUserLogins],
-      );
-      for (const c of customersByEmail) {
-        const emailKey = normalizeLogin(c.email || "");
-        if (!emailKey) continue;
-        if (!byEmail.has(emailKey)) byEmail.set(emailKey, []);
-        byEmail.get(emailKey)!.push({ inn: c.inn, name: c.customer_name || "" });
-      }
-    } catch {
-      // cache_customers может отсутствовать
-    }
-  }
-
-  return users.map((u) => {
-    const key = normalizeLogin(u.login);
-    const assignedCompanies = byLogin.get(key) || [];
-    const list = assignedCompanies.length > 0 ? assignedCompanies : byEmail.get(key) || [];
-    const unique = new Map<string, { inn: string; name: string }>();
-    for (const c of list) {
-      const inn = String(c.inn || "").trim();
-      if (!inn) continue;
-      if (!unique.has(inn)) unique.set(inn, { inn, name: c.name || "" });
-    }
-    const profileInn = String(u.inn || "").trim();
-    if (profileInn && !unique.has(profileInn)) {
-      unique.set(profileInn, { inn: profileInn, name: u.company_name || "" });
-    }
-    return {
-      id: u.id,
-      login: u.login,
-      company_name: u.company_name,
-      access_all_inns: !!u.access_all_inns,
-      companies: [...unique.values()],
+  if (c.criteria && typeof c.criteria === "object") {
+    const cr = c.criteria as SummaryCronCriteria;
+    patch.criteria = {
+      acceptance: cr.acceptance !== false,
+      delivery: cr.delivery !== false,
+      unpaid_invoices: cr.unpaid_invoices !== false,
     };
-  });
+  }
+  if (body.login) patch.updatedBy = String(body.login).trim();
+  return patch;
 }
 
-/** Песочница «Самери»: users / preview / send. */
+/** Песочница «Самери»: users / preview / send / cron_*. */
 export async function handleHaulzSummarySandboxRequest(
   req: VercelRequest,
   res: VercelResponse,
@@ -220,7 +156,48 @@ export async function handleHaulzSummarySandboxRequest(
 
     if (action === "users") {
       const { users, customers, defaultPeriod } = await loadHaulzSummaryDirectories(pool);
-      res.status(200).json({ users, customers, defaultPeriod, request_id: requestId });
+      const cronConfig = await loadSummaryCronConfig(pool);
+      res.status(200).json({ users, customers, defaultPeriod, cronConfig, request_id: requestId });
+      return true;
+    }
+
+    if (action === "cron_get") {
+      const cronConfig = await loadSummaryCronConfig(pool);
+      const period = resolveSummaryCronPeriod(cronConfig);
+      res.status(200).json({ cronConfig, period, request_id: requestId });
+      return true;
+    }
+
+    if (action === "cron_save") {
+      const saved = await saveSummaryCronConfig(pool, parseCronPatch(body));
+      const period = resolveSummaryCronPeriod(saved);
+      res.status(200).json({ cronConfig: saved, period, request_id: requestId });
+      return true;
+    }
+
+    if (action === "cron_recipients") {
+      const cronConfig = await loadSummaryCronConfig(pool);
+      const defaultPeriod = getPreviousCalendarWeekRange();
+      const dateFrom = ISO_DAY.test(String(body.dateFrom ?? "")) ? String(body.dateFrom) : resolveSummaryCronPeriod(cronConfig).dateFrom;
+      const dateTo = ISO_DAY.test(String(body.dateTo ?? "")) ? String(body.dateTo) : resolveSummaryCronPeriod(cronConfig).dateTo;
+      const criteria = body.cron?.criteria ? parseCronPatch(body).criteria! : cronConfig.criteria;
+      const recipients = await buildSummaryCronRecipients(pool, {
+        dateFrom: dateFrom || defaultPeriod.dateFrom,
+        dateTo: dateTo || defaultPeriod.dateTo,
+        criteria: criteria || cronConfig.criteria,
+      });
+      res.status(200).json({
+        recipients,
+        period: { dateFrom, dateTo },
+        count: recipients.length,
+        request_id: requestId,
+      });
+      return true;
+    }
+
+    if (action === "cron_run") {
+      const result = await runPartnerSummaryCron(pool, { force: true });
+      res.status(200).json({ ...result, request_id: requestId });
       return true;
     }
 
@@ -269,7 +246,7 @@ export async function handleHaulzSummarySandboxRequest(
       return true;
     }
 
-    res.status(400).json({ error: "Неизвестный action (users | preview | send)", request_id: requestId });
+    res.status(400).json({ error: "Неизвестный action", request_id: requestId });
     return true;
   } catch (e: unknown) {
     const err = e as Error;

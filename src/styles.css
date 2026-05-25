@@ -3749,6 +3749,26 @@ button.edo-health-monitor {
     color: var(--color-text-primary);
     font-size: var(--font-size-subhead, 14px);
 }
+
+/* Самери: как карточки в админке / документах, не тёмный Panel max-ui */
+.haulz-summary-sandbox,
+.haulz-summary-sandbox label,
+.haulz-summary-sandbox .Typography,
+.haulz-summary-sandbox [class*="Typography"] {
+    color: var(--color-text-primary);
+}
+
+.haulz-summary-sandbox select.admin-form-input,
+.haulz-summary-sandbox input.admin-form-input,
+.haulz-summary-sandbox input[type="date"].admin-form-input,
+.haulz-summary-sandbox input[type="search"].admin-form-input,
+.haulz-summary-sandbox input[type="number"].admin-form-input {
+    width: 100%;
+    background: var(--color-bg-primary, #fff);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+    padding: 0 0.65rem;
+}
 .admin-permissions-toolbar {
     display: flex;
     flex-wrap: wrap;

@@ -10,7 +10,8 @@
     {"path": "/api/cron/refresh-sverki-cache", "schedule": "0 0 * * *"},
     {"path": "/api/cron/refresh-dogovors-cache", "schedule": "0 0 * * *"},
     {"path": "/api/cron/refresh-pvz-cache", "schedule": "0 0 * * *"},
-    {"path": "/api/notification-daily-summary", "schedule": "0 10 * * *"}
+    {"path": "/api/notification-daily-summary", "schedule": "0 10 * * *"},
+    {"path": "/api/cron/weekly-partner-summary", "schedule": "0 6 * * 1"}
   ],
   "functions": {
     "api/ais-stream.ts": {"maxDuration": 60},
@@ -29,7 +30,8 @@
     "api/wb/logistics-import.ts": {"maxDuration": 120},
     "api/wb/postb-getapi.ts": {"maxDuration": 60},
     "api/wb/summary/filter-options.ts": {"maxDuration": 30},
-    "api/wb/summary/refresh.ts": {"maxDuration": 120}
+    "api/wb/summary/refresh.ts": {"maxDuration": 120},
+    "api/cron/weekly-partner-summary.ts": {"maxDuration": 300}
   },
   "rewrites": [
     {"source": "/admin", "destination": "/"},
