@@ -1291,6 +1291,13 @@ body {
     padding-top: 1.5rem !important;
     padding-bottom: 1.75rem !important;
 }
+.documents-page--with-contracts-section .documents-api-debug-panel,
+.documents-page--with-sverki-section .documents-api-debug-panel {
+    position: relative;
+    z-index: 2;
+    margin-top: 0.9rem;
+    margin-bottom: 0.35rem !important;
+}
 @media (min-width: 769px) {
     .documents-page--with-contracts-section .documents-table-offset-desktop,
     .documents-page--with-contracts-section .documents-cards-offset-desktop {
@@ -1305,6 +1312,10 @@ body {
     }
     .documents-page--with-contracts-section .documents-toolbar-below-sticky .documents-contracts-empty-state {
         padding-top: 2rem !important;
+    }
+    .documents-page--with-contracts-section .documents-api-debug-panel,
+    .documents-page--with-sverki-section .documents-api-debug-panel {
+        margin-top: 1.1rem;
     }
     .documents-page--with-contracts-section .doc-contracts-table-offset-desktop {
         margin-top: 0;

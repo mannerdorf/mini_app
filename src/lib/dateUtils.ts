@@ -61,7 +61,7 @@ export function normalizeDateFilterState(partial: Partial<DateFilterState> | nul
         customDateTo: DEFAULT_DATE_TO,
         selectedMonthForFilter: null,
         selectedYearForFilter: null,
-        selectedWeekForFilter: defaultWeek,
+        selectedWeekForFilter: null,
     };
 
     if (partial?.customDateFrom && ISO_DAY.test(partial.customDateFrom)) {
@@ -86,8 +86,8 @@ export function normalizeDateFilterState(partial: Partial<DateFilterState> | nul
         state.dateFilter = rawFilter === 'все' ? 'неделя' : rawFilter;
     }
 
-    if (state.dateFilter === 'неделя' && !state.selectedWeekForFilter) {
-        state.selectedWeekForFilter = defaultWeek;
+    if (state.dateFilter === 'неделя' && state.selectedWeekForFilter === defaultWeek) {
+        state.selectedWeekForFilter = null;
     }
     if (state.dateFilter === 'месяц' && !state.selectedMonthForFilter) {
         state.selectedMonthForFilter = { year: now.getFullYear(), month: now.getMonth() + 1 };

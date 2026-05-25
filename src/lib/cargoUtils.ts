@@ -219,20 +219,14 @@ export const CARGO_DESTINATION_EXPLICIT_KEYS = [
     "receiver",
 ] as const;
 
-function stringHasSelfPickupAddressHint(s: string): boolean {
-    const t = s.toLowerCase().replace(/ё/g, "е");
-    return t.includes("андреевск") || t.includes("железнодорожн");
-}
+const MSK_KGD_SELF_PICKUP_RECEIVER_ID = "d5d52d44-c5d9-11f0-9e9d-0cc47a39bad5";
+const KGD_MSK_SELF_PICKUP_RECEIVER_ID = "419df7bb-4874-11f1-9e9f-0cc47a39bad5";
 
 function pickRicherDestinationString(primary: string, secondary: string): string {
     if (!secondary.trim()) return primary;
     if (!primary.trim()) return secondary;
     const p = primary.trim();
     const s = secondary.trim();
-    const pHint = stringHasSelfPickupAddressHint(p);
-    const sHint = stringHasSelfPickupAddressHint(s);
-    if (sHint && !pHint) return s;
-    if (pHint && !sHint) return p;
     if (s.length > p.length + 6) return s;
     if (p.length > s.length + 6) return p;
     return p;
@@ -274,39 +268,11 @@ export function mergePerevozkiRoleDuplicates(winner: CargoItem, loser: CargoItem
     return out as CargoItem;
 }
 
-/**
- * Текст места назначения (пункт / адрес доставки).
- * Включён Receiver: в выдаче API часто там строка вида «… Железнодорожная 12», без отдельного поля улицы.
- */
-export function cargoDestinationHaystack(item: CargoItem): string {
-    const rec = item as Record<string, unknown>;
-    const parts: string[] = [];
-    const push = (v: unknown) => {
-        if (v == null) return;
-        const s = String(v).trim();
-        if (s) parts.push(s);
-    };
-
-    for (const k of CARGO_DESTINATION_EXPLICIT_KEYS) {
-        push(rec[k]);
-    }
-
-    for (const [k, v] of Object.entries(rec)) {
-        if (typeof v !== "string" || !v.trim()) continue;
-        if (!isDestinationFieldKey(k)) continue;
-        push(v);
-    }
-    return parts.join("\n");
-}
-
-/**
- * Самовывоз: в пункте назначения встречается «Андреевское» / «Андреевск…»
- * или «Железнодорожн…» (в т.ч. «Железнодорожная 12»). Иначе — доставка.
- * Нет текста по назначению — доставка.
- */
 export function cargoLastMileIsSelfPickup(item: CargoItem): boolean {
-    const raw = cargoDestinationHaystack(item);
-    if (!raw.trim()) return false;
-    const t = raw.toLowerCase().replace(/ё/g, "е");
-    return t.includes("андреевск") || t.includes("железнодорожн");
+    const receiverId = String((item as Record<string, unknown>).PZV_Receiver_Id ?? "").trim().toLowerCase();
+    const from = cityToCode(item.CitySender);
+    const to = cityToCode(item.CityReceiver);
+    if (from === "MSK" && to === "KGD") return receiverId === MSK_KGD_SELF_PICKUP_RECEIVER_ID;
+    if (from === "KGD" && to === "MSK") return receiverId === KGD_MSK_SELF_PICKUP_RECEIVER_ID;
+    return false;
 }

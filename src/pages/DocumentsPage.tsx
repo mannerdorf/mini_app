@@ -3268,7 +3268,7 @@ useEffect(() => {
                         ) : null}
                         <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsSverkiCustomerDropdownOpen(false); setIsDogovorsCustomerDropdownOpen(false); setIsClaimsCustomerDropdownOpen(false); setIsClaimsStatusDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); setIsTariffsCustomerDropdownOpen(false); setIsTariffsRouteDropdownOpen(false); setIsTariffsTypeDropdownOpen(false); }}>
-                                Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8, 10)}.${r.dateFrom.slice(5, 7)} – ${r.dateTo.slice(8, 10)}.${r.dateTo.slice(5, 7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
+                                Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' ? `${apiDateRange.dateFrom.slice(8, 10)}.${apiDateRange.dateFrom.slice(5, 7)} – ${apiDateRange.dateTo.slice(8, 10)}.${apiDateRange.dateTo.slice(5, 7)}` : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
                         <FilterDropdownPortal triggerRef={dateButtonRef} isOpen={isDateDropdownOpen} onClose={() => setIsDateDropdownOpen(false)}>
@@ -3308,7 +3308,7 @@ useEffect(() => {
                                     const timerRef = isMonth ? monthLongPressTimerRef : isYear ? yearLongPressTimerRef : weekLongPressTimerRef;
                                     const wasLongPressRef = isMonth ? monthWasLongPressRef : isYear ? yearWasLongPressRef : weekWasLongPressRef;
                                     const mode = isMonth ? 'months' : isYear ? 'years' : 'weeks';
-                                    const title = isMonth ? 'Клик — текущий месяц; удерживайте — выбор месяца' : isYear ? 'Клик — 365 дней; удерживайте — выбор года' : isWeek ? 'Клик — предыдущая неделя; удерживайте — выбор недели (пн–вс)' : undefined;
+                                    const title = isMonth ? 'Клик — текущий месяц; удерживайте — выбор месяца' : isYear ? 'Клик — 365 дней; удерживайте — выбор года' : isWeek ? 'Клик — последние 7 дней; удерживайте — выбор недели (пн–вс)' : undefined;
                                     return (
                                         <div key={key} className="dropdown-item" title={title}
                                             onPointerDown={doLongPress ? () => { wasLongPressRef.current = false; timerRef.current = setTimeout(() => { timerRef.current = null; wasLongPressRef.current = true; setDateDropdownMode(mode); }, 500); } : undefined}
@@ -3335,7 +3335,7 @@ useEffect(() => {
                                                 setDateFilter(key as DateFilter);
                                                 if (key === 'месяц') setSelectedMonthForFilter(null);
                                                 if (key === 'год') setSelectedYearForFilter(null);
-                                                if (key === 'неделя') setSelectedWeekForFilter(getDefaultWeekMonday());
+                                                if (key === 'неделя') setSelectedWeekForFilter(null);
                                                 setIsDateDropdownOpen(false);
                                                 if (key === 'период') setIsCustomModalOpen(true);
                                             }}>
@@ -6477,18 +6477,19 @@ useEffect(() => {
                 </>
             )}
             {docSection === 'Договоры' && (
+                <>
+                {effectiveServiceMode && (
+                    <DocumentsApiDebugPanel
+                        title="GET /api/dogovors"
+                        loading={dogovorsLoading}
+                        snapshot={
+                            dogovorsApiDebug
+                                ? { ...dogovorsApiDebug, filteredLength: filteredDogovors.length }
+                                : null
+                        }
+                    />
+                )}
                 <DocumentsToolbarBelowSticky>
-                    {effectiveServiceMode && (
-                        <DocumentsApiDebugPanel
-                            title="GET /api/dogovors"
-                            loading={dogovorsLoading}
-                            snapshot={
-                                dogovorsApiDebug
-                                    ? { ...dogovorsApiDebug, filteredLength: filteredDogovors.length }
-                                    : null
-                            }
-                        />
-                    )}
                     {dogovorsLoading ? (
                         <Flex align="center" gap="0.5rem" className="documents-section-empty-state documents-contracts-empty-state">
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -6630,6 +6631,7 @@ useEffect(() => {
                         </Typography.Body>
                     )}
                 </DocumentsToolbarBelowSticky>
+                </>
             )}
             {docSection === 'Претензии' && (
                 <DocumentsToolbarBelowSticky>
