@@ -56,6 +56,7 @@ const SANDBOX_ACTIONS = new Set([
   "cron_run",
   "cron_stop",
   "cron_logs",
+  "cron_dispatch_recipients",
 ]);
 
 export function isHaulzSummarySandboxAction(action: unknown): boolean {
@@ -195,6 +196,18 @@ export async function handleHaulzSummarySandboxRequest(
       const limit = Math.max(1, Math.min(100, Number(body.limit) || 30));
       const logs = await listDispatchLogs(pool, limit);
       res.status(200).json({ logs, request_id: requestId });
+      return true;
+    }
+
+    if (action === "cron_dispatch_recipients") {
+      const logId = Math.max(0, Number(body.logId ?? body.dispatchLogId) || 0);
+      if (!logId) {
+        res.status(400).json({ error: "Укажите logId", request_id: requestId });
+        return true;
+      }
+      const { listDispatchRecipients } = await import("./haulzSummaryDispatchRecipients.js");
+      const recipients = await listDispatchRecipients(pool, logId);
+      res.status(200).json({ logId, recipients, count: recipients.length, request_id: requestId });
       return true;
     }
 

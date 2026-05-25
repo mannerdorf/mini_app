@@ -126,6 +126,20 @@ type DispatchLogRow = {
   trackingClickedEmails: number;
 };
 
+type DispatchRecipientRow = {
+  id: number;
+  targetLogin: string;
+  inn: string;
+  companyName: string;
+  reasons: string[];
+  status: string;
+  error: string | null;
+  messageId: string | null;
+  sentAt: string | null;
+  openCount: number;
+  clickCount: number;
+};
+
 type CronRecipient = {
   targetLogin: string;
   inn: string;
@@ -263,6 +277,8 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
   const [activeSendJob, setActiveSendJob] = useState<SummarySendJob | null>(null);
   const [dispatchLogs, setDispatchLogs] = useState<DispatchLogRow[]>([]);
   const [expandedLogId, setExpandedLogId] = useState<number | null>(null);
+  const [recipientsByLogId, setRecipientsByLogId] = useState<Record<number, DispatchRecipientRow[]>>({});
+  const [loadingRecipientsLogId, setLoadingRecipientsLogId] = useState<number | null>(null);
   const [logsLoading, setLogsLoading] = useState(false);
 
   const authBody = useMemo(() => {
@@ -426,6 +442,24 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
     return status || "—";
   };
 
+  const recipientStatusLabel = (status: string) => {
+    if (status === "sent") return "Отправлено";
+    if (status === "failed") return "Ошибка";
+    if (status === "skipped_unsubscribed") return "Отписка";
+    if (status === "cancelled") return "Не отправлено";
+    if (status === "pending") return "В очереди";
+    return status || "—";
+  };
+
+  const recipientStatusColor = (status: string): string | undefined => {
+    if (status === "sent") return "#059669";
+    if (status === "failed") return "#b91c1c";
+    if (status === "skipped_unsubscribed") return "#b45309";
+    if (status === "cancelled") return "var(--color-text-secondary)";
+    if (status === "pending") return "#2563eb";
+    return undefined;
+  };
+
   const refreshCronStatus = useCallback(async () => {
     if (!authBody) return;
     try {
@@ -447,6 +481,29 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
       /* ignore poll errors */
     }
   }, [authBody]);
+
+  const loadDispatchRecipients = useCallback(
+    async (logId: number, force = false) => {
+      if (!authBody || !logId) return;
+      if (!force && recipientsByLogId[logId] !== undefined) return;
+      setLoadingRecipientsLogId(logId);
+      try {
+        const data = await postSummaryApi<{ recipients: DispatchRecipientRow[]; count: number }>(
+          SUMMARY_API_PATHS,
+          { ...authBody, action: "cron_dispatch_recipients", logId },
+          authBody.login,
+          authBody.password,
+        );
+        const recipients = Array.isArray(data.recipients) ? data.recipients : [];
+        setRecipientsByLogId((prev) => ({ ...prev, [logId]: recipients }));
+      } catch {
+        setRecipientsByLogId((prev) => ({ ...prev, [logId]: [] }));
+      } finally {
+        setLoadingRecipientsLogId((cur) => (cur === logId ? null : cur));
+      }
+    },
+    [authBody, recipientsByLogId],
+  );
 
   const loadDispatchLogs = useCallback(async () => {
     if (!authBody) return;
@@ -879,8 +936,9 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
       <Panel className="cargo-card haulz-summary-sandbox" style={{ padding: "var(--pad-card, 1rem)", marginBottom: "1rem" }}>
         <Typography.Body style={{ ...LABEL_STYLE, marginBottom: "0.5rem" }}>Автоотправка (cron)</Typography.Body>
         <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
-          Vercel: понедельник 09:00 МСК (если включено). В выборку попадают пары пользователь + контрагент, если за период были
-          приёмки, доставки или есть неоплаченные счета.
+          Vercel: понедельник 09:00 МСК (если включено). В выборку попадают пары логин + контрагент (ИНН): не более одного письма
+          на пару за рассылку и не более одного получателя на ИНН. Служебные аккаунты (access_all_inns, service_mode) исключены.
+          Критерии: приёмки, доставки или неоплаченные счета за период.
         </Typography.Body>
         <Flex direction="column" gap="0.65rem" className="form-row-same-height">
           <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--color-text-primary)" }}>
@@ -1111,7 +1169,7 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
 
         {dispatchLogs.length === 0 && !logsLoading ? (
           <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
-            Запусков пока нет. Примените миграции 070–071 и отправьте рассылку.
+            Запусков пока нет. Примените миграции 070–073 и отправьте рассылку.
           </Typography.Body>
         ) : (
           <div style={{ overflowX: "auto" }}>
@@ -1134,7 +1192,7 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
                 {dispatchLogs.map((log) => (
                   <React.Fragment key={log.id}>
                     <tr
-                      style={{ borderBottom: "1px solid var(--color-border)", cursor: log.errors.length ? "pointer" : "default" }}
+                      style={{ borderBottom: "1px solid var(--color-border)", cursor: "pointer" }}
                       onClick={() => setExpandedLogId((id) => (id === log.id ? null : log.id))}
                     >
                       <td style={{ padding: "0.4rem" }}>{new Date(log.startedAt).toLocaleString("ru-RU")}</td>
@@ -1179,6 +1237,66 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
                           ) : (
                             <Typography.Body style={{ marginTop: "0.35rem", color: "var(--color-text-secondary)" }}>Ошибок нет.</Typography.Body>
                           )}
+                          <details
+                            style={{ marginTop: "0.55rem" }}
+                            onClick={(e) => e.stopPropagation()}
+                            onToggle={(e) => {
+                              if ((e.currentTarget as HTMLDetailsElement).open) {
+                                void loadDispatchRecipients(log.id, log.isRunning);
+                              }
+                            }}
+                          >
+                            <summary style={{ cursor: "pointer", fontWeight: 600, userSelect: "none" }}>
+                              Адреса рассылки ({log.recipientsTotal})
+                            </summary>
+                            {loadingRecipientsLogId === log.id && recipientsByLogId[log.id] === undefined ? (
+                              <Typography.Body style={{ marginTop: "0.35rem", color: "var(--color-text-secondary)" }}>
+                                Загрузка…
+                              </Typography.Body>
+                            ) : recipientsByLogId[log.id]?.length ? (
+                              <div style={{ marginTop: "0.4rem", overflowX: "auto" }}>
+                                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.74rem" }}>
+                                  <thead>
+                                    <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
+                                      <th style={{ padding: "0.3rem 0.35rem" }}>Email</th>
+                                      <th style={{ padding: "0.3rem 0.35rem" }}>Контрагент</th>
+                                      <th style={{ padding: "0.3rem 0.35rem" }}>Причина</th>
+                                      <th style={{ padding: "0.3rem 0.35rem" }}>Статус</th>
+                                      <th style={{ padding: "0.3rem 0.35rem", textAlign: "right" }}>Открыт.</th>
+                                      <th style={{ padding: "0.3rem 0.35rem", textAlign: "right" }}>Клики</th>
+                                      <th style={{ padding: "0.3rem 0.35rem" }}>Ошибка</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {recipientsByLogId[log.id]!.map((r) => (
+                                      <tr key={r.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                                        <td style={{ padding: "0.32rem 0.35rem", whiteSpace: "nowrap" }}>{r.targetLogin}</td>
+                                        <td style={{ padding: "0.32rem 0.35rem" }}>
+                                          {r.companyName || "—"}
+                                          {r.inn ? (
+                                            <span style={{ color: "var(--color-text-secondary)", marginLeft: "0.25rem" }}>({r.inn})</span>
+                                          ) : null}
+                                        </td>
+                                        <td style={{ padding: "0.32rem 0.35rem" }}>{r.reasons.join(", ") || "—"}</td>
+                                        <td style={{ padding: "0.32rem 0.35rem", color: recipientStatusColor(r.status), whiteSpace: "nowrap" }}>
+                                          {recipientStatusLabel(r.status)}
+                                        </td>
+                                        <td style={{ padding: "0.32rem 0.35rem", textAlign: "right" }}>{r.openCount || "—"}</td>
+                                        <td style={{ padding: "0.32rem 0.35rem", textAlign: "right" }}>{r.clickCount || "—"}</td>
+                                        <td style={{ padding: "0.32rem 0.35rem", color: r.error ? "#b91c1c" : "var(--color-text-secondary)" }}>
+                                          {r.error || "—"}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : recipientsByLogId[log.id] !== undefined ? (
+                              <Typography.Body style={{ marginTop: "0.35rem", color: "var(--color-text-secondary)" }}>
+                                Детализация недоступна для этой рассылки (старый запуск или миграция 073 не применена).
+                              </Typography.Body>
+                            ) : null}
+                          </details>
                         </td>
                       </tr>
                     )}
@@ -1191,7 +1309,7 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
 
         <Typography.Body style={{ marginTop: "0.65rem", fontSize: "0.78rem", color: "var(--color-text-secondary)", lineHeight: 1.45 }}>
           Трекинг включён: пиксель <code>/api/haulz-summary-email-open</code>, клики через{" "}
-          <code>/api/haulz-summary-email-click</code>. Нужны миграции 070 и 071. «Спам» по ящику SMTP не показывает — только ESP/Postmaster.
+          <code>/api/haulz-summary-email-click</code>. Нужны миграции 070–073. «Спам» по ящику SMTP не показывает — только ESP/Postmaster.
         </Typography.Body>
       </Panel>
 

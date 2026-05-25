@@ -136,6 +136,19 @@ export async function insertDispatchLog(
   return Number(rows[0]?.id) || 0;
 }
 
+export async function insertDispatchLogWithRecipients(
+  pool: Pool,
+  job: SummaryCronSendJob,
+  criteria: SummaryCronCriteria,
+): Promise<number> {
+  const logId = await insertDispatchLog(pool, job, criteria);
+  if (logId) {
+    const { insertDispatchRecipients } = await import("./haulzSummaryDispatchRecipients.js");
+    await insertDispatchRecipients(pool, logId, job.recipients);
+  }
+  return logId;
+}
+
 export async function updateDispatchLogProgress(pool: Pool, logId: number, job: SummaryCronSendJob): Promise<void> {
   if (!logId) return;
   await pool.query(

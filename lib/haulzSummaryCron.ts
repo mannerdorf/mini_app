@@ -353,6 +353,15 @@ async function buildInnActivityIndex(
   return index;
 }
 
+/** Служебные аккаунты не участвуют в массовой рассылке «Самери». */
+export function isSummaryBroadcastExcludedUser(user: {
+  access_all_inns?: boolean;
+  permissions?: Record<string, unknown> | null;
+}): boolean {
+  if (user.access_all_inns) return true;
+  return user.permissions?.service_mode === true;
+}
+
 export async function buildSummaryCronRecipients(
   pool: Pool,
   params: { dateFrom: string; dateTo: string; criteria: SummaryCronCriteria },
@@ -366,26 +375,31 @@ export async function buildSummaryCronRecipients(
   const seen = new Set<string>();
   const unsubscribed = await loadUnsubscribedSummaryEmails(pool);
 
+  /** Один контрагент (ИНН) — не более одного получателя за рассылку (первый подходящий логин). */
+  const innAssignedLogin = new Map<string, string>();
+
   for (const user of users) {
+    if (isSummaryBroadcastExcludedUser(user)) continue;
     const login = String(user.login || "").trim().toLowerCase();
     if (!login || unsubscribed.has(login)) continue;
-    let companies = user.companies;
-    if (user.access_all_inns && customers.length > 0) {
-      companies = customers.map((c) => ({ inn: c.inn, name: c.name || nameByInn.get(c.inn) || c.inn }));
-    }
-    for (const company of companies) {
+    for (const company of user.companies) {
       const inn = String(company.inn || "").trim();
       if (!inn) continue;
-      const flags = activity.get(normalizeInnCanon(inn));
+      const innCanon = normalizeInnCanon(inn);
+      if (!innCanon) continue;
+      const flags = activity.get(innCanon);
       if (!flags) continue;
       const reasons: string[] = [];
       if (params.criteria.acceptance && flags.acceptance) reasons.push("приёмки");
       if (params.criteria.delivery && flags.delivery) reasons.push("доставки");
       if (params.criteria.unpaid_invoices && flags.unpaid) reasons.push("неоплаченные счета");
       if (reasons.length === 0) continue;
-      const key = `${login.toLowerCase()}|${inn}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
+      const pairKey = `${login}|${innCanon}`;
+      if (seen.has(pairKey)) continue;
+      const existingLogin = innAssignedLogin.get(innCanon);
+      if (existingLogin && existingLogin !== login) continue;
+      seen.add(pairKey);
+      innAssignedLogin.set(innCanon, login);
       recipients.push({
         targetLogin: login,
         inn,
@@ -441,8 +455,12 @@ async function finalizeSendRun(
   criteria: SummaryCronCriteria,
 ): Promise<void> {
   try {
-    const { insertDispatchLog, finishDispatchLog } = await import("./haulzSummaryDispatchLog.js");
-    if (!job.logId) job.logId = await insertDispatchLog(pool, job, criteria);
+    const { insertDispatchLogWithRecipients, finishDispatchLog } = await import("./haulzSummaryDispatchLog.js");
+    if (status === "cancelled" && job.logId) {
+      const { cancelPendingDispatchRecipients } = await import("./haulzSummaryDispatchRecipients.js");
+      await cancelPendingDispatchRecipients(pool, job.logId);
+    }
+    if (!job.logId) job.logId = await insertDispatchLogWithRecipients(pool, job, criteria);
     if (job.logId) await finishDispatchLog(pool, job.logId, job, status);
   } catch {
     /* ignore */
@@ -598,6 +616,10 @@ export async function cancelPartnerSummarySendJob(pool: Pool): Promise<{
 
   job.status = "completed";
   job.updatedAt = new Date().toISOString();
+  if (job.logId) {
+    const { cancelPendingDispatchRecipients } = await import("./haulzSummaryDispatchRecipients.js");
+    await cancelPendingDispatchRecipients(pool, job.logId);
+  }
   await finalizeSendRun(pool, job, "cancelled", criteria);
   const recipients = job.recipients.length > 0 ? job.recipients.length : Math.max(job.cursor, 0);
   return {
@@ -635,20 +657,27 @@ async function processSendJobBatch(
     const r = batch[i];
     try {
       const sendResult = await sendOneSummaryEmail(pool, r, job.period, job.logId);
+      const { updateDispatchRecipientStatus } = await import("./haulzSummaryDispatchRecipients.js");
       if (sendResult.ok) {
         job.sent += 1;
         batchSent += 1;
+        await updateDispatchRecipientStatus(pool, job.logId, r, "sent", { messageId: sendResult.messageId });
       } else if (sendResult.skippedUnsubscribed) {
         job.skippedUnsubscribed += 1;
+        await updateDispatchRecipientStatus(pool, job.logId, r, "skipped_unsubscribed", { error: sendResult.error });
       } else {
         job.failed += 1;
         batchFailed += 1;
         job.errors.push({ targetLogin: r.targetLogin, inn: r.inn, error: sendResult.error || "send failed" });
+        await updateDispatchRecipientStatus(pool, job.logId, r, "failed", { error: sendResult.error || "send failed" });
       }
     } catch (e: unknown) {
       job.failed += 1;
       batchFailed += 1;
-      job.errors.push({ targetLogin: r.targetLogin, inn: r.inn, error: (e as Error)?.message || "error" });
+      const errMsg = (e as Error)?.message || "error";
+      job.errors.push({ targetLogin: r.targetLogin, inn: r.inn, error: errMsg });
+      const { updateDispatchRecipientStatus } = await import("./haulzSummaryDispatchRecipients.js");
+      await updateDispatchRecipientStatus(pool, job.logId, r, "failed", { error: errMsg });
     }
     job.cursor += 1;
     if (i < batch.length - 1) await sleepMs(config.emailPauseSec * 1000);
@@ -698,8 +727,8 @@ async function startSendJob(
     updatedAt: new Date().toISOString(),
   };
   try {
-    const { insertDispatchLog } = await import("./haulzSummaryDispatchLog.js");
-    job.logId = await insertDispatchLog(pool, job, config.criteria);
+    const { insertDispatchLogWithRecipients } = await import("./haulzSummaryDispatchLog.js");
+    job.logId = await insertDispatchLogWithRecipients(pool, job, config.criteria);
   } catch {
     job.logId = 0;
   }

@@ -35,6 +35,7 @@ export async function loadUsersWithCompanies(pool: Pool) {
     login: string;
     inn: string;
     company_name: string;
+    permissions: Record<string, unknown> | null;
     access_all_inns: boolean;
     active: boolean;
   };
@@ -99,11 +100,16 @@ export async function loadUsersWithCompanies(pool: Pool) {
     if (profileInn && !unique.has(profileInn)) {
       unique.set(profileInn, { inn: profileInn, name: u.company_name || "" });
     }
+    const permissions =
+      u.permissions && typeof u.permissions === "object" && !Array.isArray(u.permissions)
+        ? (u.permissions as Record<string, unknown>)
+        : null;
     return {
       id: u.id,
       login: u.login,
       company_name: u.company_name,
       access_all_inns: !!u.access_all_inns,
+      permissions,
       companies: [...unique.values()],
     };
   });
