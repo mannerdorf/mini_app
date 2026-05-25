@@ -2126,6 +2126,10 @@ body {
     display: none;
 }
 
+.cargo-inner-table__sum-mobile-line {
+    display: none;
+}
+
 .documents-invoices-inner-table .cargo-inner-table__delivery-inline,
 .documents-invoices-inner-table .cargo-inner-table__route-inline,
 .documents-acts-inner-table .cargo-inner-table__delivery-inline,
@@ -2339,9 +2343,13 @@ body {
     }
 
     .cargo-inner-table .cargo-inner-table__col-pw {
-        width: 13%;
+        width: 27%;
         text-align: right !important;
         white-space: nowrap;
+    }
+
+    .cargo-inner-table .cargo-inner-table__col-sum--stacked-mobile {
+        display: none;
     }
 
     .cargo-inner-table .cargo-inner-table__col-sum {
@@ -2355,6 +2363,18 @@ body {
     .cargo-inner-table .cargo-inner-table__col-sum {
         font-size: 0.62rem !important;
         font-variant-numeric: tabular-nums;
+    }
+
+    .cargo-inner-table__pw-line,
+    .cargo-inner-table__sum-mobile-line {
+        display: block;
+        line-height: 1.25;
+    }
+
+    .cargo-inner-table__sum-mobile-line {
+        margin-top: 0.1rem;
+        color: var(--color-text-primary);
+        font-weight: 600;
     }
 
     .cargo-inner-table__number {

@@ -651,7 +651,7 @@ export function CargoCustomerTable({
                             </th>
                             {showSums && (
                               <th
-                                className="cargo-inner-table__col-sum"
+                                className="cargo-inner-table__col-sum cargo-inner-table__col-sum--stacked-mobile"
                                 style={{
                                   padding: "0.35rem 0.3rem",
                                   textAlign: "right",
@@ -771,10 +771,17 @@ export function CargoCustomerTable({
                                   minWidth: "4rem",
                                 }}
                               >
-                                {item.PW != null ? `${Math.round(Number(item.PW))} кг` : "—"}
+                                <span className="cargo-inner-table__pw-line">
+                                  {item.PW != null ? `${Math.round(Number(item.PW))} кг` : "—"}
+                                </span>
+                                {showSums && (
+                                  <span className="cargo-inner-table__sum-mobile-line">
+                                    {item.Sum != null ? formatCurrency(item.Sum as number, true) : "—"}
+                                  </span>
+                                )}
                               </td>
                               {showSums && (
-                                <td className="cargo-inner-table__col-sum" style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
+                                <td className="cargo-inner-table__col-sum cargo-inner-table__col-sum--stacked-mobile" style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
                                   {item.Sum != null ? formatCurrency(item.Sum as number, true) : "—"}
                                 </td>
                               )}
