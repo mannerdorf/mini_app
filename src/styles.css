@@ -1808,6 +1808,13 @@ body {
     padding-bottom: 1rem;
     min-height: 2rem;
 }
+.doc-section-content.documents-debug-section {
+    padding-top: 1rem;
+    padding-bottom: 0;
+}
+.doc-section-content.documents-debug-section .documents-api-debug-panel {
+    margin-top: 0 !important;
+}
 
 /* Обёртка таблиц в Документах — отступ, чтобы первая строка данных не обрезалась */
 .doc-section-table-wrap {

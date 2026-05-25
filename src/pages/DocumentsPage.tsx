@@ -6183,15 +6183,19 @@ useEffect(() => {
             )}
             {docSection === 'Акты сверок' && (
                 <>
-                <DocumentsApiDebugPanel
-                    title="GET /api/sverki"
-                    loading={sverkiLoading}
-                    snapshot={
-                        sverkiApiDebug
-                            ? { ...sverkiApiDebug, filteredLength: filteredSverki.length }
-                            : null
-                    }
-                />
+                {effectiveServiceMode && (
+                    <div className="doc-section-content documents-debug-section">
+                        <DocumentsApiDebugPanel
+                            title="GET /api/sverki"
+                            loading={sverkiLoading}
+                            snapshot={
+                                sverkiApiDebug
+                                    ? { ...sverkiApiDebug, filteredLength: filteredSverki.length }
+                                    : null
+                            }
+                        />
+                    </div>
+                )}
                 <DocumentsToolbarBelowSticky>
                     <div>
                         {sverkiRequestsLoading ? (
@@ -6462,15 +6466,17 @@ useEffect(() => {
             )}
             {docSection === 'Договоры' && (
                 <div className="doc-section-content">
-                <DocumentsApiDebugPanel
-                    title="GET /api/dogovors"
-                    loading={dogovorsLoading}
-                    snapshot={
-                        dogovorsApiDebug
-                            ? { ...dogovorsApiDebug, filteredLength: filteredDogovors.length }
-                            : null
-                    }
-                />
+                {effectiveServiceMode && (
+                    <DocumentsApiDebugPanel
+                        title="GET /api/dogovors"
+                        loading={dogovorsLoading}
+                        snapshot={
+                            dogovorsApiDebug
+                                ? { ...dogovorsApiDebug, filteredLength: filteredDogovors.length }
+                                : null
+                        }
+                    />
+                )}
                 <DocumentsToolbarBelowSticky>
                     {dogovorsLoading ? (
                         <Flex align="center" gap="0.5rem" className="documents-section-empty-state documents-contracts-empty-state">
