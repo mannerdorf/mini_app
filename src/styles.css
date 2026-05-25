@@ -2589,31 +2589,43 @@ body {
         line-height: 1.2 !important;
     }
     .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals--saas-kpi.cargo-card,
+    .documents-page--saas-analytics .documents-sendings-table-summary.cargo-summary-totals--saas-kpi.cargo-card,
     .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi.cargo-card {
         padding: 0.2rem 0 0.15rem !important;
         margin-bottom: 0 !important;
     }
     .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals--saas-kpi .summary-metrics > div,
+    .documents-page--saas-analytics .documents-sendings-table-summary.cargo-summary-totals--saas-kpi .summary-metrics > div,
     .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics > div {
         padding: 0.5rem 0.4rem;
         border-radius: 8px;
     }
     .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals--saas-kpi .summary-metrics > div::before,
+    .documents-page--saas-analytics .documents-sendings-table-summary.cargo-summary-totals--saas-kpi .summary-metrics > div::before,
     .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics > div::before {
         height: 1.5px;
     }
     /* SaaS KPI mobile: label 11px, value 14px */
     .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals--saas-kpi .summary-metrics > div > :first-child,
+    .documents-page--saas-analytics .documents-sendings-table-summary.cargo-summary-totals--saas-kpi .summary-metrics > div > :first-child,
     .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics > div > :first-child {
         font-size: var(--text-xs, 0.6875rem) !important;
     }
     .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals--saas-kpi .summary-metrics > div > :last-child,
+    .documents-page--saas-analytics .documents-sendings-table-summary.cargo-summary-totals--saas-kpi .summary-metrics > div > :last-child,
     .cargo-page-root--saas-analytics .cargo-summary-totals--saas-kpi .summary-metrics > div > :last-child {
         font-size: var(--text-base, 0.875rem) !important;
+    }
+    .documents-sendings-table-summary.documents-sendings-table-summary--collapsed .summary-metrics {
+        display: none !important;
+    }
+    .documents-sendings-table-summary.documents-sendings-table-summary--collapsed .documents-sendings-table-summary-toggle {
+        margin-bottom: 0;
     }
 }
 @media (max-width: 420px) {
     .documents-page--saas-analytics .documents-summary-card.cargo-summary-totals .summary-metrics,
+    .documents-page--saas-analytics .documents-sendings-table-summary.cargo-summary-totals .summary-metrics,
     .cargo-page-root .cargo-summary-totals .summary-metrics {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -2898,8 +2910,9 @@ body {
 
 .documents-sendings-table-summary .summary-metrics {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
     gap: 0.55rem;
+    max-width: 100%;
     width: 100%;
     align-items: stretch;
 }

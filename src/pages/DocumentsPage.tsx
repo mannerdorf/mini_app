@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
-import { ChevronDown, ArrowUp, ArrowDown, Share2, Heart, Ship, Loader2, Truck, Download } from "lucide-react";
+import { ChevronDown, ChevronUp, ArrowUp, ArrowDown, Share2, Heart, Ship, Loader2, Truck, Download } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
@@ -448,6 +448,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [expandedOrderRow, setExpandedOrderRow] = useState<string | null>(null);
     const [newOrderModalOpen, setNewOrderModalOpen] = useState(false);
     const [expandedSendingRow, setExpandedSendingRow] = useState<string | null>(null);
+    const [sendingsSummaryCollapsed, setSendingsSummaryCollapsed] = useState(false);
     /** Столбец EOR виден всем с правом haulz; менять значение могут только с правом eor или суперадмин */
     const showEorColumn = (permissions?.haulz === true) || isSuperAdmin;
     const canEditEor = (permissions?.eor === true) || isSuperAdmin;
@@ -4812,7 +4813,17 @@ useEffect(() => {
                     </div>
                 )}
                 {hasAnalytics && sendingRowsSorted.length > 0 && (
-                    <div className="cargo-card documents-summary-card documents-summary-totals documents-summary-totals--saas-kpi cargo-summary-totals--saas-kpi documents-sendings-table-summary">
+                    <div className={`cargo-card cargo-summary-totals documents-summary-card documents-summary-totals documents-summary-totals--saas-kpi cargo-summary-totals--saas-kpi documents-sendings-table-summary${sendingsSummaryCollapsed ? " documents-sendings-table-summary--collapsed" : ""}`}>
+                        <button
+                            type="button"
+                            className="cargo-summary-totals-toggle documents-sendings-table-summary-toggle"
+                            onClick={() => setSendingsSummaryCollapsed((value) => !value)}
+                            aria-expanded={!sendingsSummaryCollapsed}
+                            aria-label={sendingsSummaryCollapsed ? "Развернуть итоги отправок" : "Свернуть итоги отправок"}
+                        >
+                            <Typography.Body style={{ fontSize: "0.78rem", fontWeight: 600 }}>Итого по выборке</Typography.Body>
+                            {sendingsSummaryCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                        </button>
                         <div className="summary-metrics">
                             {showSums && (
                                 <Flex direction="column" align="center">

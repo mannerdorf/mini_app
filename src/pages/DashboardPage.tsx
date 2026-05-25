@@ -134,6 +134,12 @@ type CargoFlowTableSelection =
     | { kind: 'badge'; badge: 'withPlan' | 'withoutPlan' | 'overdue' | 'dueToday' | 'dueTomorrow' | 'dueNext7' }
     | { kind: 'tile'; dateKey: string };
 
+type CombinedLogisticsBucketKey =
+    | 'terminalToSelfPickup'
+    | 'terminalToDelivery'
+    | 'pickupSelfPickup'
+    | 'pickupDelivery';
+
 function cargoFlowSelectionEqual(a: CargoFlowTableSelection | null, b: CargoFlowTableSelection | null): boolean {
     if (!a || !b) return false;
     if (a.kind !== b.kind) return false;
@@ -381,6 +387,9 @@ export function DashboardPage({
     /** Грузовой поток: таблица по клику на бейдж или плитку; по умолчанию свёрнута */
     const [cargoFlowTableExpanded, setCargoFlowTableExpanded] = useState(false);
     const [cargoFlowTableSelection, setCargoFlowTableSelection] = useState<CargoFlowTableSelection | null>(null);
+    /** Комбинированный блок логистики: таблица заказчиков раскрывается только по клику на карточку. */
+    const [selectedCombinedLogisticsKey, setSelectedCombinedLogisticsKey] = useState<CombinedLogisticsBucketKey | null>(null);
+    const [expandedCombinedLogisticsCustomer, setExpandedCombinedLogisticsCustomer] = useState<string | null>(null);
     /** Сортировка таблицы «Платёжная дисциплина» */
     const [paymentDisciplineSortCol, setPaymentDisciplineSortCol] = useState<'name' | 'count' | 'paid' | 'unpaid' | 'paidRate'>('paidRate');
     const [paymentDisciplineSortAsc, setPaymentDisciplineSortAsc] = useState(true);
@@ -459,6 +468,10 @@ export function DashboardPage({
     useEffect(() => {
         if (!useServiceRequest && stripTab === 'customer') setStripTab('type');
     }, [useServiceRequest, stripTab]);
+
+    useEffect(() => {
+        setExpandedCombinedLogisticsCustomer(null);
+    }, [selectedCombinedLogisticsKey]);
 
     // Загрузка статусов перевозки при раскрытии строки в таблице «Перевозки вне SLA»
     useEffect(() => {
@@ -1322,7 +1335,7 @@ export function DashboardPage({
             return Number.isFinite(n) ? n : 0;
         };
         const makeBucket = (
-            key: 'terminalToSelfPickup' | 'terminalToDelivery' | 'pickupSelfPickup' | 'pickupDelivery',
+            key: CombinedLogisticsBucketKey,
             label: string,
             color: string,
         ) => ({
@@ -1335,6 +1348,7 @@ export function DashboardPage({
             pw: 0,
             mest: 0,
             sum: 0,
+            items: [] as CargoItem[],
         });
         const buckets = {
             terminalToSelfPickup: makeBucket('terminalToSelfPickup', 'terminal-to - самовывоз', '#2563eb'),
@@ -1354,6 +1368,7 @@ export function DashboardPage({
             bucket.pw += toNum(item.PW);
             bucket.mest += toNum(item.Mest);
             bucket.sum += toNum(item.Sum);
+            bucket.items.push(item);
         });
         const rows = [buckets.terminalToSelfPickup, buckets.terminalToDelivery, buckets.pickupSelfPickup, buckets.pickupDelivery];
         const totals = rows.reduce(
@@ -1369,6 +1384,40 @@ export function DashboardPage({
         );
         return { rows, totals };
     }, [dashboardTotalItems]);
+    const selectedCombinedLogisticsBucket = useMemo(
+        () => pickupByLastMileLoad.rows.find((row) => row.key === selectedCombinedLogisticsKey) ?? null,
+        [pickupByLastMileLoad.rows, selectedCombinedLogisticsKey],
+    );
+    const combinedLogisticsCustomerRows = useMemo(() => {
+        if (!selectedCombinedLogisticsBucket) return [];
+        const toNum = (value: unknown) => {
+            const n = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : Number(value ?? 0);
+            return Number.isFinite(n) ? n : 0;
+        };
+        const byCustomer = new Map<string, {
+            customer: string;
+            items: CargoItem[];
+            count: number;
+            w: number;
+            vol: number;
+            pw: number;
+            mest: number;
+            sum: number;
+        }>();
+        selectedCombinedLogisticsBucket.items.forEach((item) => {
+            const customer = String(item.Customer ?? (item as any).customer ?? "").trim() || "Без заказчика";
+            const row = byCustomer.get(customer) ?? { customer, items: [], count: 0, w: 0, vol: 0, pw: 0, mest: 0, sum: 0 };
+            row.items.push(item);
+            row.count += 1;
+            row.w += toNum(item.W);
+            row.vol += toNum((item as any).Value ?? (item as any).Volume ?? (item as any).V);
+            row.pw += toNum(item.PW);
+            row.mest += toNum(item.Mest);
+            row.sum += toNum(item.Sum);
+            byCustomer.set(customer, row);
+        });
+        return [...byCustomer.values()].sort((a, b) => b.count - a.count || b.sum - a.sum || a.customer.localeCompare(b.customer, "ru"));
+    }, [selectedCombinedLogisticsBucket]);
     const getValForChart = useCallback((item: CargoItem) => {
         if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
         if (chartType === 'paidWeight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
@@ -3740,7 +3789,7 @@ export function DashboardPage({
                         Загрузка: заборная логистика / терминалы
                     </Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.65rem' }}>
-                        Сводная разбивка текущего периода по заборной логистике и последней миле.
+                        Сводная разбивка текущего периода по заборной логистике и последней миле. Нажмите на блок, чтобы открыть таблицу.
                     </Typography.Body>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
                         {pickupByLastMileLoad.rows.map((row, rowIndex) => {
@@ -3753,8 +3802,29 @@ export function DashboardPage({
                                 ...(showSums ? [{ key: 'sum', label: 'Рубли', value: row.sum, total: pickupByLastMileLoad.totals.sum, suffix: '₽', money: true }] : []),
                             ];
                             const countPct = pct(row.count, pickupByLastMileLoad.totals.count);
+                            const selected = selectedCombinedLogisticsKey === row.key;
                             return (
-                                <div key={row.key} style={{ border: '1px solid var(--color-border)', borderRadius: 12, padding: '0.75rem', background: 'var(--color-bg-hover)' }}>
+                                <div
+                                    key={row.key}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => setSelectedCombinedLogisticsKey((current) => current === row.key ? null : row.key)}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter' || event.key === ' ') {
+                                            event.preventDefault();
+                                            setSelectedCombinedLogisticsKey((current) => current === row.key ? null : row.key);
+                                        }
+                                    }}
+                                    style={{
+                                        border: selected ? `1px solid ${row.color}` : '1px solid var(--color-border)',
+                                        borderRadius: 12,
+                                        padding: '0.75rem',
+                                        background: selected ? 'var(--color-bg-card)' : 'var(--color-bg-hover)',
+                                        boxShadow: selected ? `0 0 0 2px ${row.color}22` : undefined,
+                                        cursor: 'pointer',
+                                    }}
+                                    title={selected ? 'Свернуть таблицу' : 'Показать заказчиков и перевозки'}
+                                >
                                     <Flex align="center" justify="space-between" style={{ gap: '0.5rem', marginBottom: '0.6rem' }}>
                                         <Flex align="center" gap="0.4rem" style={{ minWidth: 0 }}>
                                             <span style={{ width: 10, height: 10, borderRadius: '50%', background: row.color, flexShrink: 0 }} />
@@ -3807,6 +3877,106 @@ export function DashboardPage({
                             );
                         })}
                     </div>
+                    {selectedCombinedLogisticsBucket && (
+                        <div style={{ marginTop: '0.85rem', border: '1px solid var(--color-border)', borderRadius: 12, padding: '0.75rem', background: 'var(--color-bg-hover)' }}>
+                            <Flex align="center" justify="space-between" gap="0.5rem" style={{ marginBottom: '0.55rem' }}>
+                                <Typography.Body style={{ fontSize: '0.82rem', fontWeight: 700 }}>
+                                    Заказчики: {selectedCombinedLogisticsBucket.label}
+                                </Typography.Body>
+                                <Button
+                                    type="button"
+                                    className="filter-button"
+                                    onClick={() => setSelectedCombinedLogisticsKey(null)}
+                                    style={{ padding: '0.25rem 0.45rem', fontSize: '0.76rem' }}
+                                >
+                                    Свернуть
+                                </Button>
+                            </Flex>
+                            <div style={{ overflowX: 'auto', maxHeight: 420, overflowY: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-card)' }}>
+                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600, width: 28 }}>#</th>
+                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600 }}>Заказчик</th>
+                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'right', fontWeight: 600 }}>Перевозки</th>
+                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'right', fontWeight: 600 }}>Кг</th>
+                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'right', fontWeight: 600 }}>Объём</th>
+                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'right', fontWeight: 600 }}>Плат. вес</th>
+                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'right', fontWeight: 600 }}>Мест</th>
+                                            {showSums && <th style={{ padding: '0.4rem 0.45rem', textAlign: 'right', fontWeight: 600 }}>Рубли</th>}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {combinedLogisticsCustomerRows.map((customerRow, idx) => {
+                                            const expanded = expandedCombinedLogisticsCustomer === customerRow.customer;
+                                            const sortedItems = [...customerRow.items].sort((a, b) => {
+                                                const da = dateUtils.parseDateOnly(String(a?.DatePrih ?? ''))?.getTime() ?? 0;
+                                                const db = dateUtils.parseDateOnly(String(b?.DatePrih ?? ''))?.getTime() ?? 0;
+                                                return db - da;
+                                            });
+                                            return (
+                                                <React.Fragment key={customerRow.customer}>
+                                                    <tr
+                                                        onClick={() => setExpandedCombinedLogisticsCustomer(expanded ? null : customerRow.customer)}
+                                                        style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expanded ? 'var(--color-bg-card)' : undefined }}
+                                                        title={expanded ? 'Свернуть перевозки' : 'Показать перевозки'}
+                                                    >
+                                                        <td style={{ padding: '0.4rem 0.45rem', color: 'var(--color-text-secondary)' }}>{idx + 1}</td>
+                                                        <td style={{ padding: '0.4rem 0.45rem', fontWeight: 600 }}>
+                                                            {expanded ? <ArrowUp className="w-3 h-3" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: 4 }} /> : <ArrowDown className="w-3 h-3" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: 4 }} />}
+                                                            {stripOoo(customerRow.customer)}
+                                                        </td>
+                                                        <td style={{ padding: '0.4rem 0.45rem', textAlign: 'right' }}>{customerRow.count.toLocaleString('ru-RU')}</td>
+                                                        <td style={{ padding: '0.4rem 0.45rem', textAlign: 'right' }}>{Math.round(customerRow.w).toLocaleString('ru-RU')}</td>
+                                                        <td style={{ padding: '0.4rem 0.45rem', textAlign: 'right' }}>{customerRow.vol.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}</td>
+                                                        <td style={{ padding: '0.4rem 0.45rem', textAlign: 'right' }}>{Math.round(customerRow.pw).toLocaleString('ru-RU')}</td>
+                                                        <td style={{ padding: '0.4rem 0.45rem', textAlign: 'right' }}>{Math.round(customerRow.mest).toLocaleString('ru-RU')}</td>
+                                                        {showSums && <td style={{ padding: '0.4rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(customerRow.sum, true)}</td>}
+                                                    </tr>
+                                                    {expanded && (
+                                                        <tr>
+                                                            <td colSpan={showSums ? 8 : 7} style={{ padding: '0.45rem 0.55rem', borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-primary)' }}>
+                                                                <div style={{ overflowX: 'auto' }}>
+                                                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.76rem' }}>
+                                                                        <thead>
+                                                                            <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                                <th style={{ padding: '0.3rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
+                                                                                <th style={{ padding: '0.3rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
+                                                                                <th style={{ padding: '0.3rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
+                                                                                <th style={{ padding: '0.3rem', textAlign: 'left', fontWeight: 600 }}>Маршрут</th>
+                                                                                <th style={{ padding: '0.3rem', textAlign: 'right', fontWeight: 600 }}>Мест</th>
+                                                                                <th style={{ padding: '0.3rem', textAlign: 'right', fontWeight: 600 }}>Плат. вес</th>
+                                                                                <th style={{ padding: '0.3rem', textAlign: 'right', fontWeight: 600 }}>Объём</th>
+                                                                                {showSums && <th style={{ padding: '0.3rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>}
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {sortedItems.map((item, itemIndex) => (
+                                                                                <tr key={`${item.Number ?? itemIndex}-${itemIndex}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                                    <td style={{ padding: '0.3rem', color: 'var(--color-primary-blue)', fontWeight: 600 }}>{item.Number ? formatInvoiceNumber(String(item.Number)) : '—'}</td>
+                                                                                    <td style={{ padding: '0.3rem' }}><DateText value={item.DatePrih} /></td>
+                                                                                    <td style={{ padding: '0.3rem' }}>{normalizeStatus(item.State)}</td>
+                                                                                    <td style={{ padding: '0.3rem' }}>{getCargoItemRoute(item)}</td>
+                                                                                    <td style={{ padding: '0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)).toLocaleString('ru-RU') : '—'}</td>
+                                                                                    <td style={{ padding: '0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW)).toLocaleString('ru-RU')} кг` : '—'}</td>
+                                                                                    <td style={{ padding: '0.3rem', textAlign: 'right' }}>{((item as any).Value ?? (item as any).Volume ?? (item as any).V) != null ? Number((item as any).Value ?? (item as any).Volume ?? (item as any).V).toLocaleString('ru-RU', { maximumFractionDigits: 2 }) : '—'}</td>
+                                                                                    {showSums && <td style={{ padding: '0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(Number(item.Sum ?? 0), true)}</td>}
+                                                                                </tr>
+                                                                            ))}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
                 </Panel>
             )}
 
