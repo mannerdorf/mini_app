@@ -1,5 +1,6 @@
 import React from "react";
 import { Typography } from "@maxhub/max-ui";
+import { ExternalLink } from "lucide-react";
 import { getBankBusinessConfig, isMobileBankOpenDevice, openBankBusiness, type BankBusinessId } from "../../lib/bankBusinessOpen";
 
 const LOGOS: Record<BankBusinessId, string> = {
@@ -11,37 +12,40 @@ type Props = {
   className?: string;
 };
 
-function BankLogoButton({ bank }: { bank: BankBusinessId }) {
+function BankPayCard({ bank }: { bank: BankBusinessId }) {
   const cfg = getBankBusinessConfig(bank);
-  const hint = isMobileBankOpenDevice()
-    ? `Открыть приложение ${cfg.label}`
-    : `Открыть ${cfg.label} в браузере`;
+  const title =
+    bank === "tbank"
+      ? "Открыть Т-Бизнес (business.tbank.ru)"
+      : `Открыть ${cfg.label}`;
 
   return (
     <button
       type="button"
-      className="bank-business-pay-btn"
+      className={`bank-business-pay-card bank-business-pay-card--${bank}`}
       onClick={() => openBankBusiness(bank)}
-      title={hint}
+      title={title}
       aria-label={`Оплатить в ${cfg.label}`}
     >
-      <img src={LOGOS[bank]} alt={cfg.label} className="bank-business-pay-btn__logo" />
+      <img src={LOGOS[bank]} alt={cfg.label} className="bank-business-pay-card__logo" />
+      <ExternalLink className="bank-business-pay-card__icon" aria-hidden />
     </button>
   );
 }
 
 export function BankBusinessPayButtons({ className }: Props) {
+  const mobile = isMobileBankOpenDevice();
   return (
     <div className={className ? `bank-business-pay-row ${className}` : "bank-business-pay-row"}>
-      <Typography.Label className="bank-business-pay-row__label">Оплатить в приложении банка</Typography.Label>
+      <p className="bank-business-pay-row__label">Оплатить в приложении банка</p>
       <div className="bank-business-pay-row__buttons">
-        <BankLogoButton bank="tbank" />
-        <BankLogoButton bank="sber" />
+        <BankPayCard bank="tbank" />
+        <BankPayCard bank="sber" />
       </div>
       <Typography.Body className="bank-business-pay-row__hint">
-        {isMobileBankOpenDevice()
-          ? "Откроется приложение банка — отсканируйте QR на экране или создайте платёж по реквизитам."
-          : "Откроется сайт банка — войдите в личный кабинет и отсканируйте QR или введите платёж."}
+        {mobile
+          ? "Откроется приложение банка. Отсканируйте QR на экране или создайте платёж по реквизитам."
+          : "Откроется личный кабинет банка в браузере. Войдите в Т-Бизнес или СберБизнес и отсканируйте QR-код."}
       </Typography.Body>
     </div>
   );

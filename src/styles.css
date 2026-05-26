@@ -569,12 +569,26 @@ body {
         padding: var(--space-5, 20px);
     }
 }
-.logo-text {
-    font-size: var(--font-size-title2, 22px);
-    font-weight: 600;
-    color: var(--color-primary-blue);
-    letter-spacing: var(--letter-spacing-tight, -0.02em);
-    line-height: var(--line-height-tight, 1.2);
+.haulz-brand-logo {
+    display: block;
+    width: min(200px, 72vw);
+    height: auto;
+    margin: 0 auto;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.login-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.65rem;
+    margin-bottom: 1.25rem;
+    margin-top: 0.5rem;
+}
+
+.login-brand .tagline {
+    margin-bottom: 0;
 }
 .tagline {
     text-align: center;
@@ -1642,6 +1656,36 @@ body {
     min-width: 0;
 }
 
+.haulz-dispatch-group-more {
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-primary-blue);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.haulz-dispatch-group-more:hover {
+    opacity: 0.85;
+}
+
+/* Одна компания у логина — столбец «Заказчик» в таблицах не показываем */
+.app-hide-customer-column .cargo-customer-table__col-customer,
+.app-hide-customer-column .customer-col {
+    display: none !important;
+}
+
+.app-hide-customer-column .unpaid-plan-monitor__table th:nth-child(2),
+.app-hide-customer-column .unpaid-plan-monitor__table td:nth-child(2) {
+    display: none !important;
+}
+
 .haulz-dispatch-stat-tile__metrics {
     min-height: 2.45rem;
     align-content: flex-start;
@@ -2559,6 +2603,53 @@ body {
     margin-top: calc(-1 * var(--space-6, 24px) + var(--element-gap, 16px));
 }
 
+/* Карточка перевозки: шире на десктопе, статусы справа от плиток */
+@media (min-width: 769px) {
+    .modal-content--cargo-details {
+        max-width: min(960px, 94vw);
+        width: 94%;
+    }
+
+    .cargo-details-modal-top {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--element-gap, 16px);
+        margin-bottom: var(--space-6, 24px);
+    }
+
+    .cargo-details-modal-top .cargo-details-modal-tiles {
+        flex: 1 1 auto;
+        min-width: 0;
+        margin-bottom: 0;
+    }
+
+    .cargo-details-modal-top .cargo-details-modal-statuses {
+        flex: 0 0 220px;
+        width: 220px;
+        grid-template-columns: minmax(0, 1fr);
+        margin-bottom: 0;
+    }
+
+    .cargo-details-modal-statuses .details-item-modal {
+        width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .cargo-details-modal-top {
+        display: block;
+    }
+
+    .cargo-details-modal-top .cargo-details-modal-tiles,
+    .cargo-details-modal-top .cargo-details-modal-statuses {
+        margin-bottom: var(--space-6, 24px);
+    }
+
+    .cargo-details-modal-top .cargo-details-modal-statuses:last-child {
+        margin-bottom: 0;
+    }
+}
+
 /* Суммирующая строка: 1 ряд на десктопе, на телефонах 2 ряда (3+2) */
 .summary-metrics { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.5rem; align-items: center; max-width: fit-content; margin: 0 auto; }
 @media (max-width: 480px) {
@@ -3386,56 +3477,231 @@ button.edo-health-monitor {
     opacity: 0.9;
 }
 
+/* Оплата счёта по QR */
+.invoice-payment-qr-block {
+    margin-bottom: 0.75rem;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-hover);
+    flex-shrink: 0;
+}
+
+.invoice-payment-qr-block__head {
+    margin-bottom: 0.65rem;
+}
+
+.invoice-payment-qr-block__title {
+    font-size: 0.95rem !important;
+    font-weight: 600 !important;
+    margin: 0 !important;
+}
+
+.invoice-payment-qr-block__loading {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+}
+
+.invoice-payment-qr-block__error {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--color-error);
+}
+
+.invoice-payment-qr-block__body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.invoice-payment-qr-block__qr-wrap {
+    flex-shrink: 0;
+    padding: 0.5rem;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+}
+
+.invoice-payment-qr-block__qr {
+    display: block;
+    width: 200px;
+    height: 200px;
+    border-radius: 6px;
+}
+
+.invoice-payment-qr-block__details {
+    flex: 1;
+    min-width: min(100%, 14rem);
+}
+
+.invoice-payment-qr-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+    gap: 0.45rem;
+    margin-bottom: 0.65rem;
+}
+
+.invoice-payment-qr-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-card);
+}
+
+.invoice-payment-qr-tile--accent {
+    border-color: rgba(37, 99, 235, 0.35);
+    background: rgba(37, 99, 235, 0.06);
+}
+
+.invoice-payment-qr-tile__label {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--color-text-secondary);
+    line-height: 1.3;
+    word-spacing: normal;
+    white-space: normal;
+}
+
+.invoice-payment-qr-tile__value {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    line-height: 1.35;
+    word-spacing: normal;
+    white-space: normal;
+}
+
+.invoice-payment-qr-meta {
+    margin: 0 0 0.45rem;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--color-text-secondary);
+    word-spacing: normal;
+    white-space: normal;
+}
+
+.invoice-payment-qr-meta__label {
+    color: var(--color-text-secondary);
+}
+
+.invoice-payment-qr-meta__value {
+    color: var(--color-text-primary);
+    font-weight: 500;
+}
+
+.invoice-payment-qr-purpose {
+    margin: 0 0 0.5rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 8px;
+    border: 1px dashed var(--color-border);
+    font-size: 0.76rem;
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+    word-spacing: normal;
+    white-space: normal;
+}
+
+.invoice-payment-qr-hint {
+    margin: 0 0 0.65rem;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+    word-spacing: normal;
+    white-space: normal;
+}
+
 .bank-business-pay-row {
-    margin-top: 0.15rem;
-    padding-top: 0.55rem;
+    margin-top: 0.25rem;
+    padding-top: 0.65rem;
     border-top: 1px dashed var(--color-border);
 }
 
 .bank-business-pay-row__label {
     display: block;
-    font-size: 0.72rem !important;
-    color: var(--color-text-secondary) !important;
-    margin-bottom: 0.4rem !important;
+    margin: 0 0 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    letter-spacing: 0.02em;
 }
 
 .bank-business-pay-row__buttons {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.65rem;
-    align-items: center;
-    margin-bottom: 0.35rem;
+    gap: 0.5rem;
+    align-items: stretch;
+    margin-bottom: 0.45rem;
 }
 
-.bank-business-pay-btn {
+.bank-business-pay-card {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    padding: 0.35rem 0.65rem;
+    gap: 0.45rem;
+    padding: 0.4rem 0.7rem;
+    min-height: 2.5rem;
     border: 1px solid var(--color-border);
     border-radius: 10px;
     background: #fff;
     cursor: pointer;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
 }
 
-.bank-business-pay-btn:hover {
-    border-color: rgba(37, 99, 235, 0.45);
-    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12);
+.bank-business-pay-card:hover {
+    border-color: rgba(37, 99, 235, 0.4);
+    box-shadow: 0 2px 10px rgba(37, 99, 235, 0.1);
+    transform: translateY(-1px);
 }
 
-.bank-business-pay-btn__logo {
+.bank-business-pay-card--tbank:hover {
+    border-color: rgba(255, 221, 45, 0.85);
+    box-shadow: 0 2px 10px rgba(255, 221, 45, 0.2);
+}
+
+.bank-business-pay-card--sber:hover {
+    border-color: rgba(33, 160, 56, 0.45);
+    box-shadow: 0 2px 10px rgba(33, 160, 56, 0.12);
+}
+
+.bank-business-pay-card__logo {
     display: block;
-    height: 28px;
+    height: 26px;
     width: auto;
-    max-width: 140px;
+    max-width: 120px;
     object-fit: contain;
+    flex-shrink: 0;
+}
+
+.bank-business-pay-card--tbank .bank-business-pay-card__logo {
+    max-width: 132px;
+    height: 30px;
+}
+
+.bank-business-pay-card--sber .bank-business-pay-card__logo {
+    max-width: 128px;
+    height: 28px;
+}
+
+.bank-business-pay-card__icon {
+    width: 0.85rem;
+    height: 0.85rem;
+    flex-shrink: 0;
+    color: var(--color-text-secondary);
+    opacity: 0.65;
 }
 
 .bank-business-pay-row__hint {
+    display: block !important;
+    margin: 0 !important;
     font-size: 0.68rem !important;
     color: var(--color-text-secondary) !important;
-    line-height: 1.4 !important;
+    line-height: 1.5 !important;
+    word-spacing: normal !important;
+    white-space: normal !important;
 }
 
 button.unpaid-plan-monitor {

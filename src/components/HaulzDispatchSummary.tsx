@@ -2,7 +2,7 @@
  * Сводка по выдаче грузов: плитки и таблица по датам верхнего фильтра дашборда.
  */
 import React, { useMemo, useCallback, useState, useEffect } from "react";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, List, Loader2, RefreshCw, RussianRuble, Scale, Ship, Truck, Weight } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, List, Loader2, RefreshCw, RussianRuble, Scale, Weight } from "lucide-react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { AppBadge } from "./shared/AppBadge";
 import type { AuthData, CargoItem, PerevozkaTimelineStep } from "../types";
@@ -10,10 +10,12 @@ import { formatTimelineDate, formatTimelineTime, parseDateOnly } from "../lib/da
 import { getFilterKeyByStatus, isReceivedInfoStatus } from "../lib/statusUtils";
 import { cityToCode, formatCurrency, formatInvoiceNumber, stripOoo } from "../lib/formatUtils";
 import { ClickableCargoNumber, leafRowClickProps } from "./ui/EntityLinks";
-import { getPlanDays, getSlaInfo, getSlaPlanAnchorDateString, getSlaPlanDeadlineMs, isFerry } from "../lib/cargoUtils";
+import { RouteBadge, CargoTransportTypeIcon, getCargoItemRouteLabel } from "./shared/CargoTableDisplay";
+import { getPlanDays, getSlaInfo, getSlaPlanAnchorDateString, getSlaPlanDeadlineMs } from "../lib/cargoUtils";
 import { fetchPerevozkaTimeline } from "../lib/perevozkaDetails";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
 import type { KeyedMutator } from "swr";
+import { useAppRuntime } from "../contexts/AppRuntimeContext";
 
 export type HaulzDispatchSummaryProps = {
     auth: AuthData;
@@ -35,40 +37,10 @@ type DispatchTileKey = "ready" | "delivering" | "transit" | "delivered" | "total
 
 const TABLE_MAX_ROWS = 60;
 const DISPATCH_TABLE_COLS = 8;
+/** Сколько перевозок показывать при раскрытии заказчика до «Ещё». */
+const CUSTOMER_GROUP_PREVIEW_ROWS = 5;
 
 type DispatchTableSortCol = "number" | "customer" | "statusDate" | "datePrih" | "pw" | "sum";
-
-function getDispatchRouteLabel(item: CargoItem): string {
-    const from = cityToCode(item.CitySender);
-    const to = cityToCode(item.CityReceiver);
-    return [from, to].filter(Boolean).join(" – ") || "—";
-}
-
-function DispatchRouteBadge({ item }: { item: CargoItem }) {
-    const route = getDispatchRouteLabel(item);
-    if (route === "—") return <span>—</span>;
-    return (
-        <AppBadge tone="info" style={{ display: "inline-block", whiteSpace: "nowrap", fontSize: "0.72rem" }}>
-            {route}
-        </AppBadge>
-    );
-}
-
-function DispatchTransportIcon({ item }: { item: CargoItem }) {
-    return isFerry(item) ? (
-        <Ship
-            className="w-4 h-4"
-            style={{ color: "var(--color-primary-blue)", display: "inline-block" }}
-            title="Паром"
-        />
-    ) : (
-        <Truck
-            className="w-4 h-4"
-            style={{ color: "var(--color-text-secondary)", display: "inline-block" }}
-            title="Авто"
-        />
-    );
-}
 
 function compareCargoNumbersForSort(a: string, b: string): number {
     const na = parseInt(a.replace(/\D/g, ""), 10) || 0;
@@ -313,6 +285,7 @@ export function HaulzDispatchSummary({
     showRefreshButton,
     showSums = true,
 }: HaulzDispatchSummaryProps) {
+    const { showCustomerColumn } = useAppRuntime();
     const [workScheduleByInn, setWorkScheduleByInn] = useState<Record<string, WorkSchedule>>({});
     const [selectedTile, setSelectedTile] = useState<DispatchTileKey>("total");
     const [dispatchTableSort, setDispatchTableSort] = useState<{
@@ -328,6 +301,8 @@ export function HaulzDispatchSummary({
     const [dispatchTableOpen, setDispatchTableOpen] = useState(false);
     /** Свернутая таблица по заказчику; по клику — строки перевозок этого заказчика. */
     const [expandedCustomerKey, setExpandedCustomerKey] = useState<string | null>(null);
+    /** Заказчики, у которых в раскрытой группе показаны все перевозки (не только превью). */
+    const [customerGroupShowAllKeys, setCustomerGroupShowAllKeys] = useState<Set<string>>(() => new Set());
 
     const items = useMemo(() => rawItems.filter((i) => !isReceivedInfoStatus(i.State)), [rawItems]);
 
@@ -408,6 +383,7 @@ export function HaulzDispatchSummary({
         setExpandedDispatchNumber(null);
         setExpandedDispatchItem(null);
         setExpandedCustomerKey(null);
+        setCustomerGroupShowAllKeys(new Set());
         setDispatchTableOpen(false);
     }, [selectedTile]);
 
@@ -421,6 +397,7 @@ export function HaulzDispatchSummary({
         setExpandedCustomerKey(null);
         setExpandedDispatchNumber(null);
         setExpandedDispatchItem(null);
+        setCustomerGroupShowAllKeys(new Set());
     }, [dispatchTableOpen]);
 
     useEffect(() => {
@@ -467,6 +444,8 @@ export function HaulzDispatchSummary({
     }, [listByTile, selectedTile, dispatchTableSort]);
 
     const tableRows = useMemo(() => sortedTableSource.slice(0, TABLE_MAX_ROWS), [sortedTableSource]);
+
+    const dispatchTableColCount = showCustomerColumn ? DISPATCH_TABLE_COLS : DISPATCH_TABLE_COLS - 1;
 
     const customerGroups = useMemo(() => {
         const order: string[] = [];
@@ -659,7 +638,9 @@ export function HaulzDispatchSummary({
                                             {(
                                                 [
                                                     { col: "number" as const, label: "№", align: "left" as const },
-                                                    { col: "customer" as const, label: "Заказчик", align: "left" as const },
+                                                    ...(showCustomerColumn
+                                                        ? [{ col: "customer" as const, label: "Заказчик", align: "left" as const }]
+                                                        : []),
                                                     { col: "statusDate" as const, label: "Дата статуса", align: "left" as const },
                                                     { col: "datePrih" as const, label: "Приход", align: "left" as const },
                                                     { col: null, label: "Маршрут", align: "left" as const, title: "Маршрут" },
@@ -710,6 +691,11 @@ export function HaulzDispatchSummary({
                                     <tbody>
                                         {customerGroups.map(({ customerKey, rows }) => {
                                             const groupOpen = expandedCustomerKey === customerKey;
+                                            const showAllGroupRows = customerGroupShowAllKeys.has(customerKey);
+                                            const previewRows = showAllGroupRows
+                                                ? rows
+                                                : rows.slice(0, CUSTOMER_GROUP_PREVIEW_ROWS);
+                                            const hiddenGroupRows = rows.length - previewRows.length;
                                             const totalPw = rows.reduce((acc, row) => {
                                                 const p = typeof row.PW === "string" ? parseFloat(row.PW) || 0 : Number(row.PW) || 0;
                                                 return acc + p;
@@ -722,7 +708,18 @@ export function HaulzDispatchSummary({
                                             return (
                                                 <React.Fragment key={`${selectedTile}-grp-${customerKey}`}>
                                                     <tr
-                                                        onClick={() => setExpandedCustomerKey(groupOpen ? null : customerKey)}
+                                                        onClick={() => {
+                                                            if (groupOpen) {
+                                                                setExpandedCustomerKey(null);
+                                                                setCustomerGroupShowAllKeys((prev) => {
+                                                                    const next = new Set(prev);
+                                                                    next.delete(customerKey);
+                                                                    return next;
+                                                                });
+                                                            } else {
+                                                                setExpandedCustomerKey(customerKey);
+                                                            }
+                                                        }}
                                                         style={{
                                                             borderBottom: "1px solid var(--color-border)",
                                                             cursor: "pointer",
@@ -734,18 +731,25 @@ export function HaulzDispatchSummary({
                                                         title={groupOpen ? "Свернуть список перевозок" : "Показать перевозки заказчика"}
                                                     >
                                                         <td style={{ padding: "0.35rem", whiteSpace: "nowrap", verticalAlign: "middle" }}>
-                                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                                                                 {groupOpen ? (
                                                                     <ChevronDown className="w-4 h-4" style={{ flexShrink: 0, opacity: 0.85 }} aria-hidden />
                                                                 ) : (
                                                                     <ChevronRight className="w-4 h-4" style={{ flexShrink: 0, opacity: 0.85 }} aria-hidden />
+                                                                )}
+                                                                {!showCustomerColumn && (
+                                                                    <span style={{ fontWeight: 600, fontSize: "0.78rem" }} title={customerKey}>
+                                                                        {customerKey}
+                                                                    </span>
                                                                 )}
                                                                 <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>
                                                                     {rows.length}
                                                                 </Typography.Body>
                                                             </span>
                                                         </td>
+                                                        {showCustomerColumn && (
                                                         <td
+                                                            className="customer-col"
                                                             style={{
                                                                 padding: "0.35rem",
                                                                 maxWidth: 220,
@@ -758,6 +762,7 @@ export function HaulzDispatchSummary({
                                                         >
                                                             {customerKey}
                                                         </td>
+                                                        )}
                                                         <td style={{ padding: "0.35rem", fontSize: "0.72rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>
                                                             —
                                                         </td>
@@ -768,7 +773,7 @@ export function HaulzDispatchSummary({
                                                         <td style={{ padding: "0.35rem", textAlign: "right" }}>{formatCurrency(totalSum, true)}</td>
                                                     </tr>
                                                     {groupOpen &&
-                                                        rows.map((row, ridx) => {
+                                                        previewRows.map((row, ridx) => {
                                                             const num = String(row.Number ?? "").trim();
                                                             const cust = stripOoo(String(row.Customer ?? (row as { customer?: string }).customer ?? "—"));
                                                             const statusDateCell = formatDispatchFilterDateCell(row);
@@ -806,7 +811,9 @@ export function HaulzDispatchSummary({
                                                                         <td style={{ padding: "0.35rem 0.35rem 0.35rem 1.5rem", whiteSpace: "nowrap" }}>
                                                                             <ClickableCargoNumber number={num} onOpen={onOpenCargo} />
                                                                         </td>
+                                                                        {showCustomerColumn && (
                                                                         <td
+                                                                            className="customer-col"
                                                                             style={{
                                                                                 padding: "0.35rem",
                                                                                 maxWidth: 200,
@@ -820,6 +827,7 @@ export function HaulzDispatchSummary({
                                                                         >
                                                                             {cust}
                                                                         </td>
+                                                                        )}
                                                                         <td
                                                                             style={{
                                                                                 padding: "0.35rem",
@@ -832,10 +840,10 @@ export function HaulzDispatchSummary({
                                                                         </td>
                                                                         <td style={{ padding: "0.35rem", whiteSpace: "nowrap" }}>{dp || "—"}</td>
                                                                         <td style={{ padding: "0.35rem", whiteSpace: "nowrap" }}>
-                                                                            <DispatchRouteBadge item={row} />
+                                                                            <RouteBadge route={getCargoItemRouteLabel(row)} />
                                                                         </td>
                                                                         <td style={{ padding: "0.35rem", textAlign: "center" }}>
-                                                                            <DispatchTransportIcon item={row} />
+                                                                            <CargoTransportTypeIcon item={row} />
                                                                         </td>
                                                                         <td style={{ padding: "0.35rem", textAlign: "right" }}>{Math.round(pw).toLocaleString("ru-RU")}</td>
                                                                         <td style={{ padding: "0.35rem", textAlign: "right" }}>{formatCurrency(sum, true)}</td>
@@ -843,7 +851,7 @@ export function HaulzDispatchSummary({
                                                                     {expanded && expandedDispatchItem && (
                                                                         <tr>
                                                                             <td
-                                                                                colSpan={DISPATCH_TABLE_COLS}
+                                                                                colSpan={dispatchTableColCount}
                                                                                 style={{
                                                                                     padding: "0.5rem",
                                                                                     borderBottom: "1px solid var(--color-border)",
@@ -967,6 +975,32 @@ export function HaulzDispatchSummary({
                                                                 </React.Fragment>
                                                             );
                                                         })}
+                                                    {groupOpen && hiddenGroupRows > 0 && (
+                                                        <tr>
+                                                            <td
+                                                                colSpan={dispatchTableColCount}
+                                                                style={{
+                                                                    padding: "0.35rem 0.35rem 0.35rem 1.5rem",
+                                                                    borderBottom: "1px solid var(--color-border)",
+                                                                }}
+                                                            >
+                                                                <button
+                                                                    type="button"
+                                                                    className="haulz-dispatch-group-more"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setCustomerGroupShowAllKeys((prev) => {
+                                                                            const next = new Set(prev);
+                                                                            next.add(customerKey);
+                                                                            return next;
+                                                                        });
+                                                                    }}
+                                                                >
+                                                                    Ещё {hiddenGroupRows}
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    )}
                                                 </React.Fragment>
                                             );
                                         })}

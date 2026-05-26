@@ -153,6 +153,7 @@ export function CargoPage({
     const runtime = useAppRuntime();
     const effectiveSearchText = searchText ?? runtime.searchText;
     const effectiveServiceMode = useServiceRequest ?? runtime.useServiceRequest;
+    const showCustomerColumn = runtime.showCustomerColumn;
     const [selectedCargo, setSelectedCargo] = useState<CargoItem | null>(null);
 
     // Filters State; при переключении вкладок восстанавливаем из localStorage
@@ -217,6 +218,8 @@ export function CargoPage({
     useEffect(() => {
         try { localStorage.setItem(CARGO_TABLE_MODE_KEY, String(tableModeByCustomer)); } catch { /* ignore */ }
     }, [tableModeByCustomer]);
+    const tableModeGroupedByCustomer = tableModeByCustomer && showCustomerColumn;
+    const tableModeFlatDirect = tableModeByCustomer && !showCustomerColumn;
     /** Сортировка таблицы по заказчику: столбец и направление (а-я / я-а) */
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'mest' | 'pw' | 'w' | 'vol' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -966,6 +969,7 @@ export function CargoPage({
                     showSums={showSums}
                     useServiceRequest={effectiveServiceMode}
                     saasAnalytics={cargoServiceSaasUi}
+                    expandedMetrics={tableModeFlatDirect}
                 />
             </motion.div>
             </div>
@@ -985,7 +989,7 @@ export function CargoPage({
             />
 
             <AnimatePresence mode="wait">
-                {!loading && !error && tableModeByCustomer && groupedByCustomer.length > 0 ? (
+                {!loading && !error && tableModeGroupedByCustomer && groupedByCustomer.length > 0 ? (
                     <motion.div
                         key="cargo-view-table"
                         className="cargo-table-offset-desktop"
@@ -1005,6 +1009,25 @@ export function CargoPage({
                             onInnerTableSort={handleInnerTableSort}
                             sortInnerItems={sortInnerItems}
                             onToggleExpandedCustomer={(customer) => setExpandedTableCustomer(prev => prev === customer ? null : customer)}
+                            onSelectCargo={setSelectedCargo}
+                            motionEnabled={cargoMotionEnabled}
+                        />
+                    </motion.div>
+                ) : !loading && !error && tableModeFlatDirect && filteredItems.length > 0 ? (
+                    <motion.div
+                        key="cargo-view-table-flat"
+                        className="cargo-table-offset-desktop"
+                        {...(cargoMotionEnabled ? cargoModeSwitchMotion : { initial: false })}
+                    >
+                        <CargoCustomerTable
+                            showSums={showSums}
+                            flatDirectItems={filteredItems}
+                            innerTableSortColumn={innerTableSortColumn}
+                            innerTableSortOrder={innerTableSortOrder}
+                            routeTypePlanDays={routeTypePlanDays}
+                            workScheduleByInn={workScheduleByInn}
+                            onInnerTableSort={handleInnerTableSort}
+                            sortInnerItems={sortInnerItems}
                             onSelectCargo={setSelectedCargo}
                             motionEnabled={cargoMotionEnabled}
                         />

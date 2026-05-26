@@ -331,7 +331,14 @@ export function buildCargoSummary(filteredItems: CargoItem[]) {
     return acc + v;
   }, 0);
 
-  return { sum: totalSum, mest: totalMest, pw: totalPW, w: totalW, vol: totalValue };
+  return {
+    sum: totalSum,
+    mest: totalMest,
+    pw: totalPW,
+    w: totalW,
+    vol: totalValue,
+    count: filteredItems.length,
+  };
 }
 
 export type CargoGroupedRow = {

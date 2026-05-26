@@ -4,12 +4,15 @@ export type AppRuntimeValue = {
   useServiceRequest: boolean;
   searchText: string;
   activeInn: string;
+  /** false — у логина одна компания (как в шапке), столбец «Заказчик» в таблицах скрыт */
+  showCustomerColumn: boolean;
 };
 
 const DEFAULT_RUNTIME: AppRuntimeValue = {
   useServiceRequest: false,
   searchText: "",
   activeInn: "",
+  showCustomerColumn: true,
 };
 
 const AppRuntimeContext = createContext<AppRuntimeValue>(DEFAULT_RUNTIME);

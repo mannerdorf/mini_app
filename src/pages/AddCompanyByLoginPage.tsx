@@ -1,4 +1,5 @@
 import React, { FormEvent, useState } from "react";
+import { recordLegalAcceptanceQuiet } from "../api/client/legal";
 import { Button, Flex, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
 import { ArrowLeft, Eye, EyeOff, Loader2, User as UserIcon } from "lucide-react";
 
@@ -40,6 +41,9 @@ export function AddCompanyByLoginPage({ onBack, onAddAccount, onSuccess }: AddCo
     try {
       setLoading(true);
       await onAddAccount(login, password);
+      if (agreeOffer && agreePersonal) {
+        recordLegalAcceptanceQuiet(login, password);
+      }
       onSuccess();
     } catch (err: unknown) {
       setError((err as Error)?.message || "Ошибка при добавлении аккаунта");

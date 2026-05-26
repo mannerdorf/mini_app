@@ -33,6 +33,7 @@ import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry, getSlaPlanDeadlineMs
 import { buildFilteredCargoItems } from "./cargoPipeline";
 import { formatCurrency, formatInvoiceNumber, stripOoo, cityToCode, normalizeInvoiceStatus } from "../lib/formatUtils";
 import { ClickableCargoNumber, leafRowClickProps } from "../components/ui/EntityLinks";
+import { RouteBadge, CargoTransportTypeIcon, getCargoItemRouteLabel } from "../components/shared/CargoTableDisplay";
 import { getFirstCargoNumberFromInvoice, buildCargoStateByNumber, filterItemsByActiveInn } from "./documentsPipeline";
 import { usePerevozki, usePrevPeriodPerevozki, useInvoices } from "../hooks/useApi";
 import { fetchPerevozkaTimeline } from "../lib/perevozkaDetails";
@@ -147,21 +148,6 @@ function cargoFlowSelectionEqual(a: CargoFlowTableSelection | null, b: CargoFlow
     if (a.kind !== b.kind) return false;
     if (a.kind === 'tile') return a.dateKey === b.dateKey;
     return a.badge === b.badge;
-}
-
-function getCargoItemRoute(item: CargoItem | Record<string, unknown>): string {
-    const dirRaw = String(item?.Direction ?? item?.direction ?? item?.Направление ?? '').trim().toUpperCase();
-    const senderCode = cityToCode(item?.CitySender ?? item?.citySender ?? item?.ГородОтправителя ?? '');
-    const receiverCode = cityToCode(item?.CityReceiver ?? item?.cityReceiver ?? item?.ГородПолучателя ?? '');
-    if (dirRaw.includes('MSK_TO_KGD') || dirRaw.includes('MSK-KGD')) return 'MSK-KGD';
-    if (dirRaw.includes('KGD_TO_MSK') || dirRaw.includes('KGD-MSK')) return 'KGD-MSK';
-    return senderCode && receiverCode ? `${senderCode}-${receiverCode}` : '—';
-}
-
-function routeBadgeColor(route: string): string {
-    if (route === 'MSK-KGD') return '#2563eb';
-    if (route === 'KGD-MSK') return '#7c3aed';
-    return '#64748b';
 }
 
 function DashboardMotionGroup({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
@@ -371,7 +357,6 @@ export function DashboardPage({
     
     // Chart type selector: деньги / вес / объём (при !showSums доступны только вес и объём)
     const [chartType, setChartType] = useState<'money' | 'paidWeight' | 'weight' | 'volume' | 'pieces'>(() => (showSums ? 'money' : 'paidWeight'));
-    const [mainChartVariant, setMainChartVariant] = useState<'columns' | 'line' | 'area' | 'combo' | 'dot'>('columns');
     const [stripTab, setStripTab] = useState<'type' | 'sender' | 'receiver' | 'customer'>('type');
     const [deliveryStripTab, setDeliveryStripTab] = useState<'type' | 'sender' | 'receiver'>('type');
     /** true = показывать проценты, false = показывать в рублях/кг/м³/шт (по типу графика) */
@@ -1002,136 +987,6 @@ export function DashboardPage({
             upcomingSeries,
         };
     }, [dashboardTotalItems, getEffectivePlannedDate]);
-    const planVsFactDashboard = useMemo(() => {
-        if (!canAccessHaulzDispatch) {
-            return {
-                total: 0,
-                withPlan: 0,
-                withoutPlan: 0,
-                pendingFact: 0,
-                overdueOpen: 0,
-                onTime: 0,
-                late: 0,
-                onTimeRate: 0,
-                avgDeviationDays: 0,
-                avgLateDays: 0,
-                trend: [] as { key: string; onTime: number; late: number; total: number }[],
-                maxTotal: 1,
-                topLate: [] as { number: string; route: string; planned: string; actual: string; delayDays: number }[],
-            };
-        }
-        const dayMs = 24 * 60 * 60 * 1000;
-        const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-        const toKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        const parseDate = (value: unknown): Date | null => {
-            const raw = String(value ?? '').trim();
-            if (!raw) return null;
-            if (/^0?1[./-]0?1[./-](1900|1901|0001)$/.test(raw)) return null;
-            const parsed = dateUtils.parseDateOnly(raw) ?? new Date(raw);
-            if (!Number.isFinite(parsed.getTime()) || parsed.getFullYear() <= 1901) return null;
-            return startOfDay(parsed);
-        };
-        const getPlannedDate = (item: CargoItem): Date | null => {
-            const planned = getEffectivePlannedDate(item);
-            return planned ? startOfDay(planned) : null;
-        };
-        const getActualDate = (item: CargoItem): Date | null => {
-            const candidates = [
-                (item as any).DateVr,
-                (item as any).DateDeliveryFact,
-                (item as any).FactDeliveryDate,
-                (item as any).ДатаФактическойДоставки,
-                (item as any).ДатаВручения,
-            ];
-            for (const candidate of candidates) {
-                const parsed = parseDate(candidate);
-                if (parsed) return parsed;
-            }
-            return null;
-        };
-        const routeLabel = (item: CargoItem) => {
-            const from = cityToCode(item.CitySender) || (item.CitySender ?? '').trim();
-            const to = cityToCode(item.CityReceiver) || (item.CityReceiver ?? '').trim();
-            return [from, to].filter(Boolean).join(' – ') || '—';
-        };
-
-        let withPlan = 0;
-        let withoutPlan = 0;
-        let pendingFact = 0;
-        let onTime = 0;
-        let late = 0;
-        let overdueOpen = 0;
-        let deviationSum = 0;
-        let deviationCount = 0;
-        let lateDelaySum = 0;
-        const today = startOfDay(new Date());
-
-        const byPlanDate = new Map<string, { onTime: number; late: number; total: number }>();
-        const lateRows: { number: string; route: string; planned: string; actual: string; delayDays: number }[] = [];
-
-        dashboardTotalItems.forEach((item) => {
-            const planned = getPlannedDate(item);
-            if (!planned) {
-                withoutPlan += 1;
-                return;
-            }
-            withPlan += 1;
-            const actual = getActualDate(item);
-            const planKey = toKey(planned);
-            const dateBucket = byPlanDate.get(planKey) ?? { onTime: 0, late: 0, total: 0 };
-            dateBucket.total += 1;
-            if (!actual) {
-                pendingFact += 1;
-                if (planned.getTime() < today.getTime()) overdueOpen += 1;
-                byPlanDate.set(planKey, dateBucket);
-                return;
-            }
-
-            const diffDays = Math.round((actual.getTime() - planned.getTime()) / dayMs);
-            deviationSum += diffDays;
-            deviationCount += 1;
-            if (diffDays <= 0) {
-                onTime += 1;
-                dateBucket.onTime += 1;
-            } else {
-                late += 1;
-                lateDelaySum += diffDays;
-                dateBucket.late += 1;
-                lateRows.push({
-                    number: String(item.Number ?? '').trim() || '—',
-                    route: routeLabel(item),
-                    planned: planKey,
-                    actual: toKey(actual),
-                    delayDays: diffDays,
-                });
-            }
-            byPlanDate.set(planKey, dateBucket);
-        });
-
-        const trend = Array.from(byPlanDate.entries())
-            .sort(([a], [b]) => a.localeCompare(b))
-            .slice(-10)
-            .map(([key, row]) => ({ key, ...row }));
-
-        const maxTotal = Math.max(1, ...trend.map((row) => row.total));
-        const topLate = lateRows.sort((a, b) => b.delayDays - a.delayDays).slice(0, 5);
-
-        return {
-            total: dashboardTotalItems.length,
-            withPlan,
-            withoutPlan,
-            pendingFact,
-            overdueOpen,
-            onTime,
-            late,
-            onTimeRate: withPlan > 0 ? Math.round((onTime / withPlan) * 100) : 0,
-            avgDeviationDays: deviationCount > 0 ? Math.round((deviationSum / deviationCount) * 10) / 10 : 0,
-            avgLateDays: late > 0 ? Math.round((lateDelaySum / late) * 10) / 10 : 0,
-            trend,
-            maxTotal,
-            topLate,
-        };
-    }, [dashboardTotalItems, getEffectivePlannedDate, canAccessHaulzDispatch]);
 
     useEffect(() => {
         if (!useServiceRequest || !auth?.login || !auth?.password || dashboardTotalItems.length === 0) return;
@@ -1694,24 +1549,7 @@ export function DashboardPage({
     }, [showSums, stripTab, dashboardTotalItems, stripDiagramBySender, stripDiagramByReceiver, stripDiagramByCustomer]);
 
     type DashboardChartPoint = { date: string; value: number; dateKey?: string };
-    type MainChartVariant = 'columns' | 'line' | 'area' | 'combo' | 'dot';
-    type DashboardChartVariant =
-        | 'columns'
-        | 'groupedColumns'
-        | 'stackedColumns'
-        | 'stacked100'
-        | 'line'
-        | 'multiLine'
-        | 'area'
-        | 'stackedArea'
-        | 'combo'
-        | 'step'
-        | 'lollipop'
-        | 'dot'
-        | 'heatmap'
-        | 'weekCards'
-        | 'bulletBars'
-        | 'sparklineKpi';
+    type MainChartVariant = 'area';
 
     // Функция для создания SVG графика
     const renderChart = (
@@ -1894,233 +1732,6 @@ export function DashboardPage({
         );
     };
 
-    const renderChartVariantPreview = (
-        data: DashboardChartPoint[],
-        color: string,
-        variant: DashboardChartVariant
-    ) => {
-        if (data.length === 0) return null;
-        const values = data.map((d) => Math.max(0, Number(d.value) || 0));
-        const maxValue = Math.max(...values, 1);
-        const accent = '#22c55e';
-        const w = 160;
-        const h = 56;
-        const left = 6;
-        const right = 6;
-        const top = 6;
-        const bottom = 10;
-        const plotW = w - left - right;
-        const plotH = h - top - bottom;
-        const n = values.length;
-        const slot = plotW / Math.max(n, 1);
-        const barW = Math.max(6, slot * 0.56);
-        const splitA = values.map((v, i) => {
-            const ratio = 0.45 + (i % 3) * 0.1;
-            return Math.min(v, Math.round(v * ratio));
-        });
-        const splitB = values.map((v, i) => Math.max(0, v - splitA[i]));
-        const maxStack = Math.max(...values.map((v, i) => splitA[i] + splitB[i]), 1);
-        const points = values.map((v, i) => {
-            const x = n === 1 ? left + plotW / 2 : left + (i * plotW) / (n - 1);
-            const y = top + plotH - (v / maxValue) * plotH;
-            return { x, y, v };
-        });
-        const pointsA = splitA.map((v, i) => {
-            const x = n === 1 ? left + plotW / 2 : left + (i * plotW) / (n - 1);
-            const y = top + plotH - (v / maxStack) * plotH;
-            return { x, y, v };
-        });
-        const pointsB = splitB.map((v, i) => {
-            const x = n === 1 ? left + plotW / 2 : left + (i * plotW) / (n - 1);
-            const y = top + plotH - (v / maxStack) * plotH;
-            return { x, y, v };
-        });
-        const pointsSum = values.map((_, i) => {
-            const x = n === 1 ? left + plotW / 2 : left + (i * plotW) / (n - 1);
-            const y = top + plotH - ((splitA[i] + splitB[i]) / maxStack) * plotH;
-            return { x, y };
-        });
-        const polyPoints = points.map((p) => `${p.x},${p.y}`).join(' ');
-        const polyPointsA = pointsA.map((p) => `${p.x},${p.y}`).join(' ');
-        const polyPointsB = pointsB.map((p) => `${p.x},${p.y}`).join(' ');
-        const areaPath = points.length > 1
-            ? `M ${points[0].x} ${top + plotH} L ${points.map((p) => `${p.x} ${p.y}`).join(' L ')} L ${points[points.length - 1].x} ${top + plotH} Z`
-            : '';
-        const stackedAreaPathA = points.length > 1
-            ? `M ${pointsSum[0].x} ${top + plotH} L ${pointsSum.map((p) => `${p.x} ${p.y}`).join(' L ')} L ${pointsSum[pointsSum.length - 1].x} ${top + plotH} Z`
-            : '';
-        const stackedAreaPathB = points.length > 1
-            ? `M ${pointsA[0].x} ${top + plotH} L ${pointsA.map((p) => `${p.x} ${p.y}`).join(' L ')} L ${pointsSum.slice().reverse().map((p) => `${p.x} ${p.y}`).join(' L ')} Z`
-            : '';
-        const stepPath = points.map((p, i) => {
-            if (i === 0) return `M ${p.x} ${p.y}`;
-            const prev = points[i - 1];
-            return `L ${p.x} ${prev.y} L ${p.x} ${p.y}`;
-        }).join(' ');
-
-        if (variant === 'weekCards') {
-            return (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4 }}>
-                    {values.slice(0, 7).map((v, i) => (
-                        <div key={`wk-${i}`} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: '0.2rem', background: 'var(--color-bg-card)' }}>
-                            <div style={{ fontSize: 9, color: 'var(--color-text-secondary)' }}>д{i + 1}</div>
-                            <div style={{ fontSize: 10, fontWeight: 600 }}>{Math.round(v)}</div>
-                        </div>
-                    ))}
-                </div>
-            );
-        }
-
-        if (variant === 'bulletBars') {
-            const topValues = values.slice(0, 4);
-            const maxTop = Math.max(...topValues, 1);
-            return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 2 }}>
-                    {topValues.map((v, i) => (
-                        <div key={`bb-${i}`} style={{ display: 'grid', gridTemplateColumns: '24px 1fr 34px', alignItems: 'center', gap: 4 }}>
-                            <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>d{i + 1}</span>
-                            <div style={{ height: 6, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={(v / maxTop) * 100} delay={i * 0.04} style={{ background: color }} />
-                            </div>
-                            <span style={{ fontSize: 10, textAlign: 'right' }}>{Math.round(v)}</span>
-                        </div>
-                    ))}
-                </div>
-            );
-        }
-
-        if (variant === 'sparklineKpi') {
-            return (
-                <div style={{ display: 'grid', gap: 6 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4 }}>
-                        <div style={{ fontSize: 10, border: '1px solid var(--color-border)', borderRadius: 6, padding: '0.2rem' }}>рейсы: {values.length}</div>
-                        <div style={{ fontSize: 10, border: '1px solid var(--color-border)', borderRadius: 6, padding: '0.2rem' }}>пик: {Math.round(maxValue)}</div>
-                        <div style={{ fontSize: 10, border: '1px solid var(--color-border)', borderRadius: 6, padding: '0.2rem' }}>ср: {Math.round(values.reduce((a, b) => a + b, 0) / Math.max(values.length, 1))}</div>
-                    </div>
-                    <svg width={w} height={44} style={{ width: '100%', height: '44px', display: 'block' }}>
-                        <polyline points={polyPoints} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                </div>
-            );
-        }
-
-        if (variant === 'heatmap') {
-            const cols = 7;
-            const rows = Math.max(1, Math.ceil(values.length / cols));
-            const cellW = Math.floor((w - 10) / cols);
-            const cellH = Math.max(12, Math.floor((h - 10) / rows));
-            return (
-                <svg width={w} height={h} style={{ width: '100%', height: 'auto', display: 'block' }}>
-                    {values.map((v, i) => {
-                        const r = Math.floor(i / cols);
-                        const c = i % cols;
-                        const intensity = v / maxValue;
-                        return (
-                            <rect
-                                key={`heat-${i}`}
-                                x={5 + c * cellW}
-                                y={5 + r * cellH}
-                                width={cellW - 2}
-                                height={cellH - 2}
-                                rx={3}
-                                fill={color}
-                                opacity={0.15 + intensity * 0.75}
-                            />
-                        );
-                    })}
-                </svg>
-            );
-        }
-
-        return (
-            <svg width={w} height={h} style={{ width: '100%', height: 'auto', display: 'block' }}>
-                <line x1={left} y1={top + plotH} x2={w - right} y2={top + plotH} stroke="var(--color-border)" strokeWidth="1" opacity="0.6" />
-                {variant === 'columns' && values.map((v, i) => {
-                    const x = left + i * slot + (slot - barW) / 2;
-                    const bh = (v / maxValue) * plotH;
-                    const y = top + plotH - bh;
-                    return <rect key={`col-${i}`} x={x} y={y} width={barW} height={bh} rx={3} fill={color} opacity={0.75} />;
-                })}
-                {variant === 'groupedColumns' && values.map((_, i) => {
-                    const x0 = left + i * slot + (slot - barW) / 2;
-                    const half = Math.max(4, (barW - 2) / 2);
-                    const hA = (splitA[i] / maxStack) * plotH;
-                    const hB = (splitB[i] / maxStack) * plotH;
-                    return (
-                        <g key={`group-${i}`}>
-                            <rect x={x0} y={top + plotH - hA} width={half} height={hA} rx={2} fill={color} opacity={0.8} />
-                            <rect x={x0 + half + 2} y={top + plotH - hB} width={half} height={hB} rx={2} fill={accent} opacity={0.8} />
-                        </g>
-                    );
-                })}
-                {variant === 'stackedColumns' && values.map((_, i) => {
-                    const x = left + i * slot + (slot - barW) / 2;
-                    const hA = (splitA[i] / maxStack) * plotH;
-                    const hB = (splitB[i] / maxStack) * plotH;
-                    return (
-                        <g key={`stack-${i}`}>
-                            <rect x={x} y={top + plotH - hA - hB} width={barW} height={hB} rx={2} fill={accent} opacity={0.9} />
-                            <rect x={x} y={top + plotH - hA} width={barW} height={hA} rx={2} fill={color} opacity={0.8} />
-                        </g>
-                    );
-                })}
-                {variant === 'stacked100' && values.map((v, i) => {
-                    const x = left + i * slot + (slot - barW) / 2;
-                    const pctA = v > 0 ? splitA[i] / v : 0;
-                    const pctB = v > 0 ? splitB[i] / v : 0;
-                    const hA = pctA * plotH;
-                    const hB = pctB * plotH;
-                    return (
-                        <g key={`stack100-${i}`}>
-                            <rect x={x} y={top + plotH - hA - hB} width={barW} height={hB} rx={2} fill={accent} opacity={0.9} />
-                            <rect x={x} y={top + plotH - hA} width={barW} height={hA} rx={2} fill={color} opacity={0.8} />
-                        </g>
-                    );
-                })}
-                {variant === 'area' && areaPath && (
-                    <>
-                        <path d={areaPath} fill={color} opacity={0.2} />
-                        <polyline points={polyPoints} fill="none" stroke={color} strokeWidth="2" />
-                    </>
-                )}
-                {variant === 'stackedArea' && (
-                    <>
-                        {stackedAreaPathA && <path d={stackedAreaPathA} fill={accent} opacity={0.18} />}
-                        {stackedAreaPathB && <path d={stackedAreaPathB} fill={color} opacity={0.24} />}
-                        <polyline points={pointsSum.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={color} strokeWidth="1.8" />
-                    </>
-                )}
-                {variant === 'line' && <polyline points={polyPoints} fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />}
-                {variant === 'multiLine' && (
-                    <>
-                        <polyline points={polyPointsA} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        <polyline points={polyPointsB} fill="none" stroke={accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </>
-                )}
-                {variant === 'combo' && (
-                    <>
-                        {values.map((v, i) => {
-                            const x = left + i * slot + (slot - barW) / 2;
-                            const bh = (v / maxValue) * plotH;
-                            const y = top + plotH - bh;
-                            return <rect key={`combo-col-${i}`} x={x} y={y} width={barW} height={bh} rx={3} fill={color} opacity={0.32} />;
-                        })}
-                        <polyline points={polyPoints} fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" />
-                    </>
-                )}
-                {variant === 'step' && <path d={stepPath} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
-                {variant === 'lollipop' && points.map((p, i) => (
-                    <g key={`lp-${i}`}>
-                        <line x1={p.x} y1={top + plotH} x2={p.x} y2={p.y} stroke={color} strokeWidth="2" opacity="0.45" />
-                        <circle cx={p.x} cy={p.y} r="3.6" fill={color} />
-                    </g>
-                ))}
-                {variant === 'dot' && points.map((p, i) => (
-                    <circle key={`dot-${i}`} cx={p.x} cy={p.y} r="3.2" fill={color} opacity="0.88" />
-                ))}
-            </svg>
-        );
-    };
 
     const selectedChartConfig = useMemo(() => {
         let data: DashboardChartPoint[] = [];
@@ -2174,7 +1785,7 @@ export function DashboardPage({
         const ro = new ResizeObserver(measure);
         ro.observe(el);
         return () => ro.disconnect();
-    }, [WIDGET_3_CHART, showOnlySla, showSums, loading, error, chartData.length, mainChartVariant, chartType]);
+    }, [WIDGET_3_CHART, showOnlySla, showSums, loading, error, chartData.length, chartType]);
     
     const formatStripValue = (): string => {
         if (chartType === 'money') return `${Math.round(stripTotals.sum || 0).toLocaleString('ru-RU')} ₽`;
@@ -3460,44 +3071,10 @@ export function DashboardPage({
                         </Flex>
                     </Flex>
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>
-                        Динамика показателя по дням за выбранный период. Выберите стиль отображения ниже.
+                        Динамика показателя по дням за выбранный период.
                     </Typography.Body>
                     <div ref={mainChartWrapRef} style={{ width: '100%', minWidth: 0 }}>
-                        {renderChart(selectedChartConfig.data, selectedChartConfig.title, selectedChartConfig.color, selectedChartConfig.formatValue, mainChartVariant, mainChartOuterWidthPx)}
-                    </div>
-                    <div style={{ marginTop: '0.85rem', borderTop: '1px dashed var(--color-border)', paddingTop: '0.7rem' }}>
-                        <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-                            Стиль графика (нажми на миниатюру)
-                        </Typography.Body>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '0.35rem' }}>
-                            {([
-                                { key: 'columns', label: 'Столбцы' },
-                                { key: 'line', label: 'Линия' },
-                                { key: 'area', label: 'Область' },
-                                { key: 'combo', label: 'Комбо: столбцы + линия' },
-                                { key: 'dot', label: 'Точки' },
-                            ] as { key: MainChartVariant; label: string }[]).map((variant) => (
-                                <button
-                                    key={`variant-${variant.key}`}
-                                    type="button"
-                                    className="filter-button"
-                                    onClick={() => setMainChartVariant(variant.key)}
-                                    style={{
-                                        border: variant.key === mainChartVariant ? '1px solid var(--color-primary-blue)' : '1px solid var(--color-border)',
-                                        borderRadius: 6,
-                                        padding: '0.22rem',
-                                        background: variant.key === mainChartVariant ? 'rgba(37,99,235,0.08)' : 'var(--color-bg-hover)',
-                                        textAlign: 'left',
-                                    }}
-                                    title={`Выбрать: ${variant.label}`}
-                                >
-                                    <Typography.Body style={{ fontSize: '0.62rem', marginBottom: '0.15rem', color: 'var(--color-text-secondary)' }}>
-                                        {variant.label}
-                                    </Typography.Body>
-                                    {renderChartVariantPreview(selectedChartConfig.data, selectedChartConfig.color, variant.key)}
-                                </button>
-                            ))}
-                        </div>
+                        {renderChart(selectedChartConfig.data, selectedChartConfig.title, selectedChartConfig.color, selectedChartConfig.formatValue, 'area', mainChartOuterWidthPx)}
                     </div>
                 </Panel>
             )}
@@ -3915,7 +3492,7 @@ export function DashboardPage({
                                     <thead>
                                         <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-card)' }}>
                                             <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600, width: 28 }}>#</th>
-                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600 }}>Заказчик</th>
+                                            <th className="customer-col" style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600 }}>Заказчик</th>
                                             <th style={{ padding: '0.4rem 0.45rem', textAlign: 'right', fontWeight: 600 }}>Перевозки</th>
                                             <th style={{ padding: '0.4rem 0.45rem', textAlign: 'right', fontWeight: 600 }}>Кг</th>
                                             <th style={{ padding: '0.4rem 0.45rem', textAlign: 'right', fontWeight: 600 }}>Объём</th>
@@ -3940,7 +3517,7 @@ export function DashboardPage({
                                                         title={expanded ? 'Свернуть перевозки' : 'Показать перевозки'}
                                                     >
                                                         <td style={{ padding: '0.4rem 0.45rem', color: 'var(--color-text-secondary)' }}>{idx + 1}</td>
-                                                        <td style={{ padding: '0.4rem 0.45rem', fontWeight: 600 }}>
+                                                        <td className="customer-col" style={{ padding: '0.4rem 0.45rem', fontWeight: 600 }}>
                                                             {expanded ? <ArrowUp className="w-3 h-3" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: 4 }} /> : <ArrowDown className="w-3 h-3" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: 4 }} />}
                                                             {stripOoo(customerRow.customer)}
                                                         </td>
@@ -3981,7 +3558,7 @@ export function DashboardPage({
                                                                                     </td>
                                                                                     <td style={{ padding: '0.3rem' }}><DateText value={item.DatePrih} /></td>
                                                                                     <td style={{ padding: '0.3rem' }}>{normalizeStatus(item.State)}</td>
-                                                                                    <td style={{ padding: '0.3rem' }}>{getCargoItemRoute(item)}</td>
+                                                                                    <td style={{ padding: '0.3rem' }}><RouteBadge route={getCargoItemRouteLabel(item)} /></td>
                                                                                     <td style={{ padding: '0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)).toLocaleString('ru-RU') : '—'}</td>
                                                                                     <td style={{ padding: '0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW)).toLocaleString('ru-RU')} кг` : '—'}</td>
                                                                                     <td style={{ padding: '0.3rem', textAlign: 'right' }}>{((item as any).Value ?? (item as any).Volume ?? (item as any).V) != null ? Number((item as any).Value ?? (item as any).Volume ?? (item as any).V).toLocaleString('ru-RU', { maximumFractionDigits: 2 }) : '—'}</td>
@@ -4100,7 +3677,7 @@ export function DashboardPage({
                                     <thead>
                                         <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-card)' }}>
                                             <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600, width: 24 }}>#</th>
-                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600 }}>Заказчик</th>
+                                            <th className="customer-col" style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600 }}>Заказчик</th>
                                             <th style={{ padding: '0.4rem 0.45rem', textAlign: 'right', fontWeight: 600 }}>Кол-во</th>
                                             {showSums && <th style={{ padding: '0.4rem 0.45rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Сумма</th>}
                                         </tr>
@@ -4122,7 +3699,7 @@ export function DashboardPage({
                                                         title="Нажмите, чтобы показать перевозки"
                                                     >
                                                         <td style={{ padding: '0.35rem 0.45rem', color: 'var(--color-text-secondary)' }}>{idx + 1}</td>
-                                                        <td style={{ padding: '0.35rem 0.45rem' }}>{row.customer}{isExpanded ? ' ▼' : ' ▶'}</td>
+                                                        <td className="customer-col" style={{ padding: '0.35rem 0.45rem' }}>{row.customer}{isExpanded ? ' ▼' : ' ▶'}</td>
                                                         <td style={{ padding: '0.35rem 0.45rem', textAlign: 'right' }}>{row.count}</td>
                                                         {showSums && <td style={{ padding: '0.35rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>}
                                                     </tr>
@@ -4144,25 +3721,21 @@ export function DashboardPage({
                                                                         </thead>
                                                                         <tbody>
                                                                             {sortedItems.map((it, i) => {
-                                                                                const route = getCargoItemRoute(it);
-                                                                                const routeColor = routeBadgeColor(route);
-                                                                                const ferry = isFerry(it);
+                                                                                const cargoNum = String(it?.Number ?? it?.Номер ?? '').trim();
                                                                                 const plannedDate = getEffectivePlannedDate(it);
                                                                                 const plannedDateValue = plannedDate
                                                                                     ? `${plannedDate.getFullYear()}-${String(plannedDate.getMonth() + 1).padStart(2, '0')}-${String(plannedDate.getDate()).padStart(2, '0')}`
                                                                                     : '';
                                                                                 return (
                                                                                 <tr key={i} style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-                                                                                    <td style={{ padding: '0.2rem 0.3rem' }}>{String(it?.Number ?? it?.Номер ?? '—').trim() || '—'}</td>
-                                                                                    <td style={{ padding: '0.2rem 0.3rem', textAlign: 'center', whiteSpace: 'nowrap' }} title={ferry ? 'Паром' : 'Авто'}>
-                                                                                        {ferry ? (
-                                                                                            <Ship className="w-3 h-3" style={{ display: 'inline-block', color: '#f59e0b', verticalAlign: 'middle' }} aria-label="Паром" />
-                                                                                        ) : (
-                                                                                            <Truck className="w-3 h-3" style={{ display: 'inline-block', color: '#06b6d4', verticalAlign: 'middle' }} aria-label="Авто" />
-                                                                                        )}
+                                                                                    <td style={{ padding: '0.2rem 0.3rem' }}>
+                                                                                        <ClickableCargoNumber number={cargoNum} onOpen={onOpenCargo} />
+                                                                                    </td>
+                                                                                    <td style={{ padding: '0.2rem 0.3rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                                                                        <CargoTransportTypeIcon item={it as CargoItem} size={12} className="w-3 h-3" />
                                                                                     </td>
                                                                                     <td style={{ padding: '0.2rem 0.3rem', textAlign: 'center' }}>
-                                                                                        <span style={{ fontSize: '0.65rem', padding: '0.12rem 0.4rem', borderRadius: 999, background: `${routeColor}18`, color: routeColor, border: `1px solid ${routeColor}44`, fontWeight: 600, whiteSpace: 'nowrap' }}>{route}</span>
+                                                                                        <RouteBadge route={getCargoItemRouteLabel(it)} />
                                                                                     </td>
                                                                                     <td style={{ padding: '0.2rem 0.3rem' }}>
                                                                                         <DateText value={String(it?.DatePrih ?? it?.DateOtpr ?? it?.Дата ?? '').trim()} />
@@ -4330,7 +3903,7 @@ export function DashboardPage({
                                             </tr>
                                         ) : (
                                             cargoFlowDetailSorted.map((item, idx) => {
-                                                const num = String(item.Number ?? (item as any).Номер ?? '—').trim() || '—';
+                                                const cargoNum = String(item.Number ?? (item as any).Номер ?? '').trim();
                                                 const planD = getEffectivePlannedDate(item);
                                                 const planKey = planD
                                                     ? `${planD.getFullYear()}-${String(planD.getMonth() + 1).padStart(2, '0')}-${String(planD.getDate()).padStart(2, '0')}`
@@ -4348,11 +3921,11 @@ export function DashboardPage({
                                                             : sk === 'in_transit'
                                                               ? '#3b82f6'
                                                               : '#94a3b8';
-                                                const from = cityToCode(item.CitySender) || String(item.CitySender ?? '').trim() || '—';
-                                                const to = cityToCode(item.CityReceiver) || String(item.CityReceiver ?? '').trim() || '—';
                                                 return (
-                                                    <tr key={`cargo-flow-row-${num}-${idx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                        <td style={{ padding: '0.35rem 0.45rem', whiteSpace: 'nowrap' }}>{num}</td>
+                                                    <tr key={`cargo-flow-row-${cargoNum || idx}-${idx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                        <td style={{ padding: '0.35rem 0.45rem', whiteSpace: 'nowrap' }}>
+                                                            <ClickableCargoNumber number={cargoNum} onOpen={onOpenCargo} />
+                                                        </td>
                                                         <td style={{ padding: '0.35rem 0.45rem', whiteSpace: 'nowrap' }}>
                                                             {planKey ? <DateText value={planKey} /> : '—'}
                                                         </td>
@@ -4371,10 +3944,12 @@ export function DashboardPage({
                                                                 {stLabel}
                                                             </span>
                                                         </td>
-                                                        <td style={{ padding: '0.35rem 0.45rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`${from} → ${to}`}>
-                                                            {from} → {to}
+                                                        <td style={{ padding: '0.35rem 0.45rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            <RouteBadge route={getCargoItemRouteLabel(item)} />
                                                         </td>
-                                                        <td style={{ padding: '0.35rem 0.45rem', textAlign: 'center' }}>{isFerry(item) ? 'Паром' : 'Авто'}</td>
+                                                        <td style={{ padding: '0.35rem 0.45rem', textAlign: 'center' }}>
+                                                            <CargoTransportTypeIcon item={item} />
+                                                        </td>
                                                         {showSums && (
                                                             <td style={{ padding: '0.35rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(getItemSum(item), true)}</td>
                                                         )}
@@ -4391,85 +3966,6 @@ export function DashboardPage({
                         <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.meta, marginTop: '0.6rem' }}>
                             Доставлено: в срок {cargoFlowByPlan.deliveredOnTime}, с опозданием {cargoFlowByPlan.deliveredLate}.
                         </Typography.Body>
-                    )}
-                </Panel>
-            )}
-
-            {/* План-факт — только при праве haulz (раздел HAULZ в профиле) или суперадмин; см. canAccessHaulzDispatch в AppMainContent. */}
-            {!showOnlySla && !loading && !error && canAccessHaulzDispatch && (
-                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
-                    <Typography.Headline style={DASH_PLAN_FACT_TYPO.title}>
-                        План-Факт
-                    </Typography.Headline>
-                    <Typography.Body style={DASH_PLAN_FACT_TYPO.desc}>
-                        Сравнение плановой даты прибытия на терминал и фактической даты доставки по выбранному периоду.
-                    </Typography.Body>
-                    <Flex gap="0.55rem" wrap="wrap" style={{ marginBottom: '0.8rem' }}>
-                        <span className="role-badge" style={{ ...DASH_PLAN_FACT_TYPO.badge, background: 'rgba(37,99,235,0.14)', border: '1px solid rgba(37,99,235,0.35)' }}>С планом: {planVsFactDashboard.withPlan} из {planVsFactDashboard.total}</span>
-                        <span className="role-badge" style={{ ...DASH_PLAN_FACT_TYPO.badge, background: 'rgba(22,163,74,0.16)', border: '1px solid rgba(22,163,74,0.35)' }}>В срок: {planVsFactDashboard.onTime}</span>
-                        <span className="role-badge" style={{ ...DASH_PLAN_FACT_TYPO.badge, background: 'rgba(239,68,68,0.16)', border: '1px solid rgba(239,68,68,0.35)' }}>С опозданием: {planVsFactDashboard.late}</span>
-                        <span className="role-badge" style={{ ...DASH_PLAN_FACT_TYPO.badge, background: 'rgba(245,158,11,0.16)', border: '1px solid rgba(245,158,11,0.35)' }}>Без факта: {planVsFactDashboard.pendingFact}</span>
-                        <span className="role-badge" style={{ ...DASH_PLAN_FACT_TYPO.badge, background: 'rgba(99,102,241,0.16)', border: '1px solid rgba(99,102,241,0.35)' }}>В срок, %: {planVsFactDashboard.onTimeRate}%</span>
-                        <span className="role-badge" style={{ ...DASH_PLAN_FACT_TYPO.badge, background: 'rgba(148,163,184,0.16)', border: '1px solid var(--color-border)' }}>Без плана: {planVsFactDashboard.withoutPlan}</span>
-                    </Flex>
-                    <Flex gap="1.4rem" wrap="wrap" style={{ marginBottom: '0.7rem' }}>
-                        <Typography.Body style={DASH_PLAN_FACT_TYPO.meta}>
-                            Ср. отклонение (план→факт): <b style={{ color: 'var(--color-text-primary)' }}>{planVsFactDashboard.avgDeviationDays} дн.</b>
-                        </Typography.Body>
-                        <Typography.Body style={DASH_PLAN_FACT_TYPO.meta}>
-                            Ср. задержка (только просрочка): <b style={{ color: '#ef4444' }}>{planVsFactDashboard.avgLateDays} дн.</b>
-                        </Typography.Body>
-                        <Typography.Body style={DASH_PLAN_FACT_TYPO.meta}>
-                            Просрочено без факта: <b style={{ color: planVsFactDashboard.overdueOpen > 0 ? '#ef4444' : 'var(--color-text-primary)' }}>{planVsFactDashboard.overdueOpen}</b>
-                        </Typography.Body>
-                    </Flex>
-                    {planVsFactDashboard.trend.length > 0 && (
-                        <div style={{ marginTop: '0.35rem' }}>
-                            <Typography.Body style={DASH_PLAN_FACT_TYPO.subhead}>
-                                Тренд по датам плана (последние 10 дней)
-                            </Typography.Body>
-                            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${planVsFactDashboard.trend.length}, minmax(86px, 1fr))`, gap: '0.4rem', minWidth: `${Math.max(560, planVsFactDashboard.trend.length * 92)}px` }}>
-                                    {planVsFactDashboard.trend.map((row, ti) => (
-                                        <div key={`pvf-${row.key}`} style={DASH_PLAN_FACT_TYPO.tile}>
-                                            <Typography.Body style={DASH_PLAN_FACT_TYPO.tileDate}>
-                                                <DateText value={row.key} />
-                                            </Typography.Body>
-                                            <div style={{ height: 7, borderRadius: 4, background: 'rgba(148,163,184,0.25)', overflow: 'hidden', marginBottom: '0.2rem' }}>
-                                                <DashboardChartBarH enabled={chartBarFillEnabled} widthPercent={Math.round((row.total / planVsFactDashboard.maxTotal) * 100)} delay={ti * 0.035} style={{ background: 'rgba(99,102,241,0.7)', borderRadius: 4 }} />
-                                            </div>
-                                            <Typography.Body style={DASH_PLAN_FACT_TYPO.tileLine}>Всего: {row.total}</Typography.Body>
-                                            <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.tileLine, color: '#16a34a' }}>В срок: {row.onTime}</Typography.Body>
-                                            <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.tileLine, color: '#ef4444' }}>Опоздание: {row.late}</Typography.Body>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                    {planVsFactDashboard.topLate.length > 0 && (
-                        <div style={{ marginTop: '0.8rem', borderTop: '1px dashed var(--color-border)', paddingTop: '0.55rem' }}>
-                            <Typography.Body style={DASH_PLAN_FACT_TYPO.subhead}>
-                                Топ просрочек
-                            </Typography.Body>
-                            {planVsFactDashboard.topLate.map((row, idx) => (
-                                <div
-                                    key={`late-row-${row.number}-${idx}`}
-                                    role={onOpenCargo ? 'button' : undefined}
-                                    tabIndex={onOpenCargo ? 0 : undefined}
-                                    onClick={onOpenCargo ? () => onOpenCargo(String(row.number)) : undefined}
-                                    onKeyDown={onOpenCargo ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenCargo(String(row.number)); } } : undefined}
-                                    style={{ display: 'grid', gridTemplateColumns: 'minmax(90px, 110px) minmax(120px, 1fr) minmax(64px, 90px) minmax(64px, 90px) minmax(56px, 70px)', gap: '0.45rem', padding: '0.22rem 0', borderBottom: idx === planVsFactDashboard.topLate.length - 1 ? 'none' : '1px dashed var(--color-border)', cursor: onOpenCargo ? 'pointer' : undefined }}
-                                    title={onOpenCargo ? 'Открыть карточку перевозки' : undefined}
-                                >
-                                    <ClickableCargoNumber number={row.number} onOpen={onOpenCargo} style={{ ...DASH_PLAN_FACT_TYPO.table, whiteSpace: 'nowrap' }} />
-                                    <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.table, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.route}>{row.route}</Typography.Body>
-                                    <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.meta }}>{row.planned.slice(5).split('-').reverse().join('.')}</Typography.Body>
-                                    <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.meta }}>{row.actual.slice(5).split('-').reverse().join('.')}</Typography.Body>
-                                    <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.table, fontWeight: 700, color: '#ef4444' }}>+{row.delayDays} д</Typography.Body>
-                                </div>
-                            ))}
-                        </div>
                     )}
                 </Panel>
             )}
@@ -4570,7 +4066,7 @@ export function DashboardPage({
                                                     <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleSlaTableSort('number'); }} title="Сортировка">Номер{slaTableSortColumn === 'number' && (slaTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                     <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleSlaTableSort('date'); }} title="Сортировка">Дата прихода{slaTableSortColumn === 'date' && (slaTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                     <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleSlaTableSort('status'); }} title="Сортировка">Статус{slaTableSortColumn === 'status' && (slaTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleSlaTableSort('customer'); }} title="Сортировка">Заказчик{slaTableSortColumn === 'customer' && (slaTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                    <th className="customer-col" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleSlaTableSort('customer'); }} title="Сортировка">Заказчик{slaTableSortColumn === 'customer' && (slaTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                     <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleSlaTableSort('mest'); }} title="Сортировка">Мест{slaTableSortColumn === 'mest' && (slaTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                     <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleSlaTableSort('pw'); }} title="Сортировка">Плат. вес{slaTableSortColumn === 'pw' && (slaTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                     <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleSlaTableSort('sum'); }} title="Сортировка">Сумма{slaTableSortColumn === 'sum' && (slaTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
@@ -4601,7 +4097,7 @@ export function DashboardPage({
                                                             </td>
                                                             <td style={{ padding: '0.35rem 0.3rem' }}><DateText value={item.DatePrih} /></td>
                                                             <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
-                                                            <td style={{ padding: '0.35rem 0.3rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo((item.Customer ?? (item as any).customer) || '')}>{stripOoo((item.Customer ?? (item as any).customer) || '') || '—'}</td>
+                                                            <td className="customer-col" style={{ padding: '0.35rem 0.3rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo((item.Customer ?? (item as any).customer) || '')}>{stripOoo((item.Customer ?? (item as any).customer) || '') || '—'}</td>
                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
@@ -4678,7 +4174,7 @@ export function DashboardPage({
                                                     <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleSlaTableSort('number'); }} title="Сортировка">Номер{slaTableSortColumn === 'number' && (slaTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                     <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleSlaTableSort('date'); }} title="Сортировка">Дата прихода{slaTableSortColumn === 'date' && (slaTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                     <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleSlaTableSort('status'); }} title="Сортировка">Статус{slaTableSortColumn === 'status' && (slaTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleSlaTableSort('customer'); }} title="Сортировка">Заказчик{slaTableSortColumn === 'customer' && (slaTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                    <th className="customer-col" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleSlaTableSort('customer'); }} title="Сортировка">Заказчик{slaTableSortColumn === 'customer' && (slaTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                     <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleSlaTableSort('mest'); }} title="Сортировка">Мест{slaTableSortColumn === 'mest' && (slaTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                     <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleSlaTableSort('pw'); }} title="Сортировка">Плат. вес{slaTableSortColumn === 'pw' && (slaTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                     <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleSlaTableSort('sum'); }} title="Сортировка">Сумма{slaTableSortColumn === 'sum' && (slaTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
@@ -4693,7 +4189,7 @@ export function DashboardPage({
                                                         <td style={{ padding: '0.35rem 0.3rem', color: '#ef4444' }}>{item.Number ?? '—'}</td>
                                                         <td style={{ padding: '0.35rem 0.3rem' }}><DateText value={item.DatePrih} /></td>
                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
-                                                        <td style={{ padding: '0.35rem 0.3rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo((item.Customer ?? (item as any).customer) || '')}>{stripOoo((item.Customer ?? (item as any).customer) || '') || '—'}</td>
+                                                        <td className="customer-col" style={{ padding: '0.35rem 0.3rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo((item.Customer ?? (item as any).customer) || '')}>{stripOoo((item.Customer ?? (item as any).customer) || '') || '—'}</td>
                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
@@ -4947,11 +4443,6 @@ export function DashboardPage({
                             if (l.includes('пути') || l.includes('отправлен')) return '#3b82f6';
                             return '#94a3b8';
                         };
-                        const routeColor = (r: string) => {
-                            if (r === 'MSK-KGD') return '#2563eb';
-                            if (r === 'KGD-MSK') return '#7c3aed';
-                            return '#64748b';
-                        };
                         return (
                             <div style={{ marginTop: '0.6rem' }}>
                                 <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.4rem', color: bucket.color }}>
@@ -4962,7 +4453,7 @@ export function DashboardPage({
                                         <thead>
                                             <tr style={{ background: 'var(--color-bg-hover)', position: 'sticky', top: 0 }}>
                                                 <th style={thStyle('left')} onClick={() => toggleSort('number')}>Счёт{arrow('number')}</th>
-                                                <th style={thStyle('left')} onClick={() => toggleSort('customer')}>Заказчик{arrow('customer')}</th>
+                                                <th className="customer-col" style={thStyle('left')} onClick={() => toggleSort('customer')}>Заказчик{arrow('customer')}</th>
                                                 <th style={thStyle('center')} onClick={() => toggleSort('status')}>Статус{arrow('status')}</th>
                                                 <th style={thStyle('center')} onClick={() => toggleSort('shipmentStatus')}>Статус перевозки{arrow('shipmentStatus')}</th>
                                                 <th style={{ ...thStyle('center'), cursor: 'default' }}>Маршрут</th>
@@ -4977,7 +4468,6 @@ export function DashboardPage({
                                                 const shipSt = inv.shipmentStatus || '—';
                                                 const shipStColor = shipmentColor(shipSt);
                                                 const route = inv.route || '—';
-                                                const routeBadgeColor = routeColor(route);
                                                 return (
                                                 <tr key={`aging-inv-${idx}`} style={{ borderTop: '1px solid var(--color-border)' }}>
                                                     <td style={{ padding: '0.3rem 0.5rem', whiteSpace: 'nowrap' }}>{inv.number}</td>
@@ -4989,7 +4479,7 @@ export function DashboardPage({
                                                         <span style={{ fontSize: '0.65rem', padding: '0.12rem 0.4rem', borderRadius: 999, background: `${shipStColor}18`, color: shipStColor, border: `1px solid ${shipStColor}44`, fontWeight: 600, whiteSpace: 'nowrap' }}>{shipSt}</span>
                                                     </td>
                                                     <td style={{ padding: '0.3rem 0.5rem', textAlign: 'center' }}>
-                                                        <span style={{ fontSize: '0.65rem', padding: '0.12rem 0.4rem', borderRadius: 999, background: `${routeBadgeColor}18`, color: routeBadgeColor, border: `1px solid ${routeBadgeColor}44`, fontWeight: 600, whiteSpace: 'nowrap' }}>{route}</span>
+                                                        <RouteBadge route={route} />
                                                     </td>
                                                     <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(inv.sum, true)}</td>
                                                     <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: bucket.color, fontWeight: 600 }}>{inv.days}</td>

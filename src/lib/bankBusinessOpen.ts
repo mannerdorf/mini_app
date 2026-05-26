@@ -15,10 +15,10 @@ const BANK_CONFIG: Record<
 > = {
   tbank: {
     label: "Т-Бизнес",
-    webUrl: "https://www.tbank.ru/business/onlinebank/",
+    webUrl: "https://business.tbank.ru/",
     appSchemes: ["tbank://", "tinkoffbank://", "tinkoff://"],
     androidIntent:
-      "intent://#Intent;scheme=tbank;package=ru.tinkoff.sme;S.browser_fallback_url=https%3A%2F%2Fwww.tbank.ru%2Fbusiness%2Fonlinebank%2F;end",
+      "intent://#Intent;scheme=tbank;package=ru.tinkoff.sme;S.browser_fallback_url=https%3A%2F%2Fbusiness.tbank.ru%2F;end",
     storeUrl: "https://www.tbank.ru/apps/",
   },
   sber: {

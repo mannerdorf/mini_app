@@ -252,7 +252,7 @@ export function CargoDetailsModal({
 
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-content modal-content--cargo-details" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
                     <div className="modal-header-main">
                         {(() => {
@@ -339,57 +339,63 @@ export function CargoDetailsModal({
                             </button>
                     </div>
                 </div>
-                <div className="details-grid-modal">
-                    <DetailItem label="Номер" value={item.Number || '—'} />
-                    <DetailItem label="Статус" value={<StatusBadge status={item.State} />} />
-                    <DetailItem
-                        label="Последняя миля"
-                        value={
-                            <span className={`max-badge ${selfPickup ? "cargo-last-mile-self" : "cargo-last-mile-delivery"}`}>
-                                {selfPickup ? "Самовывоз" : "Доставка"}
-                            </span>
-                        }
-                    />
-                    <DetailItem
-                        label="Заборная"
-                        value={
-                            <span className={`max-badge ${terminalTo ? "cargo-pickup-terminal-to" : "cargo-pickup-pickup"}`}>
-                                {terminalTo ? "terminal-to" : "PickUP"}
-                            </span>
-                        }
-                    />
-                    <DetailItem label="Приход" value={<DateText value={item.DatePrih} />} />
-                    <DetailItem label="Доставка" value={(() => {
-                        const status = normalizeStatus(item.State);
-                        const lower = status.toLowerCase();
-                        if (lower.includes('доставлен') || lower.includes('заверш')) {
-                            return <DateText value={item.DateVr} />;
-                        }
-                        return '-';
-                    })()} />
-                    <DetailItem
-                        label={PLANNED_TERMINAL_ARRIVAL_LABEL}
-                        value={plannedDeliveryDate ? <DateText value={plannedDeliveryDate} /> : '-'}
-                    />
-                    <DetailItem label="Номер заявки заказчика" value={String((item as any).Order ?? '').trim() || '-'} />
-                    {useServiceRequest && (
-                        <>
-                            <DetailItem label="Заказчик" value={stripOoo(String(item.Customer ?? (item as any).customer ?? (item as any).Заказчик ?? (item as any).Contractor ?? (item as any).Organization ?? '').trim()) || '-'} />
-                            <DetailItem label="Транспортное средство" value={String(item.AutoReg ?? (item as any).autoReg ?? perevozkaMeta.autoReg ?? '-').trim() || '-'} />
-                        </>
-                    )}
-                    <DetailItem label="Отправитель" value={stripOoo(item.Sender) || '-'} />
-                    <DetailItem label="Получатель" value={stripOoo(item.Receiver ?? (item as any).receiver) || '-'} />
-                    <DetailItem label="Мест" value={renderValue(item.Mest)} icon={<Layers className="w-4 h-4 mr-1 text-theme-primary" />} />
-                    <DetailItem label="Плат. вес" value={renderValue(item.PW, 'кг')} icon={<Scale className="w-4 h-4 mr-1 text-theme-primary" />} highlighted />
-                    {isCustomerRole && (
-                        <>
-                            <DetailItem label="Вес" value={renderValue(item.W, 'кг')} icon={<Weight className="w-4 h-4 mr-1 text-theme-primary" />} />
-                            <DetailItem label="Объем" value={renderValue(item.Value, 'м³')} icon={<List className="w-4 h-4 mr-1 text-theme-primary" />} />
-                            {showSums && <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />}
-                            {showSums && <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />}
-                        </>
-                    )}
+                <div className="cargo-details-modal-top">
+                    <div className="details-grid-modal cargo-details-modal-tiles">
+                        <DetailItem label="Номер" value={item.Number || '—'} />
+                        <DetailItem label="Приход" value={<DateText value={item.DatePrih} />} />
+                        <DetailItem label="Доставка" value={(() => {
+                            const status = normalizeStatus(item.State);
+                            const lower = status.toLowerCase();
+                            if (lower.includes('доставлен') || lower.includes('заверш')) {
+                                return <DateText value={item.DateVr} />;
+                            }
+                            return '-';
+                        })()} />
+                        <DetailItem
+                            label={PLANNED_TERMINAL_ARRIVAL_LABEL}
+                            value={plannedDeliveryDate ? <DateText value={plannedDeliveryDate} /> : '-'}
+                        />
+                        <DetailItem label="Номер заявки заказчика" value={String((item as any).Order ?? '').trim() || '-'} />
+                        {useServiceRequest && (
+                            <>
+                                <DetailItem label="Заказчик" value={stripOoo(String(item.Customer ?? (item as any).customer ?? (item as any).Заказчик ?? (item as any).Contractor ?? (item as any).Organization ?? '').trim()) || '-'} />
+                                <DetailItem label="Транспортное средство" value={String(item.AutoReg ?? (item as any).autoReg ?? perevozkaMeta.autoReg ?? '-').trim() || '-'} />
+                            </>
+                        )}
+                        <DetailItem label="Отправитель" value={stripOoo(item.Sender) || '-'} />
+                        <DetailItem label="Получатель" value={stripOoo(item.Receiver ?? (item as any).receiver) || '-'} />
+                        <DetailItem label="Мест" value={renderValue(item.Mest)} icon={<Layers className="w-4 h-4 mr-1 text-theme-primary" />} />
+                        <DetailItem label="Плат. вес" value={renderValue(item.PW, 'кг')} icon={<Scale className="w-4 h-4 mr-1 text-theme-primary" />} highlighted />
+                        {isCustomerRole && (
+                            <>
+                                <DetailItem label="Вес" value={renderValue(item.W, 'кг')} icon={<Weight className="w-4 h-4 mr-1 text-theme-primary" />} />
+                                <DetailItem label="Объем" value={renderValue(item.Value, 'м³')} icon={<List className="w-4 h-4 mr-1 text-theme-primary" />} />
+                                {showSums && <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />}
+                            </>
+                        )}
+                    </div>
+                    <div className="details-grid-modal cargo-details-modal-statuses">
+                        <DetailItem label="Статус" value={<StatusBadge status={item.State} />} />
+                        <DetailItem
+                            label="Последняя миля"
+                            value={
+                                <span className={`max-badge ${selfPickup ? "cargo-last-mile-self" : "cargo-last-mile-delivery"}`}>
+                                    {selfPickup ? "Самовывоз" : "Доставка"}
+                                </span>
+                            }
+                        />
+                        <DetailItem
+                            label="Заборная"
+                            value={
+                                <span className={`max-badge ${terminalTo ? "cargo-pickup-terminal-to" : "cargo-pickup-pickup"}`}>
+                                    {terminalTo ? "terminal-to" : "PickUP"}
+                                </span>
+                            }
+                        />
+                        {isCustomerRole && showSums && (
+                            <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />
+                        )}
+                    </div>
                 </div>
                 {isCustomerRole && showSums && (
                     <div className="details-grid-modal cargo-finance-extra">

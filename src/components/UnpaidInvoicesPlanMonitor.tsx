@@ -11,6 +11,7 @@ import {
   type UnpaidInvoicePlanRow,
 } from "../lib/unpaidInvoicesByPlan";
 import type { CargoItem } from "../types";
+import { useAppRuntime } from "../contexts/AppRuntimeContext";
 
 type Props = {
   invoices: Record<string, unknown>[];
@@ -63,6 +64,7 @@ export function UnpaidInvoicesPlanMonitor({
   onOpenInvoice,
   onOpenCargo,
 }: Props) {
+  const { showCustomerColumn } = useAppRuntime();
   const rows = useMemo(
     () => computeUnpaidInvoicesByPlan(invoices, cargoItems),
     [invoices, cargoItems],
@@ -114,7 +116,7 @@ export function UnpaidInvoicesPlanMonitor({
             <thead>
               <tr>
                 <th>Счёт</th>
-                <th>Заказчик</th>
+                {showCustomerColumn && <th className="customer-col">Заказчик</th>}
                 <th>План прибытия</th>
                 <th>Срок</th>
                 <th>Приоритет</th>
@@ -135,7 +137,9 @@ export function UnpaidInvoicesPlanMonitor({
                         onOpen={onOpenInvoice}
                       />
                     </td>
-                    <td title={row.customer}>{stripOoo(row.customer)}</td>
+                    {showCustomerColumn && (
+                      <td className="customer-col" title={row.customer}>{stripOoo(row.customer)}</td>
+                    )}
                     <td>
                       {row.planDateKey ? <DateText value={row.planDateKey} /> : "—"}
                       {row.cargoNumber ? (

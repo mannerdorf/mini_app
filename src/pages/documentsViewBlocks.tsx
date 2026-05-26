@@ -21,6 +21,7 @@ import {
 } from "../lib/edoStatus";
 import { DateText } from "../components/ui/DateText";
 import { AppBadge } from "../components/shared/AppBadge";
+import { RouteBadge, CargoTransportTypeIcon, formatRouteLabel } from "../components/shared/CargoTableDisplay";
 import { StatusBadge } from "../components/shared/StatusBadges";
 import { cargoExpandMotionProps, cargoListContainerVariants, cargoTableGroupRowVariants, documentsListItemVariants } from "./cargoMotion";
 import { findInvoiceLinkedToAct, type DocsSummaryTotals, type EdoCargoCardItem } from "./documentsPipeline";
@@ -68,7 +69,89 @@ type EdoMonitorTableProps = {
   sortOrder: "asc" | "desc";
   onSort: (column: "customer" | "sum" | "count") => void;
   docsMotionEnabled?: boolean;
+  /** Одна компания: сразу таблица счетов без группировки по заказчику. */
+  flatDirectItems?: any[];
+  showCustomerColumn?: boolean;
 };
+
+function renderEdoInvoiceInnerRows(items: any[], onOpenInvoice: (inv: any) => void) {
+  return items.map((inv: any, j: number) => {
+    const inum = inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? "";
+    const idt = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? "";
+    return (
+      <tr
+        key={String(inum) || j}
+        style={{ borderBottom: "1px solid var(--color-border)", cursor: "pointer" }}
+        onClick={() => onOpenInvoice(inv)}
+        title="Открыть счёт"
+      >
+        <td style={{ padding: "0.35rem 0.3rem" }}>
+          <ClickableInvoiceNumber number={String(inum)} invoice={inv} onOpen={onOpenInvoice} />
+        </td>
+        <td className="doc-inner-table-date" style={{ padding: "0.35rem 0.3rem" }}>
+          <DateText value={typeof idt === "string" ? idt : idt ? String(idt) : undefined} />
+        </td>
+        {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
+          <td key={k} style={{ padding: "0.35rem 0.3rem" }}>
+            <DocumentsEdoTableStatus info={getInvoiceEdoInfoByDocLabel(inv, k)} />
+          </td>
+        ))}
+      </tr>
+    );
+  });
+}
+
+export function DocumentsEdoMonitorSummaryTiles({
+  totals,
+  invoicesCount,
+  saasAnalytics = false,
+}: {
+  totals: Record<InvoiceEdoMergedDocLabel, InvoiceEdoDocAgg>;
+  invoicesCount: number;
+  saasAnalytics?: boolean;
+}) {
+  const labelStyle = (): React.CSSProperties =>
+    saasAnalytics
+      ? {
+          fontSize: "0.68rem",
+          fontWeight: 600,
+          color: "var(--color-text-secondary)",
+          letterSpacing: "0.04em",
+          opacity: 0.92,
+        }
+      : { fontSize: "0.75rem", color: "var(--color-text-secondary)" };
+  const valueStyle = (): React.CSSProperties =>
+    saasAnalytics
+      ? {
+          fontWeight: 700,
+          fontSize: "1.06rem",
+          letterSpacing: "-0.02em",
+          color: "var(--color-text-primary)",
+        }
+      : { fontWeight: 600, fontSize: "0.9rem" };
+
+  return (
+    <div
+      className={`cargo-card cargo-summary-totals mb-4 documents-edo-summary-tiles${saasAnalytics ? " cargo-summary-totals--saas-kpi" : ""}`}
+      style={{ padding: saasAnalytics ? undefined : "0.95rem 0.85rem 0.85rem", marginBottom: "1rem" }}
+    >
+      <div className="summary-metrics">
+        <Flex direction="column" align="center">
+          <Typography.Label style={labelStyle()}>Счетов</Typography.Label>
+          <Typography.Body style={valueStyle()}>{invoicesCount}</Typography.Body>
+        </Flex>
+        {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
+          <Flex key={k} direction="column" align="center">
+            <Typography.Label style={labelStyle()}>{k === "СЧЕТ" ? "СЧЕТА" : k}</Typography.Label>
+            <Typography.Body style={valueStyle()} title="Подписано / всего по ЭДО">
+              {formatEdoSignedRatio(totals[k].signed, totals[k].total)}
+            </Typography.Body>
+          </Flex>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function DocumentsEdoMonitorGroupedTable({
   rows,
@@ -81,9 +164,37 @@ export function DocumentsEdoMonitorGroupedTable({
   sortOrder,
   onSort,
   docsMotionEnabled = false,
+  flatDirectItems,
+  showCustomerColumn = true,
 }: EdoMonitorTableProps) {
   const edoColCount = INVOICE_EDO_MERGED_COLUMNS.length;
-  const baseColCount = 2 + edoColCount;
+  const baseColCount = (showCustomerColumn ? 2 : 1) + edoColCount;
+
+  if (flatDirectItems && flatDirectItems.length > 0) {
+    return (
+      <div className="cargo-card cargo-customer-table-wrap documents-edo-monitor-table" style={{ marginBottom: "1rem" }}>
+        <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.55rem" }}>
+          Монитор ЭДО по счетам: подписано / всего с непустым статусом по типу документа.
+        </Typography.Body>
+        <div style={{ overflowX: "auto" }}>
+          <table className="doc-inner-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--color-border)", background: "var(--color-bg-hover)" }}>
+                <th style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600 }}>Номер</th>
+                <th style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600 }}>Дата</th>
+                {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
+                  <th key={k} style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600 }}>
+                    {k === "СЧЕТ" ? "Счёт" : k}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>{renderEdoInvoiceInnerRows(flatDirectItems, onOpenInvoice)}</tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="cargo-card cargo-customer-table-wrap documents-edo-monitor-table" style={{ marginBottom: "1rem" }}>
@@ -93,19 +204,22 @@ export function DocumentsEdoMonitorGroupedTable({
       <table className="documents-edo-monitor-table__grid" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
         <thead>
           <tr style={{ borderBottom: "1px solid var(--color-border)", background: "var(--color-bg-hover)" }}>
-            <th
-              style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600, cursor: "pointer", userSelect: "none" }}
-              onClick={() => onSort("customer")}
-              title="Сортировка"
-            >
-              Заказчик{" "}
-              {sortColumn === "customer" &&
-                (sortOrder === "asc" ? (
-                  <ArrowUp className="w-3 h-3" style={{ verticalAlign: "middle", marginLeft: 2, display: "inline-block" }} />
-                ) : (
-                  <ArrowDown className="w-3 h-3" style={{ verticalAlign: "middle", marginLeft: 2, display: "inline-block" }} />
-                ))}
-            </th>
+            {showCustomerColumn ? (
+              <th
+                className="customer-col"
+                style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600, cursor: "pointer", userSelect: "none" }}
+                onClick={() => onSort("customer")}
+                title="Сортировка"
+              >
+                Заказчик{" "}
+                {sortColumn === "customer" &&
+                  (sortOrder === "asc" ? (
+                    <ArrowUp className="w-3 h-3" style={{ verticalAlign: "middle", marginLeft: 2, display: "inline-block" }} />
+                  ) : (
+                    <ArrowDown className="w-3 h-3" style={{ verticalAlign: "middle", marginLeft: 2, display: "inline-block" }} />
+                  ))}
+              </th>
+            ) : null}
             <th
               style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600, cursor: "pointer", userSelect: "none" }}
               onClick={() => onSort("count")}
@@ -149,12 +263,15 @@ export function DocumentsEdoMonitorGroupedTable({
                   onClick={() => onToggleCustomer(row.customer)}
                   title={isExpanded ? "Свернуть" : "Показать счета"}
                 >
-                  <td
-                    style={{ padding: "0.5rem 0.4rem", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                    title={stripOoo(row.customer)}
-                  >
-                    {stripOoo(row.customer)}
-                  </td>
+                  {showCustomerColumn ? (
+                    <td
+                      className="customer-col"
+                      style={{ padding: "0.5rem 0.4rem", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                      title={stripOoo(row.customer)}
+                    >
+                      {stripOoo(row.customer)}
+                    </td>
+                  ) : null}
                   <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>{row.items.length}</td>
                   {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
                     <td
@@ -182,35 +299,7 @@ export function DocumentsEdoMonitorGroupedTable({
                               ))}
                             </tr>
                           </thead>
-                          <tbody>
-                            {row.items.map((inv: any, j: number) => {
-                              const inum = inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? "";
-                              const idt = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? "";
-                              return (
-                                <tr
-                                  key={String(inum) || j}
-                                  style={{ borderBottom: "1px solid var(--color-border)", cursor: "pointer" }}
-                                  onClick={(ev) => {
-                                    ev.stopPropagation();
-                                    onOpenInvoice(inv);
-                                  }}
-                                  title="Открыть счёт"
-                                >
-                                  <td style={{ padding: "0.35rem 0.3rem" }}>
-                                    <ClickableInvoiceNumber number={String(inum)} invoice={inv} onOpen={onOpenInvoice} />
-                                  </td>
-                                  <td className="doc-inner-table-date" style={{ padding: "0.35rem 0.3rem" }}>
-                                    <DateText value={typeof idt === "string" ? idt : idt ? String(idt) : undefined} />
-                                  </td>
-                                  {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
-                                    <td key={k} style={{ padding: "0.35rem 0.3rem" }}>
-                                      <DocumentsEdoTableStatus info={getInvoiceEdoInfoByDocLabel(inv, k)} />
-                                    </td>
-                                  ))}
-                                </tr>
-                              );
-                            })}
-                          </tbody>
+                          <tbody>{renderEdoInvoiceInnerRows(row.items, onOpenInvoice)}</tbody>
                         </table>
                       </motion.div>
                     </td>
@@ -222,7 +311,11 @@ export function DocumentsEdoMonitorGroupedTable({
         </tbody>
         <tfoot>
           <tr style={{ borderTop: "1px solid var(--color-border)", background: "var(--color-bg-hover)" }}>
-            <td style={{ padding: "0.5rem 0.4rem", fontWeight: 700 }}>Итого</td>
+            {showCustomerColumn ? (
+              <td className="customer-col" style={{ padding: "0.5rem 0.4rem", fontWeight: 700 }}>Итого</td>
+            ) : (
+              <td style={{ padding: "0.5rem 0.4rem", fontWeight: 700 }}>Итого</td>
+            )}
             <td style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 700 }}>{invoicesCount}</td>
             {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
               <td
@@ -488,15 +581,12 @@ export function DocumentsInvoiceCard({
         >
           {stripOoo(String(cust || "—"))}
         </Typography.Label>
-        {isFerry ? (
-          <Ship className="w-4 h-4" style={{ flexShrink: 0, color: "var(--color-primary-blue)" }} title="Паром" />
-        ) : (
-          (row.CitySender || row.CityReceiver) && (
-            <Typography.Label style={{ fontSize: "0.85rem" }}>
-              {[cityToCode(row.CitySender), cityToCode(row.CityReceiver)].filter(Boolean).join(" – ") || ""}
-            </Typography.Label>
-          )
-        )}
+        <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }}>
+          {(row.CitySender || row.CityReceiver) ? (
+            <RouteBadge route={formatRouteLabel(row.CitySender, row.CityReceiver)} />
+          ) : null}
+          <CargoTransportTypeIcon ak={row.AK} />
+        </Flex>
       </Flex>
       {payTill && (
         <Flex
@@ -641,15 +731,14 @@ export function DocumentsActCard({
         >
           {stripOoo(String(cust || "—"))}
         </Typography.Label>
-        {isFerry ? (
-          <Ship className="w-4 h-4" style={{ flexShrink: 0, color: "var(--color-primary-blue)" }} title="Паром" />
-        ) : (act.CitySender || act.CityReceiver) ? (
-          <Typography.Label style={{ fontSize: "0.85rem" }}>
-            {[cityToCode(act.CitySender), cityToCode(act.CityReceiver)].filter(Boolean).join(" – ") || ""}
-          </Typography.Label>
-        ) : invoiceNum ? (
-          <Typography.Label style={{ fontSize: "0.85rem" }}>Счёт {formatInvoiceNumber(String(invoiceNum))}</Typography.Label>
-        ) : null}
+        <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }}>
+          {(act.CitySender || act.CityReceiver) ? (
+            <RouteBadge route={formatRouteLabel(act.CitySender, act.CityReceiver)} />
+          ) : invoiceNum ? (
+            <Typography.Label style={{ fontSize: "0.85rem" }}>Счёт {formatInvoiceNumber(String(invoiceNum))}</Typography.Label>
+          ) : null}
+          <CargoTransportTypeIcon ak={act.AK} />
+        </Flex>
       </Flex>
       {showEdoBadges ? (
         <Flex
@@ -858,13 +947,10 @@ export function DocumentsEdoCargoCard({ item, onOpen, onOpenCargo, isFavorite, o
         >
           {stripOoo(String(cust || "—"))}
         </Typography.Label>
-        {isFerry ? (
-          <Ship className="w-4 h-4" style={{ flexShrink: 0, color: "var(--color-primary-blue)" }} title="Паром" />
-        ) : (
-          route && (
-            <Typography.Label style={{ fontSize: "0.85rem" }}>{route}</Typography.Label>
-          )
-        )}
+        <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }}>
+          {route ? <RouteBadge route={route} /> : null}
+          <CargoTransportTypeIcon ak={isFerry} />
+        </Flex>
       </Flex>
       {invNum ? (
         <Typography.Label style={{ display: "block", fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.4rem" }}>
@@ -985,11 +1071,19 @@ type SummaryProps = {
   useServiceRequest: boolean;
   /** Визуал KPI-плиток в духе SaaS analytics (зарегистрированный пользователь + служебный режим). */
   saasAnalytics?: boolean;
+  /** Одна компания в табличном режиме: все итоги в плитках, без строки «Итого» в таблице. */
+  expandedMetrics?: boolean;
 };
 
 const DOCS_SUMMARY_COLLAPSED_KEY = "haulz.documents.summaryCollapsedMobile";
 
-export function DocumentsSummaryCard({ summary, showSums, useServiceRequest, saasAnalytics = false }: SummaryProps) {
+export function DocumentsSummaryCard({
+  summary,
+  showSums,
+  useServiceRequest,
+  saasAnalytics = false,
+  expandedMetrics = false,
+}: SummaryProps) {
   const [isMobile, setIsMobile] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -1074,7 +1168,7 @@ export function DocumentsSummaryCard({ summary, showSums, useServiceRequest, saa
             <Typography.Label style={labelStyle()}>Плат. вес</Typography.Label>
             <Typography.Body style={valueStyle()}>{Math.round(summary.pw)} кг</Typography.Body>
           </Flex>
-          {useServiceRequest && (
+          {(expandedMetrics || useServiceRequest) && (
             <>
               <Flex direction="column" align="center">
                 <Typography.Label style={labelStyle()}>Вес</Typography.Label>
@@ -1242,13 +1336,5 @@ export function DocumentsRouteBadge({
   className?: string;
   style?: React.CSSProperties;
 }) {
-  return (
-    <AppBadge
-      tone="info"
-      className={className}
-      style={{ display: "inline-block", whiteSpace: "nowrap", ...style }}
-    >
-      {children}
-    </AppBadge>
-  );
+  return <RouteBadge route={children} className={className} style={style} />;
 }

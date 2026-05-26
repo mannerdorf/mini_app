@@ -30,6 +30,7 @@ import { ProfileParcelScannerSection } from "../components/profile/ProfileParcel
 import { ProfileExpenseRequestsSection } from "../components/profile/ProfileExpenseRequestsSection";
 import { ProfileApiKeysSection } from "../components/profile/ProfileApiKeysSection";
 import { cargoListContainerVariants, cargoListItemVariants, cargoSummaryMotion } from "./cargoMotion";
+import { fetchLegalStatus, type LegalStatusResponse } from "../api/client/legal";
 
 export function ProfilePage({
     accounts,
@@ -71,6 +72,16 @@ export function ProfilePage({
 }) {
     const [currentView, setCurrentView] = useState<ProfileView>('main');
     const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
+    const [legalStatus, setLegalStatus] = useState<LegalStatusResponse | null>(null);
+
+    useEffect(() => {
+        if (currentView !== 'main' || !activeAccount?.login || !activeAccount.password) {
+            return;
+        }
+        void fetchLegalStatus(activeAccount.login, activeAccount.password)
+            .then(setLegalStatus)
+            .catch(() => setLegalStatus(null));
+    }, [currentView, activeAccount?.login, activeAccount?.password]);
     const prefersReducedMotion = useReducedMotion();
     const profileMotionEnabled = prefersReducedMotion !== true;
     const shellMotion = profileSaasShellActive && profileMotionEnabled;
@@ -3140,7 +3151,23 @@ export function ProfilePage({
                     initial={shellMotion ? "hidden" : false}
                     animate={shellMotion ? "visible" : undefined}
                 >
-                    {infoItems.map((item) => (
+                    {infoItems.map((item) => {
+                        const accepted =
+                            item.id === 'offer'
+                                ? legalStatus?.accepted?.offer
+                                : item.id === 'consent'
+                                    ? legalStatus?.accepted?.consent
+                                    : null;
+                        const acceptedAt = accepted?.accepted_at
+                            ? new Date(accepted.accepted_at).toLocaleString('ru-RU', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                            })
+                            : null;
+                        return (
                         <motion.div
                             key={item.id}
                             variants={shellMotion ? cargoListItemVariants : undefined}
@@ -3159,11 +3186,21 @@ export function ProfilePage({
                             >
                                 <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
                                     <div className="profile-saas-row-icon">{item.icon}</div>
-                                    <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>{item.label}</Typography.Body>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>{item.label}</Typography.Body>
+                                        {(item.id === 'offer' || item.id === 'consent') && (
+                                            <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.2rem' }}>
+                                                {acceptedAt && accepted?.version_label
+                                                    ? `Принято ${acceptedAt}, ред. ${accepted.version_label}`
+                                                    : 'Принятие не зафиксировано'}
+                                            </Typography.Body>
+                                        )}
+                                    </div>
                                 </Flex>
                             </Panel>
                         </motion.div>
-                    ))}
+                        );
+                    })}
                 </motion.div>
             </section>
 

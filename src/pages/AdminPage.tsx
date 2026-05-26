@@ -14,6 +14,7 @@ import { DocumentsEdoTableStatus } from "./documentsViewBlocks";
 import { getCurrentMonthYm } from "../lib/dateUtils";
 import { downloadBase64File } from "../utils";
 import { AdminDashboardsPanel } from "../components/AdminDashboardsPanel";
+import { AdminLegalSection } from "../components/AdminLegalSection";
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
@@ -512,7 +513,7 @@ function UserRow({
 
 const ADMIN_THEME_KEY = "admin-theme";
 const ADMIN_TAB_KEY = "haulz.admin.tab";
-const ADMIN_TABS = ["users", "templates", "customers", "suppliers", "tariffs", "sverki", "dogovors", "ferries", "pvz", "audit", "logs", "integrations", "employee_directory", "subdivisions", "presets", "payment_calendar", "work_schedule", "timesheet", "expense_requests", "accounting", "claims", "dashboards", "pnl"] as const;
+const ADMIN_TABS = ["users", "templates", "customers", "suppliers", "tariffs", "sverki", "dogovors", "ferries", "pvz", "audit", "logs", "integrations", "legal", "employee_directory", "subdivisions", "presets", "payment_calendar", "work_schedule", "timesheet", "expense_requests", "accounting", "claims", "dashboards", "pnl"] as const;
 type AdminTab = (typeof ADMIN_TABS)[number];
 
 function getInitialAdminTab(): AdminTab {
@@ -578,7 +579,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, []);
   const [accountingSubsection, setAccountingSubsection] = useState<"expense_requests" | "sverki" | "claims">("expense_requests");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
-  const isJournalTab = tab === "audit" || tab === "logs" || tab === "integrations";
+  const isJournalTab = tab === "audit" || tab === "logs" || tab === "integrations" || tab === "legal";
   // Только светлая тема в админке
   useEffect(() => {
     try {
@@ -3905,6 +3906,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           >
             <Activity className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             Здоровье интеграций
+          </Button>
+          <Button
+            className="filter-button"
+            style={{ background: tab === "legal" ? "var(--color-primary-blue)" : undefined, color: tab === "legal" ? "white" : undefined }}
+            onClick={() => setTab("legal")}
+          >
+            <FileText className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Оферта и согласие
           </Button>
         </Flex>
       )}
@@ -8767,6 +8776,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           </Panel>
         </Panel>
       )}
+
+      {tab === "legal" && adminToken && <AdminLegalSection adminToken={adminToken} />}
 
       {tab === "presets" && isSuperAdmin && (
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>

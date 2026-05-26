@@ -41,6 +41,15 @@ function getFirstCargoNumberFromInvoice(inv: Record<string, unknown>): string | 
   return null;
 }
 
+function SummaryTile({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className={`invoice-payment-qr-tile${accent ? " invoice-payment-qr-tile--accent" : ""}`}>
+      <span className="invoice-payment-qr-tile__label">{label}</span>
+      <span className="invoice-payment-qr-tile__value">{value}</span>
+    </div>
+  );
+}
+
 export function InvoicePaymentQrBlock({ invoice, auth, cargoSumPaidByNumber }: Props) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<QrResponse | null>(null);
@@ -95,87 +104,53 @@ export function InvoicePaymentQrBlock({ invoice, auth, cargoSumPaidByNumber }: P
   const paid = data?.paidRub ?? amounts.paid;
   const balance = data?.balanceRub ?? data?.amountRub ?? amounts.balance;
 
-  const amountLineStyle = { fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.2rem" };
-
   return (
-    <div
-      className="invoice-payment-qr-block"
-      style={{
-        marginBottom: "0.75rem",
-        padding: "0.75rem",
-        borderRadius: "10px",
-        border: "1px solid var(--color-border)",
-        background: "var(--color-bg-hover)",
-        flexShrink: 0,
-      }}
-    >
-      <Flex align="center" gap="0.35rem" style={{ marginBottom: "0.5rem" }}>
+    <div className="invoice-payment-qr-block">
+      <Flex align="center" gap="0.35rem" className="invoice-payment-qr-block__head">
         <QrCode className="w-4 h-4" style={{ color: "var(--color-primary-blue)" }} />
-        <Typography.Body style={{ fontWeight: 600, fontSize: "0.9rem" }}>Оплата по QR</Typography.Body>
+        <Typography.Headline className="invoice-payment-qr-block__title">Оплата по QR</Typography.Headline>
       </Flex>
 
       {loading && (
-        <Flex align="center" gap="0.35rem" style={{ color: "var(--color-text-secondary)" }}>
+        <Flex align="center" gap="0.35rem" className="invoice-payment-qr-block__loading">
           <Loader2 className="w-4 h-4 animate-spin" />
-          <Typography.Body style={{ fontSize: "0.85rem" }}>Формируем QR…</Typography.Body>
+          <span>Формируем QR…</span>
         </Flex>
       )}
 
-      {!loading && error && (
-        <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error)" }}>{error}</Typography.Body>
-      )}
+      {!loading && error && <p className="invoice-payment-qr-block__error">{error}</p>}
 
       {!loading && data?.qrImageUrl && data.payload && (
-        <Flex gap="0.75rem" wrap="wrap" align="flex-start">
-          <img
-            src={data.qrImageUrl}
-            alt="QR для оплаты в банке"
-            width={200}
-            height={200}
-            style={{
-              display: "block",
-              borderRadius: "8px",
-              background: "#fff",
-              padding: "6px",
-              flexShrink: 0,
-            }}
-          />
-          <div style={{ flex: 1, minWidth: "12rem" }}>
-            <Typography.Body style={amountLineStyle}>
-              Сумма счёта: <strong style={{ color: "var(--color-text-primary)" }}>{formatCurrency(docSum)}</strong>
-            </Typography.Body>
-            <Typography.Body style={amountLineStyle}>
-              Оплачено: <strong style={{ color: "var(--color-text-primary)" }}>{formatCurrency(paid)}</strong>
-            </Typography.Body>
-            <Typography.Body style={{ ...amountLineStyle, marginBottom: "0.45rem" }}>
-              Остаток к оплате:{" "}
-              <strong style={{ color: "var(--color-text-primary)", fontSize: "0.9rem" }}>{formatCurrency(balance)}</strong>
-            </Typography.Body>
-            {data.payeeName && (
-              <Typography.Body
-                style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.35rem" }}
-              >
-                Получатель: {data.payeeName}
-              </Typography.Body>
-            )}
-            <Typography.Body
-              style={{
-                fontSize: "0.78rem",
-                color: "var(--color-text-secondary)",
-                marginBottom: "0.5rem",
-                lineHeight: 1.4,
-              }}
-            >
-              {data.purpose}
-            </Typography.Body>
-            <Typography.Body
-              style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", lineHeight: 1.45, marginBottom: "0.65rem" }}
-            >
-              В приложении банка: «Платёж» → «Сканировать QR» или оплата по реквизитам.
-            </Typography.Body>
+        <div className="invoice-payment-qr-block__body">
+          <div className="invoice-payment-qr-block__qr-wrap">
+            <img src={data.qrImageUrl} alt="QR для оплаты в банке" className="invoice-payment-qr-block__qr" />
+          </div>
+
+          <div className="invoice-payment-qr-block__details">
+            <div className="invoice-payment-qr-summary">
+              <SummaryTile label="Сумма счёта" value={formatCurrency(docSum)} />
+              <SummaryTile label="Оплачено" value={formatCurrency(paid)} />
+              <SummaryTile label="Остаток к оплате" value={formatCurrency(balance)} accent />
+            </div>
+
+            {data.payeeName ? (
+              <p className="invoice-payment-qr-meta">
+                <span className="invoice-payment-qr-meta__label">Получатель:</span>{" "}
+                <span className="invoice-payment-qr-meta__value">{data.payeeName}</span>
+              </p>
+            ) : null}
+
+            {data.purpose ? (
+              <p className="invoice-payment-qr-purpose">{data.purpose}</p>
+            ) : null}
+
+            <p className="invoice-payment-qr-hint">
+              В приложении банка выберите «Платёж», затем «Сканировать QR» или оплатите по реквизитам.
+            </p>
+
             <BankBusinessPayButtons />
           </div>
-        </Flex>
+        </div>
       )}
     </div>
   );

@@ -5,6 +5,7 @@ import { X, Download, Loader2 } from "lucide-react";
 import { formatCurrency, formatInvoiceNumber, stripOoo, parseCargoNumbersFromText, transliterateFilename } from "../../lib/formatUtils";
 import { DateText } from "../ui/DateText";
 import { StatusBadge } from "../shared/StatusBadges";
+import { RouteBadge } from "../shared/CargoTableDisplay";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { DOCUMENT_METHODS } from "../../documentMethods";
 import { edoDocButtonMiniBadgeStyle, getEdoTableDisplayLabel, getInvoiceEdoInfoByDocLabel } from "../../lib/edoStatus";
@@ -343,7 +344,7 @@ export function ActDetailModal({
                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} /> : <StatusBadge status={deliveryState} />}
                                         </td>
                                         <td className="invoice-detail-table-route" style={{ padding: "0.5rem 0.4rem", color: "var(--color-text-primary)" }}>
-                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} /> : route ? <span style={{ fontSize: "0.75rem", fontWeight: 600, padding: "0.15rem 0.35rem", borderRadius: "999px", background: "rgba(59, 130, 246, 0.15)", color: "var(--color-primary-blue)", border: "1px solid rgba(59, 130, 246, 0.4)" }}>{route}</span> : "—"}
+                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} /> : <RouteBadge route={route} />}
                                         </td>
                                         <td style={{ padding: "0.5rem 0.4rem", textAlign: "right", color: "var(--color-text-primary)" }}>{row.Quantity ?? "—"}</td>
                                         <td style={{ padding: "0.5rem 0.4rem", textAlign: "right", color: "var(--color-text-primary)" }}>{row.Price != null ? formatCurrency(row.Price) : "—"}</td>

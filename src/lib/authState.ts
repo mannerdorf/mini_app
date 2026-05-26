@@ -3,6 +3,7 @@
  * Кэшируется на одну сессию, чтобы не парсить повторно.
  */
 import type { Account, AuthData } from "../types";
+import { normalizeAccountCustomerSelection } from "./accountCustomer";
 
 export type InitialAuthState = {
     accounts: Account[];
@@ -39,7 +40,10 @@ export function getInitialAuthState(): InitialAuthState {
                         acc.customers?.length && !acc.customer
                             ? { ...acc, customer: acc.customers[0].name }
                             : acc;
-                    return { ...withCustomer, inCustomerDirectory: undefined as boolean | undefined };
+                    return normalizeAccountCustomerSelection({
+                        ...withCustomer,
+                        inCustomerDirectory: undefined as boolean | undefined,
+                    });
                 });
                 const savedActiveId = window.localStorage.getItem("haulz.activeAccountId");
                 const activeId =
