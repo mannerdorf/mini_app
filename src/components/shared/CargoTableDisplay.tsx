@@ -1,8 +1,14 @@
 import React from "react";
 import { Ship, Truck } from "lucide-react";
 import { AppBadge } from "./AppBadge";
+import { StatusBadge, StatusBillBadge } from "./StatusBadges";
 import { cityToCode } from "../../lib/formatUtils";
-import { isFerry } from "../../lib/cargoUtils";
+import {
+  cargoLastMileIsSelfPickup,
+  cargoPickupLogisticsIsTerminalTo,
+  getCargoRoleSet,
+  isFerry,
+} from "../../lib/cargoUtils";
 import type { CargoItem } from "../../types";
 
 export function formatRouteLabel(from?: string | null, to?: string | null): string {
@@ -76,5 +82,74 @@ export function CargoTransportTypeIcon({
     <Ship className={iconClass} width={size} height={size} style={iconStyle} title="Паром" />
   ) : (
     <Truck className={iconClass} width={size} height={size} style={iconStyle} title="Авто" />
+  );
+}
+
+/** Заборная логистика (пикап / terminal-to). */
+export function CargoPickupLogisticsBadge({ item }: { item: CargoItem }) {
+  const terminalTo = cargoPickupLogisticsIsTerminalTo(item);
+  return (
+    <span
+      title={
+        terminalTo
+          ? "Заборная логистика: доставка на терминал (terminal-to)"
+          : "Заборная логистика: пикап (PickUP)"
+      }
+      className={`max-badge ${terminalTo ? "cargo-pickup-terminal-to" : "cargo-pickup-pickup"}`}
+      style={{ flexShrink: 0 }}
+    >
+      {terminalTo ? "На терминал" : "Пикап"}
+    </span>
+  );
+}
+
+/** Последняя миля. */
+export function CargoLastMileBadge({ item }: { item: CargoItem }) {
+  const selfPickup = cargoLastMileIsSelfPickup(item);
+  return (
+    <span
+      title={
+        selfPickup
+          ? "Последняя миля: самовывоз"
+          : "Последняя миля: доставка"
+      }
+      className={`max-badge ${selfPickup ? "cargo-last-mile-self" : "cargo-last-mile-delivery"}`}
+      style={{ flexShrink: 0 }}
+    >
+      {selfPickup ? "Самовывоз" : "Доставка"}
+    </span>
+  );
+}
+
+/**
+ * Бейджи перевозки в логической цепочке:
+ * забор → магистраль (статус) → последняя миля → оплата.
+ */
+export function CargoLogisticsBadges({
+  item,
+  showPayment = false,
+  showRouteInline = false,
+  className = "cargo-inner-table__badges cargo-inner-table__badges--stack-mobile",
+}: {
+  item: CargoItem;
+  showPayment?: boolean;
+  showRouteInline?: boolean;
+  className?: string;
+}) {
+  const showBill =
+    showPayment && getCargoRoleSet(item).has("Customer") && Boolean(item.StateBill);
+
+  return (
+    <div className={className}>
+      <CargoPickupLogisticsBadge item={item} />
+      <StatusBadge status={item.State} />
+      <CargoLastMileBadge item={item} />
+      {showBill ? <StatusBillBadge status={item.StateBill} /> : null}
+      {showRouteInline ? (
+        <span className="cargo-inner-table__route-inline">
+          <RouteBadge route={getCargoItemRouteLabel(item)} />
+        </span>
+      ) : null}
+    </div>
   );
 }

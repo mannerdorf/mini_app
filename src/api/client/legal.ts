@@ -61,7 +61,12 @@ export async function postLegalAccept(
 }
 
 /** После успешного входа — записать принятие текущих редакций (если пользователь отметил галочки). */
-export function recordLegalAcceptanceQuiet(login: string, password: string): void {
+export function recordLegalAcceptanceQuiet(
+  login: string,
+  password: string,
+  opts?: { skipLegal?: boolean }
+): void {
+  if (opts?.skipLegal) return;
   void postLegalAccept(login, password).catch((err) => {
     console.warn("legal-accept:", err);
   });

@@ -68,6 +68,19 @@ export function buildQrImageUrl(payload: string, sizePx = 280): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${sizePx}x${sizePx}&data=${encodeURIComponent(payload)}&color=${color}&bgcolor=${bgcolor}`;
 }
 
+/** Загружает PNG QR на сервере — в WebView мини-приложений внешние img часто не грузятся. */
+export async function embedQrImageAsDataUrl(qrImageUrl: string): Promise<string> {
+  try {
+    const res = await fetch(qrImageUrl);
+    if (!res.ok) return qrImageUrl;
+    const buf = Buffer.from(await res.arrayBuffer());
+    const ct = res.headers.get("content-type")?.split(";")[0]?.trim() || "image/png";
+    return `data:${ct};base64,${buf.toString("base64")}`;
+  } catch {
+    return qrImageUrl;
+  }
+}
+
 export type InvoicePaymentQrResult = {
   payload: string;
   qrImageUrl: string;

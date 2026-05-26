@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import { motion, useReducedMotion } from "motion/react";
 import {
     LogOut, Loader2, Check, Moon, Sun, Eye, EyeOff, User as UserIcon, Users, ChevronDown,
-    Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MessageCircle, FileText, LayoutGrid, Mic, Receipt, Key,
+    Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MessageCircle, FileText, LayoutGrid, Mic, ScanBarcode, Key,
 } from "lucide-react";
 import { Button, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
 import type { Account, AuthData, ProfileView } from "../types";
@@ -1027,7 +1027,7 @@ export function ProfilePage({
         {
             id: 'parcelScanner',
             label: 'Сканер посылки',
-            icon: <Receipt className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+            icon: <ScanBarcode className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('parcelScanner')
         },
         ...((activeAccount?.isSuperAdmin || activeAccount?.permissions?.haulz === true) ? [{

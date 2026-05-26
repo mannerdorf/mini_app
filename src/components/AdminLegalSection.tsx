@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
+import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { Loader2, FileText, Shield } from "lucide-react";
 
 type VersionRow = {
@@ -135,7 +135,7 @@ export function AdminLegalSection({ adminToken }: { adminToken: string }) {
   const filteredVersions = versions.filter((v) => v.document_type === docType);
 
   return (
-    <Panel className="cargo-card" style={{ padding: "1rem" }}>
+    <Panel className="cargo-card admin-legal-section" style={{ padding: "1rem" }}>
       <Typography.Headline style={{ fontSize: "1.1rem", marginBottom: "0.5rem" }}>
         Оферта и согласие на обработку ПД
       </Typography.Headline>
@@ -220,43 +220,49 @@ export function AdminLegalSection({ adminToken }: { adminToken: string }) {
           </div>
 
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Новая редакция</Typography.Body>
-          <label style={{ display: "block", marginBottom: "0.5rem" }}>
-            <Typography.Body style={{ fontSize: "0.8rem", marginBottom: "0.25rem" }}>Метка редакции (например, «от 25.05.2026»)</Typography.Body>
-            <Input value={versionLabel} onChange={(e) => setVersionLabel(e.target.value)} placeholder="от 25.05.2026" />
-          </label>
-          <label style={{ display: "block", marginBottom: "0.75rem" }}>
-            <Typography.Body style={{ fontSize: "0.8rem", marginBottom: "0.25rem" }}>Полный текст</Typography.Body>
+          <div className="admin-legal-field">
+            <label htmlFor="legal-version-label" className="admin-legal-field__label">
+              Метка редакции (например, «от 25.05.2026»)
+            </label>
+            <input
+              id="legal-version-label"
+              type="text"
+              className="admin-legal-field-control"
+              value={versionLabel}
+              onChange={(e) => setVersionLabel(e.target.value)}
+              placeholder="от 25.05.2026"
+            />
+          </div>
+          <div className="admin-legal-field admin-legal-field--body">
+            <label htmlFor="legal-body-text" className="admin-legal-field__label">
+              Полный текст
+            </label>
             <textarea
+              id="legal-body-text"
+              className="admin-legal-field-control admin-legal-field-control--textarea"
               value={bodyText}
               onChange={(e) => setBodyText(e.target.value)}
               rows={14}
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                fontFamily: "inherit",
-                fontSize: "0.8rem",
-                lineHeight: 1.4,
-                padding: "0.5rem",
-                borderRadius: 8,
-                border: "1px solid var(--color-border)",
-                background: "var(--color-bg)",
-                color: "var(--color-text-primary)",
-              }}
             />
-          </label>
+          </div>
           <Button className="button-primary" type="button" disabled={saving} onClick={() => void publish()}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Утвердить редакцию"}
           </Button>
         </>
       ) : (
         <>
-          <Flex gap="0.5rem" wrap="wrap" align="center" style={{ marginBottom: "1rem" }}>
-            <Input
-              value={journalSearch}
-              onChange={(e) => setJournalSearch(e.target.value)}
-              placeholder="Поиск: логин, компания, редакция"
-              style={{ flex: "1 1 200px", minWidth: 180 }}
-            />
+          <Flex className="admin-legal-search-row" gap="0.5rem" wrap="wrap" align="center" style={{ marginBottom: "1rem" }}>
+            <div className="admin-legal-search-wrap">
+              <input
+                type="text"
+                className="admin-legal-field-control"
+                value={journalSearch}
+                onChange={(e) => setJournalSearch(e.target.value)}
+                placeholder="Поиск: логин, компания, редакция"
+                autoComplete="off"
+                aria-label="Поиск в журнале принятий"
+              />
+            </div>
             <Button className="filter-button" type="button" onClick={() => void load()}>
               Найти
             </Button>

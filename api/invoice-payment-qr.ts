@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { loadCompanyPayeeDetails } from "../lib/companyPayeeDetails.js";
-import { buildInvoicePaymentQr } from "../lib/invoicePaymentQr.js";
+import { buildInvoicePaymentQr, embedQrImageAsDataUrl } from "../lib/invoicePaymentQr.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
@@ -61,9 +61,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    const qrImageDataUrl = await embedQrImageAsDataUrl(qr.qrImageUrl);
+
     return res.status(200).json({
       configured: true,
       ...qr,
+      qrImageUrl: qrImageDataUrl,
+      qrImageDataUrl,
       payeeName: payee.name,
       request_id: ctx.requestId,
     });

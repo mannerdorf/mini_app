@@ -5,6 +5,8 @@ import { verifyAppCredentials } from "../lib/verifyAppCredentials.js";
 import {
   ensureLegalDocumentsSeeded,
   getCurrentLegalVersions,
+  getRegisteredUserPermissions,
+  hasServiceModePermission,
   recordLegalAcceptances,
   type LegalDocumentType,
 } from "../lib/legalDocuments.js";
@@ -49,6 +51,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const offerId = body.offer_version_id != null ? Number(body.offer_version_id) : current.offer?.id;
     const consentId = body.consent_version_id != null ? Number(body.consent_version_id) : current.consent?.id;
+
+    const permissions = await getRegisteredUserPermissions(pool, login);
+    if (hasServiceModePermission(permissions)) {
+      return res.status(200).json({ ok: true, skipped: true, request_id: ctx.requestId });
+    }
 
     const versionIds: Partial<Record<LegalDocumentType, number>> = {};
     if (Number.isFinite(offerId) && offerId > 0) versionIds.offer = offerId;

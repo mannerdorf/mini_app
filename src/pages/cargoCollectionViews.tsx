@@ -9,12 +9,16 @@ import {
   Share2,
 } from "lucide-react";
 import { DateText } from "../components/ui/DateText";
-import { StatusBadge, StatusBillBadge } from "../components/shared/StatusBadges";
 import { AppBadge } from "../components/shared/AppBadge";
-import { getSlaInfo, cargoLastMileIsSelfPickup, cargoPickupLogisticsIsTerminalTo, getCargoDisplayRoleLabel, getCargoRoleSet } from "../lib/cargoUtils";
+import {
+  CargoLogisticsBadges,
+  RouteBadge,
+  CargoTransportTypeIcon,
+  getCargoItemRouteLabel,
+} from "../components/shared/CargoTableDisplay";
+import { getSlaInfo, getCargoDisplayRoleLabel, getCargoRoleSet } from "../lib/cargoUtils";
 import { formatCurrency, stripOoo, cityToCode } from "../lib/formatUtils";
 import { ClickableCargoNumber } from "../components/ui/EntityLinks";
-import { RouteBadge, CargoTransportTypeIcon, getCargoItemRouteLabel } from "../components/shared/CargoTableDisplay";
 import { getSumColorByPaymentStatus } from "../lib/statusUtils";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
 import type { CargoItem } from "../types";
@@ -26,40 +30,6 @@ import {
   cargoListItemVariants,
   cargoTableGroupRowVariants,
 } from "./cargoMotion";
-
-function CargoLastMileBadge({ item }: { item: CargoItem }) {
-  const selfPickup = cargoLastMileIsSelfPickup(item);
-  return (
-    <span
-      title={
-        selfPickup
-          ? "Самовывоз по PZV_Receiver_Id и маршруту"
-          : "Доставка по PZV_Receiver_Id и маршруту"
-      }
-      className={`max-badge ${selfPickup ? "cargo-last-mile-self" : "cargo-last-mile-delivery"}`}
-      style={{ flexShrink: 0 }}
-    >
-      {selfPickup ? "Самовывоз" : "Доставка"}
-    </span>
-  );
-}
-
-function CargoPickupLogisticsBadge({ item }: { item: CargoItem }) {
-  const terminalTo = cargoPickupLogisticsIsTerminalTo(item);
-  return (
-    <span
-      title={
-        terminalTo
-          ? "terminal-to по PZV_Sender и маршруту"
-          : "PickUP по PZV_Sender и маршруту"
-      }
-      className={`max-badge ${terminalTo ? "cargo-pickup-terminal-to" : "cargo-pickup-pickup"}`}
-      style={{ flexShrink: 0 }}
-    >
-      {terminalTo ? "terminal-to" : "PickUP"}
-    </span>
-  );
-}
 
 type InnerTableSortCol = "number" | "datePrih" | "planDate" | "status" | "mest" | "pw" | "sum";
 
@@ -252,15 +222,11 @@ export function CargoCustomerTable({
                     {(() => { const iso = plannedArrivalIso(item, routeTypePlanDays); return iso ? <DateText value={iso} omitYear={isMobile} /> : "—"; })()}
                   </td>
                   <td className="cargo-inner-table__col-status" style={{ padding: "0.35rem 0.3rem" }}>
-                    <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile">
-                      <StatusBadge status={item.State} />
-                      <CargoLastMileBadge item={item} />
-                      <CargoPickupLogisticsBadge item={item} />
-                      {showSums && getCargoRoleSet(item).has("Customer") && item.StateBill ? (
-                        <StatusBillBadge status={item.StateBill} />
-                      ) : null}
-                      <span className="cargo-inner-table__route-inline"><RouteBadge route={getCargoItemRouteLabel(item)} /></span>
-                    </div>
+                    <CargoLogisticsBadges
+                      item={item}
+                      showPayment={showSums}
+                      showRouteInline
+                    />
                   </td>
                   <td className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: "0.35rem 0.3rem" }}><RouteBadge route={getCargoItemRouteLabel(item)} /></td>
                   <td className="cargo-inner-table__col-mest" style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>{item.Mest != null ? Math.round(Number(item.Mest)) : "—"}</td>
@@ -942,17 +908,11 @@ export function CargoCustomerTable({
                                 })()}
                               </td>
                               <td className="cargo-inner-table__col-status" style={{ padding: "0.35rem 0.3rem" }}>
-                                <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile">
-                                  <StatusBadge status={item.State} />
-                                  <CargoLastMileBadge item={item} />
-                                  <CargoPickupLogisticsBadge item={item} />
-                                  {showSums && getCargoRoleSet(item).has("Customer") && item.StateBill ? (
-                                    <StatusBillBadge status={item.StateBill} />
-                                  ) : null}
-                                  <span className="cargo-inner-table__route-inline">
-                                    <RouteBadge route={getCargoItemRouteLabel(item)} />
-                                  </span>
-                                </div>
+                                <CargoLogisticsBadges
+                                  item={item}
+                                  showPayment={showSums}
+                                  showRouteInline
+                                />
                               </td>
                               <td className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: "0.35rem 0.3rem" }}>
                                 <RouteBadge route={getCargoItemRouteLabel(item)} />
@@ -1075,8 +1035,6 @@ export function CargoCardsList({
                     {getCargoDisplayRoleLabel(item)}
                   </AppBadge>
                 )}
-                <CargoLastMileBadge item={item} />
-                <CargoPickupLogisticsBadge item={item} />
               </Flex>
               <Flex
                 align="center"
@@ -1166,8 +1124,12 @@ export function CargoCardsList({
                 </Typography.Label>
               </Flex>
             </Flex>
-            <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem" }}>
-              <StatusBadge status={item.State} />
+            <Flex justify="space-between" align="center" gap="0.5rem" wrap="wrap" style={{ marginBottom: "0.5rem" }}>
+              <CargoLogisticsBadges
+                item={item}
+                showPayment={showSums}
+                className="cargo-inner-table__badges"
+              />
               {showSums && getCargoRoleSet(item).has("Customer") && (
                 <Typography.Body
                   style={{
@@ -1189,7 +1151,6 @@ export function CargoCardsList({
                 <Typography.Label>Мест: {item.Mest || "-"}</Typography.Label>
                 <Typography.Label>Плат. вес: {item.PW ? `${item.PW} кг` : "-"}</Typography.Label>
               </Flex>
-              {showSums && item._role === "Customer" && <StatusBillBadge status={item.StateBill} />}
             </Flex>
             <Flex
               className="cargo-item-route-customer"

@@ -96,6 +96,8 @@ import {
     DocumentsApiDebugPanel,
     DocumentsEdoMonitorGroupedTable,
     DocumentsEdoMonitorSummaryTiles,
+    DocumentsInvoiceFinanceHeadCells,
+    DocumentsInvoiceFinanceCells,
     DocumentsEdoCardsList,
     DocumentsEdoCardBadge,
     DocumentsEdoTableStatus,
@@ -105,6 +107,8 @@ import {
     DocumentsStateBlocks,
     DocumentsToolbarBelowSticky,
     DocumentsRouteBadge,
+    formatTariffRouteLabel,
+    TariffTransportTypeIcon,
     type DocumentsApiDebugSnapshot,
 } from "./documentsViewBlocks";
 import { AppBadge } from "../components/shared/AppBadge";
@@ -615,7 +619,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [tariffsCustomerSearchQuery, setTariffsCustomerSearchQuery] = useState<string>("");
     const [tariffsRouteFilter, setTariffsRouteFilter] = useState<string>("all");
     const [tariffsTypeFilter, setTariffsTypeFilter] = useState<string>("all");
-    const [tariffsSortColumn, setTariffsSortColumn] = useState<"docDate" | "docNumber" | "customerName" | "cityFrom" | "cityTo" | "transportType" | "dangerous" | "tariff">("docDate");
+    const [tariffsSortColumn, setTariffsSortColumn] = useState<"docDate" | "docNumber" | "customerName" | "route" | "transportType" | "dangerous" | "tariff">("docDate");
     const [tariffsSortOrder, setTariffsSortOrder] = useState<"asc" | "desc">("desc");
     const allowedDocSections = useMemo(() => {
         if (!permissions) return DOC_SECTIONS;
@@ -1939,9 +1943,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         const set = new Set<string>();
         const allowedRoutes = new Set(["MSK – KGD", "KGD – MSK"]);
         tariffsList.forEach((t) => {
-            const from = cityToCode(t.cityFrom || '') || (t.cityFrom || '');
-            const to = cityToCode(t.cityTo || '') || (t.cityTo || '');
-            const route = [from, to].filter(Boolean).join(' – ');
+            const route = formatTariffRouteLabel(t.cityFrom, t.cityTo);
             if (route && allowedRoutes.has(route)) set.add(route);
         });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
@@ -2292,21 +2294,14 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
     const filteredTariffs = useMemo(() => {
         const placeCode = (value: string) => cityToCode(value || '') || (value || '');
         const allowedRoutes = new Set(["MSK – KGD", "KGD – MSK"]);
-        const fromDate = new Date(`${apiDateRange.dateFrom}T00:00:00`);
-        const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
         const list = tariffsList.filter((t) => {
             if (t.isVet) return false;
             if (effectiveServiceMode && tariffsCustomerFilter && String(t.customerName || '').trim() !== tariffsCustomerFilter) return false;
-            const route = [
-                placeCode(t.cityFrom || ''),
-                placeCode(t.cityTo || ''),
-            ].filter(Boolean).join(' – ');
+            const route = formatTariffRouteLabel(t.cityFrom, t.cityTo);
             if (!allowedRoutes.has(route)) return false;
             if (tariffsRouteFilter !== 'all' && route !== tariffsRouteFilter) return false;
             if (tariffsTypeFilter !== 'all' && String(t.transportType || '').trim() !== tariffsTypeFilter) return false;
-            if (!t.docDate) return true;
-            const d = new Date(t.docDate);
-            return d >= fromDate && d <= toDate;
+            return true;
         });
 
         const getVal = (t: typeof tariffsList[number]) => {
@@ -2314,8 +2309,7 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
                 case "docDate": return t.docDate ? new Date(t.docDate).getTime() : 0;
                 case "docNumber": return t.docNumber || "";
                 case "customerName": return t.customerName || "";
-                case "cityFrom": return placeCode(t.cityFrom || "");
-                case "cityTo": return placeCode(t.cityTo || "");
+                case "route": return formatTariffRouteLabel(t.cityFrom, t.cityTo);
                 case "transportType": return t.transportType || "";
                 case "dangerous": return t.isDangerous ? 1 : 0;
                 case "tariff": return Number(t.tariff ?? 0);
@@ -2348,7 +2342,7 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             collapsed.push(t);
         }
         return collapsed;
-    }, [tariffsList, effectiveServiceMode, tariffsCustomerFilter, tariffsRouteFilter, tariffsTypeFilter, tariffsSortColumn, tariffsSortOrder, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    }, [tariffsList, effectiveServiceMode, tariffsCustomerFilter, tariffsRouteFilter, tariffsTypeFilter, tariffsSortColumn, tariffsSortOrder]);
     const filteredSverki = useMemo(() => {
         const fromDate = new Date(`${apiDateRange.dateFrom}T00:00:00`);
         const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
@@ -2397,16 +2391,12 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
         }
     }, []);
     const filteredDogovors = useMemo(() => {
-        const fromDate = new Date(`${apiDateRange.dateFrom}T00:00:00`);
-        const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
         return dogovorsList.filter((row) => {
             if (effectiveServiceMode && dogovorsCustomerFilter && String(row.customerName || '').trim() !== dogovorsCustomerFilter) return false;
             if (!cachedDocumentMatchesEdoStatusFilter(row, edoStatusFilterSet)) return false;
-            if (!row.docDate) return true;
-            const d = new Date(row.docDate);
-            return d >= fromDate && d <= toDate;
+            return true;
         });
-    }, [dogovorsList, apiDateRange.dateFrom, apiDateRange.dateTo, effectiveServiceMode, dogovorsCustomerFilter, edoStatusFilterSet]);
+    }, [dogovorsList, effectiveServiceMode, dogovorsCustomerFilter, edoStatusFilterSet]);
     const downloadDogovorFile = useCallback(async (row: { id: number; docNumber: string; docDate: string | null; customerInn: string }) => {
         const number = String(row.docNumber || '').trim();
         const docDateRaw = row.docDate;
@@ -3315,11 +3305,13 @@ useEffect(() => {
                 {(docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'УПД' || docSection === 'Заявки' || docSection === 'Отправки' || docSection === 'Тарифы' || docSection === 'Акты сверок' || docSection === 'Договоры' || docSection === 'Претензии') && (
                 <div className="filters-container filters-row-scroll">
                     <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
-                        {docSection !== 'Тарифы' ? (
+                        {docSection !== 'Тарифы' && docSection !== 'Договоры' ? (
                             <Button className="filter-button" style={{ padding: '0.5rem', minWidth: 'auto' }} onClick={() => { setSortBy('date'); setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); }} title={sortOrder === 'desc' ? 'Дата по убыванию' : 'Дата по возрастанию'}>
                                 {sortOrder === 'desc' ? <ArrowDown className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />}
                             </Button>
                         ) : null}
+                        {docSection !== 'Договоры' ? (
+                        <>
                         <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsSverkiCustomerDropdownOpen(false); setIsDogovorsCustomerDropdownOpen(false); setIsClaimsCustomerDropdownOpen(false); setIsClaimsStatusDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); setIsTariffsCustomerDropdownOpen(false); setIsTariffsRouteDropdownOpen(false); setIsTariffsTypeDropdownOpen(false); }}>
                                 Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' ? `${apiDateRange.dateFrom.slice(8, 10)}.${apiDateRange.dateFrom.slice(5, 7)} – ${apiDateRange.dateTo.slice(8, 10)}.${apiDateRange.dateTo.slice(5, 7)}` : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
@@ -3399,6 +3391,8 @@ useEffect(() => {
                                 })
                             )}
                         </FilterDropdownPortal>
+                        </>
+                        ) : null}
                         {docSection === 'Тарифы' && (
                             <>
                                 {effectiveServiceMode ? (
@@ -3466,7 +3460,8 @@ useEffect(() => {
                                 <FilterDropdownPortal triggerRef={tariffsTypeButtonRef} isOpen={isTariffsTypeDropdownOpen} onClose={() => setIsTariffsTypeDropdownOpen(false)}>
                                     <div className="dropdown-item" onClick={() => { setTariffsTypeFilter('all'); setIsTariffsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
                                     {uniqueTariffsTypes.map((type) => (
-                                        <div key={type} className="dropdown-item" onClick={() => { setTariffsTypeFilter(type); setIsTariffsTypeDropdownOpen(false); }}>
+                                        <div key={type} className="dropdown-item" onClick={() => { setTariffsTypeFilter(type); setIsTariffsTypeDropdownOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <TariffTransportTypeIcon transportType={type} size={18} />
                                             <Typography.Body>{type}</Typography.Body>
                                         </div>
                                     ))}
@@ -3903,9 +3898,14 @@ useEffect(() => {
                                                                 <th className="cargo-inner-table__col-status doc-inner-table-status" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('status'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Статус</span><span className="cargo-inner-table__head-short">Ст.</span> {innerTableSortColumn === 'status' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('deliveryStatus'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span> {innerTableSortColumn === 'deliveryStatus' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th className="cargo-inner-table__col-route doc-inner-table-route cargo-inner-table__col-route--desktop" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('route'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span> {innerTableSortColumn === 'route' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                {showSums && <th className="cargo-inner-table__col-sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('sum'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Сумма</span><span className="cargo-inner-table__head-short">Сум.</span> {innerTableSortColumn === 'sum' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
-                                                                {showSums && <th className="cargo-inner-table__col-paid" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('paid'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Оплачено</span><span className="cargo-inner-table__head-short">Опл.</span> {innerTableSortColumn === 'paid' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
-                                                                {showSums && <th className="cargo-inner-table__col-balance" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('balance'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Остаток</span><span className="cargo-inner-table__head-short">Ост.</span> {innerTableSortColumn === 'balance' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
+                                                                {showSums && (
+                                                                    <DocumentsInvoiceFinanceHeadCells
+                                                                        withSort
+                                                                        sortColumn={innerTableSortColumn}
+                                                                        sortOrder={innerTableSortOrder}
+                                                                        onSort={handleInnerTableSort}
+                                                                    />
+                                                                )}
                                                             </tr>
                                                         </thead>
                                                         <tbody>
@@ -3942,9 +3942,14 @@ useEffect(() => {
                                                                         <td className="cargo-inner-table__col-route doc-inner-table-route cargo-inner-table__col-route--desktop" style={{ padding: '0.35rem 0.3rem' }}>
                                                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
                                                                         </td>
-                                                                        {showSums && <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(isum)}</span></td>}
-                                                                        {showSums && <td className="cargo-inner-table__col-paid documents-invoices-inner-table__sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(ipaid)}</span></td>}
-                                                                        {showSums && <td className="cargo-inner-table__col-balance documents-invoices-inner-table__sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value" style={{ color: getSumColorByPaymentStatus(ipayState) }}>{formatCurrency(ibalance)}</span></td>}
+                                                                        {showSums && (
+                                                                            <DocumentsInvoiceFinanceCells
+                                                                                sum={isum}
+                                                                                paid={ipaid}
+                                                                                balance={ibalance}
+                                                                                payState={ipayState}
+                                                                            />
+                                                                        )}
                                                                     </tr>
                                                                 );
                                                             })}
@@ -3982,9 +3987,7 @@ useEffect(() => {
                                 <th className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус</span><span className="cargo-inner-table__head-short">Ст.</span></th>
                                 <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span></th>
                                 <th className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span></th>
-                                {showSums && <th className="cargo-inner-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Сумма</span><span className="cargo-inner-table__head-short">Сум.</span></th>}
-                                {showSums && <th className="cargo-inner-table__col-paid" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Оплачено</span><span className="cargo-inner-table__head-short">Опл.</span></th>}
-                                {showSums && <th className="cargo-inner-table__col-balance" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Остаток</span><span className="cargo-inner-table__head-short">Ост.</span></th>}
+                                {showSums && <DocumentsInvoiceFinanceHeadCells padding="0.5rem 0.4rem" />}
                             </tr>
                         </thead>
                         <tbody>
@@ -4023,9 +4026,15 @@ useEffect(() => {
                                         <td className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem' }}>
                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
                                         </td>
-                                        {showSums && <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(isum)}</span></td>}
-                                        {showSums && <td className="cargo-inner-table__col-paid documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(ipaid)}</span></td>}
-                                        {showSums && <td className="cargo-inner-table__col-balance documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value" style={{ color: getSumColorByPaymentStatus(ipayState) }}>{formatCurrency(ibalance)}</span></td>}
+                                        {showSums && (
+                                            <DocumentsInvoiceFinanceCells
+                                                sum={isum}
+                                                paid={ipaid}
+                                                balance={ibalance}
+                                                payState={ipayState}
+                                                padding="0.5rem 0.4rem"
+                                            />
+                                        )}
                                     </tr>
                                 );
                             })}
@@ -4044,9 +4053,7 @@ useEffect(() => {
                                 <th className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус</span><span className="cargo-inner-table__head-short">Ст.</span></th>
                                 <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span></th>
                                 <th className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span></th>
-                                {showSums && <th className="cargo-inner-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Сумма</span><span className="cargo-inner-table__head-short">Сум.</span></th>}
-                                {showSums && <th className="cargo-inner-table__col-paid" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Оплачено</span><span className="cargo-inner-table__head-short">Опл.</span></th>}
-                                {showSums && <th className="cargo-inner-table__col-balance" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Остаток</span><span className="cargo-inner-table__head-short">Ост.</span></th>}
+                                {showSums && <DocumentsInvoiceFinanceHeadCells padding="0.5rem 0.4rem" />}
                             </tr>
                         </thead>
                         <tbody>
@@ -4085,9 +4092,15 @@ useEffect(() => {
                                         <td className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem' }}>
                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
                                         </td>
-                                        {showSums && <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(isum)}</span></td>}
-                                        {showSums && <td className="cargo-inner-table__col-paid documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(ipaid)}</span></td>}
-                                        {showSums && <td className="cargo-inner-table__col-balance documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value" style={{ color: getSumColorByPaymentStatus(ipayState) }}>{formatCurrency(ibalance)}</span></td>}
+                                        {showSums && (
+                                            <DocumentsInvoiceFinanceCells
+                                                sum={isum}
+                                                paid={ipaid}
+                                                balance={ibalance}
+                                                payState={ipayState}
+                                                padding="0.5rem 0.4rem"
+                                            />
+                                        )}
                                     </tr>
                                 );
                             })}
@@ -4127,6 +4140,10 @@ useEffect(() => {
                     cargoRouteByNumber={cargoRouteByNumber}
                     cargoSumPaidByNumber={cargoSumPaidByNumber}
                     perevozkiLoading={perevozkiLoading}
+                    isFavorite={isInvoiceFavorite(String(selectedInvoice?.Number ?? selectedInvoice?.number ?? ""))}
+                    onToggleFavorite={() =>
+                        toggleInvoiceFavorite(String(selectedInvoice?.Number ?? selectedInvoice?.number ?? ""))
+                    }
                 />
             )}
             {!loading && !error && filteredItems.length === 0 && (
@@ -4163,6 +4180,12 @@ useEffect(() => {
                 </motion.div>
                 ) : tableModeEffective ? (
                 <motion.div key="docs-edo-monitor-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
+                    <DocumentsEdoMonitorSummaryTiles
+                        className="documents-edo-summary-tiles--table-companion"
+                        totals={mergedInvoicesEdoTotals}
+                        invoicesCount={documentsSummary.count}
+                        saasAnalytics={documentsServiceSaasUi}
+                    />
                     <DocumentsEdoMonitorGroupedTable
                         rows={sortedGroupedByCustomer.length > 0 ? sortedGroupedByCustomer : [{ customer: '—', items: filteredItems, sum: documentsSummary.sum }]}
                         totals={mergedInvoicesEdoTotals}
@@ -4213,6 +4236,10 @@ useEffect(() => {
                     cargoRouteByNumber={cargoRouteByNumber}
                     cargoSumPaidByNumber={cargoSumPaidByNumber}
                     perevozkiLoading={perevozkiLoading}
+                    isFavorite={isInvoiceFavorite(String(selectedInvoice?.Number ?? selectedInvoice?.number ?? ""))}
+                    onToggleFavorite={() =>
+                        toggleInvoiceFavorite(String(selectedInvoice?.Number ?? selectedInvoice?.number ?? ""))
+                    }
                 />
             )}
             {!loading && !error && filteredItems.length === 0 && (
@@ -6214,15 +6241,9 @@ useEffect(() => {
                                         ) : null}
                                         <th
                                             style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer' }}
-                                            onClick={() => { setTariffsSortColumn('cityFrom'); setTariffsSortOrder((o) => tariffsSortColumn === 'cityFrom' ? (o === 'asc' ? 'desc' : 'asc') : 'asc'); }}
+                                            onClick={() => { setTariffsSortColumn('route'); setTariffsSortOrder((o) => tariffsSortColumn === 'route' ? (o === 'asc' ? 'desc' : 'asc') : 'asc'); }}
                                         >
-                                            Место отправления {tariffsSortColumn === 'cityFrom' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
-                                        </th>
-                                        <th
-                                            style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer' }}
-                                            onClick={() => { setTariffsSortColumn('cityTo'); setTariffsSortOrder((o) => tariffsSortColumn === 'cityTo' ? (o === 'asc' ? 'desc' : 'asc') : 'asc'); }}
-                                        >
-                                            Место назначения {tariffsSortColumn === 'cityTo' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
+                                            Маршрут {tariffsSortColumn === 'route' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
                                         </th>
                                         <th
                                             style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer' }}
@@ -6252,21 +6273,15 @@ useEffect(() => {
                                             {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{stripOoo(t.customerName) || '—'}</td> : null}
                                             <td style={{ padding: '0.5rem 0.75rem' }}>
                                                 {(() => {
-                                                    const fromCode = cityToCode(t.cityFrom || '') || t.cityFrom || '';
-                                                    return fromCode ? (
-                                                        <DocumentsRouteBadge>{fromCode}</DocumentsRouteBadge>
+                                                    const route = formatTariffRouteLabel(t.cityFrom, t.cityTo);
+                                                    return route ? (
+                                                        <DocumentsRouteBadge>{route}</DocumentsRouteBadge>
                                                     ) : '—';
                                                 })()}
                                             </td>
-                                            <td style={{ padding: '0.5rem 0.75rem' }}>
-                                                {(() => {
-                                                    const toCode = cityToCode(t.cityTo || '') || t.cityTo || '';
-                                                    return toCode ? (
-                                                        <DocumentsRouteBadge>{toCode}</DocumentsRouteBadge>
-                                                    ) : '—';
-                                                })()}
+                                            <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>
+                                                <TariffTransportTypeIcon transportType={t.transportType} />
                                             </td>
-                                            <td style={{ padding: '0.5rem 0.75rem' }}>{t.transportType || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>{t.isDangerous ? 'Да' : 'Нет'}</td>
                                             <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                 {t.tariff != null ? formatCurrency(Number(t.tariff)) : '—'}
@@ -6282,9 +6297,7 @@ useEffect(() => {
                         <div className="cargo-list">
                             {filteredTariffs.map((t) => {
                                 const favorite = isDocFavorite('tariffs', t.id);
-                                const fromCode = cityToCode(t.cityFrom || '') || t.cityFrom || '';
-                                const toCode = cityToCode(t.cityTo || '') || t.cityTo || '';
-                                const route = [fromCode, toCode].filter(Boolean).join(' – ') || '—';
+                                const route = formatTariffRouteLabel(t.cityFrom, t.cityTo) || '—';
                                 const shareLines = [
                                     `Тариф: ${t.docNumber || '—'}`,
                                     t.docDate ? `Дата: ${t.docDate}` : '',
@@ -6334,7 +6347,7 @@ useEffect(() => {
                                             </Typography.Body>
                                         </Flex>
                                         <Flex justify="space-between" align="center" style={{ fontSize: '0.84rem', color: 'var(--color-text-secondary)' }}>
-                                            <Typography.Label>{t.transportType || '—'}</Typography.Label>
+                                            <TariffTransportTypeIcon transportType={t.transportType} size={18} />
                                             <Typography.Label>{t.isDangerous ? 'Опасный груз' : 'Не опасный'}</Typography.Label>
                                         </Flex>
                                         {effectiveServiceMode && (

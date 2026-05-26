@@ -1,10 +1,11 @@
 import React, { useMemo } from "react";
 import { Flex, Typography } from "@maxhub/max-ui";
 import { ChevronRight, Loader2, AlertCircle } from "lucide-react";
-import { AppBadge } from "./shared/AppBadge";
+import { AppBadge, type AppBadgeTone } from "./shared/AppBadge";
 import { DateText } from "./ui/DateText";
 import { ClickableCargoNumber, ClickableInvoiceNumber, leafRowClickProps } from "./ui/EntityLinks";
-import { formatCurrency, stripOoo } from "../lib/formatUtils";
+import { formatCurrency, normalizeInvoiceStatus, stripOoo } from "../lib/formatUtils";
+import { BILL_STATUS_MAP } from "../lib/statusUtils";
 import {
   computeUnpaidInvoicesByPlan,
   PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS,
@@ -53,6 +54,30 @@ function daysLabel(days: number | null): string {
   if (days === 0) return "сегодня";
   if (days === 1) return "завтра";
   return `через ${days} дн.`;
+}
+
+function invoicePaymentStatusLabel(row: UnpaidInvoicePlanRow): string {
+  const raw = String(
+    row.invoice.StateBill ??
+      row.invoice.stateBill ??
+      row.invoice.Status ??
+      row.invoice.State ??
+      row.invoice.state ??
+      row.invoice.Статус ??
+      row.invoice.status ??
+      row.invoice.PaymentStatus ??
+      "",
+  );
+  return normalizeInvoiceStatus(raw) || BILL_STATUS_MAP[row.paymentKey] || "—";
+}
+
+function paymentStatusBadge(row: UnpaidInvoicePlanRow) {
+  const label = invoicePaymentStatusLabel(row);
+  let tone: AppBadgeTone = "neutral";
+  if (label === "Оплачен") tone = "success";
+  else if (label === "Оплачен частично" || label === "Частично") tone = "warning";
+  else if (label === "Не оплачен") tone = "danger";
+  return <AppBadge tone={tone}>{label}</AppBadge>;
 }
 
 export function UnpaidInvoicesPlanMonitor({
@@ -117,7 +142,13 @@ export function UnpaidInvoicesPlanMonitor({
               <tr>
                 <th>Счёт</th>
                 {showCustomerColumn && <th className="customer-col">Заказчик</th>}
-                <th>План прибытия</th>
+                <th className="unpaid-plan-monitor__col-status">Статус</th>
+                <th
+                  className="unpaid-plan-monitor__col-plan-arrival"
+                  title="Плановая дата прибытия на терминал"
+                >
+                  Плановая дата прибытия на терминал
+                </th>
                 <th>Срок</th>
                 <th>Приоритет</th>
                 {showSums && <th style={{ textAlign: "right" }}>К оплате</th>}
@@ -140,7 +171,8 @@ export function UnpaidInvoicesPlanMonitor({
                     {showCustomerColumn && (
                       <td className="customer-col" title={row.customer}>{stripOoo(row.customer)}</td>
                     )}
-                    <td>
+                    <td className="unpaid-plan-monitor__col-status">{paymentStatusBadge(row)}</td>
+                    <td className="unpaid-plan-monitor__col-plan-arrival">
                       {row.planDateKey ? <DateText value={row.planDateKey} /> : "—"}
                       {row.cargoNumber ? (
                         <span className="unpaid-plan-monitor__cargo">

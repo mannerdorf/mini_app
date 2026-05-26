@@ -3,8 +3,8 @@ import type { HaulzOffice } from "../types";
 /** Фон овала/оверскролла в Telegram, MAX и PWA — совпадает с `manifest.webmanifest` `background_color`. */
 export const HAULZ_SPLASH_BACKGROUND = "#3655ff";
 
-/** Логотип для входа, favicon и иконок мини-приложения (`public/`, см. scripts/generate-haulz-brand-icons.sh). */
-export const HAULZ_LOGO_SRC = "/haulz-logo.png";
+/** Прозрачная надпись HAULZ (фон задаётся в CSS). Полная иконка — `haulz-icon.svg`, см. scripts/generate-haulz-brand-icons.sh. */
+export const HAULZ_LOGO_SRC = "/haulz-wordmark.png";
 
 export const HAULZ_OFFICES: HaulzOffice[] = [
     { city: "Калининград", address: "Железнодорожная ул., 12к4", phone: "+7 (401) 227-95-55" },

@@ -570,12 +570,29 @@ body {
     }
 }
 .haulz-brand-logo {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: min(200px, 72vw);
-    height: auto;
+    max-width: 100%;
+    aspect-ratio: 1;
     margin: 0 auto;
+    padding: 0 14%;
+    box-sizing: border-box;
+    border: none;
     border-radius: 0;
     box-shadow: none;
+    background: #3655ff;
+}
+
+.haulz-brand-logo__word {
+    color: #fff;
+    font-weight: 700;
+    font-size: clamp(1.25rem, 8.5vw, 2rem);
+    letter-spacing: 0.06em;
+    line-height: 1;
+    font-family: Arial, Helvetica, "Segoe UI", sans-serif;
+    white-space: nowrap;
 }
 
 .login-brand {
@@ -674,6 +691,145 @@ body {
     margin-top: var(--space-4, 16px);
 }
 .theme-toggle-button-login { background: none; border: none; cursor: pointer; color: var(--color-text-primary); display: inline-flex; align-items: center; justify-content: center; }
+
+/* Блокирующее окно новой редакции оферты / согласия */
+.legal-reaccept-overlay {
+    z-index: 12000;
+    align-items: center;
+    justify-content: center;
+    padding: max(var(--space-4, 16px), env(safe-area-inset-top)) var(--pad-page-h, 16px)
+        max(var(--space-4, 16px), env(safe-area-inset-bottom));
+}
+
+.legal-doc-modal-overlay--top {
+    z-index: 12100 !important;
+}
+
+.legal-doc-modal {
+    max-width: min(36rem, 94vw);
+    max-height: min(85vh, 720px);
+    overflow-y: auto;
+}
+
+.legal-reaccept-modal {
+    width: min(100%, 22rem);
+    max-width: 22rem;
+    margin: 0 auto;
+    padding: var(--pad-modal, 1.25rem) !important;
+    border-radius: var(--radius-lg, 18px);
+    box-sizing: border-box;
+}
+
+.legal-reaccept-modal__title {
+    display: block;
+    font-size: 1.15rem !important;
+    font-weight: 700 !important;
+    line-height: 1.35 !important;
+    margin: 0 0 0.65rem !important;
+    color: var(--color-text-primary) !important;
+}
+
+.legal-reaccept-modal__lead {
+    display: block;
+    font-size: 0.9rem !important;
+    line-height: 1.5 !important;
+    margin: 0 0 1.15rem !important;
+    color: var(--color-text-secondary) !important;
+}
+
+.legal-reaccept-modal__rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    margin-bottom: 1.15rem;
+}
+
+.legal-reaccept-modal__row.switch-wrapper {
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 0.65rem;
+    width: 100%;
+    margin: 0;
+    cursor: pointer;
+    text-align: left;
+    color: var(--color-text-primary);
+}
+
+.legal-reaccept-modal__checkbox {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.legal-reaccept-modal__switch {
+    flex: 0 0 38px;
+    margin-top: 0.05rem;
+    pointer-events: none;
+}
+
+.legal-reaccept-modal__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    color: var(--color-text-primary);
+    margin: 0;
+}
+
+.legal-reaccept-modal__link {
+    display: inline;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: none;
+    color: var(--color-primary-blue);
+    font: inherit;
+    line-height: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.legal-reaccept-modal__link:hover {
+    color: var(--color-primary-blue-hover, #1d4ed8);
+}
+
+.legal-reaccept-modal__version {
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+.legal-reaccept-modal__error {
+    display: block;
+    margin: 0 0 0.85rem !important;
+    font-size: 0.85rem !important;
+    color: var(--color-error) !important;
+}
+
+.legal-reaccept-modal__submit {
+    width: 100%;
+    margin-top: 0 !important;
+}
+
+@media (max-width: 768px) {
+    .legal-reaccept-overlay {
+        align-items: center;
+        padding-top: max(var(--space-4, 16px), env(safe-area-inset-top));
+        padding-bottom: max(var(--space-4, 16px), env(safe-area-inset-bottom));
+    }
+
+    .legal-reaccept-modal {
+        width: 100%;
+        max-width: none;
+    }
+}
 
 /* --- SWITCH (TUMBLER) STYLES --- */
 .switch-wrapper {
@@ -1681,11 +1837,6 @@ body {
     display: none !important;
 }
 
-.app-hide-customer-column .unpaid-plan-monitor__table th:nth-child(2),
-.app-hide-customer-column .unpaid-plan-monitor__table td:nth-child(2) {
-    display: none !important;
-}
-
 .haulz-dispatch-stat-tile__metrics {
     min-height: 2.45rem;
     align-content: flex-start;
@@ -2314,9 +2465,47 @@ body {
     }
 
     .documents-invoices-inner-table .cargo-inner-table__col-sum {
-        width: 24% !important;
+        width: 32% !important;
         text-align: right !important;
         vertical-align: middle !important;
+        writing-mode: horizontal-tb !important;
+        transform: none !important;
+        height: auto !important;
+        min-height: 3.25rem;
+        padding: 0.22rem 0.14rem !important;
+    }
+
+    .documents-invoices-inner-table .cargo-inner-table__col-finance-desktop-only {
+        display: none !important;
+    }
+
+    .documents-invoices-inner-table .cargo-inner-table__head-finance-desktop {
+        display: none;
+    }
+
+    .documents-invoices-inner-table .cargo-inner-table__col-sum .cargo-inner-table__head-short {
+        display: none;
+    }
+
+    .documents-invoices-inner-table .cargo-inner-table__head-finance-stack {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.06rem;
+        font-size: 0.56rem;
+        font-weight: 600;
+        line-height: 1.05;
+        writing-mode: horizontal-tb;
+        transform: none;
+        white-space: nowrap;
+    }
+
+    .documents-invoices-inner-table__finance-stack {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.14rem;
+        line-height: 1.12;
     }
 
     .documents-acts-inner-table .cargo-inner-table__col-sum {
@@ -2332,6 +2521,11 @@ body {
         font-variant-numeric: tabular-nums;
         white-space: nowrap;
         line-height: 1.15;
+    }
+
+    .documents-invoices-inner-table__sum-value--secondary {
+        color: var(--color-text-secondary);
+        font-weight: 500;
     }
 
     .cargo-inner-table td,
@@ -2507,6 +2701,25 @@ body {
         justify-content: center !important;
     }
 }
+
+@media (min-width: 769px) {
+    .documents-invoices-inner-table__finance-stack {
+        display: none;
+    }
+
+    .documents-invoices-inner-table .cargo-inner-table__head-finance-stack {
+        display: none;
+    }
+
+    .documents-invoices-inner-table .cargo-inner-table__head-finance-desktop {
+        display: inline;
+    }
+
+    .documents-invoices-inner-table .cargo-inner-table__col-finance-desktop-only {
+        display: table-cell !important;
+    }
+}
+
 .modal-header {
     display: flex;
     justify-content: space-between;
@@ -2601,6 +2814,38 @@ body {
 
 .details-grid-modal.cargo-finance-extra {
     margin-top: calc(-1 * var(--space-6, 24px) + var(--element-gap, 16px));
+}
+
+.entity-detail-modal-overlay {
+    z-index: 9998;
+}
+
+.modal-content--entity-detail {
+    container-type: inline-size;
+    width: 94%;
+    max-width: min(900px, 94vw);
+}
+
+.entity-detail-modal-title {
+    font-size: 1.1rem;
+    margin: 0 0 0.5rem;
+    color: var(--color-text-primary);
+}
+
+.entity-detail-modal-pay-till {
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+}
+
+.entity-detail-modal-meta {
+    font-size: 0.85rem;
+}
+
+.entity-detail-modal-table-wrap {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    overflow-x: auto;
+    margin-top: 0.5rem;
 }
 
 /* Карточка перевозки: шире на десктопе, статусы справа от плиток */
@@ -2991,7 +3236,8 @@ body {
     }
 }
 
-.documents-page--saas-analytics .documents-summary-totals--saas-kpi.documents-summary-card.cargo-card {
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi.documents-summary-card.cargo-card,
+.documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi.cargo-card {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
@@ -2999,7 +3245,8 @@ body {
     margin-bottom: 0.35rem !important;
 }
 
-.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics {
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics,
+.documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi .summary-metrics {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
     gap: 0.55rem;
@@ -3008,7 +3255,8 @@ body {
     align-items: stretch;
 }
 
-.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div {
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div,
+.documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi .summary-metrics > div {
     position: relative;
     padding: 0.62rem 0.45rem;
     border-radius: 12px;
@@ -3018,7 +3266,8 @@ body {
     overflow: hidden;
 }
 
-.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div::before {
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div::before,
+.documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi .summary-metrics > div::before {
     content: "";
     position: absolute;
     top: 0;
@@ -3306,9 +3555,9 @@ button.edo-health-monitor {
     box-shadow: 0 4px 16px rgba(37, 99, 235, 0.08) !important;
 }
 
+/* Предупреждение — только кольцо/текст, фон как у остальных карточек дашборда */
 .edo-health-monitor--alert {
-    border-color: rgba(239, 68, 68, 0.28) !important;
-    background: linear-gradient(90deg, rgba(239, 68, 68, 0.04), transparent 55%) !important;
+    background: var(--color-bg-card) !important;
 }
 
 .edo-health-monitor__loading {
@@ -3527,7 +3776,10 @@ button.edo-health-monitor {
     display: block;
     width: 200px;
     height: 200px;
+    max-width: 100%;
+    object-fit: contain;
     border-radius: 6px;
+    background: #fff;
 }
 
 .invoice-payment-qr-block__details {
@@ -3630,25 +3882,24 @@ button.edo-health-monitor {
     letter-spacing: 0.02em;
 }
 
-.bank-business-pay-row__buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    align-items: stretch;
-    margin-bottom: 0.45rem;
+.bank-business-pay-card {
+    display: block;
+    flex: 1 1 0;
+    min-width: 0;
+    width: 100%;
+    max-width: 168px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    border-radius: 10px;
+    background: #ffffff !important;
+    cursor: pointer;
+    overflow: hidden;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
 }
 
-.bank-business-pay-card {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.4rem 0.7rem;
-    min-height: 2.5rem;
-    border: 1px solid var(--color-border);
-    border-radius: 10px;
-    background: #fff;
-    cursor: pointer;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+.dark-mode .bank-business-pay-card {
+    background: #ffffff !important;
 }
 
 .bank-business-pay-card:hover {
@@ -3669,29 +3920,21 @@ button.edo-health-monitor {
 
 .bank-business-pay-card__logo {
     display: block;
-    height: 26px;
-    width: auto;
-    max-width: 120px;
-    object-fit: contain;
-    flex-shrink: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    background: #ffffff;
+    pointer-events: none;
 }
 
-.bank-business-pay-card--tbank .bank-business-pay-card__logo {
-    max-width: 132px;
-    height: 30px;
-}
-
-.bank-business-pay-card--sber .bank-business-pay-card__logo {
-    max-width: 128px;
-    height: 28px;
-}
-
-.bank-business-pay-card__icon {
-    width: 0.85rem;
-    height: 0.85rem;
-    flex-shrink: 0;
-    color: var(--color-text-secondary);
-    opacity: 0.65;
+.bank-business-pay-row__buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    align-items: stretch;
+    margin-bottom: 0.45rem;
+    max-width: 360px;
 }
 
 .bank-business-pay-row__hint {
@@ -3717,8 +3960,7 @@ button.unpaid-plan-monitor:hover {
 }
 
 .unpaid-plan-monitor--alert {
-    border-color: rgba(239, 68, 68, 0.28) !important;
-    background: linear-gradient(90deg, rgba(239, 68, 68, 0.05), transparent 60%) !important;
+    background: var(--color-bg-card) !important;
 }
 
 .unpaid-plan-monitor__head {
@@ -3789,6 +4031,32 @@ button.unpaid-plan-monitor:hover {
     white-space: nowrap;
 }
 
+.unpaid-plan-monitor__col-status {
+    white-space: normal;
+    max-width: 7.5rem;
+}
+
+.unpaid-plan-monitor__col-status .app-badge {
+    white-space: normal;
+    line-height: 1.25;
+}
+
+.unpaid-plan-monitor__col-plan-arrival {
+    white-space: normal;
+    max-width: 9rem;
+}
+
+@media (max-width: 768px) {
+    .unpaid-plan-monitor__col-plan-arrival {
+        display: none;
+    }
+
+    .unpaid-plan-monitor__table th.unpaid-plan-monitor__col-plan-arrival,
+    .unpaid-plan-monitor__table td.unpaid-plan-monitor__col-plan-arrival {
+        display: none;
+    }
+}
+
 .unpaid-plan-monitor__cargo {
     display: block;
     font-size: 0.68rem;
@@ -3809,8 +4077,59 @@ button.unpaid-plan-monitor:hover {
     }
 
     .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header,
-    .documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div {
+    .documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div,
+    .documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi .summary-metrics > div {
         box-shadow: none;
+    }
+}
+
+/* ЭДО: плитки итогов на мобиле (как у «Счета») */
+@media (max-width: 768px) {
+    .documents-page--with-edo-section .documents-edo-summary-tiles .summary-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.55rem;
+        max-width: 100%;
+        width: 100%;
+        align-items: stretch;
+    }
+
+    .documents-page--with-edo-section .documents-edo-summary-tiles .summary-metrics > div {
+        position: relative;
+        padding: 0.62rem 0.45rem;
+        border-radius: 12px;
+        background: var(--color-bg-card);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+        overflow: hidden;
+    }
+
+    .documents-page--with-edo-section .documents-edo-summary-tiles .summary-metrics > div::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #2563eb, #6366f1, #0ea5e9);
+        opacity: 0.88;
+    }
+
+    .documents-page--with-edo-section .documents-edo-summary-tiles:not(.documents-summary-totals--saas-kpi).cargo-card {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0.35rem 0 0.45rem !important;
+    }
+
+    .documents-edo-summary-tiles--table-companion + .documents-edo-monitor-table tfoot {
+        display: none;
+    }
+}
+
+@media (min-width: 769px) {
+    .documents-edo-summary-tiles--table-companion {
+        display: none !important;
     }
 }
 
@@ -4064,20 +4383,37 @@ button.unpaid-plan-monitor:hover {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: none;
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
     border: none;
+    box-shadow: none;
+    outline: none;
     color: var(--color-text-secondary);
     cursor: pointer;
     padding: var(--space-2, 8px) var(--space-1, 4px);
     border-radius: var(--radius-md, 12px);
-    transition: color 0.2s, background-color 0.2s;
+    transition: color 0.2s;
     flex: 1 1 0;
     min-width: 0;
     gap: var(--space-1, 4px);
 }
+.tab-button:hover,
+.tab-button:focus,
+.tab-button:focus-visible,
+.tab-button.active {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    outline: none;
+}
 .tab-button:hover { color: var(--color-text-primary); }
 .tab-button.active { color: var(--color-primary-blue); font-weight: 500; }
-.tab-icon { }
+.tab-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
 .tab-label { font-size: var(--font-size-caption, 11px); font-weight: 400; }
 
 /* --- CHAT ICON BUTTONS (Telegram, MAX) --- */
@@ -4368,6 +4704,116 @@ button.unpaid-plan-monitor:hover {
 .light-mode .profile-api-keys-root input::placeholder,
 .light-mode .profile-api-keys-root [class*="Input__body"] input::placeholder {
     color: #9ca3af !important;
+}
+
+/* Админка → Оферта / согласие: нативные поля (не max-ui Input), светлые в CMS */
+.admin-page-root .admin-legal-section .admin-legal-field {
+    display: block;
+    margin-bottom: 0.75rem;
+}
+.admin-page-root .admin-legal-section .admin-legal-field--body {
+    margin-bottom: 0.85rem;
+}
+.admin-page-root .admin-legal-section .admin-legal-field__label {
+    display: block;
+    margin: 0 0 0.25rem;
+    font-size: 0.8rem;
+    line-height: 1.35;
+    color: var(--color-text-secondary);
+}
+.admin-page-root .admin-legal-section .admin-legal-field-control {
+    display: block !important;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 2.25rem;
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: #1f2937 !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 8px;
+    box-shadow: none !important;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.admin-page-root .admin-legal-section .admin-legal-field-control:focus {
+    border-color: var(--color-primary-blue, #2563eb) !important;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15) !important;
+}
+.admin-page-root .admin-legal-section .admin-legal-field-control::placeholder {
+    color: #9ca3af;
+}
+.admin-page-root .admin-legal-section .admin-legal-field-control--textarea {
+    min-height: 14rem;
+    max-height: min(50vh, 28rem);
+    font-size: 0.8rem;
+    resize: vertical;
+    overflow-y: auto;
+}
+.admin-legal-section .admin-legal-search-row {
+    gap: var(--inline-gap, 12px);
+}
+.admin-legal-section .admin-legal-search-wrap {
+    flex: 1 1 200px;
+    min-width: 180px;
+    display: flex;
+    align-items: stretch;
+    box-sizing: border-box;
+    min-height: 36px;
+    height: 36px;
+    background-color: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    overflow: hidden;
+}
+.admin-legal-section .admin-legal-search-row .filter-button {
+    height: 36px;
+    min-height: 36px;
+    box-sizing: border-box;
+}
+.admin-legal-section .admin-legal-search-wrap .admin-legal-field-control {
+    width: 100%;
+    min-height: 0;
+    height: 100%;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background-color: transparent !important;
+    background-image: none !important;
+}
+.light-mode .admin-legal-section .admin-legal-field-control,
+.light-mode .admin-legal-section .admin-legal-search-wrap {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+    border-color: #d1d5db !important;
+}
+.light-mode .admin-legal-section .admin-legal-search-wrap .admin-legal-field-control {
+    background-color: transparent !important;
+}
+.admin-page-root .admin-legal-section input[type="search"].admin-legal-field-control,
+.admin-legal-section input[type="search"].admin-legal-field-control {
+    -webkit-appearance: none;
+    appearance: none;
+    background-color: #ffffff !important;
+}
+/* На случай max-ui Input внутри секции */
+.admin-page-root .admin-legal-section label[class*="Input"],
+.admin-page-root .admin-legal-section [class*="Input__body"],
+.admin-page-root .admin-legal-section [class*="ClearableInput"] {
+    background-color: #ffffff !important;
+    border: 1px solid #d1d5db !important;
+    color: #1f2937 !important;
+}
+.admin-page-root .admin-legal-section label[class*="Input"] input,
+.admin-page-root .admin-legal-section [class*="Input__body"] input {
+    background: transparent !important;
+    color: #1f2937 !important;
+    border: none !important;
 }
 
 /* Профиль → API: строка префикса ключа + копирование */
@@ -6466,6 +6912,27 @@ button.unpaid-plan-monitor:hover {
     display: flex;
     flex-direction: column;
     gap: var(--space-3, 12px);
+}
+
+/* Вложенные карточки в одном пункте меню (пароль, форма смены и т.п.) */
+.profile-saas-substack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3, 12px);
+    width: 100%;
+    min-width: 0;
+}
+
+.profile-saas-substack .profile-saas-nested-card {
+    margin-top: 0;
+    position: relative;
+    z-index: 0;
+}
+
+.profile-saas-substack .profile-saas-row-card--expanded,
+.profile-saas-substack .profile-saas-row-card--expanded:hover {
+    transform: none;
+    z-index: 1;
 }
 
 .profile-saas-row-icon {

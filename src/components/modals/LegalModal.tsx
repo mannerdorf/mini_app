@@ -7,14 +7,19 @@ type Props = {
     onClose: () => void;
     title: string;
     children: React.ReactNode;
+    /** Поверх блокирующего окна принятия новой редакции (LegalReacceptModal). */
+    stackAboveBlocker?: boolean;
 };
 
 /** Модальное окно для длинных текстов (оферта, согласие на ПД и т.п.). */
-export function LegalModal({ isOpen, onClose, title, children }: Props) {
+export function LegalModal({ isOpen, onClose, title, children, stackAboveBlocker = false }: Props) {
     if (!isOpen) return null;
     return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div
+            className={`modal-overlay legal-doc-modal-overlay${stackAboveBlocker ? " legal-doc-modal-overlay--top" : ""}`}
+            onClick={onClose}
+        >
+            <div className="modal-content legal-doc-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
                     <Typography.Headline style={{ fontSize: "1.1rem" }}>{title}</Typography.Headline>
                     <Button

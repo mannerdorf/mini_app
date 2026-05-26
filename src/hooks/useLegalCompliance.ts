@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Account } from "../types";
 import {
   fetchLegalPublic,
@@ -8,6 +8,7 @@ import {
   type LegalStatusResponse,
 } from "../api/client/legal";
 import { PUBLIC_OFFER_TEXT, PERSONAL_DATA_CONSENT_TEXT } from "../constants/legalTexts";
+import { adjustLegalStatusForAccount } from "../lib/legalCompliance";
 
 export function useLegalCompliance(activeAccount: Account | null | undefined) {
   const [status, setStatus] = useState<LegalStatusResponse | null>(null);
@@ -19,6 +20,13 @@ export function useLegalCompliance(activeAccount: Account | null | undefined) {
 
   const login = activeAccount?.login?.trim().toLowerCase() ?? "";
   const password = activeAccount?.password ?? "";
+  const permissions = activeAccount?.isRegisteredUser ? activeAccount.permissions : undefined;
+  const serviceModeLegalExempt = permissions?.service_mode === true;
+
+  const statusForUi = useMemo(
+    () => (status ? adjustLegalStatusForAccount(status, permissions) : null),
+    [status, permissions]
+  );
 
   const refresh = useCallback(async () => {
     if (!login || !password) {
@@ -48,13 +56,13 @@ export function useLegalCompliance(activeAccount: Account | null | undefined) {
   }, [refresh]);
 
   const acceptCurrent = useCallback(async () => {
-    if (!login || !password || !status) return;
+    if (!login || !password || !statusForUi || serviceModeLegalExempt) return;
     setAccepting(true);
     setError(null);
     try {
       await postLegalAccept(login, password, {
-        offerVersionId: status.current.offer?.id,
-        consentVersionId: status.current.consent?.id,
+        ...(statusForUi.pending.offer ? { offerVersionId: statusForUi.current.offer?.id } : {}),
+        ...(statusForUi.pending.consent ? { consentVersionId: statusForUi.current.consent?.id } : {}),
       });
       await refresh();
     } catch (e: unknown) {
@@ -63,12 +71,12 @@ export function useLegalCompliance(activeAccount: Account | null | undefined) {
     } finally {
       setAccepting(false);
     }
-  }, [login, password, status, refresh]);
+  }, [login, password, statusForUi, serviceModeLegalExempt, refresh]);
 
-  const pending = !!status?.pending?.any;
+  const pending = !!statusForUi?.pending?.any;
 
   return {
-    status,
+    status: statusForUi,
     pending,
     offerText,
     consentText,

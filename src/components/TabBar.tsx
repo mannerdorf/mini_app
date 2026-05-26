@@ -1,5 +1,4 @@
 import React from "react";
-import { Button, Flex } from "@maxhub/max-ui";
 import { Home, Truck, FileText, User } from "lucide-react";
 import type { Tab } from "../types";
 
@@ -50,9 +49,9 @@ const TabBtn = ({
   onTouchStart?: () => void;
   onTouchEnd?: () => void;
 }) => (
-  <Button
+  <button
     type="button"
-    className={`tab-button ${active ? "active" : ""}`}
+    className={`tab-button${active ? " active" : ""}`}
     onClick={onClick}
     onMouseDown={onMouseDown}
     onMouseUp={onMouseUp}
@@ -61,11 +60,10 @@ const TabBtn = ({
     onTouchEnd={onTouchEnd}
     title={label || undefined}
     aria-label={label || undefined}
+    aria-current={active ? "page" : undefined}
   >
-    <Flex align="center" justify="center">
-      <div className="tab-icon">{icon}</div>
-    </Flex>
-  </Button>
+    <span className="tab-icon">{icon}</span>
+  </button>
 );
 
 export function TabBar({

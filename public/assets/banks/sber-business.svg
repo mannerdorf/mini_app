@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168 44" role="img" aria-label="СберБизнес">
+  <rect width="168" height="44" fill="#ffffff"/>
+  <circle cx="22" cy="22" r="17" fill="url(#sberCircle)"/>
+  <path fill="#21A038" d="M16.5 22.5 20.5 26.5 29 16.5 31.5 18.8 20.5 28.8 14.2 22.1 16.5 19.8Z"/>
+  <text x="46" y="19" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="700" fill="#21A038">СБЕР</text>
+  <text x="46" y="33" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="600" fill="#21A038">Бизнес</text>
+  <defs>
+    <linearGradient id="sberCircle" x1="6" y1="6" x2="38" y2="38" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5BB6FF"/>
+      <stop offset="0.5" stop-color="#FFE566"/>
+      <stop offset="1" stop-color="#21A038"/>
+    </linearGradient>
+  </defs>
+</svg>

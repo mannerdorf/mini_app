@@ -103,6 +103,29 @@ export function needsLegalReacceptance(
   return { offer, consent, any: offer || consent };
 }
 
+export function hasServiceModePermission(permissions: unknown): boolean {
+  if (!permissions || typeof permissions !== "object") return false;
+  return (permissions as Record<string, unknown>).service_mode === true;
+}
+
+/** Служебный режим (service_mode): оферта и согласие на ПД не требуются. */
+export function applyLegalPendingForUser(
+  pending: { offer: boolean; consent: boolean; any: boolean },
+  permissions: unknown
+): { offer: boolean; consent: boolean; any: boolean } {
+  if (!hasServiceModePermission(permissions)) return pending;
+  return { offer: false, consent: false, any: false };
+}
+
+export async function getRegisteredUserPermissions(pool: Pool, login: string): Promise<unknown> {
+  const loginKey = login.trim().toLowerCase();
+  const { rows } = await pool.query<{ permissions: unknown }>(
+    `SELECT permissions FROM registered_users WHERE LOWER(TRIM(login)) = $1 AND active = true LIMIT 1`,
+    [loginKey]
+  );
+  return rows[0]?.permissions ?? null;
+}
+
 export async function recordLegalAcceptances(
   pool: Pool,
   login: string,

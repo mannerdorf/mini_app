@@ -11,6 +11,7 @@ type QrResponse = {
   configured?: boolean;
   payload?: string;
   qrImageUrl?: string;
+  qrImageDataUrl?: string;
   purpose?: string;
   amountRub?: number;
   docSumRub?: number;
@@ -100,6 +101,8 @@ export function InvoicePaymentQrBlock({ invoice, auth, cargoSumPaidByNumber }: P
 
   if (!mayPay) return null;
 
+  const qrSrc = data?.qrImageDataUrl ?? data?.qrImageUrl;
+
   const docSum = data?.docSumRub ?? amounts.docSum;
   const paid = data?.paidRub ?? amounts.paid;
   const balance = data?.balanceRub ?? data?.amountRub ?? amounts.balance;
@@ -120,10 +123,17 @@ export function InvoicePaymentQrBlock({ invoice, auth, cargoSumPaidByNumber }: P
 
       {!loading && error && <p className="invoice-payment-qr-block__error">{error}</p>}
 
-      {!loading && data?.qrImageUrl && data.payload && (
+      {!loading && qrSrc && data?.payload && (
         <div className="invoice-payment-qr-block__body">
           <div className="invoice-payment-qr-block__qr-wrap">
-            <img src={data.qrImageUrl} alt="QR для оплаты в банке" className="invoice-payment-qr-block__qr" />
+            <img
+              src={qrSrc}
+              alt="QR для оплаты в банке"
+              className="invoice-payment-qr-block__qr"
+              width={200}
+              height={200}
+              decoding="async"
+            />
           </div>
 
           <div className="invoice-payment-qr-block__details">

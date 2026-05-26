@@ -510,8 +510,10 @@ export default function App() {
             .catch(() => { /* остаются тексты по умолчанию */ });
     }, [auth]);
 
-    const recordLoginLegalAcceptance = useCallback((loginVal: string, passwordVal: string) => {
-        if (agreeOffer && agreePersonal) {
+    const recordLoginLegalAcceptance = useCallback((loginVal: string, passwordVal: string, opts?: { skipLegal?: boolean }) => {
+        if (opts?.skipLegal) return;
+        const offerOk = agreeOffer;
+        if (offerOk && agreePersonal) {
             recordLegalAcceptanceQuiet(loginVal, passwordVal);
         }
     }, [agreeOffer, agreePersonal]);
@@ -1311,7 +1313,10 @@ export default function App() {
         setError(null);
         setTwoFactorError(null);
         if (!login || !password) return setError("Введите логин и пароль");
-        if (!agreeOffer || !agreePersonal) return setError("Подтвердите согласие с условиями");
+        if (!authMethods.cms) {
+            if (!agreePersonal) return setError("Подтвердите согласие на обработку персональных данных");
+            if (!agreeOffer) return setError("Подтвердите согласие с публичной офертой");
+        }
         if (!authMethods.cms && !authMethods.api_v2 && !authMethods.api_v1) {
             setError("Недоступны способы авторизации");
             return;
@@ -1328,6 +1333,12 @@ export default function App() {
                 }
                 if (regData?.ok && regData?.user) {
                     const u = regData.user as Record<string, unknown>;
+                    const cmsPerms = normalizePermissions(u.permissions);
+                    const cmsServiceMode = cmsPerms?.service_mode === true;
+                    if (!cmsServiceMode) {
+                        if (!agreeOffer) return "Подтвердите согласие с публичной офертой";
+                        if (!agreePersonal) return "Подтвердите согласие на обработку персональных данных";
+                    }
                     const existingAccount = accounts.find((acc) => acc.login === loginKey);
                     const customers: CustomerOption[] = u.inn ? [{ name: u.companyName || u.inn, inn: u.inn }] : [];
                     const accessAllInns = !!u.accessAllInns;
@@ -1370,7 +1381,7 @@ export default function App() {
                         setActiveAccountId(accountId);
                     }
                     setActiveTab((prev) => prev || "cargo");
-                    recordLoginLegalAcceptance(loginKey, password);
+                    recordLoginLegalAcceptance(loginKey, password, { skipLegal: cmsServiceMode });
                     return true;
                 }
                 return "Неверный email или пароль";
@@ -2290,10 +2301,20 @@ export default function App() {
                 expanded={desktopExpanded}
             />
 
-            <LegalModal isOpen={!!isOfferOpen} onClose={() => setIsOfferOpen(false)} title="Публичная оферта">
+            <LegalModal
+                isOpen={!!isOfferOpen}
+                onClose={() => setIsOfferOpen(false)}
+                title="Публичная оферта"
+                stackAboveBlocker={legalCompliance.pending}
+            >
                 {legalCompliance.offerText}
             </LegalModal>
-            <LegalModal isOpen={!!isPersonalConsentOpen} onClose={() => setIsPersonalConsentOpen(false)} title="Согласие на обработку персональных данных">
+            <LegalModal
+                isOpen={!!isPersonalConsentOpen}
+                onClose={() => setIsPersonalConsentOpen(false)}
+                title="Согласие на обработку персональных данных"
+                stackAboveBlocker={legalCompliance.pending}
+            >
                 {legalCompliance.consentText}
             </LegalModal>
 
@@ -2349,20 +2370,18 @@ export default function App() {
             )}
             
             {overlayInvoice && activeAccount && (
-                <div style={{ position: "fixed", inset: 0, zIndex: 9998 }}>
-                    <InvoiceDetailModal
-                        item={overlayInvoice}
-                        isOpen
-                        onClose={() => setOverlayInvoice(null)}
-                        onOpenCargo={(cargoNumber) => openCargoInPlace(cargoNumber)}
-                        auth={{
-                            login: activeAccount.login,
-                            password: activeAccount.password,
-                            inn: activeAccount.activeCustomerInn ?? undefined,
-                            ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}),
-                        }}
-                    />
-                </div>
+                <InvoiceDetailModal
+                    item={overlayInvoice}
+                    isOpen
+                    onClose={() => setOverlayInvoice(null)}
+                    onOpenCargo={(cargoNumber) => openCargoInPlace(cargoNumber)}
+                    auth={{
+                        login: activeAccount.login,
+                        password: activeAccount.password,
+                        inn: activeAccount.activeCustomerInn ?? undefined,
+                        ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}),
+                    }}
+                />
             )}
 
             {/* Карточка перевозки поверх счёта — zIndex 10000 чтобы быть выше InvoiceDetailModal (9998) */}

@@ -3,9 +3,11 @@ import { getPool } from "./_db.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import { verifyAppCredentials } from "../lib/verifyAppCredentials.js";
 import {
+  applyLegalPendingForUser,
   ensureLegalDocumentsSeeded,
   getCurrentLegalVersions,
   getLatestAcceptancesByLogin,
+  getRegisteredUserPermissions,
   needsLegalReacceptance,
 } from "../lib/legalDocuments.js";
 
@@ -39,7 +41,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const loginKey = login.trim().toLowerCase();
     const current = await getCurrentLegalVersions(pool);
     const accepted = await getLatestAcceptancesByLogin(pool, loginKey);
-    const pending = needsLegalReacceptance(current, accepted);
+    const permissions = await getRegisteredUserPermissions(pool, loginKey);
+    const pending = applyLegalPendingForUser(needsLegalReacceptance(current, accepted), permissions);
 
     return res.status(200).json({
       login: loginKey,

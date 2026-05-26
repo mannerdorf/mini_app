@@ -210,9 +210,6 @@ export function AppMainContent({
   const DashboardPage = DashboardPageComponent;
   const ProfilePage = ProfilePageComponent;
   const DocumentsPage = DocumentsPageComponent;
-  const canAccessHaulzDispatch =
-    activeAccount?.permissions?.haulz === true || activeAccount?.isSuperAdmin === true;
-
   return (
     <>
       {showDashboard && activeTab === "dashboard" && auth && (
@@ -227,7 +224,6 @@ export function AppMainContent({
             hasAnalytics={true}
             hasDashboard={true}
             saasDashboardMotion={profileSaasShellActive}
-            canAccessHaulzDispatch={canAccessHaulzDispatch}
             onOpenCargo={openCargoInPlace}
             onOpenInvoice={openInvoiceInPlace}
             onOpenDocumentsEdo={() => openDocumentsWithSection("ЭДО")}
@@ -359,7 +355,6 @@ export function AppMainContent({
             hasAnalytics={activeAccount?.permissions?.analytics === true}
             hasDashboard={true}
             saasDashboardMotion={profileSaasShellActive}
-            canAccessHaulzDispatch={canAccessHaulzDispatch}
             onOpenCargo={openCargoInPlace}
             onOpenInvoice={openInvoiceInPlace}
             onOpenDocumentsEdo={() => openDocumentsWithSection("ЭДО")}

@@ -1,11 +1,10 @@
 import React from "react";
 import { Typography } from "@maxhub/max-ui";
-import { ExternalLink } from "lucide-react";
 import { getBankBusinessConfig, isMobileBankOpenDevice, openBankBusiness, type BankBusinessId } from "../../lib/bankBusinessOpen";
 
 const LOGOS: Record<BankBusinessId, string> = {
-  tbank: "/assets/banks/tbank-business.png",
-  sber: "/assets/banks/sber-business.png",
+  tbank: "/assets/banks/tbank-business.svg",
+  sber: "/assets/banks/sber-business.svg",
 };
 
 type Props = {
@@ -27,8 +26,7 @@ function BankPayCard({ bank }: { bank: BankBusinessId }) {
       title={title}
       aria-label={`Оплатить в ${cfg.label}`}
     >
-      <img src={LOGOS[bank]} alt={cfg.label} className="bank-business-pay-card__logo" />
-      <ExternalLink className="bank-business-pay-card__icon" aria-hidden />
+      <img src={LOGOS[bank]} alt="" className="bank-business-pay-card__logo" aria-hidden />
     </button>
   );
 }

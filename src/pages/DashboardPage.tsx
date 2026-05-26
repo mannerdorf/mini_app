@@ -243,8 +243,6 @@ export type DashboardPageProps = {
     hasDashboard?: boolean;
     /** Stagger + spring по блокам (только при глобальном SaaS-стиле). */
     saasDashboardMotion?: boolean;
-    /** Сводка «Выдача грузов» на главной при праве haulz (данные с фильтрами дашборда). */
-    canAccessHaulzDispatch?: boolean;
     onOpenCargo?: (cargoNumber: string) => void;
     onOpenInvoice?: (invoice: Record<string, unknown>) => void;
     onOpenDocumentsEdo?: () => void;
@@ -260,7 +258,6 @@ export function DashboardPage({
     hasAnalytics = false,
     hasDashboard = true,
     saasDashboardMotion = false,
-    canAccessHaulzDispatch = false,
     onOpenCargo,
     onOpenInvoice,
     onOpenDocumentsEdo,
@@ -2615,7 +2612,7 @@ export function DashboardPage({
             )}
 
             {/* Выдача грузов (HAULZ): сразу под фильтрами — карточки статусов + таблица */}
-            {canAccessHaulzDispatch && onOpenCargo && (
+            {!showOnlySla && onOpenCargo && (
                 <div id="haulz-dispatch-dashboard" style={{ marginBottom: "0.75rem" }}>
                     <HaulzDispatchSummary
                         auth={auth}
@@ -2628,26 +2625,6 @@ export function DashboardPage({
                         showSums={showSums}
                     />
                 </div>
-            )}
-
-            {!showOnlySla && (
-                <EdoHealthMonitor
-                    invoices={edoMonitorInvoices}
-                    loading={invoicesLoading}
-                    onOpen={onOpenDocumentsEdo}
-                />
-            )}
-
-            {!showOnlySla && (
-                <UnpaidInvoicesPlanMonitor
-                    invoices={edoMonitorInvoices as Record<string, unknown>[]}
-                    cargoItems={filteredCargoItems}
-                    loading={invoicesLoading || loading}
-                    showSums={showSums}
-                    onOpen={onOpenDocumentsInvoices}
-                    onOpenInvoice={onOpenInvoice}
-                    onOpenCargo={onOpenCargo}
-                />
             )}
 
             <DashboardMotionGroup enabled={dashboardMotionEnabled}>
@@ -3035,6 +3012,26 @@ export function DashboardPage({
             )}
             </>
             </DashboardMotionItem>
+            )}
+
+            {!showOnlySla && (
+                <EdoHealthMonitor
+                    invoices={edoMonitorInvoices}
+                    loading={invoicesLoading}
+                    onOpen={onOpenDocumentsEdo}
+                />
+            )}
+
+            {!showOnlySla && (
+                <UnpaidInvoicesPlanMonitor
+                    invoices={edoMonitorInvoices as Record<string, unknown>[]}
+                    cargoItems={filteredCargoItems}
+                    loading={invoicesLoading || loading}
+                    showSums={showSums}
+                    onOpen={onOpenDocumentsInvoices}
+                    onOpenInvoice={onOpenInvoice}
+                    onOpenCargo={onOpenCargo}
+                />
             )}
 
             <DashboardMotionItem enabled={dashboardMotionEnabled}>

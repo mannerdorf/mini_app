@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
-# Генерация favicon, PWA и Android-иконок из исходника (синий фон + HAULZ, без чёрных углов).
+# Генерация favicon, PWA и Android-иконок: синий фон + белый HAULZ (без внутренней «рамки»).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SRC="${1:-$ROOT/public/haulz-logo-source.jpg}"
-if [[ ! -f "$SRC" ]]; then
-  echo "Source not found: $SRC" >&2
+ICON_SVG="$ROOT/public/haulz-icon.svg"
+FG_SVG="$ROOT/public/haulz-icon-foreground.svg"
+
+if [[ ! -f "$ICON_SVG" ]]; then
+  echo "Missing $ICON_SVG" >&2
+  exit 1
+fi
+if [[ ! -f "$FG_SVG" ]]; then
+  echo "Missing $FG_SVG" >&2
   exit 1
 fi
 
@@ -24,17 +30,26 @@ to_png() {
   fi
 }
 
-pad_splash() {
-  local in="$1"
+render_svg() {
+  local svg="$1"
   local out="$2"
-  local h="$3"
-  local w="$4"
-  sips -s format png --padToHeightWidth "$h" "$w" "$in" --padColor 3655ff --out "$out" >/dev/null
+  local width="$3"
+  if command -v rsvg-convert >/dev/null 2>&1; then
+    rsvg-convert -w "$width" -h "$width" "$svg" -o "$out"
+  elif command -v magick >/dev/null 2>&1; then
+    magick -background none "$svg" -resize "${width}x${width}" "$out"
+  elif command -v convert >/dev/null 2>&1; then
+    convert -background none "$svg" -resize "${width}x${width}" "$out"
+  elif npx --yes @resvg/resvg-js-cli "$svg" "$out" --fit-width "$width" >/dev/null 2>&1; then
+    :
+  else
+    echo "Install librsvg, ImageMagick, or run with network for npx @resvg/resvg-js-cli" >&2
+    exit 1
+  fi
 }
 
-# Квадрат по центру (без полей с чёрным/белым по углам)
-sips -c 828 828 "$SRC" --out "$TMP/square.jpg" >/dev/null
-to_png "$TMP/square.jpg" "$TMP/square.png"
+render_svg "$ICON_SVG" "$TMP/square.png" 1024
+render_svg "$FG_SVG" "$TMP/foreground.png" 1024
 
 PUBLIC="$ROOT/public"
 mkdir -p "$PUBLIC"
@@ -44,21 +59,37 @@ to_png "$TMP/square.png" "$PUBLIC/apple-touch-icon.png" 180 180
 to_png "$TMP/square.png" "$PUBLIC/favicon-32.png" 32 32
 to_png "$TMP/square.png" "$PUBLIC/favicon-16.png" 16 16
 cp "$PUBLIC/pwa-192.png" "$PUBLIC/favicon.png"
-sips -s format png -Z 200 "$SRC" --out "$PUBLIC/haulz-logo.png" >/dev/null
+# Прозрачная надпись для мест, где фон задаётся отдельно (CSS, слои Android).
+to_png "$TMP/foreground.png" "$PUBLIC/haulz-wordmark.png" 400 400
+cp "$PUBLIC/haulz-wordmark.png" "$PUBLIC/haulz-logo.png"
 
 ANDROID_RES="$ROOT/android/app/src/main/res"
+DRAWABLE="$ANDROID_RES/drawable"
+mkdir -p "$DRAWABLE"
+
+to_png "$TMP/foreground.png" "$DRAWABLE/splash_wordmark.png" 320 320
+rm -f "$DRAWABLE/splash.png"
 
 for size in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
   dens="${size%%:*}"
   px="${size##*:}"
   to_png "$TMP/square.png" "$ANDROID_RES/mipmap-${dens}/ic_launcher.png" "$px" "$px"
   to_png "$TMP/square.png" "$ANDROID_RES/mipmap-${dens}/ic_launcher_round.png" "$px" "$px"
-  to_png "$TMP/square.png" "$ANDROID_RES/mipmap-${dens}/ic_launcher_foreground.png" "$px" "$px"
+  to_png "$TMP/foreground.png" "$ANDROID_RES/mipmap-${dens}/ic_launcher_foreground.png" "$px" "$px"
 done
 
-# Splash portrait / landscape
+# Сплэши: сплошной синий (без вложенной иконки в центре).
+if [[ ! -f "$TMP/blue1.png" ]]; then
+  sips -c 1 1 "$TMP/square.png" --out "$TMP/blue1.png" >/dev/null
+fi
+make_blue_splash() {
+  local out="$1"
+  local h="$2"
+  local w="$3"
+  sips -s format png -z "$h" "$w" "$TMP/blue1.png" --out "$out" >/dev/null
+}
+
 declare -a SPLASH_PORT=(
-  "drawable:1280:800"
   "drawable-port-mdpi:480:320"
   "drawable-port-hdpi:800:480"
   "drawable-port-xhdpi:1280:720"
@@ -73,13 +104,9 @@ declare -a SPLASH_LAND=(
   "drawable-land-xxxhdpi:1440:2560"
 )
 
-for entry in "${SPLASH_PORT[@]}"; do
+for entry in "${SPLASH_PORT[@]}" "${SPLASH_LAND[@]}"; do
   IFS=':' read -r folder h w <<<"$entry"
-  pad_splash "$TMP/square.png" "$ANDROID_RES/${folder}/splash.png" "$h" "$w"
-done
-for entry in "${SPLASH_LAND[@]}"; do
-  IFS=':' read -r folder h w <<<"$entry"
-  pad_splash "$TMP/square.png" "$ANDROID_RES/${folder}/splash.png" "$h" "$w"
+  make_blue_splash "$ANDROID_RES/${folder}/splash.png" "$h" "$w"
 done
 
 echo "Icons written to public/ and android/app/src/main/res/"

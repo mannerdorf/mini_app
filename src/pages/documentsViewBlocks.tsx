@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Heart, Loader2, AlertTriangle, Share2, Ship } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Heart, Loader2, AlertTriangle, Share2, Ship, Truck } from "lucide-react";
 import { cityToCode, formatCurrency, formatInvoiceNumber, normalizeInvoiceStatus, stripOoo } from "../lib/formatUtils";
 import { ClickableCargoNumber, ClickableInvoiceNumber } from "../components/ui/EntityLinks";
 import { getPayTillDate, getPayTillDateColor } from "../lib/dateUtils";
@@ -23,6 +23,7 @@ import { DateText } from "../components/ui/DateText";
 import { AppBadge } from "../components/shared/AppBadge";
 import { RouteBadge, CargoTransportTypeIcon, formatRouteLabel } from "../components/shared/CargoTableDisplay";
 import { StatusBadge } from "../components/shared/StatusBadges";
+import { getSumColorByPaymentStatus } from "../lib/statusUtils";
 import { cargoExpandMotionProps, cargoListContainerVariants, cargoTableGroupRowVariants, documentsListItemVariants } from "./cargoMotion";
 import { findInvoiceLinkedToAct, type DocsSummaryTotals, type EdoCargoCardItem } from "./documentsPipeline";
 
@@ -101,15 +102,158 @@ function renderEdoInvoiceInnerRows(items: any[], onOpenInvoice: (inv: any) => vo
   });
 }
 
+const DOCS_SUMMARY_COLLAPSED_KEY = "haulz.documents.summaryCollapsedMobile";
+
+const financeThStyle = (withSort: boolean): React.CSSProperties => ({
+  textAlign: "right",
+  fontWeight: 600,
+  cursor: withSort ? "pointer" : undefined,
+  userSelect: withSort ? "none" : undefined,
+});
+
+function financeSortIcon(active: boolean, order: "asc" | "desc") {
+  if (!active) return null;
+  return order === "asc" ? (
+    <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: "middle", marginLeft: 2, display: "inline-block" }} />
+  ) : (
+    <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: "middle", marginLeft: 2, display: "inline-block" }} />
+  );
+}
+
+/** Заголовки Сумма / Оплачено / Остаток: на мобиле — три строки в одной колонке. */
+export function DocumentsInvoiceFinanceHeadCells({
+  padding = "0.35rem 0.3rem",
+  withSort = false,
+  sortColumn,
+  sortOrder = "asc",
+  onSort,
+}: {
+  padding?: string;
+  withSort?: boolean;
+  sortColumn?: "sum" | "paid" | "balance";
+  sortOrder?: "asc" | "desc";
+  onSort?: (column: "sum" | "paid" | "balance") => void;
+}) {
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+  return (
+    <>
+      <th
+        className="cargo-inner-table__col-sum"
+        style={{ ...financeThStyle(withSort), padding }}
+        onClick={withSort && onSort ? (e) => { stop(e); onSort("sum"); } : undefined}
+        title={withSort ? "Сортировка" : undefined}
+      >
+        <span className="cargo-inner-table__head-long">Сумма</span>
+        <span className="cargo-inner-table__head-short cargo-inner-table__head-finance-desktop">Сум.</span>
+        <span className="cargo-inner-table__head-finance-stack" aria-hidden>
+          <span>Сум.</span>
+          <span>Опл.</span>
+          <span>Ост.</span>
+        </span>
+        {financeSortIcon(sortColumn === "sum", sortOrder)}
+      </th>
+      <th
+        className="cargo-inner-table__col-paid cargo-inner-table__col-finance-desktop-only"
+        style={{ ...financeThStyle(withSort), padding }}
+        onClick={withSort && onSort ? (e) => { stop(e); onSort("paid"); } : undefined}
+        title={withSort ? "Сортировка" : undefined}
+      >
+        <span className="cargo-inner-table__head-long">Оплачено</span>
+        <span className="cargo-inner-table__head-short">Опл.</span>
+        {financeSortIcon(sortColumn === "paid", sortOrder)}
+      </th>
+      <th
+        className="cargo-inner-table__col-balance cargo-inner-table__col-finance-desktop-only"
+        style={{ ...financeThStyle(withSort), padding }}
+        onClick={withSort && onSort ? (e) => { stop(e); onSort("balance"); } : undefined}
+        title={withSort ? "Сортировка" : undefined}
+      >
+        <span className="cargo-inner-table__head-long">Остаток</span>
+        <span className="cargo-inner-table__head-short">Ост.</span>
+        {financeSortIcon(sortColumn === "balance", sortOrder)}
+      </th>
+    </>
+  );
+}
+
+/** Ячейки Сумма / Оплачено / Остаток: на мобиле — три строки в одной колонке. */
+export function DocumentsInvoiceFinanceCells({
+  sum,
+  paid,
+  balance,
+  payState,
+  padding = "0.35rem 0.3rem",
+}: {
+  sum: number;
+  paid: number;
+  balance: number;
+  payState: string;
+  padding?: string;
+}) {
+  const cellStyle: React.CSSProperties = { padding, textAlign: "right", verticalAlign: "middle" };
+  const balanceColor = getSumColorByPaymentStatus(payState);
+  return (
+    <>
+      <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={cellStyle}>
+        <div className="documents-invoices-inner-table__finance-stack">
+          <span className="documents-invoices-inner-table__sum-value">{formatCurrency(sum)}</span>
+          <span className="documents-invoices-inner-table__sum-value documents-invoices-inner-table__sum-value--secondary">
+            {formatCurrency(paid)}
+          </span>
+          <span className="documents-invoices-inner-table__sum-value" style={{ color: balanceColor }}>
+            {formatCurrency(balance)}
+          </span>
+        </div>
+      </td>
+      <td className="cargo-inner-table__col-paid documents-invoices-inner-table__sum cargo-inner-table__col-finance-desktop-only" style={cellStyle}>
+        <span className="documents-invoices-inner-table__sum-value">{formatCurrency(paid)}</span>
+      </td>
+      <td className="cargo-inner-table__col-balance documents-invoices-inner-table__sum cargo-inner-table__col-finance-desktop-only" style={cellStyle}>
+        <span className="documents-invoices-inner-table__sum-value" style={{ color: balanceColor }}>
+          {formatCurrency(balance)}
+        </span>
+      </td>
+    </>
+  );
+}
+
 export function DocumentsEdoMonitorSummaryTiles({
   totals,
   invoicesCount,
   saasAnalytics = false,
+  className = "",
 }: {
   totals: Record<InvoiceEdoMergedDocLabel, InvoiceEdoDocAgg>;
   invoicesCount: number;
   saasAnalytics?: boolean;
+  className?: string;
 }) {
+  const [isMobile, setIsMobile] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(DOCS_SUMMARY_COLLAPSED_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    try {
+      localStorage.setItem(DOCS_SUMMARY_COLLAPSED_KEY, String(collapsed));
+    } catch {
+      /* ignore */
+    }
+  }, [collapsed, isMobile]);
+
   const labelStyle = (): React.CSSProperties =>
     saasAnalytics
       ? {
@@ -130,25 +274,44 @@ export function DocumentsEdoMonitorSummaryTiles({
         }
       : { fontWeight: 600, fontSize: "0.9rem" };
 
+  const showMetrics = !isMobile || !collapsed;
+
   return (
     <div
-      className={`cargo-card cargo-summary-totals mb-4 documents-edo-summary-tiles${saasAnalytics ? " cargo-summary-totals--saas-kpi" : ""}`}
-      style={{ padding: saasAnalytics ? undefined : "0.95rem 0.85rem 0.85rem", marginBottom: "1rem" }}
+      className={`cargo-card documents-summary-card cargo-summary-totals mb-4 documents-edo-summary-tiles${saasAnalytics ? " documents-summary-totals--saas-kpi cargo-summary-totals--saas-kpi" : ""}${isMobile && collapsed ? " cargo-summary-totals--collapsed" : ""}${className ? ` ${className}` : ""}`}
+      style={{
+        padding: isMobile && collapsed ? "0.45rem 0.55rem" : saasAnalytics ? undefined : "0.95rem 0.85rem 0.85rem",
+        marginBottom: isMobile && collapsed ? "0.45rem" : saasAnalytics ? undefined : "1rem",
+      }}
     >
-      <div className="summary-metrics">
-        <Flex direction="column" align="center">
-          <Typography.Label style={labelStyle()}>Счетов</Typography.Label>
-          <Typography.Body style={valueStyle()}>{invoicesCount}</Typography.Body>
-        </Flex>
-        {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
-          <Flex key={k} direction="column" align="center">
-            <Typography.Label style={labelStyle()}>{k === "СЧЕТ" ? "СЧЕТА" : k}</Typography.Label>
-            <Typography.Body style={valueStyle()} title="Подписано / всего по ЭДО">
-              {formatEdoSignedRatio(totals[k].signed, totals[k].total)}
-            </Typography.Body>
+      {isMobile && (
+        <button
+          type="button"
+          className="cargo-summary-totals-toggle"
+          onClick={() => setCollapsed((v) => !v)}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? "Развернуть итоги ЭДО" : "Свернуть итоги ЭДО"}
+        >
+          <Typography.Body style={{ fontSize: "0.78rem", fontWeight: 600 }}>Итого по ЭДО</Typography.Body>
+          {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+        </button>
+      )}
+      {showMetrics && (
+        <div className="summary-metrics">
+          <Flex direction="column" align="center">
+            <Typography.Label style={labelStyle()}>Счетов</Typography.Label>
+            <Typography.Body style={valueStyle()}>{invoicesCount}</Typography.Body>
           </Flex>
-        ))}
-      </div>
+          {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
+            <Flex key={k} direction="column" align="center">
+              <Typography.Label style={labelStyle()}>{k === "СЧЕТ" ? "СЧЕТА" : k}</Typography.Label>
+              <Typography.Body style={valueStyle()} title="Подписано / всего по ЭДО">
+                {formatEdoSignedRatio(totals[k].signed, totals[k].total)}
+              </Typography.Body>
+            </Flex>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1075,8 +1238,6 @@ type SummaryProps = {
   expandedMetrics?: boolean;
 };
 
-const DOCS_SUMMARY_COLLAPSED_KEY = "haulz.documents.summaryCollapsedMobile";
-
 export function DocumentsSummaryCard({
   summary,
   showSums,
@@ -1337,4 +1498,45 @@ export function DocumentsRouteBadge({
   style?: React.CSSProperties;
 }) {
   return <RouteBadge route={children} className={className} style={style} />;
+}
+
+/** Код маршрута тарифа (MSK – KGD). */
+export function formatTariffRouteLabel(cityFrom?: string | null, cityTo?: string | null): string {
+  const from = cityToCode(cityFrom || "") || String(cityFrom || "").trim();
+  const to = cityToCode(cityTo || "") || String(cityTo || "").trim();
+  return [from, to].filter(Boolean).join(" – ");
+}
+
+export function isTariffTransportFerry(transportType?: string | null): boolean {
+  const t = String(transportType || "").trim().toLowerCase();
+  return t.includes("паром") || t.includes("ferry") || t.includes("морск") || t === "море";
+}
+
+/** Иконка типа перевозки в тарифах: паром / авто. */
+export function TariffTransportTypeIcon({
+  transportType,
+  size = 20,
+}: {
+  transportType?: string | null;
+  size?: number;
+}) {
+  const label = String(transportType || "").trim();
+  if (!label) return <span>—</span>;
+  const ferry = isTariffTransportFerry(label);
+  const Icon = ferry ? Ship : Truck;
+  return (
+    <span
+      className="doc-tariff-transport-icon"
+      title={label}
+      aria-label={label}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "var(--color-primary-blue, #2563eb)",
+      }}
+    >
+      <Icon style={{ width: size, height: size }} strokeWidth={2} aria-hidden />
+    </span>
+  );
 }

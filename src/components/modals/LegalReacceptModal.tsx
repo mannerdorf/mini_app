@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Button, Flex, Switch, Typography } from "@maxhub/max-ui";
+import React, { useEffect, useState } from "react";
+import { Button } from "@maxhub/max-ui";
 import { Loader2 } from "lucide-react";
 import type { LegalStatusResponse } from "../../api/client/legal";
 
@@ -13,6 +13,31 @@ type Props = {
   onOpenConsent: () => void;
   onAccept: () => Promise<void>;
 };
+
+function LegalAcceptRow({
+  checked,
+  onChange,
+  children,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="legal-reaccept-modal__row switch-wrapper">
+      <input
+        type="checkbox"
+        className="legal-reaccept-modal__checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span className={`switch-container legal-reaccept-modal__switch${checked ? " checked" : ""}`} aria-hidden>
+        <span className="switch-knob" />
+      </span>
+      <span className="legal-reaccept-modal__label">{children}</span>
+    </label>
+  );
+}
 
 /** Блокирующее окно при выходе новой редакции оферты и/или согласия. */
 export function LegalReacceptModal({
@@ -30,75 +55,79 @@ export function LegalReacceptModal({
   const [agreeOffer, setAgreeOffer] = useState(!needOffer);
   const [agreeConsent, setAgreeConsent] = useState(!needConsent);
 
+  useEffect(() => {
+    setAgreeOffer(!needOffer);
+    setAgreeConsent(!needConsent);
+  }, [needOffer, needConsent]);
+
   const canSubmit =
     (!needOffer || agreeOffer) &&
     (!needConsent || agreeConsent) &&
     !accepting;
 
   return (
-    <div className="modal-overlay" style={{ zIndex: 12000 }} role="dialog" aria-modal="true" aria-labelledby="legal-reaccept-title">
+    <div
+      className="modal-overlay legal-reaccept-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="legal-reaccept-title"
+    >
       <div
-        className="modal-content"
-        style={{ maxWidth: "28rem", margin: "auto" }}
+        className="modal-content legal-reaccept-modal"
         onClick={(e) => e.stopPropagation()}
       >
-        <Typography.Headline id="legal-reaccept-title" style={{ fontSize: "1.15rem", marginBottom: "0.5rem" }}>
+        <h2 id="legal-reaccept-title" className="legal-reaccept-modal__title">
           Новая редакция документов
-        </Typography.Headline>
-        <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
+        </h2>
+        <p className="legal-reaccept-modal__lead">
           Для продолжения работы в личном кабинете необходимо принять актуальные редакции.
-        </Typography.Body>
+        </p>
 
-        {needOffer && (
-          <Flex align="center" style={{ marginBottom: "0.75rem", gap: "0.5rem" }}>
-            <Switch checked={agreeOffer} onCheckedChange={(v) => setAgreeOffer(!!v)} />
-            <Typography.Body style={{ fontSize: "0.85rem", flex: 1 }}>
+        <div className="legal-reaccept-modal__rows">
+          {needOffer && (
+            <LegalAcceptRow checked={agreeOffer} onChange={setAgreeOffer}>
               Согласие с{" "}
-              <a
-                href="#"
+              <button
+                type="button"
+                className="legal-reaccept-modal__link"
                 onClick={(e) => {
                   e.preventDefault();
+                  e.stopPropagation();
                   onOpenOffer();
                 }}
               >
                 публичной офертой
-              </a>
-              {offerLabel ? ` (ред. ${offerLabel})` : ""}
-            </Typography.Body>
-          </Flex>
-        )}
+              </button>
+              {offerLabel ? <span className="legal-reaccept-modal__version"> (ред. {offerLabel})</span> : null}
+            </LegalAcceptRow>
+          )}
 
-        {needConsent && (
-          <Flex align="center" style={{ marginBottom: "0.75rem", gap: "0.5rem" }}>
-            <Switch checked={agreeConsent} onCheckedChange={(v) => setAgreeConsent(!!v)} />
-            <Typography.Body style={{ fontSize: "0.85rem", flex: 1 }}>
+          {needConsent && (
+            <LegalAcceptRow checked={agreeConsent} onChange={setAgreeConsent}>
               Согласие на{" "}
-              <a
-                href="#"
+              <button
+                type="button"
+                className="legal-reaccept-modal__link"
                 onClick={(e) => {
                   e.preventDefault();
+                  e.stopPropagation();
                   onOpenConsent();
                 }}
               >
                 обработку персональных данных
-              </a>
-              {consentLabel ? ` (ред. ${consentLabel})` : ""}
-            </Typography.Body>
-          </Flex>
-        )}
+              </button>
+              {consentLabel ? <span className="legal-reaccept-modal__version"> (ред. {consentLabel})</span> : null}
+            </LegalAcceptRow>
+          )}
+        </div>
 
-        {error && (
-          <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
-            {error}
-          </Typography.Body>
-        )}
+        {error && <p className="legal-reaccept-modal__error">{error}</p>}
 
         <Button
-          className="button-primary"
+          className="button-primary legal-reaccept-modal__submit"
           type="button"
           disabled={!canSubmit}
           onClick={() => void onAccept()}
-          style={{ width: "100%" }}
         >
           {accepting ? <Loader2 className="w-5 h-5 animate-spin" style={{ margin: "0 auto" }} /> : "Принять"}
         </Button>

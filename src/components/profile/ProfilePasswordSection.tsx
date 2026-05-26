@@ -27,9 +27,9 @@ export function ProfilePasswordSection({ activeAccount, activeAccountId, onUpdat
     };
 
     return (
-        <>
+        <div className="profile-saas-substack">
             <Panel
-                className="cargo-card profile-saas-row-card"
+                className={`cargo-card profile-saas-row-card${showPasswordForm ? " profile-saas-row-card--expanded" : ""}`}
                 onClick={() => setShowPasswordForm((v) => !v)}
                 style={{ display: "flex", alignItems: "center", padding: "1rem", cursor: "pointer" }}
             >
@@ -158,6 +158,6 @@ export function ProfilePasswordSection({ activeAccount, activeAccountId, onUpdat
                     </form>
                 </Panel>
             )}
-        </>
+        </div>
     );
 }
