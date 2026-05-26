@@ -73,6 +73,7 @@ import {
     getActUpdEdoInfo,
     buildFilteredInvoices,
     buildFilteredOrders,
+    resolveInvoiceFiltersForDocSection,
     buildSendingsTotalsByVehicle,
     buildTransportLinkedCargoNumbersInPeriod,
     collectInvoiceLinkedCargoNumbers,
@@ -2007,21 +2008,61 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
     } catch { return false; }
 }, [toDocFavoriteKey]);
 
-    const filteredItems = useMemo(() => {
-        return buildFilteredInvoices({
-            items,
-            activeInn: effectiveActiveInn,
-            useServiceRequest: effectiveServiceMode,
-            customerFilter,
-            invoiceFavoritesOnly,
+    const invoiceFilterInputs = useMemo(
+        () => ({
             billStatusFilterSet,
+            deliveryStatusFilterSet,
             typeFilterSet,
             routeFilterSet,
-            deliveryStatusFilterSet,
-            transportFilter,
-            transportLinkedCargoNumbers,
-            searchText: effectiveSearchText,
+            invoiceFavoritesOnly,
             edoStatusFilterSet,
+            transportFilter,
+        }),
+        [
+            billStatusFilterSet,
+            deliveryStatusFilterSet,
+            typeFilterSet,
+            routeFilterSet,
+            invoiceFavoritesOnly,
+            edoStatusFilterSet,
+            transportFilter,
+        ],
+    );
+
+    const buildFilteredInvoicesForSection = useCallback(
+        (section: "Счета" | "ЭДО") => {
+            const scoped = resolveInvoiceFiltersForDocSection(section, invoiceFilterInputs);
+            return buildFilteredInvoices({
+                items,
+                activeInn: effectiveActiveInn,
+                useServiceRequest: effectiveServiceMode,
+                customerFilter,
+                invoiceFavoritesOnly: scoped.invoiceFavoritesOnly,
+                billStatusFilterSet: scoped.billStatusFilterSet,
+                typeFilterSet: scoped.typeFilterSet,
+                routeFilterSet: scoped.routeFilterSet,
+                deliveryStatusFilterSet: scoped.deliveryStatusFilterSet,
+                transportFilter: scoped.transportFilter,
+                transportLinkedCargoNumbers,
+                searchText: effectiveSearchText,
+                edoStatusFilterSet: scoped.edoStatusFilterSet,
+                sortBy,
+                sortOrder,
+                isInvoiceFavorite,
+                getFirstCargoNumberFromInvoice,
+                cargoStateByNumber,
+                cargoRouteByNumber,
+                cargoTransportByNumber,
+            });
+        },
+        [
+            invoiceFilterInputs,
+            items,
+            effectiveActiveInn,
+            effectiveServiceMode,
+            customerFilter,
+            transportLinkedCargoNumbers,
+            effectiveSearchText,
             sortBy,
             sortOrder,
             isInvoiceFavorite,
@@ -2029,20 +2070,38 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             cargoStateByNumber,
             cargoRouteByNumber,
             cargoTransportByNumber,
-        });
-    }, [items, effectiveActiveInn, effectiveServiceMode, customerFilter, invoiceFavoritesOnly, billStatusFilterSet, typeFilterSet, routeFilterSet, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, transportFilter, transportLinkedCargoNumbers, effectiveSearchText, edoStatusFilterSet, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, cargoTransportByNumber, normCargoKey]);
+        ],
+    );
+
+    const filteredInvoiceItems = useMemo(
+        () => buildFilteredInvoicesForSection("Счета"),
+        [buildFilteredInvoicesForSection],
+    );
+
+    const filteredEdoItems = useMemo(
+        () => buildFilteredInvoicesForSection("ЭДО"),
+        [buildFilteredInvoicesForSection],
+    );
+
+    const filteredItems = useMemo(
+        () => (docSection === "ЭДО" ? filteredEdoItems : filteredInvoiceItems),
+        [docSection, filteredEdoItems, filteredInvoiceItems],
+    );
 
     const documentsSummary = useMemo(
-        () => buildInvoicesSummary(filteredItems, actsItems, perevozkiItems),
-        [filteredItems, actsItems, perevozkiItems],
+        () => buildInvoicesSummary(filteredInvoiceItems, actsItems, perevozkiItems),
+        [filteredInvoiceItems, actsItems, perevozkiItems],
     );
 
     /** ЭДО по типам документа для итоговой строки склеенной таблицы счетов (подписано / с непустым статусом) */
-    const mergedInvoicesEdoTotals = useMemo(() => aggregateInvoiceEdoDocStats(filteredItems), [filteredItems]);
+    const mergedInvoicesEdoTotals = useMemo(
+        () => aggregateInvoiceEdoDocStats(filteredInvoiceItems),
+        [filteredInvoiceItems],
+    );
 
     const edoCargoCardItems = useMemo(
-        () => buildEdoCargoCardItems(filteredItems, perevozkiItems, getFirstCargoNumberFromInvoice),
-        [filteredItems, perevozkiItems],
+        () => buildEdoCargoCardItems(filteredEdoItems, perevozkiItems, getFirstCargoNumberFromInvoice),
+        [filteredEdoItems, perevozkiItems, getFirstCargoNumberFromInvoice],
     );
 
     const sortedActs = useMemo(() => {
@@ -2081,9 +2140,9 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             activeInn: effectiveActiveInn,
             useServiceRequest: effectiveServiceMode,
             customerFilter,
-            typeFilterSet,
-            routeFilterSet,
-            deliveryStatusFilterSet,
+            typeFilterSet: new Set<TypeFilterKey>(),
+            routeFilterSet: new Set<RouteFilterKey>(),
+            deliveryStatusFilterSet: new Set<StatusFilter>(),
             transportFilter: '',
             searchText: effectiveSearchText,
             sortBy,
@@ -2100,7 +2159,7 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             }
             return true;
         });
-    }, [ordersItems, effectiveActiveInn, effectiveServiceMode, customerFilter, typeFilterSet, routeFilterSet, deliveryStatusFilterSet, effectiveSearchText, sortBy, sortOrder, orderReceiverFilter, orderSenderFilter, orderRouteFilter]);
+    }, [ordersItems, effectiveActiveInn, effectiveServiceMode, customerFilter, effectiveSearchText, sortBy, sortOrder, orderReceiverFilter, orderSenderFilter, orderRouteFilter]);
     const ordersSummary = useMemo(() => buildDocsSummary(filteredOrders), [filteredOrders]);
     const filteredSendings = useMemo(() => {
         if (!transportFilter) return sendingsForTransportOptions;
@@ -3060,7 +3119,7 @@ useEffect(() => {
     const applyBulkPlanDate = useCallback(async () => {
         if (!canEditPlanDate || selectedSendingRowsMeta.length === 0) return;
         if (!bulkPlanDateValue) {
-            setBulkSendingActionError('Укажите плановую дату доставки.');
+            setBulkSendingActionError('Укажите плановую дату прибытия на терминал.');
             return;
         }
         const cargoNumbers = Array.from(new Set(
@@ -3100,13 +3159,13 @@ useEffect(() => {
                 ? String(data.errors[0]?.error || '').trim()
                 : '';
             if (failed > 0) {
-                setBulkSendingActionError(`Плановая дата записана частично: ${updated} из ${requested}.${firstError ? ` Причина: ${firstError}` : ''}`);
+                setBulkSendingActionError(`Плановая дата прибытия на терминал записана частично: ${updated} из ${requested}.${firstError ? ` Причина: ${firstError}` : ''}`);
             } else {
-                setBulkSendingActionInfo(`Плановая дата ${bulkPlanDateValue} записана для ${updated} перевозок.`);
+                setBulkSendingActionInfo(`Плановая дата прибытия на терминал ${bulkPlanDateValue} записана для ${updated} перевозок.`);
             }
             setBulkPlanDateOpen(false);
         } catch (e: any) {
-            setBulkSendingActionError(String(e?.message || 'Не удалось записать плановую дату.'));
+            setBulkSendingActionError(String(e?.message || 'Не удалось записать плановую дату прибытия на терминал.'));
         } finally {
             setBulkSendingActionLoading(false);
         }
@@ -4714,7 +4773,7 @@ useEffect(() => {
                                     style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
                                 >
                                     {bulkSendingActionLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: 4 }} /> : null}
-                                    Плановая дата
+                                    Плановая дата прибытия на терминал
                                 </Button>
                                 {bulkPlanDateOpen && (
                                     <div
@@ -4898,7 +4957,7 @@ useEffect(() => {
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'center', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('type')} title="Сортировка">Тип {sendingsSortColumn === 'type' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('transitHours')} title="Сортировка">В пути, ч {sendingsSortColumn === 'transitHours' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус доставки</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, lineHeight: 1.15 }}>Плановая дата<br />прибытия</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, lineHeight: 1.15 }}>Плановая дата прибытия<br />на терминал</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('vehicle')} title="Сортировка">Транспортное средство {sendingsSortColumn === 'vehicle' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 {hasAnalytics && (
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('paidWeight')} title="Сортировка">Плат. вес {sendingsSortColumn === 'paidWeight' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
@@ -5131,7 +5190,7 @@ useEffect(() => {
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('weight')} title="Сортировка">Вес {sendingsSummarySortColumn === 'weight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('paidWeight')} title="Сортировка">Платный вес {sendingsSummarySortColumn === 'paidWeight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('customer')} title="Сортировка">Заказчик {sendingsSummarySortColumn === 'customer' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Плановая дата</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, lineHeight: 1.15 }}>Плановая дата прибытия<br />на терминал</th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
@@ -5317,7 +5376,7 @@ useEffect(() => {
                                                                                             style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
                                                                                         >
                                                                                             {byCustomerActionLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: 4 }} /> : null}
-                                                                                            Плановая дата
+                                                                                            Плановая дата прибытия на терминал
                                                                                         </Button>
                                                                                         {byCustomerPlanDateOpen && (
                                                                                             <div
@@ -5350,7 +5409,7 @@ useEffect(() => {
                                                                                                     disabled={byCustomerActionLoading || !byCustomerPlanDateValue}
                                                                                                     onClick={async () => {
                                                                                                         if (!byCustomerPlanDateValue) {
-                                                                                                            setByCustomerActionError('Укажите плановую дату доставки.');
+                                                                                                            setByCustomerActionError('Укажите плановую дату прибытия на терминал.');
                                                                                                             return;
                                                                                                         }
                                                                                                         const cargoNumbers = Array.from(new Set(
@@ -5385,13 +5444,13 @@ useEffect(() => {
                                                                                                                 ? String(data.errors[0]?.error || '').trim()
                                                                                                                 : '';
                                                                                                             if (failed > 0) {
-                                                                                                                setByCustomerActionError(`Плановая дата записана частично: ${updated} из ${requested}.${firstError ? ` Причина: ${firstError}` : ''}`);
+                                                                                                                setByCustomerActionError(`Плановая дата прибытия на терминал записана частично: ${updated} из ${requested}.${firstError ? ` Причина: ${firstError}` : ''}`);
                                                                                                             } else {
-                                                                                                                setByCustomerActionInfo(`Плановая дата ${byCustomerPlanDateValue} записана для ${updated} перевозок.`);
+                                                                                                                setByCustomerActionInfo(`Плановая дата прибытия на терминал ${byCustomerPlanDateValue} записана для ${updated} перевозок.`);
                                                                                                             }
                                                                                                             setByCustomerPlanDateOpen(false);
                                                                                                         } catch (e: any) {
-                                                                                                            setByCustomerActionError(String(e?.message || 'Не удалось записать плановую дату.'));
+                                                                                                            setByCustomerActionError(String(e?.message || 'Не удалось записать плановую дату прибытия на терминал.'));
                                                                                                         } finally {
                                                                                                             setByCustomerActionLoading(false);
                                                                                                         }
@@ -5477,7 +5536,7 @@ useEffect(() => {
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('weight')} title="Сортировка">Вес {sendingsSummarySortColumn === 'weight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('paidWeight')} title="Сортировка">Платный вес {sendingsSummarySortColumn === 'paidWeight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('density')} title="Сортировка">Плотность {sendingsSummarySortColumn === 'density' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Плановая дата</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, lineHeight: 1.15 }}>Плановая дата прибытия<br />на терминал</th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
@@ -5676,7 +5735,7 @@ useEffect(() => {
                                                                                                                         <th style={{ padding: '0.3rem 0.25rem', textAlign: 'right', fontWeight: 600 }}>Вес</th>
                                                                                                                         <th style={{ padding: '0.3rem 0.25rem', textAlign: 'right', fontWeight: 600 }}>Платный вес</th>
                                                                                                                         <th style={{ padding: '0.3rem 0.25rem', textAlign: 'left', fontWeight: 600 }}>{sendingsSummaryGroupBy === 'receiver' ? 'Получатель' : 'Заказчик'}</th>
-                                                                                                                        <th style={{ padding: '0.3rem 0.25rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Плановая дата</th>
+                                                                                                                        <th style={{ padding: '0.3rem 0.25rem', textAlign: 'left', fontWeight: 600, lineHeight: 1.15 }}>Плановая дата прибытия<br />на терминал</th>
                                                                                                                     </tr>
                                                                                                                 </thead>
                                                                                                                 <tbody>
@@ -5818,7 +5877,7 @@ useEffect(() => {
                                             style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
                                         >
                                             {bulkSendingActionLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: 4 }} /> : null}
-                                            Плановая дата
+                                            Плановая дата прибытия на терминал
                                         </Button>
                                         {bulkPlanDateOpen && (
                                             <div

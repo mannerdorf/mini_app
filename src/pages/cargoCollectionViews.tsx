@@ -19,6 +19,7 @@ import { getSumColorByPaymentStatus } from "../lib/statusUtils";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
 import type { CargoItem } from "../types";
 import type { CargoGroupedRow } from "./cargoPipeline";
+import { getEffectivePlannedDeliveryDate } from "../lib/cargoPlannedDelivery";
 import {
   cargoExpandMotionProps,
   cargoListContainerVariants,
@@ -76,7 +77,13 @@ function CargoRouteBadge({ item }: { item: CargoItem }) {
   );
 }
 
-type InnerTableSortCol = "number" | "datePrih" | "status" | "mest" | "pw" | "sum";
+type InnerTableSortCol = "number" | "datePrih" | "planDate" | "status" | "mest" | "pw" | "sum";
+
+function plannedArrivalIso(item: CargoItem, routeTypePlanDays: Map<string, number>): string {
+  const d = getEffectivePlannedDeliveryDate(item, routeTypePlanDays);
+  if (!d) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 type CargoCustomerTableProps = {
   showSums: boolean;
@@ -86,6 +93,7 @@ type CargoCustomerTableProps = {
   expandedTableCustomer: string | null;
   innerTableSortColumn: InnerTableSortCol | null;
   innerTableSortOrder: "asc" | "desc";
+  routeTypePlanDays: Map<string, number>;
   workScheduleByInn: Record<string, WorkSchedule>;
   onTableSort: (column: "customer" | "sum" | "mest" | "pw" | "w" | "vol" | "count") => void;
   onInnerTableSort: (column: InnerTableSortCol) => void;
@@ -104,6 +112,7 @@ export function CargoCustomerTable({
   expandedTableCustomer,
   innerTableSortColumn,
   innerTableSortOrder,
+  routeTypePlanDays,
   workScheduleByInn,
   onTableSort,
   onInnerTableSort,
@@ -122,7 +131,7 @@ export function CargoCustomerTable({
     return () => mq.removeEventListener("change", update);
   }, []);
 
-  const mainColSpan = isMobile ? (showSums ? 4 : 3) : showSums ? 7 : 6;
+  const mainColSpan = isMobile ? (showSums ? 5 : 4) : showSums ? 8 : 7;
 
   return (
     <div
@@ -523,6 +532,45 @@ export function CargoCustomerTable({
                                 ))}
                             </th>
                             <th
+                              className="cargo-inner-table__col-plan-date"
+                              style={{
+                                padding: "0.35rem 0.3rem",
+                                textAlign: "left",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                userSelect: "none",
+                                lineHeight: 1.15,
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onInnerTableSort("planDate");
+                              }}
+                              title="Сортировка"
+                            >
+                              <span className="cargo-inner-table__head-long">Плановая дата прибытия на терминал</span>
+                              <span className="cargo-inner-table__head-short">План</span>
+                              {innerTableSortColumn === "planDate" &&
+                                (innerTableSortOrder === "asc" ? (
+                                  <ArrowUp
+                                    className="w-3 h-3 cargo-inner-table__sort-icon"
+                                    style={{
+                                      verticalAlign: "middle",
+                                      marginLeft: 2,
+                                      display: "inline-block",
+                                    }}
+                                  />
+                                ) : (
+                                  <ArrowDown
+                                    className="w-3 h-3 cargo-inner-table__sort-icon"
+                                    style={{
+                                      verticalAlign: "middle",
+                                      marginLeft: 2,
+                                      display: "inline-block",
+                                    }}
+                                  />
+                                ))}
+                            </th>
+                            <th
                               className="cargo-inner-table__col-status"
                               style={{
                                 padding: "0.35rem 0.3rem",
@@ -745,6 +793,12 @@ export function CargoCustomerTable({
                               )}
                               <td className="cargo-inner-table__col-date" style={{ padding: "0.35rem 0.3rem" }}>
                                 <DateText value={item.DatePrih} omitYear={isMobile} />
+                              </td>
+                              <td className="cargo-inner-table__col-plan-date" style={{ padding: "0.35rem 0.3rem", whiteSpace: "nowrap" }}>
+                                {(() => {
+                                  const iso = plannedArrivalIso(item, routeTypePlanDays);
+                                  return iso ? <DateText value={iso} omitYear={isMobile} /> : "—";
+                                })()}
                               </td>
                               <td className="cargo-inner-table__col-status" style={{ padding: "0.35rem 0.3rem" }}>
                                 <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile">

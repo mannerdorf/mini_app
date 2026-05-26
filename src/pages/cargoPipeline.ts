@@ -239,7 +239,7 @@ export function buildFilteredCargoItems(
       });
     }
   }
-  if (useServiceRequest && billStatusFilterSet.size > 0) {
+  if (billStatusFilterSet.size > 0) {
     res = res.filter((i) => billStatusFilterSet.has(getPaymentFilterKey(i.StateBill)));
   }
   if (typeFilterSet.size > 0) {

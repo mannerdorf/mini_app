@@ -420,6 +420,57 @@ export function linkedCargoMatchesTransportFilter(
   return false;
 }
 
+export type DocInvoiceFilterSection = "Счета" | "ЭДО";
+
+/** Какие фильтры счетов применять на вкладке (только те, что есть в UI этой вкладки). */
+export function resolveInvoiceFiltersForDocSection(
+  section: DocInvoiceFilterSection,
+  filters: {
+    billStatusFilterSet: Set<SharedBillStatusKey>;
+    deliveryStatusFilterSet: Set<StatusFilter>;
+    typeFilterSet: Set<TypeFilterKey>;
+    routeFilterSet: Set<RouteFilterKey>;
+    invoiceFavoritesOnly: boolean;
+    edoStatusFilterSet: Set<string>;
+    transportFilter: string;
+  },
+): {
+  billStatusFilterSet: Set<SharedBillStatusKey>;
+  deliveryStatusFilterSet: Set<StatusFilter>;
+  typeFilterSet: Set<TypeFilterKey>;
+  routeFilterSet: Set<RouteFilterKey>;
+  invoiceFavoritesOnly: boolean;
+  edoStatusFilterSet: Set<string>;
+  transportFilter: string;
+} {
+  const noneBill = new Set<SharedBillStatusKey>();
+  const noneDelivery = new Set<StatusFilter>();
+  const noneType = new Set<TypeFilterKey>();
+  const noneRoute = new Set<RouteFilterKey>();
+
+  if (section === "Счета") {
+    return {
+      billStatusFilterSet: filters.billStatusFilterSet,
+      deliveryStatusFilterSet: filters.deliveryStatusFilterSet,
+      typeFilterSet: noneType,
+      routeFilterSet: filters.routeFilterSet,
+      invoiceFavoritesOnly: filters.invoiceFavoritesOnly,
+      edoStatusFilterSet: filters.edoStatusFilterSet,
+      transportFilter: filters.transportFilter,
+    };
+  }
+
+  return {
+    billStatusFilterSet: noneBill,
+    deliveryStatusFilterSet: noneDelivery,
+    typeFilterSet: noneType,
+    routeFilterSet: noneRoute,
+    invoiceFavoritesOnly: false,
+    edoStatusFilterSet: filters.edoStatusFilterSet,
+    transportFilter: filters.transportFilter,
+  };
+}
+
 export function sendingRowMatchesTransportFilter(
   row: any,
   transportFilter: string,

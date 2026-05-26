@@ -23,6 +23,7 @@ import { initSharedFilterSets, saveSharedListFilters, sharedFromFilterSets } fro
 import { buildTransportOptionsFromSendingsInPeriod, buildTransportLinkedCargoNumbersInPeriod, collectSendingFreightCargoNumbers, normCargoKey } from "./documentsPipeline";
 import { useCargoTransportFilter, usePerevozkiMultiAccounts, useSendings } from "../hooks/useApi";
 import { CARGO_ROLE_FILTER_LABELS, type CargoRoleFilterKey } from "../lib/cargoUtils";
+import { buildRouteTypePlanDaysMap, getEffectivePlannedDeliveryDate } from "../lib/cargoPlannedDelivery";
 import { CargoSummaryCard, CargoStateBlocks } from "./cargoViewBlocks";
 import { CargoCustomerTable, CargoCardsList } from "./cargoCollectionViews";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
@@ -220,8 +221,8 @@ export function CargoPage({
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
     /** Развёрнутая строка таблицы по заказчику: показываем детальные перевозки */
     const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
-    /** Сортировка вложенной таблицы перевозок (Номер, Дата прихода, Статус, Мест, Плат. вес, Сумма) */
-    type InnerTableSortCol = 'number' | 'datePrih' | 'status' | 'mest' | 'pw' | 'sum';
+    /** Сортировка вложенной таблицы перевозок (Номер, Дата прихода, Плановая дата прибытия на терминал, Статус, …) */
+    type InnerTableSortCol = 'number' | 'datePrih' | 'planDate' | 'status' | 'mest' | 'pw' | 'sum';
     const [innerTableSortColumn, setInnerTableSortColumn] = useState<InnerTableSortCol | null>(null);
     const [innerTableSortOrder, setInnerTableSortOrder] = useState<'asc' | 'desc'>('asc');
     const dateButtonRef = useRef<HTMLDivElement>(null);
@@ -509,15 +510,22 @@ export function CargoPage({
         }
     };
 
+    const routeTypePlanDays = useMemo(
+        () => buildRouteTypePlanDaysMap(itemsForFiltering),
+        [itemsForFiltering],
+    );
+
     const sortInnerItems = (items: CargoItem[]): CargoItem[] => {
         if (!innerTableSortColumn) return items;
         const col = innerTableSortColumn;
         const order = innerTableSortOrder === 'asc' ? 1 : -1;
+        const planMs = (item: CargoItem) => getEffectivePlannedDeliveryDate(item, routeTypePlanDays)?.getTime() ?? 0;
         return [...items].sort((a, b) => {
             let va: string | number, vb: string | number;
             switch (col) {
                 case 'number': va = (a.Number || '').toString(); vb = (b.Number || '').toString(); break;
                 case 'datePrih': va = (a.DatePrih || '').toString(); vb = (b.DatePrih || '').toString(); break;
+                case 'planDate': va = planMs(a); vb = planMs(b); break;
                 case 'status': va = normalizeStatus(a.State) || ''; vb = normalizeStatus(b.State) || ''; break;
                 case 'mest': va = typeof a.Mest === 'string' ? parseFloat(a.Mest) || 0 : (a.Mest ?? 0); vb = typeof b.Mest === 'string' ? parseFloat(b.Mest) || 0 : (b.Mest ?? 0); break;
                 case 'pw': va = typeof a.PW === 'string' ? parseFloat(a.PW) || 0 : (a.PW ?? 0); vb = typeof b.PW === 'string' ? parseFloat(b.PW) || 0 : (b.PW ?? 0); break;
@@ -869,10 +877,10 @@ export function CargoPage({
                         ))}
                     </FilterDropdownPortal>
                 </div>
-                {effectiveServiceMode && (
+                {showSums && (
                     <div className="filter-group" style={{ flexShrink: 0 }}>
                         <div ref={billStatusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); setIsPickupLogisticsDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); setIsPickupLogisticsDropdownOpen(false); setIsRoleDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                 Статус счёта: {billStatusFilterSet.size === 0 ? 'Все' : billStatusFilterSet.size === 1 ? BILL_STATUS_MAP[[...billStatusFilterSet][0]] : `Выбрано: ${billStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -972,6 +980,7 @@ export function CargoPage({
                             expandedTableCustomer={expandedTableCustomer}
                             innerTableSortColumn={innerTableSortColumn}
                             innerTableSortOrder={innerTableSortOrder}
+                            routeTypePlanDays={routeTypePlanDays}
                             workScheduleByInn={workScheduleByInn}
                             onTableSort={handleTableSort}
                             onInnerTableSort={handleInnerTableSort}

@@ -1,5 +1,5 @@
 /**
- * Плановая дата доставки: вручную из полей API или дата отправки + средний срок по маршруту/типу (как на дашборде).
+ * Плановая дата прибытия на терминал: вручную из полей API или дата отправки + средний срок по маршруту/типу (как на дашборде).
  */
 import * as dateUtils from "./dateUtils";
 import { cityToCode } from "./formatUtils";
@@ -17,6 +17,7 @@ function parseDateOnly(value: unknown): Date | null {
 
 export function getManualPlannedDeliveryDate(item: CargoItem): Date | null {
     const candidates = [
+        (item as any).DateArrival,
         (item as any).PlannedDeliveryDate,
         (item as any).PlanDeliveryDate,
         (item as any).DateDeliveryPlan,

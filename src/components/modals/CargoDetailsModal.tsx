@@ -5,6 +5,7 @@ import { fetchPerevozkaDetails, getTimelineStepColor } from "../../lib/perevozka
 import { getWebApp, isMaxWebApp } from "../../webApp";
 import { DOCUMENT_METHODS } from "../../documentMethods";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
+import { PLANNED_TERMINAL_ARRIVAL_LABEL } from "../../constants/plannedArrivalLabels";
 import { formatCurrency, stripOoo, cityToCode, transliterateFilename, formatInvoiceNumber } from "../../lib/formatUtils";
 import { normalizeStatus, getFilterKeyByStatus, getSumColorByPaymentStatus } from "../../lib/statusUtils";
 import { formatDate } from "../../lib/dateUtils";
@@ -367,7 +368,7 @@ export function CargoDetailsModal({
                         return '-';
                     })()} />
                     <DetailItem
-                        label="Плановая дата доставки"
+                        label={PLANNED_TERMINAL_ARRIVAL_LABEL}
                         value={plannedDeliveryDate ? <DateText value={plannedDeliveryDate} /> : '-'}
                     />
                     <DetailItem label="Номер заявки заказчика" value={String((item as any).Order ?? '').trim() || '-'} />

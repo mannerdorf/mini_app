@@ -2330,11 +2330,16 @@ body {
     }
 
     .cargo-inner-table .cargo-inner-table__col-date {
-        width: 19%;
+        width: 16%;
+    }
+
+    .cargo-inner-table .cargo-inner-table__col-plan-date {
+        width: 16%;
+        white-space: nowrap;
     }
 
     .cargo-inner-table .cargo-inner-table__col-status {
-        width: 30%;
+        width: 26%;
     }
 
     .documents-invoices-inner-table .cargo-inner-table__col-status,

@@ -221,7 +221,7 @@ export const getWeekRange = (mondayIso: string) => {
     };
 };
 
-/** Единая логика периода для API и клиентских фильтров (в т.ч. «План доставки» в Грузах). */
+/** Единая логика периода для API и клиентских фильтров (в т.ч. фильтр плановой даты прибытия на терминал в Грузах). */
 export const resolveDateFilterToRange = (
     dateFilter: DateFilter,
     options: {
@@ -362,7 +362,7 @@ export const parseDateOnly = (dateString: string | undefined): Date | null => {
 
 const DAY_SHORT: Record<number, string> = { 0: "вс", 1: "пн", 2: "вт", 3: "ср", 4: "чт", 5: "пт", 6: "сб" };
 
-/** Плановая дата доставки PayTill: DateDoc + 6 дней. Возвращает YYYY-MM-DD для DateText или undefined. */
+/** PayTill (срок оплаты счёта): DateDoc + 6 дней. Возвращает YYYY-MM-DD для DateText или undefined. */
 export const getPayTillDate = (dateDoc: string | undefined): string | undefined => {
     const date = parseDateOnly(dateDoc);
     if (!date) return undefined;

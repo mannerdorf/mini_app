@@ -8744,7 +8744,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <code style={{ fontSize: "0.75rem" }}>/api/partner/v1/sendings</code>, <code style={{ fontSize: "0.75rem" }}>/api/partner/v1/orders</code> (все POST).
               Исходящие webhooks: <code style={{ fontSize: "0.75rem" }}>HAULZ_PARTNER_WEBHOOK_URL</code> или <code style={{ fontSize: "0.75rem" }}>HAULZ_PARTNER_WEBHOOK_URLS</code> + секрет{" "}
               <code style={{ fontSize: "0.75rem" }}>HAULZ_PARTNER_WEBHOOK_SECRET</code> (подпись HMAC-SHA256 заголовка <code style={{ fontSize: "0.75rem" }}>X-Haulz-Signature</code> для тела с timestamp).
-              Событие пример: <code style={{ fontSize: "0.75rem" }}>cargo.plan_date_batch_updated</code> после массовой записи плановой даты.
+              Событие пример: <code style={{ fontSize: "0.75rem" }}>cargo.plan_date_batch_updated</code> после массовой записи плановой даты прибытия на терминал.
             </Typography.Body>
             <textarea
               value={partnerApiHealthJson}

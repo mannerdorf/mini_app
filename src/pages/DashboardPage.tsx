@@ -4113,7 +4113,7 @@ export function DashboardPage({
                                                                                 <th style={{ padding: '0.2rem 0.3rem', textAlign: 'center', fontWeight: 600 }}>Тип</th>
                                                                                 <th style={{ padding: '0.2rem 0.3rem', textAlign: 'center', fontWeight: 600 }}>Маршрут</th>
                                                                                 <th style={{ padding: '0.2rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
-                                                                                <th style={{ padding: '0.2rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Плановая дата</th>
+                                                                                <th style={{ padding: '0.2rem 0.3rem', textAlign: 'left', fontWeight: 600, lineHeight: 1.15 }}>Плановая дата прибытия<br />на терминал</th>
                                                                                 {showSums && <th style={{ padding: '0.2rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>}
                                                                             </tr>
                                                                         </thead>
@@ -4171,10 +4171,10 @@ export function DashboardPage({
             {!showOnlySla && !loading && !error && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={DASH_PLAN_FACT_TYPO.title}>
-                        Грузовой поток (по плановой дате)
+                        Грузовой поток (по плановой дате прибытия на терминал)
                     </Typography.Headline>
                     <Typography.Body style={DASH_PLAN_FACT_TYPO.desc}>
-                        Поток перевозок по плановой дате доставки: нагрузка на ближайшие дни и риск просрочки. Нажмите на бейдж или день — ниже откроется таблица; повторный клик по тому же элементу сворачивает её.
+                        Поток перевозок по плановой дате прибытия на терминал: нагрузка на ближайшие дни и риск просрочки. Нажмите на бейдж или день — ниже откроется таблица; повторный клик по тому же элементу сворачивает её.
                     </Typography.Body>
                     <Flex gap="0.55rem" wrap="wrap" style={{ marginBottom: '0.8rem' }}>
                         {([
@@ -4209,7 +4209,7 @@ export function DashboardPage({
                     </Flex>
                     <div style={{ marginTop: '0.35rem' }}>
                         <Typography.Body style={DASH_PLAN_FACT_TYPO.subhead}>
-                            Ближайшие 7 дней (плановая доставка)
+                            Ближайшие 7 дней (плановое прибытие на терминал)
                         </Typography.Body>
                         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(86px, 1fr))', gap: '0.4rem', minWidth: '40rem' }}>
@@ -4264,14 +4264,14 @@ export function DashboardPage({
                                 <Typography.Body style={DASH_PLAN_FACT_TYPO.subhead}>
                                     {cargoFlowTableSelection.kind === 'tile' ? (
                                         <>
-                                            Плановая доставка,{' '}
+                                            Плановое прибытие на терминал,{' '}
                                             <DateText value={cargoFlowTableSelection.dateKey} />
                                             {' '}(<b>{cargoFlowDetailSorted.length}</b>)
                                         </>
                                     ) : (
                                         <>
-                                            {cargoFlowTableSelection.badge === 'withPlan' && <>Все с плановой датой (<b>{cargoFlowDetailSorted.length}</b>)</>}
-                                            {cargoFlowTableSelection.badge === 'withoutPlan' && <>Без плановой даты (<b>{cargoFlowDetailSorted.length}</b>)</>}
+                                            {cargoFlowTableSelection.badge === 'withPlan' && <>Все с плановой датой прибытия на терминал (<b>{cargoFlowDetailSorted.length}</b>)</>}
+                                            {cargoFlowTableSelection.badge === 'withoutPlan' && <>Без плановой даты прибытия на терминал (<b>{cargoFlowDetailSorted.length}</b>)</>}
                                             {cargoFlowTableSelection.badge === 'overdue' && <>Просрочено (<b>{cargoFlowDetailSorted.length}</b>)</>}
                                             {cargoFlowTableSelection.badge === 'dueToday' && <>Срок сегодня (<b>{cargoFlowDetailSorted.length}</b>)</>}
                                             {cargoFlowTableSelection.badge === 'dueTomorrow' && <>Срок завтра (<b>{cargoFlowDetailSorted.length}</b>)</>}
@@ -4377,7 +4377,7 @@ export function DashboardPage({
                         План-Факт
                     </Typography.Headline>
                     <Typography.Body style={DASH_PLAN_FACT_TYPO.desc}>
-                        Сравнение плановой и фактической даты доставки по выбранному периоду.
+                        Сравнение плановой даты прибытия на терминал и фактической даты доставки по выбранному периоду.
                     </Typography.Body>
                     <Flex gap="0.55rem" wrap="wrap" style={{ marginBottom: '0.8rem' }}>
                         <span className="role-badge" style={{ ...DASH_PLAN_FACT_TYPO.badge, background: 'rgba(37,99,235,0.14)', border: '1px solid rgba(37,99,235,0.35)' }}>С планом: {planVsFactDashboard.withPlan} из {planVsFactDashboard.total}</span>
