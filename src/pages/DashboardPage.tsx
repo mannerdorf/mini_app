@@ -32,6 +32,7 @@ import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "../lib
 import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry, getSlaPlanDeadlineMs, cargoLastMileIsSelfPickup, cargoPickupLogisticsIsTerminalTo, CARGO_ROLE_FILTER_LABELS, type CargoRoleFilterKey } from "../lib/cargoUtils";
 import { buildFilteredCargoItems } from "./cargoPipeline";
 import { formatCurrency, formatInvoiceNumber, stripOoo, cityToCode, normalizeInvoiceStatus } from "../lib/formatUtils";
+import { ClickableCargoNumber, leafRowClickProps } from "../components/ui/EntityLinks";
 import { getFirstCargoNumberFromInvoice, buildCargoStateByNumber, filterItemsByActiveInn } from "./documentsPipeline";
 import { usePerevozki, usePrevPeriodPerevozki, useInvoices } from "../hooks/useApi";
 import { fetchPerevozkaTimeline } from "../lib/perevozkaDetails";
@@ -259,6 +260,7 @@ export type DashboardPageProps = {
     /** Сводка «Выдача грузов» на главной при праве haulz (данные с фильтрами дашборда). */
     canAccessHaulzDispatch?: boolean;
     onOpenCargo?: (cargoNumber: string) => void;
+    onOpenInvoice?: (invoice: Record<string, unknown>) => void;
     onOpenDocumentsEdo?: () => void;
     onOpenDocumentsInvoices?: () => void;
 };
@@ -274,6 +276,7 @@ export function DashboardPage({
     saasDashboardMotion = false,
     canAccessHaulzDispatch = false,
     onOpenCargo,
+    onOpenInvoice,
     onOpenDocumentsEdo,
     onOpenDocumentsInvoices,
 }: DashboardPageProps) {
@@ -3031,6 +3034,8 @@ export function DashboardPage({
                     loading={invoicesLoading || loading}
                     showSums={showSums}
                     onOpen={onOpenDocumentsInvoices}
+                    onOpenInvoice={onOpenInvoice}
+                    onOpenCargo={onOpenCargo}
                 />
             )}
 
@@ -3964,9 +3969,16 @@ export function DashboardPage({
                                                                             </tr>
                                                                         </thead>
                                                                         <tbody>
-                                                                            {sortedItems.map((item, itemIndex) => (
-                                                                                <tr key={`${item.Number ?? itemIndex}-${itemIndex}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                                                    <td style={{ padding: '0.3rem', color: 'var(--color-primary-blue)', fontWeight: 600 }}>{item.Number ? formatInvoiceNumber(String(item.Number)) : '—'}</td>
+                                                                            {sortedItems.map((item, itemIndex) => {
+                                                                                const cargoNum = item.Number ? String(item.Number) : '';
+                                                                                const leafOpen = cargoNum && onOpenCargo
+                                                                                    ? leafRowClickProps(() => onOpenCargo(cargoNum), 'Открыть карточку перевозки')
+                                                                                    : null;
+                                                                                return (
+                                                                                <tr key={`${item.Number ?? itemIndex}-${itemIndex}`} style={{ borderBottom: '1px solid var(--color-border)', ...(leafOpen?.style ?? {}) }} onClick={leafOpen?.onClick} title={leafOpen?.title}>
+                                                                                    <td style={{ padding: '0.3rem' }}>
+                                                                                        <ClickableCargoNumber number={cargoNum} onOpen={onOpenCargo} />
+                                                                                    </td>
                                                                                     <td style={{ padding: '0.3rem' }}><DateText value={item.DatePrih} /></td>
                                                                                     <td style={{ padding: '0.3rem' }}>{normalizeStatus(item.State)}</td>
                                                                                     <td style={{ padding: '0.3rem' }}>{getCargoItemRoute(item)}</td>
@@ -3975,7 +3987,7 @@ export function DashboardPage({
                                                                                     <td style={{ padding: '0.3rem', textAlign: 'right' }}>{((item as any).Value ?? (item as any).Volume ?? (item as any).V) != null ? Number((item as any).Value ?? (item as any).Volume ?? (item as any).V).toLocaleString('ru-RU', { maximumFractionDigits: 2 }) : '—'}</td>
                                                                                     {showSums && <td style={{ padding: '0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(Number(item.Sum ?? 0), true)}</td>}
                                                                                 </tr>
-                                                                            ))}
+                                                                            );})}
                                                                         </tbody>
                                                                     </table>
                                                                 </div>
@@ -4441,8 +4453,16 @@ export function DashboardPage({
                                 Топ просрочек
                             </Typography.Body>
                             {planVsFactDashboard.topLate.map((row, idx) => (
-                                <div key={`late-row-${row.number}-${idx}`} style={{ display: 'grid', gridTemplateColumns: 'minmax(90px, 110px) minmax(120px, 1fr) minmax(64px, 90px) minmax(64px, 90px) minmax(56px, 70px)', gap: '0.45rem', padding: '0.22rem 0', borderBottom: idx === planVsFactDashboard.topLate.length - 1 ? 'none' : '1px dashed var(--color-border)' }}>
-                                    <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.table, whiteSpace: 'nowrap' }}>{formatInvoiceNumber(row.number)}</Typography.Body>
+                                <div
+                                    key={`late-row-${row.number}-${idx}`}
+                                    role={onOpenCargo ? 'button' : undefined}
+                                    tabIndex={onOpenCargo ? 0 : undefined}
+                                    onClick={onOpenCargo ? () => onOpenCargo(String(row.number)) : undefined}
+                                    onKeyDown={onOpenCargo ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenCargo(String(row.number)); } } : undefined}
+                                    style={{ display: 'grid', gridTemplateColumns: 'minmax(90px, 110px) minmax(120px, 1fr) minmax(64px, 90px) minmax(64px, 90px) minmax(56px, 70px)', gap: '0.45rem', padding: '0.22rem 0', borderBottom: idx === planVsFactDashboard.topLate.length - 1 ? 'none' : '1px dashed var(--color-border)', cursor: onOpenCargo ? 'pointer' : undefined }}
+                                    title={onOpenCargo ? 'Открыть карточку перевозки' : undefined}
+                                >
+                                    <ClickableCargoNumber number={row.number} onOpen={onOpenCargo} style={{ ...DASH_PLAN_FACT_TYPO.table, whiteSpace: 'nowrap' }} />
                                     <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.table, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.route}>{row.route}</Typography.Body>
                                     <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.meta }}>{row.planned.slice(5).split('-').reverse().join('.')}</Typography.Body>
                                     <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.meta }}>{row.actual.slice(5).split('-').reverse().join('.')}</Typography.Body>
@@ -4576,7 +4596,9 @@ export function DashboardPage({
                                                             }}
                                                             title={expandedSlaCargoNumber === (item.Number ?? '') ? 'Свернуть статусы' : 'Показать статусы перевозки'}
                                                         >
-                                                            <td style={{ padding: '0.35rem 0.3rem', color: '#ef4444' }}>{item.Number ?? '—'}</td>
+                                                            <td style={{ padding: '0.35rem 0.3rem', color: '#ef4444' }}>
+                                                                <ClickableCargoNumber number={item.Number ? String(item.Number) : ''} onOpen={onOpenCargo} style={{ color: '#ef4444' }} />
+                                                            </td>
                                                             <td style={{ padding: '0.35rem 0.3rem' }}><DateText value={item.DatePrih} /></td>
                                                             <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
                                                             <td style={{ padding: '0.35rem 0.3rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo((item.Customer ?? (item as any).customer) || '')}>{stripOoo((item.Customer ?? (item as any).customer) || '') || '—'}</td>
@@ -4616,8 +4638,12 @@ export function DashboardPage({
                                                                                     const stepMs = step.date ? new Date(step.date).getTime() : 0;
                                                                                     const outOfSlaFromThisStep = planEndMs > 0 && stepMs > planEndMs;
                                                                                     const dateColor = outOfSlaFromThisStep ? '#ef4444' : (planEndMs > 0 && stepMs > 0 ? '#22c55e' : 'var(--color-text-secondary)');
+                                                                                    const cargoNum = item.Number ? String(item.Number) : '';
+                                                                                    const stepRowOpen = cargoNum && onOpenCargo
+                                                                                        ? leafRowClickProps(() => onOpenCargo(cargoNum), 'Открыть карточку перевозки')
+                                                                                        : null;
                                                                                     return (
-                                                                                    <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                                    <tr key={i} style={{ borderBottom: '1px solid var(--color-border)', ...(stepRowOpen?.style ?? {}) }} onClick={stepRowOpen?.onClick} title={stepRowOpen?.title}>
                                                                                         <td style={{ padding: '0.35rem 0.3rem', color: outOfSlaFromThisStep ? '#ef4444' : undefined }}>{step.label}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem', color: dateColor }}>{formatTimelineDate(step.date)}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem', color: dateColor }}>{formatTimelineTime(step.date)}</td>

@@ -3,7 +3,8 @@ import { Flex, Typography } from "@maxhub/max-ui";
 import { ChevronRight, Loader2, AlertCircle } from "lucide-react";
 import { AppBadge } from "./shared/AppBadge";
 import { DateText } from "./ui/DateText";
-import { formatCurrency, formatInvoiceNumber, stripOoo } from "../lib/formatUtils";
+import { ClickableCargoNumber, ClickableInvoiceNumber, leafRowClickProps } from "./ui/EntityLinks";
+import { formatCurrency, stripOoo } from "../lib/formatUtils";
 import {
   computeUnpaidInvoicesByPlan,
   PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS,
@@ -17,6 +18,8 @@ type Props = {
   loading?: boolean;
   showSums?: boolean;
   onOpen?: () => void;
+  onOpenInvoice?: (invoice: Record<string, unknown>) => void;
+  onOpenCargo?: (cargoNumber: string) => void;
 };
 
 const MAX_ROWS = 12;
@@ -29,16 +32,16 @@ function priorityBadge(row: UnpaidInvoicePlanRow) {
       </AppBadge>
     );
   }
-  if (row.priority === "low") {
-    return (
-      <AppBadge tone="neutral" title="Плановая дата прибытия на терминал позже 7 дней">
-        Низкий
-      </AppBadge>
-    );
-  }
   return (
-    <AppBadge tone="neutral" title="Плановая дата прибытия не определена">
-      —
+    <AppBadge
+      tone="neutral"
+      title={
+        row.planDate
+          ? "Плановая дата прибытия на терминал позже 7 дней"
+          : "Плановая дата прибытия не определена"
+      }
+    >
+      Низкий
     </AppBadge>
   );
 }
@@ -51,7 +54,15 @@ function daysLabel(days: number | null): string {
   return `через ${days} дн.`;
 }
 
-export function UnpaidInvoicesPlanMonitor({ invoices, cargoItems, loading, showSums = true, onOpen }: Props) {
+export function UnpaidInvoicesPlanMonitor({
+  invoices,
+  cargoItems,
+  loading,
+  showSums = true,
+  onOpen,
+  onOpenInvoice,
+  onOpenCargo,
+}: Props) {
   const rows = useMemo(
     () => computeUnpaidInvoicesByPlan(invoices, cargoItems),
     [invoices, cargoItems],
@@ -63,22 +74,32 @@ export function UnpaidInvoicesPlanMonitor({ invoices, cargoItems, loading, showS
 
   if (!loading && rows.length === 0) return null;
 
-  const body = (
-    <>
-      <div className="unpaid-plan-monitor__head">
-        <Flex align="center" gap="0.4rem" style={{ minWidth: 0 }}>
-          <AlertCircle className="w-4 h-4" style={{ color: "var(--color-primary-blue)", flexShrink: 0 }} />
-          <div style={{ minWidth: 0 }}>
-            <Typography.Body className="unpaid-plan-monitor__title">Неоплаченные счета и план прибытия</Typography.Body>
-            <Typography.Label className="unpaid-plan-monitor__subtitle">
-              {loading
-                ? "Загрузка…"
-                : `${rows.length} к оплате · высокий приоритет: ${highCount} (до ${PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS} дн. до плана)`}
-            </Typography.Label>
-          </div>
-        </Flex>
-        {onOpen && !loading && <ChevronRight className="unpaid-plan-monitor__chevron" aria-hidden />}
-      </div>
+  const cardClass = `unpaid-plan-monitor cargo-card${highCount > 0 ? " unpaid-plan-monitor--alert" : ""}`;
+
+  return (
+    <div className={cardClass}>
+      <button
+        type="button"
+        className="unpaid-plan-monitor__head-btn"
+        onClick={onOpen}
+        disabled={!onOpen || loading}
+        title={onOpen ? "Открыть раздел «Счета»" : undefined}
+      >
+        <div className="unpaid-plan-monitor__head">
+          <Flex align="center" gap="0.4rem" style={{ minWidth: 0 }}>
+            <AlertCircle className="w-4 h-4" style={{ color: "var(--color-primary-blue)", flexShrink: 0 }} />
+            <div style={{ minWidth: 0, textAlign: "left" }}>
+              <Typography.Body className="unpaid-plan-monitor__title">Неоплаченные счета и план прибытия</Typography.Body>
+              <Typography.Label className="unpaid-plan-monitor__subtitle">
+                {loading
+                  ? "Загрузка…"
+                  : `${rows.length} к оплате · высокий приоритет: ${highCount} (до ${PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS} дн. до плана)`}
+              </Typography.Label>
+            </div>
+          </Flex>
+          {onOpen && !loading && <ChevronRight className="unpaid-plan-monitor__chevron" aria-hidden />}
+        </div>
+      </button>
 
       {loading ? (
         <Flex align="center" gap="0.5rem" className="unpaid-plan-monitor__loading">
@@ -101,27 +122,38 @@ export function UnpaidInvoicesPlanMonitor({ invoices, cargoItems, loading, showS
               </tr>
             </thead>
             <tbody>
-              {visible.map((row) => (
-                <tr key={`${row.invoiceNumber}-${row.cargoNumber ?? ""}`}>
-                  <td>{formatInvoiceNumber(row.invoiceNumber)}</td>
-                  <td title={row.customer}>{stripOoo(row.customer)}</td>
-                  <td>
-                    {row.planDateKey ? <DateText value={row.planDateKey} /> : "—"}
-                    {row.cargoNumber ? (
-                      <span className="unpaid-plan-monitor__cargo" title="Перевозка">
-                        {row.cargoNumber}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td>{daysLabel(row.daysUntilPlan)}</td>
-                  <td>{priorityBadge(row)}</td>
-                  {showSums && (
-                    <td style={{ textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>
-                      {formatCurrency(row.balance, true)}
+              {visible.map((row) => {
+                const rowOpen = onOpenInvoice
+                  ? leafRowClickProps(() => onOpenInvoice(row.invoice), "Открыть счёт")
+                  : null;
+                return (
+                  <tr key={`${row.invoiceNumber}-${row.cargoNumber ?? ""}`} {...(rowOpen ?? {})}>
+                    <td>
+                      <ClickableInvoiceNumber
+                        number={row.invoiceNumber}
+                        invoice={row.invoice}
+                        onOpen={onOpenInvoice}
+                      />
                     </td>
-                  )}
-                </tr>
-              ))}
+                    <td title={row.customer}>{stripOoo(row.customer)}</td>
+                    <td>
+                      {row.planDateKey ? <DateText value={row.planDateKey} /> : "—"}
+                      {row.cargoNumber ? (
+                        <span className="unpaid-plan-monitor__cargo">
+                          <ClickableCargoNumber number={row.cargoNumber} onOpen={onOpenCargo} />
+                        </span>
+                      ) : null}
+                    </td>
+                    <td>{daysLabel(row.daysUntilPlan)}</td>
+                    <td>{priorityBadge(row)}</td>
+                    {showSums && (
+                      <td style={{ textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>
+                        {formatCurrency(row.balance, true)}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {hidden > 0 && (
@@ -131,23 +163,6 @@ export function UnpaidInvoicesPlanMonitor({ invoices, cargoItems, loading, showS
           )}
         </div>
       )}
-    </>
-  );
-
-  if (onOpen) {
-    return (
-      <button
-        type="button"
-        className={`unpaid-plan-monitor cargo-card${highCount > 0 ? " unpaid-plan-monitor--alert" : ""}`}
-        onClick={onOpen}
-        title="Открыть счета в документах"
-      >
-        {body}
-      </button>
-    );
-  }
-
-  return (
-    <div className={`unpaid-plan-monitor cargo-card${highCount > 0 ? " unpaid-plan-monitor--alert" : ""}`}>{body}</div>
+    </div>
   );
 }

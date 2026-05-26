@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { Button, Flex, Typography } from "@maxhub/max-ui";
-import { Copy, Loader2, QrCode } from "lucide-react";
-import { formatCurrency } from "../../lib/formatUtils";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Flex, Typography } from "@maxhub/max-ui";
+import { Loader2, QrCode } from "lucide-react";
+import { formatCurrency, parseCargoNumbersFromText } from "../../lib/formatUtils";
+import { invoiceBalance, invoiceDocSum, invoiceSumPaid } from "../../../lib/invoiceAmounts.js";
 import { canShowInvoicePaymentQr } from "../../../lib/invoicePaymentQr.js";
+import { BankBusinessPayButtons } from "./BankBusinessPayButtons";
 import type { AuthData } from "../../types";
 
 type QrResponse = {
@@ -11,6 +13,9 @@ type QrResponse = {
   qrImageUrl?: string;
   purpose?: string;
   amountRub?: number;
+  docSumRub?: number;
+  paidRub?: number;
+  balanceRub?: number;
   payeeName?: string;
   error?: string;
 };
@@ -18,15 +23,38 @@ type QrResponse = {
 type Props = {
   invoice: Record<string, unknown>;
   auth: AuthData | null | undefined;
+  cargoSumPaidByNumber?: Map<string, number>;
 };
 
-export function InvoicePaymentQrBlock({ invoice, auth }: Props) {
+function getFirstCargoNumberFromInvoice(inv: Record<string, unknown>): string | null {
+  const list = Array.isArray(inv.List) ? inv.List : [];
+  for (const row of list) {
+    const text = String(
+      (row as { Operation?: string; Name?: string })?.Operation ??
+        (row as { Name?: string })?.Name ??
+        "",
+    ).trim();
+    if (!text) continue;
+    const cargo = parseCargoNumbersFromText(text).find((p) => p.type === "cargo");
+    if (cargo?.value) return cargo.value;
+  }
+  return null;
+}
+
+export function InvoicePaymentQrBlock({ invoice, auth, cargoSumPaidByNumber }: Props) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<QrResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState<"payload" | "purpose" | null>(null);
 
   const mayPay = canShowInvoicePaymentQr(invoice);
+
+  const amounts = useMemo(() => {
+    const getCargo = (inv: Record<string, unknown>) => getFirstCargoNumberFromInvoice(inv);
+    const docSum = invoiceDocSum(invoice);
+    const paid = invoiceSumPaid(invoice, cargoSumPaidByNumber, getCargo);
+    const balance = invoiceBalance(invoice, cargoSumPaidByNumber, getCargo);
+    return { docSum, paid, balance };
+  }, [invoice, cargoSumPaidByNumber]);
 
   const loadQr = useCallback(async () => {
     if (!auth?.login || !auth?.password || !mayPay) return;
@@ -61,17 +89,13 @@ export function InvoicePaymentQrBlock({ invoice, auth }: Props) {
     void loadQr();
   }, [loadQr]);
 
-  const copyText = async (text: string, kind: "payload" | "purpose") => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(kind);
-      window.setTimeout(() => setCopied(null), 2000);
-    } catch {
-      /* ignore */
-    }
-  };
-
   if (!mayPay) return null;
+
+  const docSum = data?.docSumRub ?? amounts.docSum;
+  const paid = data?.paidRub ?? amounts.paid;
+  const balance = data?.balanceRub ?? data?.amountRub ?? amounts.balance;
+
+  const amountLineStyle = { fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.2rem" };
 
   return (
     <div
@@ -117,9 +141,15 @@ export function InvoicePaymentQrBlock({ invoice, auth }: Props) {
             }}
           />
           <div style={{ flex: 1, minWidth: "12rem" }}>
-            <Typography.Body style={{ fontSize: "0.85rem", marginBottom: "0.35rem" }}>
-              К оплате:{" "}
-              <strong>{formatCurrency(data.amountRub ?? 0)}</strong>
+            <Typography.Body style={amountLineStyle}>
+              Сумма счёта: <strong style={{ color: "var(--color-text-primary)" }}>{formatCurrency(docSum)}</strong>
+            </Typography.Body>
+            <Typography.Body style={amountLineStyle}>
+              Оплачено: <strong style={{ color: "var(--color-text-primary)" }}>{formatCurrency(paid)}</strong>
+            </Typography.Body>
+            <Typography.Body style={{ ...amountLineStyle, marginBottom: "0.45rem" }}>
+              Остаток к оплате:{" "}
+              <strong style={{ color: "var(--color-text-primary)", fontSize: "0.9rem" }}>{formatCurrency(balance)}</strong>
             </Typography.Body>
             {data.payeeName && (
               <Typography.Body
@@ -139,32 +169,11 @@ export function InvoicePaymentQrBlock({ invoice, auth }: Props) {
               {data.purpose}
             </Typography.Body>
             <Typography.Body
-              style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem", lineHeight: 1.45 }}
+              style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", lineHeight: 1.45, marginBottom: "0.65rem" }}
             >
-              В приложении банка для бизнеса: «Платёж» → «Сканировать QR» или «По реквизитам» → сканер.
+              В приложении банка: «Платёж» → «Сканировать QR» или оплата по реквизитам.
             </Typography.Body>
-            <Flex gap="0.35rem" wrap="wrap">
-              <Button
-                type="button"
-                className="filter-button"
-                style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem" }}
-                onClick={() => void copyText(data.payload!, "payload")}
-              >
-                <Copy className="w-3.5 h-3.5" />
-                {copied === "payload" ? "Скопировано" : "Копировать QR-строку"}
-              </Button>
-              {data.purpose && (
-                <Button
-                  type="button"
-                  className="filter-button"
-                  style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem" }}
-                  onClick={() => void copyText(data.purpose!, "purpose")}
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  {copied === "purpose" ? "Скопировано" : "Назначение"}
-                </Button>
-              )}
-            </Flex>
+            <BankBusinessPayButtons />
           </div>
         </Flex>
       )}

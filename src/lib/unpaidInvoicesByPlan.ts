@@ -1,4 +1,4 @@
-import { invoiceBalance, invoiceDocSum } from "../../lib/invoiceAmounts.js";
+import { buildCargoSumPaidByNumber, invoiceBalance, invoiceDocSum } from "../../lib/invoiceAmounts.js";
 import { parseCargoNumbersFromText } from "./formatUtils";
 import { getInvoicePaymentFilterKey } from "./statusUtils";
 import { buildRouteTypePlanDaysMap, getEffectivePlannedDeliveryDate } from "./cargoPlannedDelivery";
@@ -9,6 +9,7 @@ export const PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS = 7;
 export type InvoicePlanPriority = "high" | "low" | "none";
 
 export type UnpaidInvoicePlanRow = {
+  invoice: Record<string, unknown>;
   invoiceNumber: string;
   customer: string;
   invoiceDate: string;
@@ -70,6 +71,11 @@ export function collectCargoNumbersFromInvoice(inv: Record<string, unknown>): st
   return [...nums];
 }
 
+function getFirstCargoNumberFromInvoice(inv: Record<string, unknown>): string | null {
+  const nums = collectCargoNumbersFromInvoice(inv);
+  return nums[0] ?? null;
+}
+
 function earliestPlanForInvoice(
   inv: Record<string, unknown>,
   planByCargo: Map<string, Date>,
@@ -89,11 +95,14 @@ function earliestPlanForInvoice(
   return { planDate: earliest, cargoNumber };
 }
 
-function isOutstandingInvoice(inv: Record<string, unknown>): boolean {
+function isOutstandingInvoice(
+  inv: Record<string, unknown>,
+  cargoSumPaidByNumber: Map<string, number>,
+): boolean {
   const key = getInvoicePaymentFilterKey(inv);
   if (key === "paid" || key === "cancelled") return false;
   if (key === "unpaid" || key === "partial") return true;
-  return invoiceBalance(inv) > 0.005;
+  return invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice) > 0.005;
 }
 
 export function computeUnpaidInvoicesByPlan(
@@ -103,14 +112,15 @@ export function computeUnpaidInvoicesByPlan(
 ): UnpaidInvoicePlanRow[] {
   const withinDays = options?.highPriorityWithinDays ?? PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS;
   const planByCargo = buildCargoPlannedDateByNumber(cargoItems);
+  const cargoSumPaidByNumber = buildCargoSumPaidByNumber(cargoItems as Record<string, unknown>[]);
   const today = startOfDay(new Date());
   const dayMs = 24 * 60 * 60 * 1000;
   const rows: UnpaidInvoicePlanRow[] = [];
 
   for (const inv of invoices) {
-    if (!isOutstandingInvoice(inv)) continue;
+    if (!isOutstandingInvoice(inv, cargoSumPaidByNumber)) continue;
     const sum = invoiceDocSum(inv);
-    const balance = invoiceBalance(inv);
+    const balance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
     if (sum <= 0 && balance <= 0) continue;
 
     const invoiceNumber = String(inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? "").trim() || "—";
@@ -120,7 +130,7 @@ export function computeUnpaidInvoicesByPlan(
     const { planDate, cargoNumber } = earliestPlanForInvoice(inv, planByCargo);
 
     let daysUntilPlan: number | null = null;
-    let priority: InvoicePlanPriority = "none";
+    let priority: InvoicePlanPriority = "low";
     let planDateKey: string | null = null;
 
     if (planDate) {
@@ -130,6 +140,7 @@ export function computeUnpaidInvoicesByPlan(
     }
 
     rows.push({
+      invoice: inv,
       invoiceNumber,
       customer,
       invoiceDate,

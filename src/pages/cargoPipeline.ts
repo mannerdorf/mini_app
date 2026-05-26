@@ -8,6 +8,7 @@ import {
 import { cityToCode, formatInvoiceNumber } from "../lib/formatUtils";
 import { cargoLastMileIsSelfPickup, cargoMatchesRoleFilter, cargoPickupLogisticsIsTerminalTo, type CargoRoleFilterKey } from "../lib/cargoUtils";
 import { normCargoKey } from "./documentsPipeline";
+import { buildNomenclatureSearchTextFromCargoItem } from "../lib/perevozkaDetails";
 
 type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;
 
@@ -149,6 +150,8 @@ function appendCargoSearchParts(obj: unknown, depth: number, parts: string[]): v
 function cargoItemSearchHaystack(item: CargoItem): string {
   const parts: string[] = [];
   appendCargoSearchParts(item, 0, parts);
+  const nom = buildNomenclatureSearchTextFromCargoItem(item);
+  if (nom) parts.push(nom);
   return parts.join(" ");
 }
 

@@ -48,7 +48,7 @@ export function getTimelineStepColor(label: string): 'success' | 'warning' | 'da
     return 'default';
 }
 
-function extractNomenclatureFromPerevozka(data: any): Record<string, unknown>[] {
+export function extractNomenclatureFromPerevozka(data: any): Record<string, unknown>[] {
     const tryExtract = (obj: any): Record<string, unknown>[] => {
         if (!obj || typeof obj !== 'object') return [];
         for (const key of NOMENCLATURE_KEYS) {
@@ -73,6 +73,66 @@ function extractNomenclatureFromPerevozka(data: any): Record<string, unknown>[] 
         if (fromNest.length > 0) return fromNest;
     }
     return [];
+}
+
+function nomenclatureSkuText(skuRaw: unknown): string {
+    if (Array.isArray(skuRaw)) {
+        return skuRaw
+            .map((it: unknown) => {
+                if (it == null) return "";
+                if (typeof it === "string") return it;
+                if (typeof it === "object") {
+                    const o = it as Record<string, unknown>;
+                    return String(o.SKU ?? o.sku ?? o.Name ?? o.Номенклатура ?? "");
+                }
+                return String(it);
+            })
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .join(" ");
+    }
+    if (skuRaw && typeof skuRaw === "object") {
+        const o = skuRaw as Record<string, unknown>;
+        return String(o.SKU ?? o.sku ?? o.Name ?? o.Номенклатура ?? "").trim();
+    }
+    return String(skuRaw ?? "").trim();
+}
+
+/** Текст для поиска по штрихкоду и номенклатуре принятого груза. */
+export function buildNomenclatureSearchText(rows: Record<string, unknown>[]): string {
+    const parts: string[] = [];
+    for (const row of rows) {
+        const barcode = String(
+            row.Package ??
+                row.package ??
+                row.Barcode ??
+                row.barcode ??
+                row.Штрихкод ??
+                row.НомерМеста ??
+                row.PlaceNumber ??
+                "",
+        ).trim();
+        if (barcode) parts.push(barcode);
+        const skuRaw =
+            row.SKUs ??
+            row.skus ??
+            row.SKU ??
+            row.sku ??
+            row.Nomenclature ??
+            row.Номенклатура ??
+            row.Goods ??
+            row.Товар ??
+            row.Name ??
+            row.Наименование;
+        const name = nomenclatureSkuText(skuRaw);
+        if (name) parts.push(name);
+    }
+    return parts.join(" ");
+}
+
+export function buildNomenclatureSearchTextFromCargoItem(item: CargoItem | Record<string, unknown>): string {
+    const rows = extractNomenclatureFromPerevozka(item);
+    return rows.length > 0 ? buildNomenclatureSearchText(rows) : "";
 }
 
 export async function fetchPerevozkaDetails(

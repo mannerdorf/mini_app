@@ -4,6 +4,7 @@ import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { X, Download, Loader2 } from "lucide-react";
 import { formatCurrency, formatInvoiceNumber, stripOoo, parseCargoNumbersFromText, transliterateFilename } from "../../lib/formatUtils";
 import { DateText } from "../ui/DateText";
+import { StatusBadge } from "../shared/StatusBadges";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { DOCUMENT_METHODS } from "../../documentMethods";
 import { edoDocButtonMiniBadgeStyle, getEdoTableDisplayLabel, getInvoiceEdoInfoByDocLabel } from "../../lib/edoStatus";
@@ -22,6 +23,9 @@ type ActDetailModalProps = {
     /** При клике по номеру перевозки — открыть карточку перевозки */
     onOpenCargo?: (cargoNumber: string) => void;
     auth?: AuthData | null;
+    cargoStateByNumber?: Map<string, string>;
+    cargoRouteByNumber?: Map<string, string>;
+    perevozkiLoading?: boolean;
 };
 
 /** Числовая часть номера без префикса и ведущих нулей (0000-000113, 000113, 113 → 113) */
@@ -63,7 +67,32 @@ function getFirstCargoNumberFromAct(item: any): string | null {
     return null;
 }
 
-export function ActDetailModal({ item, isOpen, onClose, onOpenInvoice, invoices = [], onOpenCargo, auth }: ActDetailModalProps) {
+function getCargoNumberFromRow(row: { Operation?: string; Name?: string }): string | null {
+    const text = String(row?.Operation ?? row?.Name ?? "").trim();
+    if (!text) return null;
+    const parts = parseCargoNumbersFromText(text);
+    const cargo = parts.find((p) => p.type === "cargo");
+    return cargo?.value ?? null;
+}
+
+function lookupNorm<T>(map: Map<string, T> | undefined, key: string): T | undefined {
+    if (!map || !key) return undefined;
+    const norm = (s: string) => String(s).replace(/^0+/, "") || s;
+    return map.get(key) ?? map.get(norm(key));
+}
+
+export function ActDetailModal({
+    item,
+    isOpen,
+    onClose,
+    onOpenInvoice,
+    invoices = [],
+    onOpenCargo,
+    auth,
+    cargoStateByNumber,
+    cargoRouteByNumber,
+    perevozkiLoading,
+}: ActDetailModalProps) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
 
@@ -289,26 +318,39 @@ export function ActDetailModal({ item, isOpen, onClose, onOpenInvoice, invoices 
                             borderRadius: "8px",
                         }}
                     >
-                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem", color: "var(--color-text-primary)" }}>
+                        <table className="invoice-detail-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem", color: "var(--color-text-primary)" }}>
                             <thead>
                                 <tr style={{ background: "var(--color-bg-hover)" }}>
                                     <th style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600, color: "var(--color-text-primary)" }}>Услуга</th>
+                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600, color: "var(--color-text-primary)" }}>Статус перевозки</th>
+                                    <th className="invoice-detail-table-route" style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600, color: "var(--color-text-primary)" }}>Маршрут</th>
                                     <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600, color: "var(--color-text-primary)" }}>Кол-во</th>
                                     <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600, color: "var(--color-text-primary)" }}>Цена</th>
                                     <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600, color: "var(--color-text-primary)" }}>Сумма</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {list.map((row, i) => (
+                                {list.map((row, i) => {
+                                    const cargoNum = getCargoNumberFromRow(row);
+                                    const deliveryState = cargoNum ? lookupNorm(cargoStateByNumber, cargoNum) : undefined;
+                                    const route = cargoNum ? lookupNorm(cargoRouteByNumber, cargoNum) : undefined;
+                                    return (
                                     <tr key={i} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                                        <td style={{ padding: "0.5rem 0.4rem", maxWidth: 320, color: "var(--color-text-primary)" }} title={stripOoo(String(row.Operation ?? row.Name ?? ""))}>
+                                        <td style={{ padding: "0.5rem 0.4rem", maxWidth: 220, color: "var(--color-text-primary)" }} title={stripOoo(String(row.Operation ?? row.Name ?? ""))}>
                                             {renderServiceCell(String(row.Operation ?? row.Name ?? "—"))}
+                                        </td>
+                                        <td style={{ padding: "0.5rem 0.4rem", color: "var(--color-text-primary)" }}>
+                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} /> : <StatusBadge status={deliveryState} />}
+                                        </td>
+                                        <td className="invoice-detail-table-route" style={{ padding: "0.5rem 0.4rem", color: "var(--color-text-primary)" }}>
+                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} /> : route ? <span style={{ fontSize: "0.75rem", fontWeight: 600, padding: "0.15rem 0.35rem", borderRadius: "999px", background: "rgba(59, 130, 246, 0.15)", color: "var(--color-primary-blue)", border: "1px solid rgba(59, 130, 246, 0.4)" }}>{route}</span> : "—"}
                                         </td>
                                         <td style={{ padding: "0.5rem 0.4rem", textAlign: "right", color: "var(--color-text-primary)" }}>{row.Quantity ?? "—"}</td>
                                         <td style={{ padding: "0.5rem 0.4rem", textAlign: "right", color: "var(--color-text-primary)" }}>{row.Price != null ? formatCurrency(row.Price) : "—"}</td>
                                         <td style={{ padding: "0.5rem 0.4rem", textAlign: "right", color: "var(--color-text-primary)" }}>{row.Sum != null ? formatCurrency(row.Sum) : "—"}</td>
                                     </tr>
-                                ))}
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

@@ -22,6 +22,7 @@ import {
 import { initSharedFilterSets, saveSharedListFilters, sharedFromFilterSets } from "../lib/sharedListFilters";
 import { buildTransportOptionsFromSendingsInPeriod, buildTransportLinkedCargoNumbersInPeriod, collectSendingFreightCargoNumbers, normCargoKey } from "./documentsPipeline";
 import { useCargoTransportFilter, usePerevozkiMultiAccounts, useSendings } from "../hooks/useApi";
+import { useCargoNomenclatureSearch } from "../hooks/useCargoNomenclatureSearch";
 import { CARGO_ROLE_FILTER_LABELS, type CargoRoleFilterKey } from "../lib/cargoUtils";
 import { buildRouteTypePlanDaysMap, getEffectivePlannedDeliveryDate } from "../lib/cargoPlannedDelivery";
 import { CargoSummaryCard, CargoStateBlocks } from "./cargoViewBlocks";
@@ -389,10 +390,22 @@ export function CargoPage({
         return mergeCargoItemsByNumber(items, transportLinkedItems);
     }, [items, transportLinkedItems, effectiveServiceMode, transportFilter]);
 
-    const cargoSearchTextByNumber = useMemo(
-        () => buildCargoSearchTextByNumberFromSendings(sendingsItems || []),
-        [sendingsItems],
-    );
+    const { searchByNumber: nomenclatureSearchByNumber, loading: nomenclatureSearchLoading } = useCargoNomenclatureSearch({
+        items: itemsForFiltering,
+        searchText: effectiveSearchText,
+        auth: primaryAuth,
+        useServiceRequest: effectiveServiceMode,
+    });
+
+    const cargoSearchTextByNumber = useMemo(() => {
+        const merged = buildCargoSearchTextByNumberFromSendings(sendingsItems || []);
+        nomenclatureSearchByNumber.forEach((text, key) => {
+            if (!text) return;
+            const prev = merged.get(key) ?? "";
+            merged.set(key, `${prev} ${text}`.trim());
+        });
+        return merged;
+    }, [sendingsItems, nomenclatureSearchByNumber]);
 
     useEffect(() => {
         if (!transportFilter) return;
@@ -956,6 +969,12 @@ export function CargoPage({
                 />
             </motion.div>
             </div>
+
+            {nomenclatureSearchLoading && String(effectiveSearchText ?? "").trim().length >= 2 && (
+                <Typography.Label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>
+                    Поиск по штрихкоду и номенклатуре…
+                </Typography.Label>
+            )}
 
             <CargoStateBlocks
                 loading={loading}

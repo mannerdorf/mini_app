@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Heart, Loader2, AlertTriangle, Share2, Ship } from "lucide-react";
 import { cityToCode, formatCurrency, formatInvoiceNumber, normalizeInvoiceStatus, stripOoo } from "../lib/formatUtils";
+import { ClickableCargoNumber, ClickableInvoiceNumber } from "../components/ui/EntityLinks";
 import { getPayTillDate, getPayTillDateColor } from "../lib/dateUtils";
 import {
   aggregateInvoiceEdoDocStats,
@@ -195,7 +196,9 @@ export function DocumentsEdoMonitorGroupedTable({
                                   }}
                                   title="Открыть счёт"
                                 >
-                                  <td style={{ padding: "0.35rem 0.3rem" }}>{formatInvoiceNumber(inum)}</td>
+                                  <td style={{ padding: "0.35rem 0.3rem" }}>
+                                    <ClickableInvoiceNumber number={String(inum)} invoice={inv} onOpen={onOpenInvoice} />
+                                  </td>
                                   <td className="doc-inner-table-date" style={{ padding: "0.35rem 0.3rem" }}>
                                     <DateText value={typeof idt === "string" ? idt : idt ? String(idt) : undefined} />
                                   </td>
@@ -722,12 +725,13 @@ export function DocumentsActCardsList({
 export type DocumentsEdoCargoCardProps = {
   item: EdoCargoCardItem;
   onOpen: () => void;
+  onOpenCargo?: (cargoNumber: string) => void;
   isFavorite: boolean;
   onToggleFavorite: () => void;
 };
 
 /** Плитка перевозки в разделе «ЭДО» — тот же каркас, что у счёта, статусы ЭДО в теле карточки. */
-export function DocumentsEdoCargoCard({ item, onOpen, isFavorite, onToggleFavorite }: DocumentsEdoCargoCardProps) {
+export function DocumentsEdoCargoCard({ item, onOpen, onOpenCargo, isFavorite, onToggleFavorite }: DocumentsEdoCargoCardProps) {
   const { cargoNumber, invoice, cargo } = item;
   const invNum = invoice.Number ?? invoice.number ?? invoice.Номер ?? invoice.N ?? "";
   const dt = cargo?.DatePrih ?? invoice.DateDoc ?? invoice.Date ?? invoice.date ?? invoice.Дата ?? "";
@@ -799,9 +803,11 @@ export function DocumentsEdoCargoCard({ item, onOpen, isFavorite, onToggleFavori
     >
       <Flex justify="space-between" align="start" style={{ marginBottom: "0.5rem", minWidth: 0, overflow: "visible" }}>
         <Flex align="center" gap="0.5rem" style={{ flexWrap: "wrap", flex: "0 1 auto", minWidth: 0, maxWidth: "60%" }}>
-          <Typography.Body style={{ fontWeight: 600, fontSize: "1rem", color: "var(--color-text-primary)" }}>
-            {formatInvoiceNumber(cargoNumber)}
-          </Typography.Body>
+          <ClickableCargoNumber
+            number={cargoNumber}
+            onOpen={onOpenCargo}
+            style={{ fontWeight: 600, fontSize: "1rem", color: "var(--color-text-primary)" }}
+          />
         </Flex>
         <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
           <Button
@@ -862,7 +868,8 @@ export function DocumentsEdoCargoCard({ item, onOpen, isFavorite, onToggleFavori
       </Flex>
       {invNum ? (
         <Typography.Label style={{ display: "block", fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.4rem" }}>
-          Счёт: {formatInvoiceNumber(String(invNum))}
+          Счёт:{" "}
+          <ClickableInvoiceNumber number={String(invNum)} invoice={invoice} onOpen={(_inv) => onOpen()} />
         </Typography.Label>
       ) : null}
       <Flex className="documents-edo-cargo-card__edo-badges" gap="0.35rem" wrap="wrap">
@@ -877,6 +884,7 @@ export function DocumentsEdoCargoCard({ item, onOpen, isFavorite, onToggleFavori
 export type DocumentsEdoCardsListProps = {
   items: EdoCargoCardItem[];
   onOpenInvoice: (inv: any) => void;
+  onOpenCargo?: (cargoNumber: string) => void;
   isInvoiceFavorite: (num: string) => boolean;
   onToggleInvoiceFavorite: (num: string) => void;
   docsMotionEnabled?: boolean;
@@ -886,6 +894,7 @@ export type DocumentsEdoCardsListProps = {
 export function DocumentsEdoCardsList({
   items,
   onOpenInvoice,
+  onOpenCargo,
   isInvoiceFavorite,
   onToggleInvoiceFavorite,
   docsMotionEnabled = false,
@@ -909,6 +918,7 @@ export function DocumentsEdoCardsList({
             <DocumentsEdoCargoCard
               item={item}
               onOpen={() => onOpenInvoice(item.invoice)}
+              onOpenCargo={onOpenCargo}
               isFavorite={isInvoiceFavorite(invNum)}
               onToggleFavorite={() => onToggleInvoiceFavorite(invNum)}
             />

@@ -63,7 +63,9 @@ export function buildSt00012PaymentPayload(
 }
 
 export function buildQrImageUrl(payload: string, sizePx = 280): string {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=${sizePx}x${sizePx}&data=${encodeURIComponent(payload)}`;
+  const color = "2563eb";
+  const bgcolor = "ffffff";
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${sizePx}x${sizePx}&data=${encodeURIComponent(payload)}&color=${color}&bgcolor=${bgcolor}`;
 }
 
 export type InvoicePaymentQrResult = {
@@ -72,6 +74,9 @@ export type InvoicePaymentQrResult = {
   purpose: string;
   amountRub: number;
   amountKopecks: number;
+  docSumRub: number;
+  paidRub: number;
+  balanceRub: number;
   invoiceNumber: string;
   invoiceDate: string;
 };
@@ -85,7 +90,10 @@ export function buildInvoicePaymentQr(
   const invoiceNumber = String(inv.Number ?? inv.number ?? "").trim();
   const invoiceDateRaw = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? "";
   const purpose = buildInvoicePaymentPurpose(invoiceNumber, invoiceDateRaw);
-  const amountKopecks = invoicePaymentAmountKopecks(inv);
+  const docSumRub = invoiceDocSum(inv);
+  const paidRub = invoiceSumPaid(inv);
+  const balanceRub = invoiceBalance(inv);
+  const amountKopecks = Math.max(0, Math.round(balanceRub * 100));
   if (amountKopecks <= 0) return null;
 
   const payload = buildSt00012PaymentPayload(payee, { amountKopecks, purpose });
@@ -95,6 +103,9 @@ export function buildInvoicePaymentQr(
     purpose,
     amountRub: amountKopecks / 100,
     amountKopecks,
+    docSumRub,
+    paidRub,
+    balanceRub,
     invoiceNumber,
     invoiceDate: formatInvoiceDateForPaymentPurpose(invoiceDateRaw),
   };

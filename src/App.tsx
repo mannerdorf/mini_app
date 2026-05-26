@@ -39,6 +39,7 @@ import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "./lib/
 import type { BillStatusFilterKey } from "./lib/statusUtils";
 import { CustomPeriodModal } from "./components/modals/CustomPeriodModal";
 import { CargoDetailsModal } from "./components/modals/CargoDetailsModal";
+import { InvoiceDetailModal } from "./components/modals/InvoiceDetailModal";
 import { LegalModal } from "./components/modals/LegalModal";
 const DocumentsPage = lazyWithRetry(
     () => import("./pages/DocumentsPage").then((m) => ({ default: m.DocumentsPage })),
@@ -472,6 +473,7 @@ export default function App() {
     const [overlayCargoNumber, setOverlayCargoNumber] = useState<string | null>(null);
     const [overlayCargoItem, setOverlayCargoItem] = useState<CargoItem | null>(null);
     const [overlayCargoLoading, setOverlayCargoLoading] = useState(false);
+    const [overlayInvoice, setOverlayInvoice] = useState<Record<string, unknown> | null>(null);
     const [overlayFavVersion, setOverlayFavVersion] = useState(0);
     
     // ИНИЦИАЛИЗАЦИЯ ПУСТЫМИ СТРОКАМИ (данные берутся с фронта)
@@ -1066,6 +1068,11 @@ export default function App() {
         setOverlayCargoNumber(cargoNumber);
         setOverlayCargoItem(null);
         setOverlayCargoInn(inn ?? null);
+    };
+
+    const openInvoiceInPlace = (invoice: Record<string, unknown>) => {
+        if (!invoice || typeof invoice !== "object") return;
+        setOverlayInvoice(invoice);
     };
 
     useEffect(() => {
@@ -1883,6 +1890,8 @@ export default function App() {
                         openCargoWithFilters={openCargoWithFilters}
                         openCargoFromChat={openCargoFromChat}
                         openCargoFromDocuments={openCargoFromDocuments}
+                        openCargoInPlace={openCargoInPlace}
+                        openInvoiceInPlace={openInvoiceInPlace}
                         openClaimFromCargo={openClaimFromCargo}
                         openDocumentsWithSection={openDocumentsWithSection}
                         openAisWithMmsi={openAisWithMmsi}
@@ -2078,7 +2087,7 @@ export default function App() {
                         <Search className="w-5 h-5 text-theme-secondary flex-shrink-0 ml-1" />
                         <Input
                             type="text"
-                            placeholder="Поиск..."
+                            placeholder={activeTab === "cargo" ? "Номер, штрихкод, номенклатура…" : "Поиск..."}
                             className="search-input"
                             value={searchText}
                             onChange={(e) => {
@@ -2116,6 +2125,8 @@ export default function App() {
                             openCargoWithFilters={openCargoWithFilters}
                             openCargoFromChat={openCargoFromChat}
                             openCargoFromDocuments={openCargoFromDocuments}
+                            openCargoInPlace={openCargoInPlace}
+                            openInvoiceInPlace={openInvoiceInPlace}
                             openClaimFromCargo={openClaimFromCargo}
                             openDocumentsWithSection={openDocumentsWithSection}
                             openAisWithMmsi={openAisWithMmsi}
@@ -2209,7 +2220,24 @@ export default function App() {
                 </div>
             )}
             
-            {/* Карточка перевозки поверх счёта (из раздела Документы) — zIndex 10000 чтобы быть выше InvoiceDetailModal (9998) */}
+            {overlayInvoice && activeAccount && (
+                <div style={{ position: "fixed", inset: 0, zIndex: 9998 }}>
+                    <InvoiceDetailModal
+                        item={overlayInvoice}
+                        isOpen
+                        onClose={() => setOverlayInvoice(null)}
+                        onOpenCargo={(cargoNumber) => openCargoInPlace(cargoNumber)}
+                        auth={{
+                            login: activeAccount.login,
+                            password: activeAccount.password,
+                            inn: activeAccount.activeCustomerInn ?? undefined,
+                            ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}),
+                        }}
+                    />
+                </div>
+            )}
+
+            {/* Карточка перевозки поверх счёта — zIndex 10000 чтобы быть выше InvoiceDetailModal (9998) */}
             {overlayCargoNumber && activeAccount && (
                 overlayCargoLoading ? (
                     <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={() => { setOverlayCargoNumber(null); setOverlayCargoItem(null); setOverlayCargoInn(null); }}>

@@ -10,6 +10,7 @@ import { ActDetailModal } from "../components/modals/ActDetailModal";
 import { NewOrderModal } from "../components/modals/NewOrderModal";
 import { DateText } from "../components/ui/DateText";
 import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode } from "../lib/formatUtils";
+import { ClickableInvoiceNumber } from "../components/ui/EntityLinks";
 import { downloadBase64File } from "../utils";
 import {
     checkSanctionsByNomenclature,
@@ -530,7 +531,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [dogovorsDownloadingId, setDogovorsDownloadingId] = useState<number | null>(null);
     const [dogovorsDownloadError, setDogovorsDownloadError] = useState<string | null>(null);
     const [sverkiApiDebug, setSverkiApiDebug] = useState<DocumentsApiDebugSnapshot | null>(null);
-    const [dogovorsApiDebug, setDogovorsApiDebug] = useState<DocumentsApiDebugSnapshot | null>(null);
     const [claimsList, setClaimsList] = useState<{
         id: number;
         claimNumber: string;
@@ -709,35 +709,11 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         if (!effectiveServiceMode && effectiveActiveInn) params.set('inn', effectiveActiveInn);
         const url = `/api/dogovors${params.toString() ? `?${params.toString()}` : ''}`;
         fetch(url)
-            .then(async (res) => {
-                const body = await res.json().catch(() => null);
-                const list = Array.isArray((body as { dogovors?: unknown })?.dogovors)
-                    ? ((body as { dogovors: typeof dogovorsList }).dogovors)
-                    : [];
-                setDogovorsApiDebug({
-                    fetchedAt: new Date().toISOString(),
-                    url,
-                    status: res.status,
-                    ok: res.ok,
-                    body,
-                    listKey: 'dogovors',
-                    listLength: list.length,
-                    error: res.ok ? undefined : String((body as { error?: string })?.error || (body as { message?: string })?.message || 'HTTP error'),
-                });
-                setDogovorsList(res.ok ? list : []);
+            .then((res) => res.json())
+            .then((data: { dogovors?: typeof dogovorsList }) => {
+                setDogovorsList(Array.isArray(data?.dogovors) ? data.dogovors : []);
             })
-            .catch((e: unknown) => {
-                setDogovorsList([]);
-                setDogovorsApiDebug({
-                    fetchedAt: new Date().toISOString(),
-                    url,
-                    status: null,
-                    ok: false,
-                    body: null,
-                    listKey: 'dogovors',
-                    error: (e as Error)?.message || 'Сетевая ошибка',
-                });
-            })
+            .catch(() => setDogovorsList([]))
             .finally(() => setDogovorsLoading(false));
     }, [docSection, effectiveActiveInn, effectiveServiceMode]);
     const reloadClaims = useCallback(async () => {
@@ -4010,7 +3986,9 @@ useEffect(() => {
                                 const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
                                 return (
                                     <tr key={inum || i} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={() => setSelectedInvoice(inv)} title="Открыть счёт">
-                                        <td className="cargo-inner-table__col-number" style={{ padding: '0.5rem 0.4rem' }}><span className="cargo-inner-table__number">{formatInvoiceNumber(inum)}</span></td>
+                                        <td className="cargo-inner-table__col-number" style={{ padding: '0.5rem 0.4rem' }}>
+                                            <ClickableInvoiceNumber number={String(inum)} invoice={inv} onOpen={setSelectedInvoice} />
+                                        </td>
                                         <td className="cargo-inner-table__col-date" style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} omitYear /></td>
                                         <td className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem' }}>
                                             <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile documents-invoices-inner-table__badges">
@@ -4066,13 +4044,11 @@ useEffect(() => {
                     item={selectedInvoice}
                     isOpen={!!selectedInvoice}
                     onClose={() => setSelectedInvoice(null)}
-                    onOpenCargo={(cargoNumber) => {
-                        setSelectedInvoice(null);
-                        setTimeout(() => onOpenCargo?.(cargoNumber), 0);
-                    }}
+                    onOpenCargo={(cargoNumber) => onOpenCargo?.(cargoNumber)}
                     auth={auth}
                     cargoStateByNumber={cargoStateByNumber}
                     cargoRouteByNumber={cargoRouteByNumber}
+                    cargoSumPaidByNumber={cargoSumPaidByNumber}
                     perevozkiLoading={perevozkiLoading}
                 />
             )}
@@ -4106,6 +4082,7 @@ useEffect(() => {
                     <DocumentsEdoCardsList
                         items={edoCargoCardItems}
                         onOpenInvoice={(inv) => setSelectedInvoice(inv)}
+                        onOpenCargo={onOpenCargo}
                         isInvoiceFavorite={isInvoiceFavorite}
                         onToggleInvoiceFavorite={toggleInvoiceFavorite}
                         docsMotionEnabled={docsMotionEnabled}
@@ -4130,13 +4107,11 @@ useEffect(() => {
                     item={selectedInvoice}
                     isOpen={!!selectedInvoice}
                     onClose={() => setSelectedInvoice(null)}
-                    onOpenCargo={(cargoNumber) => {
-                        setSelectedInvoice(null);
-                        setTimeout(() => onOpenCargo?.(cargoNumber), 0);
-                    }}
+                    onOpenCargo={(cargoNumber) => onOpenCargo?.(cargoNumber)}
                     auth={auth}
                     cargoStateByNumber={cargoStateByNumber}
                     cargoRouteByNumber={cargoRouteByNumber}
+                    cargoSumPaidByNumber={cargoSumPaidByNumber}
                     perevozkiLoading={perevozkiLoading}
                 />
             )}
@@ -4262,11 +4237,11 @@ useEffect(() => {
                         setSelectedInvoice(inv);
                     }}
                     invoices={items}
-                    onOpenCargo={(cargoNumber) => {
-                        setSelectedAct(null);
-                        setTimeout(() => onOpenCargo?.(cargoNumber), 0);
-                    }}
+                    onOpenCargo={(cargoNumber) => onOpenCargo?.(cargoNumber)}
                     auth={auth}
+                    cargoStateByNumber={cargoStateByNumber}
+                    cargoRouteByNumber={cargoRouteByNumber}
+                    perevozkiLoading={perevozkiLoading}
                 />
             )}
             </motion.div>
@@ -6566,17 +6541,6 @@ useEffect(() => {
             )}
             {docSection === 'Договоры' && (
                 <div className="doc-section-content">
-                {effectiveServiceMode && (
-                    <DocumentsApiDebugPanel
-                        title="GET /api/dogovors"
-                        loading={dogovorsLoading}
-                        snapshot={
-                            dogovorsApiDebug
-                                ? { ...dogovorsApiDebug, filteredLength: filteredDogovors.length }
-                                : null
-                        }
-                    />
-                )}
                 <DocumentsToolbarBelowSticky>
                     {dogovorsLoading ? (
                         <Flex align="center" gap="0.5rem" className="documents-section-empty-state documents-contracts-empty-state">

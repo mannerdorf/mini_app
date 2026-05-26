@@ -29,6 +29,8 @@ type Props = {
   openCargoWithFilters: (filters: { statuses?: string[]; customer?: string }) => void;
   openCargoFromChat: (cargoNumber: string) => void;
   openCargoFromDocuments: (cargoNumber: string) => void;
+  openCargoInPlace: (cargoNumber: string, inn?: string) => void;
+  openInvoiceInPlace: (invoice: Record<string, unknown>) => void;
   openClaimFromCargo: (cargoNumber: string) => void;
   openDocumentsWithSection: (section: string) => void;
   openAisWithMmsi: (mmsi: string) => void;
@@ -181,6 +183,8 @@ export function AppMainContent({
   openCargoWithFilters,
   openCargoFromChat,
   openCargoFromDocuments,
+  openCargoInPlace,
+  openInvoiceInPlace,
   openClaimFromCargo,
   openDocumentsWithSection,
   openAisWithMmsi,
@@ -224,7 +228,8 @@ export function AppMainContent({
             hasDashboard={true}
             saasDashboardMotion={profileSaasShellActive}
             canAccessHaulzDispatch={canAccessHaulzDispatch}
-            onOpenCargo={openCargoFromChat}
+            onOpenCargo={openCargoInPlace}
+            onOpenInvoice={openInvoiceInPlace}
             onOpenDocumentsEdo={() => openDocumentsWithSection("ЭДО")}
             onOpenDocumentsInvoices={() => openDocumentsWithSection("Счета")}
           />
@@ -263,7 +268,7 @@ export function AppMainContent({
         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
           <DocumentsPage
             auth={auth}
-            onOpenCargo={openCargoFromDocuments}
+            onOpenCargo={openCargoInPlace}
             onOpenAisWithMmsi={openAisWithMmsi}
             onOpenChat={undefined}
             permissions={activeAccount?.isRegisteredUser ? activeAccount.permissions : undefined}
@@ -355,7 +360,8 @@ export function AppMainContent({
             hasDashboard={true}
             saasDashboardMotion={profileSaasShellActive}
             canAccessHaulzDispatch={canAccessHaulzDispatch}
-            onOpenCargo={openCargoFromChat}
+            onOpenCargo={openCargoInPlace}
+            onOpenInvoice={openInvoiceInPlace}
             onOpenDocumentsEdo={() => openDocumentsWithSection("ЭДО")}
             onOpenDocumentsInvoices={() => openDocumentsWithSection("Счета")}
           />

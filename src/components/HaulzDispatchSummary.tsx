@@ -9,6 +9,7 @@ import type { AuthData, CargoItem, PerevozkaTimelineStep } from "../types";
 import { formatTimelineDate, formatTimelineTime, parseDateOnly } from "../lib/dateUtils";
 import { getFilterKeyByStatus, isReceivedInfoStatus } from "../lib/statusUtils";
 import { cityToCode, formatCurrency, formatInvoiceNumber, stripOoo } from "../lib/formatUtils";
+import { ClickableCargoNumber, leafRowClickProps } from "./ui/EntityLinks";
 import { getPlanDays, getSlaInfo, getSlaPlanAnchorDateString, getSlaPlanDeadlineMs, isFerry } from "../lib/cargoUtils";
 import { fetchPerevozkaTimeline } from "../lib/perevozkaDetails";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
@@ -803,7 +804,7 @@ export function HaulzDispatchSummary({
                                                                         title={num ? (expanded ? "Свернуть статусы" : "Показать статусы перевозки") : undefined}
                                                                     >
                                                                         <td style={{ padding: "0.35rem 0.35rem 0.35rem 1.5rem", whiteSpace: "nowrap" }}>
-                                                                            {formatInvoiceNumber(num)}
+                                                                            <ClickableCargoNumber number={num} onOpen={onOpenCargo} />
                                                                         </td>
                                                                         <td
                                                                             style={{
@@ -908,8 +909,16 @@ export function HaulzDispatchSummary({
                                                                                                             : planEndMs > 0 && stepMs > 0
                                                                                                               ? "#22c55e"
                                                                                                               : "var(--color-text-secondary)";
+                                                                                                        const stepRowOpen = num
+                                                                                                            ? leafRowClickProps(() => onOpenCargo(num), "Открыть карточку перевозки")
+                                                                                                            : null;
                                                                                                         return (
-                                                                                                            <tr key={i} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                                                                                                            <tr
+                                                                                                                key={i}
+                                                                                                                style={{ borderBottom: "1px solid var(--color-border)", ...(stepRowOpen?.style ?? {}) }}
+                                                                                                                onClick={stepRowOpen?.onClick}
+                                                                                                                title={stepRowOpen?.title}
+                                                                                                            >
                                                                                                                 <td
                                                                                                                     style={{
                                                                                                                         padding: "0.35rem 0.3rem",

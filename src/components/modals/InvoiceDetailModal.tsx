@@ -23,6 +23,7 @@ type InvoiceDetailModalProps = {
     /** Карты статус/маршрут по номеру перевозки (для столбцов в таблице номенклатуры) */
     cargoStateByNumber?: Map<string, string>;
     cargoRouteByNumber?: Map<string, string>;
+    cargoSumPaidByNumber?: Map<string, number>;
     perevozkiLoading?: boolean;
 };
 
@@ -54,7 +55,7 @@ function lookupNorm<T>(map: Map<string, T> | undefined, key: string): T | undefi
     return map.get(key) ?? map.get(norm(key));
 }
 
-export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, cargoStateByNumber, cargoRouteByNumber, perevozkiLoading }: InvoiceDetailModalProps) {
+export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, cargoStateByNumber, cargoRouteByNumber, cargoSumPaidByNumber, perevozkiLoading }: InvoiceDetailModalProps) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
 
@@ -233,7 +234,9 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                 {downloadError && (
                     <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem', marginBottom: '0.5rem', flexShrink: 0 }}>{downloadError}</Typography.Body>
                 )}
-                {auth && !isPaid && <InvoicePaymentQrBlock invoice={item} auth={auth} />}
+                {auth && !isPaid && (
+                    <InvoicePaymentQrBlock invoice={item} auth={auth} cargoSumPaidByNumber={cargoSumPaidByNumber} />
+                )}
                 {list.length > 0 ? (
                     <div style={{ flex: 1, minHeight: 0, overflow: 'auto', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
                         <table className="invoice-detail-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', color: 'var(--color-text-primary)' }}>
