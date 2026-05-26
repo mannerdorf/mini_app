@@ -1,3 +1,4 @@
+import type { Pool } from "pg";
 import { HAULZ_LEGAL } from "./haulzLegal.js";
 
 export type CompanyPayeeDetails = {
@@ -10,23 +11,28 @@ export type CompanyPayeeDetails = {
   corrAccount: string;
 };
 
-function envTrim(key: string): string {
-  return String(process.env[key] ?? "").trim();
-}
+type PayeeRow = {
+  name: string;
+  inn: string;
+  kpp: string;
+  account: string;
+  bank_name: string;
+  bic: string;
+  corr_account: string;
+};
 
-/** Банковские реквизиты получателя для QR (ГОСТ ST00012). Задаются в env на сервере. */
-export function loadCompanyPayeeDetails(): CompanyPayeeDetails | null {
-  const account = envTrim("HAULZ_PAYEE_ACCOUNT").replace(/\s/g, "");
-  const bic = envTrim("HAULZ_PAYEE_BIC").replace(/\s/g, "");
-  const bankName = envTrim("HAULZ_PAYEE_BANK_NAME");
-  const corrAccount = envTrim("HAULZ_PAYEE_CORR_ACCOUNT").replace(/\s/g, "");
+function rowToPayee(row: PayeeRow): CompanyPayeeDetails | null {
+  const account = String(row.account ?? "").replace(/\s/g, "");
+  const bic = String(row.bic ?? "").replace(/\s/g, "");
+  const bankName = String(row.bank_name ?? "").trim();
+  const corrAccount = String(row.corr_account ?? "").replace(/\s/g, "");
 
   if (!account || !bic || !bankName) return null;
 
   return {
-    name: envTrim("HAULZ_PAYEE_NAME") || HAULZ_LEGAL.name,
-    inn: envTrim("HAULZ_PAYEE_INN") || HAULZ_LEGAL.inn,
-    kpp: envTrim("HAULZ_PAYEE_KPP") || HAULZ_LEGAL.kpp,
+    name: String(row.name ?? "").trim() || HAULZ_LEGAL.name,
+    inn: String(row.inn ?? "").trim() || HAULZ_LEGAL.inn,
+    kpp: String(row.kpp ?? "").trim() || HAULZ_LEGAL.kpp,
     account,
     bankName,
     bic,
@@ -34,6 +40,18 @@ export function loadCompanyPayeeDetails(): CompanyPayeeDetails | null {
   };
 }
 
-export function isCompanyPayeeConfigured(): boolean {
-  return loadCompanyPayeeDetails() != null;
+/** Банковские реквизиты получателя для QR (ГОСТ ST00012) из таблицы haulz_company_payee. */
+export async function loadCompanyPayeeDetails(pool: Pool): Promise<CompanyPayeeDetails | null> {
+  const { rows } = await pool.query<PayeeRow>(
+    `SELECT name, inn, kpp, account, bank_name, bic, corr_account
+     FROM haulz_company_payee
+     WHERE id = 1`
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return rowToPayee(row);
+}
+
+export async function isCompanyPayeeConfigured(pool: Pool): Promise<boolean> {
+  return (await loadCompanyPayeeDetails(pool)) != null;
 }

@@ -3342,6 +3342,122 @@ button.edo-health-monitor {
     }
 }
 
+/* Главная: неоплаченные счета × план прибытия на терминал */
+.unpaid-plan-monitor {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    padding: 0.65rem 0.75rem !important;
+    margin-top: 0;
+    margin-bottom: 0.75rem !important;
+    border-radius: 12px !important;
+    text-align: left;
+    cursor: default;
+    border: 1px solid rgba(148, 163, 184, 0.22) !important;
+    background: var(--color-bg-card) !important;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05) !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+button.unpaid-plan-monitor {
+    appearance: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+button.unpaid-plan-monitor:hover {
+    border-color: rgba(59, 130, 246, 0.35) !important;
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.08) !important;
+}
+
+.unpaid-plan-monitor--alert {
+    border-color: rgba(239, 68, 68, 0.28) !important;
+    background: linear-gradient(90deg, rgba(239, 68, 68, 0.05), transparent 60%) !important;
+}
+
+.unpaid-plan-monitor__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.unpaid-plan-monitor__title {
+    font-size: 0.88rem !important;
+    font-weight: 600 !important;
+    line-height: 1.25;
+}
+
+.unpaid-plan-monitor__subtitle {
+    display: block;
+    font-size: 0.72rem !important;
+    color: var(--color-text-secondary) !important;
+    margin-top: 0.12rem;
+    line-height: 1.35;
+}
+
+.unpaid-plan-monitor__chevron {
+    flex-shrink: 0;
+    margin-top: 0.15rem;
+    color: var(--color-text-secondary);
+    opacity: 0.65;
+}
+
+.unpaid-plan-monitor__loading {
+    min-height: 2rem;
+    justify-content: center;
+}
+
+.unpaid-plan-monitor__table-wrap {
+    overflow-x: auto;
+    max-height: 16rem;
+    overflow-y: auto;
+}
+
+.unpaid-plan-monitor__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+}
+
+.unpaid-plan-monitor__table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--color-bg-hover);
+    padding: 0.35rem 0.4rem;
+    text-align: left;
+    font-weight: 600;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.unpaid-plan-monitor__table td {
+    padding: 0.35rem 0.4rem;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+    max-width: 10rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.unpaid-plan-monitor__cargo {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--color-text-secondary);
+    margin-top: 0.1rem;
+}
+
+.unpaid-plan-monitor__more {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.72rem !important;
+    color: var(--color-text-secondary) !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .edo-health-monitor__ring--alert svg circle:last-child {
         animation: none;

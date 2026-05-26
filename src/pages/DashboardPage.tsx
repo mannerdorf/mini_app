@@ -40,6 +40,7 @@ import { DateText } from "../components/ui/DateText";
 import { FilterDialog } from "../components/shared/FilterDialog";
 import { HaulzDispatchSummary } from "../components/HaulzDispatchSummary";
 import { EdoHealthMonitor } from "../components/EdoHealthMonitor";
+import { UnpaidInvoicesPlanMonitor } from "../components/UnpaidInvoicesPlanMonitor";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
 import { getWebApp, isMaxWebApp } from "../webApp";
 import type { AuthData, CargoItem, DateFilter, PerevozkaTimelineStep, StatusFilter } from "../types";
@@ -259,6 +260,7 @@ export type DashboardPageProps = {
     canAccessHaulzDispatch?: boolean;
     onOpenCargo?: (cargoNumber: string) => void;
     onOpenDocumentsEdo?: () => void;
+    onOpenDocumentsInvoices?: () => void;
 };
 
 export function DashboardPage({
@@ -273,6 +275,7 @@ export function DashboardPage({
     canAccessHaulzDispatch = false,
     onOpenCargo,
     onOpenDocumentsEdo,
+    onOpenDocumentsInvoices,
 }: DashboardPageProps) {
     const prefersReducedMotion = useReducedMotion();
     const dashboardMotionEnabled = !!saasDashboardMotion && prefersReducedMotion !== true;
@@ -3018,6 +3021,16 @@ export function DashboardPage({
                     invoices={edoMonitorInvoices}
                     loading={invoicesLoading}
                     onOpen={onOpenDocumentsEdo}
+                />
+            )}
+
+            {!showOnlySla && (
+                <UnpaidInvoicesPlanMonitor
+                    invoices={edoMonitorInvoices as Record<string, unknown>[]}
+                    cargoItems={filteredCargoItems}
+                    loading={invoicesLoading || loading}
+                    showSums={showSums}
+                    onOpen={onOpenDocumentsInvoices}
                 />
             )}
 

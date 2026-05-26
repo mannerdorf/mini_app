@@ -43,7 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
     }
 
-    const payee = loadCompanyPayeeDetails();
+    const payee = await loadCompanyPayeeDetails(pool);
     if (!payee) {
       return res.status(503).json({
         error: "Реквизиты для оплаты не настроены на сервере",

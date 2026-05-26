@@ -226,6 +226,7 @@ export function AppMainContent({
             canAccessHaulzDispatch={canAccessHaulzDispatch}
             onOpenCargo={openCargoFromChat}
             onOpenDocumentsEdo={() => openDocumentsWithSection("ЭДО")}
+            onOpenDocumentsInvoices={() => openDocumentsWithSection("Счета")}
           />
         </Suspense>
         </SectionBoundary>
@@ -356,6 +357,7 @@ export function AppMainContent({
             canAccessHaulzDispatch={canAccessHaulzDispatch}
             onOpenCargo={openCargoFromChat}
             onOpenDocumentsEdo={() => openDocumentsWithSection("ЭДО")}
+            onOpenDocumentsInvoices={() => openDocumentsWithSection("Счета")}
           />
         </Suspense>
         </SectionBoundary>
