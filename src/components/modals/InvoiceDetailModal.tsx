@@ -9,6 +9,7 @@ import { StatusBadge } from "../shared/StatusBadges";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { DOCUMENT_METHODS } from "../../documentMethods";
 import { edoDocButtonMiniBadgeStyle, getEdoTableDisplayLabel, getInvoiceEdoInfoByDocLabel } from "../../lib/edoStatus";
+import { InvoicePaymentQrBlock } from "../invoices/InvoicePaymentQrBlock";
 import type { AuthData } from "../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД", "Реестр"] as const;
@@ -232,6 +233,7 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                 {downloadError && (
                     <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem', marginBottom: '0.5rem', flexShrink: 0 }}>{downloadError}</Typography.Body>
                 )}
+                {auth && !isPaid && <InvoicePaymentQrBlock invoice={item} auth={auth} />}
                 {list.length > 0 ? (
                     <div style={{ flex: 1, minHeight: 0, overflow: 'auto', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
                         <table className="invoice-detail-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', color: 'var(--color-text-primary)' }}>

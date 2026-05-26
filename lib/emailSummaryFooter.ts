@@ -1,18 +1,6 @@
 import { getAppUrl } from "./sendRegistrationEmail.js";
 import { buildSummaryUnsubscribeUrl } from "./haulzSummaryUnsubscribe.js";
-
-const HAULZ_LEGAL = {
-  name: "ООО «Холз»",
-  inn: "9706037094",
-  ogrn: "1237700687180",
-  address: "119049, г. Москва, ул. Мытная, д. 28, стр. 3",
-  email: "info@haulz.pro",
-  site: "haulz.ru",
-  offices: [
-    { city: "Москва / МО", phone: "+7 (958) 538-42-22" },
-    { city: "Калининград", phone: "+7 (401) 227-95-55" },
-  ],
-} as const;
+import { HAULZ_LEGAL } from "./haulzLegal.js";
 
 /** Синий блок шапки/подвала — bgcolor для Outlook + gradient там, где поддерживается. */
 export const HAULZ_EMAIL_BRAND_BAR_ATTRS =
