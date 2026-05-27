@@ -34,7 +34,8 @@ import { buildFilteredCargoItems } from "./cargoPipeline";
 import { formatCurrency, formatInvoiceNumber, stripOoo, cityToCode, normalizeInvoiceStatus } from "../lib/formatUtils";
 import { ClickableCargoNumber, leafRowClickProps } from "../components/ui/EntityLinks";
 import { RouteBadge, CargoTransportTypeIcon, getCargoItemRouteLabel } from "../components/shared/CargoTableDisplay";
-import { getFirstCargoNumberFromInvoice, buildCargoStateByNumber, filterItemsByActiveInn } from "./documentsPipeline";
+import { getFirstCargoNumberFromInvoice, buildCargoStateByNumber, filterCargoItemsForHeaderCustomer, filterItemsForHeaderCustomer } from "./documentsPipeline";
+import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import { usePerevozki, usePrevPeriodPerevozki, useInvoices } from "../hooks/useApi";
 import { fetchPerevozkaTimeline } from "../lib/perevozkaDetails";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
@@ -263,6 +264,7 @@ export function DashboardPage({
     onOpenDocumentsEdo,
     onOpenDocumentsInvoices,
 }: DashboardPageProps) {
+    const { activeInn: runtimeActiveInn, activeCustomerName } = useAppRuntime();
     const prefersReducedMotion = useReducedMotion();
     const dashboardMotionEnabled = !!saasDashboardMotion && prefersReducedMotion !== true;
     /** Наполнение полос графиков — для всех, кроме prefers-reduced-motion. */
@@ -580,9 +582,20 @@ export function DashboardPage({
         useServiceRequest,
     });
 
+    const filterInvoicesForHeaderCustomer = useCallback(
+        (source: unknown[]) => {
+            if (useServiceRequest) return source;
+            return filterItemsForHeaderCustomer(source as Record<string, unknown>[], {
+                activeInn: auth?.inn ?? runtimeActiveInn,
+                activeCustomerName,
+            });
+        },
+        [useServiceRequest, auth?.inn, runtimeActiveInn, activeCustomerName],
+    );
+
     const edoMonitorInvoices = useMemo(
-        () => (useServiceRequest ? invoiceItems : filterItemsByActiveInn(invoiceItems, auth?.inn)),
-        [invoiceItems, auth?.inn, useServiceRequest],
+        () => filterInvoicesForHeaderCustomer(invoiceItems),
+        [invoiceItems, filterInvoicesForHeaderCustomer],
     );
 
     const calendarYear = new Date().getFullYear();
@@ -598,8 +611,8 @@ export function DashboardPage({
         useServiceRequest,
     });
     const unpaidPlanMonitorInvoices = useMemo(
-        () => (useServiceRequest ? unpaidPlanInvoiceItems : filterItemsByActiveInn(unpaidPlanInvoiceItems, auth?.inn)),
-        [unpaidPlanInvoiceItems, auth?.inn, useServiceRequest],
+        () => filterInvoicesForHeaderCustomer(unpaidPlanInvoiceItems),
+        [unpaidPlanInvoiceItems, filterInvoicesForHeaderCustomer],
     );
     const { items: unpaidPlanCargoItems, loading: unpaidPlanCargoLoading } = usePerevozki({
         auth,
@@ -608,6 +621,13 @@ export function DashboardPage({
         useServiceRequest,
         inn: !useServiceRequest ? auth?.inn : undefined,
     });
+    const unpaidPlanMonitorCargo = useMemo(() => {
+        if (useServiceRequest) return unpaidPlanCargoItems;
+        return filterCargoItemsForHeaderCustomer(unpaidPlanCargoItems, {
+            activeInn: auth?.inn ?? runtimeActiveInn,
+            activeCustomerName,
+        });
+    }, [unpaidPlanCargoItems, useServiceRequest, auth?.inn, runtimeActiveInn, activeCustomerName]);
 
     const { items: calendarInvoiceItems, mutate: mutateCalendarInvoices } = useInvoices({
         // Тяжёлый 3-летний диапазон не грузим на первом рендере дашборда.
@@ -658,8 +678,8 @@ export function DashboardPage({
     }, [showPaymentCalendar, auth?.login, auth?.password]);
 
     const filterCargoItems = useCallback(
-        (source: CargoItem[]) =>
-            buildFilteredCargoItems({
+        (source: CargoItem[]) => {
+            const filtered = buildFilteredCargoItems({
                 items: source,
                 searchText: "",
                 statusFilterSet: new Set<CargoStatusFilterKey>(),
@@ -675,8 +695,14 @@ export function DashboardPage({
                 roleFilter: "all",
                 sortBy: null,
                 sortOrder: "desc",
-            }),
-        [useServiceRequest, billStatusFilterSet, typeFilterSet, routeFilterSet, roleFilter],
+            });
+            if (useServiceRequest) return filtered;
+            return filterCargoItemsForHeaderCustomer(filtered, {
+                activeInn: auth?.inn ?? runtimeActiveInn,
+                activeCustomerName,
+            });
+        },
+        [useServiceRequest, billStatusFilterSet, typeFilterSet, routeFilterSet, roleFilter, auth?.inn, runtimeActiveInn, activeCustomerName],
     );
 
     const filteredCargoItems = useMemo(() => filterCargoItems(items), [items, filterCargoItems]);
@@ -2974,7 +3000,7 @@ export function DashboardPage({
             {!showOnlySla && (
                 <UnpaidInvoicesPlanMonitor
                     invoices={unpaidPlanMonitorInvoices as Record<string, unknown>[]}
-                    cargoItems={unpaidPlanCargoItems}
+                    cargoItems={unpaidPlanMonitorCargo}
                     loading={unpaidPlanInvoicesLoading || unpaidPlanCargoLoading}
                     showSums={showSums}
                     onOpen={onOpenDocumentsInvoices}

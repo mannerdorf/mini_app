@@ -77,6 +77,28 @@ export function filterItemsByActiveInn<T>(items: T[], activeInn?: string): T[] {
   return items.filter((i) => getItemInn(i) === normalizedActiveInn);
 }
 
+/** Обычный режим: строки только выбранного в шапке заказчика (ИНН и/или наименование). */
+export function filterItemsForHeaderCustomer(
+  items: Array<{ Customer?: string; customer?: string; [key: string]: unknown }>,
+  opts: { activeInn?: string; activeCustomerName?: string },
+): typeof items {
+  const inn = normalizeInn(opts.activeInn);
+  const nameKey = stripOoo(opts.activeCustomerName ?? "").toLowerCase();
+  if (!inn && !nameKey) return items;
+
+  return items.filter((item) => {
+    const itemInn = getItemInn(item);
+    const itemName = stripOoo(String(item.Customer ?? item.customer ?? "")).toLowerCase();
+    if (inn && itemInn) return itemInn === inn;
+    if (nameKey && itemName) return itemName === nameKey;
+    if (inn && !itemInn && nameKey) return itemName === nameKey;
+    return false;
+  });
+}
+
+/** @deprecated используйте filterItemsForHeaderCustomer */
+export const filterCargoItemsForHeaderCustomer = filterItemsForHeaderCustomer;
+
 export function getInvoiceSearchText(inv: any): string {
   const parts: string[] = [
     String(inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? ""),

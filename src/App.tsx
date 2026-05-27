@@ -1995,6 +1995,7 @@ export default function App() {
                         useServiceRequest: false,
                         searchText,
                         activeInn: activeAccount?.activeCustomerInn ?? auth?.inn ?? "",
+                        activeCustomerName: stripOoo(activeAccount?.customer ?? ""),
                         showCustomerColumn,
                     }}
                 >
@@ -2231,6 +2232,7 @@ export default function App() {
                             useServiceRequest,
                             searchText,
                             activeInn: activeAccount?.activeCustomerInn ?? auth?.inn ?? "",
+                            activeCustomerName: stripOoo(activeAccount?.customer ?? ""),
                             showCustomerColumn,
                         }}
                     >

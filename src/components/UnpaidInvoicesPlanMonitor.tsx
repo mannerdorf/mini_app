@@ -23,7 +23,8 @@ type Props = {
   onOpenInvoice?: (invoice: Record<string, unknown>) => void;
 };
 
-const MAX_ROWS = 12;
+/** Вертикальный скролл таблицы при большом числе счетов (все строки в DOM, сумма — по полному списку). */
+const UNPAID_MONITOR_SCROLL_AFTER_ROWS = 8;
 
 function priorityBadge(row: UnpaidInvoicePlanRow) {
   if (row.priority === "high") {
@@ -62,8 +63,8 @@ export function UnpaidInvoicesPlanMonitor({
   );
 
   const highCount = rows.filter((r) => r.priority === "high").length;
-  const visible = rows.slice(0, MAX_ROWS);
-  const hidden = rows.length - visible.length;
+  const totalBalance = rows.reduce((acc, r) => acc + r.balance, 0);
+  const tableScrollable = rows.length > UNPAID_MONITOR_SCROLL_AFTER_ROWS;
 
   if (!loading && rows.length === 0) return null;
 
@@ -86,7 +87,7 @@ export function UnpaidInvoicesPlanMonitor({
               <Typography.Label className="unpaid-plan-monitor__subtitle">
                 {loading
                   ? "Загрузка…"
-                  : `${rows.length} к оплате · высокий приоритет: ${highCount} (до ${PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS} дн. до плана)`}
+                  : `${rows.length} к оплате${showSums ? ` · всего ${formatCurrency(totalBalance, true)}` : ""} · высокий приоритет: ${highCount} (до ${PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS} дн. до плана)`}
               </Typography.Label>
             </div>
           </Flex>
@@ -102,7 +103,13 @@ export function UnpaidInvoicesPlanMonitor({
           </Typography.Label>
         </Flex>
       ) : (
-        <div className="unpaid-plan-monitor__table-wrap">
+        <div
+          className={
+            tableScrollable
+              ? "unpaid-plan-monitor__table-wrap unpaid-plan-monitor__table-wrap--scroll"
+              : "unpaid-plan-monitor__table-wrap"
+          }
+        >
           <table className="unpaid-plan-monitor__table">
             <thead>
               <tr>
@@ -120,7 +127,7 @@ export function UnpaidInvoicesPlanMonitor({
               </tr>
             </thead>
             <tbody>
-              {visible.map((row) => {
+              {rows.map((row) => {
                 const rowOpen = onOpenInvoice
                   ? leafRowClickProps(() => onOpenInvoice(row.invoice), "Открыть счёт")
                   : null;
@@ -157,17 +164,12 @@ export function UnpaidInvoicesPlanMonitor({
               })}
             </tbody>
           </table>
-          {hidden > 0 && onOpen && (
-            <button type="button" className="unpaid-plan-monitor__more" onClick={onOpen}>
-              Ещё {hidden} — откройте раздел «Счета»
-            </button>
-          )}
-          {hidden > 0 && !onOpen && (
-            <Typography.Label className="unpaid-plan-monitor__more">
-              Ещё {hidden}
-            </Typography.Label>
-          )}
         </div>
+        {onOpen && rows.length > 0 && (
+          <button type="button" className="unpaid-plan-monitor__more" onClick={onOpen}>
+            Все счета в разделе «Счета»
+          </button>
+        )}
       )}
     </div>
   );

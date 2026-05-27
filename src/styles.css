@@ -4236,8 +4236,11 @@ button.unpaid-plan-monitor:hover {
 
 .unpaid-plan-monitor__table-wrap {
     overflow-x: auto;
-    max-height: 16rem;
     overflow-y: auto;
+}
+
+.unpaid-plan-monitor__table-wrap--scroll {
+    max-height: min(22rem, 55vh);
 }
 
 .unpaid-plan-monitor__table {
