@@ -70,6 +70,27 @@ function getItemInn(item: any): string {
   );
 }
 
+function getItemCustomerName(item: Record<string, unknown>): string {
+  return stripOoo(
+    String(
+      item.Customer ??
+        item.customer ??
+        item.Контрагент ??
+        item.Contractor ??
+        item.Organization ??
+        "",
+    ),
+  )
+    .toLowerCase()
+    .trim();
+}
+
+function customerNamesMatch(headerName: string, itemName: string): boolean {
+  if (!headerName || !itemName) return false;
+  if (headerName === itemName) return true;
+  return headerName.startsWith(itemName) || itemName.startsWith(headerName);
+}
+
 /** Оставить только строки выбранной в шапке компании (по ИНН). */
 export function filterItemsByActiveInn<T>(items: T[], activeInn?: string): T[] {
   const normalizedActiveInn = normalizeInn(activeInn);
@@ -78,20 +99,21 @@ export function filterItemsByActiveInn<T>(items: T[], activeInn?: string): T[] {
 }
 
 /** Обычный режим: строки только выбранного в шапке заказчика (ИНН и/или наименование). */
-export function filterItemsForHeaderCustomer(
-  items: Array<{ Customer?: string; customer?: string; [key: string]: unknown }>,
+export function filterItemsForHeaderCustomer<T extends Record<string, unknown>>(
+  items: T[],
   opts: { activeInn?: string; activeCustomerName?: string },
-): typeof items {
+): T[] {
   const inn = normalizeInn(opts.activeInn);
-  const nameKey = stripOoo(opts.activeCustomerName ?? "").toLowerCase();
+  const nameKey = stripOoo(opts.activeCustomerName ?? "").toLowerCase().trim();
   if (!inn && !nameKey) return items;
 
   return items.filter((item) => {
     const itemInn = getItemInn(item);
-    const itemName = stripOoo(String(item.Customer ?? item.customer ?? "")).toLowerCase();
-    if (inn && itemInn) return itemInn === inn;
-    if (nameKey && itemName) return itemName === nameKey;
-    if (inn && !itemInn && nameKey) return itemName === nameKey;
+    const itemName = getItemCustomerName(item);
+    if (nameKey && itemName && customerNamesMatch(nameKey, itemName)) return true;
+    if (inn && itemInn && itemInn === inn) return true;
+    if (inn && itemInn && itemInn !== inn) return false;
+    if (inn && !itemInn && !itemName) return true;
     return false;
   });
 }
@@ -404,6 +426,7 @@ export function buildCargoSumByNumber(perevozkiItems: any[]): Map<string, number
 type FilterInvoicesParams = {
   items: any[];
   activeInn?: string;
+  activeCustomerName?: string;
   useServiceRequest: boolean;
   customerFilter: string;
   invoiceFavoritesOnly: boolean;
@@ -514,6 +537,7 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
   const {
     items,
     activeInn,
+    activeCustomerName,
     useServiceRequest,
     customerFilter,
     invoiceFavoritesOnly,
@@ -535,10 +559,8 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
   } = params;
 
   let res = [...items];
-  const normalizedActiveInn = normalizeInn(activeInn);
-  if (!useServiceRequest && normalizedActiveInn) {
-    // Safety filter: in regular mode always pin documents to selected header company.
-    res = res.filter((i) => getItemInn(i) === normalizedActiveInn);
+  if (!useServiceRequest && (activeInn || activeCustomerName)) {
+    res = filterItemsForHeaderCustomer(res, { activeInn, activeCustomerName });
   }
   if (customerFilter) {
     res = res.filter((i) => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? "").trim()) === customerFilter);
@@ -600,6 +622,7 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
 type FilterActsParams = {
   sortedActs: any[];
   activeInn?: string;
+  activeCustomerName?: string;
   useServiceRequest: boolean;
   actCustomerFilter: string;
   searchText: string;
@@ -616,6 +639,7 @@ export function buildFilteredActs(params: FilterActsParams) {
   const {
     sortedActs,
     activeInn,
+    activeCustomerName,
     useServiceRequest,
     actCustomerFilter,
     searchText,
@@ -628,10 +652,8 @@ export function buildFilteredActs(params: FilterActsParams) {
   } = params;
 
   let res = sortedActs;
-  const normalizedActiveInn = normalizeInn(activeInn);
-  if (!useServiceRequest && normalizedActiveInn) {
-    // Safety filter: in regular mode always pin documents to selected header company.
-    res = res.filter((a) => getItemInn(a) === normalizedActiveInn);
+  if (!useServiceRequest && (activeInn || activeCustomerName)) {
+    res = filterItemsForHeaderCustomer(res, { activeInn, activeCustomerName });
   }
   if (actCustomerFilter) {
     res = res.filter((a: any) => ((a.Customer ?? a.customer ?? a.Контрагент ?? a.Contractor ?? a.Organization ?? "").trim()) === actCustomerFilter);
