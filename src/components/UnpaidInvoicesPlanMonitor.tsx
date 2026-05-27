@@ -1,11 +1,11 @@
 import React, { useMemo } from "react";
 import { Flex, Typography } from "@maxhub/max-ui";
 import { ChevronRight, Loader2, AlertCircle } from "lucide-react";
-import { AppBadge, type AppBadgeTone } from "./shared/AppBadge";
+import { AppBadge } from "./shared/AppBadge";
 import { DateText } from "./ui/DateText";
 import { ClickableCargoNumber, ClickableInvoiceNumber, leafRowClickProps } from "./ui/EntityLinks";
-import { formatCurrency, normalizeInvoiceStatus, stripOoo } from "../lib/formatUtils";
-import { BILL_STATUS_MAP } from "../lib/statusUtils";
+import { formatCurrency, stripOoo } from "../lib/formatUtils";
+import { StatusBadge } from "./shared/StatusBadges";
 import {
   computeUnpaidInvoicesByPlan,
   PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS,
@@ -46,38 +46,6 @@ function priorityBadge(row: UnpaidInvoicePlanRow) {
       Низкий
     </AppBadge>
   );
-}
-
-function daysLabel(days: number | null): string {
-  if (days == null) return "—";
-  if (days < 0) return `${Math.abs(days)} дн. назад`;
-  if (days === 0) return "сегодня";
-  if (days === 1) return "завтра";
-  return `через ${days} дн.`;
-}
-
-function invoicePaymentStatusLabel(row: UnpaidInvoicePlanRow): string {
-  const raw = String(
-    row.invoice.StateBill ??
-      row.invoice.stateBill ??
-      row.invoice.Status ??
-      row.invoice.State ??
-      row.invoice.state ??
-      row.invoice.Статус ??
-      row.invoice.status ??
-      row.invoice.PaymentStatus ??
-      "",
-  );
-  return normalizeInvoiceStatus(raw) || BILL_STATUS_MAP[row.paymentKey] || "—";
-}
-
-function paymentStatusBadge(row: UnpaidInvoicePlanRow) {
-  const label = invoicePaymentStatusLabel(row);
-  let tone: AppBadgeTone = "neutral";
-  if (label === "Оплачен") tone = "success";
-  else if (label === "Оплачен частично" || label === "Частично") tone = "warning";
-  else if (label === "Не оплачен") tone = "danger";
-  return <AppBadge tone={tone}>{label}</AppBadge>;
 }
 
 export function UnpaidInvoicesPlanMonitor({
@@ -171,16 +139,23 @@ export function UnpaidInvoicesPlanMonitor({
                     {showCustomerColumn && (
                       <td className="customer-col" title={row.customer}>{stripOoo(row.customer)}</td>
                     )}
-                    <td className="unpaid-plan-monitor__col-status">{paymentStatusBadge(row)}</td>
+                    <td className="unpaid-plan-monitor__col-status">
+                      {row.cargoState != null && String(row.cargoState).trim() !== "" ? (
+                        <StatusBadge status={row.cargoState} />
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="unpaid-plan-monitor__col-cargo">
+                      {row.cargoNumber ? (
+                        <ClickableCargoNumber number={row.cargoNumber} onOpen={onOpenCargo} />
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td className="unpaid-plan-monitor__col-plan-arrival">
                       {row.planDateKey ? <DateText value={row.planDateKey} /> : "—"}
-                      {row.cargoNumber ? (
-                        <span className="unpaid-plan-monitor__cargo">
-                          <ClickableCargoNumber number={row.cargoNumber} onOpen={onOpenCargo} />
-                        </span>
-                      ) : null}
                     </td>
-                    <td>{daysLabel(row.daysUntilPlan)}</td>
                     <td>{priorityBadge(row)}</td>
                     {showSums && (
                       <td style={{ textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>
@@ -192,9 +167,14 @@ export function UnpaidInvoicesPlanMonitor({
               })}
             </tbody>
           </table>
-          {hidden > 0 && (
-            <Typography.Label className="unpaid-plan-monitor__more">
+          {hidden > 0 && onOpen && (
+            <button type="button" className="unpaid-plan-monitor__more" onClick={onOpen}>
               Ещё {hidden} — откройте раздел «Счета»
+            </button>
+          )}
+          {hidden > 0 && !onOpen && (
+            <Typography.Label className="unpaid-plan-monitor__more">
+              Ещё {hidden}
             </Typography.Label>
           )}
         </div>

@@ -23,7 +23,7 @@ import { initSharedFilterSets, saveSharedListFilters, sharedFromFilterSets } fro
 import { buildTransportOptionsFromSendingsInPeriod, buildTransportLinkedCargoNumbersInPeriod, collectSendingFreightCargoNumbers, normCargoKey } from "./documentsPipeline";
 import { useCargoTransportFilter, usePerevozkiMultiAccounts, useSendings } from "../hooks/useApi";
 import { useCargoNomenclatureSearch } from "../hooks/useCargoNomenclatureSearch";
-import { CARGO_ROLE_FILTER_LABELS, type CargoRoleFilterKey } from "../lib/cargoUtils";
+import { CARGO_ROLE_FILTER_LABELS, pickupLogisticsFilterLabel, type CargoRoleFilterKey } from "../lib/cargoUtils";
 import { buildRouteTypePlanDaysMap, getEffectivePlannedDeliveryDate } from "../lib/cargoPlannedDelivery";
 import { CargoSummaryCard, CargoStateBlocks } from "./cargoViewBlocks";
 import { CargoCustomerTable, CargoCardsList } from "./cargoCollectionViews";
@@ -807,7 +807,7 @@ export function CargoPage({
                                 setIsLastMileDropdownOpen(false);
                             }}
                         >
-                            Заборная: {pickupLogisticsFilter === "all" ? "Все" : pickupLogisticsFilter === "terminal_to" ? "terminal-to" : "PickUP"}{" "}
+                            Заборная: {pickupLogisticsFilterLabel(pickupLogisticsFilter)}{" "}
                             <ChevronDown className="w-4 h-4" />
                         </Button>
                     </div>
@@ -820,14 +820,18 @@ export function CargoPage({
                             onClick={() => { setPickupLogisticsFilter("pickup"); setIsPickupLogisticsDropdownOpen(false); }}
                             style={{ background: pickupLogisticsFilter === "pickup" ? "var(--color-bg-hover)" : undefined }}
                         >
-                            <Typography.Body>PickUP {pickupLogisticsFilter === "pickup" ? "✓" : ""}</Typography.Body>
+                            <Typography.Body>
+                                {pickupLogisticsFilterLabel("pickup")} {pickupLogisticsFilter === "pickup" ? "✓" : ""}
+                            </Typography.Body>
                         </div>
                         <div
                             className="dropdown-item"
                             onClick={() => { setPickupLogisticsFilter("terminal_to"); setIsPickupLogisticsDropdownOpen(false); }}
                             style={{ background: pickupLogisticsFilter === "terminal_to" ? "var(--color-bg-hover)" : undefined }}
                         >
-                            <Typography.Body>terminal-to {pickupLogisticsFilter === "terminal_to" ? "✓" : ""}</Typography.Body>
+                            <Typography.Body>
+                                {pickupLogisticsFilterLabel("terminal_to")} {pickupLogisticsFilter === "terminal_to" ? "✓" : ""}
+                            </Typography.Body>
                         </div>
                     </FilterDropdownPortal>
                 </div>

@@ -296,3 +296,24 @@ export function cargoPickupLogisticsIsTerminalTo(item: CargoItem): boolean {
     if (from === "KGD" && to === "MSK") return pzvSender.includes("железнодорожная");
     return false;
 }
+
+/** Подписи заборной логистики в UI (фильтры, бейджи). */
+export const CARGO_PICKUP_LABEL_PICKUP = "Пикап";
+export const CARGO_PICKUP_LABEL_TERMINAL_TO = "На терминал";
+
+export type PickupLogisticsFilterValue = "all" | "pickup" | "terminal_to";
+
+export function pickupLogisticsFilterLabel(value: PickupLogisticsFilterValue): string {
+    switch (value) {
+        case "pickup":
+            return CARGO_PICKUP_LABEL_PICKUP;
+        case "terminal_to":
+            return CARGO_PICKUP_LABEL_TERMINAL_TO;
+        default:
+            return "Все";
+    }
+}
+
+export function getCargoPickupLogisticsLabel(item: CargoItem): string {
+    return cargoPickupLogisticsIsTerminalTo(item) ? CARGO_PICKUP_LABEL_TERMINAL_TO : CARGO_PICKUP_LABEL_PICKUP;
+}

@@ -9,7 +9,8 @@ import { PLANNED_TERMINAL_ARRIVAL_LABEL } from "../../constants/plannedArrivalLa
 import { formatCurrency, stripOoo, cityToCode, transliterateFilename, formatInvoiceNumber } from "../../lib/formatUtils";
 import { normalizeStatus, getFilterKeyByStatus, getSumColorByPaymentStatus } from "../../lib/statusUtils";
 import { formatDate } from "../../lib/dateUtils";
-import { getPlanDays, getCargoDisplayRoleLabel, getCargoRoleSet, cargoLastMileIsSelfPickup, cargoPickupLogisticsIsTerminalTo } from "../../lib/cargoUtils";
+import { getPlanDays, getCargoDisplayRoleLabel, getCargoRoleSet, cargoLastMileIsSelfPickup } from "../../lib/cargoUtils";
+import { CargoPickupLogisticsBadge } from "../shared/CargoTableDisplay";
 import { DetailItem } from "../ui/DetailItem";
 import { DateText } from "../ui/DateText";
 import { StatusBadge, StatusBillBadge } from "../shared/StatusBadges";
@@ -220,7 +221,7 @@ export function CargoDetailsModal({
         }
     };
 
-    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'Sum_paid', 'SumPaid', 'sum_paid', 'sumPaid', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', 'PZV_Sender', 'PZV_Receiver', 'PZV_Sender_Id', 'PZV_Receiver_Id', '_role', '_roles', 'Driver', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel'];
+    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'Sum_paid', 'SumPaid', 'sum_paid', 'sumPaid', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', 'PZV_Sender', 'PZV_Receiver', 'PZV_Sender_Id', 'PZV_Receiver_Id', '_role', '_roles', 'Driver', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel', 'CitySender', 'CityReceiver', 'UPD', 'upd', 'BillNum', 'Bill_Number', 'billnum', 'bill_number'];
     const parseAmount = (val: unknown): number => {
         if (val === undefined || val === null || (typeof val === 'string' && val.trim() === '')) return 0;
         const num = typeof val === 'string' ? parseFloat(val.replace(',', '.')) : Number(val);
@@ -232,7 +233,6 @@ export function CargoDetailsModal({
     const isCustomerRole = getCargoRoleSet(item).has("Customer");
     const roleLabel = getCargoDisplayRoleLabel(item);
     const selfPickup = cargoLastMileIsSelfPickup(item);
-    const terminalTo = cargoPickupLogisticsIsTerminalTo(item);
     const FIELD_LABELS: Record<string, string> = {
         CitySender: 'Место отправления',
         CityReceiver: 'Место получения',
@@ -249,6 +249,26 @@ export function CargoDetailsModal({
         driverTel: String((item as any).LMDriverTel ?? '').trim(),
     };
     const hasLastMileBlock = Boolean(lastMile.autoReg || lastMile.autoType || lastMile.driver || lastMile.driverTel);
+
+    let updDisplay: string | null = null;
+    let billDisplay: string | null = null;
+    for (const [key, val] of Object.entries(item)) {
+        if (val === undefined || val === null || (typeof val === "string" && val.trim() === "")) continue;
+        const lk = key.toLowerCase();
+        if (lk === "upd") updDisplay = formatInvoiceNumber(String(val));
+        if ((lk === "billnum" || lk === "bill_number") && !billDisplay) billDisplay = formatInvoiceNumber(String(val));
+    }
+    const citySenderDisplay = cityToCode(item.CitySender) || null;
+    const cityReceiverDisplay = cityToCode(item.CityReceiver) || null;
+
+    const deliveryValue = (() => {
+        const status = normalizeStatus(item.State);
+        const lower = status.toLowerCase();
+        if (lower.includes("доставлен") || lower.includes("заверш")) {
+            return <DateText value={item.DateVr} />;
+        }
+        return "-";
+    })();
 
     return (
         <div className="modal-overlay" onClick={onClose}>
@@ -341,36 +361,62 @@ export function CargoDetailsModal({
                 </div>
                 <div className="cargo-details-modal-top">
                     <div className="details-grid-modal cargo-details-modal-tiles">
-                        <DetailItem label="Номер" value={item.Number || '—'} />
+                        <DetailItem label="Номер" value={item.Number || "—"} />
                         <DetailItem label="Приход" value={<DateText value={item.DatePrih} />} />
-                        <DetailItem label="Доставка" value={(() => {
-                            const status = normalizeStatus(item.State);
-                            const lower = status.toLowerCase();
-                            if (lower.includes('доставлен') || lower.includes('заверш')) {
-                                return <DateText value={item.DateVr} />;
-                            }
-                            return '-';
-                        })()} />
+                        <DetailItem label="Доставка" value={deliveryValue} />
                         <DetailItem
                             label={PLANNED_TERMINAL_ARRIVAL_LABEL}
-                            value={plannedDeliveryDate ? <DateText value={plannedDeliveryDate} /> : '-'}
+                            value={plannedDeliveryDate ? <DateText value={plannedDeliveryDate} /> : "-"}
                         />
-                        <DetailItem label="Номер заявки заказчика" value={String((item as any).Order ?? '').trim() || '-'} />
-                        {useServiceRequest && (
-                            <>
-                                <DetailItem label="Заказчик" value={stripOoo(String(item.Customer ?? (item as any).customer ?? (item as any).Заказчик ?? (item as any).Contractor ?? (item as any).Organization ?? '').trim()) || '-'} />
-                                <DetailItem label="Транспортное средство" value={String(item.AutoReg ?? (item as any).autoReg ?? perevozkaMeta.autoReg ?? '-').trim() || '-'} />
-                            </>
-                        )}
-                        <DetailItem label="Отправитель" value={stripOoo(item.Sender) || '-'} />
-                        <DetailItem label="Получатель" value={stripOoo(item.Receiver ?? (item as any).receiver) || '-'} />
+                        <DetailItem label="Номер заявки заказчика" value={String((item as any).Order ?? "").trim() || "-"} />
+                        <DetailItem label="Отправитель" value={stripOoo(item.Sender) || "-"} />
+                        <DetailItem label="Получатель" value={stripOoo(item.Receiver ?? (item as any).receiver) || "-"} />
                         <DetailItem label="Мест" value={renderValue(item.Mest)} icon={<Layers className="w-4 h-4 mr-1 text-theme-primary" />} />
-                        <DetailItem label="Плат. вес" value={renderValue(item.PW, 'кг')} icon={<Scale className="w-4 h-4 mr-1 text-theme-primary" />} highlighted />
+                        <DetailItem label="Плат. вес" value={renderValue(item.PW, "кг")} icon={<Scale className="w-4 h-4 mr-1 text-theme-primary" />} highlighted />
                         {isCustomerRole && (
                             <>
-                                <DetailItem label="Вес" value={renderValue(item.W, 'кг')} icon={<Weight className="w-4 h-4 mr-1 text-theme-primary" />} />
-                                <DetailItem label="Объем" value={renderValue(item.Value, 'м³')} icon={<List className="w-4 h-4 mr-1 text-theme-primary" />} />
-                                {showSums && <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />}
+                                <DetailItem label="Вес" value={renderValue(item.W, "кг")} icon={<Weight className="w-4 h-4 mr-1 text-theme-primary" />} />
+                                <DetailItem label="Объем" value={renderValue(item.Value, "м³")} icon={<List className="w-4 h-4 mr-1 text-theme-primary" />} />
+                                {showSums && (
+                                    <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />
+                                )}
+                            </>
+                        )}
+                        {isCustomerRole && showSums && (
+                            <>
+                                <DetailItem label="Оплачено" value={formatCurrency(cargoSumPaid)} />
+                                <DetailItem
+                                    label="Остаток"
+                                    value={formatCurrency(cargoBalance)}
+                                    textColor={getSumColorByPaymentStatus(item.StateBill)}
+                                />
+                            </>
+                        )}
+                        {updDisplay ? <DetailItem label="УПД" value={updDisplay} /> : null}
+                        {billDisplay ? <DetailItem label="Счет" value={billDisplay} /> : null}
+                        {citySenderDisplay ? <DetailItem label="Место отправления" value={citySenderDisplay} /> : null}
+                        {cityReceiverDisplay ? <DetailItem label="Место получения" value={cityReceiverDisplay} /> : null}
+                        {useServiceRequest && (
+                            <>
+                                <DetailItem
+                                    label="Заказчик"
+                                    value={
+                                        stripOoo(
+                                            String(
+                                                item.Customer ??
+                                                    (item as any).customer ??
+                                                    (item as any).Заказчик ??
+                                                    (item as any).Contractor ??
+                                                    (item as any).Organization ??
+                                                    "",
+                                            ).trim(),
+                                        ) || "-"
+                                    }
+                                />
+                                <DetailItem
+                                    label="Транспортное средство"
+                                    value={String(item.AutoReg ?? (item as any).autoReg ?? perevozkaMeta.autoReg ?? "-").trim() || "-"}
+                                />
                             </>
                         )}
                     </div>
@@ -384,25 +430,12 @@ export function CargoDetailsModal({
                                 </span>
                             }
                         />
-                        <DetailItem
-                            label="Заборная"
-                            value={
-                                <span className={`max-badge ${terminalTo ? "cargo-pickup-terminal-to" : "cargo-pickup-pickup"}`}>
-                                    {terminalTo ? "terminal-to" : "PickUP"}
-                                </span>
-                            }
-                        />
+                        <DetailItem label="Заборная" value={<CargoPickupLogisticsBadge item={item} />} />
                         {isCustomerRole && showSums && (
                             <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />
                         )}
                     </div>
                 </div>
-                {isCustomerRole && showSums && (
-                    <div className="details-grid-modal cargo-finance-extra">
-                        <DetailItem label="Оплачено" value={formatCurrency(cargoSumPaid)} />
-                        <DetailItem label="Остаток" value={formatCurrency(cargoBalance)} textColor={getSumColorByPaymentStatus(item.StateBill)} />
-                    </div>
-                )}
                 {hasLastMileBlock && (
                     <div style={{ marginTop: '0.75rem' }}>
                         <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>

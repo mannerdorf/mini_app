@@ -6,6 +6,9 @@ import { cityToCode } from "../../lib/formatUtils";
 import {
   cargoLastMileIsSelfPickup,
   cargoPickupLogisticsIsTerminalTo,
+  CARGO_PICKUP_LABEL_PICKUP,
+  CARGO_PICKUP_LABEL_TERMINAL_TO,
+  getCargoPickupLogisticsLabel,
   getCargoRoleSet,
   isFerry,
 } from "../../lib/cargoUtils";
@@ -92,13 +95,13 @@ export function CargoPickupLogisticsBadge({ item }: { item: CargoItem }) {
     <span
       title={
         terminalTo
-          ? "Заборная логистика: доставка на терминал (terminal-to)"
-          : "Заборная логистика: пикап (PickUP)"
+          ? `Заборная логистика: ${CARGO_PICKUP_LABEL_TERMINAL_TO}`
+          : `Заборная логистика: ${CARGO_PICKUP_LABEL_PICKUP}`
       }
       className={`max-badge ${terminalTo ? "cargo-pickup-terminal-to" : "cargo-pickup-pickup"}`}
       style={{ flexShrink: 0 }}
     >
-      {terminalTo ? "На терминал" : "Пикап"}
+      {getCargoPickupLogisticsLabel(item)}
     </span>
   );
 }

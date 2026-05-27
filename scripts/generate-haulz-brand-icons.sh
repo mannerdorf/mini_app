@@ -3,17 +3,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ICON_SOURCE="$ROOT/public/haulz-icon-source.png"
 ICON_SVG="$ROOT/public/haulz-icon.svg"
 FG_SVG="$ROOT/public/haulz-icon-foreground.svg"
-
-if [[ ! -f "$ICON_SVG" ]]; then
-  echo "Missing $ICON_SVG" >&2
-  exit 1
-fi
-if [[ ! -f "$FG_SVG" ]]; then
-  echo "Missing $FG_SVG" >&2
-  exit 1
-fi
+EXTRACT_FG="$ROOT/scripts/extract-haulz-foreground.cjs"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -48,8 +41,28 @@ render_svg() {
   fi
 }
 
-render_svg "$ICON_SVG" "$TMP/square.png" 1024
-render_svg "$FG_SVG" "$TMP/foreground.png" 1024
+if [[ -f "$ICON_SOURCE" ]]; then
+  to_png "$ICON_SOURCE" "$TMP/square.png" 1024 1024
+  if [[ ! -f "$EXTRACT_FG" ]]; then
+    echo "Missing $EXTRACT_FG" >&2
+    exit 1
+  fi
+  FG_WORK="$TMP/fg-npm"
+  mkdir -p "$FG_WORK"
+  (
+    cd "$FG_WORK"
+    npm init -y >/dev/null 2>&1
+    npm install --no-save sharp >/dev/null 2>&1
+    cp "$EXTRACT_FG" "$FG_WORK/extract-haulz-foreground.cjs"
+    node "$FG_WORK/extract-haulz-foreground.cjs" "$ICON_SOURCE" "$TMP/foreground.png" 1024
+  )
+elif [[ -f "$ICON_SVG" && -f "$FG_SVG" ]]; then
+  render_svg "$ICON_SVG" "$TMP/square.png" 1024
+  render_svg "$FG_SVG" "$TMP/foreground.png" 1024
+else
+  echo "Add public/haulz-icon-source.png or haulz-icon.svg + haulz-icon-foreground.svg" >&2
+  exit 1
+fi
 
 PUBLIC="$ROOT/public"
 mkdir -p "$PUBLIC"

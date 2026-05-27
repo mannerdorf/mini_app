@@ -16,6 +16,8 @@ export type UnpaidInvoicePlanRow = {
   balance: number;
   sum: number;
   cargoNumber: string | null;
+  /** Статус перевозки (State), если счёт привязан к перевозке. */
+  cargoState: unknown;
   planDate: Date | null;
   planDateKey: string | null;
   daysUntilPlan: number | null;
@@ -35,6 +37,18 @@ function dateToKey(d: Date): string {
 
 function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+export function buildCargoByNumberMap(cargoItems: CargoItem[]): Map<string, CargoItem> {
+  const map = new Map<string, CargoItem>();
+  for (const item of cargoItems) {
+    const raw = String(item.Number ?? "").trim();
+    if (!raw) continue;
+    const key = normCargoKey(raw);
+    if (!map.has(key)) map.set(key, item);
+    if (!map.has(raw)) map.set(raw, item);
+  }
+  return map;
 }
 
 export function buildCargoPlannedDateByNumber(cargoItems: CargoItem[]): Map<string, Date> {
@@ -112,6 +126,7 @@ export function computeUnpaidInvoicesByPlan(
 ): UnpaidInvoicePlanRow[] {
   const withinDays = options?.highPriorityWithinDays ?? PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS;
   const planByCargo = buildCargoPlannedDateByNumber(cargoItems);
+  const cargoByNumber = buildCargoByNumberMap(cargoItems);
   const cargoSumPaidByNumber = buildCargoSumPaidByNumber(cargoItems as Record<string, unknown>[]);
   const today = startOfDay(new Date());
   const dayMs = 24 * 60 * 60 * 1000;
@@ -128,6 +143,12 @@ export function computeUnpaidInvoicesByPlan(
     const invoiceDate = String(inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? "").trim();
     const paymentKey = getInvoicePaymentFilterKey(inv);
     const { planDate, cargoNumber } = earliestPlanForInvoice(inv, planByCargo);
+    let cargoState: unknown = null;
+    if (cargoNumber) {
+      const key = normCargoKey(cargoNumber);
+      const cargo = cargoByNumber.get(key) ?? cargoByNumber.get(cargoNumber);
+      cargoState = cargo?.State ?? null;
+    }
 
     let daysUntilPlan: number | null = null;
     let priority: InvoicePlanPriority = "low";
@@ -147,6 +168,7 @@ export function computeUnpaidInvoicesByPlan(
       balance,
       sum,
       cargoNumber,
+      cargoState,
       planDate,
       planDateKey,
       daysUntilPlan,

@@ -9,7 +9,8 @@ import { StatusBadge } from "../shared/StatusBadges";
 import { RouteBadge } from "../shared/CargoTableDisplay";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { DOCUMENT_METHODS } from "../../documentMethods";
-import { edoDocButtonMiniBadgeStyle, getEdoTableDisplayLabel, getInvoiceEdoInfoByDocLabel } from "../../lib/edoStatus";
+import { getInvoiceEdoInfoByDocLabel } from "../../lib/edoStatus";
+import { EdoDocMiniBadge } from "../shared/EdoDocMiniBadge";
 import { InvoicePaymentQrBlock } from "../invoices/InvoicePaymentQrBlock";
 import { EntityDetailModalHeader } from "./EntityDetailModalHeader";
 import type { AuthData } from "../../types";
@@ -292,11 +293,7 @@ export function InvoiceDetailModal({
                                         <Download className="w-4 h-4" aria-hidden />
                                     )}
                                     {label}
-                                    {!isReestr && (
-                                        <span title={edo.label} style={edoDocButtonMiniBadgeStyle(edo.tone)}>
-                                            {getEdoTableDisplayLabel(edo)}
-                                        </span>
-                                    )}
+                                    {!isReestr && <EdoDocMiniBadge info={edo} />}
                                 </button>
                             );
                         })}

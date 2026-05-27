@@ -144,7 +144,6 @@ export function DocumentsInvoiceFinanceHeadCells({
         title={withSort ? "Сортировка" : undefined}
       >
         <span className="cargo-inner-table__head-long">Сумма</span>
-        <span className="cargo-inner-table__head-short cargo-inner-table__head-finance-desktop">Сум.</span>
         <span className="cargo-inner-table__head-finance-stack" aria-hidden>
           <span>Сум.</span>
           <span>Опл.</span>
@@ -195,6 +194,9 @@ export function DocumentsInvoiceFinanceCells({
   return (
     <>
       <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={cellStyle}>
+        <span className="documents-invoices-inner-table__sum-value documents-invoices-inner-table__sum-value--desktop-only">
+          {formatCurrency(sum)}
+        </span>
         <div className="documents-invoices-inner-table__finance-stack">
           <span className="documents-invoices-inner-table__sum-value">{formatCurrency(sum)}</span>
           <span className="documents-invoices-inner-table__sum-value documents-invoices-inner-table__sum-value--secondary">

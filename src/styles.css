@@ -1831,6 +1831,145 @@ body {
     opacity: 0.85;
 }
 
+.haulz-dispatch-table-panel__title {
+    flex: 1;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--color-text-primary);
+}
+
+.haulz-dispatch-table-panel__meta {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+.haulz-dispatch-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    line-height: 1.35;
+    color: var(--color-text-primary);
+}
+
+.haulz-dispatch-table__head-row {
+    border-bottom: 1px solid var(--color-border);
+    text-align: left;
+}
+
+.haulz-dispatch-table__th {
+    padding: 0.4rem 0.35rem;
+    font-size: inherit;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+.haulz-dispatch-table__cell {
+    padding: 0.4rem 0.35rem;
+    vertical-align: middle;
+    font-size: inherit;
+    font-weight: 400;
+    white-space: nowrap;
+}
+
+.haulz-dispatch-table__cell--num-nested {
+    padding-left: 1.25rem;
+}
+
+.haulz-dispatch-table__cell--muted {
+    color: var(--color-text-secondary);
+}
+
+.haulz-dispatch-table__cell--customer {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--color-text-secondary);
+}
+
+.haulz-dispatch-table__cell--icon {
+    text-align: center;
+}
+
+.haulz-dispatch-table__cell--num-value {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.haulz-dispatch-table__detail-cell {
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+    background: var(--color-bg-primary);
+}
+
+.haulz-dispatch-table__detail-title {
+    margin: 0 0 0.35rem;
+    font-size: inherit;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--color-text-primary);
+}
+
+.haulz-dispatch-table__detail-muted {
+    margin: 0;
+    font-size: inherit;
+    font-weight: 400;
+    line-height: 1.35;
+    color: var(--color-text-secondary);
+}
+
+.haulz-dispatch-table__detail-loading {
+    padding: 0.35rem 0;
+}
+
+.haulz-dispatch-table__detail-spinner {
+    color: var(--color-primary-blue);
+}
+
+.haulz-dispatch-table__detail-actions {
+    margin-top: 0.45rem;
+}
+
+.haulz-dispatch-table__detail-open-btn {
+    font-size: inherit;
+    padding: 0.35rem 0.65rem;
+}
+
+.haulz-dispatch-table__timeline {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: inherit;
+    line-height: inherit;
+}
+
+.haulz-dispatch-table__timeline thead tr {
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-hover);
+}
+
+.haulz-dispatch-table__timeline th,
+.haulz-dispatch-table__timeline td {
+    padding: 0.35rem 0.3rem;
+    font-size: inherit;
+    font-weight: 400;
+    text-align: left;
+}
+
+.haulz-dispatch-table__timeline th {
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
+.haulz-dispatch-table__timeline tbody tr {
+    border-bottom: 1px solid var(--color-border);
+}
+
 /* Одна компания у логина — столбец «Заказчик» в таблицах не показываем */
 .app-hide-customer-column .cargo-customer-table__col-customer,
 .app-hide-customer-column .customer-col {
@@ -2100,6 +2239,7 @@ body {
 .filter-button.edo-doc-download-btn {
     display: inline-flex !important;
     align-items: center;
+    flex-wrap: wrap;
     gap: 0.2rem !important;
     padding: 0.14rem 0.36rem !important;
     font-size: 0.7rem !important;
@@ -2111,6 +2251,18 @@ body {
     width: 0.72rem !important;
     height: 0.72rem !important;
     flex-shrink: 0;
+}
+
+.filter-button.edo-doc-download-btn.doc-button {
+    flex: 0 1 auto;
+    min-width: 5.5rem;
+    color: #fff;
+}
+
+.filter-button.edo-doc-download-btn .edo-doc-mini-badge {
+    flex-shrink: 1;
+    min-width: 0;
+    line-height: 1.08;
 }
 
 .doc-section-tab {
@@ -2479,10 +2631,6 @@ body {
         display: none !important;
     }
 
-    .documents-invoices-inner-table .cargo-inner-table__head-finance-desktop {
-        display: none;
-    }
-
     .documents-invoices-inner-table .cargo-inner-table__col-sum .cargo-inner-table__head-short {
         display: none;
     }
@@ -2711,13 +2859,21 @@ body {
         display: none;
     }
 
-    .documents-invoices-inner-table .cargo-inner-table__head-finance-desktop {
-        display: inline;
+    .documents-invoices-inner-table__sum-value--desktop-only {
+        display: block;
+        font-size: inherit;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
     }
 
     .documents-invoices-inner-table .cargo-inner-table__col-finance-desktop-only {
         display: table-cell !important;
     }
+}
+
+.documents-invoices-inner-table__sum-value--desktop-only {
+    display: none;
 }
 
 .modal-header {
@@ -4041,8 +4197,13 @@ button.unpaid-plan-monitor:hover {
     line-height: 1.25;
 }
 
+.unpaid-plan-monitor__col-cargo {
+    white-space: nowrap;
+    max-width: 6.5rem;
+}
+
 .unpaid-plan-monitor__col-plan-arrival {
-    white-space: normal;
+    white-space: nowrap;
     max-width: 9rem;
 }
 
@@ -4057,18 +4218,26 @@ button.unpaid-plan-monitor:hover {
     }
 }
 
-.unpaid-plan-monitor__cargo {
-    display: block;
-    font-size: 0.68rem;
-    color: var(--color-text-secondary);
-    margin-top: 0.1rem;
-}
-
 .unpaid-plan-monitor__more {
     display: block;
+    width: 100%;
     margin-top: 0.35rem;
-    font-size: 0.72rem !important;
-    color: var(--color-text-secondary) !important;
+    padding: 0;
+    border: none;
+    background: transparent;
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--color-primary-blue);
+    text-align: left;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.unpaid-plan-monitor__more:hover {
+    opacity: 0.85;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -4318,18 +4487,26 @@ button.unpaid-plan-monitor:hover {
 
 .details-item-modal .detail-item-label {
     display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-text-secondary);
     white-space: normal;
     overflow: visible;
     text-overflow: unset;
     overflow-wrap: anywhere;
     word-break: break-word;
     line-height: 1.35;
+    margin-bottom: 0.2rem;
 }
 
 .details-item-modal .detail-item-value {
     min-width: 0;
     flex-wrap: wrap;
     align-items: flex-start;
+    font-size: 0.875rem;
+    font-weight: 400;
+    line-height: 1.35;
+    color: var(--color-text-primary);
 }
 
 .details-item-modal .detail-item-value > * {

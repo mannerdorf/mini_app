@@ -9,7 +9,8 @@ import { StatusBadge } from "../shared/StatusBadges";
 import { RouteBadge } from "../shared/CargoTableDisplay";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { DOCUMENT_METHODS } from "../../documentMethods";
-import { edoDocButtonMiniBadgeStyle, getEdoTableDisplayLabel, getInvoiceEdoInfoByDocLabel } from "../../lib/edoStatus";
+import { getInvoiceEdoInfoByDocLabel } from "../../lib/edoStatus";
+import { EdoDocMiniBadge } from "../shared/EdoDocMiniBadge";
 import type { AuthData } from "../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД"] as const;
@@ -296,9 +297,7 @@ export function ActDetailModal({
                                         <Download className="w-4 h-4" aria-hidden />
                                     )}
                                     {label}
-                                    <span title={edo.label} style={edoDocButtonMiniBadgeStyle(edo.tone)}>
-                                        {getEdoTableDisplayLabel(edo)}
-                                    </span>
+                                    <EdoDocMiniBadge info={edo} />
                                 </button>
                             );
                         })}
