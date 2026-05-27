@@ -39,6 +39,7 @@ import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "./lib/
 import type { BillStatusFilterKey } from "./lib/statusUtils";
 import { CustomPeriodModal } from "./components/modals/CustomPeriodModal";
 import { CargoDetailsModal } from "./components/modals/CargoDetailsModal";
+import { InvoiceDetailModal } from "./components/modals/InvoiceDetailModal";
 import { LegalModal } from "./components/modals/LegalModal";
 const DocumentsPage = lazyWithRetry(
     () => import("./pages/DocumentsPage").then((m) => ({ default: m.DocumentsPage })),
@@ -80,6 +81,7 @@ import {
 } from "./wb/appWb";
 import { PUBLIC_OFFER_TEXT, PERSONAL_DATA_CONSENT_TEXT } from "./constants/legalTexts";
 import { HAULZ_MAX_SUPPORT_BOT_URL, HAULZ_SPLASH_BACKGROUND, HAULZ_TG_SUPPORT_BOT_URL } from "./constants/brand";
+import { HaulzBrandLogo } from "./components/HaulzBrandLogo";
 import {
     loadAuthMethodsConfig,
     postAuthRegisteredLogin,
@@ -94,10 +96,19 @@ import {
 import { postCompaniesSave } from "./api/client/companies";
 import { createMaxAuthDeepLinkToken } from "./api/client/maxLink";
 import { postGetPerevozkaJson, postGetCustomers, postPerevozkiList } from "./api/client/perevozkiClient";
+import { fetchLegalPublic, recordLegalAcceptanceQuiet } from "./api/client/legal";
+import { useLegalCompliance } from "./hooks/useLegalCompliance";
+import { LegalReacceptModal } from "./components/modals/LegalReacceptModal";
 import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry } from "./lib/cargoUtils";
 import * as dateUtils from "./lib/dateUtils";
 import { formatCurrency, stripOoo, formatInvoiceNumber, cityToCode, transliterateFilename, normalizeInvoiceStatus, parseCargoNumbersFromText } from "./lib/formatUtils";
 import { usePerevozki, usePerevozkiMulti, usePerevozkiMultiAccounts, usePrevPeriodPerevozki, useInvoices } from "./hooks/useApi";
+import { useShowCustomerColumn } from "./hooks/useShowCustomerColumn";
+import {
+    hasStaleActiveCustomerInn,
+    isSingleRegisteredCustomerAccount,
+    normalizeAccountCustomerSelection,
+} from "./lib/accountCustomer";
 import type {
     Account, AccountPermissions, ApiError, AuthData, CargoItem, CompanyRow, CustomerOption,
     PerevozkiRole, ProfileView, StatusFilter, Tab,
@@ -299,6 +310,10 @@ export default function App() {
         return accounts.find(acc => acc.id === activeAccountId) || null;
     }, [accounts, activeAccountId]);
 
+    const legalCompliance = useLegalCompliance(activeAccount);
+
+    const showCustomerColumn = useShowCustomerColumn(activeAccount, useServiceRequest);
+
     /** Оболочка HAULZ Analytics (CSS-токены, motion на главных экранах) — для всех пользователей. */
     const profileSaasShellActive = true;
 
@@ -472,6 +487,7 @@ export default function App() {
     const [overlayCargoNumber, setOverlayCargoNumber] = useState<string | null>(null);
     const [overlayCargoItem, setOverlayCargoItem] = useState<CargoItem | null>(null);
     const [overlayCargoLoading, setOverlayCargoLoading] = useState(false);
+    const [overlayInvoice, setOverlayInvoice] = useState<Record<string, unknown> | null>(null);
     const [overlayFavVersion, setOverlayFavVersion] = useState(0);
     
     // ИНИЦИАЛИЗАЦИЯ ПУСТЫМИ СТРОКАМИ (данные берутся с фронта)
@@ -480,7 +496,27 @@ export default function App() {
     
     const [agreeOffer, setAgreeOffer] = useState(true);
     const [agreePersonal, setAgreePersonal] = useState(true);
+    const [loginOfferText, setLoginOfferText] = useState(PUBLIC_OFFER_TEXT);
+    const [loginConsentText, setLoginConsentText] = useState(PERSONAL_DATA_CONSENT_TEXT);
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (auth) return;
+        void fetchLegalPublic()
+            .then((pub) => {
+                if (pub.offer?.body_text) setLoginOfferText(pub.offer.body_text);
+                if (pub.consent?.body_text) setLoginConsentText(pub.consent.body_text);
+            })
+            .catch(() => { /* остаются тексты по умолчанию */ });
+    }, [auth]);
+
+    const recordLoginLegalAcceptance = useCallback((loginVal: string, passwordVal: string, opts?: { skipLegal?: boolean }) => {
+        if (opts?.skipLegal) return;
+        const offerOk = agreeOffer;
+        if (offerOk && agreePersonal) {
+            recordLegalAcceptanceQuiet(loginVal, passwordVal);
+        }
+    }, [agreeOffer, agreePersonal]);
     const [error, setError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false); 
     const [twoFactorPending, setTwoFactorPending] = useState(false);
@@ -768,7 +804,10 @@ export default function App() {
     useEffect(() => {
         if (typeof window === "undefined" || accounts.length === 0) return;
         try {
-            window.localStorage.setItem("haulz.accounts", JSON.stringify(accounts));
+            window.localStorage.setItem(
+                "haulz.accounts",
+                JSON.stringify(accounts.map((acc) => normalizeAccountCustomerSelection(acc)))
+            );
             if (activeAccountId) {
                 window.localStorage.setItem("haulz.activeAccountId", activeAccountId);
             }
@@ -787,7 +826,10 @@ export default function App() {
             (acc) =>
                 acc.isRegisteredUser &&
                 acc.password &&
-                (!acc.customers?.length || !acc.activeCustomerInn || acc.inCustomerDirectory === undefined)
+                (!acc.customers?.length ||
+                    !acc.activeCustomerInn ||
+                    acc.inCustomerDirectory === undefined ||
+                    hasStaleActiveCustomerInn(acc))
         );
         if (needRefresh.length === 0) return;
         if (registeredLoginRefreshInFlightRef.current) return; // избегаем лавины запросов при повторных срабатываниях эффекта
@@ -825,18 +867,28 @@ export default function App() {
                     prev.map((a) => {
                         const up = updates.find((u) => u.id === a.id);
                         if (!up) return a;
-                        const hadCustomers = (a.customers?.length ?? 0) > 0;
-                        return {
+                        const merged: Account = {
                             ...a,
-                            customers: hadCustomers ? (a.customers ?? up.customers) : up.customers,
-                            // Не перезаписывать activeCustomerInn, если пользователь уже выбрал компанию в шапке (CustomerSwitcher)
-                            activeCustomerInn: a.activeCustomerInn ?? up.activeCustomerInn ?? undefined,
-                            customer: hadCustomers ? (a.customer ?? up.customer ?? undefined) : (up.customer ?? undefined),
+                            customers:
+                                !up.accessAllInns && up.customers.length > 0
+                                    ? up.customers
+                                    : (a.customers?.length ? (a.customers ?? up.customers) : up.customers),
                             accessAllInns: up.accessAllInns,
                             inCustomerDirectory: up.inCustomerDirectory,
                             ...(up.permissions != null ? { permissions: up.permissions } : {}),
                             ...(up.financialAccess != null ? { financialAccess: up.financialAccess } : {}),
                         };
+                        if (!up.accessAllInns && up.customers.length === 1) {
+                            merged.activeCustomerInn = up.customers[0].inn;
+                            merged.customer = up.customers[0].name ?? up.customer ?? undefined;
+                        } else if (!up.accessAllInns && up.activeCustomerInn) {
+                            merged.activeCustomerInn = up.activeCustomerInn ?? undefined;
+                            merged.customer = up.customer ?? merged.customer;
+                        } else {
+                            merged.activeCustomerInn = a.activeCustomerInn ?? up.activeCustomerInn ?? undefined;
+                            merged.customer = hadCustomers ? (a.customer ?? up.customer ?? undefined) : (up.customer ?? undefined);
+                        }
+                        return normalizeAccountCustomerSelection(merged);
                     })
                 );
             } finally {
@@ -861,21 +913,31 @@ export default function App() {
                 if (cancelled || !ok || !data?.ok || !data?.user) return;
                 const user = data.user as Record<string, unknown>;
                 const customers: CustomerOption[] = user.inn ? [{ name: user.companyName || user.inn, inn: user.inn }] : [];
+                const accessAllInns = !!user.accessAllInns;
                 setAccounts((prev) =>
-                    prev.map((acc) =>
-                        acc.id !== activeAccount.id
-                            ? acc
-                            : {
-                                ...acc,
-                                customers: (acc.customers && acc.customers.length > 0) ? acc.customers : customers,
-                                activeCustomerInn: acc.activeCustomerInn ?? user.inn ?? undefined,
-                                customer: acc.customer ?? user.companyName ?? undefined,
-                                accessAllInns: !!user.accessAllInns,
-                                inCustomerDirectory: !!user.inCustomerDirectory,
-                                ...(normalizePermissions(user.permissions) ? { permissions: normalizePermissions(user.permissions) } : {}),
-                                ...(user.financialAccess != null ? { financialAccess: user.financialAccess } : {}),
-                            }
-                    )
+                    prev.map((acc) => {
+                        if (acc.id !== activeAccount.id) return acc;
+                        const merged: Account = {
+                            ...acc,
+                            customers:
+                                !accessAllInns && customers.length > 0 ? customers : (acc.customers?.length ? acc.customers : customers),
+                            accessAllInns,
+                            inCustomerDirectory: !!user.inCustomerDirectory,
+                            ...(normalizePermissions(user.permissions) ? { permissions: normalizePermissions(user.permissions) } : {}),
+                            ...(user.financialAccess != null ? { financialAccess: user.financialAccess } : {}),
+                        };
+                        if (!accessAllInns && customers.length === 1) {
+                            merged.activeCustomerInn = customers[0].inn;
+                            merged.customer = customers[0].name ?? (user.companyName as string | undefined);
+                        } else if (!accessAllInns && user.inn) {
+                            merged.activeCustomerInn = String(user.inn);
+                            merged.customer = (user.companyName as string | undefined) ?? merged.customer;
+                        } else {
+                            merged.activeCustomerInn = acc.activeCustomerInn ?? (user.inn as string | undefined) ?? undefined;
+                            merged.customer = acc.customer ?? (user.companyName as string | undefined) ?? undefined;
+                        }
+                        return normalizeAccountCustomerSelection(merged);
+                    })
                 );
             } catch {
                 // ignore best-effort refresh errors
@@ -883,6 +945,55 @@ export default function App() {
         })();
         return () => { cancelled = true; };
     }, [activeAccount?.id, activeAccount?.isRegisteredUser, activeAccount?.login, activeAccount?.password]);
+
+    // CMS-учётка с одним заказчиком: сразу выставить ИНН/название из профиля (не чужой customer из localStorage)
+    useEffect(() => {
+        if (!activeAccount?.id) return;
+        if (!isSingleRegisteredCustomerAccount(activeAccount) && !hasStaleActiveCustomerInn(activeAccount)) return;
+        const normalized = normalizeAccountCustomerSelection(activeAccount);
+        if (
+            normalized.activeCustomerInn === activeAccount.activeCustomerInn &&
+            normalized.customer === activeAccount.customer
+        ) {
+            return;
+        }
+        setAccounts((prev) => prev.map((a) => (a.id === activeAccount.id ? normalized : a)));
+    }, [
+        activeAccount?.id,
+        activeAccount?.activeCustomerInn,
+        activeAccount?.customer,
+        activeAccount?.customers,
+        activeAccount?.isRegisteredUser,
+        activeAccount?.accessAllInns,
+    ]);
+
+    // Если в account_companies одна компания — подставить её (для логинов 1С / смешанных учёток)
+    useEffect(() => {
+        if (!activeAccount?.login || activeAccount.accessAllInns) return;
+        if (isSingleRegisteredCustomerAccount(activeAccount) && (activeAccount.customers?.length ?? 0) === 1) return;
+        const loginKey = activeAccount.login.trim().toLowerCase();
+        let cancelled = false;
+        fetch(`/api/companies?login=${encodeURIComponent(loginKey)}`)
+            .then((r) => r.json())
+            .then((data: { companies?: { login: string; inn: string; name: string }[] }) => {
+                if (cancelled) return;
+                const list = (data.companies ?? []).filter((c) => c.login === loginKey && (c.inn || "").trim());
+                if (list.length !== 1) return;
+                const only = list[0];
+                if (only.inn === activeAccount.activeCustomerInn && only.name === activeAccount.customer) return;
+                setAccounts((prev) =>
+                    prev.map((a) =>
+                        a.id === activeAccount.id
+                            ? { ...a, activeCustomerInn: only.inn, customer: only.name || a.customer }
+                            : a
+                    )
+                );
+            })
+            .catch(() => {});
+        return () => {
+            cancelled = true;
+        };
+    }, [activeAccount?.id, activeAccount?.login, activeAccount?.accessAllInns, activeAccount?.customers?.length]);
 
     // Обновить права при открытии вкладки «Профиль», чтобы подтянуть изменения из админки (в т.ч. раздел Претензии)
     const profileRefreshInFlightRef = useRef(false);
@@ -1068,6 +1179,11 @@ export default function App() {
         setOverlayCargoInn(inn ?? null);
     };
 
+    const openInvoiceInPlace = (invoice: Record<string, unknown>) => {
+        if (!invoice || typeof invoice !== "object") return;
+        setOverlayInvoice(invoice);
+    };
+
     useEffect(() => {
         if (!overlayCargoNumber || !activeAccount?.login || !activeAccount?.password) {
             if (!overlayCargoNumber) {
@@ -1197,7 +1313,10 @@ export default function App() {
         setError(null);
         setTwoFactorError(null);
         if (!login || !password) return setError("Введите логин и пароль");
-        if (!agreeOffer || !agreePersonal) return setError("Подтвердите согласие с условиями");
+        if (!authMethods.cms) {
+            if (!agreePersonal) return setError("Подтвердите согласие на обработку персональных данных");
+            if (!agreeOffer) return setError("Подтвердите согласие с публичной офертой");
+        }
         if (!authMethods.cms && !authMethods.api_v2 && !authMethods.api_v1) {
             setError("Недоступны способы авторизации");
             return;
@@ -1214,6 +1333,12 @@ export default function App() {
                 }
                 if (regData?.ok && regData?.user) {
                     const u = regData.user as Record<string, unknown>;
+                    const cmsPerms = normalizePermissions(u.permissions);
+                    const cmsServiceMode = cmsPerms?.service_mode === true;
+                    if (!cmsServiceMode) {
+                        if (!agreeOffer) return "Подтвердите согласие с публичной офертой";
+                        if (!agreePersonal) return "Подтвердите согласие на обработку персональных данных";
+                    }
                     const existingAccount = accounts.find((acc) => acc.login === loginKey);
                     const customers: CustomerOption[] = u.inn ? [{ name: u.companyName || u.inn, inn: u.inn }] : [];
                     const accessAllInns = !!u.accessAllInns;
@@ -1256,6 +1381,7 @@ export default function App() {
                         setActiveAccountId(accountId);
                     }
                     setActiveTab((prev) => prev || "cargo");
+                    recordLoginLegalAcceptance(loginKey, password, { skipLegal: cmsServiceMode });
                     return true;
                 }
                 return "Неверный email или пароль";
@@ -1329,6 +1455,7 @@ export default function App() {
                         if (d?.saved !== undefined && d.saved === 0 && d.warning) console.warn("companies-save:", d.warning);
                     })
                     .catch((err) => console.warn("companies-save error:", err));
+                recordLoginLegalAcceptance(loginKey, password);
                 return true;
             };
 
@@ -1393,6 +1520,7 @@ export default function App() {
                 const companyName = detectedCustomer || login.trim() || "Компания";
                 postCompaniesSave({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }).catch(() => {});
                 setActiveTab((prev) => prev || "cargo");
+                recordLoginLegalAcceptance(loginKey, password);
                 return true;
             };
 
@@ -1483,6 +1611,7 @@ export default function App() {
                     customers: [{ name: (detectedCustomer ?? loginDisplay) || "Компания", inn: perevozkiInn }],
                 }).catch(() => {});
             }
+            recordLoginLegalAcceptance(loginKeyToSave, pendingLogin.password);
         } catch (err: any) {
             setTwoFactorError(err?.message || "Неверный код");
         } finally {
@@ -1595,6 +1724,7 @@ export default function App() {
                         if (d?.saved !== undefined && d.saved === 0 && d.warning) console.warn("companies-save:", d.warning);
                     })
                     .catch((err) => console.warn("companies-save error:", err));
+                recordLoginLegalAcceptance(loginKey, password);
                 return;
             }
         }
@@ -1631,6 +1761,7 @@ export default function App() {
         const companyInn = detectedInn ?? "";
         const companyName = detectedCustomer || login.trim() || "Компания";
         postCompaniesSave({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }).catch(() => {});
+        recordLoginLegalAcceptance(loginKey, password);
     };
 
     // 404 для неизвестного path (не "/", "/admin", "/cms")
@@ -1680,12 +1811,12 @@ export default function App() {
             <>
                 <Container className={`app-container login-form-wrapper`}>
                 <Panel mode="secondary" className="login-card">
-                    <Flex justify="center" className="mb-4 h-10 mt-6">
-                        <Typography.Title className="logo-text">HAULZ</Typography.Title>
-                    </Flex>
-                    <Typography.Body className="tagline">
-                        Доставка грузов в Калининград и обратно
-                    </Typography.Body>
+                    <div className="login-brand">
+                        <HaulzBrandLogo />
+                        <Typography.Body className="tagline">
+                            Доставка грузов в Калининград и обратно
+                        </Typography.Body>
+                    </div>
                     {twoFactorPending ? (
                         <form onSubmit={handleTwoFactorSubmit} className="form">
                             <Typography.Body style={{ marginBottom: '0.75rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
@@ -1840,10 +1971,10 @@ export default function App() {
                         </Flex>
                     )}
                     <LegalModal isOpen={!!isOfferOpen} onClose={() => setIsOfferOpen(false)} title="Публичная оферта">
-                        {PUBLIC_OFFER_TEXT}
+                        {loginOfferText}
                     </LegalModal>
                     <LegalModal isOpen={!!isPersonalConsentOpen} onClose={() => setIsPersonalConsentOpen(false)} title="Согласие на обработку персональных данных">
-                        {PERSONAL_DATA_CONSENT_TEXT}
+                        {loginConsentText}
                     </LegalModal>
                 </Panel>
                 </Container>
@@ -1863,6 +1994,7 @@ export default function App() {
                         useServiceRequest: false,
                         searchText,
                         activeInn: activeAccount?.activeCustomerInn ?? auth?.inn ?? "",
+                        showCustomerColumn,
                     }}
                 >
                     <AppMainContent
@@ -1883,6 +2015,8 @@ export default function App() {
                         openCargoWithFilters={openCargoWithFilters}
                         openCargoFromChat={openCargoFromChat}
                         openCargoFromDocuments={openCargoFromDocuments}
+                        openCargoInPlace={openCargoInPlace}
+                        openInvoiceInPlace={openInvoiceInPlace}
                         openClaimFromCargo={openClaimFromCargo}
                         openDocumentsWithSection={openDocumentsWithSection}
                         openAisWithMmsi={openAisWithMmsi}
@@ -1911,7 +2045,7 @@ export default function App() {
 
     return (
         <>
-            <Container className={`app-container${profileSaasShellActive ? " profile-saas-shell" : ""}`}>
+            <Container className={`app-container${profileSaasShellActive ? " profile-saas-shell" : ""}${showCustomerColumn ? "" : " app-hide-customer-column"}`}>
             <header className={`app-header${desktopExpanded ? " app-header-wide" : ""}`}>
                     <Flex align="center" justify="space-between" className="header-top-row">
                     <Flex align="center" className="header-auth-info" style={{ position: 'relative', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -2078,7 +2212,7 @@ export default function App() {
                         <Search className="w-5 h-5 text-theme-secondary flex-shrink-0 ml-1" />
                         <Input
                             type="text"
-                            placeholder="Поиск..."
+                            placeholder={activeTab === "cargo" ? "Номер, штрихкод, номенклатура…" : "Поиск..."}
                             className="search-input"
                             value={searchText}
                             onChange={(e) => {
@@ -2096,6 +2230,7 @@ export default function App() {
                             useServiceRequest,
                             searchText,
                             activeInn: activeAccount?.activeCustomerInn ?? auth?.inn ?? "",
+                            showCustomerColumn,
                         }}
                     >
                         <AppMainContent
@@ -2116,6 +2251,8 @@ export default function App() {
                             openCargoWithFilters={openCargoWithFilters}
                             openCargoFromChat={openCargoFromChat}
                             openCargoFromDocuments={openCargoFromDocuments}
+                            openCargoInPlace={openCargoInPlace}
+                            openInvoiceInPlace={openInvoiceInPlace}
                             openClaimFromCargo={openClaimFromCargo}
                             openDocumentsWithSection={openDocumentsWithSection}
                             openAisWithMmsi={openAisWithMmsi}
@@ -2164,12 +2301,35 @@ export default function App() {
                 expanded={desktopExpanded}
             />
 
-            <LegalModal isOpen={!!isOfferOpen} onClose={() => setIsOfferOpen(false)} title="Публичная оферта">
-                {PUBLIC_OFFER_TEXT}
+            <LegalModal
+                isOpen={!!isOfferOpen}
+                onClose={() => setIsOfferOpen(false)}
+                title="Публичная оферта"
+                stackAboveBlocker={legalCompliance.pending}
+            >
+                {legalCompliance.offerText}
             </LegalModal>
-            <LegalModal isOpen={!!isPersonalConsentOpen} onClose={() => setIsPersonalConsentOpen(false)} title="Согласие на обработку персональных данных">
-                {PERSONAL_DATA_CONSENT_TEXT}
+            <LegalModal
+                isOpen={!!isPersonalConsentOpen}
+                onClose={() => setIsPersonalConsentOpen(false)}
+                title="Согласие на обработку персональных данных"
+                stackAboveBlocker={legalCompliance.pending}
+            >
+                {legalCompliance.consentText}
             </LegalModal>
+
+            {legalCompliance.pending && legalCompliance.status && (
+                <LegalReacceptModal
+                    status={legalCompliance.status}
+                    offerLabel={legalCompliance.status.current.offer?.version_label ?? ""}
+                    consentLabel={legalCompliance.status.current.consent?.version_label ?? ""}
+                    accepting={legalCompliance.accepting}
+                    error={legalCompliance.error}
+                    onOpenOffer={() => setIsOfferOpen(true)}
+                    onOpenConsent={() => setIsPersonalConsentOpen(true)}
+                    onAccept={legalCompliance.acceptCurrent}
+                />
+            )}
             
             {/* Модальное окно для ввода пин-кода */}
             {showPinModal && (
@@ -2209,7 +2369,22 @@ export default function App() {
                 </div>
             )}
             
-            {/* Карточка перевозки поверх счёта (из раздела Документы) — zIndex 10000 чтобы быть выше InvoiceDetailModal (9998) */}
+            {overlayInvoice && activeAccount && (
+                <InvoiceDetailModal
+                    item={overlayInvoice}
+                    isOpen
+                    onClose={() => setOverlayInvoice(null)}
+                    onOpenCargo={(cargoNumber) => openCargoInPlace(cargoNumber)}
+                    auth={{
+                        login: activeAccount.login,
+                        password: activeAccount.password,
+                        inn: activeAccount.activeCustomerInn ?? undefined,
+                        ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}),
+                    }}
+                />
+            )}
+
+            {/* Карточка перевозки поверх счёта — zIndex 10000 чтобы быть выше InvoiceDetailModal (9998) */}
             {overlayCargoNumber && activeAccount && (
                 overlayCargoLoading ? (
                     <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={() => { setOverlayCargoNumber(null); setOverlayCargoItem(null); setOverlayCargoInn(null); }}>

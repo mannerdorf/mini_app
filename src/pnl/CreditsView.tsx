@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { Filters, defaultFiltersState, filtersToParams } from './Filters';
 import { pnlGet, pnlPost } from './api';
 import { Plus, CreditCard, FileText } from 'lucide-react';
+import { formatDisplayDate } from '../lib/dateUtils';
 
 function formatRub(n: number) {
   return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n) + ' ₽';
 }
-function formatDate(d: string | Date) { return new Date(d).toLocaleDateString('ru-RU'); }
 
 interface Payment { id: string; date: string; counterparty: string; purpose: string | null; amount: number; type: string; }
 
@@ -88,7 +88,7 @@ export function CreditsView() {
                   : payments.length === 0 ? <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-500">Нет платежей</td></tr>
                   : payments.map((p) => (
                     <tr key={p.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 text-sm text-slate-700">{formatDate(p.date)}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700">{formatDisplayDate(p.date)}</td>
                       <td className="px-4 py-3 text-sm">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium" style={{ background: p.type === 'LEASING' ? '#fef3c7' : '#dbeafe', color: p.type === 'LEASING' ? '#92400e' : '#1e40af' }}>
                           {p.type === 'LEASING' ? <FileText className="w-3 h-3" /> : <CreditCard className="w-3 h-3" />}

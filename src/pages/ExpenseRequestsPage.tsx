@@ -10,6 +10,7 @@ import { Loader2, Paperclip, Send, Car, ChevronDown, Search, X, SendHorizonal, U
 import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 import { EXPENSE_REQUESTS_WEBHOOK_URL, PROXY_API_BASE_URL } from "../constants/config";
 import type { AuthData } from "../types";
+import { formatDisplayDate } from "../lib/dateUtils";
 
 const VAT_RATES = [
     { value: "", label: "Без НДС" },
@@ -371,7 +372,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         if (!num) { setDuplicateWarning(""); return; }
         const dup = list.find((r) => r.docNumber && r.docNumber.trim().toLowerCase() === num.toLowerCase());
         if (dup) {
-            const date = new Date(dup.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+            const date = formatDisplayDate(dup.createdAt);
             setDuplicateWarning(`Документ №${num} уже заведён ${date} (${dup.categoryName}, ${dup.amount.toLocaleString("ru-RU")} ₽)`);
         } else {
             setDuplicateWarning("");
@@ -1279,10 +1280,10 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                                             const normalized = /^\d{4}-\d{2}$/.test(raw) ? `${raw}-01` : raw;
                                             const parsed = new Date(`${normalized}T00:00:00`);
                                             if (Number.isNaN(parsed.getTime())) return "";
-                                            return `${parsed.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })} · `;
+                                            return `${formatDisplayDate(parsed.toISOString())} · `;
                                         })()}
                                         {r.period ? `период ${r.period} · ` : ""}
-                                        {new Date(r.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}
+                                        {formatDisplayDate(r.createdAt)}
                                         {r.comment ? ` · ${r.comment}` : ""}
                                     </Typography.Body>
                                     {r.vehicleOrEmployee && (

@@ -8,6 +8,7 @@ import {
 import { cityToCode, formatInvoiceNumber } from "../lib/formatUtils";
 import { cargoLastMileIsSelfPickup, cargoMatchesRoleFilter, cargoPickupLogisticsIsTerminalTo, type CargoRoleFilterKey } from "../lib/cargoUtils";
 import { normCargoKey } from "./documentsPipeline";
+import { buildNomenclatureSearchTextFromCargoItem } from "../lib/perevozkaDetails";
 
 type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;
 
@@ -149,6 +150,8 @@ function appendCargoSearchParts(obj: unknown, depth: number, parts: string[]): v
 function cargoItemSearchHaystack(item: CargoItem): string {
   const parts: string[] = [];
   appendCargoSearchParts(item, 0, parts);
+  const nom = buildNomenclatureSearchTextFromCargoItem(item);
+  if (nom) parts.push(nom);
   return parts.join(" ");
 }
 
@@ -239,7 +242,7 @@ export function buildFilteredCargoItems(
       });
     }
   }
-  if (useServiceRequest && billStatusFilterSet.size > 0) {
+  if (billStatusFilterSet.size > 0) {
     res = res.filter((i) => billStatusFilterSet.has(getPaymentFilterKey(i.StateBill)));
   }
   if (typeFilterSet.size > 0) {
@@ -328,7 +331,14 @@ export function buildCargoSummary(filteredItems: CargoItem[]) {
     return acc + v;
   }, 0);
 
-  return { sum: totalSum, mest: totalMest, pw: totalPW, w: totalW, vol: totalValue };
+  return {
+    sum: totalSum,
+    mest: totalMest,
+    pw: totalPW,
+    w: totalW,
+    vol: totalValue,
+    count: filteredItems.length,
+  };
 }
 
 export type CargoGroupedRow = {

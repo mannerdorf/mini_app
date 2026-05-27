@@ -10,6 +10,7 @@ type CargoSummary = {
   pw: number;
   w: number;
   vol: number;
+  count: number;
 };
 
 type CargoSummaryCardProps = {
@@ -18,6 +19,8 @@ type CargoSummaryCardProps = {
   useServiceRequest: boolean;
   /** Визуал KPI-карточек в духе SaaS analytics (только служебный режим в приложении). */
   saasAnalytics?: boolean;
+  /** Одна компания: в плитках показываем все итоги как в свёрнутой строке по заказчику. */
+  expandedMetrics?: boolean;
 };
 
 const CARGO_SUMMARY_COLLAPSED_KEY = "haulz.cargo.summaryCollapsedMobile";
@@ -27,6 +30,7 @@ export function CargoSummaryCard({
   showSums,
   useServiceRequest,
   saasAnalytics = false,
+  expandedMetrics = false,
 }: CargoSummaryCardProps) {
   const [isMobile, setIsMobile] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
@@ -111,7 +115,7 @@ export function CargoSummaryCard({
           <Typography.Label style={mkLabelStyle()}>Плат. вес</Typography.Label>
           <Typography.Body style={mkValueStyle()}>{Math.round(summary.pw)} кг</Typography.Body>
         </Flex>
-        {useServiceRequest && (
+        {(expandedMetrics || useServiceRequest) && (
           <>
             <Flex direction="column" align="center">
               <Typography.Label style={mkLabelStyle()}>Вес</Typography.Label>
@@ -122,6 +126,12 @@ export function CargoSummaryCard({
               <Typography.Body style={mkValueStyle()}>{Math.round(summary.vol)} м³</Typography.Body>
             </Flex>
           </>
+        )}
+        {expandedMetrics && (
+          <Flex direction="column" align="center">
+            <Typography.Label style={mkLabelStyle()}>Перевозок</Typography.Label>
+            <Typography.Body style={mkValueStyle()}>{summary.count}</Typography.Body>
+          </Flex>
         )}
       </div>
       )}

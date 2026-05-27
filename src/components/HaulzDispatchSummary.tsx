@@ -2,17 +2,20 @@
  * Сводка по выдаче грузов: плитки и таблица по датам верхнего фильтра дашборда.
  */
 import React, { useMemo, useCallback, useState, useEffect } from "react";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, List, Loader2, RefreshCw, RussianRuble, Scale, Ship, Truck, Weight } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, List, Loader2, RefreshCw, RussianRuble, Scale, Weight } from "lucide-react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { AppBadge } from "./shared/AppBadge";
 import type { AuthData, CargoItem, PerevozkaTimelineStep } from "../types";
-import { formatTimelineDate, formatTimelineTime, parseDateOnly } from "../lib/dateUtils";
+import { parseDateOnly } from "../lib/dateUtils";
 import { getFilterKeyByStatus, isReceivedInfoStatus } from "../lib/statusUtils";
 import { cityToCode, formatCurrency, formatInvoiceNumber, stripOoo } from "../lib/formatUtils";
-import { getPlanDays, getSlaInfo, getSlaPlanAnchorDateString, getSlaPlanDeadlineMs, isFerry } from "../lib/cargoUtils";
+import { rowIsOutsideSla } from "./haulzDispatchTableUtils";
 import { fetchPerevozkaTimeline } from "../lib/perevozkaDetails";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
 import type { KeyedMutator } from "swr";
+import { useAppRuntime } from "../contexts/AppRuntimeContext";
+import { HaulzDispatchShipmentRows } from "./HaulzDispatchShipmentRows";
+import { dispatchStatusDateSortKey } from "./haulzDispatchTableUtils";
 
 export type HaulzDispatchSummaryProps = {
     auth: AuthData;
@@ -34,40 +37,12 @@ type DispatchTileKey = "ready" | "delivering" | "transit" | "delivered" | "total
 
 const TABLE_MAX_ROWS = 60;
 const DISPATCH_TABLE_COLS = 8;
+/** Сколько перевозок показывать при раскрытии заказчика до «Ещё». */
+const CUSTOMER_GROUP_PREVIEW_ROWS = 5;
+/** Вертикальный скролл таблицы, если перевозок больше этого числа (как в блоке неоплаченных счетов). */
+const DISPATCH_TABLE_SCROLL_AFTER_ROWS = 5;
 
 type DispatchTableSortCol = "number" | "customer" | "statusDate" | "datePrih" | "pw" | "sum";
-
-function getDispatchRouteLabel(item: CargoItem): string {
-    const from = cityToCode(item.CitySender);
-    const to = cityToCode(item.CityReceiver);
-    return [from, to].filter(Boolean).join(" – ") || "—";
-}
-
-function DispatchRouteBadge({ item }: { item: CargoItem }) {
-    const route = getDispatchRouteLabel(item);
-    if (route === "—") return <span>—</span>;
-    return (
-        <AppBadge tone="info" style={{ display: "inline-block", whiteSpace: "nowrap", fontSize: "0.72rem" }}>
-            {route}
-        </AppBadge>
-    );
-}
-
-function DispatchTransportIcon({ item }: { item: CargoItem }) {
-    return isFerry(item) ? (
-        <Ship
-            className="w-4 h-4"
-            style={{ color: "var(--color-primary-blue)", display: "inline-block" }}
-            title="Паром"
-        />
-    ) : (
-        <Truck
-            className="w-4 h-4"
-            style={{ color: "var(--color-text-secondary)", display: "inline-block" }}
-            title="Авто"
-        />
-    );
-}
 
 function compareCargoNumbersForSort(a: string, b: string): number {
     const na = parseInt(a.replace(/\D/g, ""), 10) || 0;
@@ -95,8 +70,8 @@ function compareDispatchRows(
             return ca.localeCompare(cb, "ru") * dir;
         }
         case "statusDate": {
-            const da = normalizeDateOnlyForCell(pickApiFilterDateRaw(a)) || "9999-12-31";
-            const db = normalizeDateOnlyForCell(pickApiFilterDateRaw(b)) || "9999-12-31";
+            const da = dispatchStatusDateSortKey(a);
+            const db = dispatchStatusDateSortKey(b);
             return da.localeCompare(db) * dir;
         }
         case "datePrih": {
@@ -237,63 +212,6 @@ function sortByArrivalDesc(list: CargoItem[]): CargoItem[] {
     });
 }
 
-/**
- * Дата, по которой API `/api/sendings` отфильтровывает перевозку в период (см. `pickDate` в api/sendings.ts).
- */
-function pickApiFilterDateRaw(cargo: CargoItem): unknown {
-    const c = cargo as Record<string, unknown>;
-    return (
-        c.DateOtpr ??
-        c.DateSend ??
-        c.DateShipment ??
-        c.ShipmentDate ??
-        c.DateDoc ??
-        c.Date ??
-        c.date ??
-        c.ДатаОтправки ??
-        c.Дата ??
-        c.DatePrih ??
-        c.DateVr
-    );
-}
-
-function normalizeDateOnlyForCell(raw: unknown): string {
-    const s = String(raw ?? "").trim();
-    if (!s) return "";
-    const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
-    const ruMatch = s.match(/^(\d{2})\.(\d{2})\.(\d{4})(?:\D.*)?$/);
-    if (ruMatch) return `${ruMatch[3]}-${ruMatch[2]}-${ruMatch[1]}`;
-    const parsed = parseDateOnly(s);
-    if (parsed) return parsed.toISOString().split("T")[0];
-    const fallback = new Date(s);
-    if (Number.isNaN(fallback.getTime())) return "";
-    return fallback.toISOString().split("T")[0];
-}
-
-function formatDispatchFilterDateCell(cargo: CargoItem): string {
-    const d = normalizeDateOnlyForCell(pickApiFilterDateRaw(cargo));
-    return d || "—";
-}
-
-/** SLA как в списке грузов; для незавершённых без DateVr — конец интервала «сегодня». */
-function getDispatchRowSla(item: CargoItem, workScheduleByInn: Record<string, WorkSchedule>) {
-    let sla = getSlaInfo(item, workScheduleByInn);
-    if (sla) return sla;
-    const statusKey = getFilterKeyByStatus(String(item.State ?? ""));
-    if (statusKey === "delivered") return null;
-    if (!item.DatePrih || !String(item.DatePrih).trim()) return null;
-    const vr = String(item.DateVr ?? "").trim();
-    if (vr) return null;
-    const todayStr = new Date().toISOString().split("T")[0];
-    return getSlaInfo({ ...item, DateVr: todayStr }, workScheduleByInn);
-}
-
-function rowIsOutsideSla(item: CargoItem, workScheduleByInn: Record<string, WorkSchedule>): boolean {
-    const sla = getDispatchRowSla(item, workScheduleByInn);
-    return sla != null && !sla.onTime;
-}
-
 function cargoCustomerGroupKey(row: CargoItem): string {
     const cust = stripOoo(String(row.Customer ?? (row as { customer?: string }).customer ?? "—")).trim();
     return cust || "—";
@@ -312,6 +230,7 @@ export function HaulzDispatchSummary({
     showRefreshButton,
     showSums = true,
 }: HaulzDispatchSummaryProps) {
+    const { showCustomerColumn } = useAppRuntime();
     const [workScheduleByInn, setWorkScheduleByInn] = useState<Record<string, WorkSchedule>>({});
     const [selectedTile, setSelectedTile] = useState<DispatchTileKey>("total");
     const [dispatchTableSort, setDispatchTableSort] = useState<{
@@ -323,10 +242,12 @@ export function HaulzDispatchSummary({
     const [dispatchTimelineSteps, setDispatchTimelineSteps] = useState<PerevozkaTimelineStep[]>([]);
     const [dispatchTimelineLoading, setDispatchTimelineLoading] = useState(false);
     const [dispatchTimelineError, setDispatchTimelineError] = useState<string | null>(null);
-    /** Таблица под плитками: по умолчанию свёрнута. */
-    const [dispatchTableOpen, setDispatchTableOpen] = useState(false);
+    /** Таблица под плитками: по умолчанию развёрнута. */
+    const [dispatchTableOpen, setDispatchTableOpen] = useState(true);
     /** Свернутая таблица по заказчику; по клику — строки перевозок этого заказчика. */
     const [expandedCustomerKey, setExpandedCustomerKey] = useState<string | null>(null);
+    /** Заказчики, у которых в раскрытой группе показаны все перевозки (не только превью). */
+    const [customerGroupShowAllKeys, setCustomerGroupShowAllKeys] = useState<Set<string>>(() => new Set());
 
     const items = useMemo(() => rawItems.filter((i) => !isReceivedInfoStatus(i.State)), [rawItems]);
 
@@ -407,7 +328,8 @@ export function HaulzDispatchSummary({
         setExpandedDispatchNumber(null);
         setExpandedDispatchItem(null);
         setExpandedCustomerKey(null);
-        setDispatchTableOpen(false);
+        setCustomerGroupShowAllKeys(new Set());
+        setDispatchTableOpen(true);
     }, [selectedTile]);
 
     useEffect(() => {
@@ -420,6 +342,7 @@ export function HaulzDispatchSummary({
         setExpandedCustomerKey(null);
         setExpandedDispatchNumber(null);
         setExpandedDispatchItem(null);
+        setCustomerGroupShowAllKeys(new Set());
     }, [dispatchTableOpen]);
 
     useEffect(() => {
@@ -466,6 +389,21 @@ export function HaulzDispatchSummary({
     }, [listByTile, selectedTile, dispatchTableSort]);
 
     const tableRows = useMemo(() => sortedTableSource.slice(0, TABLE_MAX_ROWS), [sortedTableSource]);
+    const dispatchTableScrollable = tableRows.length > DISPATCH_TABLE_SCROLL_AFTER_ROWS;
+
+    const dispatchTableColCount = showCustomerColumn ? DISPATCH_TABLE_COLS : DISPATCH_TABLE_COLS - 1;
+    /** Один логин — одна организация: без группировки по заказчику. */
+    const flatDispatchTable = !showCustomerColumn;
+
+    const onToggleDispatchRow = useCallback((num: string, row: CargoItem | null) => {
+        if (row) {
+            setExpandedDispatchNumber(num);
+            setExpandedDispatchItem(row);
+        } else {
+            setExpandedDispatchNumber(null);
+            setExpandedDispatchItem(null);
+        }
+    }, []);
 
     const customerGroups = useMemo(() => {
         const order: string[] = [];
@@ -643,22 +581,32 @@ export function HaulzDispatchSummary({
                                         <ChevronRight className="w-4 h-4" style={{ flexShrink: 0, opacity: 0.85 }} aria-hidden />
                                     )}
                                     <List className="w-4 h-4" style={{ flexShrink: 0, opacity: 0.75 }} aria-hidden />
-                                    <Typography.Body style={{ fontSize: "0.82rem", fontWeight: 600, flex: 1 }}>
-                                        Перевозки по заказчикам
-                                    </Typography.Body>
-                                    <Typography.Label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>
-                                        {customerGroups.length} зак. · {tableRows.length} пер.
-                                    </Typography.Label>
+                                    <span className="haulz-dispatch-table-panel__title">
+                                        {flatDispatchTable ? "Перевозки" : "Перевозки по заказчикам"}
+                                    </span>
+                                    <span className="haulz-dispatch-table-panel__meta">
+                                        {flatDispatchTable
+                                            ? `${tableRows.length} пер.`
+                                            : `${customerGroups.length} зак. · ${tableRows.length} пер.`}
+                                    </span>
                                 </button>
                                 {dispatchTableOpen && (
-                            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", marginTop: "0.75rem" }}>
-                                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                            <div
+                                className={
+                                    dispatchTableScrollable
+                                        ? "haulz-dispatch-table-wrap haulz-dispatch-table-wrap--scroll"
+                                        : "haulz-dispatch-table-wrap"
+                                }
+                            >
+                                <table className="haulz-dispatch-table">
                                     <thead>
-                                        <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
+                                        <tr className="haulz-dispatch-table__head-row">
                                             {(
                                                 [
                                                     { col: "number" as const, label: "№", align: "left" as const },
-                                                    { col: "customer" as const, label: "Заказчик", align: "left" as const },
+                                                    ...(showCustomerColumn
+                                                        ? [{ col: "customer" as const, label: "Заказчик", align: "left" as const }]
+                                                        : []),
                                                     { col: "statusDate" as const, label: "Дата статуса", align: "left" as const },
                                                     { col: "datePrih" as const, label: "Приход", align: "left" as const },
                                                     { col: null, label: "Маршрут", align: "left" as const, title: "Маршрут" },
@@ -685,13 +633,11 @@ export function HaulzDispatchSummary({
                                                                 : undefined
                                                         }
                                                         title={col ? "Сортировка по столбцу" : thTitle}
+                                                        className="haulz-dispatch-table__th"
                                                         style={{
-                                                            padding: "0.4rem 0.35rem",
-                                                            fontWeight: 600,
                                                             textAlign: align,
                                                             cursor: col ? "pointer" : "default",
                                                             userSelect: "none",
-                                                            whiteSpace: "nowrap",
                                                             width: col == null && label === "" ? "2.5rem" : undefined,
                                                         }}
                                                     >
@@ -707,8 +653,29 @@ export function HaulzDispatchSummary({
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {customerGroups.map(({ customerKey, rows }) => {
+                                        {flatDispatchTable ? (
+                                            <HaulzDispatchShipmentRows
+                                                rows={tableRows}
+                                                rowKeyPrefix={selectedTile}
+                                                showCustomerColumn={showCustomerColumn}
+                                                workScheduleByInn={workScheduleByInn}
+                                                expandedDispatchNumber={expandedDispatchNumber}
+                                                expandedDispatchItem={expandedDispatchItem}
+                                                onToggleDispatchRow={onToggleDispatchRow}
+                                                dispatchTableColCount={dispatchTableColCount}
+                                                dispatchTimelineSteps={dispatchTimelineSteps}
+                                                dispatchTimelineLoading={dispatchTimelineLoading}
+                                                dispatchTimelineError={dispatchTimelineError}
+                                                onOpenCargo={onOpenCargo}
+                                            />
+                                        ) : (
+                                        customerGroups.map(({ customerKey, rows }) => {
                                             const groupOpen = expandedCustomerKey === customerKey;
+                                            const showAllGroupRows = customerGroupShowAllKeys.has(customerKey);
+                                            const previewRows = showAllGroupRows
+                                                ? rows
+                                                : rows.slice(0, CUSTOMER_GROUP_PREVIEW_ROWS);
+                                            const hiddenGroupRows = rows.length - previewRows.length;
                                             const totalPw = rows.reduce((acc, row) => {
                                                 const p = typeof row.PW === "string" ? parseFloat(row.PW) || 0 : Number(row.PW) || 0;
                                                 return acc + p;
@@ -721,7 +688,18 @@ export function HaulzDispatchSummary({
                                             return (
                                                 <React.Fragment key={`${selectedTile}-grp-${customerKey}`}>
                                                     <tr
-                                                        onClick={() => setExpandedCustomerKey(groupOpen ? null : customerKey)}
+                                                        onClick={() => {
+                                                            if (groupOpen) {
+                                                                setExpandedCustomerKey(null);
+                                                                setCustomerGroupShowAllKeys((prev) => {
+                                                                    const next = new Set(prev);
+                                                                    next.delete(customerKey);
+                                                                    return next;
+                                                                });
+                                                            } else {
+                                                                setExpandedCustomerKey(customerKey);
+                                                            }
+                                                        }}
                                                         style={{
                                                             borderBottom: "1px solid var(--color-border)",
                                                             cursor: "pointer",
@@ -733,18 +711,25 @@ export function HaulzDispatchSummary({
                                                         title={groupOpen ? "Свернуть список перевозок" : "Показать перевозки заказчика"}
                                                     >
                                                         <td style={{ padding: "0.35rem", whiteSpace: "nowrap", verticalAlign: "middle" }}>
-                                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                                                                 {groupOpen ? (
                                                                     <ChevronDown className="w-4 h-4" style={{ flexShrink: 0, opacity: 0.85 }} aria-hidden />
                                                                 ) : (
                                                                     <ChevronRight className="w-4 h-4" style={{ flexShrink: 0, opacity: 0.85 }} aria-hidden />
+                                                                )}
+                                                                {!showCustomerColumn && (
+                                                                    <span style={{ fontWeight: 600, fontSize: "0.78rem" }} title={customerKey}>
+                                                                        {customerKey}
+                                                                    </span>
                                                                 )}
                                                                 <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>
                                                                     {rows.length}
                                                                 </Typography.Body>
                                                             </span>
                                                         </td>
+                                                        {showCustomerColumn && (
                                                         <td
+                                                            className="customer-col"
                                                             style={{
                                                                 padding: "0.35rem",
                                                                 maxWidth: 220,
@@ -757,6 +742,7 @@ export function HaulzDispatchSummary({
                                                         >
                                                             {customerKey}
                                                         </td>
+                                                        )}
                                                         <td style={{ padding: "0.35rem", fontSize: "0.72rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>
                                                             —
                                                         </td>
@@ -766,201 +752,53 @@ export function HaulzDispatchSummary({
                                                         <td style={{ padding: "0.35rem", textAlign: "right" }}>{Math.round(totalPw).toLocaleString("ru-RU")}</td>
                                                         <td style={{ padding: "0.35rem", textAlign: "right" }}>{formatCurrency(totalSum, true)}</td>
                                                     </tr>
-                                                    {groupOpen &&
-                                                        rows.map((row, ridx) => {
-                                                            const num = String(row.Number ?? "").trim();
-                                                            const cust = stripOoo(String(row.Customer ?? (row as { customer?: string }).customer ?? "—"));
-                                                            const statusDateCell = formatDispatchFilterDateCell(row);
-                                                            const dp = String(row.DatePrih ?? "").trim().split("T")[0];
-                                                            const pw = typeof row.PW === "string" ? parseFloat(row.PW) || 0 : Number(row.PW) || 0;
-                                                            const sum = typeof row.Sum === "string" ? parseFloat(row.Sum) || 0 : Number(row.Sum) || 0;
-                                                            const slaLate = rowIsOutsideSla(row, workScheduleByInn);
-                                                            const expanded = !!num && expandedDispatchNumber === num;
-                                                            const rowBg = expanded
-                                                                ? "var(--color-bg-hover)"
-                                                                : slaLate
-                                                                  ? "var(--color-error-bg)"
-                                                                  : undefined;
-                                                            return (
-                                                                <React.Fragment key={num ? `${selectedTile}-${customerKey}-${num}` : `${selectedTile}-${customerKey}-i-${ridx}`}>
-                                                                    <tr
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            if (!num) return;
-                                                                            if (expandedDispatchNumber === num) {
-                                                                                setExpandedDispatchNumber(null);
-                                                                                setExpandedDispatchItem(null);
-                                                                            } else {
-                                                                                setExpandedDispatchNumber(num);
-                                                                                setExpandedDispatchItem(row);
-                                                                            }
-                                                                        }}
-                                                                        style={{
-                                                                            borderBottom: "1px solid var(--color-border)",
-                                                                            cursor: num ? "pointer" : "default",
-                                                                            background: rowBg,
-                                                                        }}
-                                                                        title={num ? (expanded ? "Свернуть статусы" : "Показать статусы перевозки") : undefined}
-                                                                    >
-                                                                        <td style={{ padding: "0.35rem 0.35rem 0.35rem 1.5rem", whiteSpace: "nowrap" }}>
-                                                                            {formatInvoiceNumber(num)}
-                                                                        </td>
-                                                                        <td
-                                                                            style={{
-                                                                                padding: "0.35rem",
-                                                                                maxWidth: 200,
-                                                                                overflow: "hidden",
-                                                                                textOverflow: "ellipsis",
-                                                                                whiteSpace: "nowrap",
-                                                                                fontSize: "0.78rem",
-                                                                                color: "var(--color-text-secondary)",
-                                                                            }}
-                                                                            title={cust}
-                                                                        >
-                                                                            {cust}
-                                                                        </td>
-                                                                        <td
-                                                                            style={{
-                                                                                padding: "0.35rem",
-                                                                                fontSize: "0.72rem",
-                                                                                color: "var(--color-text-secondary)",
-                                                                                whiteSpace: "nowrap",
-                                                                            }}
-                                                                        >
-                                                                            {statusDateCell}
-                                                                        </td>
-                                                                        <td style={{ padding: "0.35rem", whiteSpace: "nowrap" }}>{dp || "—"}</td>
-                                                                        <td style={{ padding: "0.35rem", whiteSpace: "nowrap" }}>
-                                                                            <DispatchRouteBadge item={row} />
-                                                                        </td>
-                                                                        <td style={{ padding: "0.35rem", textAlign: "center" }}>
-                                                                            <DispatchTransportIcon item={row} />
-                                                                        </td>
-                                                                        <td style={{ padding: "0.35rem", textAlign: "right" }}>{Math.round(pw).toLocaleString("ru-RU")}</td>
-                                                                        <td style={{ padding: "0.35rem", textAlign: "right" }}>{formatCurrency(sum, true)}</td>
-                                                                    </tr>
-                                                                    {expanded && expandedDispatchItem && (
-                                                                        <tr>
-                                                                            <td
-                                                                                colSpan={DISPATCH_TABLE_COLS}
-                                                                                style={{
-                                                                                    padding: "0.5rem",
-                                                                                    borderBottom: "1px solid var(--color-border)",
-                                                                                    verticalAlign: "top",
-                                                                                    background: "var(--color-bg-primary)",
-                                                                                }}
-                                                                                onClick={(e) => e.stopPropagation()}
-                                                                            >
-                                                                                <Typography.Body style={{ fontSize: "0.75rem", fontWeight: 600, marginBottom: "0.35rem" }}>
-                                                                                    Статусы перевозки
-                                                                                </Typography.Body>
-                                                                                {dispatchTimelineLoading && (
-                                                                                    <Flex align="center" gap="0.5rem" style={{ padding: "0.35rem 0" }}>
-                                                                                        <Loader2 className="w-3 h-3 animate-spin" style={{ color: "var(--color-primary-blue)" }} />
-                                                                                        <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                                                                                            Загрузка…
-                                                                                        </Typography.Body>
-                                                                                    </Flex>
-                                                                                )}
-                                                                                {dispatchTimelineError && (
-                                                                                    <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                                                                                        {dispatchTimelineError}
-                                                                                    </Typography.Body>
-                                                                                )}
-                                                                                {!dispatchTimelineLoading &&
-                                                                                    dispatchTimelineSteps &&
-                                                                                    dispatchTimelineSteps.length > 0 &&
-                                                                                    (() => {
-                                                                                        const item = expandedDispatchItem;
-                                                                                        const planEndMs = getSlaPlanDeadlineMs(item);
-                                                                                        return (
-                                                                                            <table
-                                                                                                style={{
-                                                                                                    width: "100%",
-                                                                                                    borderCollapse: "collapse",
-                                                                                                    fontSize: "0.8rem",
-                                                                                                }}
-                                                                                            >
-                                                                                                <thead>
-                                                                                                    <tr
-                                                                                                        style={{
-                                                                                                            borderBottom: "1px solid var(--color-border)",
-                                                                                                            background: "var(--color-bg-hover)",
-                                                                                                        }}
-                                                                                                    >
-                                                                                                        <th style={{ padding: "0.35rem 0.3rem", textAlign: "left", fontWeight: 600 }}>
-                                                                                                            Статус
-                                                                                                        </th>
-                                                                                                        <th style={{ padding: "0.35rem 0.3rem", textAlign: "left", fontWeight: 600 }}>
-                                                                                                            Дата доставки
-                                                                                                        </th>
-                                                                                                        <th style={{ padding: "0.35rem 0.3rem", textAlign: "left", fontWeight: 600 }}>
-                                                                                                            Время доставки
-                                                                                                        </th>
-                                                                                                    </tr>
-                                                                                                </thead>
-                                                                                                <tbody>
-                                                                                                    {dispatchTimelineSteps.map((step, i) => {
-                                                                                                        const stepMs = step.date ? new Date(step.date).getTime() : 0;
-                                                                                                        const outOfSlaFromThisStep = planEndMs > 0 && stepMs > planEndMs;
-                                                                                                        const dateColor = outOfSlaFromThisStep
-                                                                                                            ? "#ef4444"
-                                                                                                            : planEndMs > 0 && stepMs > 0
-                                                                                                              ? "#22c55e"
-                                                                                                              : "var(--color-text-secondary)";
-                                                                                                        return (
-                                                                                                            <tr key={i} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                                                                                                                <td
-                                                                                                                    style={{
-                                                                                                                        padding: "0.35rem 0.3rem",
-                                                                                                                        color: outOfSlaFromThisStep ? "#ef4444" : undefined,
-                                                                                                                    }}
-                                                                                                                >
-                                                                                                                    {step.label}
-                                                                                                                </td>
-                                                                                                                <td style={{ padding: "0.35rem 0.3rem", color: dateColor }}>
-                                                                                                                    {formatTimelineDate(step.date)}
-                                                                                                                </td>
-                                                                                                                <td style={{ padding: "0.35rem 0.3rem", color: dateColor }}>
-                                                                                                                    {formatTimelineTime(step.date)}
-                                                                                                                </td>
-                                                                                                            </tr>
-                                                                                                        );
-                                                                                                    })}
-                                                                                                </tbody>
-                                                                                            </table>
-                                                                                        );
-                                                                                    })()}
-                                                                                {!dispatchTimelineLoading &&
-                                                                                    dispatchTimelineSteps &&
-                                                                                    dispatchTimelineSteps.length === 0 &&
-                                                                                    !dispatchTimelineError && (
-                                                                                        <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                                                                                            Нет шагов статуса.
-                                                                                        </Typography.Body>
-                                                                                    )}
-                                                                                <div style={{ marginTop: "0.45rem" }}>
-                                                                                    <Button
-                                                                                        type="button"
-                                                                                        className="filter-button"
-                                                                                        style={{ fontSize: "0.78rem", padding: "0.35rem 0.65rem" }}
-                                                                                        onClick={(e) => {
-                                                                                            e.stopPropagation();
-                                                                                            onOpenCargo(num);
-                                                                                        }}
-                                                                                    >
-                                                                                        Открыть карточку перевозки
-                                                                                    </Button>
-                                                                                </div>
-                                                                            </td>
-                                                                        </tr>
-                                                                    )}
-                                                                </React.Fragment>
-                                                            );
-                                                        })}
+                                                    {groupOpen && (
+                                                        <HaulzDispatchShipmentRows
+                                                            rows={previewRows}
+                                                            rowKeyPrefix={`${selectedTile}-${customerKey}`}
+                                                            showCustomerColumn={showCustomerColumn}
+                                                            workScheduleByInn={workScheduleByInn}
+                                                            expandedDispatchNumber={expandedDispatchNumber}
+                                                            expandedDispatchItem={expandedDispatchItem}
+                                                            onToggleDispatchRow={onToggleDispatchRow}
+                                                            dispatchTableColCount={dispatchTableColCount}
+                                                            dispatchTimelineSteps={dispatchTimelineSteps}
+                                                            dispatchTimelineLoading={dispatchTimelineLoading}
+                                                            dispatchTimelineError={dispatchTimelineError}
+                                                            onOpenCargo={onOpenCargo}
+                                                            nestedFirstColumn
+                                                        />
+                                                    )}
+                                                    {groupOpen && hiddenGroupRows > 0 && (
+                                                        <tr>
+                                                            <td
+                                                                colSpan={dispatchTableColCount}
+                                                                style={{
+                                                                    padding: "0.35rem 0.35rem 0.35rem 1.5rem",
+                                                                    borderBottom: "1px solid var(--color-border)",
+                                                                }}
+                                                            >
+                                                                <button
+                                                                    type="button"
+                                                                    className="haulz-dispatch-group-more"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setCustomerGroupShowAllKeys((prev) => {
+                                                                            const next = new Set(prev);
+                                                                            next.add(customerKey);
+                                                                            return next;
+                                                                        });
+                                                                    }}
+                                                                >
+                                                                    Ещё {hiddenGroupRows}
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    )}
                                                 </React.Fragment>
                                             );
-                                        })}
+                                        })
+                                        )}
                                     </tbody>
                                 </table>
                             </div>

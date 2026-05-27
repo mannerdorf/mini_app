@@ -2,13 +2,10 @@ import { useEffect, useState } from 'react';
 import { Filters, defaultFiltersState, filtersToParams } from './Filters';
 import { pnlGet } from './api';
 import { OPERATION_TYPE_LABELS, DEPARTMENT_LABELS, LOGISTICS_STAGE_LABELS, DIRECTION_LABELS } from './constants';
+import { formatDisplayDate } from '../lib/dateUtils';
 
 function formatRub(n: number) {
   return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n) + ' ₽';
-}
-
-function formatDate(d: string | Date) {
-  return new Date(d).toLocaleDateString('ru-RU');
 }
 
 export function OperationsView() {
@@ -41,7 +38,7 @@ export function OperationsView() {
           <tbody className="divide-y divide-slate-100">
             {ops.map((op: any) => (
               <tr key={op.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3 text-sm text-slate-700">{formatDate(op.date)}</td>
+                <td className="px-4 py-3 text-sm text-slate-700">{formatDisplayDate(String(op.date))}</td>
                 <td className="px-4 py-3 text-sm text-slate-700">{op.counterparty}</td>
                 <td className="px-4 py-3 text-sm text-slate-600" style={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.purpose}</td>
                 <td className="px-4 py-3 text-sm text-right font-medium">{formatRub(op.amount)}</td>

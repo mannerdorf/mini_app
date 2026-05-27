@@ -22,7 +22,9 @@ import {
 import { initSharedFilterSets, saveSharedListFilters, sharedFromFilterSets } from "../lib/sharedListFilters";
 import { buildTransportOptionsFromSendingsInPeriod, buildTransportLinkedCargoNumbersInPeriod, collectSendingFreightCargoNumbers, normCargoKey } from "./documentsPipeline";
 import { useCargoTransportFilter, usePerevozkiMultiAccounts, useSendings } from "../hooks/useApi";
-import { CARGO_ROLE_FILTER_LABELS, type CargoRoleFilterKey } from "../lib/cargoUtils";
+import { useCargoNomenclatureSearch } from "../hooks/useCargoNomenclatureSearch";
+import { CARGO_ROLE_FILTER_LABELS, pickupLogisticsFilterLabel, type CargoRoleFilterKey } from "../lib/cargoUtils";
+import { buildRouteTypePlanDaysMap, getEffectivePlannedDeliveryDate } from "../lib/cargoPlannedDelivery";
 import { CargoSummaryCard, CargoStateBlocks } from "./cargoViewBlocks";
 import { CargoCustomerTable, CargoCardsList } from "./cargoCollectionViews";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
@@ -151,6 +153,7 @@ export function CargoPage({
     const runtime = useAppRuntime();
     const effectiveSearchText = searchText ?? runtime.searchText;
     const effectiveServiceMode = useServiceRequest ?? runtime.useServiceRequest;
+    const showCustomerColumn = runtime.showCustomerColumn;
     const [selectedCargo, setSelectedCargo] = useState<CargoItem | null>(null);
 
     // Filters State; при переключении вкладок восстанавливаем из localStorage
@@ -215,13 +218,15 @@ export function CargoPage({
     useEffect(() => {
         try { localStorage.setItem(CARGO_TABLE_MODE_KEY, String(tableModeByCustomer)); } catch { /* ignore */ }
     }, [tableModeByCustomer]);
+    const tableModeGroupedByCustomer = tableModeByCustomer && showCustomerColumn;
+    const tableModeFlatDirect = tableModeByCustomer && !showCustomerColumn;
     /** Сортировка таблицы по заказчику: столбец и направление (а-я / я-а) */
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'mest' | 'pw' | 'w' | 'vol' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
     /** Развёрнутая строка таблицы по заказчику: показываем детальные перевозки */
     const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
-    /** Сортировка вложенной таблицы перевозок (Номер, Дата прихода, Статус, Мест, Плат. вес, Сумма) */
-    type InnerTableSortCol = 'number' | 'datePrih' | 'status' | 'mest' | 'pw' | 'sum';
+    /** Сортировка вложенной таблицы перевозок (Номер, Дата прихода, Плановая дата прибытия на терминал, Статус, …) */
+    type InnerTableSortCol = 'number' | 'datePrih' | 'planDate' | 'status' | 'mest' | 'pw' | 'sum';
     const [innerTableSortColumn, setInnerTableSortColumn] = useState<InnerTableSortCol | null>(null);
     const [innerTableSortOrder, setInnerTableSortOrder] = useState<'asc' | 'desc'>('asc');
     const dateButtonRef = useRef<HTMLDivElement>(null);
@@ -388,10 +393,22 @@ export function CargoPage({
         return mergeCargoItemsByNumber(items, transportLinkedItems);
     }, [items, transportLinkedItems, effectiveServiceMode, transportFilter]);
 
-    const cargoSearchTextByNumber = useMemo(
-        () => buildCargoSearchTextByNumberFromSendings(sendingsItems || []),
-        [sendingsItems],
-    );
+    const { searchByNumber: nomenclatureSearchByNumber, loading: nomenclatureSearchLoading } = useCargoNomenclatureSearch({
+        items: itemsForFiltering,
+        searchText: effectiveSearchText,
+        auth: primaryAuth,
+        useServiceRequest: effectiveServiceMode,
+    });
+
+    const cargoSearchTextByNumber = useMemo(() => {
+        const merged = buildCargoSearchTextByNumberFromSendings(sendingsItems || []);
+        nomenclatureSearchByNumber.forEach((text, key) => {
+            if (!text) return;
+            const prev = merged.get(key) ?? "";
+            merged.set(key, `${prev} ${text}`.trim());
+        });
+        return merged;
+    }, [sendingsItems, nomenclatureSearchByNumber]);
 
     useEffect(() => {
         if (!transportFilter) return;
@@ -509,15 +526,22 @@ export function CargoPage({
         }
     };
 
+    const routeTypePlanDays = useMemo(
+        () => buildRouteTypePlanDaysMap(itemsForFiltering),
+        [itemsForFiltering],
+    );
+
     const sortInnerItems = (items: CargoItem[]): CargoItem[] => {
         if (!innerTableSortColumn) return items;
         const col = innerTableSortColumn;
         const order = innerTableSortOrder === 'asc' ? 1 : -1;
+        const planMs = (item: CargoItem) => getEffectivePlannedDeliveryDate(item, routeTypePlanDays)?.getTime() ?? 0;
         return [...items].sort((a, b) => {
             let va: string | number, vb: string | number;
             switch (col) {
                 case 'number': va = (a.Number || '').toString(); vb = (b.Number || '').toString(); break;
                 case 'datePrih': va = (a.DatePrih || '').toString(); vb = (b.DatePrih || '').toString(); break;
+                case 'planDate': va = planMs(a); vb = planMs(b); break;
                 case 'status': va = normalizeStatus(a.State) || ''; vb = normalizeStatus(b.State) || ''; break;
                 case 'mest': va = typeof a.Mest === 'string' ? parseFloat(a.Mest) || 0 : (a.Mest ?? 0); vb = typeof b.Mest === 'string' ? parseFloat(b.Mest) || 0 : (b.Mest ?? 0); break;
                 case 'pw': va = typeof a.PW === 'string' ? parseFloat(a.PW) || 0 : (a.PW ?? 0); vb = typeof b.PW === 'string' ? parseFloat(b.PW) || 0 : (b.PW ?? 0); break;
@@ -783,7 +807,7 @@ export function CargoPage({
                                 setIsLastMileDropdownOpen(false);
                             }}
                         >
-                            Заборная: {pickupLogisticsFilter === "all" ? "Все" : pickupLogisticsFilter === "terminal_to" ? "terminal-to" : "PickUP"}{" "}
+                            Заборная: {pickupLogisticsFilterLabel(pickupLogisticsFilter)}{" "}
                             <ChevronDown className="w-4 h-4" />
                         </Button>
                     </div>
@@ -796,14 +820,18 @@ export function CargoPage({
                             onClick={() => { setPickupLogisticsFilter("pickup"); setIsPickupLogisticsDropdownOpen(false); }}
                             style={{ background: pickupLogisticsFilter === "pickup" ? "var(--color-bg-hover)" : undefined }}
                         >
-                            <Typography.Body>PickUP {pickupLogisticsFilter === "pickup" ? "✓" : ""}</Typography.Body>
+                            <Typography.Body>
+                                {pickupLogisticsFilterLabel("pickup")} {pickupLogisticsFilter === "pickup" ? "✓" : ""}
+                            </Typography.Body>
                         </div>
                         <div
                             className="dropdown-item"
                             onClick={() => { setPickupLogisticsFilter("terminal_to"); setIsPickupLogisticsDropdownOpen(false); }}
                             style={{ background: pickupLogisticsFilter === "terminal_to" ? "var(--color-bg-hover)" : undefined }}
                         >
-                            <Typography.Body>terminal-to {pickupLogisticsFilter === "terminal_to" ? "✓" : ""}</Typography.Body>
+                            <Typography.Body>
+                                {pickupLogisticsFilterLabel("terminal_to")} {pickupLogisticsFilter === "terminal_to" ? "✓" : ""}
+                            </Typography.Body>
                         </div>
                     </FilterDropdownPortal>
                 </div>
@@ -869,10 +897,10 @@ export function CargoPage({
                         ))}
                     </FilterDropdownPortal>
                 </div>
-                {effectiveServiceMode && (
+                {showSums && (
                     <div className="filter-group" style={{ flexShrink: 0 }}>
                         <div ref={billStatusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); setIsPickupLogisticsDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); setIsPickupLogisticsDropdownOpen(false); setIsRoleDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                 Статус счёта: {billStatusFilterSet.size === 0 ? 'Все' : billStatusFilterSet.size === 1 ? BILL_STATUS_MAP[[...billStatusFilterSet][0]] : `Выбрано: ${billStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -945,9 +973,16 @@ export function CargoPage({
                     showSums={showSums}
                     useServiceRequest={effectiveServiceMode}
                     saasAnalytics={cargoServiceSaasUi}
+                    expandedMetrics={tableModeFlatDirect}
                 />
             </motion.div>
             </div>
+
+            {nomenclatureSearchLoading && String(effectiveSearchText ?? "").trim().length >= 2 && (
+                <Typography.Label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>
+                    Поиск по штрихкоду и номенклатуре…
+                </Typography.Label>
+            )}
 
             <CargoStateBlocks
                 loading={loading}
@@ -958,7 +993,7 @@ export function CargoPage({
             />
 
             <AnimatePresence mode="wait">
-                {!loading && !error && tableModeByCustomer && groupedByCustomer.length > 0 ? (
+                {!loading && !error && tableModeGroupedByCustomer && groupedByCustomer.length > 0 ? (
                     <motion.div
                         key="cargo-view-table"
                         className="cargo-table-offset-desktop"
@@ -972,11 +1007,31 @@ export function CargoPage({
                             expandedTableCustomer={expandedTableCustomer}
                             innerTableSortColumn={innerTableSortColumn}
                             innerTableSortOrder={innerTableSortOrder}
+                            routeTypePlanDays={routeTypePlanDays}
                             workScheduleByInn={workScheduleByInn}
                             onTableSort={handleTableSort}
                             onInnerTableSort={handleInnerTableSort}
                             sortInnerItems={sortInnerItems}
                             onToggleExpandedCustomer={(customer) => setExpandedTableCustomer(prev => prev === customer ? null : customer)}
+                            onSelectCargo={setSelectedCargo}
+                            motionEnabled={cargoMotionEnabled}
+                        />
+                    </motion.div>
+                ) : !loading && !error && tableModeFlatDirect && filteredItems.length > 0 ? (
+                    <motion.div
+                        key="cargo-view-table-flat"
+                        className="cargo-table-offset-desktop"
+                        {...(cargoMotionEnabled ? cargoModeSwitchMotion : { initial: false })}
+                    >
+                        <CargoCustomerTable
+                            showSums={showSums}
+                            flatDirectItems={filteredItems}
+                            innerTableSortColumn={innerTableSortColumn}
+                            innerTableSortOrder={innerTableSortOrder}
+                            routeTypePlanDays={routeTypePlanDays}
+                            workScheduleByInn={workScheduleByInn}
+                            onInnerTableSort={handleInnerTableSort}
+                            sortInnerItems={sortInnerItems}
                             onSelectCargo={setSelectedCargo}
                             motionEnabled={cargoMotionEnabled}
                         />

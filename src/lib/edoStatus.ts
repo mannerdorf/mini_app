@@ -2,6 +2,9 @@ import type { CSSProperties } from "react";
 
 export type EdoTone = "success" | "warning" | "danger" | "muted" | "info";
 
+/** Мини-бейджи статуса ЭДО на кнопках ЭР/АПП/СЧЕТ/УПД в модалках — временно скрыты. */
+export const SHOW_EDO_DOC_DOWNLOAD_BADGES = false;
+
 export type EdoStatusInfo = {
   raw: string;
   label: string;
@@ -389,22 +392,58 @@ export function edoToneSurfaceStyle(tone: EdoTone): CSSProperties {
 }
 
 /**
- * Мини-бейдж ОП/П/НП/ОТ/НС внутри кнопок скачивания ЭР/АПП/СЧЕТ/УПД.
- * Класс `edo-doc-download-btn` на кнопке — уменьшенные отступы и иконка (см. styles.css).
+ * Мини-бейдж статуса ЭДО внутри синих кнопок скачивания ЭР/АПП/СЧЕТ/УПД (модалки счёта и УПД).
+ * Светлая «таблетка» на синем фоне — как до смены стилей edoToneSurfaceStyle на кнопке.
  */
 export function edoDocButtonMiniBadgeStyle(tone: EdoTone): CSSProperties {
-  return {
-    fontSize: "0.5rem",
-    fontWeight: 600,
+  const base: CSSProperties = {
+    fontSize: "0.54rem",
+    fontWeight: 700,
     lineHeight: 1.1,
-    padding: "0.04rem 0.2rem",
+    padding: "0.05rem 0.22rem",
     borderRadius: "999px",
-    maxWidth: "7.5rem",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    ...edoToneSurfaceStyle(tone),
+    maxWidth: "4.6rem",
+    whiteSpace: "normal",
+    textAlign: "center",
+    display: "inline-block",
   };
+  switch (tone) {
+    case "success":
+      return {
+        ...base,
+        background: "rgba(255, 255, 255, 0.92)",
+        color: "#15803d",
+        border: "1px solid rgba(255, 255, 255, 0.85)",
+      };
+    case "warning":
+      return {
+        ...base,
+        background: "rgba(255, 255, 255, 0.9)",
+        color: "#b45309",
+        border: "1px solid rgba(255, 255, 255, 0.8)",
+      };
+    case "danger":
+      return {
+        ...base,
+        background: "rgba(255, 255, 255, 0.9)",
+        color: "#dc2626",
+        border: "1px solid rgba(255, 255, 255, 0.8)",
+      };
+    case "info":
+      return {
+        ...base,
+        background: "rgba(255, 255, 255, 0.88)",
+        color: "#1d4ed8",
+        border: "1px solid rgba(255, 255, 255, 0.75)",
+      };
+    default:
+      return {
+        ...base,
+        background: "transparent",
+        color: "#fff",
+        border: "1px solid rgba(255, 255, 255, 0.72)",
+      };
+  }
 }
 
 /** Легенда ЭДО под кнопками в модалках */
@@ -436,6 +475,17 @@ export function edoTableCellBadgeStyle(tone: EdoTone): CSSProperties {
 export function getEdoTableDisplayLabel(info: EdoStatusInfo): string {
   if (!info.raw) return "Нет статуса";
   return info.label;
+}
+
+/** Две строки на мини-бейдже кнопки: «Принят» / «получателем», «Не принят» / «получателем» и т.п. */
+export function getEdoDocButtonDisplayLines(info: EdoStatusInfo): string[] {
+  const label = getEdoTableDisplayLabel(info);
+  if (!info.raw) return [label];
+  const recipientTail = label.match(/^(.+?)\s+(получателем|получателя)$/i);
+  if (recipientTail) {
+    return [recipientTail[1].trim(), recipientTail[2]];
+  }
+  return [label];
 }
 
 /** Короткая подпись на плитке: «ЭР П», «Сч —» */

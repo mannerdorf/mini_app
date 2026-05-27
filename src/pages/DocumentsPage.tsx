@@ -10,6 +10,8 @@ import { ActDetailModal } from "../components/modals/ActDetailModal";
 import { NewOrderModal } from "../components/modals/NewOrderModal";
 import { DateText } from "../components/ui/DateText";
 import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode } from "../lib/formatUtils";
+import { ClickableCargoNumber, ClickableInvoiceNumber } from "../components/ui/EntityLinks";
+import { CargoTransportTypeIcon } from "../components/shared/CargoTableDisplay";
 import { downloadBase64File } from "../utils";
 import {
     checkSanctionsByNomenclature,
@@ -73,6 +75,7 @@ import {
     getActUpdEdoInfo,
     buildFilteredInvoices,
     buildFilteredOrders,
+    resolveInvoiceFiltersForDocSection,
     buildSendingsTotalsByVehicle,
     buildTransportLinkedCargoNumbersInPeriod,
     collectInvoiceLinkedCargoNumbers,
@@ -92,6 +95,9 @@ import {
 import {
     DocumentsApiDebugPanel,
     DocumentsEdoMonitorGroupedTable,
+    DocumentsEdoMonitorSummaryTiles,
+    DocumentsInvoiceFinanceHeadCells,
+    DocumentsInvoiceFinanceCells,
     DocumentsEdoCardsList,
     DocumentsEdoCardBadge,
     DocumentsEdoTableStatus,
@@ -101,6 +107,8 @@ import {
     DocumentsStateBlocks,
     DocumentsToolbarBelowSticky,
     DocumentsRouteBadge,
+    formatTariffRouteLabel,
+    TariffTransportTypeIcon,
     type DocumentsApiDebugSnapshot,
 } from "./documentsViewBlocks";
 import { AppBadge } from "../components/shared/AppBadge";
@@ -401,6 +409,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const effectiveServiceMode = useServiceRequest ?? runtime.useServiceRequest;
     const effectiveActiveInn = activeInn ?? runtime.activeInn;
     const effectiveSearchText = searchText ?? runtime.searchText;
+    const showCustomerColumn = runtime.showCustomerColumn;
     const prefersReducedMotion = useReducedMotion();
     const docsMotionEnabled = prefersReducedMotion !== true;
     const initDate = () => loadDateFilterState();
@@ -454,6 +463,12 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     useEffect(() => {
         try { localStorage.setItem(DOCS_TABLE_MODE_KEY, String(tableModeByCustomer)); } catch { /* ignore */ }
     }, [tableModeByCustomer]);
+    const tableModeGroupedByCustomer = tableModeByCustomer && showCustomerColumn;
+    const tableModeFlatDirect = tableModeByCustomer && !showCustomerColumn;
+    const groupedCustomerTableColSpan = useMemo(
+        () => (showCustomerColumn ? 1 : 0) + (showSums ? 1 : 0) + 1,
+        [showCustomerColumn, showSums],
+    );
     const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
     const [expandedTableActCustomer, setExpandedTableActCustomer] = useState<string | null>(null);
     const [expandedOrderRow, setExpandedOrderRow] = useState<string | null>(null);
@@ -529,7 +544,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [dogovorsDownloadingId, setDogovorsDownloadingId] = useState<number | null>(null);
     const [dogovorsDownloadError, setDogovorsDownloadError] = useState<string | null>(null);
     const [sverkiApiDebug, setSverkiApiDebug] = useState<DocumentsApiDebugSnapshot | null>(null);
-    const [dogovorsApiDebug, setDogovorsApiDebug] = useState<DocumentsApiDebugSnapshot | null>(null);
     const [claimsList, setClaimsList] = useState<{
         id: number;
         claimNumber: string;
@@ -605,7 +619,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [tariffsCustomerSearchQuery, setTariffsCustomerSearchQuery] = useState<string>("");
     const [tariffsRouteFilter, setTariffsRouteFilter] = useState<string>("all");
     const [tariffsTypeFilter, setTariffsTypeFilter] = useState<string>("all");
-    const [tariffsSortColumn, setTariffsSortColumn] = useState<"docDate" | "docNumber" | "customerName" | "cityFrom" | "cityTo" | "transportType" | "dangerous" | "tariff">("docDate");
+    const [tariffsSortColumn, setTariffsSortColumn] = useState<"docDate" | "docNumber" | "customerName" | "route" | "transportType" | "dangerous" | "tariff">("docDate");
     const [tariffsSortOrder, setTariffsSortOrder] = useState<"asc" | "desc">("desc");
     const allowedDocSections = useMemo(() => {
         if (!permissions) return DOC_SECTIONS;
@@ -708,35 +722,11 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         if (!effectiveServiceMode && effectiveActiveInn) params.set('inn', effectiveActiveInn);
         const url = `/api/dogovors${params.toString() ? `?${params.toString()}` : ''}`;
         fetch(url)
-            .then(async (res) => {
-                const body = await res.json().catch(() => null);
-                const list = Array.isArray((body as { dogovors?: unknown })?.dogovors)
-                    ? ((body as { dogovors: typeof dogovorsList }).dogovors)
-                    : [];
-                setDogovorsApiDebug({
-                    fetchedAt: new Date().toISOString(),
-                    url,
-                    status: res.status,
-                    ok: res.ok,
-                    body,
-                    listKey: 'dogovors',
-                    listLength: list.length,
-                    error: res.ok ? undefined : String((body as { error?: string })?.error || (body as { message?: string })?.message || 'HTTP error'),
-                });
-                setDogovorsList(res.ok ? list : []);
+            .then((res) => res.json())
+            .then((data: { dogovors?: typeof dogovorsList }) => {
+                setDogovorsList(Array.isArray(data?.dogovors) ? data.dogovors : []);
             })
-            .catch((e: unknown) => {
-                setDogovorsList([]);
-                setDogovorsApiDebug({
-                    fetchedAt: new Date().toISOString(),
-                    url,
-                    status: null,
-                    ok: false,
-                    body: null,
-                    listKey: 'dogovors',
-                    error: (e as Error)?.message || 'Сетевая ошибка',
-                });
-            })
+            .catch(() => setDogovorsList([]))
             .finally(() => setDogovorsLoading(false));
     }, [docSection, effectiveActiveInn, effectiveServiceMode]);
     const reloadClaims = useCallback(async () => {
@@ -1953,9 +1943,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         const set = new Set<string>();
         const allowedRoutes = new Set(["MSK – KGD", "KGD – MSK"]);
         tariffsList.forEach((t) => {
-            const from = cityToCode(t.cityFrom || '') || (t.cityFrom || '');
-            const to = cityToCode(t.cityTo || '') || (t.cityTo || '');
-            const route = [from, to].filter(Boolean).join(' – ');
+            const route = formatTariffRouteLabel(t.cityFrom, t.cityTo);
             if (route && allowedRoutes.has(route)) set.add(route);
         });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
@@ -2007,21 +1995,61 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
     } catch { return false; }
 }, [toDocFavoriteKey]);
 
-    const filteredItems = useMemo(() => {
-        return buildFilteredInvoices({
-            items,
-            activeInn: effectiveActiveInn,
-            useServiceRequest: effectiveServiceMode,
-            customerFilter,
-            invoiceFavoritesOnly,
+    const invoiceFilterInputs = useMemo(
+        () => ({
             billStatusFilterSet,
+            deliveryStatusFilterSet,
             typeFilterSet,
             routeFilterSet,
-            deliveryStatusFilterSet,
-            transportFilter,
-            transportLinkedCargoNumbers,
-            searchText: effectiveSearchText,
+            invoiceFavoritesOnly,
             edoStatusFilterSet,
+            transportFilter,
+        }),
+        [
+            billStatusFilterSet,
+            deliveryStatusFilterSet,
+            typeFilterSet,
+            routeFilterSet,
+            invoiceFavoritesOnly,
+            edoStatusFilterSet,
+            transportFilter,
+        ],
+    );
+
+    const buildFilteredInvoicesForSection = useCallback(
+        (section: "Счета" | "ЭДО") => {
+            const scoped = resolveInvoiceFiltersForDocSection(section, invoiceFilterInputs);
+            return buildFilteredInvoices({
+                items,
+                activeInn: effectiveActiveInn,
+                useServiceRequest: effectiveServiceMode,
+                customerFilter,
+                invoiceFavoritesOnly: scoped.invoiceFavoritesOnly,
+                billStatusFilterSet: scoped.billStatusFilterSet,
+                typeFilterSet: scoped.typeFilterSet,
+                routeFilterSet: scoped.routeFilterSet,
+                deliveryStatusFilterSet: scoped.deliveryStatusFilterSet,
+                transportFilter: scoped.transportFilter,
+                transportLinkedCargoNumbers,
+                searchText: effectiveSearchText,
+                edoStatusFilterSet: scoped.edoStatusFilterSet,
+                sortBy,
+                sortOrder,
+                isInvoiceFavorite,
+                getFirstCargoNumberFromInvoice,
+                cargoStateByNumber,
+                cargoRouteByNumber,
+                cargoTransportByNumber,
+            });
+        },
+        [
+            invoiceFilterInputs,
+            items,
+            effectiveActiveInn,
+            effectiveServiceMode,
+            customerFilter,
+            transportLinkedCargoNumbers,
+            effectiveSearchText,
             sortBy,
             sortOrder,
             isInvoiceFavorite,
@@ -2029,20 +2057,38 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             cargoStateByNumber,
             cargoRouteByNumber,
             cargoTransportByNumber,
-        });
-    }, [items, effectiveActiveInn, effectiveServiceMode, customerFilter, invoiceFavoritesOnly, billStatusFilterSet, typeFilterSet, routeFilterSet, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, transportFilter, transportLinkedCargoNumbers, effectiveSearchText, edoStatusFilterSet, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, cargoTransportByNumber, normCargoKey]);
+        ],
+    );
+
+    const filteredInvoiceItems = useMemo(
+        () => buildFilteredInvoicesForSection("Счета"),
+        [buildFilteredInvoicesForSection],
+    );
+
+    const filteredEdoItems = useMemo(
+        () => buildFilteredInvoicesForSection("ЭДО"),
+        [buildFilteredInvoicesForSection],
+    );
+
+    const filteredItems = useMemo(
+        () => (docSection === "ЭДО" ? filteredEdoItems : filteredInvoiceItems),
+        [docSection, filteredEdoItems, filteredInvoiceItems],
+    );
 
     const documentsSummary = useMemo(
-        () => buildInvoicesSummary(filteredItems, actsItems, perevozkiItems),
-        [filteredItems, actsItems, perevozkiItems],
+        () => buildInvoicesSummary(filteredInvoiceItems, actsItems, perevozkiItems),
+        [filteredInvoiceItems, actsItems, perevozkiItems],
     );
 
     /** ЭДО по типам документа для итоговой строки склеенной таблицы счетов (подписано / с непустым статусом) */
-    const mergedInvoicesEdoTotals = useMemo(() => aggregateInvoiceEdoDocStats(filteredItems), [filteredItems]);
+    const mergedInvoicesEdoTotals = useMemo(
+        () => aggregateInvoiceEdoDocStats(filteredInvoiceItems),
+        [filteredInvoiceItems],
+    );
 
     const edoCargoCardItems = useMemo(
-        () => buildEdoCargoCardItems(filteredItems, perevozkiItems, getFirstCargoNumberFromInvoice),
-        [filteredItems, perevozkiItems],
+        () => buildEdoCargoCardItems(filteredEdoItems, perevozkiItems, getFirstCargoNumberFromInvoice),
+        [filteredEdoItems, perevozkiItems, getFirstCargoNumberFromInvoice],
     );
 
     const sortedActs = useMemo(() => {
@@ -2081,9 +2127,9 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             activeInn: effectiveActiveInn,
             useServiceRequest: effectiveServiceMode,
             customerFilter,
-            typeFilterSet,
-            routeFilterSet,
-            deliveryStatusFilterSet,
+            typeFilterSet: new Set<TypeFilterKey>(),
+            routeFilterSet: new Set<RouteFilterKey>(),
+            deliveryStatusFilterSet: new Set<StatusFilter>(),
             transportFilter: '',
             searchText: effectiveSearchText,
             sortBy,
@@ -2100,7 +2146,7 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             }
             return true;
         });
-    }, [ordersItems, effectiveActiveInn, effectiveServiceMode, customerFilter, typeFilterSet, routeFilterSet, deliveryStatusFilterSet, effectiveSearchText, sortBy, sortOrder, orderReceiverFilter, orderSenderFilter, orderRouteFilter]);
+    }, [ordersItems, effectiveActiveInn, effectiveServiceMode, customerFilter, effectiveSearchText, sortBy, sortOrder, orderReceiverFilter, orderSenderFilter, orderRouteFilter]);
     const ordersSummary = useMemo(() => buildDocsSummary(filteredOrders), [filteredOrders]);
     const filteredSendings = useMemo(() => {
         if (!transportFilter) return sendingsForTransportOptions;
@@ -2248,21 +2294,14 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
     const filteredTariffs = useMemo(() => {
         const placeCode = (value: string) => cityToCode(value || '') || (value || '');
         const allowedRoutes = new Set(["MSK – KGD", "KGD – MSK"]);
-        const fromDate = new Date(`${apiDateRange.dateFrom}T00:00:00`);
-        const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
         const list = tariffsList.filter((t) => {
             if (t.isVet) return false;
             if (effectiveServiceMode && tariffsCustomerFilter && String(t.customerName || '').trim() !== tariffsCustomerFilter) return false;
-            const route = [
-                placeCode(t.cityFrom || ''),
-                placeCode(t.cityTo || ''),
-            ].filter(Boolean).join(' – ');
+            const route = formatTariffRouteLabel(t.cityFrom, t.cityTo);
             if (!allowedRoutes.has(route)) return false;
             if (tariffsRouteFilter !== 'all' && route !== tariffsRouteFilter) return false;
             if (tariffsTypeFilter !== 'all' && String(t.transportType || '').trim() !== tariffsTypeFilter) return false;
-            if (!t.docDate) return true;
-            const d = new Date(t.docDate);
-            return d >= fromDate && d <= toDate;
+            return true;
         });
 
         const getVal = (t: typeof tariffsList[number]) => {
@@ -2270,8 +2309,7 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
                 case "docDate": return t.docDate ? new Date(t.docDate).getTime() : 0;
                 case "docNumber": return t.docNumber || "";
                 case "customerName": return t.customerName || "";
-                case "cityFrom": return placeCode(t.cityFrom || "");
-                case "cityTo": return placeCode(t.cityTo || "");
+                case "route": return formatTariffRouteLabel(t.cityFrom, t.cityTo);
                 case "transportType": return t.transportType || "";
                 case "dangerous": return t.isDangerous ? 1 : 0;
                 case "tariff": return Number(t.tariff ?? 0);
@@ -2304,7 +2342,7 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             collapsed.push(t);
         }
         return collapsed;
-    }, [tariffsList, effectiveServiceMode, tariffsCustomerFilter, tariffsRouteFilter, tariffsTypeFilter, tariffsSortColumn, tariffsSortOrder, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    }, [tariffsList, effectiveServiceMode, tariffsCustomerFilter, tariffsRouteFilter, tariffsTypeFilter, tariffsSortColumn, tariffsSortOrder]);
     const filteredSverki = useMemo(() => {
         const fromDate = new Date(`${apiDateRange.dateFrom}T00:00:00`);
         const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
@@ -2353,16 +2391,12 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
         }
     }, []);
     const filteredDogovors = useMemo(() => {
-        const fromDate = new Date(`${apiDateRange.dateFrom}T00:00:00`);
-        const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
         return dogovorsList.filter((row) => {
             if (effectiveServiceMode && dogovorsCustomerFilter && String(row.customerName || '').trim() !== dogovorsCustomerFilter) return false;
             if (!cachedDocumentMatchesEdoStatusFilter(row, edoStatusFilterSet)) return false;
-            if (!row.docDate) return true;
-            const d = new Date(row.docDate);
-            return d >= fromDate && d <= toDate;
+            return true;
         });
-    }, [dogovorsList, apiDateRange.dateFrom, apiDateRange.dateTo, effectiveServiceMode, dogovorsCustomerFilter, edoStatusFilterSet]);
+    }, [dogovorsList, effectiveServiceMode, dogovorsCustomerFilter, edoStatusFilterSet]);
     const downloadDogovorFile = useCallback(async (row: { id: number; docNumber: string; docDate: string | null; customerInn: string }) => {
         const number = String(row.docNumber || '').trim();
         const docDateRaw = row.docDate;
@@ -2506,20 +2540,20 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
 
 useEffect(() => {
     if ((docSection !== 'Счета' && docSection !== 'ЭДО') || sortedGroupedByCustomer.length === 0) return;
-    if (docSection === 'Счета' && !tableModeByCustomer) return;
+    if (docSection === 'Счета' && !tableModeGroupedByCustomer) return;
     setExpandedTableCustomer((prev) => {
         if (prev && sortedGroupedByCustomer.some((row) => row.customer === prev)) return prev;
         return null;
     });
-}, [docSection, tableModeByCustomer, sortedGroupedByCustomer]);
+}, [docSection, tableModeGroupedByCustomer, sortedGroupedByCustomer]);
 
 useEffect(() => {
-    if (docSection !== 'УПД' || !tableModeByCustomer || sortedGroupedActsByCustomer.length === 0) return;
+    if (docSection !== 'УПД' || !tableModeGroupedByCustomer || sortedGroupedActsByCustomer.length === 0) return;
     setExpandedTableActCustomer((prev) => {
         if (prev && sortedGroupedActsByCustomer.some((row) => row.customer === prev)) return prev;
         return null;
     });
-}, [docSection, tableModeByCustomer, sortedGroupedActsByCustomer]);
+}, [docSection, tableModeGroupedByCustomer, sortedGroupedActsByCustomer]);
 
     const groupedOrdersByCustomer = useMemo(() => {
         const map = new Map<string, { customer: string; items: any[]; sum: number }>();
@@ -3060,7 +3094,7 @@ useEffect(() => {
     const applyBulkPlanDate = useCallback(async () => {
         if (!canEditPlanDate || selectedSendingRowsMeta.length === 0) return;
         if (!bulkPlanDateValue) {
-            setBulkSendingActionError('Укажите плановую дату доставки.');
+            setBulkSendingActionError('Укажите плановую дату прибытия на терминал.');
             return;
         }
         const cargoNumbers = Array.from(new Set(
@@ -3100,13 +3134,13 @@ useEffect(() => {
                 ? String(data.errors[0]?.error || '').trim()
                 : '';
             if (failed > 0) {
-                setBulkSendingActionError(`Плановая дата записана частично: ${updated} из ${requested}.${firstError ? ` Причина: ${firstError}` : ''}`);
+                setBulkSendingActionError(`Плановая дата прибытия на терминал записана частично: ${updated} из ${requested}.${firstError ? ` Причина: ${firstError}` : ''}`);
             } else {
-                setBulkSendingActionInfo(`Плановая дата ${bulkPlanDateValue} записана для ${updated} перевозок.`);
+                setBulkSendingActionInfo(`Плановая дата прибытия на терминал ${bulkPlanDateValue} записана для ${updated} перевозок.`);
             }
             setBulkPlanDateOpen(false);
         } catch (e: any) {
-            setBulkSendingActionError(String(e?.message || 'Не удалось записать плановую дату.'));
+            setBulkSendingActionError(String(e?.message || 'Не удалось записать плановую дату прибытия на терминал.'));
         } finally {
             setBulkSendingActionLoading(false);
         }
@@ -3271,11 +3305,13 @@ useEffect(() => {
                 {(docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'УПД' || docSection === 'Заявки' || docSection === 'Отправки' || docSection === 'Тарифы' || docSection === 'Акты сверок' || docSection === 'Договоры' || docSection === 'Претензии') && (
                 <div className="filters-container filters-row-scroll">
                     <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
-                        {docSection !== 'Тарифы' ? (
+                        {docSection !== 'Тарифы' && docSection !== 'Договоры' ? (
                             <Button className="filter-button" style={{ padding: '0.5rem', minWidth: 'auto' }} onClick={() => { setSortBy('date'); setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); }} title={sortOrder === 'desc' ? 'Дата по убыванию' : 'Дата по возрастанию'}>
                                 {sortOrder === 'desc' ? <ArrowDown className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />}
                             </Button>
                         ) : null}
+                        {docSection !== 'Договоры' ? (
+                        <>
                         <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsSverkiCustomerDropdownOpen(false); setIsDogovorsCustomerDropdownOpen(false); setIsClaimsCustomerDropdownOpen(false); setIsClaimsStatusDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); setIsTariffsCustomerDropdownOpen(false); setIsTariffsRouteDropdownOpen(false); setIsTariffsTypeDropdownOpen(false); }}>
                                 Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' ? `${apiDateRange.dateFrom.slice(8, 10)}.${apiDateRange.dateFrom.slice(5, 7)} – ${apiDateRange.dateTo.slice(8, 10)}.${apiDateRange.dateTo.slice(5, 7)}` : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
@@ -3355,6 +3391,8 @@ useEffect(() => {
                                 })
                             )}
                         </FilterDropdownPortal>
+                        </>
+                        ) : null}
                         {docSection === 'Тарифы' && (
                             <>
                                 {effectiveServiceMode ? (
@@ -3422,7 +3460,8 @@ useEffect(() => {
                                 <FilterDropdownPortal triggerRef={tariffsTypeButtonRef} isOpen={isTariffsTypeDropdownOpen} onClose={() => setIsTariffsTypeDropdownOpen(false)}>
                                     <div className="dropdown-item" onClick={() => { setTariffsTypeFilter('all'); setIsTariffsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
                                     {uniqueTariffsTypes.map((type) => (
-                                        <div key={type} className="dropdown-item" onClick={() => { setTariffsTypeFilter(type); setIsTariffsTypeDropdownOpen(false); }}>
+                                        <div key={type} className="dropdown-item" onClick={() => { setTariffsTypeFilter(type); setIsTariffsTypeDropdownOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <TariffTransportTypeIcon transportType={type} size={18} />
                                             <Typography.Body>{type}</Typography.Body>
                                         </div>
                                     ))}
@@ -3748,6 +3787,7 @@ useEffect(() => {
                                     showSums={showSums}
                                     useServiceRequest={effectiveServiceMode}
                                     saasAnalytics={documentsServiceSaasUi}
+                                    expandedMetrics={tableModeFlatDirect}
                                 />
                             </motion.div>
                         )}
@@ -3758,6 +3798,7 @@ useEffect(() => {
                                     showSums={showSums}
                                     useServiceRequest={effectiveServiceMode}
                                     saasAnalytics={documentsServiceSaasUi}
+                                    expandedMetrics={tableModeFlatDirect}
                                 />
                             </motion.div>
                         )}
@@ -3817,13 +3858,13 @@ useEffect(() => {
             <motion.div className="documents-summary-section-body">
             {(loading || !!error) && <DocumentsStateBlocks loading={loading} error={error} emptyText="" />}
             <AnimatePresence mode="wait">
-            {!loading && !error && tableModeEffective && sortedGroupedByCustomer.length > 0 ? (
+            {!loading && !error && tableModeGroupedByCustomer && sortedGroupedByCustomer.length > 0 ? (
                 <motion.div key="docs-inv-g" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                 <div className="cargo-card cargo-customer-table-wrap" style={{ marginBottom: '1rem' }}>
                     <table className="cargo-customer-table documents-grouped-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <th className="cargo-customer-table__col-customer" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка">Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                {showCustomerColumn && <th className="cargo-customer-table__col-customer customer-col" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка">Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
                                 {showSums && <th className="cargo-customer-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка">Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
                                 <th className="cargo-customer-table__col-count" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('count')} title="Сортировка"><span className="cargo-customer-table__head-long">Счетов</span><span className="cargo-customer-table__head-short">Сч.</span> {tableSortColumn === 'count' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                             </tr>
@@ -3841,13 +3882,13 @@ useEffect(() => {
                                         onClick={() => setExpandedTableCustomer(prev => prev === row.customer ? null : row.customer)}
                                         title={expandedTableCustomer === row.customer ? 'Свернуть' : 'Показать счета'}
                                     >
-                                        <td className="cargo-customer-table__col-customer" style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
+                                        {showCustomerColumn && <td className="cargo-customer-table__col-customer customer-col" style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>}
                                         {showSums && <td className="cargo-customer-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum, true)}</td>}
                                         <td className="cargo-customer-table__col-count" style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
                                     </motion.tr>
                                     {expandedTableCustomer === row.customer && (
                                         <tr key={`${i}-detail`}>
-                                            <td colSpan={showSums ? 3 : 2} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                            <td colSpan={groupedCustomerTableColSpan} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                 <motion.div {...(docsMotionEnabled ? cargoExpandMotionProps : { initial: false })} className="cargo-inner-table-wrap doc-inner-table-wrap" style={{ padding: '0.5rem' }}>
                                                     <table className="doc-inner-table cargo-inner-table documents-invoices-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                         <thead>
@@ -3857,9 +3898,14 @@ useEffect(() => {
                                                                 <th className="cargo-inner-table__col-status doc-inner-table-status" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('status'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Статус</span><span className="cargo-inner-table__head-short">Ст.</span> {innerTableSortColumn === 'status' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('deliveryStatus'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span> {innerTableSortColumn === 'deliveryStatus' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th className="cargo-inner-table__col-route doc-inner-table-route cargo-inner-table__col-route--desktop" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('route'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span> {innerTableSortColumn === 'route' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                {showSums && <th className="cargo-inner-table__col-sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('sum'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Сумма</span><span className="cargo-inner-table__head-short">Сум.</span> {innerTableSortColumn === 'sum' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
-                                                                {showSums && <th className="cargo-inner-table__col-paid" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('paid'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Оплачено</span><span className="cargo-inner-table__head-short">Опл.</span> {innerTableSortColumn === 'paid' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
-                                                                {showSums && <th className="cargo-inner-table__col-balance" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('balance'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Остаток</span><span className="cargo-inner-table__head-short">Ост.</span> {innerTableSortColumn === 'balance' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
+                                                                {showSums && (
+                                                                    <DocumentsInvoiceFinanceHeadCells
+                                                                        withSort
+                                                                        sortColumn={innerTableSortColumn}
+                                                                        sortOrder={innerTableSortOrder}
+                                                                        onSort={handleInnerTableSort}
+                                                                    />
+                                                                )}
                                                             </tr>
                                                         </thead>
                                                         <tbody>
@@ -3896,9 +3942,14 @@ useEffect(() => {
                                                                         <td className="cargo-inner-table__col-route doc-inner-table-route cargo-inner-table__col-route--desktop" style={{ padding: '0.35rem 0.3rem' }}>
                                                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
                                                                         </td>
-                                                                        {showSums && <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(isum)}</span></td>}
-                                                                        {showSums && <td className="cargo-inner-table__col-paid documents-invoices-inner-table__sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(ipaid)}</span></td>}
-                                                                        {showSums && <td className="cargo-inner-table__col-balance documents-invoices-inner-table__sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value" style={{ color: getSumColorByPaymentStatus(ipayState) }}>{formatCurrency(ibalance)}</span></td>}
+                                                                        {showSums && (
+                                                                            <DocumentsInvoiceFinanceCells
+                                                                                sum={isum}
+                                                                                paid={ipaid}
+                                                                                balance={ibalance}
+                                                                                payState={ipayState}
+                                                                            />
+                                                                        )}
                                                                     </tr>
                                                                 );
                                                             })}
@@ -3913,7 +3964,11 @@ useEffect(() => {
                         </tbody>
                         <tfoot>
                             <tr style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <td className="cargo-customer-table__col-customer" style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
+                                {showCustomerColumn ? (
+                                    <td className="cargo-customer-table__col-customer customer-col" style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
+                                ) : (
+                                    <td style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
+                                )}
                                 {showSums && <td className="cargo-customer-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrency(documentsSummary.sum, true)}</td>}
                                 <td className="cargo-customer-table__col-count" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700 }}>{documentsSummary.count}</td>
                             </tr>
@@ -3921,8 +3976,8 @@ useEffect(() => {
                     </table>
                 </div>
                 </motion.div>
-            ) : !loading && !error && tableModeEffective && effectiveServiceMode && filteredItems.length > 0 && sortedGroupedByCustomer.length === 0 ? (
-                <motion.div key="docs-inv-f" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
+            ) : !loading && !error && tableModeFlatDirect && filteredItems.length > 0 ? (
+                <motion.div key="docs-inv-flat-direct" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                 <div className="cargo-card cargo-customer-table-wrap" style={{ marginBottom: '1rem' }}>
                     <table className="cargo-inner-table documents-invoices-inner-table documents-invoices-flat-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
@@ -3932,9 +3987,7 @@ useEffect(() => {
                                 <th className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус</span><span className="cargo-inner-table__head-short">Ст.</span></th>
                                 <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span></th>
                                 <th className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span></th>
-                                {showSums && <th className="cargo-inner-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Сумма</span><span className="cargo-inner-table__head-short">Сум.</span></th>}
-                                {showSums && <th className="cargo-inner-table__col-paid" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Оплачено</span><span className="cargo-inner-table__head-short">Опл.</span></th>}
-                                {showSums && <th className="cargo-inner-table__col-balance" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Остаток</span><span className="cargo-inner-table__head-short">Ост.</span></th>}
+                                {showSums && <DocumentsInvoiceFinanceHeadCells padding="0.5rem 0.4rem" />}
                             </tr>
                         </thead>
                         <tbody>
@@ -3951,7 +4004,9 @@ useEffect(() => {
                                 const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
                                 return (
                                     <tr key={inum || i} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={() => setSelectedInvoice(inv)} title="Открыть счёт">
-                                        <td className="cargo-inner-table__col-number" style={{ padding: '0.5rem 0.4rem' }}><span className="cargo-inner-table__number">{formatInvoiceNumber(inum)}</span></td>
+                                        <td className="cargo-inner-table__col-number" style={{ padding: '0.5rem 0.4rem' }}>
+                                            <ClickableInvoiceNumber number={String(inum)} invoice={inv} onOpen={setSelectedInvoice} />
+                                        </td>
                                         <td className="cargo-inner-table__col-date" style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} omitYear /></td>
                                         <td className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem' }}>
                                             <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile documents-invoices-inner-table__badges">
@@ -3971,9 +4026,81 @@ useEffect(() => {
                                         <td className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem' }}>
                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
                                         </td>
-                                        {showSums && <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(isum)}</span></td>}
-                                        {showSums && <td className="cargo-inner-table__col-paid documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{formatCurrency(ipaid)}</span></td>}
-                                        {showSums && <td className="cargo-inner-table__col-balance documents-invoices-inner-table__sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value" style={{ color: getSumColorByPaymentStatus(ipayState) }}>{formatCurrency(ibalance)}</span></td>}
+                                        {showSums && (
+                                            <DocumentsInvoiceFinanceCells
+                                                sum={isum}
+                                                paid={ipaid}
+                                                balance={ibalance}
+                                                payState={ipayState}
+                                                padding="0.5rem 0.4rem"
+                                            />
+                                        )}
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+                </motion.div>
+            ) : !loading && !error && tableModeEffective && effectiveServiceMode && filteredItems.length > 0 && sortedGroupedByCustomer.length === 0 ? (
+                <motion.div key="docs-inv-f" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
+                <div className="cargo-card cargo-customer-table-wrap" style={{ marginBottom: '1rem' }}>
+                    <table className="cargo-inner-table documents-invoices-inner-table documents-invoices-flat-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                        <thead>
+                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                <th className="cargo-inner-table__col-number" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Номер</span><span className="cargo-inner-table__head-short">№</span></th>
+                                <th className="cargo-inner-table__col-date" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
+                                <th className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус</span><span className="cargo-inner-table__head-short">Ст.</span></th>
+                                <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span></th>
+                                <th className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span></th>
+                                {showSums && <DocumentsInvoiceFinanceHeadCells padding="0.5rem 0.4rem" />}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sortInvoices(filteredItems).map((inv: any, i: number) => {
+                                const inum = inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '';
+                                const idt = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '';
+                                const isum = invoiceDocSum(inv);
+                                const ipaid = invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
+                                const ibalance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
+                                const ipayState = String(inv.StateBill ?? inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
+                                const ist = normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
+                                const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
+                                const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
+                                const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
+                                return (
+                                    <tr key={inum || i} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={() => setSelectedInvoice(inv)} title="Открыть счёт">
+                                        <td className="cargo-inner-table__col-number" style={{ padding: '0.5rem 0.4rem' }}>
+                                            <ClickableInvoiceNumber number={String(inum)} invoice={inv} onOpen={setSelectedInvoice} />
+                                        </td>
+                                        <td className="cargo-inner-table__col-date" style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} omitYear /></td>
+                                        <td className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem' }}>
+                                            <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile documents-invoices-inner-table__badges">
+                                                {ist ? <AppBadge tone="neutral" className="documents-invoice-inner-badge" style={{ background: istBadgeStyle.bg, color: istBadgeStyle.color }}>{ist}</AppBadge> : null}
+                                                <span className="cargo-inner-table__delivery-inline documents-invoice-inner-badge-wrap">
+                                                    {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
+                                                </span>
+                                                <span className="cargo-inner-table__route-inline documents-invoice-inner-badge-wrap">
+                                                    {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge className="documents-invoice-inner-badge">{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
+                                                </span>
+                                                {!ist && !deliveryState && !(firstCargoNum && cargoRouteByNumber.get(normCargoKey(firstCargoNum))) ? '—' : null}
+                                            </div>
+                                        </td>
+                                        <td className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.5rem 0.4rem' }}>
+                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
+                                        </td>
+                                        <td className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem' }}>
+                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
+                                        </td>
+                                        {showSums && (
+                                            <DocumentsInvoiceFinanceCells
+                                                sum={isum}
+                                                paid={ipaid}
+                                                balance={ibalance}
+                                                payState={ipayState}
+                                                padding="0.5rem 0.4rem"
+                                            />
+                                        )}
                                     </tr>
                                 );
                             })}
@@ -4007,14 +4134,16 @@ useEffect(() => {
                     item={selectedInvoice}
                     isOpen={!!selectedInvoice}
                     onClose={() => setSelectedInvoice(null)}
-                    onOpenCargo={(cargoNumber) => {
-                        setSelectedInvoice(null);
-                        setTimeout(() => onOpenCargo?.(cargoNumber), 0);
-                    }}
+                    onOpenCargo={(cargoNumber) => onOpenCargo?.(cargoNumber)}
                     auth={auth}
                     cargoStateByNumber={cargoStateByNumber}
                     cargoRouteByNumber={cargoRouteByNumber}
+                    cargoSumPaidByNumber={cargoSumPaidByNumber}
                     perevozkiLoading={perevozkiLoading}
+                    isFavorite={isInvoiceFavorite(String(selectedInvoice?.Number ?? selectedInvoice?.number ?? ""))}
+                    onToggleFavorite={() =>
+                        toggleInvoiceFavorite(String(selectedInvoice?.Number ?? selectedInvoice?.number ?? ""))
+                    }
                 />
             )}
             {!loading && !error && filteredItems.length === 0 && (
@@ -4027,8 +4156,36 @@ useEffect(() => {
             {(loading || !!error) && <DocumentsStateBlocks loading={loading} error={error} emptyText="" />}
             <AnimatePresence mode="wait">
             {!loading && !error && (edoCargoCardItems.length > 0 || filteredItems.length > 0) ? (
-                tableModeEffective ? (
+                tableModeFlatDirect && filteredItems.length > 0 ? (
+                <motion.div key="docs-edo-monitor-flat" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
+                    <DocumentsEdoMonitorSummaryTiles
+                        totals={mergedInvoicesEdoTotals}
+                        invoicesCount={documentsSummary.count}
+                        saasAnalytics={documentsServiceSaasUi}
+                    />
+                    <DocumentsEdoMonitorGroupedTable
+                        flatDirectItems={filteredItems}
+                        rows={[]}
+                        totals={mergedInvoicesEdoTotals}
+                        invoicesCount={documentsSummary.count}
+                        expandedCustomer={null}
+                        onToggleCustomer={() => {}}
+                        onOpenInvoice={(inv) => setSelectedInvoice(inv)}
+                        sortColumn="count"
+                        sortOrder={tableSortOrder}
+                        onSort={handleTableSort}
+                        docsMotionEnabled={docsMotionEnabled}
+                        showCustomerColumn={false}
+                    />
+                </motion.div>
+                ) : tableModeEffective ? (
                 <motion.div key="docs-edo-monitor-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
+                    <DocumentsEdoMonitorSummaryTiles
+                        className="documents-edo-summary-tiles--table-companion"
+                        totals={mergedInvoicesEdoTotals}
+                        invoicesCount={documentsSummary.count}
+                        saasAnalytics={documentsServiceSaasUi}
+                    />
                     <DocumentsEdoMonitorGroupedTable
                         rows={sortedGroupedByCustomer.length > 0 ? sortedGroupedByCustomer : [{ customer: '—', items: filteredItems, sum: documentsSummary.sum }]}
                         totals={mergedInvoicesEdoTotals}
@@ -4040,6 +4197,7 @@ useEffect(() => {
                         sortOrder={tableSortOrder}
                         onSort={handleTableSort}
                         docsMotionEnabled={docsMotionEnabled}
+                        showCustomerColumn={showCustomerColumn}
                     />
                 </motion.div>
                 ) : edoCargoCardItems.length > 0 ? (
@@ -4047,6 +4205,7 @@ useEffect(() => {
                     <DocumentsEdoCardsList
                         items={edoCargoCardItems}
                         onOpenInvoice={(inv) => setSelectedInvoice(inv)}
+                        onOpenCargo={onOpenCargo}
                         isInvoiceFavorite={isInvoiceFavorite}
                         onToggleInvoiceFavorite={toggleInvoiceFavorite}
                         docsMotionEnabled={docsMotionEnabled}
@@ -4071,14 +4230,16 @@ useEffect(() => {
                     item={selectedInvoice}
                     isOpen={!!selectedInvoice}
                     onClose={() => setSelectedInvoice(null)}
-                    onOpenCargo={(cargoNumber) => {
-                        setSelectedInvoice(null);
-                        setTimeout(() => onOpenCargo?.(cargoNumber), 0);
-                    }}
+                    onOpenCargo={(cargoNumber) => onOpenCargo?.(cargoNumber)}
                     auth={auth}
                     cargoStateByNumber={cargoStateByNumber}
                     cargoRouteByNumber={cargoRouteByNumber}
+                    cargoSumPaidByNumber={cargoSumPaidByNumber}
                     perevozkiLoading={perevozkiLoading}
+                    isFavorite={isInvoiceFavorite(String(selectedInvoice?.Number ?? selectedInvoice?.number ?? ""))}
+                    onToggleFavorite={() =>
+                        toggleInvoiceFavorite(String(selectedInvoice?.Number ?? selectedInvoice?.number ?? ""))
+                    }
                 />
             )}
             {!loading && !error && filteredItems.length === 0 && (
@@ -4090,13 +4251,13 @@ useEffect(() => {
             <motion.div className="documents-summary-section-body">
             {(actsLoading || !!actsError) && <DocumentsStateBlocks loading={actsLoading} error={actsError} emptyText="" />}
             <AnimatePresence mode="wait">
-            {!actsLoading && !actsError && tableModeEffective && sortedGroupedActsByCustomer.length > 0 ? (
+            {!actsLoading && !actsError && tableModeGroupedByCustomer && sortedGroupedActsByCustomer.length > 0 ? (
                 <motion.div key="docs-act-g" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                 <div className="cargo-card cargo-customer-table-wrap" style={{ marginBottom: '1rem' }}>
                     <table className="cargo-customer-table documents-grouped-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <th className="cargo-customer-table__col-customer" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка">Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                {showCustomerColumn && <th className="cargo-customer-table__col-customer customer-col" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка">Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
                                 {showSums && <th className="cargo-customer-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка">Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
                                 <th className="cargo-customer-table__col-count" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('count')} title="Сортировка"><span className="cargo-customer-table__head-long">УПД</span><span className="cargo-customer-table__head-short">УПД</span> {tableSortColumn === 'count' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                             </tr>
@@ -4114,13 +4275,13 @@ useEffect(() => {
                                         onClick={() => setExpandedTableActCustomer(prev => prev === row.customer ? null : row.customer)}
                                         title={expandedTableActCustomer === row.customer ? 'Свернуть' : 'Показать УПД'}
                                     >
-                                        <td className="cargo-customer-table__col-customer" style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
+                                        {showCustomerColumn && <td className="cargo-customer-table__col-customer customer-col" style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>}
                                         {showSums && <td className="cargo-customer-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum, true)}</td>}
                                         <td className="cargo-customer-table__col-count" style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
                                     </motion.tr>
                                     {expandedTableActCustomer === row.customer && (
                                         <tr key={`${i}-detail`}>
-                                            <td colSpan={showSums ? 3 : 2} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                            <td colSpan={groupedCustomerTableColSpan} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                 <motion.div {...(docsMotionEnabled ? cargoExpandMotionProps : { initial: false })} className="cargo-inner-table-wrap doc-inner-table-wrap" style={{ padding: '0.5rem' }}>
                                                     <table className="doc-inner-table cargo-inner-table documents-invoices-inner-table documents-acts-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                         <thead>
@@ -4146,11 +4307,35 @@ useEffect(() => {
                         </tbody>
                         <tfoot>
                             <tr style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <td className="cargo-customer-table__col-customer" style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
+                                {showCustomerColumn ? (
+                                    <td className="cargo-customer-table__col-customer customer-col" style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
+                                ) : (
+                                    <td style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
+                                )}
                                 {showSums && <td className="cargo-customer-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrency(actsSummary.sum, true)}</td>}
                                 <td className="cargo-customer-table__col-count" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700 }}>{actsSummary.count}</td>
                             </tr>
                         </tfoot>
+                    </table>
+                </div>
+                </motion.div>
+            ) : !actsLoading && !actsError && tableModeFlatDirect && filteredActs.length > 0 ? (
+                <motion.div key="docs-act-flat-direct" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
+                <div className="cargo-card cargo-inner-table-wrap" style={{ marginBottom: '1rem' }}>
+                    <table className="cargo-inner-table documents-invoices-inner-table documents-acts-inner-table documents-invoices-flat-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                        <thead>
+                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                <th className="cargo-inner-table__col-number" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Номер</span><span className="cargo-inner-table__head-short">№</span></th>
+                                <th className="cargo-inner-table__col-date" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
+                                <th className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус</span><span className="cargo-inner-table__head-short">Ст.</span></th>
+                                <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span></th>
+                                <th className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span></th>
+                                {showSums && <th className="cargo-inner-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Сумма</span><span className="cargo-inner-table__head-short">Сум.</span></th>}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sortActs(filteredActs).map((act: any, i: number) => renderActInnerTableRow(act, act.Number ?? act.number ?? i, '0.5rem 0.4rem'))}
+                        </tbody>
                     </table>
                 </div>
                 </motion.div>
@@ -4203,11 +4388,11 @@ useEffect(() => {
                         setSelectedInvoice(inv);
                     }}
                     invoices={items}
-                    onOpenCargo={(cargoNumber) => {
-                        setSelectedAct(null);
-                        setTimeout(() => onOpenCargo?.(cargoNumber), 0);
-                    }}
+                    onOpenCargo={(cargoNumber) => onOpenCargo?.(cargoNumber)}
                     auth={auth}
+                    cargoStateByNumber={cargoStateByNumber}
+                    cargoRouteByNumber={cargoRouteByNumber}
+                    perevozkiLoading={perevozkiLoading}
                 />
             )}
             </motion.div>
@@ -4440,7 +4625,7 @@ useEffect(() => {
                                                                                 }}
                                                                             >
                                                                                 <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.ПосылкаНаименование ?? parcel?.Посылка ?? parcel?.ИДОтправления ?? '—'}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.Перевозка ?? '—'}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}><ClickableCargoNumber number={parcel?.Перевозка} onOpen={onOpenCargo} /></td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem' }}>{goods?.ТМЦ ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{goods?.ИДОтправления ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
@@ -4586,7 +4771,7 @@ useEffect(() => {
                                                             return (
                                                                 <tr key={`${rowKey}-card-parcel-${parcel?.Посылка ?? parcelIdx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                                     <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.ПосылкаНаименование ?? parcel?.Посылка ?? parcel?.ИДОтправления ?? '—'}</td>
-                                                                    <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.Перевозка ?? '—'}</td>
+                                                                    <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}><ClickableCargoNumber number={parcel?.Перевозка} onOpen={onOpenCargo} /></td>
                                                                     <td style={{ padding: '0.35rem 0.3rem' }}>{goods?.ТМЦ ?? '—'}</td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.ОбъявленнаяСтоимостьТовараДляПечати ?? goods?.ОбъявленнаяСтоимостьТовара ?? '—'}</td>
@@ -4714,7 +4899,7 @@ useEffect(() => {
                                     style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
                                 >
                                     {bulkSendingActionLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: 4 }} /> : null}
-                                    Плановая дата
+                                    Плановая дата прибытия на терминал
                                 </Button>
                                 {bulkPlanDateOpen && (
                                     <div
@@ -4898,7 +5083,7 @@ useEffect(() => {
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'center', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('type')} title="Сортировка">Тип {sendingsSortColumn === 'type' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('transitHours')} title="Сортировка">В пути, ч {sendingsSortColumn === 'transitHours' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус доставки</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, lineHeight: 1.15 }}>Плановая дата<br />прибытия</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, lineHeight: 1.15 }}>Плановая дата прибытия<br />на терминал</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('vehicle')} title="Сортировка">Транспортное средство {sendingsSortColumn === 'vehicle' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 {hasAnalytics && (
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('paidWeight')} title="Сортировка">Плат. вес {sendingsSortColumn === 'paidWeight' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
@@ -4973,10 +5158,8 @@ useEffect(() => {
                                                 </DocumentsRouteBadge>
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem', textAlign: 'center' }}>
-                                                {transportType === 'ferry' ? (
-                                                    <Ship className="w-4 h-4" style={{ color: 'var(--color-primary-blue)', display: 'inline-block' }} title="Паром" />
-                                                ) : transportType === 'auto' ? (
-                                                    <Truck className="w-4 h-4" style={{ color: 'var(--color-text-secondary)', display: 'inline-block' }} title="Авто" />
+                                                {transportType === 'ferry' || transportType === 'auto' ? (
+                                                    <CargoTransportTypeIcon ak={transportType === 'ferry'} />
                                                 ) : '—'}
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -5104,7 +5287,7 @@ useEffect(() => {
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcelIdx + 1}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{goods?.ИДОтправления ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.ПосылкаНаименование ?? '—'}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.Перевозка ?? '—'}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}><ClickableCargoNumber number={parcel?.Перевозка} onOpen={onOpenCargo} /></td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcel?.ВесДляОтчета ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcel?.ОбъемДляОтчета ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const w = parseSendingMetricNumber(parcel?.ПлатныйВес); return w > 0 ? formatSendingMetricNum(w) : '—'; })()}</td>
@@ -5131,7 +5314,7 @@ useEffect(() => {
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('weight')} title="Сортировка">Вес {sendingsSummarySortColumn === 'weight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('paidWeight')} title="Сортировка">Платный вес {sendingsSummarySortColumn === 'paidWeight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('customer')} title="Сортировка">Заказчик {sendingsSummarySortColumn === 'customer' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Плановая дата</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, lineHeight: 1.15 }}>Плановая дата прибытия<br />на терминал</th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
@@ -5224,16 +5407,7 @@ useEffect(() => {
                                                                                         >
                                                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcelIdx + 1}</td>
                                                                                             <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>
-                                                                                                {summary.cargo && summary.cargo !== '—' ? (
-                                                                                                    <button
-                                                                                                        type="button"
-                                                                                                        style={{ border: 'none', background: 'transparent', padding: 0, color: 'var(--color-primary-blue)', cursor: 'pointer', textDecoration: 'underline' }}
-                                                                                                        onClick={(e) => { e.stopPropagation(); onOpenCargo?.(String(summary.cargo)); }}
-                                                                                                        title="Открыть перевозку в Грузах"
-                                                                                                    >
-                                                                                                        {summary.cargo}
-                                                                                                    </button>
-                                                                                                ) : '—'}
+                                                                                                <ClickableCargoNumber number={summary.cargo} onOpen={onOpenCargo} title="Открыть карточку перевозки" />
                                                                                             </td>
                                                                                             <td style={{ padding: '0.35rem 0.3rem' }}><StatusBadge status={summary.status || '—'} /></td>
                                                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{summary.count}</td>
@@ -5317,7 +5491,7 @@ useEffect(() => {
                                                                                             style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
                                                                                         >
                                                                                             {byCustomerActionLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: 4 }} /> : null}
-                                                                                            Плановая дата
+                                                                                            Плановая дата прибытия на терминал
                                                                                         </Button>
                                                                                         {byCustomerPlanDateOpen && (
                                                                                             <div
@@ -5350,7 +5524,7 @@ useEffect(() => {
                                                                                                     disabled={byCustomerActionLoading || !byCustomerPlanDateValue}
                                                                                                     onClick={async () => {
                                                                                                         if (!byCustomerPlanDateValue) {
-                                                                                                            setByCustomerActionError('Укажите плановую дату доставки.');
+                                                                                                            setByCustomerActionError('Укажите плановую дату прибытия на терминал.');
                                                                                                             return;
                                                                                                         }
                                                                                                         const cargoNumbers = Array.from(new Set(
@@ -5385,13 +5559,13 @@ useEffect(() => {
                                                                                                                 ? String(data.errors[0]?.error || '').trim()
                                                                                                                 : '';
                                                                                                             if (failed > 0) {
-                                                                                                                setByCustomerActionError(`Плановая дата записана частично: ${updated} из ${requested}.${firstError ? ` Причина: ${firstError}` : ''}`);
+                                                                                                                setByCustomerActionError(`Плановая дата прибытия на терминал записана частично: ${updated} из ${requested}.${firstError ? ` Причина: ${firstError}` : ''}`);
                                                                                                             } else {
-                                                                                                                setByCustomerActionInfo(`Плановая дата ${byCustomerPlanDateValue} записана для ${updated} перевозок.`);
+                                                                                                                setByCustomerActionInfo(`Плановая дата прибытия на терминал ${byCustomerPlanDateValue} записана для ${updated} перевозок.`);
                                                                                                             }
                                                                                                             setByCustomerPlanDateOpen(false);
                                                                                                         } catch (e: any) {
-                                                                                                            setByCustomerActionError(String(e?.message || 'Не удалось записать плановую дату.'));
+                                                                                                            setByCustomerActionError(String(e?.message || 'Не удалось записать плановую дату прибытия на терминал.'));
                                                                                                         } finally {
                                                                                                             setByCustomerActionLoading(false);
                                                                                                         }
@@ -5477,7 +5651,7 @@ useEffect(() => {
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('weight')} title="Сортировка">Вес {sendingsSummarySortColumn === 'weight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('paidWeight')} title="Сортировка">Платный вес {sendingsSummarySortColumn === 'paidWeight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('density')} title="Сортировка">Плотность {sendingsSummarySortColumn === 'density' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Плановая дата</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, lineHeight: 1.15 }}>Плановая дата прибытия<br />на терминал</th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
@@ -5676,7 +5850,7 @@ useEffect(() => {
                                                                                                                         <th style={{ padding: '0.3rem 0.25rem', textAlign: 'right', fontWeight: 600 }}>Вес</th>
                                                                                                                         <th style={{ padding: '0.3rem 0.25rem', textAlign: 'right', fontWeight: 600 }}>Платный вес</th>
                                                                                                                         <th style={{ padding: '0.3rem 0.25rem', textAlign: 'left', fontWeight: 600 }}>{sendingsSummaryGroupBy === 'receiver' ? 'Получатель' : 'Заказчик'}</th>
-                                                                                                                        <th style={{ padding: '0.3rem 0.25rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Плановая дата</th>
+                                                                                                                        <th style={{ padding: '0.3rem 0.25rem', textAlign: 'left', fontWeight: 600, lineHeight: 1.15 }}>Плановая дата прибытия<br />на терминал</th>
                                                                                                                     </tr>
                                                                                                                 </thead>
                                                                                                                 <tbody>
@@ -5684,16 +5858,7 @@ useEffect(() => {
                                                                                                                         <tr key={`${rowKey}-cargo-${cr.cargo}-${crIdx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                                                                                             <td style={{ padding: '0.3rem 0.25rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{cr._idx}</td>
                                                                                                                             <td style={{ padding: '0.3rem 0.25rem', whiteSpace: 'nowrap' }}>
-                                                                                                                                {cr.cargo && cr.cargo !== '—' ? (
-                                                                                                                                    <button
-                                                                                                                                        type="button"
-                                                                                                                                        style={{ border: 'none', background: 'transparent', padding: 0, color: 'var(--color-primary-blue)', cursor: 'pointer', textDecoration: 'underline' }}
-                                                                                                                                        onClick={(e) => { e.stopPropagation(); onOpenCargo?.(String(cr.cargo)); }}
-                                                                                                                                        title="Открыть перевозку в Грузах"
-                                                                                                                                    >
-                                                                                                                                        {cr.cargo}
-                                                                                                                                    </button>
-                                                                                                                                ) : '—'}
+                                                                                                                                <ClickableCargoNumber number={cr.cargo} onOpen={onOpenCargo} title="Открыть карточку перевозки" />
                                                                                                                             </td>
                                                                                                                             <td style={{ padding: '0.3rem 0.25rem' }}><StatusBadge status={cr.status || '—'} /></td>
                                                                                                                             <td style={{ padding: '0.3rem 0.25rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{cr.count}</td>
@@ -5818,7 +5983,7 @@ useEffect(() => {
                                             style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
                                         >
                                             {bulkSendingActionLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: 4 }} /> : null}
-                                            Плановая дата
+                                            Плановая дата прибытия на терминал
                                         </Button>
                                         {bulkPlanDateOpen && (
                                             <div
@@ -5938,10 +6103,8 @@ useEffect(() => {
                                             {route}
                                         </DocumentsRouteBadge>
                                         <Flex align="center" gap="0.35rem">
-                                            {transportType === 'ferry' ? (
-                                                <Ship className="w-4 h-4" style={{ color: 'var(--color-primary-blue)' }} title="Паром" />
-                                            ) : transportType === 'auto' ? (
-                                                <Truck className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} title="Авто" />
+                                            {(transportType === 'ferry' || transportType === 'auto') ? (
+                                                <CargoTransportTypeIcon ak={transportType === 'ferry'} />
                                             ) : null}
                                             {sendingStatusLabel ? <StatusBadge status={sendingStatusLabel} /> : <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>—</Typography.Label>}
                                         </Flex>
@@ -6011,7 +6174,7 @@ useEffect(() => {
                                                                         }}
                                                                     >
                                                                         <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.ПосылкаНаименование ?? parcel?.Посылка ?? '—'}</td>
-                                                                        <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.Перевозка ?? '—'}</td>
+                                                                        <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}><ClickableCargoNumber number={parcel?.Перевозка} onOpen={onOpenCargo} /></td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{parcelNomenclature || '—'}</td>
                                                                         <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{getParcelTnvedCode(parcel) || '—'}</td>
                                                                         <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{renderSanctionBadge(rowSanctionResult ? parcelSanctionResult : null)}</td>
@@ -6078,15 +6241,9 @@ useEffect(() => {
                                         ) : null}
                                         <th
                                             style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer' }}
-                                            onClick={() => { setTariffsSortColumn('cityFrom'); setTariffsSortOrder((o) => tariffsSortColumn === 'cityFrom' ? (o === 'asc' ? 'desc' : 'asc') : 'asc'); }}
+                                            onClick={() => { setTariffsSortColumn('route'); setTariffsSortOrder((o) => tariffsSortColumn === 'route' ? (o === 'asc' ? 'desc' : 'asc') : 'asc'); }}
                                         >
-                                            Место отправления {tariffsSortColumn === 'cityFrom' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
-                                        </th>
-                                        <th
-                                            style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer' }}
-                                            onClick={() => { setTariffsSortColumn('cityTo'); setTariffsSortOrder((o) => tariffsSortColumn === 'cityTo' ? (o === 'asc' ? 'desc' : 'asc') : 'asc'); }}
-                                        >
-                                            Место назначения {tariffsSortColumn === 'cityTo' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
+                                            Маршрут {tariffsSortColumn === 'route' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
                                         </th>
                                         <th
                                             style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer' }}
@@ -6116,21 +6273,15 @@ useEffect(() => {
                                             {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{stripOoo(t.customerName) || '—'}</td> : null}
                                             <td style={{ padding: '0.5rem 0.75rem' }}>
                                                 {(() => {
-                                                    const fromCode = cityToCode(t.cityFrom || '') || t.cityFrom || '';
-                                                    return fromCode ? (
-                                                        <DocumentsRouteBadge>{fromCode}</DocumentsRouteBadge>
+                                                    const route = formatTariffRouteLabel(t.cityFrom, t.cityTo);
+                                                    return route ? (
+                                                        <DocumentsRouteBadge>{route}</DocumentsRouteBadge>
                                                     ) : '—';
                                                 })()}
                                             </td>
-                                            <td style={{ padding: '0.5rem 0.75rem' }}>
-                                                {(() => {
-                                                    const toCode = cityToCode(t.cityTo || '') || t.cityTo || '';
-                                                    return toCode ? (
-                                                        <DocumentsRouteBadge>{toCode}</DocumentsRouteBadge>
-                                                    ) : '—';
-                                                })()}
+                                            <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>
+                                                <TariffTransportTypeIcon transportType={t.transportType} />
                                             </td>
-                                            <td style={{ padding: '0.5rem 0.75rem' }}>{t.transportType || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>{t.isDangerous ? 'Да' : 'Нет'}</td>
                                             <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                 {t.tariff != null ? formatCurrency(Number(t.tariff)) : '—'}
@@ -6146,9 +6297,7 @@ useEffect(() => {
                         <div className="cargo-list">
                             {filteredTariffs.map((t) => {
                                 const favorite = isDocFavorite('tariffs', t.id);
-                                const fromCode = cityToCode(t.cityFrom || '') || t.cityFrom || '';
-                                const toCode = cityToCode(t.cityTo || '') || t.cityTo || '';
-                                const route = [fromCode, toCode].filter(Boolean).join(' – ') || '—';
+                                const route = formatTariffRouteLabel(t.cityFrom, t.cityTo) || '—';
                                 const shareLines = [
                                     `Тариф: ${t.docNumber || '—'}`,
                                     t.docDate ? `Дата: ${t.docDate}` : '',
@@ -6198,7 +6347,7 @@ useEffect(() => {
                                             </Typography.Body>
                                         </Flex>
                                         <Flex justify="space-between" align="center" style={{ fontSize: '0.84rem', color: 'var(--color-text-secondary)' }}>
-                                            <Typography.Label>{t.transportType || '—'}</Typography.Label>
+                                            <TariffTransportTypeIcon transportType={t.transportType} size={18} />
                                             <Typography.Label>{t.isDangerous ? 'Опасный груз' : 'Не опасный'}</Typography.Label>
                                         </Flex>
                                         {effectiveServiceMode && (
@@ -6507,17 +6656,6 @@ useEffect(() => {
             )}
             {docSection === 'Договоры' && (
                 <div className="doc-section-content">
-                {effectiveServiceMode && (
-                    <DocumentsApiDebugPanel
-                        title="GET /api/dogovors"
-                        loading={dogovorsLoading}
-                        snapshot={
-                            dogovorsApiDebug
-                                ? { ...dogovorsApiDebug, filteredLength: filteredDogovors.length }
-                                : null
-                        }
-                    />
-                )}
                 <DocumentsToolbarBelowSticky>
                     {dogovorsLoading ? (
                         <Flex align="center" gap="0.5rem" className="documents-section-empty-state documents-contracts-empty-state">
@@ -6702,7 +6840,7 @@ useEffect(() => {
                                             <tr key={row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                 <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{row.claimNumber || `#${row.id}`}</td>
                                                 <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.createdAt || undefined} /></td>
-                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{row.cargoNumber || '—'}</td>
+                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><ClickableCargoNumber number={row.cargoNumber} onOpen={onOpenCargo} /></td>
                                                 <td style={{ padding: '0.5rem 0.75rem' }}>
                                                     <span style={{ fontSize: '0.75rem', padding: '0.18rem 0.45rem', borderRadius: 999, fontWeight: 600, background: statusStyle.bg, color: statusStyle.color, whiteSpace: 'nowrap' }}>
                                                         {CLAIM_STATUS_LABELS[status] || status}

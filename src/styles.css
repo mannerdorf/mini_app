@@ -569,12 +569,43 @@ body {
         padding: var(--space-5, 20px);
     }
 }
-.logo-text {
-    font-size: var(--font-size-title2, 22px);
-    font-weight: 600;
-    color: var(--color-primary-blue);
-    letter-spacing: var(--letter-spacing-tight, -0.02em);
-    line-height: var(--line-height-tight, 1.2);
+.haulz-brand-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: min(200px, 72vw);
+    max-width: 100%;
+    aspect-ratio: 1;
+    margin: 0 auto;
+    padding: 0 14%;
+    box-sizing: border-box;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: #3655ff;
+}
+
+.haulz-brand-logo__word {
+    color: #fff;
+    font-weight: 700;
+    font-size: clamp(1.25rem, 8.5vw, 2rem);
+    letter-spacing: 0.06em;
+    line-height: 1;
+    font-family: Arial, Helvetica, "Segoe UI", sans-serif;
+    white-space: nowrap;
+}
+
+.login-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.65rem;
+    margin-bottom: 1.25rem;
+    margin-top: 0.5rem;
+}
+
+.login-brand .tagline {
+    margin-bottom: 0;
 }
 .tagline {
     text-align: center;
@@ -660,6 +691,145 @@ body {
     margin-top: var(--space-4, 16px);
 }
 .theme-toggle-button-login { background: none; border: none; cursor: pointer; color: var(--color-text-primary); display: inline-flex; align-items: center; justify-content: center; }
+
+/* Блокирующее окно новой редакции оферты / согласия */
+.legal-reaccept-overlay {
+    z-index: 12000;
+    align-items: center;
+    justify-content: center;
+    padding: max(var(--space-4, 16px), env(safe-area-inset-top)) var(--pad-page-h, 16px)
+        max(var(--space-4, 16px), env(safe-area-inset-bottom));
+}
+
+.legal-doc-modal-overlay--top {
+    z-index: 12100 !important;
+}
+
+.legal-doc-modal {
+    max-width: min(36rem, 94vw);
+    max-height: min(85vh, 720px);
+    overflow-y: auto;
+}
+
+.legal-reaccept-modal {
+    width: min(100%, 22rem);
+    max-width: 22rem;
+    margin: 0 auto;
+    padding: var(--pad-modal, 1.25rem) !important;
+    border-radius: var(--radius-lg, 18px);
+    box-sizing: border-box;
+}
+
+.legal-reaccept-modal__title {
+    display: block;
+    font-size: 1.15rem !important;
+    font-weight: 700 !important;
+    line-height: 1.35 !important;
+    margin: 0 0 0.65rem !important;
+    color: var(--color-text-primary) !important;
+}
+
+.legal-reaccept-modal__lead {
+    display: block;
+    font-size: 0.9rem !important;
+    line-height: 1.5 !important;
+    margin: 0 0 1.15rem !important;
+    color: var(--color-text-secondary) !important;
+}
+
+.legal-reaccept-modal__rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    margin-bottom: 1.15rem;
+}
+
+.legal-reaccept-modal__row.switch-wrapper {
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 0.65rem;
+    width: 100%;
+    margin: 0;
+    cursor: pointer;
+    text-align: left;
+    color: var(--color-text-primary);
+}
+
+.legal-reaccept-modal__checkbox {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.legal-reaccept-modal__switch {
+    flex: 0 0 38px;
+    margin-top: 0.05rem;
+    pointer-events: none;
+}
+
+.legal-reaccept-modal__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    color: var(--color-text-primary);
+    margin: 0;
+}
+
+.legal-reaccept-modal__link {
+    display: inline;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: none;
+    color: var(--color-primary-blue);
+    font: inherit;
+    line-height: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.legal-reaccept-modal__link:hover {
+    color: var(--color-primary-blue-hover, #1d4ed8);
+}
+
+.legal-reaccept-modal__version {
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+.legal-reaccept-modal__error {
+    display: block;
+    margin: 0 0 0.85rem !important;
+    font-size: 0.85rem !important;
+    color: var(--color-error) !important;
+}
+
+.legal-reaccept-modal__submit {
+    width: 100%;
+    margin-top: 0 !important;
+}
+
+@media (max-width: 768px) {
+    .legal-reaccept-overlay {
+        align-items: center;
+        padding-top: max(var(--space-4, 16px), env(safe-area-inset-top));
+        padding-bottom: max(var(--space-4, 16px), env(safe-area-inset-bottom));
+    }
+
+    .legal-reaccept-modal {
+        width: 100%;
+        max-width: none;
+    }
+}
 
 /* --- SWITCH (TUMBLER) STYLES --- */
 .switch-wrapper {
@@ -1642,6 +1812,189 @@ body {
     min-width: 0;
 }
 
+.haulz-dispatch-group-more {
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-primary-blue);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.haulz-dispatch-group-more:hover {
+    opacity: 0.85;
+}
+
+.haulz-dispatch-table-panel__title {
+    flex: 1;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--color-text-primary);
+}
+
+.haulz-dispatch-table-panel__meta {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+.haulz-dispatch-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-top: 0.75rem;
+}
+
+.haulz-dispatch-table-wrap--scroll {
+    max-height: 13.5rem;
+    overflow-y: auto;
+}
+
+.haulz-dispatch-table-wrap--scroll .haulz-dispatch-table__th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--color-bg-card);
+    box-shadow: 0 1px 0 var(--color-border);
+}
+
+.haulz-dispatch-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    line-height: 1.35;
+    color: var(--color-text-primary);
+}
+
+.haulz-dispatch-table__head-row {
+    border-bottom: 1px solid var(--color-border);
+    text-align: left;
+}
+
+.haulz-dispatch-table__th {
+    padding: 0.4rem 0.35rem;
+    font-size: inherit;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+.haulz-dispatch-table__cell {
+    padding: 0.4rem 0.35rem;
+    vertical-align: middle;
+    font-size: inherit;
+    font-weight: 400;
+    white-space: nowrap;
+}
+
+.haulz-dispatch-table__cell--num-nested {
+    padding-left: 1.25rem;
+}
+
+.haulz-dispatch-table__cell--muted {
+    color: var(--color-text-secondary);
+}
+
+.haulz-dispatch-table__cell--customer {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--color-text-secondary);
+}
+
+.haulz-dispatch-table__cell--icon {
+    text-align: center;
+}
+
+.haulz-dispatch-table__cell--num-value {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.haulz-dispatch-table__detail-cell {
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+    background: var(--color-bg-primary);
+}
+
+.haulz-dispatch-table__detail-title {
+    margin: 0 0 0.35rem;
+    font-size: inherit;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--color-text-primary);
+}
+
+.haulz-dispatch-table__detail-muted {
+    margin: 0;
+    font-size: inherit;
+    font-weight: 400;
+    line-height: 1.35;
+    color: var(--color-text-secondary);
+}
+
+.haulz-dispatch-table__detail-loading {
+    padding: 0.35rem 0;
+}
+
+.haulz-dispatch-table__detail-spinner {
+    color: var(--color-primary-blue);
+}
+
+.haulz-dispatch-table__detail-actions {
+    margin-top: 0.45rem;
+}
+
+.haulz-dispatch-table__detail-open-btn {
+    font-size: inherit;
+    padding: 0.35rem 0.65rem;
+}
+
+.haulz-dispatch-table__timeline {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: inherit;
+    line-height: inherit;
+}
+
+.haulz-dispatch-table__timeline thead tr {
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-hover);
+}
+
+.haulz-dispatch-table__timeline th,
+.haulz-dispatch-table__timeline td {
+    padding: 0.35rem 0.3rem;
+    font-size: inherit;
+    font-weight: 400;
+    text-align: left;
+}
+
+.haulz-dispatch-table__timeline th {
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
+.haulz-dispatch-table__timeline tbody tr {
+    border-bottom: 1px solid var(--color-border);
+}
+
+/* Одна компания у логина — столбец «Заказчик» в таблицах не показываем */
+.app-hide-customer-column .cargo-customer-table__col-customer,
+.app-hide-customer-column .customer-col {
+    display: none !important;
+}
+
 .haulz-dispatch-stat-tile__metrics {
     min-height: 2.45rem;
     align-content: flex-start;
@@ -1905,6 +2258,7 @@ body {
 .filter-button.edo-doc-download-btn {
     display: inline-flex !important;
     align-items: center;
+    flex-wrap: wrap;
     gap: 0.2rem !important;
     padding: 0.14rem 0.36rem !important;
     font-size: 0.7rem !important;
@@ -1916,6 +2270,18 @@ body {
     width: 0.72rem !important;
     height: 0.72rem !important;
     flex-shrink: 0;
+}
+
+.filter-button.edo-doc-download-btn.doc-button {
+    flex: 0 1 auto;
+    min-width: 5.5rem;
+    color: #fff;
+}
+
+.filter-button.edo-doc-download-btn .edo-doc-mini-badge {
+    flex-shrink: 1;
+    min-width: 0;
+    line-height: 1.08;
 }
 
 .doc-section-tab {
@@ -2270,9 +2636,43 @@ body {
     }
 
     .documents-invoices-inner-table .cargo-inner-table__col-sum {
-        width: 24% !important;
+        width: 32% !important;
         text-align: right !important;
         vertical-align: middle !important;
+        writing-mode: horizontal-tb !important;
+        transform: none !important;
+        height: auto !important;
+        min-height: 3.25rem;
+        padding: 0.22rem 0.14rem !important;
+    }
+
+    .documents-invoices-inner-table .cargo-inner-table__col-finance-desktop-only {
+        display: none !important;
+    }
+
+    .documents-invoices-inner-table .cargo-inner-table__col-sum .cargo-inner-table__head-short {
+        display: none;
+    }
+
+    .documents-invoices-inner-table .cargo-inner-table__head-finance-stack {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.06rem;
+        font-size: 0.56rem;
+        font-weight: 600;
+        line-height: 1.05;
+        writing-mode: horizontal-tb;
+        transform: none;
+        white-space: nowrap;
+    }
+
+    .documents-invoices-inner-table__finance-stack {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0.14rem;
+        line-height: 1.12;
     }
 
     .documents-acts-inner-table .cargo-inner-table__col-sum {
@@ -2288,6 +2688,11 @@ body {
         font-variant-numeric: tabular-nums;
         white-space: nowrap;
         line-height: 1.15;
+    }
+
+    .documents-invoices-inner-table__sum-value--secondary {
+        color: var(--color-text-secondary);
+        font-weight: 500;
     }
 
     .cargo-inner-table td,
@@ -2330,11 +2735,16 @@ body {
     }
 
     .cargo-inner-table .cargo-inner-table__col-date {
-        width: 19%;
+        width: 16%;
+    }
+
+    .cargo-inner-table .cargo-inner-table__col-plan-date {
+        width: 16%;
+        white-space: nowrap;
     }
 
     .cargo-inner-table .cargo-inner-table__col-status {
-        width: 30%;
+        width: 26%;
     }
 
     .documents-invoices-inner-table .cargo-inner-table__col-status,
@@ -2458,6 +2868,33 @@ body {
         justify-content: center !important;
     }
 }
+
+@media (min-width: 769px) {
+    .documents-invoices-inner-table__finance-stack {
+        display: none;
+    }
+
+    .documents-invoices-inner-table .cargo-inner-table__head-finance-stack {
+        display: none;
+    }
+
+    .documents-invoices-inner-table__sum-value--desktop-only {
+        display: block;
+        font-size: inherit;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+
+    .documents-invoices-inner-table .cargo-inner-table__col-finance-desktop-only {
+        display: table-cell !important;
+    }
+}
+
+.documents-invoices-inner-table__sum-value--desktop-only {
+    display: none;
+}
+
 .modal-header {
     display: flex;
     justify-content: space-between;
@@ -2474,6 +2911,25 @@ body {
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
+}
+
+.modal-content--cargo-details .cargo-details-header-number {
+    flex: 0 0 auto;
+    min-width: 7.5rem;
+    margin: 0;
+    padding: 0.35rem 0.65rem;
+    background: var(--color-bg-hover);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 12px);
+}
+
+.modal-content--cargo-details .cargo-details-header-number .detail-item-label {
+    font-size: 0.7rem;
+    margin-bottom: 0.15rem;
+}
+
+.modal-content--cargo-details .cargo-details-header-number .detail-item-value {
+    font-size: 0.9rem;
 }
 
 .modal-header-actions {
@@ -2552,6 +3008,128 @@ body {
 
 .details-grid-modal.cargo-finance-extra {
     margin-top: calc(-1 * var(--space-6, 24px) + var(--element-gap, 16px));
+}
+
+.entity-detail-modal-overlay {
+    z-index: 9998;
+}
+
+.modal-content--entity-detail {
+    container-type: inline-size;
+    width: 94%;
+    max-width: min(900px, 94vw);
+}
+
+.entity-detail-modal-title {
+    font-size: 1.1rem;
+    margin: 0 0 0.5rem;
+    color: var(--color-text-primary);
+}
+
+.entity-detail-modal-pay-till {
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+}
+
+.entity-detail-modal-meta {
+    font-size: 0.85rem;
+}
+
+.entity-detail-modal-table-wrap {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    overflow-x: auto;
+    margin-top: 0.5rem;
+}
+
+/* Карточка перевозки: шире на десктопе, статусы справа от плиток */
+@media (min-width: 769px) {
+    .modal-content--cargo-details {
+        max-width: min(960px, 94vw);
+        width: 94%;
+    }
+
+    .cargo-details-modal-main {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--element-gap, 16px);
+        margin-bottom: var(--space-6, 24px);
+    }
+
+    .cargo-details-modal-rows {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: var(--element-gap, 16px);
+    }
+
+    .cargo-details-tiles-row {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: var(--element-gap, 16px);
+        width: 100%;
+    }
+
+    .cargo-details-modal-main .cargo-details-tiles-row .details-item-modal {
+        min-height: 4.75rem;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        margin: 0;
+    }
+
+    .cargo-details-modal-main .cargo-details-tiles-row .detail-item-value {
+        flex: 1;
+    }
+
+    .cargo-details-modal-timeline {
+        flex: 0 0 248px;
+        width: 248px;
+        max-height: min(70vh, 520px);
+        overflow-y: auto;
+        padding: var(--space-3, 12px);
+        background: var(--color-bg-hover);
+        border-radius: var(--radius-md, 12px);
+        border: 1px solid var(--color-border);
+        margin: 0;
+    }
+
+    .cargo-details-modal-timeline__title {
+        margin: 0 0 0.65rem !important;
+        font-size: 0.9rem !important;
+        font-weight: 600 !important;
+        line-height: 1.25 !important;
+    }
+}
+
+@media (max-width: 1024px) {
+    .cargo-details-tiles-row {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .cargo-details-modal-main {
+        flex-direction: column;
+    }
+
+    .cargo-details-tiles-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cargo-details-modal-timeline {
+        flex: none;
+        width: 100%;
+        max-height: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .cargo-details-tiles-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 /* Суммирующая строка: 1 ряд на десктопе, на телефонах 2 ряда (3+2) */
@@ -2895,7 +3473,8 @@ body {
     }
 }
 
-.documents-page--saas-analytics .documents-summary-totals--saas-kpi.documents-summary-card.cargo-card {
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi.documents-summary-card.cargo-card,
+.documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi.cargo-card {
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
@@ -2903,7 +3482,8 @@ body {
     margin-bottom: 0.35rem !important;
 }
 
-.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics {
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics,
+.documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi .summary-metrics {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
     gap: 0.55rem;
@@ -2912,7 +3492,8 @@ body {
     align-items: stretch;
 }
 
-.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div {
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div,
+.documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi .summary-metrics > div {
     position: relative;
     padding: 0.62rem 0.45rem;
     border-radius: 12px;
@@ -2922,7 +3503,8 @@ body {
     overflow: hidden;
 }
 
-.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div::before {
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div::before,
+.documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi .summary-metrics > div::before {
     content: "";
     position: absolute;
     top: 0;
@@ -3210,9 +3792,9 @@ button.edo-health-monitor {
     box-shadow: 0 4px 16px rgba(37, 99, 235, 0.08) !important;
 }
 
+/* Предупреждение — только кольцо/текст, фон как у остальных карточек дашборда */
 .edo-health-monitor--alert {
-    border-color: rgba(239, 68, 68, 0.28) !important;
-    background: linear-gradient(90deg, rgba(239, 68, 68, 0.04), transparent 55%) !important;
+    background: var(--color-bg-card) !important;
 }
 
 .edo-health-monitor__loading {
@@ -3337,14 +3919,467 @@ button.edo-health-monitor {
     }
 }
 
+/* Главная: неоплаченные счета × план прибытия на терминал */
+.unpaid-plan-monitor {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    padding: 0.65rem 0.75rem !important;
+    margin-top: 0;
+    margin-bottom: 0.75rem !important;
+    border-radius: 12px !important;
+    text-align: left;
+    cursor: default;
+    border: 1px solid rgba(148, 163, 184, 0.22) !important;
+    background: var(--color-bg-card) !important;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05) !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.unpaid-plan-monitor__head-btn {
+    display: block;
+    width: 100%;
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+}
+
+.unpaid-plan-monitor__head-btn:disabled {
+    cursor: default;
+}
+
+.unpaid-plan-monitor__head-btn:not(:disabled):hover .unpaid-plan-monitor__chevron {
+    color: var(--color-primary-blue);
+}
+
+.entity-link-button:hover {
+    color: var(--color-primary-blue);
+    opacity: 0.9;
+}
+
+/* Оплата счёта по QR */
+.invoice-payment-qr-block {
+    margin-bottom: 0.75rem;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-hover);
+    flex-shrink: 0;
+}
+
+.invoice-payment-qr-block__head {
+    margin-bottom: 0.65rem;
+}
+
+.invoice-payment-qr-block__title {
+    font-size: 0.95rem !important;
+    font-weight: 600 !important;
+    margin: 0 !important;
+}
+
+.invoice-payment-qr-block__loading {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+}
+
+.invoice-payment-qr-block__error {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--color-error);
+}
+
+.invoice-payment-qr-block__body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.invoice-payment-qr-block__qr-wrap {
+    flex-shrink: 0;
+    padding: 0.5rem;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+}
+
+.invoice-payment-qr-block__qr {
+    display: block;
+    width: 200px;
+    height: 200px;
+    max-width: 100%;
+    object-fit: contain;
+    border-radius: 6px;
+    background: #fff;
+}
+
+.invoice-payment-qr-block__details {
+    flex: 1;
+    min-width: min(100%, 14rem);
+}
+
+.invoice-payment-qr-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+    gap: 0.45rem;
+    margin-bottom: 0.65rem;
+}
+
+.invoice-payment-qr-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-card);
+}
+
+.invoice-payment-qr-tile--accent {
+    border-color: rgba(37, 99, 235, 0.35);
+    background: rgba(37, 99, 235, 0.06);
+}
+
+.invoice-payment-qr-tile__label {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--color-text-secondary);
+    line-height: 1.3;
+    word-spacing: normal;
+    white-space: normal;
+}
+
+.invoice-payment-qr-tile__value {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    line-height: 1.35;
+    word-spacing: normal;
+    white-space: normal;
+}
+
+.invoice-payment-qr-meta {
+    margin: 0 0 0.45rem;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--color-text-secondary);
+    word-spacing: normal;
+    white-space: normal;
+}
+
+.invoice-payment-qr-meta__label {
+    color: var(--color-text-secondary);
+}
+
+.invoice-payment-qr-meta__value {
+    color: var(--color-text-primary);
+    font-weight: 500;
+}
+
+.invoice-payment-qr-purpose {
+    margin: 0 0 0.5rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 8px;
+    border: 1px dashed var(--color-border);
+    font-size: 0.76rem;
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+    word-spacing: normal;
+    white-space: normal;
+}
+
+.invoice-payment-qr-hint {
+    margin: 0 0 0.65rem;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+    word-spacing: normal;
+    white-space: normal;
+}
+
+.bank-business-pay-row {
+    margin-top: 0.25rem;
+    padding-top: 0.65rem;
+    border-top: 1px dashed var(--color-border);
+}
+
+.bank-business-pay-row__label {
+    display: block;
+    margin: 0 0 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    letter-spacing: 0.02em;
+}
+
+.bank-business-pay-card {
+    display: block;
+    flex: 1 1 0;
+    min-width: 0;
+    width: 100%;
+    max-width: 168px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    border-radius: 10px;
+    background: #ffffff !important;
+    cursor: pointer;
+    overflow: hidden;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+
+.dark-mode .bank-business-pay-card {
+    background: #ffffff !important;
+}
+
+.bank-business-pay-card:hover {
+    border-color: rgba(37, 99, 235, 0.4);
+    box-shadow: 0 2px 10px rgba(37, 99, 235, 0.1);
+    transform: translateY(-1px);
+}
+
+.bank-business-pay-card--tbank:hover {
+    border-color: rgba(255, 221, 45, 0.85);
+    box-shadow: 0 2px 10px rgba(255, 221, 45, 0.2);
+}
+
+.bank-business-pay-card--sber:hover {
+    border-color: rgba(33, 160, 56, 0.45);
+    box-shadow: 0 2px 10px rgba(33, 160, 56, 0.12);
+}
+
+.bank-business-pay-card__logo {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    background: #ffffff;
+    pointer-events: none;
+}
+
+.bank-business-pay-row__buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    align-items: stretch;
+    margin-bottom: 0.45rem;
+    max-width: 360px;
+}
+
+.bank-business-pay-row__hint {
+    display: block !important;
+    margin: 0 !important;
+    font-size: 0.68rem !important;
+    color: var(--color-text-secondary) !important;
+    line-height: 1.5 !important;
+    word-spacing: normal !important;
+    white-space: normal !important;
+}
+
+button.unpaid-plan-monitor {
+    appearance: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+button.unpaid-plan-monitor:hover {
+    border-color: rgba(59, 130, 246, 0.35) !important;
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.08) !important;
+}
+
+.unpaid-plan-monitor--alert {
+    background: var(--color-bg-card) !important;
+}
+
+.unpaid-plan-monitor__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.unpaid-plan-monitor__title {
+    font-size: 0.88rem !important;
+    font-weight: 600 !important;
+    line-height: 1.25;
+}
+
+.unpaid-plan-monitor__subtitle {
+    display: block;
+    font-size: 0.72rem !important;
+    color: var(--color-text-secondary) !important;
+    margin-top: 0.12rem;
+    line-height: 1.35;
+}
+
+.unpaid-plan-monitor__chevron {
+    flex-shrink: 0;
+    margin-top: 0.15rem;
+    color: var(--color-text-secondary);
+    opacity: 0.65;
+}
+
+.unpaid-plan-monitor__loading {
+    min-height: 2rem;
+    justify-content: center;
+}
+
+.unpaid-plan-monitor__table-wrap {
+    overflow-x: auto;
+    max-height: 16rem;
+    overflow-y: auto;
+}
+
+.unpaid-plan-monitor__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+}
+
+.unpaid-plan-monitor__table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--color-bg-hover);
+    padding: 0.35rem 0.4rem;
+    text-align: left;
+    font-weight: 600;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.unpaid-plan-monitor__table td {
+    padding: 0.35rem 0.4rem;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+    max-width: 10rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.unpaid-plan-monitor__col-status {
+    white-space: normal;
+    max-width: 7.5rem;
+}
+
+.unpaid-plan-monitor__col-status .app-badge {
+    white-space: normal;
+    line-height: 1.25;
+}
+
+.unpaid-plan-monitor__col-cargo {
+    white-space: nowrap;
+    max-width: 6.5rem;
+}
+
+.unpaid-plan-monitor__col-plan-arrival {
+    white-space: nowrap;
+    max-width: 9rem;
+}
+
+@media (max-width: 768px) {
+    .unpaid-plan-monitor__col-plan-arrival {
+        display: none;
+    }
+
+    .unpaid-plan-monitor__table th.unpaid-plan-monitor__col-plan-arrival,
+    .unpaid-plan-monitor__table td.unpaid-plan-monitor__col-plan-arrival {
+        display: none;
+    }
+}
+
+.unpaid-plan-monitor__more {
+    display: block;
+    width: 100%;
+    margin-top: 0.35rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--color-primary-blue);
+    text-align: left;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.unpaid-plan-monitor__more:hover {
+    opacity: 0.85;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .edo-health-monitor__ring--alert svg circle:last-child {
         animation: none;
     }
 
     .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header,
-    .documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div {
+    .documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div,
+    .documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi .summary-metrics > div {
         box-shadow: none;
+    }
+}
+
+/* ЭДО: плитки итогов на мобиле (как у «Счета») */
+@media (max-width: 768px) {
+    .documents-page--with-edo-section .documents-edo-summary-tiles .summary-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.55rem;
+        max-width: 100%;
+        width: 100%;
+        align-items: stretch;
+    }
+
+    .documents-page--with-edo-section .documents-edo-summary-tiles .summary-metrics > div {
+        position: relative;
+        padding: 0.62rem 0.45rem;
+        border-radius: 12px;
+        background: var(--color-bg-card);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+        overflow: hidden;
+    }
+
+    .documents-page--with-edo-section .documents-edo-summary-tiles .summary-metrics > div::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #2563eb, #6366f1, #0ea5e9);
+        opacity: 0.88;
+    }
+
+    .documents-page--with-edo-section .documents-edo-summary-tiles:not(.documents-summary-totals--saas-kpi).cargo-card {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0.35rem 0 0.45rem !important;
+    }
+
+    .documents-edo-summary-tiles--table-companion + .documents-edo-monitor-table tfoot {
+        display: none;
+    }
+}
+
+@media (min-width: 769px) {
+    .documents-edo-summary-tiles--table-companion {
+        display: none !important;
     }
 }
 
@@ -3533,18 +4568,26 @@ button.edo-health-monitor {
 
 .details-item-modal .detail-item-label {
     display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-text-secondary);
     white-space: normal;
     overflow: visible;
     text-overflow: unset;
     overflow-wrap: anywhere;
     word-break: break-word;
     line-height: 1.35;
+    margin-bottom: 0.2rem;
 }
 
 .details-item-modal .detail-item-value {
     min-width: 0;
     flex-wrap: wrap;
     align-items: flex-start;
+    font-size: 0.875rem;
+    font-weight: 400;
+    line-height: 1.35;
+    color: var(--color-text-primary);
 }
 
 .details-item-modal .detail-item-value > * {
@@ -3598,20 +4641,37 @@ button.edo-health-monitor {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: none;
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
     border: none;
+    box-shadow: none;
+    outline: none;
     color: var(--color-text-secondary);
     cursor: pointer;
     padding: var(--space-2, 8px) var(--space-1, 4px);
     border-radius: var(--radius-md, 12px);
-    transition: color 0.2s, background-color 0.2s;
+    transition: color 0.2s;
     flex: 1 1 0;
     min-width: 0;
     gap: var(--space-1, 4px);
 }
+.tab-button:hover,
+.tab-button:focus,
+.tab-button:focus-visible,
+.tab-button.active {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    outline: none;
+}
 .tab-button:hover { color: var(--color-text-primary); }
 .tab-button.active { color: var(--color-primary-blue); font-weight: 500; }
-.tab-icon { }
+.tab-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
 .tab-label { font-size: var(--font-size-caption, 11px); font-weight: 400; }
 
 /* --- CHAT ICON BUTTONS (Telegram, MAX) --- */
@@ -3902,6 +4962,116 @@ button.edo-health-monitor {
 .light-mode .profile-api-keys-root input::placeholder,
 .light-mode .profile-api-keys-root [class*="Input__body"] input::placeholder {
     color: #9ca3af !important;
+}
+
+/* Админка → Оферта / согласие: нативные поля (не max-ui Input), светлые в CMS */
+.admin-page-root .admin-legal-section .admin-legal-field {
+    display: block;
+    margin-bottom: 0.75rem;
+}
+.admin-page-root .admin-legal-section .admin-legal-field--body {
+    margin-bottom: 0.85rem;
+}
+.admin-page-root .admin-legal-section .admin-legal-field__label {
+    display: block;
+    margin: 0 0 0.25rem;
+    font-size: 0.8rem;
+    line-height: 1.35;
+    color: var(--color-text-secondary);
+}
+.admin-page-root .admin-legal-section .admin-legal-field-control {
+    display: block !important;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 2.25rem;
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: #1f2937 !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 8px;
+    box-shadow: none !important;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.admin-page-root .admin-legal-section .admin-legal-field-control:focus {
+    border-color: var(--color-primary-blue, #2563eb) !important;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15) !important;
+}
+.admin-page-root .admin-legal-section .admin-legal-field-control::placeholder {
+    color: #9ca3af;
+}
+.admin-page-root .admin-legal-section .admin-legal-field-control--textarea {
+    min-height: 14rem;
+    max-height: min(50vh, 28rem);
+    font-size: 0.8rem;
+    resize: vertical;
+    overflow-y: auto;
+}
+.admin-legal-section .admin-legal-search-row {
+    gap: var(--inline-gap, 12px);
+}
+.admin-legal-section .admin-legal-search-wrap {
+    flex: 1 1 200px;
+    min-width: 180px;
+    display: flex;
+    align-items: stretch;
+    box-sizing: border-box;
+    min-height: 36px;
+    height: 36px;
+    background-color: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    overflow: hidden;
+}
+.admin-legal-section .admin-legal-search-row .filter-button {
+    height: 36px;
+    min-height: 36px;
+    box-sizing: border-box;
+}
+.admin-legal-section .admin-legal-search-wrap .admin-legal-field-control {
+    width: 100%;
+    min-height: 0;
+    height: 100%;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background-color: transparent !important;
+    background-image: none !important;
+}
+.light-mode .admin-legal-section .admin-legal-field-control,
+.light-mode .admin-legal-section .admin-legal-search-wrap {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+    border-color: #d1d5db !important;
+}
+.light-mode .admin-legal-section .admin-legal-search-wrap .admin-legal-field-control {
+    background-color: transparent !important;
+}
+.admin-page-root .admin-legal-section input[type="search"].admin-legal-field-control,
+.admin-legal-section input[type="search"].admin-legal-field-control {
+    -webkit-appearance: none;
+    appearance: none;
+    background-color: #ffffff !important;
+}
+/* На случай max-ui Input внутри секции */
+.admin-page-root .admin-legal-section label[class*="Input"],
+.admin-page-root .admin-legal-section [class*="Input__body"],
+.admin-page-root .admin-legal-section [class*="ClearableInput"] {
+    background-color: #ffffff !important;
+    border: 1px solid #d1d5db !important;
+    color: #1f2937 !important;
+}
+.admin-page-root .admin-legal-section label[class*="Input"] input,
+.admin-page-root .admin-legal-section [class*="Input__body"] input {
+    background: transparent !important;
+    color: #1f2937 !important;
+    border: none !important;
 }
 
 /* Профиль → API: строка префикса ключа + копирование */
@@ -5895,6 +7065,25 @@ button.edo-health-monitor {
     color: var(--color-text-secondary);
 }
 
+.profile-saas-row-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.profile-saas-row-text .profile-saas-row-title,
+.profile-saas-row-text .profile-saas-legal-accepted {
+    display: block;
+    width: 100%;
+}
+
+.profile-saas-row-card--legal .profile-saas-row-icon {
+    margin-top: 0.1rem;
+}
+
 /* Подзаголовок под «Профиль» — как в макете: компактный капс */
 .profile-saas-page-header .profile-saas-caption {
     font-size: 0.8125rem;
@@ -6000,6 +7189,27 @@ button.edo-health-monitor {
     display: flex;
     flex-direction: column;
     gap: var(--space-3, 12px);
+}
+
+/* Вложенные карточки в одном пункте меню (пароль, форма смены и т.п.) */
+.profile-saas-substack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3, 12px);
+    width: 100%;
+    min-width: 0;
+}
+
+.profile-saas-substack .profile-saas-nested-card {
+    margin-top: 0;
+    position: relative;
+    z-index: 0;
+}
+
+.profile-saas-substack .profile-saas-row-card--expanded,
+.profile-saas-substack .profile-saas-row-card--expanded:hover {
+    transform: none;
+    z-index: 1;
 }
 
 .profile-saas-row-icon {

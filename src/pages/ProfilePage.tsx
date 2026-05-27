@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import { motion, useReducedMotion } from "motion/react";
 import {
     LogOut, Loader2, Check, Moon, Sun, Eye, EyeOff, User as UserIcon, Users, ChevronDown,
-    Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MessageCircle, FileText, LayoutGrid, Mic, Receipt, Key,
+    Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MessageCircle, FileText, LayoutGrid, Mic, ScanBarcode, Key,
 } from "lucide-react";
 import { Button, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
 import type { Account, AuthData, ProfileView } from "../types";
@@ -17,7 +17,7 @@ import { TinyUrlTestPage } from "./TinyUrlTestPage";
 import { AboutCompanyPage } from "./AboutCompanyPage";
 import { NotificationsPage } from "./NotificationsPage";
 import { AisStreamPage } from "./AisStreamPage";
-import { getCurrentMonthYm } from "../lib/dateUtils";
+import { formatDateTime, formatDisplayDate, getCurrentMonthYm } from "../lib/dateUtils";
 import type { DepartmentTimesheetPayoutRow } from "./profile/departmentTimesheetTypes";
 import { ProfileTwoFactorSection } from "../components/profile/ProfileTwoFactorSection";
 import { ProfilePasswordSection } from "../components/profile/ProfilePasswordSection";
@@ -30,6 +30,7 @@ import { ProfileParcelScannerSection } from "../components/profile/ProfileParcel
 import { ProfileExpenseRequestsSection } from "../components/profile/ProfileExpenseRequestsSection";
 import { ProfileApiKeysSection } from "../components/profile/ProfileApiKeysSection";
 import { cargoListContainerVariants, cargoListItemVariants, cargoSummaryMotion } from "./cargoMotion";
+import { fetchLegalStatus, type LegalStatusResponse } from "../api/client/legal";
 
 export function ProfilePage({
     accounts,
@@ -71,6 +72,16 @@ export function ProfilePage({
 }) {
     const [currentView, setCurrentView] = useState<ProfileView>('main');
     const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
+    const [legalStatus, setLegalStatus] = useState<LegalStatusResponse | null>(null);
+
+    useEffect(() => {
+        if (currentView !== 'main' || !activeAccount?.login || !activeAccount.password) {
+            return;
+        }
+        void fetchLegalStatus(activeAccount.login, activeAccount.password)
+            .then(setLegalStatus)
+            .catch(() => setLegalStatus(null));
+    }, [currentView, activeAccount?.login, activeAccount?.password]);
     const prefersReducedMotion = useReducedMotion();
     const profileMotionEnabled = prefersReducedMotion !== true;
     const shellMotion = profileSaasShellActive && profileMotionEnabled;
@@ -1016,7 +1027,7 @@ export function ProfilePage({
         {
             id: 'parcelScanner',
             label: 'Сканер посылки',
-            icon: <Receipt className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+            icon: <ScanBarcode className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('parcelScanner')
         },
         ...((activeAccount?.isSuperAdmin || activeAccount?.permissions?.haulz === true) ? [{
@@ -1344,7 +1355,7 @@ export function ProfilePage({
                                             style={{ borderBottom: "1px solid var(--color-border)", cursor: "pointer" }}
                                             onClick={() => setSelectedAccountingRequest(r)}
                                         >
-                                            <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{r.createdAt ? new Date(r.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
+                                            <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{r.createdAt ? formatDisplayDate(r.createdAt) : "—"}</td>
                                             <td style={{ padding: "6px 8px" }}>{r.docNumber || "—"}</td>
                                             <td style={{ padding: "6px 8px" }}>{r.department}</td>
                                             <td style={{ padding: "6px 8px" }}>{r.categoryName}</td>
@@ -1478,7 +1489,7 @@ export function ProfilePage({
                                                         {statusLabel}
                                                     </span>
                                                 </td>
-                                                <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{c?.createdAt ? new Date(c.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—"}</td>
+                                                <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{c?.createdAt ? formatDisplayDate(c.createdAt) : "—"}</td>
                                             </tr>
                                         );
                                     })}
@@ -1518,12 +1529,12 @@ export function ProfilePage({
                                         const isPending = r.status === "pending";
                                         return (
                                             <tr key={r.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                                                <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{new Date(r.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}</td>
+                                                <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{formatDisplayDate(r.createdAt)}</td>
                                                 <td style={{ padding: "6px 8px" }}>{r.login || "—"}</td>
                                                 <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{r.customerInn || "—"}</td>
                                                 <td style={{ padding: "6px 8px" }}>{r.contract || "—"}</td>
                                                 <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
-                                                    {new Date(r.periodFrom).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })} - {new Date(r.periodTo).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                                                    {formatDisplayDate(r.periodFrom)} - {formatDisplayDate(r.periodTo)}
                                                 </td>
                                                 <td style={{ padding: "6px 8px" }}>
                                                     <span style={{
@@ -1579,7 +1590,7 @@ export function ProfilePage({
                                 Заявка {selectedAccountingRequest.docNumber || selectedAccountingRequest.id.slice(-8)}
                             </Typography.Body>
                             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
-                                <div><span style={{ color: "var(--color-text-secondary)" }}>Создано:</span> {selectedAccountingRequest.createdAt ? new Date(selectedAccountingRequest.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" }) : "—"}</div>
+                                <div><span style={{ color: "var(--color-text-secondary)" }}>Создано:</span> {selectedAccountingRequest.createdAt ? formatDisplayDate(selectedAccountingRequest.createdAt) : "—"}</div>
                                 <div><span style={{ color: "var(--color-text-secondary)" }}>№ док.:</span> {selectedAccountingRequest.docNumber || "—"}</div>
                                 <div><span style={{ color: "var(--color-text-secondary)" }}>Дата док.:</span> {selectedAccountingRequest.docDate || "—"}</div>
                                 <div><span style={{ color: "var(--color-text-secondary)" }}>Период:</span> {selectedAccountingRequest.period || "—"}</div>
@@ -3140,7 +3151,17 @@ export function ProfilePage({
                     initial={shellMotion ? "hidden" : false}
                     animate={shellMotion ? "visible" : undefined}
                 >
-                    {infoItems.map((item) => (
+                    {infoItems.map((item) => {
+                        const accepted =
+                            item.id === 'offer'
+                                ? legalStatus?.accepted?.offer
+                                : item.id === 'consent'
+                                    ? legalStatus?.accepted?.consent
+                                    : null;
+                        const acceptedAt = accepted?.accepted_at
+                            ? formatDateTime(accepted.accepted_at)
+                            : null;
+                        return (
                         <motion.div
                             key={item.id}
                             variants={shellMotion ? cargoListItemVariants : undefined}
@@ -3148,22 +3169,44 @@ export function ProfilePage({
                             animate={shellMotion ? "visible" : undefined}
                         >
                             <Panel
-                                className="cargo-card profile-saas-row-card"
+                                className={`cargo-card profile-saas-row-card${item.id === 'offer' || item.id === 'consent' ? ' profile-saas-row-card--legal' : ''}`}
                                 onClick={item.onClick}
                                 style={{
                                     display: 'flex',
-                                    alignItems: 'center',
+                                    alignItems: item.id === 'offer' || item.id === 'consent' ? 'flex-start' : 'center',
                                     padding: '1rem',
                                     cursor: 'pointer'
                                 }}
                             >
-                                <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
+                                <Flex
+                                    align={item.id === 'offer' || item.id === 'consent' ? 'flex-start' : 'center'}
+                                    style={{ flex: 1, gap: '0.75rem', minWidth: 0 }}
+                                >
                                     <div className="profile-saas-row-icon">{item.icon}</div>
-                                    <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>{item.label}</Typography.Body>
+                                    <div className="profile-saas-row-text">
+                                        <Typography.Body
+                                            component="div"
+                                            className="profile-saas-body profile-saas-row-title"
+                                            style={{ fontSize: '0.9rem' }}
+                                        >
+                                            {item.label}
+                                        </Typography.Body>
+                                        {(item.id === 'offer' || item.id === 'consent') && (
+                                            <Typography.Body
+                                                component="div"
+                                                className="profile-saas-caption profile-saas-legal-accepted"
+                                            >
+                                                {acceptedAt && accepted?.version_label
+                                                    ? `Принято ${acceptedAt}, ред. ${accepted.version_label}`
+                                                    : 'Принятие не зафиксировано'}
+                                            </Typography.Body>
+                                        )}
+                                    </div>
                                 </Flex>
                             </Panel>
                         </motion.div>
-                    ))}
+                        );
+                    })}
                 </motion.div>
             </section>
 

@@ -133,7 +133,7 @@ export function buildCargoRouteByNumber(perevozkiItems: Record<string, unknown>[
   return m;
 }
 
-/** Плановая дата доставки по номеру груза. */
+/** Плановая дата прибытия на терминал по номеру груза. */
 export function buildCargoPlannedDeliveryDateByNumber(
   perevozkiItems: Record<string, unknown>[],
 ): Map<string, string> {
@@ -286,7 +286,7 @@ export function renderUnpaidInvoicesTableHtml(rows: UnpaidInvoiceRow[], totalCou
         <tr style="background:#f9fafb;">
           <th style="${headCell}">Номер</th>
           <th style="${headCell}">Дата счёта</th>
-          <th style="${headCell}">Плановая дата доставки</th>
+          <th style="${headCell}">Плановая дата прибытия на терминал</th>
           <th style="${headCell}">Дата доставки</th>
           <th style="${headCell}">Статус</th>
           <th style="${headCell}">Статус перевозки</th>

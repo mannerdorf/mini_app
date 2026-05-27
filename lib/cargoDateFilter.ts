@@ -39,7 +39,7 @@ export function isCargoInDateRange(
   return !!d && d >= dateFrom && d <= dateTo;
 }
 
-/** Поля плановой даты доставки — как в «Документы» / карточка груза (DateArrival и др.). */
+/** Поля плановой даты прибытия на терминал — как в «Документы» / карточка груза (DateArrival и др.). */
 const CARGO_PLANNED_DELIVERY_KEYS = [
   "DateArrival",
   "PlannedDeliveryDate",
@@ -64,7 +64,7 @@ function isValidPlannedDateIso(iso: string): boolean {
   return true;
 }
 
-/** Ближайшая (минимальная) плановая дата доставки по полям перевозки. */
+/** Ближайшая (минимальная) плановая дата прибытия на терминал по полям перевозки. */
 export function cargoPlannedDeliveryDateFromItem(item: Record<string, unknown>): string {
   let earliest = "";
   for (const k of CARGO_PLANNED_DELIVERY_KEYS) {

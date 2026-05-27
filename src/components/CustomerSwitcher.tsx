@@ -22,6 +22,8 @@ export function CustomerSwitcher({ accounts, activeAccountId, onSwitchAccount, o
   const activeAccount = accounts.find((acc) => acc.id === activeAccountId) || null;
   const activeLogin = activeAccount?.login?.trim().toLowerCase() ?? "";
   const activeInn = activeAccount?.activeCustomerInn ?? activeAccount?.customers?.[0]?.inn ?? "";
+  const activeCustomerName =
+    activeAccount?.customers?.find((c) => c.inn && c.inn === activeInn)?.name ?? activeAccount?.customer;
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -54,14 +56,16 @@ export function CustomerSwitcher({ accounts, activeAccountId, onSwitchAccount, o
   }, [isOpen, accounts.map((a) => `${a.login ?? ""}:${!!a.accessAllInns}`).join(",")]);
 
   const activeCompany = companies.find((c) => c.login === activeLogin && (c.inn === "" || c.inn === activeInn));
-  const displayName = activeCompany ? stripOoo(activeCompany.name) : stripOoo(activeAccount?.customer || activeAccount?.customers?.[0]?.name || "Компания");
+  const displayName = activeCompany
+    ? stripOoo(activeCompany.name)
+    : stripOoo(activeCustomerName || activeAccount?.customers?.[0]?.name || "Компания");
 
   const handleSelect = (c: HeaderCompanyRow) => {
     const acc = accounts.find((a) => (a.login != null ? String(a.login).trim().toLowerCase() : "") === c.login);
     if (!acc) return;
     onSwitchAccount(acc.id);
     if (c.inn !== undefined && c.inn !== null) {
-      onUpdateAccount(acc.id, { activeCustomerInn: c.inn });
+      onUpdateAccount(acc.id, { activeCustomerInn: c.inn, customer: c.name || acc.customer });
     }
     setIsOpen(false);
     setSearchQuery("");
