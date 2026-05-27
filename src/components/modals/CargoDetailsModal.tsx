@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { Loader2, X, Truck, Ship, Heart, Share2, Layers, Scale, Weight, List, Download, Info, ClipboardList } from "lucide-react";
-import { fetchPerevozkaDetails, getTimelineStepColor } from "../../lib/perevozkaDetails";
+import { fetchPerevozkaDetails } from "../../lib/perevozkaDetails";
+import { ShipmentStatusPanel } from "../ShipmentStatusScreen";
 import { getWebApp, isMaxWebApp } from "../../webApp";
 import { DOCUMENT_METHODS } from "../../documentMethods";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
@@ -117,6 +118,7 @@ export function CargoDetailsModal({
     };
 
     const fromCity = cityToCode(item.CitySender) || '—';
+    const toCity = cityToCode(item.CityReceiver) || '—';
     const receivedAtSender = perevozkaTimeline?.find(s => s.label === `Получена в ${fromCity}`);
     const deliveredStep = perevozkaTimeline?.find(s => s.label === 'Доставлена');
     const slaPlanEndMs = receivedAtSender?.date
@@ -461,18 +463,8 @@ export function CargoDetailsModal({
                         </div>
                     </div>
                     {(perevozkaLoading || perevozkaTimeline || perevozkaError) && (
-                        <aside className="cargo-details-modal-timeline perevozka-timeline-wrap">
-                            <Typography.Headline className="cargo-details-modal-timeline__title">Статусы перевозки</Typography.Headline>
-                            {perevozkaLoading && (
-                                <Flex align="center" gap="0.5rem" style={{ padding: "0.5rem 0" }}>
-                                    <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-primary-blue)" }} />
-                                    <Typography.Body style={{ color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>Загрузка…</Typography.Body>
-                                </Flex>
-                            )}
-                            {perevozkaError && (
-                                <Typography.Body style={{ color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>{perevozkaError}</Typography.Body>
-                            )}
-                            {!perevozkaLoading && perevozkaTimeline && perevozkaTimeline.length > 0 && (() => {
+                        <aside className="cargo-details-modal-timeline shipment-status-timeline-wrap">
+                            {(() => {
                                 const totalHours = (() => {
                                     if (!receivedAtSender?.date) return null;
                                     const startMs = new Date(receivedAtSender.date).getTime();
@@ -482,59 +474,16 @@ export function CargoDetailsModal({
                                     return Math.max(0, Math.round((endMs - startMs) / (1000 * 60 * 60)));
                                 })();
                                 return (
-                                    <div>
-                                        <div className="perevozka-timeline">
-                                            <div
-                                                className="perevozka-timeline-track-fill"
-                                                style={{ height: `${(perevozkaTimeline.length / Math.max(perevozkaTimeline.length, 1)) * 100}%` }}
-                                            />
-                                            {perevozkaTimeline.map((step, index) => {
-                                                const colorKey = getTimelineStepColor(step.label);
-                                                const outOfSlaFromThisStep = isTimelineStepOutOfSla(step.date);
-                                                return (
-                                                    <div key={index} className="perevozka-timeline-item">
-                                                        <div className={`perevozka-timeline-dot perevozka-timeline-dot-${colorKey}`} />
-                                                        <div className="perevozka-timeline-content">
-                                                            <Typography.Body
-                                                                style={{
-                                                                    fontWeight: 600,
-                                                                    fontSize: "0.85rem",
-                                                                    color: outOfSlaFromThisStep ? "#ef4444" : undefined,
-                                                                }}
-                                                            >
-                                                                {step.label}
-                                                            </Typography.Body>
-                                                            {step.date && (
-                                                                <Typography.Body
-                                                                    style={{
-                                                                        fontSize: "0.78rem",
-                                                                        color: outOfSlaFromThisStep ? "#ef4444" : "var(--color-text-secondary)",
-                                                                    }}
-                                                                >
-                                                                    <DateText value={step.date} />
-                                                                </Typography.Body>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                        {totalHours != null && (
-                                            <Flex align="center" gap="0.35rem" style={{ marginTop: "0.65rem" }}>
-                                                <Typography.Body style={{ fontWeight: 600, fontSize: "0.82rem" }}>
-                                                    Итого время в пути — {totalHours} ч
-                                                </Typography.Body>
-                                                <span
-                                                    role="button"
-                                                    tabIndex={0}
-                                                    title="Срок не учитывает день получения груза"
-                                                    style={{ display: "inline-flex", cursor: "help", color: "var(--color-text-secondary)" }}
-                                                >
-                                                    <Info className="w-4 h-4" />
-                                                </span>
-                                            </Flex>
-                                        )}
-                                    </div>
+                                    <ShipmentStatusPanel
+                                        steps={perevozkaTimeline ?? []}
+                                        fromCity={fromCity}
+                                        toCity={toCity}
+                                        totalHours={totalHours}
+                                        loading={perevozkaLoading}
+                                        error={perevozkaError}
+                                        embedded
+                                        stepOutOfSla={(index) => isTimelineStepOutOfSla(perevozkaTimeline?.[index]?.date)}
+                                    />
                                 );
                             })()}
                         </aside>

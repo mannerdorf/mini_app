@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ['./src/pnl/**/*.{ts,tsx}'],
+  content: ['./src/pnl/**/*.{ts,tsx}', './src/components/ShipmentStatusScreen.tsx'],
   prefix: '',
   corePlugins: {
     preflight: false,

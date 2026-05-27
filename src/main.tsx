@@ -13,6 +13,7 @@ import "@fontsource/manrope/600.css";
 import "@fontsource/manrope/700.css";
 import "./design-tokens.css";
 import "./styles.css";
+import "./components/shipment-status.css";
 
 const swrConfig = {
     revalidateOnFocus: false,
