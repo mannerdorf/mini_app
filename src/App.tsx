@@ -867,6 +867,7 @@ export default function App() {
                     prev.map((a) => {
                         const up = updates.find((u) => u.id === a.id);
                         if (!up) return a;
+                        const hadCustomers = (a.customers?.length ?? 0) > 0;
                         const merged: Account = {
                             ...a,
                             customers:
