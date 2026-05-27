@@ -214,11 +214,10 @@ export function DocumentsInvoiceFinanceCells({
   return (
     <>
       <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={cellStyle}>
-        <span className="documents-invoices-inner-table__sum-value documents-invoices-inner-table__sum-value--desktop-only">
+        <span className="documents-invoices-inner-table__sum-value documents-invoices-inner-table__sum-primary">
           {formatCurrency(sum)}
         </span>
         <div className="documents-invoices-inner-table__finance-stack">
-          <span className="documents-invoices-inner-table__sum-value">{formatCurrency(sum)}</span>
           <span className="documents-invoices-inner-table__sum-value documents-invoices-inner-table__sum-value--secondary">
             {formatCurrency(paid)}
           </span>
@@ -1035,7 +1034,7 @@ export function DocumentsEdoCargoCard({ item, onOpen, onOpenCargo, isFavorite, o
     invoice.Contractor ??
     invoice.Organization ??
     "";
-  const sum = invoiceDocSum(invoice) || Number(cargo?.Sum ?? cargo?.sum ?? 0) || 0;
+  const sum = invoiceDocSum(invoice);
   const rawStatus = invoice.Status ?? invoice.State ?? invoice.state ?? invoice.Статус ?? "";
   const st = (normalizeInvoiceStatus(rawStatus) || rawStatus) as string;
   const badgeStyle = invoicePaymentBadgeStyle(st);

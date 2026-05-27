@@ -2637,7 +2637,12 @@ useEffect(() => {
     const sortActs = useCallback((acts: any[]) => {
         const getNum = (a: any) => (a.Number ?? a.number ?? '').toString().replace(/^0000-/, '');
         const getDate = (a: any) => (a.DateDoc ?? a.Date ?? a.date ?? '').toString();
-        const getSum = (a: any) => Number(a.SumDoc ?? a.Sum ?? a.sum ?? 0) || 0;
+        const getSum = (a: any) => {
+            const linkedInv = findInvoiceLinkedToAct(a, items);
+            const fromInv = linkedInv ? invoiceDocSum(linkedInv) : 0;
+            if (fromInv > 0) return fromInv;
+            return invoiceDocSum(a);
+        };
         const getLinkedInv = (a: any) => findInvoiceLinkedToAct(a, items);
         const getStatus = (a: any) => {
             const inv = getLinkedInv(a);
@@ -2676,7 +2681,7 @@ useEffect(() => {
         const anum = act.Number ?? act.number ?? '';
         const adt = act.DateDoc ?? act.Date ?? act.date ?? '';
         const ainv = act.Invoice ?? act.invoice ?? act.Счёт ?? '';
-        const asum = act.SumDoc ?? act.Sum ?? act.sum ?? 0;
+        const asum = linkedInv ? invoiceDocSum(linkedInv) : invoiceDocSum(act);
         const ist = normalizeInvoiceStatus(linkedInv?.Status ?? linkedInv?.State ?? linkedInv?.state ?? linkedInv?.Статус ?? linkedInv?.status ?? linkedInv?.PaymentStatus ?? '');
         const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
         const firstCargoNum = getFirstCargoNumberFromInvoice(invSource);

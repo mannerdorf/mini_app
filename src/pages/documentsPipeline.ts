@@ -749,10 +749,9 @@ function parseCargoMetric(value: unknown): number {
   return typeof value === "string" ? parseFloat(value) || 0 : Number(value) || 0;
 }
 
-/** Сумма документа — как в разделе УПД (SumDoc / Sum / sum). */
+/** Сумма документа УПД (SumDoc / Sum / sum). */
 function pickUpdStyleDocSum(row: any): number {
-  const v = row?.SumDoc ?? row?.Sum ?? row?.sum ?? 0;
-  return typeof v === "string" ? parseFloat(v) || 0 : (v || 0);
+  return invoiceDocSum(row ?? {});
 }
 
 function buildLinkedCargoMetrics(list: any[], perevozkiItems: any[] | undefined): Pick<DocsSummaryTotals, "mest" | "pw" | "w" | "vol"> {
@@ -790,8 +789,7 @@ function buildLinkedCargoMetrics(list: any[], perevozkiItems: any[] | undefined)
 export function buildDocsSummary(list: any[], perevozkiItems?: any[]): DocsSummaryTotals {
   let sum = 0;
   list.forEach((i: any) => {
-    const v = i.SumDoc ?? i.Sum ?? i.sum ?? i.Сумма ?? i.Amount ?? 0;
-    sum += typeof v === "string" ? parseFloat(v) || 0 : (v || 0);
+    sum += invoiceDocSum(i);
   });
   return { sum, count: list.length, ...buildLinkedCargoMetrics(list, perevozkiItems) };
 }

@@ -9,18 +9,61 @@ export function formatInvoiceMoney(n: number): string {
 }
 
 export function parseDocAmount(val: unknown): number {
-  if (val === undefined || val === null || (typeof val === "string" && val.trim() === "")) return 0;
-  const num = typeof val === "string" ? parseFloat(val.replace(",", ".")) : Number(val);
+  if (val === undefined || val === null) return 0;
+  if (typeof val === "number") return Number.isFinite(val) ? val : 0;
+  const s = String(val).trim();
+  if (!s) return 0;
+  const normalized = s.replace(/[\s\u00a0\u202f]/g, "").replace(",", ".");
+  const num = parseFloat(normalized);
   return Number.isFinite(num) ? num : 0;
 }
 
-/** Сумма счёта: первое ненулевое поле (SumDoc=0 не блокирует Sum из 1С). */
+const INVOICE_SUM_HEADER_FIELDS = [
+  "Sum",
+  "sum",
+  "Сумма",
+  "Amount",
+  "SumDoc",
+  "SumInvoice",
+  "SumBill",
+  "СуммаДокумента",
+  "СуммаСчета",
+  "СуммаСчёта",
+  "Total",
+  "TotalSum",
+  "SumTotal",
+  "DocumentSum",
+  "СуммаСНДС",
+  "SumWithVAT",
+];
+
+function sumFromInvoiceList(inv: Record<string, unknown>): number {
+  const list = inv.List ?? inv.list ?? inv.Строки ?? inv.Items ?? inv.items;
+  if (!Array.isArray(list) || list.length === 0) return 0;
+  let total = 0;
+  for (const row of list) {
+    if (!row || typeof row !== "object") continue;
+    const r = row as Record<string, unknown>;
+    const lineSum = parseDocAmount(r.Sum ?? r.sum ?? r.Сумма ?? r.Amount ?? r.СуммаСтроки);
+    if (lineSum > 0) {
+      total += lineSum;
+      continue;
+    }
+    const qty = parseDocAmount(r.Quantity ?? r.quantity ?? r.Количество ?? r.Qty);
+    const price = parseDocAmount(r.Price ?? r.price ?? r.Цена);
+    if (qty > 0 && price > 0) total += qty * price;
+  }
+  return total;
+}
+
+/** Сумма счёта: заголовок документа, иначе сумма строк List (SumDoc=0 не блокирует Sum). */
 export function invoiceDocSum(inv: Record<string, unknown>): number {
-  const fields = ["Sum", "sum", "Сумма", "Amount", "SumDoc", "SumInvoice", "SumBill", "СуммаДокумента"];
-  for (const key of fields) {
+  for (const key of INVOICE_SUM_HEADER_FIELDS) {
     const n = parseDocAmount(inv[key]);
     if (n > 0) return n;
   }
+  const fromList = sumFromInvoiceList(inv);
+  if (fromList > 0) return fromList;
   return 0;
 }
 

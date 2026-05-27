@@ -2667,12 +2667,22 @@ body {
         white-space: nowrap;
     }
 
+    .documents-invoices-inner-table__sum-primary {
+        display: block;
+        font-size: 0.62rem !important;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        line-height: 1.15;
+    }
+
     .documents-invoices-inner-table__finance-stack {
         display: flex;
         flex-direction: column;
         align-items: flex-end;
         gap: 0.14rem;
         line-height: 1.12;
+        margin-top: 0.12rem;
     }
 
     .documents-acts-inner-table .cargo-inner-table__col-sum {
@@ -2878,21 +2888,13 @@ body {
         display: none;
     }
 
-    .documents-invoices-inner-table__sum-value--desktop-only {
-        display: block;
-        font-size: inherit;
-        font-weight: 600;
-        font-variant-numeric: tabular-nums;
-        white-space: nowrap;
+    .documents-invoices-inner-table__sum-primary {
+        font-size: inherit !important;
     }
 
     .documents-invoices-inner-table .cargo-inner-table__col-finance-desktop-only {
         display: table-cell !important;
     }
-}
-
-.documents-invoices-inner-table__sum-value--desktop-only {
-    display: none;
 }
 
 .modal-header {
