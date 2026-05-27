@@ -17,7 +17,7 @@ import { TinyUrlTestPage } from "./TinyUrlTestPage";
 import { AboutCompanyPage } from "./AboutCompanyPage";
 import { NotificationsPage } from "./NotificationsPage";
 import { AisStreamPage } from "./AisStreamPage";
-import { getCurrentMonthYm } from "../lib/dateUtils";
+import { formatDateTime, formatDisplayDate, getCurrentMonthYm } from "../lib/dateUtils";
 import type { DepartmentTimesheetPayoutRow } from "./profile/departmentTimesheetTypes";
 import { ProfileTwoFactorSection } from "../components/profile/ProfileTwoFactorSection";
 import { ProfilePasswordSection } from "../components/profile/ProfilePasswordSection";
@@ -1355,7 +1355,7 @@ export function ProfilePage({
                                             style={{ borderBottom: "1px solid var(--color-border)", cursor: "pointer" }}
                                             onClick={() => setSelectedAccountingRequest(r)}
                                         >
-                                            <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{r.createdAt ? new Date(r.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
+                                            <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{r.createdAt ? formatDisplayDate(r.createdAt) : "—"}</td>
                                             <td style={{ padding: "6px 8px" }}>{r.docNumber || "—"}</td>
                                             <td style={{ padding: "6px 8px" }}>{r.department}</td>
                                             <td style={{ padding: "6px 8px" }}>{r.categoryName}</td>
@@ -1489,7 +1489,7 @@ export function ProfilePage({
                                                         {statusLabel}
                                                     </span>
                                                 </td>
-                                                <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{c?.createdAt ? new Date(c.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—"}</td>
+                                                <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{c?.createdAt ? formatDisplayDate(c.createdAt) : "—"}</td>
                                             </tr>
                                         );
                                     })}
@@ -1529,12 +1529,12 @@ export function ProfilePage({
                                         const isPending = r.status === "pending";
                                         return (
                                             <tr key={r.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                                                <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{new Date(r.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}</td>
+                                                <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{formatDisplayDate(r.createdAt)}</td>
                                                 <td style={{ padding: "6px 8px" }}>{r.login || "—"}</td>
                                                 <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{r.customerInn || "—"}</td>
                                                 <td style={{ padding: "6px 8px" }}>{r.contract || "—"}</td>
                                                 <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
-                                                    {new Date(r.periodFrom).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })} - {new Date(r.periodTo).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                                                    {formatDisplayDate(r.periodFrom)} - {formatDisplayDate(r.periodTo)}
                                                 </td>
                                                 <td style={{ padding: "6px 8px" }}>
                                                     <span style={{
@@ -1590,7 +1590,7 @@ export function ProfilePage({
                                 Заявка {selectedAccountingRequest.docNumber || selectedAccountingRequest.id.slice(-8)}
                             </Typography.Body>
                             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
-                                <div><span style={{ color: "var(--color-text-secondary)" }}>Создано:</span> {selectedAccountingRequest.createdAt ? new Date(selectedAccountingRequest.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" }) : "—"}</div>
+                                <div><span style={{ color: "var(--color-text-secondary)" }}>Создано:</span> {selectedAccountingRequest.createdAt ? formatDisplayDate(selectedAccountingRequest.createdAt) : "—"}</div>
                                 <div><span style={{ color: "var(--color-text-secondary)" }}>№ док.:</span> {selectedAccountingRequest.docNumber || "—"}</div>
                                 <div><span style={{ color: "var(--color-text-secondary)" }}>Дата док.:</span> {selectedAccountingRequest.docDate || "—"}</div>
                                 <div><span style={{ color: "var(--color-text-secondary)" }}>Период:</span> {selectedAccountingRequest.period || "—"}</div>
@@ -3159,13 +3159,7 @@ export function ProfilePage({
                                     ? legalStatus?.accepted?.consent
                                     : null;
                         const acceptedAt = accepted?.accepted_at
-                            ? new Date(accepted.accepted_at).toLocaleString('ru-RU', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                            })
+                            ? formatDateTime(accepted.accepted_at)
                             : null;
                         return (
                         <motion.div

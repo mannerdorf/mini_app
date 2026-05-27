@@ -3,12 +3,13 @@ import { Loader2 } from "lucide-react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import type { CargoItem, PerevozkaTimelineStep } from "../types";
 import { formatTimelineDate, formatTimelineTime } from "../lib/dateUtils";
+import { DateText } from "./ui/DateText";
 import { formatCurrency, stripOoo } from "../lib/formatUtils";
 import { ClickableCargoNumber, leafRowClickProps } from "./ui/EntityLinks";
 import { RouteBadge, CargoTransportTypeIcon, getCargoItemRouteLabel } from "./shared/CargoTableDisplay";
 import { getSlaPlanDeadlineMs } from "../lib/cargoUtils";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
-import { formatDispatchFilterDateCell, rowIsOutsideSla } from "./haulzDispatchTableUtils";
+import { getDispatchStatusDateValue, rowIsOutsideSla } from "./haulzDispatchTableUtils";
 
 export type HaulzDispatchShipmentRowsProps = {
     rows: CargoItem[];
@@ -47,8 +48,8 @@ export function HaulzDispatchShipmentRows({
             {rows.map((row, ridx) => {
                 const num = String(row.Number ?? "").trim();
                 const cust = stripOoo(String(row.Customer ?? (row as { customer?: string }).customer ?? "—"));
-                const statusDateCell = formatDispatchFilterDateCell(row);
-                const dp = String(row.DatePrih ?? "").trim().split("T")[0];
+                const statusDateIso = getDispatchStatusDateValue(row);
+                const datePrihRaw = String(row.DatePrih ?? "").trim();
                 const pw = typeof row.PW === "string" ? parseFloat(row.PW) || 0 : Number(row.PW) || 0;
                 const sum = typeof row.Sum === "string" ? parseFloat(row.Sum) || 0 : Number(row.Sum) || 0;
                 const slaLate = rowIsOutsideSla(row, workScheduleByInn);
@@ -92,8 +93,12 @@ export function HaulzDispatchShipmentRows({
                                     {cust}
                                 </td>
                             )}
-                            <td className="haulz-dispatch-table__cell haulz-dispatch-table__cell--muted">{statusDateCell}</td>
-                            <td className="haulz-dispatch-table__cell">{dp || "—"}</td>
+                            <td className="haulz-dispatch-table__cell haulz-dispatch-table__cell--muted">
+                                {statusDateIso ? <DateText value={statusDateIso} /> : "—"}
+                            </td>
+                            <td className="haulz-dispatch-table__cell">
+                                {datePrihRaw ? <DateText value={datePrihRaw} /> : "—"}
+                            </td>
                             <td className="haulz-dispatch-table__cell">
                                 <RouteBadge route={getCargoItemRouteLabel(row)} />
                             </td>

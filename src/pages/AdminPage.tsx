@@ -11,7 +11,7 @@ import { SUBDIVISIONS } from "../pnl/constants";
 import { stripOoo } from "../lib/formatUtils";
 import { getCachedDocumentEdoInfo } from "../lib/edoStatus";
 import { DocumentsEdoTableStatus } from "./documentsViewBlocks";
-import { getCurrentMonthYm } from "../lib/dateUtils";
+import { formatDisplayDate, formatDisplayDateFromDate, getCurrentMonthYm } from "../lib/dateUtils";
 import { downloadBase64File } from "../utils";
 import { AdminDashboardsPanel } from "../components/AdminDashboardsPanel";
 import { AdminLegalSection } from "../components/AdminLegalSection";
@@ -428,7 +428,7 @@ function UserRow({
         if (diffM < 60) return `${diffM} мин назад`;
         if (diffH < 24) return `${diffH} ч назад`;
         if (diffD < 7) return `${diffD} дн назад`;
-        return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+        return formatDisplayDateFromDate(d);
       })()
     : "никогда";
   const handleToggle = async () => {
@@ -484,7 +484,7 @@ function UserRow({
             </Typography.Body>
             {user.created_at && (
               <Typography.Body style={{ fontSize: "0.74rem", color: "var(--color-text-secondary)", padding: "0.1rem 0.45rem", borderRadius: 999, background: "var(--color-bg-card)", border: "1px solid var(--color-border)" }}>
-                Создан: {new Date(user.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}
+                Создан: {formatDisplayDate(user.created_at)}
               </Typography.Body>
             )}
           </Flex>
@@ -4070,7 +4070,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             if (diffM < 60) return `${diffM} мин назад`;
                             if (diffH < 24) return `${diffH} ч назад`;
                             if (diffD < 7) return `${diffD} дн назад`;
-                            return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+                            return formatDisplayDateFromDate(d);
                           })()
                         : "никогда";
                       return (
@@ -4299,7 +4299,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     const rows = list.map((u) => {
                       const customers = u.companies?.length ? u.companies.map((c) => `${c.name || ""} (${c.inn})`).join("; ") : (u.inn ? `${u.company_name || ""} (${u.inn})` : "");
                       const perms = u.permissions && typeof u.permissions === "object" ? Object.entries(u.permissions).filter(([, v]) => v).map(([k]) => k).join("; ") : "";
-                      return [u.login, customers, perms, u.active ? "да" : "нет", u.created_at ? new Date(u.created_at).toLocaleDateString("ru-RU") : ""];
+                      return [u.login, customers, perms, u.active ? "да" : "нет", u.created_at ? formatDisplayDate(u.created_at) : ""];
                     });
                     const header = ["Логин", "Заказчики", "Права", "Активен", "Дата регистрации"];
                     const csv = [header, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\r\n");
@@ -5026,7 +5026,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             if (diffM < 60) return `${diffM} мин назад`;
                             if (diffH < 24) return `${diffH} ч назад`;
                             if (diffD < 7) return `${diffD} дн назад`;
-                            return new Date(latestLoginMs).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+                            return formatDisplayDate(new Date(latestLoginMs).toISOString());
                           })()
                         : "нет входов";
                       const isExpanded = expandedCustomerLabels.has(label);
@@ -5906,7 +5906,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 <tbody>
                   {tariffsList.map((t) => (
                     <tr key={t.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{t.docDate ? new Date(t.docDate).toLocaleDateString("ru-RU") : "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{t.docDate ? formatDisplayDate(t.docDate) : "—"}</td>
                       <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{t.docNumber || "—"}</td>
                       <td style={{ padding: "0.5rem 0.75rem" }}>{stripOoo(t.customerName) || "—"}</td>
                       <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{t.customerInn || "—"}</td>
@@ -6050,9 +6050,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     return (
                       <tr key={row.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docNumber || "—"}</td>
-                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docDate ? new Date(row.docDate).toLocaleDateString("ru-RU") : "—"}</td>
-                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.periodFrom ? new Date(row.periodFrom).toLocaleDateString("ru-RU") : "—"}</td>
-                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.periodTo ? new Date(row.periodTo).toLocaleDateString("ru-RU") : "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docDate ? formatDisplayDate(row.docDate) : "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.periodFrom ? formatDisplayDate(row.periodFrom) : "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.periodTo ? formatDisplayDate(row.periodTo) : "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem" }}>{stripOoo(row.customerName) || "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.customerInn || "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}><DocumentsEdoTableStatus info={edoInfo} /></td>
@@ -6202,7 +6202,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     return (
                       <tr key={row.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docNumber || "—"}</td>
-                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docDate ? new Date(row.docDate).toLocaleDateString("ru-RU") : "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docDate ? formatDisplayDate(row.docDate) : "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem" }}>{stripOoo(row.customerName) || "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.customerInn || "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem" }}>{row.title || "—"}</td>
@@ -9944,12 +9944,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           const isPending = r.status === "pending";
                           return (
                             <tr key={r.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                              <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{new Date(r.createdAt).toLocaleDateString("ru-RU")}</td>
+                              <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{formatDisplayDate(r.createdAt)}</td>
                               <td style={{ padding: "6px 8px" }}>{r.login || "—"}</td>
                               <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{r.customerInn || "—"}</td>
                               <td style={{ padding: "6px 8px" }}>{r.contract || "—"}</td>
                               <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
-                                {new Date(r.periodFrom).toLocaleDateString("ru-RU")} - {new Date(r.periodTo).toLocaleDateString("ru-RU")}
+                                {formatDisplayDate(r.periodFrom)} - {formatDisplayDate(r.periodTo)}
                               </td>
                               <td style={{ padding: "6px 8px" }}>
                                 <span style={{
@@ -10085,7 +10085,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         style={{ borderBottom: "1px solid var(--color-border)", cursor: "pointer" }}
                         onClick={() => setExpenseViewId(r.id)}
                       >
-                        <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{new Date(r.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}</td>
+                        <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{formatDisplayDate(r.createdAt)}</td>
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{(r as any).docNumber || "—"}</td>
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
                           {(() => {
@@ -10094,7 +10094,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             const normalized = /^\d{4}-\d{2}$/.test(raw) ? `${raw}-01` : raw;
                             const parsed = new Date(`${normalized}T00:00:00`);
                             if (Number.isNaN(parsed.getTime())) return "—";
-                            return parsed.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+                            return formatDisplayDateFromDate(parsed);
                           })()}
                         </td>
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{(r as any).period || "—"}</td>
@@ -10236,7 +10236,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       Заявка {(item as any).docNumber || item.id.slice(-8)}
                     </Typography.Body>
                     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
-                      <div><span style={{ color: "var(--color-text-secondary)" }}>Создано:</span> {new Date(item.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}</div>
+                      <div><span style={{ color: "var(--color-text-secondary)" }}>Создано:</span> {formatDisplayDate(item.createdAt)}</div>
                       <div><span style={{ color: "var(--color-text-secondary)" }}>№ док.:</span> {(item as any).docNumber || "—"}</div>
                       <div><span style={{ color: "var(--color-text-secondary)" }}>Дата док.:</span> {(item as any).docDate || "—"}</div>
                       <div><span style={{ color: "var(--color-text-secondary)" }}>Период:</span> {(item as any).period || "—"}</div>

@@ -8,6 +8,7 @@ import { GruzikAvatar, deriveEmotionFromReply, type GruzikEmotion } from "../com
 import { cityToCode } from "../lib/formatUtils";
 import { normalizeStatus, getFilterKeyByStatus, getPaymentFilterKey } from "../lib/statusUtils";
 import { isFerry } from "../lib/cargoUtils";
+import { formatDisplayDate, getTodayDate } from "../lib/dateUtils";
 export function ChatPage({ 
     prefillMessage, 
     onClearPrefill,
@@ -582,8 +583,8 @@ export function ChatPage({
         });
 
         const now = new Date();
-        const todayStr = now.toISOString().split('T')[0];
-        const todayLabel = now.toLocaleDateString('ru-RU');
+        const todayStr = getTodayDate();
+        const todayLabel = formatDisplayDate(todayStr);
         const weekAgo = new Date(now);
         weekAgo.setDate(weekAgo.getDate() - 7);
         const weekStartStr = weekAgo.toISOString().split('T')[0];

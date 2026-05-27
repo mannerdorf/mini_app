@@ -1,5 +1,5 @@
 import type { CargoItem } from "../types";
-import { parseDateOnly } from "../lib/dateUtils";
+import { formatDisplayDate, parseDateOnly } from "../lib/dateUtils";
 import { getFilterKeyByStatus } from "../lib/statusUtils";
 import { getSlaInfo } from "../lib/cargoUtils";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
@@ -38,9 +38,13 @@ function normalizeDateOnlyForCell(raw: unknown): string {
     return fallback.toISOString().split("T")[0];
 }
 
+export function getDispatchStatusDateValue(cargo: CargoItem): string {
+    return normalizeDateOnlyForCell(pickApiFilterDateRaw(cargo));
+}
+
 export function formatDispatchFilterDateCell(cargo: CargoItem): string {
-    const d = normalizeDateOnlyForCell(pickApiFilterDateRaw(cargo));
-    return d || "—";
+    const d = getDispatchStatusDateValue(cargo);
+    return d ? formatDisplayDate(d) : "—";
 }
 
 export function dispatchStatusDateSortKey(cargo: CargoItem): string {

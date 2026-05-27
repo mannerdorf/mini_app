@@ -297,7 +297,6 @@ export function DashboardPage({
     const initDate = () => loadSharedDateFilterState();
     const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate().dateFilter);
     const sharedFiltersInit = initSharedFilterSets();
-    const [statusFilterSet, setStatusFilterSet] = useState<Set<CargoStatusFilterKey>>(() => sharedFiltersInit.statusFilterSet);
     const [customDateFrom, setCustomDateFrom] = useState(() => initDate().customDateFrom);
     const [customDateTo, setCustomDateTo] = useState(() => initDate().customDateTo);
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
@@ -315,16 +314,13 @@ export function DashboardPage({
     const yearWasLongPressRef = useRef(false);
     const weekLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const weekWasLongPressRef = useRef(false);
-    const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
-    const [senderFilter, setSenderFilter] = useState<string>('');
-    const [receiverFilter, setReceiverFilter] = useState<string>('');
     const [billStatusFilterSet, setBillStatusFilterSet] = useState<Set<SharedBillStatusKey>>(() => sharedFiltersInit.billStatusFilterSet);
     const [typeFilterSet, setTypeFilterSet] = useState<Set<TypeFilterKey>>(() => sharedFiltersInit.typeFilterSet);
     const [routeFilterSet, setRouteFilterSet] = useState<Set<RouteFilterKey>>(() => sharedFiltersInit.routeFilterSet);
     const [roleFilter, setRoleFilter] = useState<CargoRoleFilterKey>(() => loadDashboardRoleFilter());
     useEffect(() => {
-        saveSharedListFilters(sharedFromFilterSets({ statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet }));
-    }, [statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet]);
+        saveSharedListFilters(sharedFromFilterSets({ statusFilterSet: new Set(), billStatusFilterSet, typeFilterSet, routeFilterSet }));
+    }, [billStatusFilterSet, typeFilterSet, routeFilterSet]);
     useEffect(() => {
         if (!useServiceRequest) return;
         try { localStorage.setItem(DASH_ROLE_FILTER_KEY, roleFilter); } catch { /* ignore */ }
@@ -332,16 +328,11 @@ export function DashboardPage({
     useEffect(() => {
         if (roleFilter !== "all") setRoleFilter("all");
     }, [roleFilter]);
-    const [isSenderDropdownOpen, setIsSenderDropdownOpen] = useState(false);
-    const [isReceiverDropdownOpen, setIsReceiverDropdownOpen] = useState(false);
     const [isBillStatusDropdownOpen, setIsBillStatusDropdownOpen] = useState(false);
     const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
     const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
     const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
     const dateButtonRef = useRef<HTMLDivElement>(null);
-    const statusButtonRef = useRef<HTMLDivElement>(null);
-    const senderButtonRef = useRef<HTMLDivElement>(null);
-    const receiverButtonRef = useRef<HTMLDivElement>(null);
     const billStatusButtonRef = useRef<HTMLDivElement>(null);
     const typeButtonRef = useRef<HTMLDivElement>(null);
     const mainChartWrapRef = useRef<HTMLDivElement | null>(null);
@@ -671,9 +662,9 @@ export function DashboardPage({
             buildFilteredCargoItems({
                 items: source,
                 searchText: "",
-                statusFilterSet,
-                senderFilter,
-                receiverFilter,
+                statusFilterSet: new Set<CargoStatusFilterKey>(),
+                senderFilter: "",
+                receiverFilter: "",
                 transportFilter: "",
                 useServiceRequest: !!useServiceRequest,
                 billStatusFilterSet,
@@ -685,16 +676,7 @@ export function DashboardPage({
                 sortBy: null,
                 sortOrder: "desc",
             }),
-        [
-            statusFilterSet,
-            senderFilter,
-            receiverFilter,
-            useServiceRequest,
-            billStatusFilterSet,
-            typeFilterSet,
-            routeFilterSet,
-            roleFilter,
-        ],
+        [useServiceRequest, billStatusFilterSet, typeFilterSet, routeFilterSet, roleFilter],
     );
 
     const filteredCargoItems = useMemo(() => filterCargoItems(items), [items, filterCargoItems]);
@@ -706,16 +688,6 @@ export function DashboardPage({
     const readyCount = useMemo(() => {
         return filteredCargoItems.filter((item) => getFilterKeyByStatus(item.State) === "ready").length;
     }, [filteredCargoItems]);
-
-    const uniqueSenders = useMemo(
-        () => [...new Set(filteredCargoItems.map((i) => (i.Sender ?? "").trim()).filter(Boolean))].sort(),
-        [filteredCargoItems],
-    );
-    const uniqueReceivers = useMemo(
-        () =>
-            [...new Set(filteredCargoItems.map((i) => (i.Receiver ?? (i as { receiver?: string }).receiver ?? "").trim()).filter(Boolean))].sort(),
-        [filteredCargoItems],
-    );
 
     const dashboardTotalItems = useMemo(() => filteredCargoItems, [filteredCargoItems]);
     const deliveryFactItems = useMemo(
@@ -1590,9 +1562,6 @@ export function DashboardPage({
                         <Button className="filter-button" type="button" onClick={() => setDateFilter("все")} style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}>
                             За всё время
                         </Button>
-                        <Button className="filter-button" type="button" onClick={() => setStatusFilter("all")} style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}>
-                            Сбросить фильтр статуса
-                        </Button>
                     </Flex>
                 </Panel>
             );
@@ -2415,7 +2384,7 @@ export function DashboardPage({
             <div className="filters-container filters-row-scroll">
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main');  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
                             Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8,10)}.${r.dateFrom.slice(5,7)} – ${r.dateTo.slice(8,10)}.${r.dateTo.slice(5,7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -2521,25 +2490,10 @@ export function DashboardPage({
                         )}
                     </FilterDropdownPortal>
                 </div>
-                <div className="filter-group" style={{ flexShrink: 0 }}>
-                    <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
-                            Статус: {statusFilterSet.size === 0 ? 'Все' : statusFilterSet.size === 1 ? STATUS_MAP[[...statusFilterSet][0]] : `Выбрано: ${statusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
-                        </Button>
-                    </div>
-                    <FilterDropdownPortal triggerRef={statusButtonRef} isOpen={isStatusDropdownOpen} onClose={() => setIsStatusDropdownOpen(false)}>
-                        <div className="dropdown-item" onClick={() => { setStatusFilterSet(new Set()); setIsStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                        {(Object.keys(STATUS_MAP) as StatusFilter[]).filter(k => k !== 'favorites' && k !== 'all').map(key => (
-                            <div key={key} className="dropdown-item" onClick={(e) => { e.stopPropagation(); setStatusFilterSet(prev => { const next = new Set(prev); const k = key as CargoStatusFilterKey; if (next.has(k)) next.delete(k); else next.add(k); return next; }); }} style={{ background: statusFilterSet.has(key as CargoStatusFilterKey) ? 'var(--color-bg-hover)' : undefined }}>
-                                <Typography.Body>{STATUS_MAP[key]} {statusFilterSet.has(key as CargoStatusFilterKey) ? '✓' : ''}</Typography.Body>
-                            </div>
-                        ))}
-                    </FilterDropdownPortal>
-                </div>
                 {false && useServiceRequest && (
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={roleButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsRoleDropdownOpen(!isRoleDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsRoleDropdownOpen(!isRoleDropdownOpen); setIsDateDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Роль: {CARGO_ROLE_FILTER_LABELS[roleFilter]} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -2557,36 +2511,10 @@ export function DashboardPage({
                     </FilterDropdownPortal>
                 </div>
                 )}
-                <div className="filter-group" style={{ flexShrink: 0 }}>
-                    <div ref={senderButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
-                            Отправитель: {senderFilter ? stripOoo(senderFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
-                        </Button>
-                    </div>
-                    <FilterDropdownPortal triggerRef={senderButtonRef} isOpen={isSenderDropdownOpen} onClose={() => setIsSenderDropdownOpen(false)}>
-                        <div className="dropdown-item" onClick={() => { setSenderFilter(''); setIsSenderDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                        {uniqueSenders.map(s => (
-                            <div key={s} className="dropdown-item" onClick={() => { setSenderFilter(s); setIsSenderDropdownOpen(false); }}><Typography.Body>{stripOoo(s)}</Typography.Body></div>
-                        ))}
-                    </FilterDropdownPortal>
-                </div>
-                <div className="filter-group" style={{ flexShrink: 0 }}>
-                    <div ref={receiverButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
-                            Получатель: {receiverFilter ? stripOoo(receiverFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
-                        </Button>
-                    </div>
-                    <FilterDropdownPortal triggerRef={receiverButtonRef} isOpen={isReceiverDropdownOpen} onClose={() => setIsReceiverDropdownOpen(false)}>
-                        <div className="dropdown-item" onClick={() => { setReceiverFilter(''); setIsReceiverDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                        {uniqueReceivers.map(r => (
-                            <div key={r} className="dropdown-item" onClick={() => { setReceiverFilter(r); setIsReceiverDropdownOpen(false); }}><Typography.Body>{stripOoo(r)}</Typography.Body></div>
-                        ))}
-                    </FilterDropdownPortal>
-                </div>
                 {useServiceRequest && (
                     <div className="filter-group" style={{ flexShrink: 0 }}>
                         <div ref={billStatusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false);  setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
                                 Статус счёта: {billStatusFilterSet.size === 0 ? 'Все' : billStatusFilterSet.size === 1 ? BILL_STATUS_MAP[[...billStatusFilterSet][0]] : `Выбрано: ${billStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -2602,7 +2530,7 @@ export function DashboardPage({
                 )}
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
                             Тип: {typeFilterSet.size === 0 ? 'Все' : typeFilterSet.size === 2 ? 'Паром, Авто' : typeFilterSet.has('ferry') ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -2614,7 +2542,7 @@ export function DashboardPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={routeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
                             Маршрут: {routeFilterSet.size === 0 ? 'Все' : routeFilterSet.size === 2 ? 'Выбрано: 2' : routeKeyToCargoLabel([...routeFilterSet][0])} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>

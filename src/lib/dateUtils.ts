@@ -277,45 +277,6 @@ export const getYearsList = (count: number) => {
     return Array.from({ length: count }, (_, i) => y - i);
 };
 
-export const formatDate = (dateString: string | undefined): string => {
-    if (!dateString) return '-';
-    try {
-        const cleanDateString = dateString.split('T')[0];
-        const date = new Date(cleanDateString);
-        if (!isNaN(date.getTime())) {
-            const dayShort = WEEKDAY_SHORT[date.getDay()] ?? '';
-            return dayShort ? `${dayShort}, ${date.toLocaleDateString('ru-RU')}` : date.toLocaleDateString('ru-RU');
-        }
-    } catch {}
-    return dateString;
-};
-
-export const formatDateTime = (dateString: string | undefined, withPlus?: boolean): string => {
-    if (!dateString) return '-';
-    try {
-        const date = new Date(dateString);
-        if (!isNaN(date.getTime())) {
-            const dayShort = WEEKDAY_SHORT[date.getDay()] ?? '';
-            const d = dayShort ? `${dayShort}, ${date.toLocaleDateString('ru-RU')}` : date.toLocaleDateString('ru-RU');
-            const t = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: undefined });
-            return withPlus ? `${d}, +${t}` : `${d}, ${t}`;
-        }
-    } catch {}
-    return dateString;
-};
-
-export const formatTimelineDate = (dateString: string | undefined): string => {
-    if (!dateString) return '—';
-    try {
-        const date = new Date(dateString);
-        if (!isNaN(date.getTime())) {
-            const dayShort = WEEKDAY_SHORT[date.getDay()] ?? '';
-            return dayShort ? `${dayShort}, ${date.toLocaleDateString('ru-RU')}` : date.toLocaleDateString('ru-RU');
-        }
-    } catch {}
-    return dateString;
-};
-
 export const formatTimelineTime = (dateString: string | undefined, withPlus?: boolean): string => {
     if (!dateString) return '—';
     try {
@@ -397,6 +358,50 @@ export const getDateInfo = (dateString: string | undefined) => {
     const isHoliday = HOLIDAYS_MM_DD.has(key);
     const dayShort = DAY_SHORT[day] ?? "";
     return { text: dateOnly, dayShort, isWeekend, isHoliday };
+};
+
+/** Единый формат даты в UI: «вс, 16.05.2026». */
+export function formatDisplayDate(dateString: string | undefined | null): string {
+    if (dateString == null || String(dateString).trim() === "") return "—";
+    const info = getDateInfo(String(dateString));
+    if (!parseDateOnly(String(dateString))) {
+        const raw = String(dateString).trim();
+        return raw || "—";
+    }
+    return info.dayShort ? `${info.dayShort}, ${info.text}` : info.text;
+}
+
+export function formatDisplayDateFromDate(date: Date | null | undefined): string {
+    if (!date || Number.isNaN(date.getTime())) return "—";
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return formatDisplayDate(`${y}-${m}-${d}`);
+}
+
+export const formatDate = (dateString: string | undefined): string => {
+    if (!dateString || String(dateString).trim() === "") return "-";
+    const formatted = formatDisplayDate(dateString);
+    return formatted === "—" ? "-" : formatted;
+};
+
+export const formatDateTime = (dateString: string | undefined, withPlus?: boolean): string => {
+    if (!dateString || String(dateString).trim() === "") return "-";
+    try {
+        const date = new Date(dateString);
+        if (!isNaN(date.getTime())) {
+            const d = formatDisplayDate(dateString);
+            const datePart = d === "—" ? "-" : d;
+            const t = date.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", second: undefined });
+            return withPlus ? `${datePart}, +${t}` : `${datePart}, ${t}`;
+        }
+    } catch {}
+    return dateString;
+};
+
+export const formatTimelineDate = (dateString: string | undefined): string => {
+    if (!dateString || String(dateString).trim() === "") return "—";
+    return formatDisplayDate(dateString);
 };
 
 export const getDateTextColor = (dateString: string | undefined) => {

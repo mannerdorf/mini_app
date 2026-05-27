@@ -7,6 +7,7 @@ import { PROXY_API_DOWNLOAD_URL } from "../constants/config";
 import { coerceStatusDisplay } from "../lib/statusUtils";
 import { normalizeWbPerevozkaHaulzDigits } from "../lib/wbPerevozkaNumber";
 import { downloadBase64File } from "../utils";
+import { getDateInfo, parseDateOnly } from "../lib/dateUtils";
 
 type WbTab = "inbound" | "returned" | "claims" | "summary";
 type ImportMode = "append" | "upsert";
@@ -630,17 +631,14 @@ function WbPerevozkaTimelineModal(props: {
 
   const formatLine = (dateRaw: string) => {
     if (!dateRaw) return "";
-    const dt = tryParseRuOrIsoDate(dateRaw);
-    if (!dt)
-      return (
-        <span className="wb-timeline-date-muted">{dateRaw}</span>
-      );
-    const wd = dt.toLocaleDateString("ru-RU", { weekday: "short" });
-    const rest = dt.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+    if (!parseDateOnly(dateRaw)) {
+      return <span className="wb-timeline-date-muted">{dateRaw}</span>;
+    }
+    const info = getDateInfo(dateRaw);
     return (
       <span className="wb-timeline-date-line">
-        <span className="wb-timeline-wd">{wd}</span>
-        <span className="wb-timeline-d">, {rest}</span>
+        <span className="wb-timeline-wd">{info.dayShort}</span>
+        <span className="wb-timeline-d">, {info.text}</span>
       </span>
     );
   };

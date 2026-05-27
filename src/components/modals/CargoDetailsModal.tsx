@@ -359,31 +359,36 @@ export function CargoDetailsModal({
                             </button>
                     </div>
                 </div>
-                <div className="cargo-details-modal-top">
-                    <div className="cargo-details-modal-fields">
-                        <div className="details-grid-modal cargo-details-modal-col">
+                <div className="cargo-details-modal-main">
+                    <div className="cargo-details-modal-rows">
+                        <div className="cargo-details-tiles-row">
                             <DetailItem label="Номер" value={item.Number || "—"} />
+                            <DetailItem label="Приход" value={<DateText value={item.DatePrih} />} />
                             <DetailItem label="Доставка" value={deliveryValue} />
-                            <DetailItem label="Номер заявки заказчика" value={String((item as any).Order ?? "").trim() || "-"} />
-                            <DetailItem label="Получатель" value={stripOoo(item.Receiver ?? (item as any).receiver) || "-"} />
                             <DetailItem
-                                label="Плат. вес"
-                                value={renderValue(item.PW, "кг")}
-                                icon={<Scale className="w-4 h-4 mr-1 text-theme-primary" />}
-                                highlighted
+                                label={PLANNED_TERMINAL_ARRIVAL_LABEL}
+                                value={plannedDeliveryDate ? <DateText value={plannedDeliveryDate} /> : "-"}
                             />
-                            {isCustomerRole && (
-                                <DetailItem
-                                    label="Объем"
-                                    value={renderValue(item.Value, "м³")}
-                                    icon={<List className="w-4 h-4 mr-1 text-theme-primary" />}
-                                />
-                            )}
+                            <DetailItem label="Номер заявки заказчика" value={String((item as any).Order ?? "").trim() || "-"} />
+                            <DetailItem label="Статус" value={<StatusBadge status={item.State} />} />
+                            <DetailItem
+                                label="Последняя миля"
+                                value={
+                                    <span className={`max-badge ${selfPickup ? "cargo-last-mile-self" : "cargo-last-mile-delivery"}`}>
+                                        {selfPickup ? "Самовывоз" : "Доставка"}
+                                    </span>
+                                }
+                            />
+                            <DetailItem label="Заборная" value={<CargoPickupLogisticsBadge item={item} />} />
                             {isCustomerRole && showSums && (
-                                <DetailItem label="Оплачено" value={formatCurrency(cargoSumPaid)} />
+                                <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />
                             )}
-                            {updDisplay ? <DetailItem label="УПД" value={updDisplay} /> : null}
+                        </div>
+                        <div className="cargo-details-tiles-row">
+                            <DetailItem label="Отправитель" value={stripOoo(item.Sender) || "-"} />
+                            <DetailItem label="Получатель" value={stripOoo(item.Receiver ?? (item as any).receiver) || "-"} />
                             {citySenderDisplay ? <DetailItem label="Место отправления" value={citySenderDisplay} /> : null}
+                            {cityReceiverDisplay ? <DetailItem label="Место получения" value={cityReceiverDisplay} /> : null}
                             {useServiceRequest && (
                                 <>
                                     <DetailItem
@@ -408,28 +413,32 @@ export function CargoDetailsModal({
                                 </>
                             )}
                         </div>
-                        <div className="details-grid-modal cargo-details-modal-col">
-                            <DetailItem label="Приход" value={<DateText value={item.DatePrih} />} />
-                            <DetailItem
-                                label={PLANNED_TERMINAL_ARRIVAL_LABEL}
-                                value={plannedDeliveryDate ? <DateText value={plannedDeliveryDate} /> : "-"}
-                            />
-                            <DetailItem label="Отправитель" value={stripOoo(item.Sender) || "-"} />
+                        <div className="cargo-details-tiles-row">
                             <DetailItem label="Мест" value={renderValue(item.Mest)} icon={<Layers className="w-4 h-4 mr-1 text-theme-primary" />} />
+                            <DetailItem
+                                label="Плат. вес"
+                                value={renderValue(item.PW, "кг")}
+                                icon={<Scale className="w-4 h-4 mr-1 text-theme-primary" />}
+                                highlighted
+                            />
                             {isCustomerRole && (
-                                <DetailItem
-                                    label="Вес"
-                                    value={renderValue(item.W, "кг")}
-                                    icon={<Weight className="w-4 h-4 mr-1 text-theme-primary" />}
-                                />
+                                <>
+                                    <DetailItem
+                                        label="Вес"
+                                        value={renderValue(item.W, "кг")}
+                                        icon={<Weight className="w-4 h-4 mr-1 text-theme-primary" />}
+                                    />
+                                    <DetailItem
+                                        label="Объем"
+                                        value={renderValue(item.Value, "м³")}
+                                        icon={<List className="w-4 h-4 mr-1 text-theme-primary" />}
+                                    />
+                                </>
                             )}
                             {isCustomerRole && showSums && (
                                 <>
-                                    <DetailItem
-                                        label="Стоимость"
-                                        value={formatCurrency(item.Sum)}
-                                        textColor={getSumColorByPaymentStatus(item.StateBill)}
-                                    />
+                                    <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />
+                                    <DetailItem label="Оплачено" value={formatCurrency(cargoSumPaid)} />
                                     <DetailItem
                                         label="Остаток"
                                         value={formatCurrency(cargoBalance)}
@@ -437,32 +446,96 @@ export function CargoDetailsModal({
                                     />
                                 </>
                             )}
+                            {updDisplay ? <DetailItem label="УПД" value={updDisplay} /> : null}
                             {billDisplay ? <DetailItem label="Счет" value={billDisplay} /> : null}
-                            {cityReceiverDisplay ? <DetailItem label="Место получения" value={cityReceiverDisplay} /> : null}
                         </div>
                     </div>
-                    <div className="details-grid-modal cargo-details-modal-statuses">
-                        <DetailItem label="Статус" value={<StatusBadge status={item.State} />} />
-                        <DetailItem
-                            label="Последняя миля"
-                            value={
-                                <span className={`max-badge ${selfPickup ? "cargo-last-mile-self" : "cargo-last-mile-delivery"}`}>
-                                    {selfPickup ? "Самовывоз" : "Доставка"}
-                                </span>
-                            }
-                        />
-                        <DetailItem label="Заборная" value={<CargoPickupLogisticsBadge item={item} />} />
-                        {isCustomerRole && showSums && (
-                            <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />
-                        )}
-                    </div>
+                    {(perevozkaLoading || perevozkaTimeline || perevozkaError) && (
+                        <aside className="cargo-details-modal-timeline perevozka-timeline-wrap">
+                            <Typography.Headline className="cargo-details-modal-timeline__title">Статусы перевозки</Typography.Headline>
+                            {perevozkaLoading && (
+                                <Flex align="center" gap="0.5rem" style={{ padding: "0.5rem 0" }}>
+                                    <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-primary-blue)" }} />
+                                    <Typography.Body style={{ color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>Загрузка…</Typography.Body>
+                                </Flex>
+                            )}
+                            {perevozkaError && (
+                                <Typography.Body style={{ color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>{perevozkaError}</Typography.Body>
+                            )}
+                            {!perevozkaLoading && perevozkaTimeline && perevozkaTimeline.length > 0 && (() => {
+                                const totalHours = (() => {
+                                    if (!receivedAtSender?.date) return null;
+                                    const startMs = new Date(receivedAtSender.date).getTime();
+                                    if (!Number.isFinite(startMs)) return null;
+                                    const deliveredMs = deliveredStep?.date ? new Date(deliveredStep.date).getTime() : NaN;
+                                    const endMs = Number.isFinite(deliveredMs) ? deliveredMs : Date.now();
+                                    return Math.max(0, Math.round((endMs - startMs) / (1000 * 60 * 60)));
+                                })();
+                                return (
+                                    <div>
+                                        <div className="perevozka-timeline">
+                                            <div
+                                                className="perevozka-timeline-track-fill"
+                                                style={{ height: `${(perevozkaTimeline.length / Math.max(perevozkaTimeline.length, 1)) * 100}%` }}
+                                            />
+                                            {perevozkaTimeline.map((step, index) => {
+                                                const colorKey = getTimelineStepColor(step.label);
+                                                const outOfSlaFromThisStep = isTimelineStepOutOfSla(step.date);
+                                                return (
+                                                    <div key={index} className="perevozka-timeline-item">
+                                                        <div className={`perevozka-timeline-dot perevozka-timeline-dot-${colorKey}`} />
+                                                        <div className="perevozka-timeline-content">
+                                                            <Typography.Body
+                                                                style={{
+                                                                    fontWeight: 600,
+                                                                    fontSize: "0.85rem",
+                                                                    color: outOfSlaFromThisStep ? "#ef4444" : undefined,
+                                                                }}
+                                                            >
+                                                                {step.label}
+                                                            </Typography.Body>
+                                                            {step.date && (
+                                                                <Typography.Body
+                                                                    style={{
+                                                                        fontSize: "0.78rem",
+                                                                        color: outOfSlaFromThisStep ? "#ef4444" : "var(--color-text-secondary)",
+                                                                    }}
+                                                                >
+                                                                    <DateText value={step.date} />
+                                                                </Typography.Body>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        {totalHours != null && (
+                                            <Flex align="center" gap="0.35rem" style={{ marginTop: "0.65rem" }}>
+                                                <Typography.Body style={{ fontWeight: 600, fontSize: "0.82rem" }}>
+                                                    Итого время в пути — {totalHours} ч
+                                                </Typography.Body>
+                                                <span
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    title="Срок не учитывает день получения груза"
+                                                    style={{ display: "inline-flex", cursor: "help", color: "var(--color-text-secondary)" }}
+                                                >
+                                                    <Info className="w-4 h-4" />
+                                                </span>
+                                            </Flex>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+                        </aside>
+                    )}
                 </div>
                 {hasLastMileBlock && (
                     <div style={{ marginTop: '0.75rem' }}>
                         <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
                             Последняя миля
                         </Typography.Headline>
-                        <div className="details-grid-modal">
+                        <div className="cargo-details-tiles-row">
                             <DetailItem label="Гос номер" value={lastMile.autoReg || '-'} />
                             <DetailItem label="Марка" value={lastMile.autoType || '-'} />
                             <DetailItem label="Экспедитор" value={lastMile.driver || '-'} />
@@ -505,54 +578,6 @@ export function CargoDetailsModal({
                             return <DetailItem key={key} label={label} value={value} />;
                         })}
                 </div>
-                {(perevozkaLoading || perevozkaTimeline || perevozkaError) && (
-                    <div className="perevozka-timeline-wrap" style={{ marginTop: '1rem', marginBottom: '1rem' }}>
-                        <Typography.Headline style={{ marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: 600 }}>Статусы перевозки</Typography.Headline>
-                        {perevozkaLoading && (
-                            <Flex align="center" gap="0.5rem" style={{ padding: '0.5rem 0' }}>
-                                <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-primary-blue)' }} />
-                                <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Загрузка...</Typography.Body>
-                            </Flex>
-                        )}
-                        {perevozkaError && <Typography.Body style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>{perevozkaError}</Typography.Body>}
-                        {!perevozkaLoading && perevozkaTimeline && perevozkaTimeline.length > 0 && (() => {
-                            const totalHours = (() => {
-                                if (!receivedAtSender?.date) return null;
-                                const startMs = new Date(receivedAtSender.date).getTime();
-                                if (!Number.isFinite(startMs)) return null;
-                                const deliveredMs = deliveredStep?.date ? new Date(deliveredStep.date).getTime() : NaN;
-                                const endMs = Number.isFinite(deliveredMs) ? deliveredMs : Date.now();
-                                return Math.max(0, Math.round((endMs - startMs) / (1000 * 60 * 60)));
-                            })();
-                            return (
-                                <div>
-                                    <div className="perevozka-timeline">
-                                        <div className="perevozka-timeline-track-fill" style={{ height: `${(perevozkaTimeline.length / Math.max(perevozkaTimeline.length, 1)) * 100}%` }} />
-                                        {perevozkaTimeline.map((step, index) => {
-                                            const colorKey = getTimelineStepColor(step.label);
-                                            const outOfSlaFromThisStep = isTimelineStepOutOfSla(step.date);
-                                            return (
-                                                <div key={index} className="perevozka-timeline-item">
-                                                    <div className={`perevozka-timeline-dot perevozka-timeline-dot-${colorKey}`} />
-                                                    <div className="perevozka-timeline-content" style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem', color: outOfSlaFromThisStep ? '#ef4444' : undefined }}>{step.label}</Typography.Body>
-                                                        {step.date && <Typography.Body style={{ fontSize: '0.8rem', color: outOfSlaFromThisStep ? '#ef4444' : 'var(--color-text-secondary)' }}><DateText value={step.date} /></Typography.Body>}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                    {totalHours != null && (
-                                        <Flex align="center" gap="0.35rem" style={{ marginTop: '0.75rem' }}>
-                                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>Итого время в пути — {totalHours} ч</Typography.Body>
-                                            <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.preventDefault(); }} title="Срок не учитывает день получения груза" style={{ display: 'inline-flex', cursor: 'help', color: 'var(--color-text-secondary)' }}><Info className="w-4 h-4" /></span>
-                                        </Flex>
-                                    )}
-                                </div>
-                            );
-                        })()}
-                    </div>
-                )}
                 {!perevozkaLoading && perevozkaNomenclature.length > 0 && (
                     <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
                         <div role="button" tabIndex={0} onClick={() => setNomenclatureOpen((v) => !v)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setNomenclatureOpen((v) => !v); } }} style={{ cursor: 'pointer', userSelect: 'none', marginBottom: nomenclatureOpen ? '0.75rem' : 0 }} title={nomenclatureOpen ? 'Свернуть номенклатуру' : 'Показать номенклатуру'}>

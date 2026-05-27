@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { Loader2, FileText, Shield } from "lucide-react";
+import { formatDateTime } from "../lib/dateUtils";
 
 type VersionRow = {
   id: number;
@@ -29,13 +30,6 @@ type SummaryRow = {
   consent_version_label: string | null;
   consent_accepted_at: string | null;
 };
-
-function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
-}
 
 export function AdminLegalSection({ adminToken }: { adminToken: string }) {
   const [subTab, setSubTab] = useState<"versions" | "journal">("versions");
