@@ -3,7 +3,7 @@ import { Flex, Typography } from "@maxhub/max-ui";
 import { ChevronRight, Loader2, AlertCircle } from "lucide-react";
 import { AppBadge } from "./shared/AppBadge";
 import { DateText } from "./ui/DateText";
-import { ClickableCargoNumber, ClickableInvoiceNumber, leafRowClickProps } from "./ui/EntityLinks";
+import { ClickableInvoiceNumber, leafRowClickProps } from "./ui/EntityLinks";
 import { formatCurrency, stripOoo } from "../lib/formatUtils";
 import { StatusBadge } from "./shared/StatusBadges";
 import {
@@ -21,7 +21,6 @@ type Props = {
   showSums?: boolean;
   onOpen?: () => void;
   onOpenInvoice?: (invoice: Record<string, unknown>) => void;
-  onOpenCargo?: (cargoNumber: string) => void;
 };
 
 const MAX_ROWS = 12;
@@ -55,7 +54,6 @@ export function UnpaidInvoicesPlanMonitor({
   showSums = true,
   onOpen,
   onOpenInvoice,
-  onOpenCargo,
 }: Props) {
   const { showCustomerColumn } = useAppRuntime();
   const rows = useMemo(
@@ -110,14 +108,13 @@ export function UnpaidInvoicesPlanMonitor({
               <tr>
                 <th>Счёт</th>
                 {showCustomerColumn && <th className="customer-col">Заказчик</th>}
-                <th className="unpaid-plan-monitor__col-status">Статус</th>
+                <th className="unpaid-plan-monitor__col-status">Статус перевозки</th>
                 <th
                   className="unpaid-plan-monitor__col-plan-arrival"
                   title="Плановая дата прибытия на терминал"
                 >
                   Плановая дата прибытия на терминал
                 </th>
-                <th>Срок</th>
                 <th>Приоритет</th>
                 {showSums && <th style={{ textAlign: "right" }}>К оплате</th>}
               </tr>
@@ -142,13 +139,6 @@ export function UnpaidInvoicesPlanMonitor({
                     <td className="unpaid-plan-monitor__col-status">
                       {row.cargoState != null && String(row.cargoState).trim() !== "" ? (
                         <StatusBadge status={row.cargoState} />
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="unpaid-plan-monitor__col-cargo">
-                      {row.cargoNumber ? (
-                        <ClickableCargoNumber number={row.cargoNumber} onOpen={onOpenCargo} />
                       ) : (
                         "—"
                       )}

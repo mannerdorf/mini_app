@@ -597,6 +597,27 @@ export function DashboardPage({
     const calendarYear = new Date().getFullYear();
     const calendarDateFrom = `${calendarYear - 1}-01-01`;
     const calendarDateTo = `${calendarYear + 1}-12-31`;
+
+    /** Неоплаченные счета × план прибытия: не зависят от фильтра «Дата» на дашборде. */
+    const { items: unpaidPlanInvoiceItems, loading: unpaidPlanInvoicesLoading } = useInvoices({
+        auth,
+        dateFrom: calendarDateFrom,
+        dateTo: calendarDateTo,
+        activeInn: auth?.inn || undefined,
+        useServiceRequest,
+    });
+    const unpaidPlanMonitorInvoices = useMemo(
+        () => (useServiceRequest ? unpaidPlanInvoiceItems : filterItemsByActiveInn(unpaidPlanInvoiceItems, auth?.inn)),
+        [unpaidPlanInvoiceItems, auth?.inn, useServiceRequest],
+    );
+    const { items: unpaidPlanCargoItems, loading: unpaidPlanCargoLoading } = usePerevozki({
+        auth,
+        dateFrom: calendarDateFrom,
+        dateTo: calendarDateTo,
+        useServiceRequest,
+        inn: !useServiceRequest ? auth?.inn : undefined,
+    });
+
     const { items: calendarInvoiceItems, mutate: mutateCalendarInvoices } = useInvoices({
         // Тяжёлый 3-летний диапазон не грузим на первом рендере дашборда.
         auth: null,
@@ -3024,13 +3045,12 @@ export function DashboardPage({
 
             {!showOnlySla && (
                 <UnpaidInvoicesPlanMonitor
-                    invoices={edoMonitorInvoices as Record<string, unknown>[]}
-                    cargoItems={filteredCargoItems}
-                    loading={invoicesLoading || loading}
+                    invoices={unpaidPlanMonitorInvoices as Record<string, unknown>[]}
+                    cargoItems={unpaidPlanCargoItems}
+                    loading={unpaidPlanInvoicesLoading || unpaidPlanCargoLoading}
                     showSums={showSums}
                     onOpen={onOpenDocumentsInvoices}
                     onOpenInvoice={onOpenInvoice}
-                    onOpenCargo={onOpenCargo}
                 />
             )}
 

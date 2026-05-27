@@ -3018,9 +3018,18 @@ body {
         margin-bottom: var(--space-6, 24px);
     }
 
-    .cargo-details-modal-top .cargo-details-modal-tiles {
+    .cargo-details-modal-top .cargo-details-modal-fields {
+        display: flex;
         flex: 1 1 auto;
+        gap: var(--element-gap, 16px);
         min-width: 0;
+        margin-bottom: 0;
+    }
+
+    .cargo-details-modal-top .cargo-details-modal-col {
+        flex: 1 1 0;
+        min-width: 0;
+        grid-template-columns: minmax(0, 1fr);
         margin-bottom: 0;
     }
 
@@ -3041,7 +3050,15 @@ body {
         display: block;
     }
 
-    .cargo-details-modal-top .cargo-details-modal-tiles,
+    .cargo-details-modal-top .cargo-details-modal-fields {
+        display: block;
+    }
+
+    .cargo-details-modal-top .cargo-details-modal-col {
+        margin-bottom: var(--space-6, 24px);
+    }
+
+    .cargo-details-modal-top .cargo-details-modal-fields,
     .cargo-details-modal-top .cargo-details-modal-statuses {
         margin-bottom: var(--space-6, 24px);
     }
@@ -6982,6 +6999,25 @@ button.unpaid-plan-monitor:hover {
     font-size: 0.8125rem;
     line-height: 1.45;
     color: var(--color-text-secondary);
+}
+
+.profile-saas-row-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.profile-saas-row-text .profile-saas-row-title,
+.profile-saas-row-text .profile-saas-legal-accepted {
+    display: block;
+    width: 100%;
+}
+
+.profile-saas-row-card--legal .profile-saas-row-icon {
+    margin-top: 0.1rem;
 }
 
 /* Подзаголовок под «Профиль» — как в макете: компактный капс */

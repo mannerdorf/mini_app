@@ -17,6 +17,13 @@ function parseDateOnly(value: unknown): Date | null {
 
 export function getManualPlannedDeliveryDate(item: CargoItem): Date | null {
     const candidates = [
+        (item as any).DateArrivalPlan,
+        (item as any).DateDeliveryPlan,
+        (item as any).DeliveryDatePlan,
+        (item as any).ДатаПрибытияПлан,
+        (item as any).ДатаДоставкиПлан,
+        (item as any).ПланДатаПрибытия,
+        (item as any).ПлановаяДатаПрибытия,
         (item as any).DateArrival,
         (item as any).PlannedDeliveryDate,
         (item as any).PlanDeliveryDate,
@@ -25,6 +32,13 @@ export function getManualPlannedDeliveryDate(item: CargoItem): Date | null {
         (item as any).ПланДатаДоставки,
         (item as any).ПлановаяДата,
         (item as any).PlanDate,
+        (item as any).DateVrPlan,
+        (item as any).DatePrihPlan,
+        (item as any).ДатаПлан,
+        (item as any).PlannedArrivalDate,
+        (item as any).PlannedDate,
+        (item as any).DatePlan,
+        (item as any).ПланДата,
     ];
     for (const candidate of candidates) {
         const d = parseDateOnly(candidate);

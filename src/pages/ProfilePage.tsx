@@ -3175,21 +3175,33 @@ export function ProfilePage({
                             animate={shellMotion ? "visible" : undefined}
                         >
                             <Panel
-                                className="cargo-card profile-saas-row-card"
+                                className={`cargo-card profile-saas-row-card${item.id === 'offer' || item.id === 'consent' ? ' profile-saas-row-card--legal' : ''}`}
                                 onClick={item.onClick}
                                 style={{
                                     display: 'flex',
-                                    alignItems: 'center',
+                                    alignItems: item.id === 'offer' || item.id === 'consent' ? 'flex-start' : 'center',
                                     padding: '1rem',
                                     cursor: 'pointer'
                                 }}
                             >
-                                <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
+                                <Flex
+                                    align={item.id === 'offer' || item.id === 'consent' ? 'flex-start' : 'center'}
+                                    style={{ flex: 1, gap: '0.75rem', minWidth: 0 }}
+                                >
                                     <div className="profile-saas-row-icon">{item.icon}</div>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <Typography.Body className="profile-saas-body" style={{ fontSize: '0.9rem' }}>{item.label}</Typography.Body>
+                                    <div className="profile-saas-row-text">
+                                        <Typography.Body
+                                            component="div"
+                                            className="profile-saas-body profile-saas-row-title"
+                                            style={{ fontSize: '0.9rem' }}
+                                        >
+                                            {item.label}
+                                        </Typography.Body>
                                         {(item.id === 'offer' || item.id === 'consent') && (
-                                            <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.2rem' }}>
+                                            <Typography.Body
+                                                component="div"
+                                                className="profile-saas-caption profile-saas-legal-accepted"
+                                            >
                                                 {acceptedAt && accepted?.version_label
                                                     ? `Принято ${acceptedAt}, ред. ${accepted.version_label}`
                                                     : 'Принятие не зафиксировано'}

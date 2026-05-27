@@ -1,8 +1,8 @@
 # Иконки и splash HAULZ
 
 Исходники:
-- `haulz-icon.svg` — иконка PWA/favicon (синий `#3655ff` + белый **HAULZ**).
-- `haulz-icon-foreground.svg` — только надпись на прозрачном фоне (Android adaptive icon, splash, без «рамки»).
+- **`haulz-icon-source.png`** — основной мастер (1024×1024, скруглённый квадрат). Из него генерируются все PNG.
+- `haulz-icon.svg` / `haulz-icon-foreground.svg` — запасной вариант, если PNG нет.
 
 Пересобрать все размеры:
 
