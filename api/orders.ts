@@ -2,6 +2,10 @@ import type { Pool } from "pg";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser, type VerifiedRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import {
+  getPerevozkiServiceCredentials,
+  shouldServeFromDocumentCache,
+} from "../lib/cacheHistoryDays.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
 /**
@@ -87,6 +91,50 @@ function orderDate(item: any): string {
   return normalizeDateOnly(d);
 }
 
+export async function filterRegisteredOrdersList(
+  pool: Pool,
+  verified: VerifiedRegisteredUser,
+  login: string,
+  dateFrom: string,
+  dateTo: string,
+  inn: unknown,
+  serviceMode: unknown,
+  list: any[],
+): Promise<any[]> {
+  const requestedInn = normalizeInn(inn);
+  const isService = !!serviceMode;
+  let filterInns: Set<string> | null = null;
+  if (!isService && !verified.accessAllInns) {
+    const acRows = await pool.query<{ inn: string }>(
+      "SELECT inn FROM account_companies WHERE login = $1",
+      [String(login).trim().toLowerCase()],
+    );
+    const allowed = new Set(acRows.rows.map((r) => normalizeInn(r.inn)).filter(Boolean));
+    const verifiedInn = normalizeInn(verified.inn);
+    if (verifiedInn) allowed.add(verifiedInn);
+    filterInns = allowed.size > 0 ? allowed : verifiedInn ? new Set([verifiedInn]) : null;
+  }
+  const finalInns = isService
+    ? null
+    : filterInns === null
+      ? requestedInn
+        ? new Set([requestedInn])
+        : null
+      : requestedInn
+        ? filterInns.has(requestedInn)
+          ? new Set([requestedInn])
+          : new Set<string>()
+        : filterInns;
+  return list.filter((item) => {
+    if (finalInns !== null) {
+      const itemInnVal = ordersItemInn(item);
+      if (!finalInns.has(itemInnVal)) return false;
+    }
+    const d = orderDate(item);
+    return !d || (d >= dateFrom && d <= dateTo);
+  });
+}
+
 /** Кэш заявок для зарегистрированного пользователя. */
 export async function readRegisteredOrdersFromCache(
   pool: Pool,
@@ -108,40 +156,9 @@ export async function readRegisteredOrdersFromCache(
       );
     }
     if (cacheRow.rows.length === 0) return [];
-    const requestedInn = normalizeInn(inn);
-    const isService = !!serviceMode;
-    let filterInns: Set<string> | null = null;
-    if (!isService && !verified.accessAllInns) {
-      const acRows = await pool.query<{ inn: string }>(
-        "SELECT inn FROM account_companies WHERE login = $1",
-        [String(login).trim().toLowerCase()],
-      );
-      const allowed = new Set(acRows.rows.map((r) => normalizeInn(r.inn)).filter(Boolean));
-      const verifiedInn = normalizeInn(verified.inn);
-      if (verifiedInn) allowed.add(verifiedInn);
-      filterInns = allowed.size > 0 ? allowed : verifiedInn ? new Set([verifiedInn]) : null;
-    }
-    const finalInns = isService
-      ? null
-      : filterInns === null
-        ? requestedInn
-          ? new Set([requestedInn])
-          : null
-        : requestedInn
-          ? filterInns.has(requestedInn)
-            ? new Set([requestedInn])
-            : new Set<string>()
-          : filterInns;
     const data = cacheRow.rows[0].data as any[];
     const list = Array.isArray(data) ? data : [];
-    return list.filter((item) => {
-      if (finalInns !== null) {
-        const itemInnVal = ordersItemInn(item);
-        if (!finalInns.has(itemInnVal)) return false;
-      }
-      const d = orderDate(item);
-      return !d || (d >= dateFrom && d <= dateTo);
-    });
+    return filterRegisteredOrdersList(pool, verified, login, dateFrom, dateTo, inn, serviceMode, list);
   } catch {
     return [];
   }
@@ -182,6 +199,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD required)", request_id: ctx.requestId });
   }
 
+  const useDocumentCache = shouldServeFromDocumentCache(dateFrom);
+  let registeredVerified: VerifiedRegisteredUser | null = null;
+
   if (isRegisteredUser) {
     try {
       const pool = getPool();
@@ -189,16 +209,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!verified) {
         return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
       }
-      const filtered = await readRegisteredOrdersFromCache(pool, verified, login, dateFrom, dateTo, inn, serviceMode);
-      if (filtered.length > 0) return res.status(200).json(filtered);
-      return res.status(200).json([]);
+      registeredVerified = verified;
+      if (useDocumentCache) {
+        const filtered = await readRegisteredOrdersFromCache(pool, verified, login, dateFrom, dateTo, inn, serviceMode);
+        if (filtered.length > 0) return res.status(200).json(filtered);
+        return res.status(200).json([]);
+      }
     } catch (e) {
       logError(ctx, "orders_registered_user_failed", e);
       return res.status(200).json([]);
     }
   }
 
-  try {
+  if (useDocumentCache) try {
     const pool = getPool();
     let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
       "SELECT data, fetched_at FROM cache_orders WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
@@ -257,11 +280,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return [direct.toString(), api.toString()];
   };
 
+  let upstreamLogin = String(login);
+  let upstreamPassword = String(password);
+  if (isRegisteredUser && registeredVerified) {
+    const serviceCreds = getPerevozkiServiceCredentials();
+    if (!serviceCreds) {
+      return res.status(503).json({
+        error: "Service credentials are not configured",
+        request_id: ctx.requestId,
+      });
+    }
+    upstreamLogin = serviceCreds.login;
+    upstreamPassword = serviceCreds.password;
+  }
+
   const fetchFromUpstream = async (url: string) => {
     const upstream = await fetch(url, {
       method: "GET",
       headers: {
-        Auth: `Basic ${login}:${password}`,
+        Auth: `Basic ${upstreamLogin}:${upstreamPassword}`,
         Authorization: SERVICE_AUTH,
       },
     });
@@ -294,7 +331,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           lastError = { status: 401, payload: { error: errorText, request_id: ctx.requestId } };
           continue;
         }
-        const list = extractItems(json);
+        let list = extractItems(json);
+        if (isRegisteredUser && registeredVerified) {
+          list = await filterRegisteredOrdersList(
+            getPool(),
+            registeredVerified,
+            login,
+            dateFrom,
+            dateTo,
+            inn,
+            serviceMode,
+            list,
+          );
+        }
         if (Array.isArray(list) && list.length > 0) {
           return res.status(200).json(list);
         }

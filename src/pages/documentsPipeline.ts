@@ -1,3 +1,4 @@
+import { invoiceDocSum } from "../../lib/invoiceAmounts.js";
 import { cityToCode, normalizeInvoiceStatus, parseCargoNumbersFromText, stripOoo } from "../lib/formatUtils";
 import { coerceStatusDisplay, getFilterKeyByStatus, getInvoicePaymentFilterKey } from "../lib/statusUtils";
 import {
@@ -54,7 +55,7 @@ function normalizeInn(value: unknown): string {
   return digits || raw;
 }
 
-function getItemInn(item: any): string {
+export function getItemInn(item: any): string {
   return normalizeInn(
     item?.INN ??
       item?.Inn ??
@@ -795,21 +796,20 @@ export function buildDocsSummary(list: any[], perevozkiItems?: any[]): DocsSumma
   return { sum, count: list.length, ...buildLinkedCargoMetrics(list, perevozkiItems) };
 }
 
-/** Итоги Счетов: сумма и грузы — как в УПД (из связанного УПД, иначе из счёта). */
+/** Итоги счетов: сумма по полям счёта, метрики груза — по связанным перевозкам. */
 export function buildInvoicesSummary(
   filteredInvoices: any[],
-  acts: any[] | undefined | null,
+  _acts: any[] | undefined | null,
   perevozkiItems?: any[],
 ): DocsSummaryTotals {
-  const sources = filteredInvoices.map((inv) => findActLinkedToInvoice(inv, acts) ?? inv);
   let sum = 0;
-  sources.forEach((row) => {
-    sum += pickUpdStyleDocSum(row);
+  filteredInvoices.forEach((inv) => {
+    sum += invoiceDocSum(inv);
   });
   return {
     sum,
     count: filteredInvoices.length,
-    ...buildLinkedCargoMetrics(sources, perevozkiItems),
+    ...buildLinkedCargoMetrics(filteredInvoices, perevozkiItems),
   };
 }
 

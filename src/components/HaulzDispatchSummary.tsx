@@ -627,8 +627,8 @@ export function HaulzDispatchSummary({
                                                         onClick={
                                                             col
                                                                 ? (e) => {
-                                                                      e.stopPropagation();
-                                                                      onDispatchSortHeaderClick(col);
+                                                            e.stopPropagation();
+                                                            onDispatchSortHeaderClick(col);
                                                                   }
                                                                 : undefined
                                                         }
@@ -770,19 +770,19 @@ export function HaulzDispatchSummary({
                                                         />
                                                     )}
                                                     {groupOpen && hiddenGroupRows > 0 && (
-                                                        <tr>
-                                                            <td
+                                                                        <tr>
+                                                                            <td
                                                                 colSpan={dispatchTableColCount}
-                                                                style={{
+                                                                                style={{
                                                                     padding: "0.35rem 0.35rem 0.35rem 1.5rem",
-                                                                    borderBottom: "1px solid var(--color-border)",
+                                                                                    borderBottom: "1px solid var(--color-border)",
                                                                 }}
                                                             >
                                                                 <button
-                                                                    type="button"
+                                                                                        type="button"
                                                                     className="haulz-dispatch-group-more"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
                                                                         setCustomerGroupShowAllKeys((prev) => {
                                                                             const next = new Set(prev);
                                                                             next.add(customerKey);
@@ -792,9 +792,9 @@ export function HaulzDispatchSummary({
                                                                 >
                                                                     Ещё {hiddenGroupRows}
                                                                 </button>
-                                                            </td>
-                                                        </tr>
-                                                    )}
+                                                                            </td>
+                                                                        </tr>
+                                                                    )}
                                                 </React.Fragment>
                                             );
                                         })

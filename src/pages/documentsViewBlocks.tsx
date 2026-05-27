@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Heart, Loader2, AlertTriangle, Share2, Ship, Truck } from "lucide-react";
+import { invoiceDocSum } from "../../lib/invoiceAmounts.js";
 import { cityToCode, formatCurrency, formatInvoiceNumber, normalizeInvoiceStatus, stripOoo } from "../lib/formatUtils";
 import { ClickableCargoNumber, ClickableInvoiceNumber } from "../components/ui/EntityLinks";
 import { getPayTillDate, getPayTillDateColor } from "../lib/dateUtils";
@@ -25,7 +26,8 @@ import { RouteBadge, CargoTransportTypeIcon, formatRouteLabel } from "../compone
 import { StatusBadge } from "../components/shared/StatusBadges";
 import { getSumColorByPaymentStatus } from "../lib/statusUtils";
 import { cargoExpandMotionProps, cargoListContainerVariants, cargoTableGroupRowVariants, documentsListItemVariants } from "./cargoMotion";
-import { findInvoiceLinkedToAct, type DocsSummaryTotals, type EdoCargoCardItem } from "./documentsPipeline";
+import { findInvoiceLinkedToAct, getItemInn, type DocsSummaryTotals, type EdoCargoCardItem } from "./documentsPipeline";
+import { innIsEdoPartner } from "../lib/edoCounterpartyStatus";
 
 export function DocumentsEdoTableStatus({ info }: { info: EdoStatusInfo }) {
   return (
@@ -57,6 +59,23 @@ export function DocumentsEdoCardBadge({
   );
 }
 
+/** Контрагент из GETALLKontragents со статусом IsMyCounteragent — работаем по ЭДО. */
+export function DocumentsEdoPartnerBadge() {
+  return (
+    <AppBadge tone="success" title="Работаем с контрагентом по ЭДО (IsMyCounteragent)">
+      Контрагент ЭДО
+    </AppBadge>
+  );
+}
+
+function rowHasEdoPartner(items: any[], edoPartnerInns?: ReadonlySet<string>): boolean {
+  if (!edoPartnerInns?.size) return false;
+  for (const inv of items) {
+    if (innIsEdoPartner(edoPartnerInns, getItemInn(inv))) return true;
+  }
+  return false;
+}
+
 export type EdoMonitorCustomerRow = { customer: string; items: any[]; sum: number };
 
 type EdoMonitorTableProps = {
@@ -73,6 +92,7 @@ type EdoMonitorTableProps = {
   /** Одна компания: сразу таблица счетов без группировки по заказчику. */
   flatDirectItems?: any[];
   showCustomerColumn?: boolean;
+  edoPartnerInns?: ReadonlySet<string>;
 };
 
 function renderEdoInvoiceInnerRows(items: any[], onOpenInvoice: (inv: any) => void) {
@@ -331,6 +351,7 @@ export function DocumentsEdoMonitorGroupedTable({
   docsMotionEnabled = false,
   flatDirectItems,
   showCustomerColumn = true,
+  edoPartnerInns,
 }: EdoMonitorTableProps) {
   const edoColCount = INVOICE_EDO_MERGED_COLUMNS.length;
   const baseColCount = (showCustomerColumn ? 2 : 1) + edoColCount;
@@ -431,10 +452,15 @@ export function DocumentsEdoMonitorGroupedTable({
                   {showCustomerColumn ? (
                     <td
                       className="customer-col"
-                      style={{ padding: "0.5rem 0.4rem", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                      style={{ padding: "0.5rem 0.4rem", maxWidth: 260 }}
                       title={stripOoo(row.customer)}
                     >
-                      {stripOoo(row.customer)}
+                      <Flex align="center" gap="0.35rem" wrap="wrap" style={{ minWidth: 0 }}>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
+                          {stripOoo(row.customer)}
+                        </span>
+                        {rowHasEdoPartner(row.items, edoPartnerInns) ? <DocumentsEdoPartnerBadge /> : null}
+                      </Flex>
                     </td>
                   ) : null}
                   <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>{row.items.length}</td>
@@ -506,6 +532,7 @@ type EdoMonitorCardsProps = {
   onToggleCustomer: (customer: string) => void;
   onOpenInvoice: (inv: any) => void;
   docsMotionEnabled?: boolean;
+  edoPartnerInns?: ReadonlySet<string>;
 };
 
 function edoColumnTitle(k: InvoiceEdoMergedDocLabel): string {
@@ -520,6 +547,7 @@ export function DocumentsEdoMonitorGroupedCards({
   onToggleCustomer,
   onOpenInvoice,
   docsMotionEnabled = false,
+  edoPartnerInns,
 }: EdoMonitorCardsProps) {
   return (
     <div className="documents-edo-monitor-cards">
@@ -545,9 +573,12 @@ export function DocumentsEdoMonitorGroupedCards({
                 title={isExpanded ? "Свернуть" : "Показать счета"}
               >
                 <Flex className="documents-edo-monitor-card__header" justify="space-between" align="start" style={{ marginBottom: "0.55rem", minWidth: 0, gap: "0.5rem" }}>
-                  <Typography.Body className="documents-edo-monitor-card__customer" style={{ fontWeight: 600, fontSize: "1rem", minWidth: 0 }} title={customerLabel}>
-                    {customerLabel}
-                  </Typography.Body>
+                  <Flex align="center" gap="0.35rem" wrap="wrap" style={{ minWidth: 0, flex: 1 }}>
+                    <Typography.Body className="documents-edo-monitor-card__customer" style={{ fontWeight: 600, fontSize: "1rem", minWidth: 0 }} title={customerLabel}>
+                      {customerLabel}
+                    </Typography.Body>
+                    {rowHasEdoPartner(row.items, edoPartnerInns) ? <DocumentsEdoPartnerBadge /> : null}
+                  </Flex>
                   <Flex className="documents-edo-monitor-card__header-actions" align="center" gap="0.35rem">
                     <AppBadge tone="neutral">{row.items.length} сч.</AppBadge>
                     {isExpanded ? (
@@ -640,6 +671,7 @@ export type DocumentsInvoiceCardProps = {
   onToggleFavorite: () => void;
   /** Бейджи ЭДО в правом нижнем углу (плитки «Счета» / «ЭДО»). */
   showEdoCornerBadges?: boolean;
+  edoPartnerInns?: ReadonlySet<string>;
 };
 
 export function DocumentsInvoiceCard({
@@ -648,12 +680,13 @@ export function DocumentsInvoiceCard({
   isFavorite,
   onToggleFavorite,
   showEdoCornerBadges = false,
+  edoPartnerInns,
 }: DocumentsInvoiceCardProps) {
   const num = row.Number ?? row.number ?? row.Номер ?? row.N ?? "";
   const dt = row.DateDoc ?? row.Date ?? row.date ?? row.Дата ?? "";
   const payTill = getPayTillDate(typeof dt === "string" ? dt : dt ? String(dt) : undefined);
   const cust = row.Customer ?? row.customer ?? row.Контрагент ?? row.Contractor ?? row.Organization ?? "";
-  const sum = row.SumDoc ?? row.Sum ?? row.sum ?? row.Сумма ?? row.Amount ?? 0;
+  const sum = invoiceDocSum(row);
   const rawStatus = row.Status ?? row.State ?? row.state ?? row.Статус ?? "";
   const st = (normalizeInvoiceStatus(rawStatus) || rawStatus) as string;
   const badgeStyle = invoicePaymentBadgeStyle(st);
@@ -740,12 +773,15 @@ export function DocumentsInvoiceCard({
         </Typography.Body>
       </Flex>
       <Flex justify="space-between" align="center" style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-        <Typography.Label
-          style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}
-          title={stripOoo(String(cust || ""))}
-        >
-          {stripOoo(String(cust || "—"))}
-        </Typography.Label>
+        <Flex align="center" gap="0.35rem" wrap="wrap" style={{ minWidth: 0, maxWidth: "70%" }}>
+          <Typography.Label
+            style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}
+            title={stripOoo(String(cust || ""))}
+          >
+            {stripOoo(String(cust || "—"))}
+          </Typography.Label>
+          {innIsEdoPartner(edoPartnerInns, getItemInn(row)) ? <DocumentsEdoPartnerBadge /> : null}
+        </Flex>
         <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }}>
           {(row.CitySender || row.CityReceiver) ? (
             <RouteBadge route={formatRouteLabel(row.CitySender, row.CityReceiver)} />
@@ -982,10 +1018,11 @@ export type DocumentsEdoCargoCardProps = {
   onOpenCargo?: (cargoNumber: string) => void;
   isFavorite: boolean;
   onToggleFavorite: () => void;
+  edoPartnerInns?: ReadonlySet<string>;
 };
 
 /** Плитка перевозки в разделе «ЭДО» — тот же каркас, что у счёта, статусы ЭДО в теле карточки. */
-export function DocumentsEdoCargoCard({ item, onOpen, onOpenCargo, isFavorite, onToggleFavorite }: DocumentsEdoCargoCardProps) {
+export function DocumentsEdoCargoCard({ item, onOpen, onOpenCargo, isFavorite, onToggleFavorite, edoPartnerInns }: DocumentsEdoCargoCardProps) {
   const { cargoNumber, invoice, cargo } = item;
   const invNum = invoice.Number ?? invoice.number ?? invoice.Номер ?? invoice.N ?? "";
   const dt = cargo?.DatePrih ?? invoice.DateDoc ?? invoice.Date ?? invoice.date ?? invoice.Дата ?? "";
@@ -998,15 +1035,7 @@ export function DocumentsEdoCargoCard({ item, onOpen, onOpenCargo, isFavorite, o
     invoice.Contractor ??
     invoice.Organization ??
     "";
-  const sum =
-    cargo?.Sum ??
-    cargo?.sum ??
-    invoice.SumDoc ??
-    invoice.Sum ??
-    invoice.sum ??
-    invoice.Сумма ??
-    invoice.Amount ??
-    0;
+  const sum = invoiceDocSum(invoice) || Number(cargo?.Sum ?? cargo?.sum ?? 0) || 0;
   const rawStatus = invoice.Status ?? invoice.State ?? invoice.state ?? invoice.Статус ?? "";
   const st = (normalizeInvoiceStatus(rawStatus) || rawStatus) as string;
   const badgeStyle = invoicePaymentBadgeStyle(st);
@@ -1106,12 +1135,15 @@ export function DocumentsEdoCargoCard({ item, onOpen, onOpenCargo, isFavorite, o
         </Typography.Body>
       </Flex>
       <Flex justify="space-between" align="center" style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.45rem" }}>
-        <Typography.Label
-          style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}
-          title={stripOoo(String(cust || ""))}
-        >
-          {stripOoo(String(cust || "—"))}
-        </Typography.Label>
+        <Flex align="center" gap="0.35rem" wrap="wrap" style={{ minWidth: 0, maxWidth: "70%" }}>
+          <Typography.Label
+            style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}
+            title={stripOoo(String(cust || ""))}
+          >
+            {stripOoo(String(cust || "—"))}
+          </Typography.Label>
+          {innIsEdoPartner(edoPartnerInns, getItemInn(invoice) || getItemInn(cargo)) ? <DocumentsEdoPartnerBadge /> : null}
+        </Flex>
         <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }}>
           {route ? <RouteBadge route={route} /> : null}
           <CargoTransportTypeIcon ak={isFerry} />
@@ -1139,6 +1171,7 @@ export type DocumentsEdoCardsListProps = {
   isInvoiceFavorite: (num: string) => boolean;
   onToggleInvoiceFavorite: (num: string) => void;
   docsMotionEnabled?: boolean;
+  edoPartnerInns?: ReadonlySet<string>;
 };
 
 /** Список плиток ЭДО: 1 карточка = 1 перевозка. */
@@ -1149,6 +1182,7 @@ export function DocumentsEdoCardsList({
   isInvoiceFavorite,
   onToggleInvoiceFavorite,
   docsMotionEnabled = false,
+  edoPartnerInns,
 }: DocumentsEdoCardsListProps) {
   return (
     <motion.div
@@ -1172,6 +1206,7 @@ export function DocumentsEdoCardsList({
               onOpenCargo={onOpenCargo}
               isFavorite={isInvoiceFavorite(invNum)}
               onToggleFavorite={() => onToggleInvoiceFavorite(invNum)}
+              edoPartnerInns={edoPartnerInns}
             />
           </motion.div>
         );
@@ -1187,6 +1222,7 @@ export type DocumentsInvoiceCardsListProps = {
   onToggleInvoiceFavorite: (num: string) => void;
   docsMotionEnabled?: boolean;
   showEdoCornerBadges?: boolean;
+  edoPartnerInns?: ReadonlySet<string>;
 };
 
 /** Список плиток счетов — тот же вид, что в разделе «Счета». */
@@ -1197,6 +1233,7 @@ export function DocumentsInvoiceCardsList({
   onToggleInvoiceFavorite,
   docsMotionEnabled = false,
   showEdoCornerBadges = false,
+  edoPartnerInns,
 }: DocumentsInvoiceCardsListProps) {
   return (
     <>
@@ -1221,6 +1258,7 @@ export function DocumentsInvoiceCardsList({
                 isFavorite={isInvoiceFavorite(num)}
                 onToggleFavorite={() => onToggleInvoiceFavorite(num)}
                 showEdoCornerBadges={showEdoCornerBadges}
+                edoPartnerInns={edoPartnerInns}
               />
             </motion.div>
           );

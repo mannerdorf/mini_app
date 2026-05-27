@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import QRCode from "qrcode";
 import { Flex, Typography } from "@maxhub/max-ui";
 import { Loader2, QrCode } from "lucide-react";
 import { formatCurrency, parseCargoNumbersFromText } from "../../lib/formatUtils";
@@ -55,6 +56,7 @@ export function InvoicePaymentQrBlock({ invoice, auth, cargoSumPaidByNumber }: P
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<QrResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [localQrSrc, setLocalQrSrc] = useState<string | null>(null);
 
   const mayPay = canShowInvoicePaymentQr(invoice);
 
@@ -87,9 +89,11 @@ export function InvoicePaymentQrBlock({ invoice, auth, cargoSumPaidByNumber }: P
         return;
       }
       setData(json);
+      setLocalQrSrc(null);
     } catch {
       setError("Не удалось выполнить запрос");
       setData(null);
+      setLocalQrSrc(null);
     } finally {
       setLoading(false);
     }
@@ -99,9 +103,39 @@ export function InvoicePaymentQrBlock({ invoice, auth, cargoSumPaidByNumber }: P
     void loadQr();
   }, [loadQr]);
 
+  const payload = data?.payload ?? null;
+  useEffect(() => {
+    if (!payload) {
+      setLocalQrSrc(null);
+      return;
+    }
+    const fromApi = data?.qrImageDataUrl ?? data?.qrImageUrl ?? "";
+    if (fromApi.startsWith("data:")) {
+      setLocalQrSrc(null);
+      return;
+    }
+    let cancelled = false;
+    void QRCode.toDataURL(payload, {
+      width: 200,
+      margin: 1,
+      color: { dark: "#2563eb", light: "#ffffff" },
+      errorCorrectionLevel: "M",
+    })
+      .then((url) => {
+        if (!cancelled) setLocalQrSrc(url);
+      })
+      .catch(() => {
+        if (!cancelled) setLocalQrSrc(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [payload, data?.qrImageDataUrl, data?.qrImageUrl]);
+
   if (!mayPay) return null;
 
-  const qrSrc = data?.qrImageDataUrl ?? data?.qrImageUrl;
+  const apiQrSrc = data?.qrImageDataUrl ?? data?.qrImageUrl;
+  const qrSrc = apiQrSrc?.startsWith("data:") ? apiQrSrc : localQrSrc ?? apiQrSrc;
 
   const docSum = data?.docSumRub ?? amounts.docSum;
   const paid = data?.paidRub ?? amounts.paid;
@@ -123,7 +157,7 @@ export function InvoicePaymentQrBlock({ invoice, auth, cargoSumPaidByNumber }: P
 
       {!loading && error && <p className="invoice-payment-qr-block__error">{error}</p>}
 
-      {!loading && qrSrc && data?.payload && (
+      {!loading && payload && qrSrc && (
         <div className="invoice-payment-qr-block__body">
           <div className="invoice-payment-qr-block__qr-wrap">
             <img

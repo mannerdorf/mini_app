@@ -1,7 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
-import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { verifyRegisteredUser, type VerifiedRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import {
+  getPerevozkiServiceCredentials,
+  shouldServeFromDocumentCache,
+} from "../lib/cacheHistoryDays.js";
 import { handleHaulzSummarySandboxRequest, isHaulzSummarySandboxAction } from "../lib/haulzSummarySandboxApi.js";
 
 /**
@@ -22,6 +26,52 @@ function invoiceInn(item: any): string {
 function invoiceDate(item: any): string {
   const d = item?.DateDoc ?? item?.Date ?? item?.dateDoc ?? item?.date ?? "";
   return normalizeDateOnly(d);
+}
+
+function extractInvoiceList(json: unknown): any[] {
+  if (Array.isArray(json)) return json;
+  if (!json || typeof json !== "object") return [];
+  const o = json as Record<string, unknown>;
+  const list = o.items ?? o.Items ?? o.invoices ?? o.Invoices ?? o.data ?? o.Data ?? [];
+  return Array.isArray(list) ? list : [];
+}
+
+async function filterInvoicesForRegisteredUser(
+  pool: ReturnType<typeof getPool>,
+  verified: VerifiedRegisteredUser,
+  login: string,
+  inn: unknown,
+  dateFrom: string,
+  dateTo: string,
+  list: any[],
+): Promise<any[]> {
+  let filterInns: Set<string> | null = null;
+  if (!verified.accessAllInns) {
+    const acRows = await pool.query<{ inn: string }>(
+      "SELECT inn FROM account_companies WHERE login = $1",
+      [String(login).trim().toLowerCase()],
+    );
+    const allowed = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
+    if (verified.inn?.trim()) allowed.add(verified.inn.trim());
+    filterInns = allowed.size > 0 ? allowed : verified.inn ? new Set([verified.inn]) : null;
+  }
+  const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+  const finalInns =
+    filterInns === null
+      ? null
+      : requestedInn
+        ? filterInns.has(requestedInn)
+          ? new Set([requestedInn])
+          : new Set<string>()
+        : filterInns;
+  return list.filter((item) => {
+    if (finalInns !== null) {
+      const itemInnVal = invoiceInn(item);
+      if (!finalInns.has(itemInnVal)) return false;
+    }
+    const d = invoiceDate(item);
+    return d >= dateFrom && d <= dateTo;
+  });
 }
 
 function normalizeDateOnly(raw: unknown): string {
@@ -78,7 +128,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .json({ error: "Invalid date format (YYYY-MM-DD required)", request_id: ctx.requestId });
   }
 
-  // Зарегистрированные пользователи — только кэш
+  const useDocumentCache = shouldServeFromDocumentCache(dateFrom);
+  let registeredVerified: VerifiedRegisteredUser | null = null;
+
   if (isRegisteredUser) {
     try {
       const pool = getPool();
@@ -86,6 +138,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!verified) {
         return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
       }
+      registeredVerified = verified;
+      if (!useDocumentCache) {
+        // Период старше окна кэша — ниже прямой запрос в 1С через сервисный аккаунт.
+      } else {
       let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
         "SELECT data, fetched_at FROM cache_invoices WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
         [CACHE_FRESH_MINUTES]
@@ -125,14 +181,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json(Array.isArray(filtered) ? filtered : []);
       }
       return res.status(200).json([]);
+      }
     } catch (e) {
       logError(ctx, "invoices_registered_user_failed", e);
       return res.status(200).json([]);
     }
   }
 
-  // Быстрый путь: в serviceMode всегда отдаём cache_invoices, без ожидания 1С.
-  try {
+  // Быстрый путь: cache_invoices (последние CACHE_HISTORY_DAYS дн.; старше — 1С ниже).
+  if (useDocumentCache) try {
     const pool = getPool();
     let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
       "SELECT data, fetched_at FROM cache_invoices WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
@@ -183,11 +240,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     url.searchParams.set("INN", String(inn).trim());
   }
 
+  let upstreamLogin = String(login);
+  let upstreamPassword = String(password);
+  if (isRegisteredUser && registeredVerified) {
+    const serviceCreds = getPerevozkiServiceCredentials();
+    if (!serviceCreds) {
+      return res.status(503).json({
+        error: "Service credentials are not configured",
+        request_id: ctx.requestId,
+      });
+    }
+    upstreamLogin = serviceCreds.login;
+    upstreamPassword = serviceCreds.password;
+    const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+    if (requestedInn) url.searchParams.set("INN", requestedInn);
+  }
+
   try {
     const upstream = await fetch(url.toString(), {
       method: "GET",
       headers: {
-        Auth: `Basic ${login}:${password}`,
+        Auth: `Basic ${upstreamLogin}:${upstreamPassword}`,
         Authorization: SERVICE_AUTH,
       },
     });
@@ -221,6 +294,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             ? message.trim()
             : "Ошибка авторизации";
         return res.status(401).json({ error: errorText, request_id: ctx.requestId });
+      }
+      if (isRegisteredUser && registeredVerified) {
+        try {
+          const pool = getPool();
+          const list = extractInvoiceList(json);
+          const filtered = await filterInvoicesForRegisteredUser(
+            pool,
+            registeredVerified,
+            login,
+            inn,
+            dateFrom,
+            dateTo,
+            list,
+          );
+          return res.status(200).json(filtered);
+        } catch (e) {
+          logError(ctx, "invoices_registered_1c_filter_failed", e);
+          return res.status(200).json([]);
+        }
       }
       return res.status(200).json(json);
     } catch {

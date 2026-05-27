@@ -34,6 +34,7 @@ import {
     collectUniqueInvoiceEdoTableLabels,
     getCachedDocumentEdoInfo,
 } from "../lib/edoStatus";
+import { normalizeKontragentInn } from "../lib/edoCounterpartyStatus";
 import {
     loadDateFilterState,
     saveDateFilterState,
@@ -729,6 +730,20 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
             .catch(() => setDogovorsList([]))
             .finally(() => setDogovorsLoading(false));
     }, [docSection, effectiveActiveInn, effectiveServiceMode]);
+    useEffect(() => {
+        if (docSection !== "ЭДО") return;
+        fetch("/api/edo-counterparty-inns")
+            .then((res) => res.json())
+            .then((data: { inns?: string[] }) => {
+                const next = new Set(
+                    (Array.isArray(data?.inns) ? data.inns : [])
+                        .map((inn) => normalizeKontragentInn(inn))
+                        .filter(Boolean)
+                );
+                setEdoPartnerInns(next);
+            })
+            .catch(() => setEdoPartnerInns(new Set()));
+    }, [docSection]);
     const reloadClaims = useCallback(async () => {
         const requestId = ++claimsRequestIdRef.current;
         if (docSection !== 'Претензии' || !auth?.login || !auth?.password) {
@@ -1132,6 +1147,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [isActCustomerDropdownOpen, setIsActCustomerDropdownOpen] = useState(false);
     const [isSverkiCustomerDropdownOpen, setIsSverkiCustomerDropdownOpen] = useState(false);
     const [isDogovorsCustomerDropdownOpen, setIsDogovorsCustomerDropdownOpen] = useState(false);
+    const [edoPartnerInns, setEdoPartnerInns] = useState<Set<string>>(() => new Set());
     const [isTariffsCustomerDropdownOpen, setIsTariffsCustomerDropdownOpen] = useState(false);
     const [isTariffsRouteDropdownOpen, setIsTariffsRouteDropdownOpen] = useState(false);
     const [isTariffsTypeDropdownOpen, setIsTariffsTypeDropdownOpen] = useState(false);
@@ -2490,8 +2506,7 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
         const map = new Map<string, { customer: string; items: any[]; sum: number }>();
         filteredItems.forEach(inv => {
             const key = (inv.Customer ?? inv.customer ?? inv.Контрагент ?? inv.Contractor ?? inv.Organization ?? '').trim() || '—';
-            const v = inv.SumDoc ?? inv.Sum ?? inv.sum ?? inv.Сумма ?? inv.Amount ?? 0;
-            const sum = typeof v === 'string' ? parseFloat(v) || 0 : (v || 0);
+            const sum = invoiceDocSum(inv);
             const existing = map.get(key);
             if (existing) {
                 existing.items.push(inv);
@@ -4176,6 +4191,7 @@ useEffect(() => {
                         onSort={handleTableSort}
                         docsMotionEnabled={docsMotionEnabled}
                         showCustomerColumn={false}
+                        edoPartnerInns={edoPartnerInns}
                     />
                 </motion.div>
                 ) : tableModeEffective ? (
@@ -4198,6 +4214,7 @@ useEffect(() => {
                         onSort={handleTableSort}
                         docsMotionEnabled={docsMotionEnabled}
                         showCustomerColumn={showCustomerColumn}
+                        edoPartnerInns={edoPartnerInns}
                     />
                 </motion.div>
                 ) : edoCargoCardItems.length > 0 ? (
@@ -4209,6 +4226,7 @@ useEffect(() => {
                         isInvoiceFavorite={isInvoiceFavorite}
                         onToggleInvoiceFavorite={toggleInvoiceFavorite}
                         docsMotionEnabled={docsMotionEnabled}
+                        edoPartnerInns={edoPartnerInns}
                     />
                 </motion.div>
                 ) : (
@@ -4220,6 +4238,7 @@ useEffect(() => {
                         onToggleInvoiceFavorite={toggleInvoiceFavorite}
                         docsMotionEnabled={docsMotionEnabled}
                         showEdoCornerBadges
+                        edoPartnerInns={edoPartnerInns}
                     />
                 </motion.div>
                 )

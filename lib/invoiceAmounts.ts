@@ -14,8 +14,14 @@ export function parseDocAmount(val: unknown): number {
   return Number.isFinite(num) ? num : 0;
 }
 
+/** Сумма счёта: первое ненулевое поле (SumDoc=0 не блокирует Sum из 1С). */
 export function invoiceDocSum(inv: Record<string, unknown>): number {
-  return parseDocAmount(inv.SumDoc ?? inv.Sum ?? inv.sum ?? inv.Сумма ?? inv.Amount);
+  const fields = ["Sum", "sum", "Сумма", "Amount", "SumDoc", "SumInvoice", "SumBill", "СуммаДокумента"];
+  for (const key of fields) {
+    const n = parseDocAmount(inv[key]);
+    if (n > 0) return n;
+  }
+  return 0;
 }
 
 function cargoPaidFromRecord(c: Record<string, unknown>): number {

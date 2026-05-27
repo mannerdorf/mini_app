@@ -7,6 +7,7 @@ import { getPayTillDate, getPayTillDateColor } from "../../lib/dateUtils";
 import { DateText } from "../ui/DateText";
 import { StatusBadge } from "../shared/StatusBadges";
 import { RouteBadge } from "../shared/CargoTableDisplay";
+import { invoiceDocSum } from "../../../lib/invoiceAmounts.js";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { DOCUMENT_METHODS } from "../../documentMethods";
 import { getInvoiceEdoInfoByDocLabel } from "../../lib/edoStatus";
@@ -83,7 +84,7 @@ export function InvoiceDetailModal({
     const cargoNumber = getFirstCargoNumberFromInvoice(item);
     const invoiceNumber = (item?.Number ?? item?.number ?? "").toString().trim() || null;
     const cust = item?.Customer ?? item?.customer ?? item?.Контрагент ?? item?.Contractor ?? item?.Organization ?? "";
-    const sum = item?.SumDoc ?? item?.Sum ?? item?.sum ?? item?.Сумма ?? item?.Amount ?? 0;
+    const sum = invoiceDocSum(item ?? {});
 
     const formatDateDocForApi = (raw: unknown): string | null => {
         const s = String(raw ?? "").trim();

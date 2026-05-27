@@ -1,3 +1,4 @@
+import QRCode from "qrcode";
 import type { CompanyPayeeDetails } from "./companyPayeeDetails.js";
 import { invoiceBalance, invoiceDocSum, invoiceSumPaid } from "./invoiceAmounts.js";
 import { getInvoicePaymentFilterKey } from "./invoicePaymentFilter.js";
@@ -62,14 +63,30 @@ export function buildSt00012PaymentPayload(
   return parts.join("|");
 }
 
+/** PNG QR как data: URL — без внешних сервисов (важно для Timeweb VPS и WebView). */
+export async function qrPayloadToDataUrl(payload: string, sizePx = 280): Promise<string> {
+  try {
+    return await QRCode.toDataURL(payload, {
+      width: sizePx,
+      margin: 1,
+      color: { dark: "#2563eb", light: "#ffffff" },
+      errorCorrectionLevel: "M",
+    });
+  } catch {
+    return buildQrImageUrl(payload, sizePx);
+  }
+}
+
+/** @deprecated Внешний fallback; предпочтительно qrPayloadToDataUrl. */
 export function buildQrImageUrl(payload: string, sizePx = 280): string {
   const color = "2563eb";
   const bgcolor = "ffffff";
   return `https://api.qrserver.com/v1/create-qr-code/?size=${sizePx}x${sizePx}&data=${encodeURIComponent(payload)}&color=${color}&bgcolor=${bgcolor}`;
 }
 
-/** Загружает PNG QR на сервере — в WebView мини-приложений внешние img часто не грузятся. */
+/** @deprecated Используйте qrPayloadToDataUrl(payload). */
 export async function embedQrImageAsDataUrl(qrImageUrl: string): Promise<string> {
+  if (qrImageUrl.startsWith("data:")) return qrImageUrl;
   try {
     const res = await fetch(qrImageUrl);
     if (!res.ok) return qrImageUrl;
@@ -94,10 +111,10 @@ export type InvoicePaymentQrResult = {
   invoiceDate: string;
 };
 
-export function buildInvoicePaymentQr(
+export async function buildInvoicePaymentQr(
   payee: CompanyPayeeDetails,
   inv: Record<string, unknown>,
-): InvoicePaymentQrResult | null {
+): Promise<InvoicePaymentQrResult | null> {
   if (!canShowInvoicePaymentQr(inv)) return null;
 
   const invoiceNumber = String(inv.Number ?? inv.number ?? "").trim();
@@ -110,9 +127,10 @@ export function buildInvoicePaymentQr(
   if (amountKopecks <= 0) return null;
 
   const payload = buildSt00012PaymentPayload(payee, { amountKopecks, purpose });
+  const qrImageDataUrl = await qrPayloadToDataUrl(payload);
   return {
     payload,
-    qrImageUrl: buildQrImageUrl(payload),
+    qrImageUrl: qrImageDataUrl,
     purpose,
     amountRub: amountKopecks / 100,
     amountKopecks,

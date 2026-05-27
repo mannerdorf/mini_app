@@ -2,77 +2,10 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { requireCronAuth } from "../_lib/cronAuth.js";
 import { initRequestContext, logError, logInfo } from "../_lib/observability.js";
+import { normalizeKontragentsFrom1c } from "../../lib/normalizeKontragents.js";
 
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
-
-function getStr(el: any, ...keys: string[]): string {
-  if (!el || typeof el !== "object") return "";
-  for (const key of keys) {
-    const value = el[key];
-    if (value != null && value !== "") return String(value).trim();
-  }
-  return "";
-}
-
-function extractCounterpartyArray(raw: unknown): any[] {
-  if (!raw || typeof raw !== "object") return [];
-  if (Array.isArray(raw)) return raw;
-  const obj = raw as Record<string, unknown>;
-  const from =
-    obj.Items ??
-    obj.items ??
-    obj.Customers ??
-    obj.customers ??
-    obj.Counterparties ??
-    obj.counterparties ??
-    obj.Counterpartys ??
-    obj.counterpartys ??
-    obj.Kontragents ??
-    obj.kontragents ??
-    obj.Contragents ??
-    obj.contragents ??
-    obj.Suppliers ??
-    obj.suppliers ??
-    obj.Data ??
-    obj.data ??
-    obj.Result ??
-    obj.result ??
-    obj.Rows ??
-    obj.rows;
-  if (Array.isArray(from)) return from;
-  if (obj.INN != null || obj.Inn != null || obj.inn != null) return [obj];
-  return [];
-}
-
-function normalizeSuppliers(raw: unknown): { inn: string; supplier_name: string; email: string }[] {
-  const arr = extractCounterpartyArray(raw);
-  const byInn = new Map<string, { inn: string; supplier_name: string; email: string }>();
-  for (const el of arr) {
-    if (!el || typeof el !== "object") continue;
-    let inn = getStr(el, "Inn", "INN", "inn", "ИНН", "Code", "code", "Код");
-    inn = inn.replace(/\D/g, "") || inn.trim();
-    if (!inn || (inn.length !== 10 && inn.length !== 12)) continue;
-    const name =
-      getStr(
-        el,
-        "Name",
-        "name",
-        "Supplier",
-        "supplier",
-        "Contragent",
-        "contragent",
-        "Kontragent",
-        "kontragent",
-        "Поставщик",
-        "Контрагент",
-        "Наименование"
-      ) || inn;
-    const email = getStr(el, "Email", "email", "E-mail", "e-mail", "Почта", "Mail");
-    byInn.set(inn, { inn, supplier_name: name, email });
-  }
-  return Array.from(byInn.values());
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "cron/refresh-suppliers-cache");
@@ -115,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(502).json({ error: err, request_id: ctx.requestId });
     }
 
-    const rows = normalizeSuppliers(json);
+    const rows = normalizeKontragentsFrom1c(json);
     if (rows.length === 0) {
       return res.status(502).json({
         error: "1С вернул пустой список поставщиков — кэш не перезаписан",
@@ -128,15 +61,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const inns = rows.map((r) => r.inn);
     const names = rows.map((r) => r.supplier_name);
     const emails = rows.map((r) => r.email);
+    const statuses = rows.map((r) => r.counterparty_status);
     await pool.query(
-      `insert into cache_suppliers (inn, supplier_name, email, fetched_at)
-       select inn, supplier_name, email, now()
-       from unnest($1::text[], $2::text[], $3::text[]) as t(inn, supplier_name, email)
+      `insert into cache_suppliers (inn, supplier_name, email, counterparty_status, fetched_at)
+       select inn, supplier_name, email, counterparty_status, now()
+       from unnest($1::text[], $2::text[], $3::text[], $4::text[]) as t(inn, supplier_name, email, counterparty_status)
        on conflict (inn) do update
          set supplier_name = excluded.supplier_name,
              email = excluded.email,
+             counterparty_status = excluded.counterparty_status,
              fetched_at = now()`,
-      [inns, names, emails]
+      [inns, names, emails, statuses]
     );
 
     logInfo(ctx, "cron_refresh_suppliers_done", { suppliers_count: rows.length });

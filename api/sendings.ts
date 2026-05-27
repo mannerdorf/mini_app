@@ -2,6 +2,10 @@ import type { Pool } from "pg";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser, type VerifiedRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import {
+  getPerevozkiServiceCredentials,
+  shouldServeFromDocumentCache,
+} from "../lib/cacheHistoryDays.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
 const BASE_URL =
@@ -186,6 +190,42 @@ export function sendingsPickInnForRow(item: any): string {
   return pickInn(item);
 }
 
+async function filterRegisteredSendingsList(
+  pool: Pool,
+  verified: VerifiedRegisteredUser,
+  login: string,
+  dateFrom: string,
+  dateTo: string,
+  inn: unknown,
+  serviceMode: unknown,
+  list: any[],
+): Promise<any[]> {
+  const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+  const isService = !!serviceMode;
+  let filterInns: Set<string> | null = null;
+  if (!isService && !verified.accessAllInns) {
+    const acRows = await pool.query<{ inn: string }>(
+      "SELECT inn FROM account_companies WHERE login = $1",
+      [String(login).trim().toLowerCase()],
+    );
+    const allowed = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
+    if (verified.inn?.trim()) allowed.add(verified.inn.trim());
+    filterInns = allowed.size > 0 ? allowed : verified.inn ? new Set([verified.inn]) : null;
+  }
+  const finalInns = isService
+    ? null
+    : filterInns === null
+      ? requestedInn
+        ? new Set([requestedInn])
+        : null
+      : requestedInn
+        ? filterInns.has(requestedInn)
+          ? new Set([requestedInn])
+          : new Set<string>()
+        : filterInns;
+  return filterSendingsCachedByInnAndDate(list, finalInns, dateFrom, dateTo);
+}
+
 /** Кэш отправок для зарегистрированного пользователя. */
 export async function readRegisteredSendingsFromCache(
   pool: Pool,
@@ -207,31 +247,17 @@ export async function readRegisteredSendingsFromCache(
       );
     }
     if (cacheRow.rows.length === 0) return [];
-    const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
-    const isService = !!serviceMode;
-    let filterInns: Set<string> | null = null;
-    if (!isService && !verified.accessAllInns) {
-      const acRows = await pool.query<{ inn: string }>(
-        "SELECT inn FROM account_companies WHERE login = $1",
-        [String(login).trim().toLowerCase()],
-      );
-      const allowed = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
-      if (verified.inn?.trim()) allowed.add(verified.inn.trim());
-      filterInns = allowed.size > 0 ? allowed : verified.inn ? new Set([verified.inn]) : null;
-    }
-    const finalInns = isService
-      ? null
-      : filterInns === null
-        ? requestedInn
-          ? new Set([requestedInn])
-          : null
-        : requestedInn
-          ? filterInns.has(requestedInn)
-            ? new Set([requestedInn])
-            : new Set<string>()
-          : filterInns;
     const list = Array.isArray(cacheRow.rows[0].data) ? (cacheRow.rows[0].data as any[]) : [];
-    const filtered = filterSendingsCachedByInnAndDate(list, finalInns, dateFrom, dateTo);
+    const filtered = await filterRegisteredSendingsList(
+      pool,
+      verified,
+      login,
+      dateFrom,
+      dateTo,
+      inn,
+      serviceMode,
+      list,
+    );
     return attachMetricsToSendings(pool, filtered);
   } catch {
     return [];
@@ -295,6 +321,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const filterCachedItems = (list: any[], finalInns: Set<string> | null) =>
     filterSendingsCachedByInnAndDate(list, finalInns, dateFrom, dateTo);
 
+  const useDocumentCache = shouldServeFromDocumentCache(dateFrom);
+  let registeredVerified: VerifiedRegisteredUser | null = null;
+
   if (isRegisteredUser) {
     try {
       const pool = getPool();
@@ -302,23 +331,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!verified) {
         return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
       }
-      const withMetrics = await readRegisteredSendingsFromCache(
-        pool,
-        verified,
-        login,
-        dateFrom,
-        dateTo,
-        inn,
-        serviceMode,
-      );
-      return res.status(200).json(withMetrics);
+      registeredVerified = verified;
+      if (useDocumentCache) {
+        const withMetrics = await readRegisteredSendingsFromCache(
+          pool,
+          verified,
+          login,
+          dateFrom,
+          dateTo,
+          inn,
+          serviceMode,
+        );
+        return res.status(200).json(withMetrics);
+      }
     } catch (e) {
       logError(ctx, "sendings_registered_user_failed", e);
       return res.status(200).json([]);
     }
   }
 
-  try {
+  if (useDocumentCache) try {
     const pool = getPool();
     let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
       "SELECT data, fetched_at FROM cache_sendings WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
@@ -362,11 +394,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     url.searchParams.set("INN", String(inn).trim());
   }
 
+  let upstreamLogin = String(login);
+  let upstreamPassword = String(password);
+  if (isRegisteredUser && registeredVerified) {
+    const serviceCreds = getPerevozkiServiceCredentials();
+    if (!serviceCreds) {
+      return res.status(503).json({
+        error: "Service credentials are not configured",
+        request_id: ctx.requestId,
+      });
+    }
+    upstreamLogin = serviceCreds.login;
+    upstreamPassword = serviceCreds.password;
+    const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+    if (requestedInn) url.searchParams.set("INN", requestedInn);
+  }
+
   try {
     const upstream = await fetch(url.toString(), {
       method: "GET",
       headers: {
-        Auth: `Basic ${login}:${password}`,
+        Auth: `Basic ${upstreamLogin}:${upstreamPassword}`,
         Authorization: SERVICE_AUTH,
       },
     });
@@ -388,7 +436,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const errorText = typeof message === "string" && message.trim() ? message.trim() : "Ошибка авторизации";
         return res.status(401).json({ error: errorText, request_id: ctx.requestId });
       }
-      return res.status(200).json(extractItems(json));
+      let list = extractItems(json);
+      if (isRegisteredUser && registeredVerified) {
+        try {
+          const pool = getPool();
+          list = await filterRegisteredSendingsList(
+            pool,
+            registeredVerified,
+            login,
+            dateFrom,
+            dateTo,
+            inn,
+            serviceMode,
+            list,
+          );
+          list = await attachMetricsToSendings(pool, list);
+        } catch (e) {
+          logError(ctx, "sendings_registered_1c_filter_failed", e);
+          list = [];
+        }
+      }
+      return res.status(200).json(list);
     } catch {
       return res.status(200).send(text);
     }

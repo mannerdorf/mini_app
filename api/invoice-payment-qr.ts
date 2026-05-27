@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { loadCompanyPayeeDetails } from "../lib/companyPayeeDetails.js";
-import { buildInvoicePaymentQr, embedQrImageAsDataUrl } from "../lib/invoicePaymentQr.js";
+import { buildInvoicePaymentQr, qrPayloadToDataUrl } from "../lib/invoicePaymentQr.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
@@ -52,7 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const qr = buildInvoicePaymentQr(payee, invoice);
+    const qr = await buildInvoicePaymentQr(payee, invoice);
     if (!qr) {
       return res.status(400).json({
         error: "По этому счёту нет суммы к оплате",
@@ -61,7 +61,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const qrImageDataUrl = await embedQrImageAsDataUrl(qr.qrImageUrl);
+    const qrImageDataUrl = qr.qrImageUrl.startsWith("data:")
+      ? qr.qrImageUrl
+      : await qrPayloadToDataUrl(qr.payload);
 
     return res.status(200).json({
       configured: true,
