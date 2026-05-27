@@ -103,6 +103,7 @@ export function UnpaidInvoicesPlanMonitor({
           </Typography.Label>
         </Flex>
       ) : (
+        <>
         <div
           className={
             tableScrollable
@@ -170,6 +171,7 @@ export function UnpaidInvoicesPlanMonitor({
             Все счета в разделе «Счета»
           </button>
         )}
+        </>
       )}
     </div>
   );
