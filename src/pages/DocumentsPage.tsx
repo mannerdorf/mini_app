@@ -2022,7 +2022,6 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             return buildFilteredInvoices({
                 items,
                 activeInn: effectiveActiveInn,
-                activeCustomerName: runtime.activeCustomerName,
                 useServiceRequest: effectiveServiceMode,
                 customerFilter,
                 invoiceFavoritesOnly: scoped.invoiceFavoritesOnly,
@@ -2047,7 +2046,6 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             invoiceFilterInputs,
             items,
             effectiveActiveInn,
-            runtime.activeCustomerName,
             effectiveServiceMode,
             customerFilter,
             transportLinkedCargoNumbers,
@@ -2107,7 +2105,6 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
         return buildFilteredActs({
             sortedActs,
             activeInn: effectiveActiveInn,
-            activeCustomerName: runtime.activeCustomerName,
             useServiceRequest: effectiveServiceMode,
             actCustomerFilter,
             searchText: effectiveSearchText,
@@ -2118,7 +2115,7 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             cargoTransportByNumber,
             invoices: items,
         });
-    }, [sortedActs, effectiveActiveInn, runtime.activeCustomerName, effectiveServiceMode, actCustomerFilter, effectiveSearchText, edoStatusFilterSet, transportFilter, transportLinkedCargoNumbers, getFirstCargoNumberFromInvoice, cargoTransportByNumber, normCargoKey, items]);
+    }, [sortedActs, effectiveActiveInn, effectiveServiceMode, actCustomerFilter, effectiveSearchText, edoStatusFilterSet, transportFilter, transportLinkedCargoNumbers, getFirstCargoNumberFromInvoice, cargoTransportByNumber, normCargoKey, items]);
 
     const actsSummary = useMemo(
         () => buildActsSummary(filteredActs, perevozkiItems),
