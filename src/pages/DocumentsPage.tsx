@@ -34,7 +34,7 @@ import {
     collectUniqueInvoiceEdoTableLabels,
     getCachedDocumentEdoInfo,
 } from "../lib/edoStatus";
-import { normalizeKontragentInn } from "../lib/edoCounterpartyStatus";
+import { normalizeKontragentInn, type EdoCounterpartyFilter } from "../lib/edoCounterpartyStatus";
 import {
     loadDateFilterState,
     saveDateFilterState,
@@ -1148,6 +1148,8 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [isSverkiCustomerDropdownOpen, setIsSverkiCustomerDropdownOpen] = useState(false);
     const [isDogovorsCustomerDropdownOpen, setIsDogovorsCustomerDropdownOpen] = useState(false);
     const [edoPartnerInns, setEdoPartnerInns] = useState<Set<string>>(() => new Set());
+    const [edoCounterpartyFilter, setEdoCounterpartyFilter] = useState<EdoCounterpartyFilter>("all");
+    const [isEdoCounterpartyDropdownOpen, setIsEdoCounterpartyDropdownOpen] = useState(false);
     const [isTariffsCustomerDropdownOpen, setIsTariffsCustomerDropdownOpen] = useState(false);
     const [isTariffsRouteDropdownOpen, setIsTariffsRouteDropdownOpen] = useState(false);
     const [isTariffsTypeDropdownOpen, setIsTariffsTypeDropdownOpen] = useState(false);
@@ -1168,6 +1170,9 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const routeCargoButtonRef = useRef<HTMLDivElement | null>(null);
     const transportButtonRef = useRef<HTMLDivElement | null>(null);
     const edoStatusButtonRef = useRef<HTMLDivElement | null>(null);
+    const edoCounterpartyButtonRef = useRef<HTMLDivElement | null>(null);
+    const edoCounterpartyFilterLabel =
+        edoCounterpartyFilter === "with" ? "С ЭДО" : edoCounterpartyFilter === "without" ? "Без ЭДО" : "Все";
     const actCustomerButtonRef = useRef<HTMLDivElement | null>(null);
     const sverkiCustomerButtonRef = useRef<HTMLDivElement | null>(null);
     const dogovorsCustomerButtonRef = useRef<HTMLDivElement | null>(null);
@@ -2020,6 +2025,7 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             invoiceFavoritesOnly,
             edoStatusFilterSet,
             transportFilter,
+            edoCounterpartyFilter,
         }),
         [
             billStatusFilterSet,
@@ -2029,6 +2035,7 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             invoiceFavoritesOnly,
             edoStatusFilterSet,
             transportFilter,
+            edoCounterpartyFilter,
         ],
     );
 
@@ -2049,6 +2056,8 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
                 transportLinkedCargoNumbers,
                 searchText: effectiveSearchText,
                 edoStatusFilterSet: scoped.edoStatusFilterSet,
+                edoCounterpartyFilter: section === "ЭДО" ? edoCounterpartyFilter : "all",
+                edoPartnerInns: section === "ЭДО" ? edoPartnerInns : undefined,
                 sortBy,
                 sortOrder,
                 isInvoiceFavorite,
@@ -2060,6 +2069,8 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
         },
         [
             invoiceFilterInputs,
+            edoCounterpartyFilter,
+            edoPartnerInns,
             items,
             effectiveActiveInn,
             effectiveServiceMode,
@@ -3701,7 +3712,7 @@ useEffect(() => {
                         {(docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'УПД' || docSection === 'Договоры' || docSection === 'Акты сверок') && (
                         <>
                         <div ref={edoStatusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsEdoStatusDropdownOpen(!isEdoStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsEdoStatusDropdownOpen(!isEdoStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsTransportDropdownOpen(false); setIsEdoCounterpartyDropdownOpen(false); }}>
                                 Статус ЭДО: {edoStatusFilterSet.size === 0 ? 'Все' : edoStatusFilterSet.size === 1 ? [...edoStatusFilterSet][0] : `Выбрано: ${edoStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -3712,6 +3723,20 @@ useEffect(() => {
                                     <Typography.Body>{s} {edoStatusFilterSet.has(s) ? '✓' : ''}</Typography.Body>
                                 </div>
                             ))}
+                        </FilterDropdownPortal>
+                        </>
+                        )}
+                        {docSection === 'ЭДО' && (
+                        <>
+                        <div ref={edoCounterpartyButtonRef} style={{ display: 'inline-flex' }}>
+                            <Button className="filter-button" onClick={() => { setIsEdoCounterpartyDropdownOpen(!isEdoCounterpartyDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsTransportDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
+                                Контрагент: {edoCounterpartyFilterLabel} <ChevronDown className="w-4 h-4"/>
+                            </Button>
+                        </div>
+                        <FilterDropdownPortal triggerRef={edoCounterpartyButtonRef} isOpen={isEdoCounterpartyDropdownOpen} onClose={() => setIsEdoCounterpartyDropdownOpen(false)}>
+                            <div className="dropdown-item" onClick={() => { setEdoCounterpartyFilter('all'); setIsEdoCounterpartyDropdownOpen(false); }} style={{ background: edoCounterpartyFilter === 'all' ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Все {edoCounterpartyFilter === 'all' ? '✓' : ''}</Typography.Body></div>
+                            <div className="dropdown-item" onClick={() => { setEdoCounterpartyFilter('with'); setIsEdoCounterpartyDropdownOpen(false); }} style={{ background: edoCounterpartyFilter === 'with' ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>С ЭДО {edoCounterpartyFilter === 'with' ? '✓' : ''}</Typography.Body></div>
+                            <div className="dropdown-item" onClick={() => { setEdoCounterpartyFilter('without'); setIsEdoCounterpartyDropdownOpen(false); }} style={{ background: edoCounterpartyFilter === 'without' ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Без ЭДО {edoCounterpartyFilter === 'without' ? '✓' : ''}</Typography.Body></div>
                         </FilterDropdownPortal>
                         </>
                         )}

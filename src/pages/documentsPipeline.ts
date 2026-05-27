@@ -1,4 +1,5 @@
 import { invoiceDocSum } from "../../lib/invoiceAmounts.js";
+import { innIsEdoPartner, type EdoCounterpartyFilter } from "../lib/edoCounterpartyStatus";
 import { cityToCode, normalizeInvoiceStatus, parseCargoNumbersFromText, stripOoo } from "../lib/formatUtils";
 import { coerceStatusDisplay, getFilterKeyByStatus, getInvoicePaymentFilterKey } from "../lib/statusUtils";
 import {
@@ -416,6 +417,8 @@ type FilterInvoicesParams = {
   transportLinkedCargoNumbers?: Set<string>;
   searchText: string;
   edoStatusFilterSet: Set<string>;
+  edoCounterpartyFilter?: EdoCounterpartyFilter;
+  edoPartnerInns?: ReadonlySet<string>;
   sortBy: "date" | null;
   sortOrder: "asc" | "desc";
   isInvoiceFavorite: (num: string | undefined) => boolean;
@@ -494,6 +497,16 @@ export function resolveInvoiceFiltersForDocSection(
   };
 }
 
+export function invoiceMatchesEdoCounterpartyFilter(
+  inv: any,
+  filter: EdoCounterpartyFilter,
+  edoPartnerInns?: ReadonlySet<string>,
+): boolean {
+  if (filter === "all") return true;
+  const isPartner = innIsEdoPartner(edoPartnerInns, getItemInn(inv));
+  return filter === "with" ? isPartner : !isPartner;
+}
+
 export function sendingRowMatchesTransportFilter(
   row: any,
   transportFilter: string,
@@ -525,6 +538,8 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
     transportFilter,
     searchText,
     edoStatusFilterSet,
+    edoCounterpartyFilter = "all",
+    edoPartnerInns,
     sortBy,
     sortOrder,
     isInvoiceFavorite,
@@ -584,6 +599,9 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
   }
   if (edoStatusFilterSet.size > 0) {
     res = res.filter((i) => invoiceMatchesEdoStatusFilter(i, edoStatusFilterSet));
+  }
+  if (edoCounterpartyFilter !== "all") {
+    res = res.filter((i) => invoiceMatchesEdoCounterpartyFilter(i, edoCounterpartyFilter, edoPartnerInns));
   }
   const getDate = (r: any) => (r.Date ?? r.date ?? r.Дата ?? r.DateDoc ?? "").toString();
   if (sortBy === "date") {

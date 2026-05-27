@@ -62,8 +62,8 @@ export function DocumentsEdoCardBadge({
 /** Контрагент из GETALLKontragents со статусом IsMyCounteragent — работаем по ЭДО. */
 export function DocumentsEdoPartnerBadge() {
   return (
-    <AppBadge tone="success" title="Работаем с контрагентом по ЭДО (IsMyCounteragent)">
-      Контрагент ЭДО
+    <AppBadge tone="success" title="Работаем с контрагентом по ЭДО">
+      ЭДО
     </AppBadge>
   );
 }

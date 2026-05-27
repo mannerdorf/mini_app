@@ -1,5 +1,8 @@
 export const EDO_MY_COUNTERPARTY_STATUS = "IsMyCounteragent";
 
+/** Фильтр контрагента по признаку IsMyCounteragent (работаем по ЭДО). */
+export type EdoCounterpartyFilter = "all" | "with" | "without";
+
 export function isEdoMyCounterpartyStatus(status: string | null | undefined): boolean {
   const s = String(status ?? "").trim();
   if (!s) return false;
