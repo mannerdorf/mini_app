@@ -5,6 +5,7 @@ import { dispatchWebPushCargoEvents } from "../_lib/webpushEventDispatch.js";
 import { requireCronAuth } from "../_lib/cronAuth.js";
 import { cacheHistoryDateFrom, CACHE_HISTORY_DAYS } from "../../lib/cacheHistoryDays.js";
 import { initRequestContext, logError, logInfo } from "../_lib/observability.js";
+import { handleRefreshCacheChunk } from "./_refreshCacheChunk.js";
 
 const PEREVOZKI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
 const INVOICES_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetIinvoices";
@@ -64,6 +65,8 @@ function normalizeCacheCustomers(raw: unknown): { inn: string; customer_name: st
 const CACHE_FRESH_MINUTES = 15;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  return handleRefreshCacheChunk(req, res);
+
   const ctx = initRequestContext(req, res, "cron/refresh-cache");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");

@@ -3,7 +3,9 @@
  * OPTIONS не доходит до serverless-функций, иначе многие вернули бы 405.
  */
 export const config = {
-    matcher: "/api/:path*",
+    // Long-running cron functions must bypass Edge middleware; otherwise the
+    // middleware waits on fetch(request) and hits MIDDLEWARE_INVOCATION_TIMEOUT.
+    matcher: "/api/((?!cron/).*)",
 };
 
 const CORS_HEADERS: Record<string, string> = {

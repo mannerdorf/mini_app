@@ -3,6 +3,7 @@ import { getPool } from "../_db.js";
 import { requireCronAuth } from "../_lib/cronAuth.js";
 import { cacheHistoryDateFrom, CACHE_HISTORY_DAYS } from "../../lib/cacheHistoryDays.js";
 import { initRequestContext, logError, logInfo } from "../_lib/observability.js";
+import { handleRefreshOrdersCacheChunk } from "./_refreshCacheChunk.js";
 
 const ZAYAVKI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetZayavki";
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
@@ -43,6 +44,8 @@ function escapeHtml(input: string): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  return handleRefreshOrdersCacheChunk(req, res);
+
   const ctx = initRequestContext(req, res, "cron/refresh-orders-cache");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
