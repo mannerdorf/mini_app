@@ -34,7 +34,8 @@
     "api/cron/weekly-partner-summary.ts": {"maxDuration": 300},
     "api/admin-weekly-summary.ts": {"maxDuration": 300},
     "api/invoices.ts": {"maxDuration": 300},
-    "api/perevozki.ts": {"maxDuration": 300}
+    "api/perevozki.ts": {"maxDuration": 300},
+    "api/service-refresh-from-1c.ts": {"maxDuration": 300}
   },
   "rewrites": [
     {"source": "/admin", "destination": "/"},

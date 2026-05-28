@@ -25,6 +25,7 @@ import { useCargoTransportFilter, usePerevozkiMultiAccounts, useSendings } from 
 import { useCargoNomenclatureSearch } from "../hooks/useCargoNomenclatureSearch";
 import { CARGO_ROLE_FILTER_LABELS, pickupLogisticsFilterLabel, type CargoRoleFilterKey } from "../lib/cargoUtils";
 import { buildRouteTypePlanDaysMap, getEffectivePlannedDeliveryDate } from "../lib/cargoPlannedDelivery";
+import { ServiceRefreshFrom1cButton } from "../components/ServiceRefreshFrom1cButton";
 import { CargoSummaryCard, CargoStateBlocks } from "./cargoViewBlocks";
 import { CargoCustomerTable, CargoCardsList } from "./cargoCollectionViews";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
@@ -607,6 +608,16 @@ export function CargoPage({
             <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <Typography.Headline className="text-page-title">Грузы</Typography.Headline>
                 <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                    {effectiveServiceMode && primaryAuth ? (
+                        <ServiceRefreshFrom1cButton
+                            auth={primaryAuth}
+                            dateFrom={apiDateRange.dateFrom}
+                            dateTo={apiDateRange.dateTo}
+                            kinds={["perevozki"]}
+                            onRefreshed={() => mutatePerevozki(undefined, { revalidate: true })}
+                            compact
+                        />
+                    ) : null}
                     <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
                     <span className="roles-switch-wrap" style={{ display: 'inline-flex' }} aria-label={tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}>
                         <TapSwitch checked={tableModeByCustomer} onToggle={() => setTableModeByCustomer(v => !v)} />

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useActs, useInvoices, useOrders, usePerevozki, useSendings } from "../hooks/useApi";
+import { postServiceRefreshFrom1c, serviceRefreshKindsForDocumentsSection } from "../lib/serviceRefreshFrom1c";
 import type { AuthData } from "../types";
 
 type DocSectionKey = 'Счета' | 'ЭДО' | 'УПД' | 'Заявки' | 'Отправки' | 'Претензии' | 'Договоры' | 'Акты сверок' | 'Тарифы';
@@ -91,7 +92,20 @@ export function useDocumentsDataLoad(params: Params) {
 
   useEffect(() => {
     if (!useServiceRequest) return;
-    const handler = () => {
+    const handler = async () => {
+      const kinds = serviceRefreshKindsForDocumentsSection(docSection);
+      if (kinds.length > 0) {
+        try {
+          await postServiceRefreshFrom1c({
+            auth,
+            dateFrom: apiDateRange.dateFrom,
+            dateTo: apiDateRange.dateTo,
+            kinds,
+          });
+        } catch {
+          /* best-effort for header refresh icon */
+        }
+      }
       if (loadInvoices) void mutateInvoices(undefined, { revalidate: true });
       if (loadPerevozki) void mutatePerevozki(undefined, { revalidate: true });
       if (loadActs) void mutateActs(undefined, { revalidate: true });
@@ -100,7 +114,23 @@ export function useDocumentsDataLoad(params: Params) {
     };
     window.addEventListener("haulz-service-refresh", handler);
     return () => window.removeEventListener("haulz-service-refresh", handler);
-  }, [useServiceRequest, loadInvoices, loadPerevozki, loadActs, loadOrders, loadSendings, mutateInvoices, mutatePerevozki, mutateActs, mutateOrders, mutateSendings]);
+  }, [
+    useServiceRequest,
+    auth,
+    docSection,
+    apiDateRange.dateFrom,
+    apiDateRange.dateTo,
+    loadInvoices,
+    loadPerevozki,
+    loadActs,
+    loadOrders,
+    loadSendings,
+    mutateInvoices,
+    mutatePerevozki,
+    mutateActs,
+    mutateOrders,
+    mutateSendings,
+  ]);
 
   return {
     items,

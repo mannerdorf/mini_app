@@ -2092,8 +2092,8 @@ export default function App() {
                                             window.setTimeout(() => setServiceRefreshSpinning(false), 1500);
                                             window.dispatchEvent(new CustomEvent('haulz-service-refresh'));
                                         }}
-                                        title="Обновить данные"
-                                        aria-label="Обновить данные"
+                                        title="Обновить из 1С (период текущей вкладки)"
+                                        aria-label="Обновить из 1С"
                                         disabled={serviceRefreshSpinning}
                                     >
                                         {serviceRefreshSpinning ? (

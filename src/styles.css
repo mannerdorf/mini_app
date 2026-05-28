@@ -3700,9 +3700,27 @@ body {
         row-gap: 0.35rem;
     }
 
-    .documents-edo-monitor-card__header-actions {
-        flex-shrink: 0;
-    }
+.documents-edo-monitor-card__header-actions {
+    flex-shrink: 0;
+}
+
+.documents-edo-inn-cell__copy {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 0.15rem;
+    margin: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 4px;
+    line-height: 0;
+}
+
+.documents-edo-inn-cell__copy:hover {
+    background: var(--color-bg-hover);
+}
 
     .documents-edo-monitor-table__grid {
         table-layout: fixed;
@@ -3734,8 +3752,8 @@ body {
         writing-mode: horizontal-tb;
         transform: none;
         height: auto;
-        width: 34%;
-        max-width: 34%;
+        width: 28%;
+        max-width: 28%;
         text-align: left;
         white-space: nowrap;
         overflow: hidden;
@@ -3744,12 +3762,29 @@ body {
 
     .documents-edo-monitor-table__grid th:nth-child(2),
     .documents-edo-monitor-table__grid td:nth-child(2) {
-        width: 11%;
+        writing-mode: horizontal-tb;
+        transform: none;
+        height: auto;
+        width: 18%;
+        max-width: 18%;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
-    .documents-edo-monitor-table__grid th:nth-child(n + 3),
-    .documents-edo-monitor-table__grid td:nth-child(n + 3) {
-        width: 13.75%;
+    .documents-edo-monitor-table__grid th:nth-child(3),
+    .documents-edo-monitor-table__grid td:nth-child(3) {
+        width: 10%;
+        writing-mode: horizontal-tb;
+        transform: none;
+        height: auto;
+        text-align: right;
+    }
+
+    .documents-edo-monitor-table__grid th:nth-child(n + 4),
+    .documents-edo-monitor-table__grid td:nth-child(n + 4) {
+        width: 11%;
         text-align: right;
         font-variant-numeric: tabular-nums;
     }

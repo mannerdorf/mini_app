@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Heart, Loader2, AlertTriangle, Share2, Ship, Truck } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronUp, Copy, Heart, Loader2, AlertTriangle, Share2, Ship, Truck } from "lucide-react";
 import { invoiceDocSum } from "../../lib/invoiceAmounts.js";
 import { cityToCode, formatCurrency, formatInvoiceNumber, normalizeInvoiceStatus, stripOoo } from "../lib/formatUtils";
 import { ClickableCargoNumber, ClickableInvoiceNumber } from "../components/ui/EntityLinks";
@@ -77,6 +77,60 @@ function rowHasEdoPartner(items: any[], edoPartnerInns?: ReadonlySet<string>): b
 }
 
 export type EdoMonitorCustomerRow = { customer: string; items: any[]; sum: number };
+
+function pickRowInn(items: any[]): string {
+  for (const item of items) {
+    const inn = getItemInn(item);
+    if (inn) return inn;
+  }
+  return "";
+}
+
+function DocumentsInnCopyCell({ inn }: { inn: string }) {
+  const [copied, setCopied] = useState(false);
+  const display = inn || "—";
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!inn) return;
+    const done = () => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    };
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      void navigator.clipboard.writeText(inn).then(done).catch(() => {});
+      return;
+    }
+    done();
+  };
+
+  return (
+    <Flex align="center" gap="0.3rem" className="documents-edo-inn-cell" style={{ minWidth: 0 }}>
+      <span
+        className="documents-edo-inn-cell__value"
+        style={{ fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+        title={inn || undefined}
+      >
+        {display}
+      </span>
+      {inn ? (
+        <button
+          type="button"
+          className="documents-edo-inn-cell__copy"
+          onClick={handleCopy}
+          title={copied ? "Скопировано" : "Скопировать ИНН"}
+          aria-label={copied ? "ИНН скопирован" : "Скопировать ИНН"}
+        >
+          {copied ? (
+            <Check className="w-3.5 h-3.5" style={{ color: "var(--color-success, #22c55e)" }} />
+          ) : (
+            <Copy className="w-3.5 h-3.5" style={{ color: "var(--color-text-secondary)" }} />
+          )}
+        </button>
+      ) : null}
+    </Flex>
+  );
+}
 
 type EdoMonitorTableProps = {
   rows: EdoMonitorCustomerRow[];
@@ -353,7 +407,7 @@ export function DocumentsEdoMonitorGroupedTable({
   edoPartnerInns,
 }: EdoMonitorTableProps) {
   const edoColCount = INVOICE_EDO_MERGED_COLUMNS.length;
-  const baseColCount = (showCustomerColumn ? 2 : 1) + edoColCount;
+  const baseColCount = (showCustomerColumn ? 3 : 1) + edoColCount;
 
   if (flatDirectItems && flatDirectItems.length > 0) {
     return (
@@ -403,6 +457,14 @@ export function DocumentsEdoMonitorGroupedTable({
                   ) : (
                     <ArrowDown className="w-3 h-3" style={{ verticalAlign: "middle", marginLeft: 2, display: "inline-block" }} />
                   ))}
+              </th>
+            ) : null}
+            {showCustomerColumn ? (
+              <th
+                className="documents-edo-inn-col"
+                style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600, whiteSpace: "nowrap" }}
+              >
+                ИНН
               </th>
             ) : null}
             <th
@@ -462,6 +524,11 @@ export function DocumentsEdoMonitorGroupedTable({
                       </Flex>
                     </td>
                   ) : null}
+                  {showCustomerColumn ? (
+                    <td className="documents-edo-inn-col" style={{ padding: "0.5rem 0.4rem", maxWidth: 140 }} onClick={(e) => e.stopPropagation()}>
+                      <DocumentsInnCopyCell inn={pickRowInn(row.items)} />
+                    </td>
+                  ) : null}
                   <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>{row.items.length}</td>
                   {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
                     <td
@@ -506,6 +573,11 @@ export function DocumentsEdoMonitorGroupedTable({
             ) : (
               <td style={{ padding: "0.5rem 0.4rem", fontWeight: 700 }}>Итого</td>
             )}
+            {showCustomerColumn ? (
+              <td className="documents-edo-inn-col" style={{ padding: "0.5rem 0.4rem", fontWeight: 700, color: "var(--color-text-secondary)" }}>
+                —
+              </td>
+            ) : null}
             <td style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 700 }}>{invoicesCount}</td>
             {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
               <td
@@ -572,12 +644,22 @@ export function DocumentsEdoMonitorGroupedCards({
                 title={isExpanded ? "Свернуть" : "Показать счета"}
               >
                 <Flex className="documents-edo-monitor-card__header" justify="space-between" align="start" style={{ marginBottom: "0.55rem", minWidth: 0, gap: "0.5rem" }}>
-                  <Flex align="center" gap="0.35rem" wrap="wrap" style={{ minWidth: 0, flex: 1 }}>
-                    <Typography.Body className="documents-edo-monitor-card__customer" style={{ fontWeight: 600, fontSize: "1rem", minWidth: 0 }} title={customerLabel}>
-                      {customerLabel}
-                    </Typography.Body>
-                    {rowHasEdoPartner(row.items, edoPartnerInns) ? <DocumentsEdoPartnerBadge /> : null}
-                  </Flex>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <Flex align="center" gap="0.35rem" wrap="wrap" style={{ minWidth: 0 }}>
+                      <Typography.Body className="documents-edo-monitor-card__customer" style={{ fontWeight: 600, fontSize: "1rem", minWidth: 0 }} title={customerLabel}>
+                        {customerLabel}
+                      </Typography.Body>
+                      {rowHasEdoPartner(row.items, edoPartnerInns) ? <DocumentsEdoPartnerBadge /> : null}
+                    </Flex>
+                    {(() => {
+                      const rowInn = pickRowInn(row.items);
+                      return rowInn ? (
+                        <div style={{ marginTop: "0.25rem" }} onClick={(e) => e.stopPropagation()}>
+                          <DocumentsInnCopyCell inn={rowInn} />
+                        </div>
+                      ) : null;
+                    })()}
+                  </div>
                   <Flex className="documents-edo-monitor-card__header-actions" align="center" gap="0.35rem">
                     <AppBadge tone="neutral">{row.items.length} сч.</AppBadge>
                     {isExpanded ? (

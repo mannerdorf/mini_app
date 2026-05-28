@@ -3,6 +3,8 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { ChevronDown, ChevronUp, ArrowUp, ArrowDown, Share2, Heart, Ship, Loader2, Truck, Download } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
+import { ServiceRefreshFrom1cButton } from "../components/ServiceRefreshFrom1cButton";
+import { serviceRefreshKindsForDocumentsSection } from "../lib/serviceRefreshFrom1c";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
 import { InvoiceDetailModal } from "../components/modals/InvoiceDetailModal";
@@ -1233,6 +1235,10 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         sendingsLoading,
         perevozkiItems: perevozkiItemsBase,
         perevozkiLoading,
+        mutateInvoices,
+        mutatePerevozki,
+        mutateActs,
+        mutateSendings,
     } = useDocumentsDataLoad({
         auth,
         activeInn: effectiveActiveInn,
@@ -3308,6 +3314,23 @@ useEffect(() => {
                 <Flex align="center" justify="space-between" style={{ marginBottom: '0.3rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <Typography.Headline className="text-page-title">Документы</Typography.Headline>
                     <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                        {effectiveServiceMode && serviceRefreshKindsForDocumentsSection(docSection).length > 0 ? (
+                            <ServiceRefreshFrom1cButton
+                                auth={auth}
+                                dateFrom={apiDateRange.dateFrom}
+                                dateTo={apiDateRange.dateTo}
+                                kinds={serviceRefreshKindsForDocumentsSection(docSection)}
+                                compact
+                                onRefreshed={async () => {
+                                    const kinds = serviceRefreshKindsForDocumentsSection(docSection);
+                                    if (kinds.includes("invoices")) await mutateInvoices(undefined, { revalidate: true });
+                                    if (kinds.includes("perevozki")) await mutatePerevozki(undefined, { revalidate: true });
+                                    if (kinds.includes("acts")) await mutateActs(undefined, { revalidate: true });
+                                    if (kinds.includes("orders")) await mutateOrders(undefined, { revalidate: true });
+                                    if (kinds.includes("sendings")) await mutateSendings(undefined, { revalidate: true });
+                                }}
+                            />
+                        ) : null}
                         <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
                         <span className="roles-switch-wrap" style={{ display: 'inline-flex' }} aria-label={tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}>
                             <TapSwitch checked={tableModeByCustomer} onToggle={() => setTableModeByCustomer(v => !v)} />

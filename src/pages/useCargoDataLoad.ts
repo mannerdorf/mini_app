@@ -3,6 +3,7 @@ import {
   usePerevozkiMultiAccounts,
   usePrevPeriodPerevozki,
 } from "../hooks/useApi";
+import { postServiceRefreshFrom1c } from "../lib/serviceRefreshFrom1c";
 import type { AuthData, CargoItem } from "../types";
 
 type Params = {
@@ -56,11 +57,23 @@ export function useCargoDataLoad(params: Params) {
   });
 
   useEffect(() => {
-    if (!useServiceRequest) return;
-    const handler = () => void mutatePerevozki(undefined, { revalidate: true });
+    if (!useServiceRequest || !primaryAuth) return;
+    const handler = async () => {
+      try {
+        await postServiceRefreshFrom1c({
+          auth: primaryAuth,
+          dateFrom: apiDateRange.dateFrom,
+          dateTo: apiDateRange.dateTo,
+          kinds: ["perevozki"],
+        });
+      } catch {
+        /* UI may show error from button; header refresh is best-effort */
+      }
+      void mutatePerevozki(undefined, { revalidate: true });
+    };
     window.addEventListener("haulz-service-refresh", handler);
     return () => window.removeEventListener("haulz-service-refresh", handler);
-  }, [useServiceRequest, mutatePerevozki]);
+  }, [useServiceRequest, primaryAuth, apiDateRange.dateFrom, apiDateRange.dateTo, mutatePerevozki]);
 
   useEffect(() => {
     const customerItem = items.find((item: CargoItem) => item.Customer);
