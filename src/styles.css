@@ -3224,8 +3224,8 @@ body {
 
 }
 
-@media (max-width: 1024px) {
-    .cargo-details-tiles-row {
+@media (max-width: 1024px) and (min-width: 769px) {
+    .cargo-details-tiles-row:not(.cargo-details-tiles-row--finance) {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
@@ -3365,15 +3365,15 @@ body {
         gap: 0.35rem;
     }
 
-    /* Остаток + статус счёта — в одну линию */
-    .cargo-details-modal-rows .cargo-details-tiles-row--balance {
+    /* Финансы: 2×2 на мобиле */
+    .cargo-details-modal-rows .cargo-details-tiles-row--finance {
         display: grid;
         grid-column: 1 / -1;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 0.35rem;
     }
 
-    .cargo-details-modal-rows .cargo-details-tiles-row--balance .details-item-modal.highlighted-detail {
+    .cargo-details-modal-rows .cargo-details-tiles-row--finance .details-item-modal.highlighted-detail {
         grid-column: auto;
     }
 
@@ -3455,6 +3455,12 @@ body {
 
     .cargo-details-customer-tile-grid {
         display: block;
+    }
+
+    .cargo-details-modal-rows .cargo-details-tiles-row--finance {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: var(--element-gap, 16px);
     }
 
     .cargo-details-modal-rows .cargo-details-tiles-row--service {

@@ -228,7 +228,7 @@ export function CargoDetailsModal({
         }
     };
 
-    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'Sum_paid', 'SumPaid', 'sum_paid', 'sumPaid', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', 'PZV_Sender', 'PZV_Receiver', 'PZV_Sender_Id', 'PZV_Receiver_Id', '_role', '_roles', 'Driver', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel', 'CitySender', 'CityReceiver', 'UPD', 'upd', 'BillNum', 'Bill_Number', 'billnum', 'bill_number'];
+    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'Sum_paid', 'SumPaid', 'sum_paid', 'sumPaid', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', 'PZV_Sender', 'PZV_Receiver', 'PZV_Sender_Id', 'PZV_Receiver_Id', '_role', '_roles', 'Driver', 'DriverTel', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel', 'CitySender', 'CityReceiver', 'UPD', 'upd', 'BillNum', 'Bill_Number', 'billnum', 'bill_number'];
     const parseAmount = (val: unknown): number => {
         if (val === undefined || val === null || (typeof val === 'string' && val.trim() === '')) return 0;
         const num = typeof val === 'string' ? parseFloat(val.replace(',', '.')) : Number(val);
@@ -253,9 +253,8 @@ export function CargoDetailsModal({
         autoReg: String((item as any).LMAutoReg ?? '').trim(),
         autoType: String((item as any).LMAutoType ?? '').trim(),
         driver: String((item as any).LMDriver ?? '').trim(),
-        driverTel: String((item as any).LMDriverTel ?? '').trim(),
     };
-    const hasLastMileBlock = Boolean(lastMile.autoReg || lastMile.autoType || lastMile.driver || lastMile.driverTel);
+    const hasLastMileBlock = Boolean(lastMile.autoReg || lastMile.autoType || lastMile.driver);
 
     let updRaw: string | null = null;
     let billRaw: string | null = null;
@@ -477,20 +476,16 @@ export function CargoDetailsModal({
                             )}
                         </div>
                         {isCustomerRole && showSums && (
-                            <>
-                                <div className="cargo-details-tiles-row">
-                                    <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />
-                                    <DetailItem label="Оплачено" value={formatCurrency(cargoSumPaid)} />
-                                </div>
-                                <div className="cargo-details-tiles-row cargo-details-tiles-row--balance">
-                                    <DetailItem
-                                        label="Остаток"
-                                        value={formatCurrency(cargoBalance)}
-                                        textColor={getSumColorByPaymentStatus(item.StateBill)}
-                                    />
-                                    <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />
-                                </div>
-                            </>
+                            <div className="cargo-details-tiles-row cargo-details-tiles-row--finance">
+                                <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />
+                                <DetailItem label="Оплачено" value={formatCurrency(cargoSumPaid)} />
+                                <DetailItem
+                                    label="Остаток"
+                                    value={formatCurrency(cargoBalance)}
+                                    textColor={getSumColorByPaymentStatus(item.StateBill)}
+                                />
+                                <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />
+                            </div>
                         )}
                         <div className="cargo-details-tiles-row cargo-details-tiles-row--logistics">
                             <DetailItem label="Заборная логистика" value={<CargoPickupLogisticsBadge item={item} />} />
@@ -551,7 +546,6 @@ export function CargoDetailsModal({
                             <DetailItem label="Гос номер" value={lastMile.autoReg || '-'} />
                             <DetailItem label="Марка" value={lastMile.autoType || '-'} />
                             <DetailItem label="Экспедитор" value={lastMile.driver || '-'} />
-                            <DetailItem label="Телефон" value={lastMile.driverTel || '-'} />
                         </div>
                     </div>
                 )}
