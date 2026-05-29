@@ -68,77 +68,134 @@ function iconForLabel(label: string): React.ElementType {
   return Clock3;
 }
 
+const ROUTE_PATH_MSK_KGD =
+  "M 83 42 C 70 48, 55 54, 42 56 S 25 58, 17 61";
+
+const ROUTE_WAYPOINTS = [
+  { x: 70, y: 48, color: "#2D5BFF" },
+  { x: 58, y: 52, color: "#22C55E" },
+  { x: 48, y: 55, color: "#22C55E" },
+  { x: 36, y: 58, color: "#86EFAC" },
+  { x: 26, y: 60, color: "#FACC15" },
+] as const;
+
+const MAP_MSK = { label: "MSK", left: 83, top: 42 };
+const MAP_KGD = { label: "KGD", left: 17, top: 61 };
+
+function routeProgressFromSteps(stepCount: number): number {
+  if (stepCount <= 0) return 0.14;
+  return Math.min(0.98, 0.18 + (stepCount / 9) * 0.8);
+}
+
 function RouteMap({ fromCity, toCity, stepCount }: { fromCity: string; toCity: string; stepCount: number }) {
-  const progress = stepCount <= 1 ? 0.35 : Math.min(0.92, 0.2 + (stepCount / 9) * 0.72);
+  const uid = React.useId().replace(/:/g, "");
+  const gradientId = `haulzRouteGradient-${uid}`;
+  const glowBlueId = `haulzGlowBlue-${uid}`;
+  const glowYellowId = `haulzGlowYellow-${uid}`;
+  const progress = routeProgressFromSteps(stepCount);
+  const progressPct = Math.round(progress * 100);
 
   return (
     <div className="shipment-status-route">
-      <div className="shipment-status-route__bg" aria-hidden />
-      <svg className="shipment-status-route__decor" viewBox="0 0 390 150" aria-hidden>
-        <path
-          d="M19 98 C49 80 84 88 116 62 C149 36 181 50 209 39 C248 23 278 56 318 42 C346 33 363 53 381 35"
-          fill="none"
-          stroke="rgba(148,163,184,0.45)"
-          strokeWidth="28"
-          strokeLinecap="round"
+      <div
+        className="shipment-status-route__canvas"
+        role="img"
+        aria-label={`Маршрут ${fromCity} — ${toCity}`}
+      >
+        <img
+          src="/map-light.png"
+          alt=""
+          className="shipment-status-route__map shipment-status-route__map--light"
+          draggable={false}
         />
-      </svg>
-      <div className="shipment-status-route__canvas">
-        <span className="shipment-status-route__city shipment-status-route__city--dest">{toCity}</span>
-        <span className="shipment-status-route__city shipment-status-route__city--origin">{fromCity}</span>
+        <img
+          src="/map-dark.png"
+          alt=""
+          className="shipment-status-route__map shipment-status-route__map--dark"
+          draggable={false}
+        />
 
-        <svg className="shipment-status-route__path" viewBox="0 0 390 154" aria-label={`Маршрут ${fromCity} ${toCity}`}>
+        <svg
+          className="shipment-status-route__overlay"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          aria-hidden
+        >
           <defs>
-            <linearGradient id="haulzRouteGradient" x1="0" x2="1" y1="0" y2="0">
+            <linearGradient id={gradientId} x1="100%" y1="0%" x2="0%" y2="100%">
               <stop offset="0%" stopColor="#2D5BFF" />
               <stop offset="55%" stopColor="#22C55E" />
-              <stop offset="78%" stopColor="#FACC15" />
-              <stop offset="100%" stopColor="#94A3B8" />
+              <stop offset="100%" stopColor="#FACC15" />
             </linearGradient>
+            <filter id={glowBlueId} x="-80%" y="-80%" width="260%" height="260%">
+              <feGaussianBlur stdDeviation="1.2" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id={glowYellowId} x="-80%" y="-80%" width="260%" height="260%">
+              <feGaussianBlur stdDeviation="1.1" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
           </defs>
+
           <path
-            d="M38 77 C78 54 108 85 143 65 C181 43 209 84 247 66 C289 45 318 70 351 87"
+            d={ROUTE_PATH_MSK_KGD}
             fill="none"
             stroke="rgba(148,163,184,0.35)"
-            strokeWidth="8"
+            strokeWidth="1"
+            strokeDasharray="3 3"
             strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
           />
           <path
-            d="M38 77 C78 54 108 85 143 65 C181 43 209 84 247 66 C289 45 318 70 351 87"
+            d={ROUTE_PATH_MSK_KGD}
             fill="none"
-            stroke="url(#haulzRouteGradient)"
-            strokeWidth="4"
+            stroke={`url(#${gradientId})`}
+            strokeWidth="1.2"
+            strokeDasharray="3 3"
             strokeLinecap="round"
-            strokeDasharray="8 8"
             pathLength={1}
             strokeDashoffset={1 - progress}
+            vectorEffect="non-scaling-stroke"
           />
-          {[
-            { x: 38, y: 77, c: "#2D5BFF", r: 9 },
-            { x: 94, y: 66, c: "#22C55E", r: 6 },
-            { x: 139, y: 66, c: "#86EFAC", r: 5 },
-            { x: 181, y: 61, c: "#22C55E", r: 7 },
-            { x: 220, y: 72, c: "#FACC15", r: 10 },
-            { x: 269, y: 60, c: "#94A3B8", r: 7 },
-            { x: 313, y: 72, c: "#94A3B8", r: 5 },
-            { x: 351, y: 87, c: "#94A3B8", r: 9 },
-          ].map((point, index) => (
-            <g key={index}>
-              <circle cx={point.x} cy={point.y} r={point.r + 5} fill={point.c} opacity="0.18" />
-              <circle cx={point.x} cy={point.y} r={point.r} fill={point.c} stroke="#fff" strokeWidth="2" />
+
+          {ROUTE_WAYPOINTS.map((point, index) => (
+            <g key={index} filter={index < 3 ? `url(#${glowBlueId})` : `url(#${glowYellowId})`}>
+              <circle cx={point.x} cy={point.y} r="1.8" fill={point.color} opacity="0.35" />
+              <circle cx={point.x} cy={point.y} r="0.9" fill={point.color} />
             </g>
           ))}
+
           <motion.circle
-            r="4"
+            r="1.1"
             fill="#2D5BFF"
+            filter={`url(#${glowBlueId})`}
             initial={{ offsetDistance: "0%" }}
-            animate={{ offsetDistance: ["0%", `${Math.round(progress * 100)}%`, "0%"] }}
+            animate={{ offsetDistance: ["0%", `${progressPct}%`, "0%"] }}
             transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
-            style={{
-              offsetPath: "path('M38 77 C78 54 108 85 143 65 C181 43 209 84 247 66 C289 45 318 70 351 87')",
-            }}
+            style={{ offsetPath: `path('${ROUTE_PATH_MSK_KGD}')` }}
           />
         </svg>
+
+        <div
+          className="shipment-status-route__pin shipment-status-route__pin--msk"
+          style={{ left: `${MAP_MSK.left}%`, top: `${MAP_MSK.top}%` }}
+        >
+          <span className="shipment-status-route__pin-dot shipment-status-route__pin-dot--blue" />
+          <span className="shipment-status-route__pin-label">{MAP_MSK.label}</span>
+        </div>
+        <div
+          className="shipment-status-route__pin shipment-status-route__pin--kgd"
+          style={{ left: `${MAP_KGD.left}%`, top: `${MAP_KGD.top}%` }}
+        >
+          <span className="shipment-status-route__pin-dot shipment-status-route__pin-dot--yellow" />
+          <span className="shipment-status-route__pin-label">{MAP_KGD.label}</span>
+        </div>
       </div>
     </div>
   );

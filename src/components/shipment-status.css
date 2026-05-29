@@ -22,11 +22,11 @@
 
 .shipment-status-panel--embedded .shipment-status-route {
     margin-top: 0.55rem;
-    padding: 0.45rem;
+    padding: 0;
 }
 
 .shipment-status-panel--embedded .shipment-status-route__canvas {
-    height: 72px;
+    height: 160px;
 }
 
 .shipment-status-panel--embedded .shipment-status-steps {
@@ -94,11 +94,11 @@
 
     .modal-content--cargo-details .shipment-status-route {
         margin-top: 0.35rem;
-        padding: 0.35rem;
+        padding: 0;
     }
 
     .modal-content--cargo-details .shipment-status-route__canvas {
-        height: 52px;
+        height: 180px;
     }
 
     .modal-content--cargo-details .shipment-status-steps {
@@ -266,42 +266,22 @@
     color: var(--color-text-secondary);
 }
 
-/* Карта маршрута */
+/* Карта маршрута (декоративный фон + SVG MSK → KGD) */
 .shipment-status-route {
     position: relative;
     margin-top: 0.85rem;
     overflow: hidden;
     border-radius: 14px;
     border: 1px solid var(--color-border);
-    background: linear-gradient(180deg, var(--color-bg-hover) 0%, var(--color-bg-card) 100%);
-    padding: 0.65rem;
-}
-
-.shipment-status-route__bg {
-    position: absolute;
-    inset: 0;
-    background:
-        radial-gradient(circle at 20% 18%, rgba(45, 91, 255, 0.1), transparent 32%),
-        radial-gradient(circle at 78% 66%, rgba(250, 204, 21, 0.08), transparent 28%);
-    pointer-events: none;
-}
-
-.shipment-status-route__decor,
-.shipment-status-route__path {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-}
-
-.shipment-status-route__decor {
-    opacity: 0.3;
-    pointer-events: none;
+    background: var(--color-bg-card);
+    padding: 0;
 }
 
 .shipment-status-route__canvas {
     position: relative;
-    height: 120px;
+    height: 200px;
+    overflow: hidden;
+    border-radius: inherit;
 }
 
 .shipment-status-panel__titles,
@@ -311,34 +291,93 @@
 
 @media (min-width: 480px) {
     .shipment-status-route__canvas {
-        height: 134px;
+        height: 200px;
     }
 }
 
-.shipment-status-route__city {
+.shipment-status-route__map {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+    user-select: none;
+}
+
+.shipment-status-route__map--light {
+    opacity: 0.92;
+}
+
+.shipment-status-route__map--dark {
+    display: none;
+    opacity: 0.82;
+}
+
+.dark-mode .shipment-status-route__map--light {
+    display: none;
+}
+
+.dark-mode .shipment-status-route__map--dark {
+    display: block;
+}
+
+.shipment-status-route__overlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.shipment-status-route__pin {
     position: absolute;
     z-index: 2;
-    border-radius: 999px;
-    border: 1px solid var(--color-border);
-    background: var(--color-bg-card);
-    padding: 0.2rem 0.55rem;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.shipment-status-route__pin-dot {
+    display: block;
+    width: 0.95rem;
+    height: 0.95rem;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+}
+
+.shipment-status-route__pin-dot--blue {
+    background: #2d5bff;
+    box-shadow: 0 0 18px rgba(45, 91, 255, 0.85), 0 0 6px rgba(45, 91, 255, 0.6);
+}
+
+.shipment-status-route__pin-dot--yellow {
+    background: #facc15;
+    box-shadow: 0 0 18px rgba(250, 204, 21, 0.85), 0 0 6px rgba(250, 204, 21, 0.55);
+}
+
+.shipment-status-route__pin-label {
+    position: absolute;
+    left: 50%;
+    top: -1.65rem;
+    transform: translateX(-50%);
+    border-radius: 8px;
+    padding: 0.15rem 0.45rem;
     font-size: var(--font-size-caption, 11px);
-    font-weight: 600;
-    letter-spacing: 0.04em;
+    font-weight: 700;
+    letter-spacing: 0.06em;
     line-height: 1.2;
+    white-space: nowrap;
     color: var(--color-text-primary);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid var(--color-border);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
-/* Слева — пункт назначения, справа — отправление (как в карточке груза) */
-.shipment-status-route__city--dest {
-    left: 0.5rem;
-    top: 0.55rem;
-}
-
-.shipment-status-route__city--origin {
-    right: 0.5rem;
-    top: 0.55rem;
+.dark-mode .shipment-status-route__pin-label {
+    color: #f8fafc;
+    background: rgba(15, 23, 42, 0.82);
+    border-color: rgba(255, 255, 255, 0.12);
 }
 
 /* Список этапов */
@@ -578,13 +617,7 @@
 
 .dark-mode .shipment-status-route {
     border-color: rgba(255, 255, 255, 0.1);
-    background: rgba(7, 20, 40, 0.8);
-}
-
-.dark-mode .shipment-status-route__city {
-    border-color: rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.1);
-    color: #f1f5f9;
+    background: #0a0f1a;
 }
 
 .dark-mode .shipment-status-steps {

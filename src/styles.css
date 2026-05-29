@@ -3052,10 +3052,10 @@ body {
     color: var(--color-text-secondary) !important;
 }
 
-.modal-content--cargo-details .shipment-status-route__city {
+.modal-content--cargo-details .shipment-status-route__pin-label {
     font-size: var(--font-size-caption, 11px) !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.04em !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.06em !important;
 }
 
 .modal-header-actions {

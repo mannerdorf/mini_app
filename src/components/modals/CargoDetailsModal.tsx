@@ -44,6 +44,8 @@ export function CargoDetailsModal({
     onToggleFavorite,
     showSums = true,
     useServiceRequest = false,
+    onOpenInvoice,
+    onOpenAct,
 }: CargoDetailsModalProps) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
