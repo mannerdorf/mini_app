@@ -84,8 +84,8 @@ function RouteMap({ fromCity, toCity, stepCount }: { fromCity: string; toCity: s
         />
       </svg>
       <div className="shipment-status-route__canvas">
-        <span className="shipment-status-route__city shipment-status-route__city--from">{fromCity}</span>
-        <span className="shipment-status-route__city shipment-status-route__city--to">{toCity}</span>
+        <span className="shipment-status-route__city shipment-status-route__city--dest">{toCity}</span>
+        <span className="shipment-status-route__city shipment-status-route__city--origin">{fromCity}</span>
 
         <svg className="shipment-status-route__path" viewBox="0 0 390 154" aria-label={`Маршрут ${fromCity} ${toCity}`}>
           <defs>
@@ -148,7 +148,6 @@ function StepIcon({ step }: { step: TrackingStep }) {
   const Icon = step.status === "current" ? Truck : step.status === "completed" ? Check : iconForLabel(step.title);
   const className = [
     "shipment-status-step-icon",
-    step.outOfSla ? "shipment-status-step-icon--sla" : "",
     step.status === "current" ? "shipment-status-step-icon--current" : "",
     step.status === "completed" ? "shipment-status-step-icon--completed" : "",
   ]
