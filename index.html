@@ -74,16 +74,33 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <!-- Bitrix после window.load — меньше конкуренции за сеть при первом рендере -->
+    <!-- Bitrix: только в обычном браузере (в TG/MAX CDN часто недоступен → ERR_CONNECTION_CLOSED) -->
     <script>
-      (function(w,d,u){
-        function inject() {
-          var s=d.createElement('script');s.async=true;s.src=u+'?'+(Date.now()/60000|0);
-          var h=d.getElementsByTagName('script')[0];h.parentNode.insertBefore(s,h);
+      (function (w, d, u) {
+        var search = w.location.search || "";
+        var hash = w.location.hash || "";
+        var ua = navigator.userAgent || "";
+        function isMiniAppHost() {
+          if (/Telegram/i.test(ua)) return true;
+          if (/tgWebAppData=/i.test(search) || /tgWebAppData=/i.test(hash)) return true;
+          if (/max[^a-z0-9]?app/i.test(ua)) return true;
+          if (/WebAppData=/i.test(hash)) return true;
+          return false;
         }
-        if (w.document.readyState === 'complete') inject();
-        else w.addEventListener('load', inject, { once: true });
-      })(window,document,'https://cdn-ru.bitrix24.ru/b33102400/crm/site_button/loader_1_q2c97k.js');
+        function inject() {
+          if (isMiniAppHost()) return;
+          var s = d.createElement("script");
+          s.async = true;
+          s.src = u + "?" + ((Date.now() / 60000) | 0);
+          s.onerror = function () {
+            console.warn("[HAULZ] Bitrix site button loader недоступен");
+          };
+          var h = d.getElementsByTagName("script")[0];
+          h.parentNode.insertBefore(s, h);
+        }
+        if (w.document.readyState === "complete") inject();
+        else w.addEventListener("load", inject, { once: true });
+      })(window, document, "https://cdn-ru.bitrix24.ru/b33102400/crm/site_button/loader_1_q2c97k.js");
     </script>
   </body>
 </html>

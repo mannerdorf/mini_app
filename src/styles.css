@@ -3278,6 +3278,49 @@ body {
         opacity: 0.85;
     }
 
+    .cargo-details-customer-chip {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        margin: 0 0 0.55rem;
+        padding: 0.4rem 0.55rem;
+        border-radius: 10px;
+        border: 1px solid var(--color-border);
+        background: var(--color-bg-hover);
+        min-width: 0;
+    }
+
+    .cargo-details-customer-chip__label {
+        flex: 0 0 auto;
+        font-size: var(--font-size-caption, 11px);
+        font-weight: 600;
+        color: var(--color-text-secondary);
+        white-space: nowrap;
+    }
+
+    .cargo-details-customer-chip__value {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: var(--font-size-subhead, 14px);
+        font-weight: 600;
+        line-height: 1.25;
+        color: var(--color-text-primary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .cargo-details-customer-tile-grid {
+        display: none;
+    }
+
+    .cargo-details-modal-rows .cargo-details-tiles-row--service {
+        display: grid;
+        grid-column: 1 / -1;
+        grid-template-columns: 1fr;
+        gap: 0.35rem;
+    }
+
     .cargo-details-modal-main {
         flex-direction: column;
         gap: 0.55rem;
@@ -3300,6 +3343,38 @@ body {
 
     .cargo-details-tiles-row {
         display: contents;
+    }
+
+    /* Мест + плат. вес — всегда в одну линию */
+    .cargo-details-modal-rows .cargo-details-tiles-row--metrics {
+        display: grid;
+        grid-column: 1 / -1;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.35rem;
+    }
+
+    .cargo-details-modal-rows .cargo-details-tiles-row--metrics .details-item-modal.highlighted-detail {
+        grid-column: auto;
+    }
+
+    /* Заборная логистика + последняя миля — в одну линию */
+    .cargo-details-modal-rows .cargo-details-tiles-row--logistics {
+        display: grid;
+        grid-column: 1 / -1;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.35rem;
+    }
+
+    /* Остаток + статус счёта — в одну линию */
+    .cargo-details-modal-rows .cargo-details-tiles-row--balance {
+        display: grid;
+        grid-column: 1 / -1;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.35rem;
+    }
+
+    .cargo-details-modal-rows .cargo-details-tiles-row--balance .details-item-modal.highlighted-detail {
+        grid-column: auto;
     }
 
     /* Города уже в route-chip — не дублируем в сетке */
@@ -3373,8 +3448,17 @@ body {
 }
 
 @media (min-width: 769px) {
-    .cargo-details-route-chip {
+    .cargo-details-route-chip,
+    .cargo-details-customer-chip {
         display: none;
+    }
+
+    .cargo-details-customer-tile-grid {
+        display: block;
+    }
+
+    .cargo-details-modal-rows .cargo-details-tiles-row--service {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 

@@ -270,6 +270,17 @@ export function CargoDetailsModal({
     const cargoNumberDisplay = item.Number ? formatInvoiceNumber(String(item.Number)) : null;
     const citySenderDisplay = cityToCode(item.CitySender) || null;
     const cityReceiverDisplay = cityToCode(item.CityReceiver) || null;
+    const customerDisplay =
+        stripOoo(
+            String(
+                item.Customer ??
+                    (item as any).customer ??
+                    (item as any).Заказчик ??
+                    (item as any).Contractor ??
+                    (item as any).Organization ??
+                    "",
+            ).trim(),
+        ) || null;
 
     const deliveryValue = (() => {
         const status = normalizeStatus(item.State);
@@ -418,6 +429,13 @@ export function CargoDetailsModal({
                     </div>
                 )}
 
+                {useServiceRequest && customerDisplay && (
+                    <div className="cargo-details-customer-chip" aria-label={`Заказчик ${customerDisplay}`}>
+                        <span className="cargo-details-customer-chip__label">Заказчик</span>
+                        <span className="cargo-details-customer-chip__value">{customerDisplay}</span>
+                    </div>
+                )}
+
                 <div className="cargo-details-modal-main">
                     <div className="cargo-details-modal-rows">
                         <div className="cargo-details-tiles-row">
@@ -435,7 +453,7 @@ export function CargoDetailsModal({
                             <DetailItem label="Место отправления" value={citySenderDisplay || "-"} />
                             <DetailItem label="Место получения" value={cityReceiverDisplay || "-"} />
                         </div>
-                        <div className="cargo-details-tiles-row">
+                        <div className="cargo-details-tiles-row cargo-details-tiles-row--metrics">
                             <DetailItem label="Мест" value={renderValue(item.Mest)} icon={<Layers className="w-4 h-4 mr-1 text-theme-primary" />} />
                             <DetailItem
                                 label="Плат. вес"
@@ -459,17 +477,22 @@ export function CargoDetailsModal({
                             )}
                         </div>
                         {isCustomerRole && showSums && (
-                            <div className="cargo-details-tiles-row">
-                                <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />
-                                <DetailItem label="Оплачено" value={formatCurrency(cargoSumPaid)} />
-                                <DetailItem
-                                    label="Остаток"
-                                    value={formatCurrency(cargoBalance)}
-                                    textColor={getSumColorByPaymentStatus(item.StateBill)}
-                                />
-                            </div>
+                            <>
+                                <div className="cargo-details-tiles-row">
+                                    <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />
+                                    <DetailItem label="Оплачено" value={formatCurrency(cargoSumPaid)} />
+                                </div>
+                                <div className="cargo-details-tiles-row cargo-details-tiles-row--balance">
+                                    <DetailItem
+                                        label="Остаток"
+                                        value={formatCurrency(cargoBalance)}
+                                        textColor={getSumColorByPaymentStatus(item.StateBill)}
+                                    />
+                                    <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />
+                                </div>
+                            </>
                         )}
-                        <div className="cargo-details-tiles-row">
+                        <div className="cargo-details-tiles-row cargo-details-tiles-row--logistics">
                             <DetailItem label="Заборная логистика" value={<CargoPickupLogisticsBadge item={item} />} />
                             <DetailItem
                                 label="Последняя миля"
@@ -479,33 +502,18 @@ export function CargoDetailsModal({
                                     </span>
                                 }
                             />
-                            {isCustomerRole && showSums && (
-                                <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />
-                            )}
-                            {useServiceRequest && (
-                                <>
-                                    <DetailItem
-                                        label="Заказчик"
-                                        value={
-                                            stripOoo(
-                                                String(
-                                                    item.Customer ??
-                                                        (item as any).customer ??
-                                                        (item as any).Заказчик ??
-                                                        (item as any).Contractor ??
-                                                        (item as any).Organization ??
-                                                        "",
-                                                ).trim(),
-                                            ) || "-"
-                                        }
-                                    />
-                                    <DetailItem
-                                        label="Транспортное средство"
-                                        value={String(item.AutoReg ?? (item as any).autoReg ?? perevozkaMeta.autoReg ?? "-").trim() || "-"}
-                                    />
-                                </>
-                            )}
                         </div>
+                        {useServiceRequest && (
+                            <div className="cargo-details-tiles-row cargo-details-tiles-row--service">
+                                <div className="cargo-details-customer-tile-grid">
+                                    <DetailItem label="Заказчик" value={customerDisplay || "-"} />
+                                </div>
+                                <DetailItem
+                                    label="Транспортное средство"
+                                    value={String(item.AutoReg ?? (item as any).autoReg ?? perevozkaMeta.autoReg ?? "-").trim() || "-"}
+                                />
+                            </div>
+                        )}
                     </div>
                     {(perevozkaLoading || perevozkaTimeline || perevozkaError) && (
                         <aside className="cargo-details-modal-timeline shipment-status-timeline-wrap">
