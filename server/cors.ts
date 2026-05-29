@@ -1,4 +1,4 @@
-/** CORS для фронта haulz.ru → api.haulz.ru (раньше Vercel Edge middleware). */
+/** CORS для фронта haulz.ru → API на VPS 72.56.36.185 (раньше Vercel Edge middleware). */
 export const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS",
