@@ -54,6 +54,45 @@ type ClickableInvoiceNumberProps = {
   title?: string;
 };
 
+type ClickableActNumberProps = {
+  number?: string | null;
+  act?: Record<string, unknown> | null;
+  onOpen?: (act: Record<string, unknown>) => void;
+  className?: string;
+  style?: React.CSSProperties;
+  title?: string;
+};
+
+export function ClickableActNumber({
+  number,
+  act,
+  onOpen,
+  className,
+  style,
+  title,
+}: ClickableActNumberProps) {
+  const num = String(number ?? act?.Number ?? act?.number ?? "").trim();
+  const label = num ? formatInvoiceNumber(num) : "—";
+  const payload = act ?? (num ? ({ Number: num } as Record<string, unknown>) : null);
+  if (!payload || !onOpen) {
+    return <span className={className} style={style}>{label}</span>;
+  }
+  return (
+    <button
+      type="button"
+      className={`entity-link-button${className ? ` ${className}` : ""}`}
+      style={{ ...linkStyle, ...style }}
+      title={title ?? "Открыть УПД"}
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpen(payload);
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 export function ClickableInvoiceNumber({
   number,
   invoice,

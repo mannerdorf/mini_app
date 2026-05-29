@@ -3367,7 +3367,7 @@ useEffect(() => {
                         {docSection !== 'Договоры' ? (
                         <>
                         <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsSverkiCustomerDropdownOpen(false); setIsDogovorsCustomerDropdownOpen(false); setIsClaimsCustomerDropdownOpen(false); setIsClaimsStatusDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); setIsTariffsCustomerDropdownOpen(false); setIsTariffsRouteDropdownOpen(false); setIsTariffsTypeDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsSverkiCustomerDropdownOpen(false); setIsDogovorsCustomerDropdownOpen(false); setIsClaimsCustomerDropdownOpen(false); setIsClaimsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); setIsTariffsCustomerDropdownOpen(false); setIsTariffsRouteDropdownOpen(false); setIsTariffsTypeDropdownOpen(false); }}>
                                 Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' ? `${apiDateRange.dateFrom.slice(8, 10)}.${apiDateRange.dateFrom.slice(5, 7)} – ${apiDateRange.dateTo.slice(8, 10)}.${apiDateRange.dateTo.slice(5, 7)}` : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -3525,7 +3525,7 @@ useEffect(() => {
                         {(docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'Заявки') && effectiveServiceMode && (
                             <>
                                 <div ref={customerButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsOrderSenderDropdownOpen(false); setIsOrderRouteDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                    <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsOrderSenderDropdownOpen(false); setIsOrderRouteDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                         Заказчик: {customerFilter ? stripOoo(customerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                                     </Button>
                                 </div>
@@ -3540,7 +3540,7 @@ useEffect(() => {
                         {docSection === 'Заявки' && (
                             <>
                                 <div ref={receiverButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsOrderSenderDropdownOpen(false); setIsOrderRouteDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                    <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsOrderSenderDropdownOpen(false); setIsOrderRouteDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                         Получатель: {orderReceiverFilter ? stripOoo(orderReceiverFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                                     </Button>
                                 </div>
@@ -3553,7 +3553,7 @@ useEffect(() => {
                                     ))}
                                 </FilterDropdownPortal>
                                 <div ref={orderSenderButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsOrderSenderDropdownOpen(!isOrderSenderDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsOrderRouteDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                    <Button className="filter-button" onClick={() => { setIsOrderSenderDropdownOpen(!isOrderSenderDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsOrderRouteDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                         Отправитель: {orderSenderFilter ? stripOoo(orderSenderFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                                     </Button>
                                 </div>
@@ -3566,7 +3566,7 @@ useEffect(() => {
                                     ))}
                                 </FilterDropdownPortal>
                                 <div ref={orderRouteButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsOrderRouteDropdownOpen(!isOrderRouteDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsOrderSenderDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                    <Button className="filter-button" onClick={() => { setIsOrderRouteDropdownOpen(!isOrderRouteDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsOrderSenderDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                         Маршрут: {orderRouteFilter === 'all' ? 'Все' : orderRouteFilter} <ChevronDown className="w-4 h-4"/>
                                     </Button>
                                 </div>
@@ -3593,7 +3593,7 @@ useEffect(() => {
                             <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setTypeFilterSet(prev => { const next = new Set(prev); if (next.has('auto')) next.delete('auto'); else next.add('auto'); return next; }); }} style={{ background: typeFilterSet.has('auto') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Авто {typeFilterSet.has('auto') ? '✓' : ''}</Typography.Body></div>
                         </FilterDropdownPortal>
                         <div ref={routeCargoButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsRouteCargoDropdownOpen(!isRouteCargoDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsRouteCargoDropdownOpen(!isRouteCargoDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                 Маршрут: {routeFilterSet.size === 0 ? 'Все' : routeFilterSet.size === 2 ? 'Выбрано: 2' : routeKeyToCargoLabel([...routeFilterSet][0])} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -3606,7 +3606,7 @@ useEffect(() => {
                             ))}
                         </FilterDropdownPortal>
                         <div ref={deliveryStatusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsDeliveryStatusDropdownOpen(!isDeliveryStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsDeliveryStatusDropdownOpen(!isDeliveryStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                 Статус перевозки: {deliveryStatusFilterSet.size === 0 ? 'Все' : deliveryStatusFilterSet.size === 1 ? STATUS_MAP[[...deliveryStatusFilterSet][0]] : `Выбрано: ${deliveryStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -3623,7 +3623,7 @@ useEffect(() => {
                         {docSection === 'УПД' && effectiveServiceMode && (
                             <>
                                 <div ref={actCustomerButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsActCustomerDropdownOpen(!isActCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                    <Button className="filter-button" onClick={() => { setIsActCustomerDropdownOpen(!isActCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                         Заказчик: {actCustomerFilter ? stripOoo(actCustomerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                                     </Button>
                                 </div>
@@ -3638,7 +3638,7 @@ useEffect(() => {
                         {docSection === 'Акты сверок' && effectiveServiceMode && (
                             <>
                                 <div ref={sverkiCustomerButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsSverkiCustomerDropdownOpen(!isSverkiCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                    <Button className="filter-button" onClick={() => { setIsSverkiCustomerDropdownOpen(!isSverkiCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                         Заказчик: {sverkiCustomerFilter ? stripOoo(sverkiCustomerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                                     </Button>
                                 </div>
@@ -3653,7 +3653,7 @@ useEffect(() => {
                         {docSection === 'Договоры' && effectiveServiceMode && (
                             <>
                                 <div ref={dogovorsCustomerButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsDogovorsCustomerDropdownOpen(!isDogovorsCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsSverkiCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                    <Button className="filter-button" onClick={() => { setIsDogovorsCustomerDropdownOpen(!isDogovorsCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsSverkiCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                         Заказчик: {dogovorsCustomerFilter ? stripOoo(dogovorsCustomerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                                     </Button>
                                 </div>
@@ -3668,7 +3668,7 @@ useEffect(() => {
                         {docSection === 'Претензии' && effectiveServiceMode && (
                             <>
                                 <div ref={claimsCustomerButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsClaimsCustomerDropdownOpen(!isClaimsCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsSverkiCustomerDropdownOpen(false); setIsDogovorsCustomerDropdownOpen(false); setIsClaimsStatusDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                    <Button className="filter-button" onClick={() => { setIsClaimsCustomerDropdownOpen(!isClaimsCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsSverkiCustomerDropdownOpen(false); setIsDogovorsCustomerDropdownOpen(false); setIsClaimsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                         Заказчик: {claimsCustomerFilter ? stripOoo(claimsCustomerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                                     </Button>
                                 </div>
@@ -3694,7 +3694,6 @@ useEffect(() => {
                                             setIsSverkiCustomerDropdownOpen(false);
                                             setIsDogovorsCustomerDropdownOpen(false);
                                             setIsClaimsCustomerDropdownOpen(false);
-                                            setIsStatusDropdownOpen(false);
                                             setIsTypeDropdownOpen(false);
                                             setIsRouteDropdownOpen(false);
                                             setIsDeliveryStatusDropdownOpen(false);
@@ -3735,7 +3734,7 @@ useEffect(() => {
                         {(docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'УПД' || docSection === 'Договоры' || docSection === 'Акты сверок') && (
                         <>
                         <div ref={edoStatusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsEdoStatusDropdownOpen(!isEdoStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsTransportDropdownOpen(false); setIsEdoCounterpartyDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsEdoStatusDropdownOpen(!isEdoStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsTransportDropdownOpen(false); setIsEdoCounterpartyDropdownOpen(false); }}>
                                 Статус ЭДО: {edoStatusFilterSet.size === 0 ? 'Все' : edoStatusFilterSet.size === 1 ? [...edoStatusFilterSet][0] : `Выбрано: ${edoStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -3752,7 +3751,7 @@ useEffect(() => {
                         {docSection === 'ЭДО' && (
                         <>
                         <div ref={edoCounterpartyButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsEdoCounterpartyDropdownOpen(!isEdoCounterpartyDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsTransportDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsEdoCounterpartyDropdownOpen(!isEdoCounterpartyDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsTransportDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
                                 Контрагент: {edoCounterpartyFilterLabel} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -3766,7 +3765,7 @@ useEffect(() => {
                         {(((effectiveServiceMode && docSection !== 'Заявки' && docSection !== 'Акты сверок' && docSection !== 'Договоры' && docSection !== 'Претензии') || docSection === 'Отправки') && docSection !== 'Тарифы') && (
                         <>
                         <div ref={transportButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsTransportDropdownOpen(!isTransportDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsTransportDropdownOpen(!isTransportDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
                                 Транспортное средство: {transportFilter || 'Все'} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -3809,7 +3808,7 @@ useEffect(() => {
                             </div>
                         </FilterDropdownPortal>
                         <div ref={deliveryStatusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsDeliveryStatusDropdownOpen(!isDeliveryStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsDeliveryStatusDropdownOpen(!isDeliveryStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                 Статус перевозки: {deliveryStatusFilterSet.size === 0 ? 'Все' : deliveryStatusFilterSet.size === 1 ? STATUS_MAP[[...deliveryStatusFilterSet][0]] : `Выбрано: ${deliveryStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -3822,7 +3821,7 @@ useEffect(() => {
                             ))}
                         </FilterDropdownPortal>
                         <div ref={routeCargoButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsRouteCargoDropdownOpen(!isRouteCargoDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsRouteCargoDropdownOpen(!isRouteCargoDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                 Маршрут: {routeFilterSet.size === 0 ? 'Все' : routeFilterSet.size === 2 ? 'Выбрано: 2' : routeKeyToCargoLabel([...routeFilterSet][0])} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>

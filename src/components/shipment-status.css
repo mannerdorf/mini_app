@@ -76,6 +76,123 @@
     height: 0.85rem;
 }
 
+/* Мобильная модалка: карта + горизонтальная лента этапов */
+@media (max-width: 768px) {
+    .modal-content--cargo-details .shipment-status-panel--embedded {
+        padding: 0.45rem 0.5rem 0.5rem;
+        border-radius: 12px;
+    }
+
+    .modal-content--cargo-details .shipment-status-panel__head {
+        gap: 0.4rem;
+        margin-bottom: 0.1rem;
+    }
+
+    .modal-content--cargo-details .shipment-status-panel__subtitle {
+        display: none;
+    }
+
+    .modal-content--cargo-details .shipment-status-route {
+        margin-top: 0.35rem;
+        padding: 0.35rem;
+    }
+
+    .modal-content--cargo-details .shipment-status-route__canvas {
+        height: 52px;
+    }
+
+    .modal-content--cargo-details .shipment-status-steps {
+        display: flex;
+        flex-direction: row;
+        align-items: stretch;
+        gap: 0.3rem;
+        margin-top: 0.4rem;
+        padding: 0.15rem 0.05rem 0.25rem;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x proximity;
+        border: none;
+        background: transparent;
+    }
+
+    .modal-content--cargo-details .shipment-status-step {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        flex: 0 0 5.85rem;
+        min-width: 5.85rem;
+        max-width: 5.85rem;
+        scroll-snap-align: start;
+        grid-template-columns: none;
+        gap: 0.2rem;
+        padding: 0.32rem 0.28rem;
+        border: 1px solid var(--color-border);
+        background: var(--color-bg-primary);
+    }
+
+    .modal-content--cargo-details .shipment-status-step--current {
+        border-color: rgba(234, 179, 8, 0.45);
+        background: rgba(250, 204, 21, 0.1);
+    }
+
+    .modal-content--cargo-details .shipment-status-step__connector,
+    .modal-content--cargo-details .shipment-status-step__divider {
+        display: none !important;
+    }
+
+    .modal-content--cargo-details .shipment-status-step-icon {
+        width: 1.25rem;
+        height: 1.25rem;
+    }
+
+    .modal-content--cargo-details .shipment-status-step-icon svg {
+        width: 0.65rem;
+        height: 0.65rem;
+    }
+
+    .modal-content--cargo-details .shipment-status-step__title {
+        font-size: 0.68rem !important;
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        line-height: 1.2;
+        width: 100%;
+    }
+
+    .modal-content--cargo-details .shipment-status-step__date {
+        font-size: 0.6rem !important;
+        white-space: nowrap;
+        width: 100%;
+    }
+
+    .modal-content--cargo-details .shipment-status-total {
+        margin-top: 0.4rem;
+        padding: 0.35rem 0.5rem;
+        gap: 0.35rem;
+    }
+
+    .modal-content--cargo-details .shipment-status-total__left {
+        gap: 0.35rem;
+    }
+
+    .modal-content--cargo-details .shipment-status-total__clock {
+        width: 1.35rem;
+        height: 1.35rem;
+    }
+
+    .modal-content--cargo-details .shipment-status-total__label {
+        font-size: 0.72rem !important;
+    }
+
+    .modal-content--cargo-details .shipment-status-total__value {
+        font-size: 0.82rem !important;
+        margin-left: auto;
+    }
+}
+
 .shipment-status-panel--standalone {
     margin-left: auto;
     margin-right: auto;

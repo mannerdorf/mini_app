@@ -2922,19 +2922,45 @@ body {
     letter-spacing: normal;
 }
 
-.modal-content--cargo-details .cargo-details-modal-title,
-.modal-content--cargo-details .entity-detail-modal-title {
-    margin: 0 0 0.75rem;
-    font-size: 1.1rem !important;
-    font-weight: 600 !important;
-    line-height: var(--line-height-tight, 1.2) !important;
-    letter-spacing: var(--letter-spacing-heading, -0.03em) !important;
-    color: var(--color-text-primary) !important;
+.modal-content--cargo-details .cargo-details-doc-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem 0.5rem;
+    margin: 0 0 1rem;
+    min-width: 0;
+}
+
+.modal-content--cargo-details .cargo-details-doc-line__cargo {
+    font-size: 1.1rem;
+    font-weight: 600;
+    line-height: var(--line-height-tight, 1.2);
+    letter-spacing: var(--letter-spacing-heading, -0.03em);
+    color: var(--color-text-primary);
     font-variant-numeric: tabular-nums;
 }
 
-.modal-content--cargo-details .cargo-details-doc-meta {
-    margin-bottom: 1rem;
+.modal-content--cargo-details .cargo-details-doc-line__sep {
+    color: var(--color-text-secondary);
+    font-weight: 500;
+    user-select: none;
+}
+
+.modal-content--cargo-details .cargo-details-doc-line__pair {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.modal-content--cargo-details .cargo-details-doc-line__pair .cargo-modal-label {
+    margin: 0;
+}
+
+.modal-content--cargo-details .cargo-details-doc-line__link.entity-link-button {
+    font-size: var(--font-size-subhead, 14px) !important;
+    font-weight: 600 !important;
 }
 
 .modal-content--cargo-details .cargo-modal-label,
@@ -3204,25 +3230,157 @@ body {
     }
 }
 
+/* Мобильная модалка перевозки: компактная сетка + маршрут сверху */
 @media (max-width: 768px) {
-    .cargo-details-modal-main {
-        flex-direction: column;
+    .modal-content--cargo-details {
+        padding: 0.65rem 0.6rem 0.85rem;
     }
 
-    .cargo-details-tiles-row {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+    .modal-content--cargo-details .modal-header {
+        margin-bottom: 0.55rem;
+    }
+
+    .modal-content--cargo-details .cargo-details-doc-line {
+        margin-bottom: 0.45rem;
+    }
+
+    .modal-content--cargo-details .cargo-details-doc-line__cargo {
+        font-size: 1rem;
+    }
+
+    .cargo-details-route-chip {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        margin: 0 0 0.55rem;
+        padding: 0.4rem 0.55rem;
+        border-radius: 10px;
+        border: 1px solid var(--color-border);
+        background: var(--color-bg-hover);
+    }
+
+    .cargo-details-route-chip__city {
+        flex: 0 0 auto;
+        font-size: var(--font-size-subhead, 14px);
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        color: var(--color-text-primary);
+        font-variant-numeric: tabular-nums;
+    }
+
+    .cargo-details-route-chip__track {
+        flex: 1 1 auto;
+        height: 2px;
+        min-width: 1.5rem;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--color-primary-blue, #0071e3), #22c55e 55%, #facc15);
+        opacity: 0.85;
+    }
+
+    .cargo-details-modal-main {
+        flex-direction: column;
+        gap: 0.55rem;
+        margin-bottom: 0.85rem;
     }
 
     .cargo-details-modal-timeline {
+        order: -1;
         flex: none;
         width: 100%;
         max-height: none;
     }
+
+    .cargo-details-modal-rows {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.35rem;
+        width: 100%;
+    }
+
+    .cargo-details-tiles-row {
+        display: contents;
+    }
+
+    /* Города уже в route-chip — не дублируем в сетке */
+    .cargo-details-modal-rows .cargo-details-tiles-row:nth-child(2) .details-item-modal:nth-child(3),
+    .cargo-details-modal-rows .cargo-details-tiles-row:nth-child(2) .details-item-modal:nth-child(4) {
+        display: none;
+    }
+
+    .modal-content--cargo-details .details-item-modal,
+    .modal-content--cargo-details .details-item-modal--compact {
+        min-height: 0;
+        padding: 0.38rem 0.45rem;
+        border-radius: 8px;
+    }
+
+    .modal-content--cargo-details .details-item-modal .detail-item-label {
+        font-size: 0.65rem;
+        margin-bottom: 0.12rem;
+        line-height: 1.2;
+    }
+
+    .modal-content--cargo-details .details-item-modal .detail-item-value {
+        font-size: 0.78rem;
+        line-height: 1.25;
+    }
+
+    .modal-content--cargo-details .details-item-modal .detail-item-value svg {
+        width: 0.85rem;
+        height: 0.85rem;
+    }
+
+    .modal-content--cargo-details .details-item-modal.highlighted-detail {
+        grid-column: 1 / -1;
+    }
+
+    .modal-content--cargo-details .cargo-details-tiles-row:last-child .details-item-modal:only-child,
+    .modal-content--cargo-details .cargo-details-tiles-row:last-child .details-item-modal:nth-last-child(1):nth-first-child(1) {
+        grid-column: auto;
+    }
+
+    .modal-content--cargo-details .max-badge {
+        font-size: 0.65rem;
+        padding: 0.1rem 0.35rem;
+    }
+
+    .modal-content--cargo-details .cargo-modal-section-title {
+        font-size: 0.82rem;
+        margin-bottom: 0.35rem !important;
+    }
+
+    .modal-content--cargo-details .document-buttons {
+        margin-bottom: 0.65rem;
+        gap: 0.35rem;
+    }
+
+    .modal-content--cargo-details .doc-button {
+        min-width: 0;
+        padding: 0.45rem 0.35rem;
+        font-size: 0.72rem;
+    }
+
+    .modal-content--cargo-details .cargo-details-last-mile-block {
+        margin-top: 0.35rem;
+    }
+
+    .modal-content--cargo-details .cargo-details-last-mile-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.35rem;
+    }
+}
+
+@media (min-width: 769px) {
+    .cargo-details-route-chip {
+        display: none;
+    }
 }
 
 @media (max-width: 480px) {
-    .cargo-details-tiles-row {
-        grid-template-columns: minmax(0, 1fr);
+    .modal-content--cargo-details .cargo-details-modal-rows {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 

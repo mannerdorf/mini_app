@@ -31,6 +31,7 @@ type Props = {
   openCargoFromDocuments: (cargoNumber: string) => void;
   openCargoInPlace: (cargoNumber: string, inn?: string) => void;
   openInvoiceInPlace: (invoice: Record<string, unknown>) => void;
+  openActInPlace: (act: Record<string, unknown>) => void;
   openClaimFromCargo: (cargoNumber: string) => void;
   openDocumentsWithSection: (section: string) => void;
   openAisWithMmsi: (mmsi: string) => void;
@@ -185,6 +186,7 @@ export function AppMainContent({
   openCargoFromDocuments,
   openCargoInPlace,
   openInvoiceInPlace,
+  openActInPlace,
   openClaimFromCargo,
   openDocumentsWithSection,
   openAisWithMmsi,
@@ -297,6 +299,8 @@ export function AppMainContent({
             roleReceiver={false}
             useServiceRequest={useServiceRequest}
             showSums={activeAccount?.financialAccess ?? true}
+            onOpenInvoice={openInvoiceInPlace}
+            onOpenAct={openActInPlace}
             CargoDetailsModal={CargoDetailsModal}
           />
         </Suspense>

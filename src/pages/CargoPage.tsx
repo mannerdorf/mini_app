@@ -110,6 +110,8 @@ export type CargoDetailsModalProps = {
     onToggleFavorite: (cargoNumber: string | undefined) => void;
     showSums?: boolean;
     useServiceRequest?: boolean;
+    onOpenInvoice?: (invoice: Record<string, unknown>) => void;
+    onOpenAct?: (act: Record<string, unknown>) => void;
 };
 
 export type CargoPageProps = {
@@ -129,6 +131,8 @@ export type CargoPageProps = {
     useServiceRequest?: boolean;
     /** Скрыть финансовые данные (суммы, статус счёта) */
     showSums?: boolean;
+    onOpenInvoice?: (invoice: Record<string, unknown>) => void;
+    onOpenAct?: (act: Record<string, unknown>) => void;
     /** Modal component for cargo details (injected from App to avoid circular deps) */
     CargoDetailsModal: React.ComponentType<CargoDetailsModalProps>;
 };
@@ -147,6 +151,8 @@ export function CargoPage({
     roleReceiver = true,
     useServiceRequest,
     showSums = true,
+    onOpenInvoice,
+    onOpenAct,
     CargoDetailsModal,
 }: CargoPageProps) {
     const prefersReducedMotion = useReducedMotion();
@@ -1081,6 +1087,8 @@ export function CargoPage({
                     onToggleFavorite={toggleFavorite}
                     showSums={showSums}
                     useServiceRequest={effectiveServiceMode}
+                    onOpenInvoice={onOpenInvoice}
+                    onOpenAct={onOpenAct}
                 />
             )}
             <FilterDialog isOpen={isCustomModalOpen} onClose={() => setIsCustomModalOpen(false)} dateFrom={customDateFrom} dateTo={customDateTo} onApply={(f, t) => { setCustomDateFrom(f); setCustomDateTo(t); }} />

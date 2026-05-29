@@ -12,6 +12,7 @@ import { normalizeStatus, getFilterKeyByStatus, getSumColorByPaymentStatus } fro
 import { formatDate } from "../../lib/dateUtils";
 import { getPlanDays, getCargoDisplayRoleLabel, getCargoRoleSet, cargoLastMileIsSelfPickup } from "../../lib/cargoUtils";
 import { CargoPickupLogisticsBadge } from "../shared/CargoTableDisplay";
+import { ClickableActNumber, ClickableInvoiceNumber } from "../ui/EntityLinks";
 import { DetailItem } from "../ui/DetailItem";
 import { DateText } from "../ui/DateText";
 import { StatusBillBadge } from "../shared/StatusBadges";
@@ -28,6 +29,8 @@ export type CargoDetailsModalProps = {
     onToggleFavorite: (cargoNumber: string | undefined) => void;
     showSums?: boolean;
     useServiceRequest?: boolean;
+    onOpenInvoice?: (invoice: Record<string, unknown>) => void;
+    onOpenAct?: (act: Record<string, unknown>) => void;
 };
 
 export function CargoDetailsModal({
@@ -252,14 +255,17 @@ export function CargoDetailsModal({
     };
     const hasLastMileBlock = Boolean(lastMile.autoReg || lastMile.autoType || lastMile.driver || lastMile.driverTel);
 
-    let updDisplay: string | null = null;
-    let billDisplay: string | null = null;
+    let updRaw: string | null = null;
+    let billRaw: string | null = null;
     for (const [key, val] of Object.entries(item)) {
         if (val === undefined || val === null || (typeof val === "string" && val.trim() === "")) continue;
         const lk = key.toLowerCase();
-        if (lk === "upd") updDisplay = formatInvoiceNumber(String(val));
-        if ((lk === "billnum" || lk === "bill_number") && !billDisplay) billDisplay = formatInvoiceNumber(String(val));
+        if (lk === "upd" && !updRaw) updRaw = String(val).trim();
+        if ((lk === "billnum" || lk === "bill_number") && !billRaw) billRaw = String(val).trim();
     }
+    const billDisplay = billRaw ? formatInvoiceNumber(billRaw) : null;
+    const updDisplay = updRaw ? formatInvoiceNumber(updRaw) : null;
+    const cargoNumberDisplay = item.Number ? formatInvoiceNumber(String(item.Number)) : null;
     const citySenderDisplay = cityToCode(item.CitySender) || null;
     const cityReceiverDisplay = cityToCode(item.CityReceiver) || null;
 
@@ -362,25 +368,52 @@ export function CargoDetailsModal({
                     </div>
                 </div>
 
-                <Typography.Headline className="entity-detail-modal-title cargo-details-modal-title">
-                    {item.Number ? formatInvoiceNumber(String(item.Number)) : "—"}
-                </Typography.Headline>
+                <div className="cargo-details-doc-line">
+                    {cargoNumberDisplay ? (
+                        <span className="cargo-details-doc-line__cargo">{cargoNumberDisplay}</span>
+                    ) : (
+                        <span className="cargo-details-doc-line__cargo">—</span>
+                    )}
+                    {billDisplay ? (
+                        <>
+                            <span className="cargo-details-doc-line__sep" aria-hidden>
+                                ·
+                            </span>
+                            <span className="cargo-details-doc-line__pair">
+                                <span className="cargo-modal-label">Счёт</span>{" "}
+                                <ClickableInvoiceNumber
+                                    number={billRaw}
+                                    invoice={billRaw ? { Number: billRaw } : null}
+                                    onOpen={onOpenInvoice}
+                                    className="cargo-details-doc-line__link"
+                                />
+                            </span>
+                        </>
+                    ) : null}
+                    {updDisplay ? (
+                        <>
+                            <span className="cargo-details-doc-line__sep" aria-hidden>
+                                ·
+                            </span>
+                            <span className="cargo-details-doc-line__pair">
+                                <span className="cargo-modal-label">УПД</span>{" "}
+                                <ClickableActNumber
+                                    number={updRaw}
+                                    act={updRaw ? { Number: updRaw } : null}
+                                    onOpen={onOpenAct}
+                                    className="cargo-details-doc-line__link"
+                                />
+                            </span>
+                        </>
+                    ) : null}
+                </div>
 
-                {(billDisplay || updDisplay) && (
-                    <Flex wrap="wrap" gap="1rem" className="entity-detail-modal-meta cargo-details-doc-meta">
-                        {billDisplay ? (
-                            <Flex direction="column" gap="0.25rem">
-                                <Typography.Label className="cargo-modal-label">Счёт</Typography.Label>
-                                <Typography.Body className="cargo-modal-value cargo-modal-value--emphasis">{billDisplay}</Typography.Body>
-                            </Flex>
-                        ) : null}
-                        {updDisplay ? (
-                            <Flex direction="column" gap="0.25rem">
-                                <Typography.Label className="cargo-modal-label">УПД</Typography.Label>
-                                <Typography.Body className="cargo-modal-value cargo-modal-value--emphasis">{updDisplay}</Typography.Body>
-                            </Flex>
-                        ) : null}
-                    </Flex>
+                {(citySenderDisplay || cityReceiverDisplay) && (
+                    <div className="cargo-details-route-chip" aria-label={`Маршрут ${toCity} — ${fromCity}`}>
+                        <span className="cargo-details-route-chip__city">{cityReceiverDisplay || "—"}</span>
+                        <span className="cargo-details-route-chip__track" aria-hidden />
+                        <span className="cargo-details-route-chip__city">{citySenderDisplay || "—"}</span>
+                    </div>
                 )}
 
                 <div className="cargo-details-modal-main">
@@ -500,11 +533,11 @@ export function CargoDetailsModal({
                     )}
                 </div>
                 {hasLastMileBlock && (
-                    <div style={{ marginTop: '0.75rem' }}>
+                    <div className="cargo-details-last-mile-block">
                         <Typography.Headline className="cargo-modal-section-title" style={{ marginBottom: '0.5rem' }}>
                             Последняя миля
                         </Typography.Headline>
-                        <div className="cargo-details-tiles-row">
+                        <div className="cargo-details-tiles-row cargo-details-last-mile-row">
                             <DetailItem label="Гос номер" value={lastMile.autoReg || '-'} />
                             <DetailItem label="Марка" value={lastMile.autoType || '-'} />
                             <DetailItem label="Экспедитор" value={lastMile.driver || '-'} />

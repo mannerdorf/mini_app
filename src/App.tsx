@@ -39,6 +39,7 @@ import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "./lib/
 import type { BillStatusFilterKey } from "./lib/statusUtils";
 import { CustomPeriodModal } from "./components/modals/CustomPeriodModal";
 import { CargoDetailsModal } from "./components/modals/CargoDetailsModal";
+import { ActDetailModal } from "./components/modals/ActDetailModal";
 import { InvoiceDetailModal } from "./components/modals/InvoiceDetailModal";
 import { LegalModal } from "./components/modals/LegalModal";
 const DocumentsPage = lazyWithRetry(
@@ -488,6 +489,7 @@ export default function App() {
     const [overlayCargoItem, setOverlayCargoItem] = useState<CargoItem | null>(null);
     const [overlayCargoLoading, setOverlayCargoLoading] = useState(false);
     const [overlayInvoice, setOverlayInvoice] = useState<Record<string, unknown> | null>(null);
+    const [overlayAct, setOverlayAct] = useState<Record<string, unknown> | null>(null);
     const [overlayFavVersion, setOverlayFavVersion] = useState(0);
     
     // ИНИЦИАЛИЗАЦИЯ ПУСТЫМИ СТРОКАМИ (данные берутся с фронта)
@@ -1184,6 +1186,13 @@ export default function App() {
         if (!invoice || typeof invoice !== "object") return;
         setOverlayInvoice(invoice);
     };
+
+    const openActInPlace = (act: Record<string, unknown>) => {
+        if (!act || typeof act !== "object") return;
+        setOverlayAct(act);
+    };
+
+    const docOverlayZIndex = overlayCargoItem ? 10001 : undefined;
 
     useEffect(() => {
         if (!overlayCargoNumber || !activeAccount?.login || !activeAccount?.password) {
@@ -2019,6 +2028,7 @@ export default function App() {
                         openCargoFromDocuments={openCargoFromDocuments}
                         openCargoInPlace={openCargoInPlace}
                         openInvoiceInPlace={openInvoiceInPlace}
+                        openActInPlace={openActInPlace}
                         openClaimFromCargo={openClaimFromCargo}
                         openDocumentsWithSection={openDocumentsWithSection}
                         openAisWithMmsi={openAisWithMmsi}
@@ -2255,32 +2265,33 @@ export default function App() {
                             openCargoFromChat={openCargoFromChat}
                             openCargoFromDocuments={openCargoFromDocuments}
                             openCargoInPlace={openCargoInPlace}
-                            openInvoiceInPlace={openInvoiceInPlace}
-                            openClaimFromCargo={openClaimFromCargo}
-                            openDocumentsWithSection={openDocumentsWithSection}
-                            openAisWithMmsi={openAisWithMmsi}
-                            aisOpenWithMmsi={aisOpenWithMmsi}
-                            setAisOpenWithMmsi={setAisOpenWithMmsi}
-                            openTelegramBotWithAccount={openTelegramBotWithAccount}
-                            handleSwitchAccount={handleSwitchAccount}
-                            handleAddAccount={handleAddAccount}
-                            handleRemoveAccount={handleRemoveAccount}
-                            handleUpdateAccount={handleUpdateAccount}
-                            setIsOfferOpen={setIsOfferOpen}
-                            setIsPersonalConsentOpen={setIsPersonalConsentOpen}
-                            openSecretPinModal={openSecretPinModal}
-                            openWildberries={() => setActiveTab(WB_TAB)}
-                            CargoDetailsModal={CargoDetailsModal}
-                            CargoPageComponent={CargoPage}
-                            DashboardPageComponent={DashboardPage}
-                            ProfilePageComponent={ProfilePage}
-                            DocumentsPageComponent={DocumentsPage}
-                            profileSaasShellActive={profileSaasShellActive}
-                        />
-                    </AppRuntimeProvider>
+                        openInvoiceInPlace={openInvoiceInPlace}
+                        openActInPlace={openActInPlace}
+                        openClaimFromCargo={openClaimFromCargo}
+                        openDocumentsWithSection={openDocumentsWithSection}
+                        openAisWithMmsi={openAisWithMmsi}
+                        aisOpenWithMmsi={aisOpenWithMmsi}
+                        setAisOpenWithMmsi={setAisOpenWithMmsi}
+                        openTelegramBotWithAccount={openTelegramBotWithAccount}
+                        handleSwitchAccount={handleSwitchAccount}
+                        handleAddAccount={handleAddAccount}
+                        handleRemoveAccount={handleRemoveAccount}
+                        handleUpdateAccount={handleUpdateAccount}
+                        setIsOfferOpen={setIsOfferOpen}
+                        setIsPersonalConsentOpen={setIsPersonalConsentOpen}
+                        openSecretPinModal={openSecretPinModal}
+                        openWildberries={() => setActiveTab(WB_TAB)}
+                        CargoDetailsModal={CargoDetailsModal}
+                        CargoPageComponent={CargoPage}
+                        DashboardPageComponent={DashboardPage}
+                        ProfilePageComponent={ProfilePage}
+                        DocumentsPageComponent={DocumentsPage}
+                        profileSaasShellActive={profileSaasShellActive}
+                    />
+                </AppRuntimeProvider>
             </div>
             </div>
-            <TabBar 
+            <TabBar
                 active={activeTab} 
                 onChange={(tab) => {
                     if (showDashboard) {
@@ -2373,18 +2384,38 @@ export default function App() {
             )}
             
             {overlayInvoice && activeAccount && (
-                <InvoiceDetailModal
-                    item={overlayInvoice}
-                    isOpen
-                    onClose={() => setOverlayInvoice(null)}
-                    onOpenCargo={(cargoNumber) => openCargoInPlace(cargoNumber)}
-                    auth={{
-                        login: activeAccount.login,
-                        password: activeAccount.password,
-                        inn: activeAccount.activeCustomerInn ?? undefined,
-                        ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}),
-                    }}
-                />
+                <div style={docOverlayZIndex != null ? { position: "fixed", inset: 0, zIndex: docOverlayZIndex } : undefined}>
+                    <InvoiceDetailModal
+                        item={overlayInvoice}
+                        isOpen
+                        onClose={() => setOverlayInvoice(null)}
+                        onOpenCargo={(cargoNumber) => openCargoInPlace(cargoNumber)}
+                        auth={{
+                            login: activeAccount.login,
+                            password: activeAccount.password,
+                            inn: activeAccount.activeCustomerInn ?? undefined,
+                            ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}),
+                        }}
+                    />
+                </div>
+            )}
+
+            {overlayAct && activeAccount && (
+                <div style={docOverlayZIndex != null ? { position: "fixed", inset: 0, zIndex: docOverlayZIndex } : undefined}>
+                    <ActDetailModal
+                        item={overlayAct}
+                        isOpen
+                        onClose={() => setOverlayAct(null)}
+                        onOpenInvoice={(inv) => openInvoiceInPlace(inv)}
+                        onOpenCargo={(cargoNumber) => openCargoInPlace(cargoNumber)}
+                        auth={{
+                            login: activeAccount.login,
+                            password: activeAccount.password,
+                            inn: activeAccount.activeCustomerInn ?? undefined,
+                            ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}),
+                        }}
+                    />
+                </div>
             )}
 
             {/* Карточка перевозки поверх счёта — zIndex 10000 чтобы быть выше InvoiceDetailModal (9998) */}
@@ -2405,6 +2436,8 @@ export default function App() {
                         useServiceRequest={useServiceRequest}
                         isFavorite={(n) => { try { const raw = localStorage.getItem('haulz.favorites'); const arr = raw ? JSON.parse(raw) : []; return arr.includes(n); } catch { return false; } }}
                         onToggleFavorite={(n) => { if (!n) return; try { const raw = localStorage.getItem('haulz.favorites'); const arr = raw ? JSON.parse(raw) : []; const set = new Set(arr); if (set.has(n)) set.delete(n); else set.add(n); localStorage.setItem('haulz.favorites', JSON.stringify([...set])); setOverlayFavVersion(v => v + 1); } catch {} }}
+                        onOpenInvoice={openInvoiceInPlace}
+                        onOpenAct={openActInPlace}
                     />
                     </div>
                 ) : null

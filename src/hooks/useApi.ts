@@ -9,12 +9,19 @@ import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_INVOICES_URL,
 import type { AuthData, CargoItem, PerevozkiRole } from "../types";
 import { mergePerevozkiRoleDuplicates } from "../lib/cargoUtils";
 
-/** SWR config: 60s consider fresh, 5min cache */
+/** SWR config: 60s consider fresh, 5min cache; без долгих ретраев при 5xx/таймауте */
 const SWR_OPTIONS = {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
     dedupingInterval: 60 * 1000,
     keepPreviousData: true,
+    errorRetryCount: 1,
+    shouldRetryOnError: (error) => {
+        const msg = String((error as Error)?.message ?? error ?? "").toLowerCase();
+        if (msg.includes("504") || msg.includes("502") || msg.includes("503")) return false;
+        if (msg.includes("сервер") || msg.includes("время ожидания") || msg.includes("gateway")) return false;
+        return true;
+    },
 } as const;
 
 const mapNumber = (value: unknown): number => {
