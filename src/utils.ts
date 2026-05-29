@@ -68,12 +68,30 @@ async function getErrorMessageFromResponse(res: Response, fallback?: string): Pr
     return safe || fallback || humanizeStatus(res.status);
 }
 
+/** Таймаут клиентских запросов к API (серверные функции до 300 с). */
+export const API_FETCH_TIMEOUT_MS = 90_000;
+
+function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    if (init?.signal) return fetch(input, init);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), API_FETCH_TIMEOUT_MS);
+    return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
 /**
  * Единая обёртка над fetch: при !res.ok бросает Error с текстом от сервера (error/message)
  * или человекочитаемым сообщением по коду. Возвращает Response при успехе.
  */
 export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-    const res = await fetch(input, init);
+    let res: Response;
+    try {
+        res = await fetchWithTimeout(input, init);
+    } catch (e: unknown) {
+        if (e instanceof Error && e.name === "AbortError") {
+            throw new Error("Превышено время ожидания. Повторите попытку.");
+        }
+        throw e;
+    }
     if (!res.ok) {
         const message = await getErrorMessageFromResponse(res);
         throw new Error(message);
@@ -86,7 +104,15 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
  * При !res.ok бросает Error с сообщением от сервера для показа пользователю.
  */
 export async function apiFetchJson<T = unknown>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
-    const res = await fetch(input, init);
+    let res: Response;
+    try {
+        res = await fetchWithTimeout(input, init);
+    } catch (e: unknown) {
+        if (e instanceof Error && e.name === "AbortError") {
+            throw new Error("Превышено время ожидания. Повторите попытку.");
+        }
+        throw e;
+    }
     const contentType = res.headers.get("content-type") || "";
     const isJson = contentType.includes("application/json");
     if (!res.ok) {

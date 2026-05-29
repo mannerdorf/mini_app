@@ -17,6 +17,15 @@ export type LegalStatusResponse = {
   pending: { offer: boolean; consent: boolean; any: boolean };
 };
 
+/** Нет эндпоинта на API (старый VPS) — не блокируем приложение. */
+export function emptyLegalStatusResponse(): LegalStatusResponse {
+  return {
+    current: { offer: null, consent: null },
+    accepted: { offer: null, consent: null },
+    pending: { offer: false, consent: false, any: false },
+  };
+}
+
 export async function fetchLegalPublic(): Promise<{
   offer: LegalPublicDoc | null;
   consent: LegalPublicDoc | null;
@@ -34,6 +43,7 @@ export async function fetchLegalStatus(login: string, password: string): Promise
   const res = await fetch("/api/legal-status", {
     headers: { "x-login": login.trim().toLowerCase(), "x-password": password },
   });
+  if (res.status === 404) return emptyLegalStatusResponse();
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as { error?: string }).error || "Ошибка проверки согласий");
   return data as LegalStatusResponse;

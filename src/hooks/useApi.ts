@@ -19,7 +19,7 @@ const SWR_OPTIONS = {
     shouldRetryOnError: (error) => {
         const msg = String((error as Error)?.message ?? error ?? "").toLowerCase();
         if (msg.includes("504") || msg.includes("502") || msg.includes("503")) return false;
-        if (msg.includes("сервер") || msg.includes("время ожидания") || msg.includes("gateway")) return false;
+        if (msg.includes("сервер") || msg.includes("время ожидания") || msg.includes("ожидания") || msg.includes("gateway")) return false;
         return true;
     },
 } as const;

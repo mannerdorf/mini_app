@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Account } from "../types";
 import {
+  emptyLegalStatusResponse,
   fetchLegalPublic,
   fetchLegalStatus,
   postLegalAccept,
@@ -38,7 +39,7 @@ export function useLegalCompliance(activeAccount: Account | null | undefined) {
     try {
       const [pub, st] = await Promise.all([
         fetchLegalPublic().catch(() => ({ offer: null, consent: null })),
-        fetchLegalStatus(login, password),
+        fetchLegalStatus(login, password).catch(() => emptyLegalStatusResponse()),
       ]);
       if (pub.offer?.body_text) setOfferText(pub.offer.body_text);
       if (pub.consent?.body_text) setConsentText(pub.consent.body_text);

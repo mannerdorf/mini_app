@@ -66,7 +66,19 @@ sudo crontab -e
 ## Обновление
 
 ```bash
-cd /opt/haulz/app && sudo git pull && sudo npm ci && sudo systemctl restart haulz-api
+cd /opt/haulz/app && sudo git pull origin main && sudo npm ci && sudo systemctl restart haulz-api
+```
+
+После обновления с юридическими эндпоинтами (`/api/legal-public`, `/api/legal-status`) примените миграцию БД:
+
+```bash
+psql "$DATABASE_URL" -f /opt/haulz/app/migrations/075_legal_documents.sql
+```
+
+Проверка:
+
+```bash
+curl -sS https://api.haulz.ru/api/legal-public | head -c 200
 ```
 
 ## Статика haulz.ru
