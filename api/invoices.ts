@@ -7,6 +7,7 @@ import {
   shouldServeFromDocumentCache,
 } from "../lib/cacheHistoryDays.js";
 import { handleHaulzSummarySandboxRequest, isHaulzSummarySandboxAction } from "../lib/haulzSummarySandboxApi.js";
+import { fetchWithTimeout, upstreamTimeoutMessage } from "../lib/fetchWithTimeout.js";
 
 /**
  * Прокси для GetIinvoices: счета.
@@ -257,13 +258,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const upstream = await fetch(url.toString(), {
-      method: "GET",
-      headers: {
-        Auth: `Basic ${upstreamLogin}:${upstreamPassword}`,
-        Authorization: SERVICE_AUTH,
+    const upstream = await fetchWithTimeout(
+      url.toString(),
+      {
+        method: "GET",
+        headers: {
+          Auth: `Basic ${upstreamLogin}:${upstreamPassword}`,
+          Authorization: SERVICE_AUTH,
+        },
       },
-    });
+      50_000,
+    );
 
     const text = await upstream.text();
 
@@ -318,10 +323,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch {
       return res.status(200).send(text);
     }
-  } catch (e: any) {
+  } catch (e: unknown) {
     logError(ctx, "invoices_proxy_failed", e);
-    return res
-      .status(500)
-      .json({ error: "Proxy error", details: e?.message || String(e), request_id: ctx.requestId });
+    const isTimeout = e instanceof Error && e.name === "AbortError";
+    return res.status(isTimeout ? 504 : 500).json({
+      error: upstreamTimeoutMessage(e),
+      request_id: ctx.requestId,
+    });
   }
 }

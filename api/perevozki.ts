@@ -11,6 +11,7 @@ import {
 } from "../lib/cacheHistoryDays.js";
 import { handleHaulzSummarySandboxRequest, isHaulzSummarySandboxAction } from "../lib/haulzSummarySandboxApi.js";
 import { getAdminTokenFromRequest, getAdminTokenPayload, verifyAdminToken } from "../lib/adminAuth.js";
+import { fetchWithTimeout, upstreamTimeoutMessage } from "../lib/fetchWithTimeout.js";
 
 /**
  * Запрос данных перевозок — только этот метод:
@@ -441,16 +442,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     console.log("➡️ Perevozki request for:", login);
-    const upstream = await fetch(url.toString(), {
-      method: "GET",
-      headers: {
-        // как в Postman:
-        // Auth: Basic order@lal-auto.com:ZakaZ656565
-        Auth: `Basic ${upstreamLogin}:${upstreamPassword}`,
-        // Authorization: Basic YWRtaW46anVlYmZueWU=
-        Authorization: SERVICE_AUTH,
+    const upstream = await fetchWithTimeout(
+      url.toString(),
+      {
+        method: "GET",
+        headers: {
+          Auth: `Basic ${upstreamLogin}:${upstreamPassword}`,
+          Authorization: SERVICE_AUTH,
+        },
       },
-    });
+      50_000,
+    );
 
     console.log("⬅️ Upstream status:", upstream.status);
     const text = await upstream.text();
@@ -533,11 +535,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch {
       return res.status(200).send(text);
     }
-  } catch (e: any) {
+  } catch (e: unknown) {
     logError(ctx, "perevozki_proxy_failed", e);
-    return res
-      .status(500)
-      .json({ error: "Proxy error", details: e?.message || String(e), request_id: ctx.requestId });
+    const isTimeout = e instanceof Error && e.name === "AbortError";
+    return res.status(isTimeout ? 504 : 500).json({
+      error: upstreamTimeoutMessage(e),
+      request_id: ctx.requestId,
+    });
   }
 }
 

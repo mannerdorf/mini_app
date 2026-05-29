@@ -1,11 +1,12 @@
 /**
- * Vercel Edge Middleware: CORS для /api/*, когда фронт открыт с другого origin (статика haulz.ru → API на Vercel).
- * OPTIONS не доходит до serverless-функций, иначе многие вернули бы 405.
+ * Vercel Edge Middleware: CORS для лёгких /api/* (haulz.ru → API на Vercel).
+ * Тяжёлые маршруты (perevozki, invoices, …) НЕ проходят через middleware:
+ * иначе Edge ждёт ответ функции и отдаёт 504, хотя maxDuration функции = 300 с.
  */
 export const config = {
-    // Long-running cron functions must bypass Edge middleware; otherwise the
-    // middleware waits on fetch(request) and hits MIDDLEWARE_INVOCATION_TIMEOUT.
-    matcher: "/api/((?!cron/).*)",
+    matcher: [
+        "/api/((?!cron/|perevozki|invoices|acts|orders|sendings|service-refresh-from-1c|admin-weekly-summary|wb/).*)",
+    ],
 };
 
 const CORS_HEADERS: Record<string, string> = {
