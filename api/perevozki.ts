@@ -12,6 +12,7 @@ import {
 import { handleHaulzSummarySandboxRequest, isHaulzSummarySandboxAction } from "../lib/haulzSummarySandboxApi.js";
 import { getAdminTokenFromRequest, getAdminTokenPayload, verifyAdminToken } from "../lib/adminAuth.js";
 import { fetchWithTimeout, upstreamTimeoutMessage } from "../lib/fetchWithTimeout.js";
+import { preferCacheOnlyOnVercel } from "../lib/vercelRuntime.js";
 
 /**
  * Запрос данных перевозок — только этот метод:
@@ -407,8 +408,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
     } catch {
+      if (preferCacheOnlyOnVercel()) {
+        return res.status(200).json([]);
+      }
       // БД недоступна или кэш пустой — идём в 1С
     }
+  }
+
+  if (preferCacheOnlyOnVercel()) {
+    return res.status(200).json([]);
   }
 
   // Запрос данных перевозок: DateB, DateE; при serviceMode не передаём INN и Mode

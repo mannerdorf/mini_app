@@ -8,6 +8,7 @@ import {
 } from "../lib/cacheHistoryDays.js";
 import { handleHaulzSummarySandboxRequest, isHaulzSummarySandboxAction } from "../lib/haulzSummarySandboxApi.js";
 import { fetchWithTimeout, upstreamTimeoutMessage } from "../lib/fetchWithTimeout.js";
+import { preferCacheOnlyOnVercel } from "../lib/vercelRuntime.js";
 
 /**
  * Прокси для GetIinvoices: счета.
@@ -231,7 +232,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
   } catch {
+    if (preferCacheOnlyOnVercel()) {
+      return res.status(200).json([]);
+    }
     // БД недоступна или кэш пустой — идём в 1С
+  }
+
+  if (preferCacheOnlyOnVercel()) {
+    return res.status(200).json([]);
   }
 
   const url = new URL(BASE_URL);
