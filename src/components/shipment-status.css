@@ -1,1 +1,536 @@
-@tailwind utilities;
+/* Статусы перевозки — светлая тема по умолчанию, тёмная через .dark-mode */
+
+.shipment-status-panel {
+    position: relative;
+    width: 100%;
+    overflow: visible;
+    border-radius: 16px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-card);
+    padding: 0.75rem 1rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+/* В модалке перевозки: без внутреннего скролла, компактная вёрстка */
+.shipment-status-panel--embedded {
+    padding: 0.55rem 0.65rem;
+}
+
+.shipment-status-panel--embedded .shipment-status-panel__counter {
+    padding: 0.12rem 0.45rem;
+}
+
+.shipment-status-panel--embedded .shipment-status-route {
+    margin-top: 0.55rem;
+    padding: 0.45rem;
+}
+
+.shipment-status-panel--embedded .shipment-status-route__canvas {
+    height: 72px;
+}
+
+.shipment-status-panel--embedded .shipment-status-steps {
+    margin-top: 0.5rem;
+    padding: 0.2rem;
+}
+
+.shipment-status-panel--embedded .shipment-status-step {
+    grid-template-columns: 1.65rem minmax(0, 1fr) auto;
+    gap: 0.45rem;
+    padding: 0.28rem 0.4rem;
+    border-radius: 8px;
+}
+
+.shipment-status-panel--embedded .shipment-status-step__connector {
+    left: 1.28rem;
+    top: 1.85rem;
+    height: calc(100% - 0.7rem);
+}
+
+.shipment-status-panel--embedded .shipment-status-step__divider {
+    margin-left: 2.55rem;
+}
+
+.shipment-status-panel--embedded .shipment-status-step-icon {
+    width: 1.45rem;
+    height: 1.45rem;
+}
+
+.shipment-status-panel--embedded .shipment-status-step-icon svg {
+    width: 0.72rem;
+    height: 0.72rem;
+}
+
+.shipment-status-panel--embedded .shipment-status-total {
+    margin-top: 0.5rem;
+    padding: 0.45rem 0.6rem;
+}
+
+.shipment-status-panel--embedded .shipment-status-total__clock {
+    width: 1.55rem;
+    height: 1.55rem;
+}
+
+.shipment-status-panel--embedded .shipment-status-total__clock svg {
+    width: 0.85rem;
+    height: 0.85rem;
+}
+
+.shipment-status-panel--standalone {
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 430px;
+}
+
+.shipment-status-panel__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.shipment-status-panel__title {
+    margin: 0;
+    font-size: var(--font-size-subhead, 14px);
+    font-weight: 600;
+    letter-spacing: var(--letter-spacing-tight, -0.02em);
+    color: var(--color-text-primary);
+    line-height: 1.35;
+}
+
+.shipment-status-panel__subtitle {
+    margin: 0.15rem 0 0;
+    font-size: var(--font-size-footnote, 12px);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    line-height: 1.35;
+}
+
+.shipment-status-panel__counter {
+    flex-shrink: 0;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-hover);
+    padding: 0.2rem 0.55rem;
+    font-size: var(--font-size-footnote, 12px);
+    font-weight: 600;
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    line-height: 1.35;
+    font-variant-numeric: tabular-nums;
+}
+
+.shipment-status-panel__loading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding: 1rem 0;
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+}
+
+.shipment-status-panel__loading-icon {
+    width: 1rem;
+    height: 1rem;
+    color: var(--color-primary-blue, #0071e3);
+    animation: shipment-status-spin 1s linear infinite;
+}
+
+@keyframes shipment-status-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.shipment-status-panel__error {
+    margin: 1rem 0 0;
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+}
+
+/* Карта маршрута */
+.shipment-status-route {
+    position: relative;
+    margin-top: 0.85rem;
+    overflow: hidden;
+    border-radius: 14px;
+    border: 1px solid var(--color-border);
+    background: linear-gradient(180deg, var(--color-bg-hover) 0%, var(--color-bg-card) 100%);
+    padding: 0.65rem;
+}
+
+.shipment-status-route__bg {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 20% 18%, rgba(45, 91, 255, 0.1), transparent 32%),
+        radial-gradient(circle at 78% 66%, rgba(250, 204, 21, 0.08), transparent 28%);
+    pointer-events: none;
+}
+
+.shipment-status-route__decor,
+.shipment-status-route__path {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.shipment-status-route__decor {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.shipment-status-route__canvas {
+    position: relative;
+    height: 120px;
+}
+
+.shipment-status-panel__titles,
+.shipment-status-step__body {
+    min-width: 0;
+}
+
+@media (min-width: 480px) {
+    .shipment-status-route__canvas {
+        height: 134px;
+    }
+}
+
+.shipment-status-route__city {
+    position: absolute;
+    z-index: 2;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-card);
+    padding: 0.2rem 0.55rem;
+    font-size: var(--font-size-caption, 11px);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+    color: var(--color-text-primary);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.shipment-status-route__city--from {
+    left: 0.5rem;
+    top: 0.55rem;
+}
+
+.shipment-status-route__city--to {
+    right: 0.5rem;
+    bottom: 0.55rem;
+}
+
+/* Список этапов */
+.shipment-status-steps {
+    margin-top: 0.75rem;
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-primary);
+    padding: 0.35rem;
+}
+
+.shipment-status-step {
+    position: relative;
+    display: grid;
+    width: 100%;
+    grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.65rem;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    padding: 0.45rem 0.55rem;
+    text-align: left;
+    transition: background 0.15s ease;
+}
+
+.shipment-status-step:hover {
+    background: var(--color-bg-hover);
+}
+
+.shipment-status-step--current {
+    background: rgba(250, 204, 21, 0.12);
+    border-color: rgba(234, 179, 8, 0.35);
+}
+
+.shipment-status-step--current:hover {
+    background: rgba(250, 204, 21, 0.16);
+}
+
+.shipment-status-step__connector {
+    position: absolute;
+    left: 1.72rem;
+    top: 2.35rem;
+    height: calc(100% - 0.95rem);
+    width: 2px;
+    border-radius: 2px;
+    background: var(--color-border);
+}
+
+.shipment-status-step__connector--active {
+    background: linear-gradient(180deg, var(--color-primary-blue, #0071e3) 0%, #22c55e 55%, #34d399 100%);
+}
+
+.shipment-status-step__divider {
+    margin-left: 3.4rem;
+    height: 1px;
+    background: var(--color-border);
+}
+
+.shipment-status-step__title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-subhead, 14px);
+    font-weight: 400;
+    letter-spacing: normal;
+    line-height: 1.35;
+    color: var(--color-text-primary);
+}
+
+.shipment-status-step--upcoming .shipment-status-step__title {
+    color: var(--color-text-secondary);
+}
+
+.shipment-status-step--current .shipment-status-step__title {
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.shipment-status-step__title--sla {
+    color: #dc2626;
+}
+
+.shipment-status-step__date {
+    white-space: nowrap;
+    font-size: var(--font-size-footnote, 12px);
+    font-weight: 500;
+    line-height: 1.35;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-secondary);
+}
+
+.shipment-status-step--current .shipment-status-step__date {
+    color: var(--color-text-secondary);
+}
+
+.shipment-status-step__date--sla {
+    color: #dc2626;
+}
+
+/* Иконки этапов */
+.shipment-status-step-icon {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    height: 2rem;
+    width: 2rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-hover);
+    color: var(--color-text-secondary);
+    box-shadow: none;
+}
+
+.shipment-status-step-icon svg {
+    width: 1rem;
+    height: 1rem;
+}
+
+.shipment-status-step-icon--completed {
+    border-color: rgba(45, 91, 255, 0.35);
+    background: var(--color-primary-blue, #0071e3);
+    color: #fff;
+}
+
+.shipment-status-step-icon--current {
+    border-color: rgba(234, 179, 8, 0.55);
+    background: #facc15;
+    color: #422006;
+}
+
+.shipment-status-step-icon--sla {
+    border-color: rgba(239, 68, 68, 0.45);
+    background: #ef4444;
+    color: #fff;
+}
+
+/* Итого время */
+.shipment-status-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.85rem;
+    border-radius: 12px;
+    border: 1px solid rgba(45, 91, 255, 0.22);
+    background: rgba(45, 91, 255, 0.06);
+    padding: 0.65rem 0.85rem;
+}
+
+.shipment-status-total__left {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.shipment-status-total__clock {
+    display: flex;
+    height: 2rem;
+    width: 2rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid rgba(45, 91, 255, 0.25);
+    background: rgba(45, 91, 255, 0.1);
+    color: var(--color-primary-blue, #0071e3);
+}
+
+.shipment-status-total__clock svg {
+    width: 1rem;
+    height: 1rem;
+}
+
+.shipment-status-total__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-subhead, 14px);
+    font-weight: 400;
+    line-height: 1.35;
+    letter-spacing: normal;
+    color: var(--color-text-primary);
+}
+
+.shipment-status-total__value {
+    margin-left: 0.5rem;
+    font-size: var(--font-size-subhead, 14px);
+    font-weight: 600;
+    line-height: 1.35;
+    letter-spacing: normal;
+    color: var(--color-text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.shipment-status-total__unit {
+    font-size: var(--font-size-footnote, 12px);
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
+/* Полноэкранный демо-режим */
+.shipment-status-screen {
+    min-height: 100vh;
+    width: 100%;
+    padding: 1rem 0.75rem;
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+}
+
+/* Тёмная тема (опционально) */
+.dark-mode .shipment-status-panel {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(15, 23, 42, 0.55);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+}
+
+.dark-mode .shipment-status-panel__title {
+    color: #f8fafc;
+}
+
+.dark-mode .shipment-status-panel__subtitle,
+.dark-mode .shipment-status-panel__error,
+.dark-mode .shipment-status-panel__loading {
+    color: #94a3b8;
+}
+
+.dark-mode .shipment-status-panel__counter {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
+    color: #f1f5f9;
+}
+
+.dark-mode .shipment-status-route {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(7, 20, 40, 0.8);
+}
+
+.dark-mode .shipment-status-route__city {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.1);
+    color: #f1f5f9;
+}
+
+.dark-mode .shipment-status-steps {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.055);
+}
+
+.dark-mode .shipment-status-step:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.dark-mode .shipment-status-step--current {
+    background: rgba(250, 204, 21, 0.08);
+    border-color: rgba(250, 204, 21, 0.35);
+}
+
+.dark-mode .shipment-status-step__title {
+    color: #f8fafc;
+}
+
+.dark-mode .shipment-status-step--upcoming .shipment-status-step__title {
+    color: rgba(203, 213, 225, 0.8);
+}
+
+.dark-mode .shipment-status-step__date {
+    color: #94a3b8;
+}
+
+.dark-mode .shipment-status-step--current .shipment-status-step__date {
+    color: #fde047;
+}
+
+.dark-mode .shipment-status-step__connector {
+    background: rgba(71, 85, 105, 0.55);
+}
+
+.dark-mode .shipment-status-step__divider {
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.dark-mode .shipment-status-step-icon {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(51, 65, 85, 0.5);
+    color: #cbd5e1;
+}
+
+.dark-mode .shipment-status-total {
+    border-color: rgba(45, 91, 255, 0.45);
+    background: linear-gradient(135deg, rgba(18, 61, 146, 0.55), rgba(7, 27, 60, 0.75));
+}
+
+.dark-mode .shipment-status-total__label {
+    color: #f1f5f9;
+}
+
+.dark-mode .shipment-status-total__value {
+    color: #fff;
+}
+
+.dark-mode .shipment-status-total__unit {
+    color: #cbd5e1;
+}
+
+.dark-mode .shipment-status-screen {
+    background: #06101f;
+    color: #fff;
+}

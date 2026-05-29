@@ -286,12 +286,6 @@ export function CargoDetailsModal({
                                 {roleLabel}
                             </span>
                         )}
-                        <div className="cargo-details-header-number details-item-modal">
-                            <Typography.Label className="detail-item-label">Номер</Typography.Label>
-                            <Flex align="center" className="detail-item-value">
-                                <Typography.Body style={{ fontWeight: 600 }}>{item.Number || "—"}</Typography.Body>
-                            </Flex>
-                        </div>
                     </div>
                     <div className="modal-header-actions">
                             <button
@@ -367,6 +361,28 @@ export function CargoDetailsModal({
                             </button>
                     </div>
                 </div>
+
+                <Typography.Headline className="entity-detail-modal-title cargo-details-modal-title">
+                    {item.Number ? formatInvoiceNumber(String(item.Number)) : "—"}
+                </Typography.Headline>
+
+                {(billDisplay || updDisplay) && (
+                    <Flex wrap="wrap" gap="1rem" className="entity-detail-modal-meta cargo-details-doc-meta">
+                        {billDisplay ? (
+                            <Flex direction="column" gap="0.25rem">
+                                <Typography.Label className="cargo-modal-label">Счёт</Typography.Label>
+                                <Typography.Body className="cargo-modal-value cargo-modal-value--emphasis">{billDisplay}</Typography.Body>
+                            </Flex>
+                        ) : null}
+                        {updDisplay ? (
+                            <Flex direction="column" gap="0.25rem">
+                                <Typography.Label className="cargo-modal-label">УПД</Typography.Label>
+                                <Typography.Body className="cargo-modal-value cargo-modal-value--emphasis">{updDisplay}</Typography.Body>
+                            </Flex>
+                        ) : null}
+                    </Flex>
+                )}
+
                 <div className="cargo-details-modal-main">
                     <div className="cargo-details-modal-rows">
                         <div className="cargo-details-tiles-row">
@@ -409,7 +425,6 @@ export function CargoDetailsModal({
                         </div>
                         {isCustomerRole && showSums && (
                             <div className="cargo-details-tiles-row">
-                                <DetailItem label="Счет" value={billDisplay || "-"} />
                                 <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />
                                 <DetailItem label="Оплачено" value={formatCurrency(cargoSumPaid)} />
                                 <DetailItem
@@ -419,11 +434,6 @@ export function CargoDetailsModal({
                                 />
                             </div>
                         )}
-                        {updDisplay ? (
-                            <div className="cargo-details-tiles-row cargo-details-tiles-row--upd">
-                                <DetailItem label="УПД" value={updDisplay} />
-                            </div>
-                        ) : null}
                         <div className="cargo-details-tiles-row">
                             <DetailItem label="Заборная логистика" value={<CargoPickupLogisticsBadge item={item} />} />
                             <DetailItem
@@ -491,7 +501,7 @@ export function CargoDetailsModal({
                 </div>
                 {hasLastMileBlock && (
                     <div style={{ marginTop: '0.75rem' }}>
-                        <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
+                        <Typography.Headline className="cargo-modal-section-title" style={{ marginBottom: '0.5rem' }}>
                             Последняя миля
                         </Typography.Headline>
                         <div className="cargo-details-tiles-row">
@@ -540,7 +550,7 @@ export function CargoDetailsModal({
                 {!perevozkaLoading && perevozkaNomenclature.length > 0 && (
                     <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
                         <div role="button" tabIndex={0} onClick={() => setNomenclatureOpen((v) => !v)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setNomenclatureOpen((v) => !v); } }} style={{ cursor: 'pointer', userSelect: 'none', marginBottom: nomenclatureOpen ? '0.75rem' : 0 }} title={nomenclatureOpen ? 'Свернуть номенклатуру' : 'Показать номенклатуру'}>
-                            <Typography.Headline style={{ marginBottom: 0, fontSize: '0.9rem', fontWeight: 600 }}>{nomenclatureOpen ? '▼' : '▶'} Номенклатура принятого груза</Typography.Headline>
+                            <Typography.Headline className="cargo-modal-section-title" style={{ marginBottom: 0 }}>{nomenclatureOpen ? '▼' : '▶'} Номенклатура принятого груза</Typography.Headline>
                         </div>
                         {nomenclatureOpen && (
                             <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid var(--color-border)' }}>
@@ -599,7 +609,7 @@ export function CargoDetailsModal({
                     </div>
                 )}
                 {downloadError && <Typography.Body className="login-error mb-2">{downloadError}</Typography.Body>}
-                <Typography.Headline style={{ marginTop: '1rem', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>Документы</Typography.Headline>
+                <Typography.Headline className="cargo-modal-section-title" style={{ marginTop: '1rem', marginBottom: '0.5rem' }}>Документы</Typography.Headline>
                 {(() => {
                     const isPaid = item.StateBill?.toLowerCase().includes('оплачен') || item.StateBill?.toLowerCase().includes('paid') || item.StateBill === 'Оплачен';
                     const isCustomer = isCustomerRole;

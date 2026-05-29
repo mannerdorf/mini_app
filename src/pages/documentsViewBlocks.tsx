@@ -105,7 +105,7 @@ function DocumentsInnCopyCell({ inn }: { inn: string }) {
   };
 
   return (
-    <Flex align="center" gap="0.3rem" className="documents-edo-inn-cell" style={{ minWidth: 0 }}>
+    <Flex align="center" gap="0.2rem" className="documents-edo-inn-cell" style={{ minWidth: 0 }}>
       <span
         className="documents-edo-inn-cell__value"
         style={{ fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
@@ -116,15 +116,15 @@ function DocumentsInnCopyCell({ inn }: { inn: string }) {
       {inn ? (
         <button
           type="button"
-          className="documents-edo-inn-cell__copy"
+          className={`documents-edo-inn-cell__copy${copied ? " documents-edo-inn-cell__copy--copied" : ""}`}
           onClick={handleCopy}
           title={copied ? "Скопировано" : "Скопировать ИНН"}
           aria-label={copied ? "ИНН скопирован" : "Скопировать ИНН"}
         >
           {copied ? (
-            <Check className="w-3.5 h-3.5" style={{ color: "var(--color-success, #22c55e)" }} />
+            <Check strokeWidth={2} aria-hidden />
           ) : (
-            <Copy className="w-3.5 h-3.5" style={{ color: "var(--color-text-secondary)" }} />
+            <Copy strokeWidth={2} aria-hidden />
           )}
         </button>
       ) : null}

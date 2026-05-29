@@ -72,45 +72,34 @@ function RouteMap({ fromCity, toCity, stepCount }: { fromCity: string; toCity: s
   const progress = stepCount <= 1 ? 0.35 : Math.min(0.92, 0.2 + (stepCount / 9) * 0.72);
 
   return (
-    <div className="relative mt-4 overflow-hidden rounded-[22px] border border-white/10 bg-[#071428]/80 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(45,91,255,0.22),transparent_30%),radial-gradient(circle_at_78%_66%,rgba(250,204,21,0.18),transparent_26%)]" />
-      <svg className="absolute inset-0 h-full w-full opacity-[0.23]" viewBox="0 0 390 150" aria-hidden>
+    <div className="shipment-status-route">
+      <div className="shipment-status-route__bg" aria-hidden />
+      <svg className="shipment-status-route__decor" viewBox="0 0 390 150" aria-hidden>
         <path
           d="M19 98 C49 80 84 88 116 62 C149 36 181 50 209 39 C248 23 278 56 318 42 C346 33 363 53 381 35"
           fill="none"
-          stroke="rgba(148,163,184,0.32)"
-          strokeWidth="32"
+          stroke="rgba(148,163,184,0.45)"
+          strokeWidth="28"
           strokeLinecap="round"
         />
       </svg>
-      <div className="relative h-[120px] sm:h-[134px]">
-        <div className="absolute left-3 top-5 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold tracking-wide text-slate-100 shadow-lg backdrop-blur">
-          {fromCity}
-        </div>
-        <div className="absolute bottom-5 right-3 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold tracking-wide text-slate-100 shadow-lg backdrop-blur">
-          {toCity}
-        </div>
+      <div className="shipment-status-route__canvas">
+        <span className="shipment-status-route__city shipment-status-route__city--from">{fromCity}</span>
+        <span className="shipment-status-route__city shipment-status-route__city--to">{toCity}</span>
 
-        <svg className="absolute inset-0 h-full w-full" viewBox="0 0 390 154" aria-label={`Маршрут ${fromCity} ${toCity}`}>
+        <svg className="shipment-status-route__path" viewBox="0 0 390 154" aria-label={`Маршрут ${fromCity} ${toCity}`}>
           <defs>
             <linearGradient id="haulzRouteGradient" x1="0" x2="1" y1="0" y2="0">
               <stop offset="0%" stopColor="#2D5BFF" />
               <stop offset="55%" stopColor="#22C55E" />
               <stop offset="78%" stopColor="#FACC15" />
-              <stop offset="100%" stopColor="#64748B" />
+              <stop offset="100%" stopColor="#94A3B8" />
             </linearGradient>
-            <filter id="haulzRouteGlow" x="-40%" y="-80%" width="180%" height="260%">
-              <feGaussianBlur stdDeviation="4" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
           </defs>
           <path
             d="M38 77 C78 54 108 85 143 65 C181 43 209 84 247 66 C289 45 318 70 351 87"
             fill="none"
-            stroke="rgba(255,255,255,0.12)"
+            stroke="rgba(148,163,184,0.35)"
             strokeWidth="8"
             strokeLinecap="round"
           />
@@ -121,14 +110,13 @@ function RouteMap({ fromCity, toCity, stepCount }: { fromCity: string; toCity: s
             strokeWidth="4"
             strokeLinecap="round"
             strokeDasharray="8 8"
-            filter="url(#haulzRouteGlow)"
             pathLength={1}
             strokeDashoffset={1 - progress}
           />
           {[
             { x: 38, y: 77, c: "#2D5BFF", r: 9 },
             { x: 94, y: 66, c: "#22C55E", r: 6 },
-            { x: 139, y: 66, c: "#A7F3D0", r: 5 },
+            { x: 139, y: 66, c: "#86EFAC", r: 5 },
             { x: 181, y: 61, c: "#22C55E", r: 7 },
             { x: 220, y: 72, c: "#FACC15", r: 10 },
             { x: 269, y: 60, c: "#94A3B8", r: 7 },
@@ -136,14 +124,13 @@ function RouteMap({ fromCity, toCity, stepCount }: { fromCity: string; toCity: s
             { x: 351, y: 87, c: "#94A3B8", r: 9 },
           ].map((point, index) => (
             <g key={index}>
-              <circle cx={point.x} cy={point.y} r={point.r + 7} fill={point.c} opacity="0.14" />
-              <circle cx={point.x} cy={point.y} r={point.r} fill={point.c} stroke="rgba(255,255,255,0.72)" strokeWidth="2" />
+              <circle cx={point.x} cy={point.y} r={point.r + 5} fill={point.c} opacity="0.18" />
+              <circle cx={point.x} cy={point.y} r={point.r} fill={point.c} stroke="#fff" strokeWidth="2" />
             </g>
           ))}
           <motion.circle
             r="4"
-            fill="#E0F2FE"
-            filter="url(#haulzRouteGlow)"
+            fill="#2D5BFF"
             initial={{ offsetDistance: "0%" }}
             animate={{ offsetDistance: ["0%", `${Math.round(progress * 100)}%`, "0%"] }}
             transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
@@ -159,77 +146,53 @@ function RouteMap({ fromCity, toCity, stepCount }: { fromCity: string; toCity: s
 
 function StepIcon({ step }: { step: TrackingStep }) {
   const Icon = step.status === "current" ? Truck : step.status === "completed" ? Check : iconForLabel(step.title);
-  const base =
-    "relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border shadow-lg";
-  if (step.outOfSla) {
-    return (
-      <div className={`${base} border-red-300/60 bg-red-500/90 text-white shadow-red-500/30`}>
-        <Icon className="h-4 w-4" strokeWidth={2.4} />
-      </div>
-    );
-  }
-  if (step.status === "current") {
-    return (
-      <motion.div
-        className={`${base} border-yellow-200/70 bg-yellow-400 text-slate-950 shadow-yellow-400/30`}
-        animate={{
-          boxShadow: [
-            "0 0 0 rgba(250,204,21,0)",
-            "0 0 24px rgba(250,204,21,0.45)",
-            "0 0 0 rgba(250,204,21,0)",
-          ],
-        }}
-        transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-      >
-        <Icon className="h-4 w-4" strokeWidth={2.4} />
-      </motion.div>
-    );
-  }
-  if (step.status === "completed") {
-    return (
-      <div className={`${base} border-blue-200/50 bg-[#2D5BFF] text-white shadow-blue-500/30`}>
-        <Icon className="h-4 w-4" strokeWidth={3} />
-      </div>
-    );
-  }
+  const className = [
+    "shipment-status-step-icon",
+    step.outOfSla ? "shipment-status-step-icon--sla" : "",
+    step.status === "current" ? "shipment-status-step-icon--current" : "",
+    step.status === "completed" ? "shipment-status-step-icon--completed" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className={`${base} border-white/10 bg-slate-700/50 text-slate-300 shadow-black/20`}>
-      <Icon className="h-4 w-4 opacity-75" strokeWidth={2.2} />
+    <div className={className}>
+      <Icon strokeWidth={step.status === "completed" ? 3 : 2.4} />
     </div>
   );
 }
 
 function TrackingStepRow({ step, index, total }: { step: TrackingStep; index: number; total: number }) {
-  const isCurrent = step.status === "current";
-  const isUpcoming = step.status === "upcoming";
+  const rowClass = [
+    "shipment-status-step",
+    step.status === "current" ? "shipment-status-step--current" : "",
+    step.status === "upcoming" ? "shipment-status-step--upcoming" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <motion.div
-      className={[
-        "group relative grid w-full grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition",
-        isCurrent
-          ? "border border-yellow-300/35 bg-yellow-400/[0.08] shadow-[inset_4px_0_0_rgba(250,204,21,0.95),inset_-4px_0_0_rgba(250,204,21,0.45),0_0_24px_rgba(250,204,21,0.12)]"
-          : "border border-transparent hover:bg-white/[0.04]",
-      ].join(" ")}
-      initial={{ opacity: 0, y: 10 }}
+      className={rowClass}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.04 + index * 0.04, duration: 0.32, ease: "easeOut" }}
+      transition={{ delay: 0.04 + index * 0.04, duration: 0.28, ease: "easeOut" }}
     >
       {index < total - 1 && (
         <span
           className={[
-            "absolute left-[1.72rem] top-[2.6rem] h-[calc(100%-1.2rem)] w-px",
-            step.status === "upcoming" ? "bg-slate-600/55" : "bg-gradient-to-b from-[#2D5BFF] via-emerald-400 to-emerald-500",
+            "shipment-status-step__connector",
+            step.status === "upcoming" ? "" : "shipment-status-step__connector--active",
           ].join(" ")}
           aria-hidden
         />
       )}
       <StepIcon step={step} />
-      <div className="min-w-0">
+      <div className="shipment-status-step__body">
         <div
           className={[
-            "truncate text-[0.88rem] font-semibold tracking-[-0.01em]",
-            step.outOfSla ? "text-red-300" : isCurrent ? "text-white" : isUpcoming ? "text-slate-300/80" : "text-slate-50",
+            "shipment-status-step__title",
+            step.outOfSla ? "shipment-status-step__title--sla" : "",
           ].join(" ")}
         >
           {step.title}
@@ -237,8 +200,8 @@ function TrackingStepRow({ step, index, total }: { step: TrackingStep; index: nu
       </div>
       <div
         className={[
-          "whitespace-nowrap text-xs font-medium tabular-nums sm:text-sm",
-          step.outOfSla ? "text-red-300" : isCurrent ? "text-yellow-300" : isUpcoming ? "text-slate-400/80" : "text-slate-400",
+          "shipment-status-step__date",
+          step.outOfSla ? "shipment-status-step__date--sla" : "",
         ].join(" ")}
       >
         {step.date || "—"}
@@ -273,69 +236,64 @@ export function ShipmentStatusPanel({
   const inner = (
     <motion.section
       className={[
-        "w-full overflow-hidden rounded-[20px] border border-white/10 bg-slate-900/55 p-3 shadow-[0_16px_48px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl sm:p-4",
-        embedded ? "relative" : "mx-auto max-w-[430px]",
+        "shipment-status-panel",
+        embedded ? "shipment-status-panel--embedded" : "shipment-status-panel--standalone",
       ].join(" ")}
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_50%_0%,rgba(45,91,255,0.24),transparent_62%)]" />
-      <div className="relative flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-base font-bold tracking-[-0.03em] text-slate-50 sm:text-[1.2rem]">Статусы перевозки</p>
-          <p className="mt-0.5 text-[11px] font-medium text-slate-400 sm:text-xs">
+      <div className="shipment-status-panel__head">
+        <div className="shipment-status-panel__titles">
+          <p className="shipment-status-panel__title">Статусы перевозки</p>
+          <p className="shipment-status-panel__subtitle">
             Маршрут {fromCity} → {toCity}
           </p>
         </div>
         {!loading && trackingSteps.length > 0 && (
-          <div className="shrink-0 rounded-full border border-white/10 bg-white/[0.08] px-2.5 py-1 text-xs font-bold text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-xl sm:px-3 sm:py-1.5 sm:text-sm">
+          <div className="shipment-status-panel__counter">
             {completedCount} / {trackingSteps.length} этапов
           </div>
         )}
       </div>
 
       {loading && (
-        <div className="mt-4 flex items-center gap-2 py-6 text-slate-300">
-          <Loader2 className="h-4 w-4 animate-spin text-[#2D5BFF]" />
-          <span className="text-sm">Загрузка статусов…</span>
+        <div className="shipment-status-panel__loading">
+          <Loader2 className="shipment-status-panel__loading-icon" />
+          <span>Загрузка статусов…</span>
         </div>
       )}
 
-      {error && !loading && (
-        <p className="mt-4 text-sm text-slate-400">{error}</p>
-      )}
+      {error && !loading && <p className="shipment-status-panel__error">{error}</p>}
 
       {!loading && !error && trackingSteps.length > 0 && (
         <>
           <RouteMap fromCity={fromCity} toCity={toCity} stepCount={completedCount} />
 
-          <div className="mt-3 rounded-[18px] border border-white/10 bg-white/[0.055] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:mt-4 sm:rounded-[22px] sm:p-2">
+          <div className="shipment-status-steps">
             {trackingSteps.map((step, index) => (
               <React.Fragment key={`${step.id}-${step.title}`}>
                 <TrackingStepRow step={step} index={index} total={trackingSteps.length} />
-                {index < trackingSteps.length - 1 && <div className="ml-[3.4rem] h-px bg-white/[0.07]" />}
+                {index < trackingSteps.length - 1 && <div className="shipment-status-step__divider" />}
               </React.Fragment>
             ))}
           </div>
 
           {totalHours != null && (
             <motion.div
-              className="mt-4 flex items-center justify-between rounded-[18px] border border-[#2D5BFF]/70 bg-gradient-to-br from-[#123D92]/70 via-[#0D285E]/75 to-[#071B3C]/90 px-3 py-3 shadow-[0_0_28px_rgba(45,91,255,0.22),inset_0_1px_0_rgba(255,255,255,0.12)] sm:px-4 sm:py-4"
-              initial={{ opacity: 0, y: 8 }}
+              className="shipment-status-total"
+              initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.35, ease: "easeOut" }}
+              transition={{ delay: 0.15, duration: 0.3, ease: "easeOut" }}
             >
-              <div className="flex min-w-0 items-center gap-2.5">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#2D5BFF]/60 bg-[#2D5BFF]/15 text-sky-300">
-                  <Clock3 className="h-4 w-4 sm:h-5 sm:w-5" />
+              <div className="shipment-status-total__left">
+                <div className="shipment-status-total__clock">
+                  <Clock3 />
                 </div>
-                <div className="truncate text-sm font-semibold tracking-[-0.02em] text-slate-100 sm:text-base">
-                  Итого время в пути
-                </div>
+                <div className="shipment-status-total__label">Итого время в пути</div>
               </div>
-              <div className="ml-3 text-2xl font-black leading-none tracking-[-0.05em] text-white sm:text-[2rem]">
-                {totalHours} <span className="text-lg font-extrabold text-slate-200 sm:text-xl">ч</span>
+              <div className="shipment-status-total__value">
+                {totalHours} <span className="shipment-status-total__unit">ч</span>
               </div>
             </motion.div>
           )}
@@ -346,11 +304,7 @@ export function ShipmentStatusPanel({
 
   if (embedded) return inner;
 
-  return (
-    <div className="min-h-screen w-full bg-[#06101f] px-3 py-5 text-white [font-family:Inter,ui-sans-serif,system-ui,sans-serif]">
-      {inner}
-    </div>
-  );
+  return <div className="shipment-status-screen">{inner}</div>;
 }
 
 /** Демо-экран с мок-данными (для превью / ?shipmentStatus=1) */
