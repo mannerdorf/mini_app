@@ -25,31 +25,39 @@ export function hasStaleActiveCustomerInn(acc: Account): boolean {
 }
 
 /**
- * Для CMS-пользователя с одним заказчиком — всегда его ИНН/название.
- * Иначе подставляет customer по activeCustomerInn из списка customers.
+ * Для CMS с одним заказчиком в профиле — фиксируем его ИНН.
+ * При нескольких компаниях (account_companies) сохраняем выбор из переключателя.
  */
 export function normalizeAccountCustomerSelection(acc: Account): Account {
-    const primary = getRegisteredPrimaryCustomer(acc);
-    if (primary) {
+    const list = (acc.customers ?? []).filter((c) => (c.inn || "").trim().length > 0);
+
+    if (isSingleRegisteredCustomerAccount(acc) && list.length === 1) {
         return {
             ...acc,
-            activeCustomerInn: primary.inn,
-            customer: primary.name || acc.customer,
+            activeCustomerInn: list[0].inn,
+            customer: list[0].name || acc.customer,
         };
     }
-    if (hasStaleActiveCustomerInn(acc) && acc.customers?.[0]) {
-        const first = acc.customers[0];
-        return {
-            ...acc,
-            activeCustomerInn: first.inn,
-            customer: first.name || acc.customer,
-        };
-    }
-    if (acc.activeCustomerInn && acc.customers?.length) {
-        const match = acc.customers.find((c) => c.inn === acc.activeCustomerInn);
-        if (match?.name && match.name !== acc.customer) {
-            return { ...acc, customer: match.name };
+
+    const activeInn = (acc.activeCustomerInn || "").trim();
+    if (activeInn) {
+        const match = list.find((c) => c.inn === activeInn);
+        if (match) {
+            return { ...acc, customer: match.name || acc.customer };
+        }
+        // Выбран заказчик из справочника, ещё не в customers[] — не сбрасываем на первого
+        if ((acc.customer || "").trim()) {
+            return acc;
         }
     }
+
+    if (hasStaleActiveCustomerInn(acc) && list[0]) {
+        return {
+            ...acc,
+            activeCustomerInn: list[0].inn,
+            customer: list[0].name || acc.customer,
+        };
+    }
+
     return acc;
 }

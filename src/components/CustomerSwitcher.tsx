@@ -4,7 +4,7 @@ import { ChevronDown, Check } from "lucide-react";
 import type { Account } from "../types";
 import type { HeaderCompanyRow } from "../types";
 import { stripOoo } from "../lib/formatUtils";
-import { dedupeCompaniesByName } from "../utils";
+import { dedupeCompaniesByName, dedupeCustomersByInn } from "../utils";
 
 type CustomerSwitcherProps = {
   accounts: Account[];
@@ -64,8 +64,18 @@ export function CustomerSwitcher({ accounts, activeAccountId, onSwitchAccount, o
     const acc = accounts.find((a) => (a.login != null ? String(a.login).trim().toLowerCase() : "") === c.login);
     if (!acc) return;
     onSwitchAccount(acc.id);
-    if (c.inn !== undefined && c.inn !== null) {
-      onUpdateAccount(acc.id, { activeCustomerInn: c.inn, customer: c.name || acc.customer });
+    const inn = (c.inn ?? "").trim();
+    if (inn) {
+      const name = (c.name || acc.customer || inn).trim();
+      const customers = dedupeCustomersByInn([
+        ...(acc.customers ?? []),
+        { inn, name },
+      ]);
+      onUpdateAccount(acc.id, {
+        activeCustomerInn: inn,
+        customer: name,
+        customers,
+      });
     }
     setIsOpen(false);
     setSearchQuery("");
