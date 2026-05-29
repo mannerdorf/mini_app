@@ -52,6 +52,33 @@ const PERMISSION_ROW1_SUPERADMIN = [
   { key: "doc_sendings", label: "Отправки" as const },
 ] as const;
 
+const SUPERADMIN_ONLY_PERMISSION_KEYS = new Set(
+  PERMISSION_ROW1_SUPERADMIN.map((item) => item.key)
+);
+
+function isSuperadminOnlyPermissionKey(key: string): boolean {
+  return SUPERADMIN_ONLY_PERMISSION_KEYS.has(key);
+}
+
+/** Сохранение прав: 1-я строка меняется только суперадминистратором. */
+function permissionsForAdminEditor(
+  isSuperAdmin: boolean,
+  edited: Record<string, boolean>,
+  previous?: Record<string, boolean> | null
+): Record<string, boolean> {
+  if (isSuperAdmin) return normalizeAnalyticsDashboardPermissions(edited);
+  const prev = previous || {};
+  const out = normalizeAnalyticsDashboardPermissions({ ...edited });
+  for (const { key } of PERMISSION_ROW1_SUPERADMIN) {
+    if (key === "doc_sendings") {
+      out.doc_sendings = prev.doc_sendings === true && edited.doc_sendings === true;
+      continue;
+    }
+    out[key] = Boolean(prev[key]);
+  }
+  return out;
+}
+
 /** 2-я строка: доступна всем, у кого есть доступ в CMS, активный цвет — оранжевый. */
 const PERMISSION_ROW2_ORANGE = [
   { key: "__financial__", label: "Фин. показатели" as const },
@@ -3341,7 +3368,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [usersSearchQuery, users, matchesUserSearch]);
 
   const togglePerm = (key: string) => {
-    if (key === "doc_sendings" && !isSuperAdmin) return;
+    if (!isSuperAdmin && isSuperadminOnlyPermissionKey(key)) return;
     setFormSelectedPresetId("");
     setFormPermissions((p) => applyPermissionsToggle(p, key));
   };
@@ -3380,9 +3407,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       email: entry.login.trim(),
       password: formSendEmail ? undefined : entry.password || formPassword,
       send_email: formSendEmail,
-      permissions: normalizeAnalyticsDashboardPermissions(
-        isSuperAdmin ? formPermissions : { ...formPermissions, doc_sendings: false }
-      ),
+      permissions: permissionsForAdminEditor(isSuperAdmin, formPermissions, {}),
       financial_access: formFinancial,
       access_all_inns: formAccessAllInns,
     };
@@ -3435,7 +3460,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   };
 
   const handlePermissionsToggle = (key: string) => {
-    if (key === "doc_sendings" && !isSuperAdmin) return;
+    if (!isSuperAdmin && isSuperadminOnlyPermissionKey(key)) return;
     setEditorSelectedPresetId("");
     setEditorPermissions((prev) => applyPermissionsToggle(prev, key));
   };
@@ -3453,13 +3478,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (selectedUserIds.length === 0) return;
     setBulkLoading(true);
     setBulkError(null);
-    const body = {
-      permissions: normalizeAnalyticsDashboardPermissions(bulkPermissions),
-      financial_access: bulkFinancial,
-      access_all_inns: bulkAccessAllInns,
-    };
     const failed: { id: number; error: string }[] = [];
     for (const id of selectedUserIds) {
+      const user = users.find((u) => u.id === id);
+      const body = {
+        permissions: permissionsForAdminEditor(isSuperAdmin, bulkPermissions, user?.permissions),
+        financial_access: bulkFinancial,
+        access_all_inns: isSuperAdmin
+          ? bulkAccessAllInns
+          : Boolean(user?.access_all_inns ?? user?.permissions?.service_mode),
+      };
       try {
         const res = await fetch(`/api/admin-user-update?id=${id}`, {
           method: "PATCH",
@@ -3479,7 +3507,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     } else {
       setSelectedUserIds([]);
     }
-  }, [selectedUserIds, bulkPermissions, bulkFinancial, bulkAccessAllInns, adminToken, fetchUsers]);
+  }, [selectedUserIds, bulkPermissions, bulkFinancial, bulkAccessAllInns, adminToken, fetchUsers, isSuperAdmin, users]);
 
   const handleBulkDeactivate = useCallback(async () => {
     if (selectedUserIds.length === 0) return;
@@ -3526,17 +3554,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           Authorization: `Bearer ${adminToken}`,
         },
         body: JSON.stringify({
-          permissions: normalizeAnalyticsDashboardPermissions(
-            isSuperAdmin
-              ? editorPermissions
-              : {
-                  ...editorPermissions,
-                  doc_sendings:
-                    selectedUser.permissions?.doc_sendings === true && editorPermissions.doc_sendings === true,
-                }
-          ),
+          permissions: permissionsForAdminEditor(isSuperAdmin, editorPermissions, selectedUser.permissions),
           financial_access: editorFinancial,
-          access_all_inns: editorAccessAllInns,
+          access_all_inns: isSuperAdmin
+            ? editorAccessAllInns
+            : Boolean(selectedUser.permissions?.service_mode ?? selectedUser.access_all_inns),
           customers: editorCustomers.map((c) => ({ inn: c.inn, name: c.customer_name })),
         }),
       });
@@ -4532,15 +4554,22 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           setEditorSelectedPresetId(id);
                           const preset = permissionPresets.find((p) => p.id === id);
                           if (preset) {
+                            const applied = applyPresetPermissionsWithSendingsGate(
+                              preset.permissions,
+                              isSuperAdmin,
+                              selectedUser?.permissions?.doc_sendings === true
+                            );
                             setEditorPermissions(
-                              applyPresetPermissionsWithSendingsGate(
-                                preset.permissions,
-                                isSuperAdmin,
-                                selectedUser?.permissions?.doc_sendings === true
-                              )
+                              isSuperAdmin
+                                ? applied
+                                : permissionsForAdminEditor(false, applied, selectedUser?.permissions)
                             );
                             setEditorFinancial(preset.financial);
-                            setEditorAccessAllInns(preset.serviceMode);
+                            setEditorAccessAllInns(
+                              isSuperAdmin
+                                ? preset.serviceMode
+                                : Boolean(selectedUser?.permissions?.service_mode ?? selectedUser?.access_all_inns)
+                            );
                           }
                         }}
                       >
@@ -4551,28 +4580,28 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       </select>
                     </Flex>
                     <div className="admin-form-section-header">Разделы</div>
-                    <div className="admin-permissions-toolbar">
-                    {PERMISSION_ROW1_SUPERADMIN.map(({ key, label }) => {
-                        const isActive = key === "service_mode" ? (!!editorPermissions.service_mode || editorAccessAllInns) : !!editorPermissions[key];
-                        const isLocked = !isSuperAdmin;
-                        const onClick = () => {
-                          if (isLocked) return;
-                          setEditorSelectedPresetId("");
-                          if (key === "service_mode") {
-                            const v = !(!!editorPermissions.service_mode || editorAccessAllInns);
-                            setEditorPermissions((p) => ({ ...p, service_mode: v }));
-                            setEditorAccessAllInns(v);
-                            return;
-                          }
-                          handlePermissionsToggle(key);
-                        };
-                        const activeClass = superadminRowPermissionActiveClass(key, isActive);
-                        return (
-                          <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick} disabled={isLocked} title={isLocked ? "Только для суперадминистратора" : undefined}>{label}</button>
-                        );
-                      })}
-                    </div>
-                    <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
+                    {isSuperAdmin && (
+                      <div className="admin-permissions-toolbar">
+                        {PERMISSION_ROW1_SUPERADMIN.map(({ key, label }) => {
+                          const isActive = key === "service_mode" ? (!!editorPermissions.service_mode || editorAccessAllInns) : !!editorPermissions[key];
+                          const onClick = () => {
+                            setEditorSelectedPresetId("");
+                            if (key === "service_mode") {
+                              const v = !(!!editorPermissions.service_mode || editorAccessAllInns);
+                              setEditorPermissions((p) => ({ ...p, service_mode: v }));
+                              setEditorAccessAllInns(v);
+                              return;
+                            }
+                            handlePermissionsToggle(key);
+                          };
+                          const activeClass = superadminRowPermissionActiveClass(key, isActive);
+                          return (
+                            <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <div className="admin-permissions-toolbar" style={{ marginTop: isSuperAdmin ? "0.5rem" : 0 }}>
                       {PERMISSION_ROW2_ORANGE.map(({ key, label }) => {
                         const isActive = key === "__financial__" ? editorFinancial : !!editorPermissions[key];
                         const onClick = key === "__financial__"
@@ -4826,26 +4855,26 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     </select>
                   </Flex>
                   <div className="admin-form-section-header" style={{ marginBottom: "0.35rem" }}>Разделы</div>
-                  <div className="admin-permissions-toolbar">
-                    {PERMISSION_ROW1_SUPERADMIN.map(({ key, label }) => {
-                      const isActive = key === "service_mode" ? (!!bulkPermissions.service_mode || bulkAccessAllInns) : !!bulkPermissions[key];
-                      const isLocked = !isSuperAdmin;
-                      const onClick = () => {
-                        if (isLocked) return;
-                        setBulkSelectedPresetId("");
-                        if (key === "service_mode") {
-                          const v = !(!!bulkPermissions.service_mode || bulkAccessAllInns);
-                          setBulkPermissions((p) => ({ ...p, service_mode: v }));
-                          setBulkAccessAllInns(v);
-                          return;
-                        }
-                        setBulkPermissions((p) => ({ ...p, [key]: !p[key] }));
-                      };
-                      const activeClass = superadminRowPermissionActiveClass(key, isActive);
-                      return <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick} disabled={isLocked} title={isLocked ? "Только для суперадминистратора" : undefined}>{label}</button>;
-                    })}
-                  </div>
-                  <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
+                  {isSuperAdmin && (
+                    <div className="admin-permissions-toolbar">
+                      {PERMISSION_ROW1_SUPERADMIN.map(({ key, label }) => {
+                        const isActive = key === "service_mode" ? (!!bulkPermissions.service_mode || bulkAccessAllInns) : !!bulkPermissions[key];
+                        const onClick = () => {
+                          setBulkSelectedPresetId("");
+                          if (key === "service_mode") {
+                            const v = !(!!bulkPermissions.service_mode || bulkAccessAllInns);
+                            setBulkPermissions((p) => ({ ...p, service_mode: v }));
+                            setBulkAccessAllInns(v);
+                            return;
+                          }
+                          setBulkPermissions((p) => ({ ...p, [key]: !p[key] }));
+                        };
+                        const activeClass = superadminRowPermissionActiveClass(key, isActive);
+                        return <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>;
+                      })}
+                    </div>
+                  )}
+                  <div className="admin-permissions-toolbar" style={{ marginTop: isSuperAdmin ? "0.5rem" : 0 }}>
                     {PERMISSION_ROW2_ORANGE.map(({ key, label }) => {
                       const isActive = key === "__financial__" ? bulkFinancial : !!bulkPermissions[key];
                       const onClick = key === "__financial__"
@@ -5242,29 +5271,29 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 </select>
               </Flex>
               <div className="admin-form-section-header">Разделы</div>
-              <div className="admin-permissions-toolbar">
-                {PERMISSION_ROW1_SUPERADMIN.map(({ key, label }) => {
-                  const isActive = key === "service_mode" ? (!!formPermissions.service_mode || formAccessAllInns) : !!formPermissions[key];
-                  const isLocked = !isSuperAdmin;
-                  const onClick = () => {
-                    if (isLocked) return;
-                    setFormSelectedPresetId("");
-                    if (key === "service_mode") {
-                      const v = !(!!formPermissions.service_mode || formAccessAllInns);
-                      setFormPermissions((p) => ({ ...p, service_mode: v }));
-                      setFormAccessAllInns(v);
-                      if (v) clearCustomerSelection();
-                      return;
-                    }
-                    togglePerm(key);
-                  };
-                  const activeClass = superadminRowPermissionActiveClass(key, isActive);
-                  return (
-                    <button type="button" key={key} className={`permission-button ${activeClass}`} onClick={onClick} disabled={isLocked} title={isLocked ? "Только для суперадминистратора" : undefined}>{label}</button>
-                  );
-                })}
-              </div>
-              <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
+              {isSuperAdmin && (
+                <div className="admin-permissions-toolbar">
+                  {PERMISSION_ROW1_SUPERADMIN.map(({ key, label }) => {
+                    const isActive = key === "service_mode" ? (!!formPermissions.service_mode || formAccessAllInns) : !!formPermissions[key];
+                    const onClick = () => {
+                      setFormSelectedPresetId("");
+                      if (key === "service_mode") {
+                        const v = !(!!formPermissions.service_mode || formAccessAllInns);
+                        setFormPermissions((p) => ({ ...p, service_mode: v }));
+                        setFormAccessAllInns(v);
+                        if (v) clearCustomerSelection();
+                        return;
+                      }
+                      togglePerm(key);
+                    };
+                    const activeClass = superadminRowPermissionActiveClass(key, isActive);
+                    return (
+                      <button type="button" key={key} className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="admin-permissions-toolbar" style={{ marginTop: isSuperAdmin ? "0.5rem" : 0 }}>
                 {PERMISSION_ROW2_ORANGE.map(({ key, label }) => {
                   const isActive = key === "__financial__" ? formFinancial : !!formPermissions[key];
                   const onClick = key === "__financial__"
@@ -8809,25 +8838,25 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     />
                   </div>
                   <div className="admin-form-section-header">Разделы</div>
-                  <div className="admin-permissions-toolbar">
-                    {PERMISSION_ROW1_SUPERADMIN.map(({ key, label }) => {
-                      const isActive = key === "service_mode" ? (!!presetFormPermissions.service_mode || presetFormServiceMode) : !!presetFormPermissions[key];
-                      const isLocked = !isSuperAdmin;
-                      const onClick = () => {
-                        if (isLocked) return;
-                        if (key === "service_mode") {
-                          const v = !(!!presetFormPermissions.service_mode || presetFormServiceMode);
-                          setPresetFormPermissions((p) => ({ ...p, service_mode: v }));
-                          setPresetFormServiceMode(v);
-                          return;
-                        }
-                        setPresetFormPermissions((p) => ({ ...p, [key]: !p[key] }));
-                      };
-                      const activeClass = superadminRowPermissionActiveClass(key, isActive);
-                      return <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick} disabled={isLocked} title={isLocked ? "Только для суперадминистратора" : undefined}>{label}</button>;
-                    })}
-                  </div>
-                  <div className="admin-permissions-toolbar" style={{ marginTop: "0.25rem" }}>
+                  {isSuperAdmin && (
+                    <div className="admin-permissions-toolbar">
+                      {PERMISSION_ROW1_SUPERADMIN.map(({ key, label }) => {
+                        const isActive = key === "service_mode" ? (!!presetFormPermissions.service_mode || presetFormServiceMode) : !!presetFormPermissions[key];
+                        const onClick = () => {
+                          if (key === "service_mode") {
+                            const v = !(!!presetFormPermissions.service_mode || presetFormServiceMode);
+                            setPresetFormPermissions((p) => ({ ...p, service_mode: v }));
+                            setPresetFormServiceMode(v);
+                            return;
+                          }
+                          setPresetFormPermissions((p) => ({ ...p, [key]: !p[key] }));
+                        };
+                        const activeClass = superadminRowPermissionActiveClass(key, isActive);
+                        return <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>;
+                      })}
+                    </div>
+                  )}
+                  <div className="admin-permissions-toolbar" style={{ marginTop: isSuperAdmin ? "0.25rem" : 0 }}>
                     {PERMISSION_ROW2_ORANGE.map(({ key, label }) => {
                       const isActive = key === "__financial__" ? presetFormFinancial : !!presetFormPermissions[key];
                       const onClick = key === "__financial__"
