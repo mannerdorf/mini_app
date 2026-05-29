@@ -31,6 +31,7 @@ export async function fetchLegalPublic(): Promise<{
   consent: LegalPublicDoc | null;
 }> {
   const res = await fetch("/api/legal-public");
+  if (res.status === 404) return { offer: null, consent: null };
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as { error?: string }).error || "Не удалось загрузить документы");
   return {
