@@ -253,8 +253,9 @@ export function CargoDetailsModal({
         autoReg: String((item as any).LMAutoReg ?? '').trim(),
         autoType: String((item as any).LMAutoType ?? '').trim(),
         driver: String((item as any).LMDriver ?? '').trim(),
+        driverTel: String((item as any).LMDriverTel ?? (item as any).DriverTel ?? '').trim(),
     };
-    const hasLastMileBlock = Boolean(lastMile.autoReg || lastMile.autoType || lastMile.driver);
+    const hasLastMileBlock = Boolean(lastMile.autoReg || lastMile.autoType || lastMile.driver || lastMile.driverTel);
 
     let updRaw: string | null = null;
     let billRaw: string | null = null;
@@ -546,6 +547,7 @@ export function CargoDetailsModal({
                             <DetailItem label="Гос номер" value={lastMile.autoReg || '-'} />
                             <DetailItem label="Марка" value={lastMile.autoType || '-'} />
                             <DetailItem label="Экспедитор" value={lastMile.driver || '-'} />
+                            <DetailItem label="Телефон" value={lastMile.driverTel || '-'} />
                         </div>
                     </div>
                 )}
