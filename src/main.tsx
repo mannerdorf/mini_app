@@ -114,13 +114,23 @@ setupDebugOverlay();
 /** VPS/legacy API; нативное приложение. Веб на Vercel — same-origin /api без переписывания. */
 const FALLBACK_API_ORIGIN = "https://api.haulz.ru";
 
-/** Статика на haulz.ru (Caddy/nginx); POST /api/* на этом хосте даёт 405 — API на api.haulz.ru. */
+/** Статика на haulz.ru / Layero (nginx); POST /api/* на этом хосте даёт 405 — API на api.haulz.ru. */
 const HAULZ_STATIC_ORIGINS = new Set([
   "https://haulz.ru",
   "http://haulz.ru",
   "https://www.haulz.ru",
   "http://www.haulz.ru",
 ]);
+
+const isStaticFrontendOrigin = (origin: string): boolean => {
+  if (HAULZ_STATIC_ORIGINS.has(origin)) return true;
+  try {
+    const host = new URL(origin).hostname.toLowerCase();
+    return host === "haulz.ru" || host.endsWith(".haulz.ru") || host.endsWith(".layero.ru");
+  } catch {
+    return false;
+  }
+};
 
 const normalizeOrigin = (value: string): string => value.trim().replace(/\/+$/, "");
 
@@ -136,7 +146,7 @@ const resolveApiOrigin = (): string => {
   if (envOrigin) return envOrigin;
   if (typeof window !== "undefined" && !isCapacitorNative()) {
     const pageOrigin = normalizeOrigin(window.location.origin);
-    if (HAULZ_STATIC_ORIGINS.has(pageOrigin)) return FALLBACK_API_ORIGIN;
+    if (isStaticFrontendOrigin(pageOrigin)) return FALLBACK_API_ORIGIN;
     return pageOrigin;
   }
   return FALLBACK_API_ORIGIN;
