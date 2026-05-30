@@ -1510,21 +1510,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     setTemplatesLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin-email-templates", {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      });
-      if (res.status === 401) {
+      const data = await fetchAdminEmailTemplates(adminToken);
+      setEmailTemplateRegistration(data.email_template_registration);
+      setEmailTemplatePasswordReset(data.email_template_password_reset);
+    } catch (e: unknown) {
+      if ((e as Error & { status?: number })?.status === 401) {
         onLogout?.("expired");
         return;
       }
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError((data?.error as string) || "Ошибка загрузки шаблонов");
-        return;
-      }
-      setEmailTemplateRegistration(data.email_template_registration ?? "");
-      setEmailTemplatePasswordReset(data.email_template_password_reset ?? "");
-    } catch (e: unknown) {
       setError((e as Error)?.message || "Ошибка загрузки шаблонов");
     } finally {
       setTemplatesLoading(false);
@@ -1555,19 +1548,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     setTemplatesSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin-email-templates", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`,
-        },
-        body: JSON.stringify({
-          email_template_registration: emailTemplateRegistration.trim(),
-          email_template_password_reset: emailTemplatePasswordReset.trim(),
-        }),
+      await saveAdminEmailTemplates(adminToken, {
+        email_template_registration: emailTemplateRegistration,
+        email_template_password_reset: emailTemplatePasswordReset,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data?.error as string) || "Ошибка сохранения");
       await fetchTemplates();
     } catch (e: unknown) {
       setError((e as Error)?.message);
@@ -1813,14 +1797,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (tab !== "suppliers") return;
     setSuppliersLoading(true);
     const query = suppliersSearch.trim();
-    const url = query.length >= 2
-      ? `/api/admin-suppliers-search?q=${encodeURIComponent(query)}&limit=500`
-      : `/api/admin-suppliers-search?q=&limit=10000`;
-    fetch(url, { headers: { Authorization: `Bearer ${adminToken}` } })
-      .then((res) => res.json())
-      .then((data: { suppliers?: { inn: string; supplier_name: string; email: string }[] }) => {
-        setSuppliersList(data.suppliers || []);
-      })
+    searchAdminSuppliers(adminToken, { q: query, limit: query.length >= 2 ? 500 : 10000 })
+      .then(setSuppliersList)
       .catch(() => setSuppliersList([]))
       .finally(() => setSuppliersLoading(false));
   }, [tab, suppliersSearch, adminToken, suppliersFetchTrigger]);
