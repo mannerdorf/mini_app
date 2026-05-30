@@ -7,7 +7,7 @@ import { API_CORS_HEADERS } from "./lib/apiCorsHeaders.js";
  */
 export const config = {
     matcher: [
-        "/api/((?!cron/|perevozki|invoices|acts|orders|sendings|service-refresh-from-1c|admin-weekly-summary|wb/).*)",
+        "/api/((?!cron/|perevozki|invoices|acts|orders|sendings|getperevozka|service-refresh-from-1c|admin-weekly-summary|wb/).*)",
     ],
 };
 

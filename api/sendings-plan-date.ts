@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { notifyPartnerWebhooks } from "../lib/partnerWebhook.js";
+import { respondCorsPreflight } from "./_lib/cors.js";
 import { initRequestContext } from "./_lib/observability.js";
 const BASE_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
@@ -88,6 +89,7 @@ async function callSetPlanDate(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (respondCorsPreflight(req, res)) return;
   const ctx = initRequestContext(req, res, "sendings-plan-date");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");

@@ -35,6 +35,7 @@
     "api/admin-weekly-summary.ts": {"maxDuration": 300},
     "api/invoices.ts": {"maxDuration": 300},
     "api/perevozki.ts": {"maxDuration": 300},
+    "api/getperevozka.ts": {"maxDuration": 60},
     "api/service-refresh-from-1c.ts": {"maxDuration": 300}
   },
   "rewrites": [

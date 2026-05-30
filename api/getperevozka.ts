@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { respondCorsPreflight } from "./_lib/cors.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
 const GETAPI_BASE =
@@ -57,6 +58,7 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
+  if (respondCorsPreflight(req, res)) return;
   const ctx = initRequestContext(req, res, "getperevozka");
   if (req.method !== "POST" && req.method !== "GET") {
     res.setHeader("Allow", "POST, GET");
