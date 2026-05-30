@@ -61,7 +61,7 @@ You do **not** rewrite the product, migrate to Next.js, or merge Vercel+VPS in o
 - **400–600 lines** max per PR; one concern (e.g. «Счета → features/documents/invoices»).
 - No drive-by fixes (formatting unrelated files, `dist/`, `.DS_Store`).
 - **Do not commit `dist/`** unless user explicitly asks.
-- **Do not commit/push** unless user asks.
+- **Commit + push `staging`** после каждого среза в автономном прогоне (явный запрос пользователя).
 
 ### Code conventions (match existing repo)
 - Reuse `useApi` / SWR before adding new fetch patterns.
