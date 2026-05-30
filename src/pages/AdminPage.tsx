@@ -14,6 +14,17 @@ import { DocumentsEdoTableStatus } from "../features/documents/views/documentsVi
 import { formatDisplayDate, formatDisplayDateFromDate, getCurrentMonthYm } from "../lib/dateUtils";
 import { downloadBase64File } from "../utils";
 import { AdminDashboardsPanel, AdminLegalSection } from "../features/admin";
+import {
+  fetchAdminAuditLog,
+  fetchAdminIntegrationHealth,
+  fetchAdminRequestErrorLog,
+  type AdminIntegrationHealth,
+} from "../api/client/admin/journal";
+import {
+  fetchAdminZvonobotConfig,
+  postAdminSendlkSync,
+  postAdminZvonobotSandbox,
+} from "../api/client/admin/integrations";
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
@@ -951,44 +962,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [zvonobotPlannedAt, setZvonobotPlannedAt] = useState("");
   const [zvonobotApiCallIds, setZvonobotApiCallIds] = useState("");
   const [partnerApiHealthJson, setPartnerApiHealthJson] = useState<string>("");
-  const [integrationHealth, setIntegrationHealth] = useState<{
-    telegram: {
-      linked_total: number;
-      active: number;
-      pending: number;
-      disabled: number;
-      avg_lifetime_hours_active: number | null;
-      avg_pending_hours: number | null;
-      pin_email_sent: number;
-      pin_email_failed: number;
-      webhook_errors: number;
-    };
-    email_delivery: {
-      registration: { sent: number; failed: number };
-      password_reset: { sent: number; failed: number };
-      telegram_pin: { sent: number; failed: number };
-      api_errors: { register: number; reset: number; tg_webhook: number };
-      sendlk: { sent: number; failed: number; skipped: number; bulk_runs: number };
-      daily: Array<{
-        day: string;
-        registration_sent: number;
-        registration_failed: number;
-        password_reset_sent: number;
-        password_reset_failed: number;
-        telegram_pin_sent: number;
-        telegram_pin_failed: number;
-        total_sent: number;
-        total_failed: number;
-      }>;
-    };
-    voice_assistant: {
-      linked_logins: number;
-      linked_chats_unique: number;
-      link_errors: number;
-      max_link_errors: number;
-      max_webhook_errors: number;
-    };
-  } | null>(null);
+  const [integrationHealth, setIntegrationHealth] = useState<AdminIntegrationHealth | null>(null);
   const [permissionPresets, setPermissionPresets] = useState<PermissionPreset[]>([]);
   const [presetsLoading, setPresetsLoading] = useState(false);
   const [presetEditingId, setPresetEditingId] = useState<string | null>(null);
@@ -1708,15 +1682,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   useEffect(() => {
     if (tab !== "audit") return;
     setAuditLoading(true);
-    const params = new URLSearchParams({ limit: "200" });
-    if (auditSearch.trim()) params.set("q", auditSearch.trim());
-    if (auditFilterAction) params.set("action", auditFilterAction);
-    if (auditFilterTargetType) params.set("target_type", auditFilterTargetType);
-    if (auditFromDate) params.set("from", auditFromDate);
-    if (auditToDate) params.set("to", auditToDate);
-    fetch(`/api/admin-audit-log?${params.toString()}`, { headers: { Authorization: `Bearer ${adminToken}` } })
-      .then((res) => res.json())
-      .then((data: { entries?: typeof auditEntries } ) => setAuditEntries(data.entries || []))
+    fetchAdminAuditLog(adminToken, {
+      q: auditSearch,
+      action: auditFilterAction || undefined,
+      target_type: auditFilterTargetType || undefined,
+      from: auditFromDate || undefined,
+      to: auditToDate || undefined,
+    })
+      .then(setAuditEntries)
       .catch(() => setAuditEntries([]))
       .finally(() => setAuditLoading(false));
   }, [tab, adminToken, auditFetchTrigger]);
@@ -1724,14 +1697,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   useEffect(() => {
     if (tab !== "logs") return;
     setErrorLogLoading(true);
-    const params = new URLSearchParams({ limit: "200" });
-    if (errorLogSearch.trim()) params.set("q", errorLogSearch.trim());
-    if (errorLogStatusFilter) params.set("status", errorLogStatusFilter);
-    if (errorLogFromDate) params.set("from", errorLogFromDate);
-    if (errorLogToDate) params.set("to", errorLogToDate);
-    fetch(`/api/admin-request-error-log?${params.toString()}`, { headers: { Authorization: `Bearer ${adminToken}` } })
-      .then((res) => res.json())
-      .then((data: { entries?: typeof errorLogEntries }) => setErrorLogEntries(data.entries || []))
+    fetchAdminRequestErrorLog(adminToken, {
+      q: errorLogSearch,
+      status: errorLogStatusFilter || undefined,
+      from: errorLogFromDate || undefined,
+      to: errorLogToDate || undefined,
+    })
+      .then(setErrorLogEntries)
       .catch(() => setErrorLogEntries([]))
       .finally(() => setErrorLogLoading(false));
   }, [tab, adminToken, errorLogFetchTrigger]);
@@ -1739,72 +1711,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   useEffect(() => {
     if (tab !== "integrations") return;
     setIntegrationLoading(true);
-    fetch(`/api/admin-integration-health?days=${integrationDays}`, { headers: { Authorization: `Bearer ${adminToken}` } })
-      .then((res) => res.json())
-      .then((data) => {
-        if (!data || data.error) {
-          setIntegrationHealth(null);
-          return;
-        }
-        setIntegrationHealth({
-          telegram: {
-            linked_total: Number(data?.telegram?.linked_total || 0),
-            active: Number(data?.telegram?.active || 0),
-            pending: Number(data?.telegram?.pending || 0),
-            disabled: Number(data?.telegram?.disabled || 0),
-            avg_lifetime_hours_active: data?.telegram?.avg_lifetime_hours_active == null ? null : Number(data.telegram.avg_lifetime_hours_active),
-            avg_pending_hours: data?.telegram?.avg_pending_hours == null ? null : Number(data.telegram.avg_pending_hours),
-            pin_email_sent: Number(data?.telegram?.pin_email_sent || 0),
-            pin_email_failed: Number(data?.telegram?.pin_email_failed || 0),
-            webhook_errors: Number(data?.telegram?.webhook_errors || 0),
-          },
-          email_delivery: {
-            registration: {
-              sent: Number(data?.email_delivery?.registration?.sent || 0),
-              failed: Number(data?.email_delivery?.registration?.failed || 0),
-            },
-            password_reset: {
-              sent: Number(data?.email_delivery?.password_reset?.sent || 0),
-              failed: Number(data?.email_delivery?.password_reset?.failed || 0),
-            },
-            telegram_pin: {
-              sent: Number(data?.email_delivery?.telegram_pin?.sent || 0),
-              failed: Number(data?.email_delivery?.telegram_pin?.failed || 0),
-            },
-            api_errors: {
-              register: Number(data?.email_delivery?.api_errors?.register || 0),
-              reset: Number(data?.email_delivery?.api_errors?.reset || 0),
-              tg_webhook: Number(data?.email_delivery?.api_errors?.tg_webhook || 0),
-            },
-            sendlk: {
-              sent: Number(data?.email_delivery?.sendlk?.sent || 0),
-              failed: Number(data?.email_delivery?.sendlk?.failed || 0),
-              skipped: Number(data?.email_delivery?.sendlk?.skipped || 0),
-              bulk_runs: Number(data?.email_delivery?.sendlk?.bulk_runs || 0),
-            },
-            daily: Array.isArray(data?.email_delivery?.daily)
-              ? data.email_delivery.daily.map((d: any) => ({
-                  day: String(d?.day || ""),
-                  registration_sent: Number(d?.registration_sent || 0),
-                  registration_failed: Number(d?.registration_failed || 0),
-                  password_reset_sent: Number(d?.password_reset_sent || 0),
-                  password_reset_failed: Number(d?.password_reset_failed || 0),
-                  telegram_pin_sent: Number(d?.telegram_pin_sent || 0),
-                  telegram_pin_failed: Number(d?.telegram_pin_failed || 0),
-                  total_sent: Number(d?.total_sent || 0),
-                  total_failed: Number(d?.total_failed || 0),
-                }))
-              : [],
-          },
-          voice_assistant: {
-            linked_logins: Number(data?.voice_assistant?.linked_logins || 0),
-            linked_chats_unique: Number(data?.voice_assistant?.linked_chats_unique || 0),
-            link_errors: Number(data?.voice_assistant?.link_errors || 0),
-            max_link_errors: Number(data?.voice_assistant?.max_link_errors || 0),
-            max_webhook_errors: Number(data?.voice_assistant?.max_webhook_errors || 0),
-          },
-        });
-      })
+    fetchAdminIntegrationHealth(adminToken, integrationDays)
+      .then(setIntegrationHealth)
       .catch(() => setIntegrationHealth(null))
       .finally(() => setIntegrationLoading(false));
   }, [tab, adminToken, integrationFetchTrigger, integrationDays]);
@@ -1813,18 +1721,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     setIntegrationSendLkSyncLoading(true);
     setIntegrationSendLkSyncResult(null);
     try {
-      const res = await fetch("/api/admin-sendlk-sync", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`,
-        },
-        body: JSON.stringify({ limit: 500 }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Ошибка выгрузки SendLK");
+      const data = await postAdminSendlkSync(adminToken);
       setIntegrationSendLkSyncResult(
-        `Выгрузка завершена: выбрано ${Number(data?.selected || 0)}, отправлено ${Number(data?.sent || 0)}, ошибок ${Number(data?.failed || 0)}`
+        `Выгрузка завершена: выбрано ${data.selected}, отправлено ${data.sent}, ошибок ${data.failed}`
       );
       setIntegrationFetchTrigger((prev) => prev + 1);
     } catch (e: unknown) {
@@ -1842,27 +1741,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     setZvonobotError("");
     setZvonobotResult("");
     try {
-      const res = await fetch("/api/admin-zvonobot-sandbox", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`,
-        },
-        body: JSON.stringify({ action, payload }),
-      });
-      const data = await res.json().catch(() => ({}));
+      const data = await postAdminZvonobotSandbox(adminToken, action, payload);
       setZvonobotResult(JSON.stringify(data, null, 2));
-      if (!res.ok) {
-        const details =
-          data?.error ||
-          data?.message ||
-          data?.data?.error ||
-          data?.data?.message ||
-          `Ошибка ${res.status}`;
-        throw new Error(String(details));
-      }
-    } catch (e: any) {
-      setZvonobotError(e?.message || "Ошибка запроса к Zvonobot");
+    } catch (e: unknown) {
+      setZvonobotError((e as Error)?.message || "Ошибка запроса к Zvonobot");
     } finally {
       setZvonobotLoading(false);
     }
@@ -1870,14 +1752,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
   useEffect(() => {
     if (tab !== "integrations" || !adminToken) return;
-    fetch("/api/admin-zvonobot-sandbox", {
-      method: "GET",
-      headers: { Authorization: `Bearer ${adminToken}` },
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        setZvonobotConfigured(Boolean(data?.configured));
-        setZvonobotKeyHint(String(data?.keyHint || ""));
+    fetchAdminZvonobotConfig(adminToken)
+      .then(({ configured, keyHint }) => {
+        setZvonobotConfigured(configured);
+        setZvonobotKeyHint(keyHint);
       })
       .catch(() => {
         setZvonobotConfigured(false);
@@ -3639,14 +3517,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     const login = String(selectedUser.login || "").trim();
     setUserChangeQuery(login);
     setUserChangeLoading(true);
-    fetch(`/api/admin-audit-log?q=${encodeURIComponent(login)}&limit=30`, {
-      headers: { Authorization: `Bearer ${adminToken}` },
-    })
-      .then((res) => res.json().catch(() => ({})))
-      .then((data) => {
-        const entries = Array.isArray(data?.entries) ? data.entries : [];
-        setUserChangeEntries(entries);
-      })
+    fetchAdminAuditLog(adminToken, { q: login, limit: 30 })
+      .then(setUserChangeEntries)
       .catch(() => setUserChangeEntries([]))
       .finally(() => setUserChangeLoading(false));
   }, [selectedUser, adminToken]);
