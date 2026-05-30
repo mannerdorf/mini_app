@@ -5,6 +5,7 @@ import {
   shouldServeFromDocumentCache,
 } from "../lib/cacheHistoryDays.js";
 import { verifyRegisteredUser, type VerifiedRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { respondCorsPreflight } from "./_lib/cors.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
 /**
@@ -86,6 +87,7 @@ function normalizeDateOnly(raw: unknown): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (respondCorsPreflight(req, res)) return;
   const ctx = initRequestContext(req, res, "acts");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");

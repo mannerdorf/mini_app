@@ -6,6 +6,7 @@ import {
   getPerevozkiServiceCredentials,
   shouldServeFromDocumentCache,
 } from "../lib/cacheHistoryDays.js";
+import { respondCorsPreflight } from "./_lib/cors.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
 const BASE_URL =
@@ -284,6 +285,7 @@ function extractItems(raw: any): any[] {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (respondCorsPreflight(req, res)) return;
   const ctx = initRequestContext(req, res, "sendings");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");

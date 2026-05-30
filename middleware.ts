@@ -1,3 +1,5 @@
+import { API_CORS_HEADERS } from "./lib/apiCorsHeaders.js";
+
 /**
  * Vercel Edge Middleware: CORS для лёгких /api/* (haulz.ru → API на Vercel).
  * Тяжёлые маршруты (perevozki, invoices, …) НЕ проходят через middleware:
@@ -9,12 +11,7 @@ export const config = {
     ],
 };
 
-const CORS_HEADERS: Record<string, string> = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Request-Id",
-    "Access-Control-Max-Age": "86400",
-};
+const CORS_HEADERS = API_CORS_HEADERS;
 
 export default async function middleware(request: Request): Promise<Response> {
     if (request.method === "OPTIONS") {
