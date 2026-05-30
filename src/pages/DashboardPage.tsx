@@ -559,8 +559,9 @@ export function DashboardPage({
         loading: deliveryFactLookupLoading,
     } = usePerevozki({
         auth,
-        dateFrom: DEFAULT_DATE_FROM,
+        dateFrom: apiDateRange.dateFrom,
         dateTo: apiDateRange.dateTo,
+        dateField: "vr",
         useServiceRequest,
         inn: !useServiceRequest ? auth.inn : undefined,
         enabled: !!useServiceRequest,

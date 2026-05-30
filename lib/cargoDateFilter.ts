@@ -39,6 +39,43 @@ export function isCargoInDateRange(
   return !!d && d >= dateFrom && d <= dateTo;
 }
 
+/** Какой датой фильтровать период в /api/perevozki (дашборд «Выдано», SLA по DateVr). */
+export type CargoDateField = "default" | "prih" | "vr";
+
+export function cargoItemDateForField(
+  item: Record<string, unknown>,
+  field: CargoDateField = "default",
+): string {
+  if (field === "prih") {
+    return normalizeCargoDateOnly(item.DatePrih);
+  }
+  if (field === "vr") {
+    const vrCandidates = [
+      item.DateVr,
+      item.DateDeliveryFact,
+      item.FactDeliveryDate,
+      item.DateDelivery,
+      item.DeliveryDate,
+    ];
+    for (const raw of vrCandidates) {
+      const d = normalizeCargoDateOnly(raw);
+      if (d) return d;
+    }
+    return "";
+  }
+  return cargoItemDate(item);
+}
+
+export function isCargoInDateRangeForField(
+  item: Record<string, unknown>,
+  dateFrom: string,
+  dateTo: string,
+  field: CargoDateField = "default",
+): boolean {
+  const d = cargoItemDateForField(item, field);
+  return !!d && d >= dateFrom && d <= dateTo;
+}
+
 /** Поля плановой даты прибытия на терминал — как в «Документы» / карточка груза (DateArrival и др.). */
 const CARGO_PLANNED_DELIVERY_KEYS = [
   "DateArrival",

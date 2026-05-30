@@ -13,6 +13,14 @@ import { handleHaulzSummarySandboxRequest, isHaulzSummarySandboxAction } from ".
 import { getAdminTokenFromRequest, getAdminTokenPayload, verifyAdminToken } from "../lib/adminAuth.js";
 import { fetchWithTimeout, upstreamTimeoutMessage } from "../lib/fetchWithTimeout.js";
 import { preferCacheOnlyOnVercel } from "../lib/vercelRuntime.js";
+import { isCargoInDateRangeForField, type CargoDateField } from "../lib/cargoDateFilter.js";
+
+function parseCargoDateField(raw: unknown): CargoDateField {
+  const v = String(raw ?? "").trim().toLowerCase();
+  if (v === "prih" || v === "dateprih") return "prih";
+  if (v === "vr" || v === "datevr" || v === "delivery") return "vr";
+  return "default";
+}
 
 /**
  * Запрос данных перевозок — только этот метод:
@@ -169,6 +177,7 @@ function filterPerevozkiListForRegistered(
   serviceMode: unknown,
   mode?: unknown,
   allowedInnsFromDb?: Set<string>,
+  dateField: CargoDateField = "default",
 ): any[] {
   const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
   const isServiceMode = !!serviceMode;
@@ -194,8 +203,7 @@ function filterPerevozkiListForRegistered(
       const itemInnVal = itemInn(item, mode);
       if (!finalInns.has(itemInnVal)) return false;
     }
-    const d = itemDate(item);
-    return d >= dateFrom && d <= dateTo;
+    return isCargoInDateRangeForField(item, dateFrom, dateTo, dateField);
   });
 }
 
@@ -209,6 +217,7 @@ export async function readRegisteredPerevozkiFromCache(
   inn: unknown,
   serviceMode: unknown,
   mode?: unknown,
+  dateField: CargoDateField = "default",
 ): Promise<any[]> {
   try {
     let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
@@ -241,6 +250,7 @@ export async function readRegisteredPerevozkiFromCache(
       serviceMode,
       mode,
       allowedInnsFromDb,
+      dateField,
     );
   } catch {
     return [];
@@ -278,7 +288,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     serviceMode,
     isRegisteredUser,
     includeCargoNumbers,
+    dateField: dateFieldRaw,
   } = body || {};
+  const dateField = parseCargoDateField(dateFieldRaw);
 
   const extraCargoNumbers = Array.isArray(includeCargoNumbers)
     ? includeCargoNumbers.map((n: unknown) => String(n ?? "").trim()).filter(Boolean)
@@ -316,10 +328,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       const data = cacheRow.rows[0].data as any[];
       const list = Array.isArray(data) ? data : [];
-      const filtered = list.filter((item) => {
-        const d = itemDate(item);
-        return d >= dateFrom && d <= dateTo;
-      });
+      const filtered = list.filter((item) =>
+        isCargoInDateRangeForField(item, dateFrom, dateTo, dateField),
+      );
       return res.status(200).json(Array.isArray(filtered) ? filtered : []);
     } catch (e) {
       logError(ctx, "perevozki_admin_cache_failed", e);
@@ -349,6 +360,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           inn,
           serviceMode,
           mode,
+          dateField,
         );
         let result = Array.isArray(filtered) ? filtered : [];
         if (extraCargoNumbers.length > 0) {
@@ -382,10 +394,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const data = cacheRow.rows[0].data as any[];
         const list = Array.isArray(data) ? data : [];
         if (serviceMode) {
-          const filtered = list.filter((item) => {
-            const d = itemDate(item);
-            return d >= dateFrom && d <= dateTo;
-          });
+          const filtered = list.filter((item) =>
+            isCargoInDateRangeForField(item, dateFrom, dateTo, dateField),
+          );
           return res.status(200).json(Array.isArray(filtered) ? filtered : []);
         }
         const userInnsRow = await pool.query<{ inn: string }>(
@@ -401,8 +412,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const filtered = list.filter((item) => {
             const itemInnVal = itemInn(item, mode);
             if (!filterInns.has(itemInnVal)) return false;
-            const d = itemDate(item);
-            return d >= dateFrom && d <= dateTo;
+            return isCargoInDateRangeForField(item, dateFrom, dateTo, dateField);
           });
           return res.status(200).json(Array.isArray(filtered) ? filtered : []);
         }
@@ -507,6 +517,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             serviceMode,
             mode,
             allowedInnsFromDb,
+            dateField,
           );
         } catch (filterErr: any) {
           logError(ctx, "perevozki_registered_1c_filter_failed", filterErr);

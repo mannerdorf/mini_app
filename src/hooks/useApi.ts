@@ -54,6 +54,8 @@ type PerevozkiParams = {
     dateTo: string;
     useServiceRequest?: boolean;
     inn?: string | null;
+    /** Фильтр периода по DateVr (выдача) вместо DatePrih — для дашборда «Выдано». */
+    dateField?: "default" | "prih" | "vr";
     /** Номера перевозок из привязки к рейсу — подтягиваются из кэша без фильтра по дате. */
     includeCargoNumbers?: string[];
     /** When false, no fetch (for conditional prev period) */
@@ -61,13 +63,14 @@ type PerevozkiParams = {
 };
 
 async function fetcherPerevozki(params: PerevozkiParams): Promise<CargoItem[]> {
-    const { auth, dateFrom, dateTo, useServiceRequest, inn, includeCargoNumbers } = params;
+    const { auth, dateFrom, dateTo, useServiceRequest, inn, includeCargoNumbers, dateField } = params;
     if (!auth?.login || !auth?.password) return [];
     const body: Record<string, unknown> = {
         login: auth.login,
         password: auth.password,
         dateFrom,
         dateTo,
+        ...(dateField && dateField !== "default" ? { dateField } : {}),
         ...(useServiceRequest ? { serviceMode: true } : {}),
         ...(inn ? { inn } : auth.inn ? { inn: auth.inn } : {}),
         ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
@@ -83,10 +86,10 @@ async function fetcherPerevozki(params: PerevozkiParams): Promise<CargoItem[]> {
 }
 
 export function usePerevozki(params: PerevozkiParams) {
-    const { auth, dateFrom, dateTo, useServiceRequest, inn, includeCargoNumbers, enabled = true } = params;
+    const { auth, dateFrom, dateTo, useServiceRequest, inn, includeCargoNumbers, dateField, enabled = true } = params;
     const includeKey = (includeCargoNumbers ?? []).slice().sort().join(",");
     const key = enabled && auth?.login && auth?.password
-        ? ["perevozki", auth.login, dateFrom, dateTo, !!useServiceRequest, inn ?? auth.inn ?? "", includeKey]
+        ? ["perevozki", auth.login, dateFrom, dateTo, !!useServiceRequest, inn ?? auth.inn ?? "", dateField ?? "default", includeKey]
         : null;
     const { data, error, isLoading, mutate } = useSWR<CargoItem[]>(
         key,
