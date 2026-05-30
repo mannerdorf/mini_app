@@ -50,6 +50,7 @@ import {
   saveAdminFerry,
 } from "../api/client/admin/directories";
 import { fetchAdminMe } from "../api/client/admin/me";
+import { fetchAdminUsers } from "../api/client/admin/users";
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
@@ -1474,18 +1475,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin-users", {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      });
-      if (res.status === 401) {
+      const data = await fetchAdminUsers(adminToken);
+      setUsers(data.users);
+      setLastLoginAvailable(data.last_login_available);
+    } catch (e: unknown) {
+      if ((e as Error & { status?: number })?.status === 401) {
         onLogout?.("expired");
         return;
       }
-      if (!res.ok) throw new Error("Ошибка загрузки");
-      const data = await res.json();
-      setUsers(data.users || []);
-      setLastLoginAvailable(data.last_login_available !== false);
-    } catch (e: unknown) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
