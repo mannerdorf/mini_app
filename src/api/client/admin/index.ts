@@ -5,6 +5,7 @@ export { adminAuthHeaders } from "./auth";
 export * from "./legal";
 export * from "./perevozki";
 export * from "./userActivity";
+export * from "./presets";
 export * from "./integrations";
 export * from "./journal";
 export { postAuthRegisteredLogin } from "../auth";

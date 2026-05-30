@@ -25,6 +25,11 @@ import {
   postAdminSendlkSync,
   postAdminZvonobotSandbox,
 } from "../api/client/admin/integrations";
+import {
+  deleteAdminPreset,
+  fetchAdminPresets,
+  saveAdminPreset,
+} from "../api/client/admin/presets";
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
@@ -2031,11 +2036,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
   const fetchPresets = useCallback(() => {
     setPresetsLoading(true);
-    fetch("/api/admin-presets", { headers: { Authorization: `Bearer ${adminToken}` } })
-      .then((res) => res.json())
-      .then((data: { presets?: PermissionPreset[] }) => {
-        setPermissionPresets(Array.isArray(data.presets) ? data.presets : []);
-      })
+    fetchAdminPresets(adminToken)
+      .then(setPermissionPresets)
       .catch(() => setPermissionPresets([]))
       .finally(() => setPresetsLoading(false));
   }, [adminToken]);
@@ -8768,19 +8770,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         setPresetFormError(null);
                         setPresetFormSaving(true);
                         try {
-                          const res = await fetch("/api/admin-presets", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                            body: JSON.stringify({
-                              ...(presetEditingId ? { id: presetEditingId } : {}),
-                              label: presetFormLabel.trim(),
-                              permissions: normalizeAnalyticsDashboardPermissions(presetFormPermissions),
-                              financial: presetFormFinancial,
-                              serviceMode: presetFormServiceMode,
-                            }),
+                          await saveAdminPreset(adminToken, {
+                            ...(presetEditingId ? { id: presetEditingId } : {}),
+                            label: presetFormLabel.trim(),
+                            permissions: normalizeAnalyticsDashboardPermissions(presetFormPermissions),
+                            financial: presetFormFinancial,
+                            serviceMode: presetFormServiceMode,
                           });
-                          const data = await res.json().catch(() => ({}));
-                          if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка сохранения");
                           setPresetFormLabel("");
                           setPresetFormPermissions(
                             normalizeAnalyticsDashboardPermissions({
@@ -8917,21 +8913,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             setPresetDeleteLoading(false);
                             return;
                           }
-                          fetch(`/api/admin-presets?id=${encodeURIComponent(idToDelete)}`, {
-                            method: "DELETE",
-                            headers: { Authorization: `Bearer ${adminToken}` },
-                          })
-                            .then((res) => res.json().then((data: { deleted?: boolean; error?: string }) => ({ status: res.status, data })).catch(() => ({ status: res.status, data: {} as { deleted?: boolean; error?: string } })))
-                            .then(({ status, data }) => {
-                              if (status >= 200 && status < 300 && data.deleted !== false) {
-                                setPresetDeleteConfirmId(null);
-                                fetchPresets();
-                              } else {
-                                setPresetFormError(data?.error || "Не удалось удалить пресет");
-                              }
+                          void deleteAdminPreset(adminToken, idToDelete)
+                            .then(() => {
+                              setPresetDeleteConfirmId(null);
+                              fetchPresets();
                             })
-                            .catch(() => {
-                              setPresetFormError("Не удалось удалить пресет");
+                            .catch((e: unknown) => {
+                              setPresetFormError((e as Error)?.message || "Не удалось удалить пресет");
                             })
                             .finally(() => setPresetDeleteLoading(false));
                         }}
