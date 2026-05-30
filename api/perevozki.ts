@@ -5,6 +5,7 @@ import { upsertDocument } from "../lib/rag.js";
 import { verifyRegisteredUser, type VerifiedRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { dispatchWebPushCargoEvents } from "./_lib/webpushEventDispatch.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { respondCorsPreflight } from "./_lib/cors.js";
 import {
   getPerevozkiServiceCredentials,
   shouldServeFromDocumentCache,
@@ -258,6 +259,7 @@ export async function readRegisteredPerevozkiFromCache(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (respondCorsPreflight(req, res)) return;
   const ctx = initRequestContext(req, res, "perevozki");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");

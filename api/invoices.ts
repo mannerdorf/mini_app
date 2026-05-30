@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser, type VerifiedRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { respondCorsPreflight } from "./_lib/cors.js";
 import {
   getPerevozkiServiceCredentials,
   shouldServeFromDocumentCache,
@@ -89,6 +90,7 @@ function normalizeDateOnly(raw: unknown): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (respondCorsPreflight(req, res)) return;
   const ctx = initRequestContext(req, res, "invoices");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");

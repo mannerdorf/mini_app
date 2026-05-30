@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { respondCorsPreflight } from "./_lib/cors.js";
 
 const GETAPI_BASE =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
@@ -45,6 +46,7 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
+  if (respondCorsPreflight(req, res)) return;
   const ctx = initRequestContext(req, res, "getcustomers");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");

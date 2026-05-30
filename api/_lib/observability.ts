@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { applyApiCors } from "./cors.js";
 
 export type RequestContext = {
   requestId: string;
@@ -11,6 +12,7 @@ export function initRequestContext(req: VercelRequest, res: VercelResponse, rout
   const headerValue = req.headers["x-request-id"];
   const fromHeader = Array.isArray(headerValue) ? headerValue[0] : headerValue;
   const requestId = String(fromHeader || "").trim() || randomUUID();
+  applyApiCors(res);
   res.setHeader("x-request-id", requestId);
   return { requestId, route, startedAt: Date.now() };
 }

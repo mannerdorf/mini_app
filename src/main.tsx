@@ -134,6 +134,19 @@ const isStaticFrontendOrigin = (origin: string): boolean => {
 
 const normalizeOrigin = (value: string): string => value.trim().replace(/\/+$/, "");
 
+/** VITE_API_ORIGIN без https:// иначе браузер шлёт POST на layero.ru/домен.vercel.app/api/... (S3 MethodNotAllowed). */
+const normalizeApiOrigin = (value: string): string => {
+  let v = normalizeOrigin(value);
+  if (!v) return "";
+  if (!/^https?:\/\//i.test(v)) v = `https://${v.replace(/^\/+/, "")}`;
+  try {
+    const u = new URL(v);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return "";
+  }
+};
+
 const isCapacitorNative = (): boolean => {
   if (typeof window === "undefined") return false;
   const protocol = String(window.location?.protocol || "").toLowerCase();
@@ -142,7 +155,7 @@ const isCapacitorNative = (): boolean => {
 };
 
 const resolveApiOrigin = (): string => {
-  const envOrigin = normalizeOrigin(String(import.meta.env.VITE_API_ORIGIN || ""));
+  const envOrigin = normalizeApiOrigin(String(import.meta.env.VITE_API_ORIGIN || ""));
   if (envOrigin) return envOrigin;
   if (typeof window !== "undefined" && !isCapacitorNative()) {
     const pageOrigin = normalizeOrigin(window.location.origin);
@@ -154,8 +167,10 @@ const resolveApiOrigin = (): string => {
 
 const rewriteNativeApiUrl = (url: string, apiOrigin: string): string => {
   if (!url) return url;
-  if (url.startsWith(`${apiOrigin}/api`)) return url;
-  if (url.startsWith("/api/") || url === "/api") return `${apiOrigin}${url}`;
+  const base = normalizeApiOrigin(apiOrigin);
+  if (!base) return url;
+  if (url.startsWith(`${base}/api`)) return url;
+  if (url.startsWith("/api/") || url === "/api") return `${base}${url}`;
 
   const localhostApiMatch = url.match(
     /^(?:capacitor:\/\/localhost|https?:\/\/localhost(?::\d+)?)(\/api(?:\/.*)?$)/i

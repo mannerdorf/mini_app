@@ -4,9 +4,11 @@ import { verifyPassword } from "../lib/passwordUtils.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
 import { getClientIp, isRateLimited, AUTH_LOGIN_LIMIT } from "../lib/rateLimit.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { respondCorsPreflight } from "./_lib/cors.js";
 import { insertUserAppEvent } from "../lib/userAppEvents.js";
 
 async function handler(req: VercelRequest, res: VercelResponse) {
+  if (respondCorsPreflight(req, res)) return;
   const ctx = initRequestContext(req, res, "auth-registered-login");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
