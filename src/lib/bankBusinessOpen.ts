@@ -17,8 +17,10 @@ const RUSTORE_APP = (packageName: string) =>
   `https://www.rustore.ru/catalog/app/${packageName}`;
 
 const MOBILE_OPEN_LINK_RETRY_MS = 100;
-const ANDROID_FALLBACK_STORE_MS = 2200;
-const ANDROID_FALLBACK_RUSTORE_MS = 3600;
+/** Одна попытка открыть установленное приложение по схеме (после intent). */
+const ANDROID_SCHEME_RETRY_MS = 400;
+/** Установка только через RuStore — Google Play в РФ недоступен. */
+const ANDROID_FALLBACK_RUSTORE_MS = 2200;
 const ANDROID_CHAIN_MAX_MS = 5000;
 const MOBILE_SCHEME_FALLBACK_MS = 1200;
 const IFRAME_INTENT_REMOVE_MS = 3000;
@@ -38,9 +40,8 @@ const BANK_CONFIG: Record<
     webUrl: string;
     androidPackage: string;
     androidScheme?: string;
-    /** Официальная страница / каталог банка (не RuStore). */
-    storeUrl: string;
-    rustoreUrl: string;
+    /** Страница установки на Android — только RuStore. */
+    androidInstallUrl: string;
     appSchemes: string[];
   }
 > = {
@@ -50,8 +51,7 @@ const BANK_CONFIG: Record<
     webUrl: "https://sbi.sberbank.ru:9443/ic/dcb/index.html#/login",
     androidPackage: "ru.sberbank_sbbol",
     androidScheme: "sbbol",
-    storeUrl: "https://apps.sber.ru/apps/sberbusiness/",
-    rustoreUrl: RUSTORE_APP("ru.sberbank_sbbol"),
+    androidInstallUrl: RUSTORE_APP("ru.sberbank_sbbol"),
     appSchemes: ["sbbol://", "sberbankonline://"],
   },
   tbank: {
@@ -60,8 +60,7 @@ const BANK_CONFIG: Record<
     webUrl: "https://business.tbank.ru/",
     androidPackage: "ru.tinkoff.sme",
     androidScheme: "tbank",
-    storeUrl: "https://www.tbank.ru/apps/",
-    rustoreUrl: RUSTORE_APP("ru.tinkoff.sme"),
+    androidInstallUrl: RUSTORE_APP("ru.tinkoff.sme"),
     appSchemes: ["tbank://", "tinkoffbank://", "tinkoff://"],
   },
   alfa: {
@@ -70,8 +69,7 @@ const BANK_CONFIG: Record<
     webUrl: "https://link.alfabank.ru/",
     androidPackage: "ru.alfabank.oavdo.amc",
     androidScheme: "alfabank",
-    storeUrl: RUSTORE_APP("ru.alfabank.oavdo.amc"),
-    rustoreUrl: RUSTORE_APP("ru.alfabank.oavdo.amc"),
+    androidInstallUrl: RUSTORE_APP("ru.alfabank.oavdo.amc"),
     appSchemes: ["alfabank://", "alfabusiness://"],
   },
   vtb: {
@@ -80,8 +78,7 @@ const BANK_CONFIG: Record<
     webUrl: "https://www.vtb.ru/small-business/",
     androidPackage: "ru.vtb.smb",
     androidScheme: "vtb",
-    storeUrl: RUSTORE_APP("ru.vtb.smb"),
-    rustoreUrl: RUSTORE_APP("ru.vtb.smb"),
+    androidInstallUrl: RUSTORE_APP("ru.vtb.smb"),
     appSchemes: ["vtb://", "vtbbusiness://"],
   },
 };
@@ -173,10 +170,16 @@ function navigateDeepLink(url: string): void {
     if (hasOpenLink) {
       try {
         webApp!.openLink(url);
-        return;
       } catch {
         /* ниже */
       }
+      if (isClientMobile()) {
+        window.setTimeout(() => {
+          window.location.assign(url);
+        }, MOBILE_OPEN_LINK_RETRY_MS);
+        return;
+      }
+      return;
     }
     window.location.assign(url);
     return;
@@ -254,7 +257,7 @@ export function openBankBusiness(bank: BankBusinessId): void {
 
   scheduleBankStep(() => {
     if (!pageStillVisible(started, 2500, sessionId)) return;
-    openUrl(cfg.storeUrl, true);
+    openUrl(cfg.webUrl, true);
   }, MOBILE_SCHEME_FALLBACK_MS, sessionId);
 }
 
