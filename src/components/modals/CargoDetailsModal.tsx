@@ -297,7 +297,7 @@ export function CargoDetailsModal({
     })();
 
     return (
-        <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-overlay modal-overlay--cargo-details" onClick={onClose}>
             <div className="modal-content modal-content--cargo-details" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
                     <div className="modal-header-main">

@@ -441,8 +441,23 @@ body {
     .modal-overlay {
         z-index: 49;
         align-items: flex-start;
-        padding-top: calc(var(--app-mobile-header-inner-stack) + max(var(--space-4, 16px), env(safe-area-inset-top)));
+        padding-top: calc(
+            var(--app-mobile-header-inner-stack) + max(var(--space-4, 16px), env(safe-area-inset-top)) +
+                var(--space-2, 8px)
+        );
         padding-bottom: calc(72px + env(safe-area-inset-bottom));
+    }
+    /* Перевозка: хедер приложения может быть выше 72px (переключатель компании в 2 строки) */
+    .modal-overlay--cargo-details {
+        padding-top: calc(
+            96px + max(var(--space-4, 16px), env(safe-area-inset-top)) + var(--space-2, 8px) + var(--space-2, 8px)
+        );
+    }
+    .modal-overlay--cargo-details .modal-content {
+        max-height: calc(
+            100dvh - 96px - max(var(--space-4, 16px), env(safe-area-inset-top)) - var(--space-2, 8px) - var(--space-2, 8px) -
+                72px - env(safe-area-inset-bottom)
+        );
     }
     .modal-content {
         margin-bottom: 0;
@@ -3237,7 +3252,13 @@ body {
     }
 
     .modal-content--cargo-details .modal-header {
-        margin-bottom: 0.55rem;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        margin: -0.65rem -0.6rem 0.55rem;
+        padding: 0.65rem 0.6rem 0.35rem;
+        background: var(--color-bg-card);
+        border-bottom: 1px solid var(--color-border);
     }
 
     .modal-content--cargo-details .cargo-details-doc-line {
