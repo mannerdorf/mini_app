@@ -41,8 +41,8 @@ export function BankBusinessPayButtons({ className }: Props) {
         ))}
       </div>
       <Typography.Body className="bank-business-pay-row__hint">
-        Откроется приложение банка или страница в RuStore для установки. Далее отсканируйте QR на экране
-        или создайте платёж по реквизитам.
+        Сначала попытка открыть установленное приложение банка; если его нет — RuStore. QR сканируйте
+        в приложении вручную.
       </Typography.Body>
     </div>
   );
