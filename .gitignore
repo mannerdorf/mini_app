@@ -1,6 +1,11 @@
 .npm-cache/
 node_modules
 .vercel
+# Сборка Vite — не в git (Layero/Vercel собирают сами)
+dist/
+# macOS
+.DS_Store
+**/.DS_Store
 # Секреты и локальные env — не коммитить (файл .env у разработчика остаётся только локально).
 .env*.local
 .env

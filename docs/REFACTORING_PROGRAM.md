@@ -261,4 +261,7 @@ src/features/admin/
 - [code-review-optimization.md](./code-review-optimization.md)
 - [deploy/README-vercel.md](../deploy/README-vercel.md)
 - [deploy/README-vps-api.md](../deploy/README-vps-api.md)
+- [ENV.md](./ENV.md) — справочник переменных окружения
+- [API_CORS_CHECKLIST.md](./API_CORS_CHECKLIST.md) — чеклист CORS для новых API
 - Субагент UX: `.cursor/agents/cm-ux-master.md`
+- Субагент рефакторинг: `.cursor/agents/haulz-refactor.md`

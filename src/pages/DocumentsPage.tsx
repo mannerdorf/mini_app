@@ -16,6 +16,14 @@ import { ClickableCargoNumber, ClickableInvoiceNumber } from "../components/ui/E
 import { CargoTransportTypeIcon } from "../components/shared/CargoTableDisplay";
 import { downloadBase64File } from "../utils";
 import {
+    fetchTariffs,
+    fetchSverki,
+    fetchDogovors,
+    fetchEdoCounterpartyInns,
+    fetchFerriesList,
+    fetchSendingsFerryMap,
+} from "../api/client/documents";
+import {
     checkSanctionsByNomenclature,
     mergeSanctionVerdicts,
     pickNomenclatureText,
@@ -658,93 +666,47 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     useEffect(() => {
         if (docSection !== 'Тарифы') return;
         setTariffsLoading(true);
-        const params = new URLSearchParams();
-        if (!effectiveServiceMode && effectiveActiveInn) params.set('inn', effectiveActiveInn);
-        fetch(`/api/tariffs${params.toString() ? `?${params.toString()}` : ''}`)
-            .then((res) => res.json())
-            .then((data: { tariffs?: {
-                id: number;
-                docDate: string | null;
-                docNumber: string;
-                customerName: string;
-                customerInn: string;
-                cityFrom: string;
-                cityTo: string;
-                transportType: string;
-                isDangerous: boolean;
-                isVet: boolean;
-                tariff: number | null;
-            }[] }) => {
-                setTariffsList(data.tariffs || []);
-            })
-            .catch(() => setTariffsList([]))
+        const scope = { inn: effectiveActiveInn, serviceMode: effectiveServiceMode };
+        fetchTariffs(scope)
+            .then(setTariffsList)
             .finally(() => setTariffsLoading(false));
     }, [docSection, effectiveActiveInn, effectiveServiceMode]);
     useEffect(() => {
         if (docSection !== 'Акты сверок') return;
         setSverkiLoading(true);
-        const params = new URLSearchParams();
-        if (!effectiveServiceMode && effectiveActiveInn) params.set('inn', effectiveActiveInn);
-        const url = `/api/sverki${params.toString() ? `?${params.toString()}` : ''}`;
-        fetch(url)
-            .then(async (res) => {
-                const body = await res.json().catch(() => null);
-                const list = Array.isArray((body as { sverki?: unknown })?.sverki)
-                    ? ((body as { sverki: typeof sverkiList }).sverki)
-                    : [];
+        const scope = { inn: effectiveActiveInn, serviceMode: effectiveServiceMode };
+        fetchSverki(scope)
+            .then((result) => {
                 setSverkiApiDebug({
                     fetchedAt: new Date().toISOString(),
-                    url,
-                    status: res.status,
-                    ok: res.ok,
-                    body,
+                    url: result.url,
+                    status: result.status,
+                    ok: result.ok,
+                    body: result.body,
                     listKey: 'sverki',
-                    listLength: list.length,
-                    error: res.ok ? undefined : String((body as { error?: string })?.error || (body as { message?: string })?.message || 'HTTP error'),
+                    listLength: result.list.length,
+                    error: result.error,
                 });
-                setSverkiList(res.ok ? list : []);
-            })
-            .catch((e: unknown) => {
-                setSverkiList([]);
-                setSverkiApiDebug({
-                    fetchedAt: new Date().toISOString(),
-                    url,
-                    status: null,
-                    ok: false,
-                    body: null,
-                    listKey: 'sverki',
-                    error: (e as Error)?.message || 'Сетевая ошибка',
-                });
+                setSverkiList(result.list);
             })
             .finally(() => setSverkiLoading(false));
     }, [docSection, effectiveActiveInn, effectiveServiceMode]);
     useEffect(() => {
         if (docSection !== 'Договоры') return;
         setDogovorsLoading(true);
-        const params = new URLSearchParams();
-        if (!effectiveServiceMode && effectiveActiveInn) params.set('inn', effectiveActiveInn);
-        const url = `/api/dogovors${params.toString() ? `?${params.toString()}` : ''}`;
-        fetch(url)
-            .then((res) => res.json())
-            .then((data: { dogovors?: typeof dogovorsList }) => {
-                setDogovorsList(Array.isArray(data?.dogovors) ? data.dogovors : []);
-            })
-            .catch(() => setDogovorsList([]))
+        const scope = { inn: effectiveActiveInn, serviceMode: effectiveServiceMode };
+        fetchDogovors<typeof dogovorsList[number]>(scope)
+            .then(setDogovorsList)
             .finally(() => setDogovorsLoading(false));
     }, [docSection, effectiveActiveInn, effectiveServiceMode]);
     useEffect(() => {
         if (docSection !== "ЭДО") return;
-        fetch("/api/edo-counterparty-inns")
-            .then((res) => res.json())
-            .then((data: { inns?: string[] }) => {
-                const next = new Set(
-                    (Array.isArray(data?.inns) ? data.inns : [])
-                        .map((inn) => normalizeKontragentInn(inn))
-                        .filter(Boolean)
-                );
-                setEdoPartnerInns(next);
-            })
-            .catch(() => setEdoPartnerInns(new Set()));
+        fetchEdoCounterpartyInns().then((inns) => {
+            const next = new Set(
+                inns.map((inn) => normalizeKontragentInn(inn)).filter(Boolean)
+            );
+            setEdoPartnerInns(next);
+        });
     }, [docSection]);
     const reloadClaims = useCallback(async () => {
         const requestId = ++claimsRequestIdRef.current;
@@ -1089,10 +1051,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     }, [showEorColumn, auth?.login, auth?.password]);
     useEffect(() => {
         if (docSection !== 'Отправки') return;
-        fetch('/api/ferries-list')
-            .then((res) => res.json())
-            .then((data: { ferries?: { id: number; name: string; mmsi: string }[] }) => setFerriesList(data.ferries || []))
-            .catch(() => setFerriesList([]));
+        fetchFerriesList().then(setFerriesList);
     }, [docSection]);
     useEffect(() => {
         if (docSection !== 'Отправки' || !auth?.login || !auth?.password) {
@@ -1100,15 +1059,9 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
             return;
         }
         let cancelled = false;
-        fetch('/api/sendings-ferry', {
-            method: 'GET',
-            headers: { 'x-login': auth.login, 'x-password': auth.password },
-        })
-            .then((res) => res.json())
-            .then((data: { map?: Record<string, { ferry_id: number; ferry_name: string; eta: string | null }> }) => {
-                if (!cancelled && data?.map) setSendingsFerryMap(data.map);
-            })
-            .catch(() => {});
+        fetchSendingsFerryMap(auth.login, auth.password).then((map) => {
+            if (!cancelled) setSendingsFerryMap(map);
+        });
         return () => { cancelled = true; };
     }, [docSection, auth?.login, auth?.password]);
     useEffect(() => {
