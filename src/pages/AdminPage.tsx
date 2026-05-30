@@ -51,6 +51,7 @@ import {
 } from "../api/client/admin/directories";
 import { fetchAdminMe } from "../api/client/admin/me";
 import { fetchAdminUsers } from "../api/client/admin/users";
+import { fetchAdminExpenseRequests } from "../api/client/admin/expenseRequests";
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
@@ -2129,14 +2130,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     };
     if (adminToken && isSuperAdmin) {
       try {
-        const res = await fetch("/api/admin-expense-requests", { headers: { Authorization: `Bearer ${adminToken}` } });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data?.error || "Ошибка загрузки заявок на расходы");
-        if (Array.isArray(data?.items)) {
-          setAdminExpenseRequests(data.items);
-          return;
-        }
-        setAdminExpenseRequests([]);
+        const items = await fetchAdminExpenseRequests(adminToken);
+        setAdminExpenseRequests(items);
         return;
       } catch (e: unknown) {
         setError((e as Error)?.message || "Ошибка загрузки заявок на расходы");
