@@ -5,14 +5,24 @@ import { isClientAndroid, isClientMobile } from "./clientPlatform";
 
 export type BankBusinessId = "sber" | "tbank" | "alfa" | "vtb";
 
+export type BankBusinessDisplayConfig = {
+  label: string;
+  shortLabel: string;
+};
+
 /** Порядок кнопок в блоке «Оплата по QR» (Android). */
 export const BANK_BUSINESS_PAY_ORDER: BankBusinessId[] = ["sber", "tbank", "alfa", "vtb"];
 
-/** Страница приложения в RuStore (если приложение не установлено). */
 const RUSTORE_APP = (packageName: string) =>
   `https://www.rustore.ru/catalog/app/${packageName}`;
 
-/** Intent без browser_fallback_url — иначе Chrome сразу уходит на RuStore/сайт, не давая открыть app. */
+const MOBILE_OPEN_LINK_RETRY_MS = 100;
+const ANDROID_FALLBACK_STORE_MS = 2200;
+const ANDROID_FALLBACK_RUSTORE_MS = 3600;
+const ANDROID_CHAIN_MAX_MS = 5000;
+const MOBILE_SCHEME_FALLBACK_MS = 1200;
+const IFRAME_INTENT_REMOVE_MS = 3000;
+
 const androidLaunchIntentOnly = (packageName: string, scheme?: string): string => {
   if (scheme) {
     return `intent://#Intent;scheme=${scheme};package=${packageName};end`;
@@ -28,6 +38,8 @@ const BANK_CONFIG: Record<
     webUrl: string;
     androidPackage: string;
     androidScheme?: string;
+    /** Официальная страница / каталог банка (не RuStore). */
+    storeUrl: string;
     rustoreUrl: string;
     appSchemes: string[];
   }
@@ -38,6 +50,7 @@ const BANK_CONFIG: Record<
     webUrl: "https://sbi.sberbank.ru:9443/ic/dcb/index.html#/login",
     androidPackage: "ru.sberbank_sbbol",
     androidScheme: "sbbol",
+    storeUrl: "https://apps.sber.ru/apps/sberbusiness/",
     rustoreUrl: RUSTORE_APP("ru.sberbank_sbbol"),
     appSchemes: ["sbbol://", "sberbankonline://"],
   },
@@ -47,6 +60,7 @@ const BANK_CONFIG: Record<
     webUrl: "https://business.tbank.ru/",
     androidPackage: "ru.tinkoff.sme",
     androidScheme: "tbank",
+    storeUrl: "https://www.tbank.ru/apps/",
     rustoreUrl: RUSTORE_APP("ru.tinkoff.sme"),
     appSchemes: ["tbank://", "tinkoffbank://", "tinkoff://"],
   },
@@ -56,6 +70,7 @@ const BANK_CONFIG: Record<
     webUrl: "https://link.alfabank.ru/",
     androidPackage: "ru.alfabank.oavdo.amc",
     androidScheme: "alfabank",
+    storeUrl: RUSTORE_APP("ru.alfabank.oavdo.amc"),
     rustoreUrl: RUSTORE_APP("ru.alfabank.oavdo.amc"),
     appSchemes: ["alfabank://", "alfabusiness://"],
   },
@@ -65,10 +80,51 @@ const BANK_CONFIG: Record<
     webUrl: "https://www.vtb.ru/small-business/",
     androidPackage: "ru.vtb.smb",
     androidScheme: "vtb",
+    storeUrl: RUSTORE_APP("ru.vtb.smb"),
     rustoreUrl: RUSTORE_APP("ru.vtb.smb"),
     appSchemes: ["vtb://", "vtbbusiness://"],
   },
 };
+
+let openSessionId = 0;
+const pendingTimeouts: number[] = [];
+let visibilityCleanup: (() => void) | null = null;
+
+function clearPendingBankOpen(): void {
+  pendingTimeouts.forEach((id) => window.clearTimeout(id));
+  pendingTimeouts.length = 0;
+  if (visibilityCleanup) {
+    document.removeEventListener("visibilitychange", visibilityCleanup);
+    window.removeEventListener("pagehide", visibilityCleanup);
+    visibilityCleanup = null;
+  }
+}
+
+function scheduleBankStep(fn: () => void, ms: number, sessionId: number): void {
+  const id = window.setTimeout(() => {
+    if (sessionId !== openSessionId) return;
+    fn();
+  }, ms);
+  pendingTimeouts.push(id);
+}
+
+function startBankOpenSession(): number {
+  clearPendingBankOpen();
+  openSessionId += 1;
+  const sessionId = openSessionId;
+
+  const onHide = () => {
+    if (document.visibilityState === "hidden") {
+      clearPendingBankOpen();
+      openSessionId += 1;
+    }
+  };
+  visibilityCleanup = onHide;
+  document.addEventListener("visibilitychange", onHide);
+  window.addEventListener("pagehide", onHide);
+
+  return sessionId;
+}
 
 export function isMobileBankOpenDevice(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -76,6 +132,10 @@ export function isMobileBankOpenDevice(): boolean {
   const ua = navigator.userAgent || "";
   if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) return true;
   return navigator.maxTouchPoints > 0 && window.innerWidth < 900;
+}
+
+function isHttpUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url);
 }
 
 function openUrl(url: string, newTab: boolean): void {
@@ -86,81 +146,93 @@ function openUrl(url: string, newTab: boolean): void {
   window.location.assign(url);
 }
 
+function navigateIntentViaIframe(url: string): void {
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.cssText = "display:none;width:0;height:0;border:0";
+  iframe.src = url;
+  document.body.appendChild(iframe);
+  window.setTimeout(() => iframe.remove(), IFRAME_INTENT_REMOVE_MS);
+}
+
 /**
- * Deep link / intent: Telegram & MAX — openLink; Chrome — iframe для intent://; иначе location.
+ * Deep link: intent — только iframe; https — openLink; custom scheme — openLink + location (как openMaxBotLink).
  */
 function navigateDeepLink(url: string): void {
   if (typeof window === "undefined") return;
 
+  if (url.startsWith("intent:")) {
+    navigateIntentViaIframe(url);
+    return;
+  }
+
   const webApp = getWebApp();
-  if (webApp && typeof webApp.openLink === "function") {
+  const hasOpenLink = Boolean(webApp && typeof webApp.openLink === "function");
+
+  if (isHttpUrl(url)) {
+    if (hasOpenLink) {
+      try {
+        webApp!.openLink(url);
+        return;
+      } catch {
+        /* ниже */
+      }
+    }
+    window.location.assign(url);
+    return;
+  }
+
+  if (hasOpenLink) {
     try {
-      webApp.openLink(url);
-      return;
+      webApp!.openLink(url);
     } catch {
-      /* пробуем ниже */
+      /* ниже */
     }
   }
 
-  if (url.startsWith("intent:")) {
-    const iframe = document.createElement("iframe");
-    iframe.setAttribute("aria-hidden", "true");
-    iframe.style.cssText = "display:none;width:0;height:0;border:0";
-    iframe.src = url;
-    document.body.appendChild(iframe);
-    window.setTimeout(() => iframe.remove(), 3000);
+  if (isClientMobile()) {
+    window.setTimeout(() => {
+      window.location.assign(url);
+    }, MOBILE_OPEN_LINK_RETRY_MS);
     return;
   }
 
   window.location.assign(url);
 }
 
-function pageStillVisible(sinceMs: number, maxMs: number): boolean {
+function pageStillVisible(sinceMs: number, maxMs: number, sessionId: number): boolean {
+  if (sessionId !== openSessionId) return false;
   return document.visibilityState === "visible" && Date.now() - sinceMs < maxMs;
 }
 
 /**
- * Android: цепочка без мгновенного fallback на URL.
- * 1) кастомные схемы банка (sbbol://, tbank://…)
- * 2) intent:// с package (запуск установленного приложения)
- * 3) RuStore — установка
+ * Android: intent с package → официальный storeUrl → RuStore (если отличается).
+ * Без перебора «голых» custom schemes. Fallback отменяется при уходе со страницы (hidden).
  */
 function openAndroidBankBusiness(bank: BankBusinessId): void {
+  const sessionId = startBankOpenSession();
   const cfg = BANK_CONFIG[bank];
   const started = Date.now();
-  const schemes = [...new Set([...(cfg.appSchemes || []), cfg.androidScheme ? `${cfg.androidScheme}://` : ""])].filter(Boolean));
   const intentUrl = androidLaunchIntentOnly(cfg.androidPackage, cfg.androidScheme);
 
-  let step = 0;
+  navigateDeepLink(intentUrl);
 
-  const runStep = () => {
-    if (!pageStillVisible(started, 4000)) return;
+  scheduleBankStep(() => {
+    if (!pageStillVisible(started, ANDROID_CHAIN_MAX_MS, sessionId)) return;
+    openUrl(cfg.storeUrl, true);
+  }, ANDROID_FALLBACK_STORE_MS, sessionId);
 
-    if (step < schemes.length) {
-      navigateDeepLink(schemes[step]!);
-      step += 1;
-      window.setTimeout(runStep, 450);
-      return;
-    }
-
-    if (step === schemes.length) {
-      navigateDeepLink(intentUrl);
-      step += 1;
-      window.setTimeout(runStep, 550);
-      return;
-    }
-
-    if (pageStillVisible(started, 4000)) {
-      openUrl(cfg.rustoreUrl, false);
-    }
-  };
-
-  runStep();
+  if (cfg.rustoreUrl !== cfg.storeUrl) {
+    scheduleBankStep(() => {
+      if (!pageStillVisible(started, ANDROID_CHAIN_MAX_MS, sessionId)) return;
+      openUrl(cfg.rustoreUrl, true);
+    }, ANDROID_FALLBACK_RUSTORE_MS, sessionId);
+  }
 }
 
 /**
  * Десктоп — веб-ЛК банка.
- * Android — приложение (схема → intent) или RuStore.
+ * Android — приложение (intent) или магазин / RuStore.
  */
 export function openBankBusiness(bank: BankBusinessId): void {
   const cfg = BANK_CONFIG[bank];
@@ -175,21 +247,18 @@ export function openBankBusiness(bank: BankBusinessId): void {
     return;
   }
 
+  const sessionId = startBankOpenSession();
   const scheme = cfg.appSchemes[0];
   const started = Date.now();
   navigateDeepLink(scheme);
 
-  window.setTimeout(() => {
-    if (pageStillVisible(started, 2500)) {
-      openUrl(cfg.rustoreUrl, true);
-    }
-  }, 1200);
+  scheduleBankStep(() => {
+    if (!pageStillVisible(started, 2500, sessionId)) return;
+    openUrl(cfg.storeUrl, true);
+  }, MOBILE_SCHEME_FALLBACK_MS, sessionId);
 }
 
-export function getBankBusinessConfig(bank: BankBusinessId) {
-  return BANK_CONFIG[bank];
-}
-
-export function getBankRustoreUrl(bank: BankBusinessId): string {
-  return BANK_CONFIG[bank].rustoreUrl;
+export function getBankBusinessConfig(bank: BankBusinessId): BankBusinessDisplayConfig {
+  const { label, shortLabel } = BANK_CONFIG[bank];
+  return { label, shortLabel };
 }
