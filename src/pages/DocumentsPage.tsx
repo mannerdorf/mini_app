@@ -60,8 +60,6 @@ import {
 } from "../lib/edoStatus";
 import { normalizeKontragentInn, type EdoCounterpartyFilter } from "../lib/edoCounterpartyStatus";
 import {
-    loadDateFilterState,
-    saveDateFilterState,
     getDefaultWeekMonday,
     getWeekRange,
     getYearsList,
@@ -82,6 +80,7 @@ import {
     type SharedBillStatusKey,
     type TypeFilterKey,
 } from "../lib/sharedListFilters";
+import { formatDateFilterButtonLabel, usePersistedDateFilter } from "../features/listWorkspace";
 import type { AccountPermissions, AuthData, DateFilter, StatusFilter } from "../types";
 import { useDocumentsDateRange, computeDocumentsApiDateRange } from "./useDocumentsDateRange";
 import { useDocumentsDataLoad } from "./useDocumentsDataLoad";
@@ -437,13 +436,20 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const showCustomerColumn = runtime.showCustomerColumn;
     const prefersReducedMotion = useReducedMotion();
     const docsMotionEnabled = prefersReducedMotion !== true;
-    const initDate = () => loadDateFilterState();
-    const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate().dateFilter);
-    const [customDateFrom, setCustomDateFrom] = useState(() => initDate().customDateFrom);
-    const [customDateTo, setCustomDateTo] = useState(() => initDate().customDateTo);
-    const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(() => initDate().selectedMonthForFilter);
-    const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(() => initDate().selectedYearForFilter);
-    const [selectedWeekForFilter, setSelectedWeekForFilter] = useState<string | null>(() => initDate().selectedWeekForFilter);
+    const {
+        dateFilter,
+        setDateFilter,
+        customDateFrom,
+        setCustomDateFrom,
+        customDateTo,
+        setCustomDateTo,
+        selectedMonthForFilter,
+        setSelectedMonthForFilter,
+        selectedYearForFilter,
+        setSelectedYearForFilter,
+        selectedWeekForFilter,
+        setSelectedWeekForFilter,
+    } = usePersistedDateFilter();
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
     const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
@@ -1101,9 +1107,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const weekLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const weekWasLongPressRef = useRef(false);
 
-    useEffect(() => {
-        saveDateFilterState({ dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter });
-    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
     useEffect(() => {
         saveSharedListFilters(sharedFromFilterSets({
             statusFilterSet: deliveryStatusFilterSet,
@@ -3222,7 +3225,13 @@ useEffect(() => {
                         <>
                         <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsSverkiCustomerDropdownOpen(false); setIsDogovorsCustomerDropdownOpen(false); setIsClaimsCustomerDropdownOpen(false); setIsClaimsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); setIsTariffsCustomerDropdownOpen(false); setIsTariffsRouteDropdownOpen(false); setIsTariffsTypeDropdownOpen(false); }}>
-                                Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' ? `${apiDateRange.dateFrom.slice(8, 10)}.${apiDateRange.dateFrom.slice(5, 7)} – ${apiDateRange.dateTo.slice(8, 10)}.${apiDateRange.dateTo.slice(5, 7)}` : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
+                                Дата: {formatDateFilterButtonLabel({
+                                    dateFilter,
+                                    apiDateRange,
+                                    selectedMonthForFilter,
+                                    selectedYearForFilter,
+                                    selectedWeekForFilter,
+                                })} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
                         <FilterDropdownPortal triggerRef={dateButtonRef} isOpen={isDateDropdownOpen} onClose={() => setIsDateDropdownOpen(false)}>

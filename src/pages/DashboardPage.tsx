@@ -18,7 +18,6 @@ import {
 } from "../lib/statusUtils";
 import {
     initSharedFilterSets,
-    loadSharedDateFilterState,
     routeKeyToCargoLabel,
     saveSharedListFilters,
     sharedFromFilterSets,
@@ -27,6 +26,7 @@ import {
     type SharedBillStatusKey,
     type TypeFilterKey,
 } from "../lib/sharedListFilters";
+import { formatDateFilterButtonLabel, useListDateRange, usePersistedDateFilter } from "../features/listWorkspace";
 import { normalizeStatus } from "../lib/statusUtils";
 import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "../lib/slaWorkSchedule";
 import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry, getSlaPlanDeadlineMs, cargoLastMileIsSelfPickup, cargoPickupLogisticsIsTerminalTo, CARGO_ROLE_FILTER_LABELS, type CargoRoleFilterKey } from "../lib/cargoUtils";
@@ -64,7 +64,6 @@ const {
     getFirstWorkingDayOnOrAfter,
     getFirstPaymentWeekdayOnOrAfter,
     isDateInRange,
-    saveDateFilterState,
 } = dateUtils;
 const MONTH_NAMES = dateUtils.MONTH_NAMES;
 
@@ -295,21 +294,24 @@ export function DashboardPage({
     const WIDGET_4_SLA = true;
     const WIDGET_5_PAYMENT_CALENDAR = false;
 
-    // Filters State (общие с Грузами и Документами)
-    const initDate = () => loadSharedDateFilterState();
-    const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate().dateFilter);
+    const {
+        dateFilter,
+        setDateFilter,
+        customDateFrom,
+        setCustomDateFrom,
+        customDateTo,
+        setCustomDateTo,
+        selectedMonthForFilter,
+        setSelectedMonthForFilter,
+        selectedYearForFilter,
+        setSelectedYearForFilter,
+        selectedWeekForFilter,
+        setSelectedWeekForFilter,
+    } = usePersistedDateFilter();
     const sharedFiltersInit = initSharedFilterSets();
-    const [customDateFrom, setCustomDateFrom] = useState(() => initDate().customDateFrom);
-    const [customDateTo, setCustomDateTo] = useState(() => initDate().customDateTo);
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
     const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
-    const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(() => initDate().selectedMonthForFilter);
-    const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(() => initDate().selectedYearForFilter);
-    const [selectedWeekForFilter, setSelectedWeekForFilter] = useState<string | null>(() => initDate().selectedWeekForFilter);
-    useEffect(() => {
-        saveDateFilterState({ dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter });
-    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
     const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const monthWasLongPressRef = useRef(false);
     const yearLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -521,26 +523,14 @@ export function DashboardPage({
         console.log("[testMaxMessage]", logs);
     };
 
-    // Один useMemo для дат (как в CargoPage), чтобы при минификации не было TDZ
-    const { apiDateRange, prevRange } = useMemo(() => {
-        const api =
-            dateFilter === "период"
-                ? { dateFrom: customDateFrom, dateTo: customDateTo }
-                : dateFilter === "месяц" && selectedMonthForFilter
-                    ? (() => {
-                        const { year, month } = selectedMonthForFilter;
-                        const pad = (n: number) => String(n).padStart(2, '0');
-                        const lastDay = new Date(year, month, 0).getDate();
-                        return { dateFrom: `${year}-${pad(month)}-01`, dateTo: `${year}-${pad(month)}-${pad(lastDay)}` };
-                    })()
-                    : dateFilter === "год" && selectedYearForFilter
-                        ? { dateFrom: `${selectedYearForFilter}-01-01`, dateTo: `${selectedYearForFilter}-12-31` }
-                        : dateFilter === "неделя" && selectedWeekForFilter
-                            ? getWeekRange(selectedWeekForFilter)
-                            : getDateRange(dateFilter);
-        const prev = getPreviousPeriodRange(dateFilter, api.dateFrom, api.dateTo);
-        return { apiDateRange: api, prevRange: prev };
-    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
+    const { apiDateRange, prevRange } = useListDateRange({
+        dateFilter,
+        customDateFrom,
+        customDateTo,
+        selectedMonthForFilter,
+        selectedYearForFilter,
+        selectedWeekForFilter,
+    });
 
     useEffect(() => {
         const d = dateUtils.parseDateOnly(apiDateRange.dateFrom);
@@ -2415,7 +2405,13 @@ export function DashboardPage({
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main');  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
-                            Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8,10)}.${r.dateFrom.slice(5,7)} – ${r.dateTo.slice(8,10)}.${r.dateTo.slice(5,7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
+                            Дата: {formatDateFilterButtonLabel({
+                                dateFilter,
+                                apiDateRange,
+                                selectedMonthForFilter,
+                                selectedYearForFilter,
+                                selectedWeekForFilter,
+                            })} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={dateButtonRef} isOpen={isDateDropdownOpen} onClose={() => setIsDateDropdownOpen(false)}>

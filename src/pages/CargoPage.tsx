@@ -11,7 +11,7 @@ import type { WorkSchedule } from "../lib/slaWorkSchedule";
 import * as dateUtils from "../lib/dateUtils";
 import { formatCurrency, stripOoo, cityToCode } from "../lib/formatUtils";
 import type { AuthData, CargoItem, DateFilter, StatusFilter } from "../types";
-import { useCargoDateRange } from "./useCargoDateRange";
+import { formatDateFilterButtonLabel, useListDateRange, usePersistedDateFilter } from "../features/listWorkspace";
 import { useCargoDataLoad } from "./useCargoDataLoad";
 import {
     buildFilteredCargoItems,
@@ -31,7 +31,7 @@ import { CargoCustomerTable, CargoCardsList } from "./cargoCollectionViews";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import { cargoModeSwitchMotion, cargoSummaryMotion } from "./cargoMotion";
 
-const { loadDateFilterState, saveDateFilterState, getDateRange, getWeekRange, getWeeksList, getYearsList, getDefaultWeekMonday, MONTH_NAMES, DEFAULT_DATE_FROM, DEFAULT_DATE_TO, formatDate } = dateUtils;
+const { getDateRange, getWeekRange, getWeeksList, getYearsList, getDefaultWeekMonday, MONTH_NAMES, DEFAULT_DATE_FROM, DEFAULT_DATE_TO, formatDate } = dateUtils;
 type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;
 const CARGO_STATUS_FILTER_KEYS: CargoStatusFilterKey[] = ["in_transit", "ready", "delivering", "delivered"];
 
@@ -163,20 +163,23 @@ export function CargoPage({
     const showCustomerColumn = runtime.showCustomerColumn;
     const [selectedCargo, setSelectedCargo] = useState<CargoItem | null>(null);
 
-    // Filters State; при переключении вкладок восстанавливаем из localStorage
-    const initDateCargo = () => loadDateFilterState();
-    const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDateCargo().dateFilter);
-    const [customDateFrom, setCustomDateFrom] = useState(() => initDateCargo().customDateFrom);
-    const [customDateTo, setCustomDateTo] = useState(() => initDateCargo().customDateTo);
+    const {
+        dateFilter,
+        setDateFilter,
+        customDateFrom,
+        setCustomDateFrom,
+        customDateTo,
+        setCustomDateTo,
+        selectedMonthForFilter,
+        setSelectedMonthForFilter,
+        selectedYearForFilter,
+        setSelectedYearForFilter,
+        selectedWeekForFilter,
+        setSelectedWeekForFilter,
+    } = usePersistedDateFilter();
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
     const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
-    const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(() => initDateCargo().selectedMonthForFilter);
-    const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(() => initDateCargo().selectedYearForFilter);
-    const [selectedWeekForFilter, setSelectedWeekForFilter] = useState<string | null>(() => initDateCargo().selectedWeekForFilter);
-    useEffect(() => {
-        saveDateFilterState({ dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter });
-    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
     const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const monthWasLongPressRef = useRef(false);
     const yearLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -302,7 +305,7 @@ export function CargoPage({
         return cargoNumber ? favorites.has(cargoNumber) : false;
     }, [favorites]);
 
-    const { apiDateRange, prevRange } = useCargoDateRange({
+    const { apiDateRange, prevRange } = useListDateRange({
         dateFilter,
         customDateFrom,
         customDateTo,
@@ -669,7 +672,13 @@ export function CargoPage({
                     </Button>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
-                            Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8,10)}.${r.dateFrom.slice(5,7)} – ${r.dateTo.slice(8,10)}.${r.dateTo.slice(5,7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
+                            Дата: {formatDateFilterButtonLabel({
+                                dateFilter,
+                                apiDateRange,
+                                selectedMonthForFilter,
+                                selectedYearForFilter,
+                                selectedWeekForFilter,
+                            })} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={dateButtonRef} isOpen={isDateDropdownOpen} onClose={() => setIsDateDropdownOpen(false)}>

@@ -265,3 +265,4 @@ src/features/admin/
 - [API_CORS_CHECKLIST.md](./API_CORS_CHECKLIST.md) — чеклист CORS для новых API
 - Субагент UX: `.cursor/agents/cm-ux-master.md`
 - Субагент рефакторинг: `.cursor/agents/haulz-refactor.md`
+- Общий фильтр дат: `src/features/listWorkspace/`
