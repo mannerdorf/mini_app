@@ -37,6 +37,11 @@ import {
   saveAdminWorkSchedule,
 } from "../api/client/admin/scheduling";
 import { searchAdminCustomers } from "../api/client/admin/customers";
+import { searchAdminSuppliers } from "../api/client/admin/suppliers";
+import {
+  fetchAdminEmailTemplates,
+  saveAdminEmailTemplates,
+} from "../api/client/admin/templates";
 import {
   deleteAdminFerry,
   enrichAdminFerriesMarinesia,

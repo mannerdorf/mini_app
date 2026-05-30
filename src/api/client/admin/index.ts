@@ -5,6 +5,8 @@ export { adminAuthHeaders } from "./auth";
 export * from "./legal";
 export * from "./perevozki";
 export * from "./userActivity";
+export * from "./suppliers";
+export * from "./templates";
 export * from "./directories";
 export * from "./me";
 export * from "./customers";
