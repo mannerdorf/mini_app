@@ -8,18 +8,12 @@ import {
 } from "../../lib/bankBusinessOpen";
 import { isClientAndroid } from "../../lib/clientPlatform";
 
-const LOGOS: Partial<Record<BankBusinessId, string>> = {
-  tbank: "/assets/banks/tbank-business.svg",
-  sber: "/assets/banks/sber-business.svg",
-};
-
 type Props = {
   className?: string;
 };
 
 function BankPayCard({ bank }: { bank: BankBusinessId }) {
   const cfg = getBankBusinessConfig(bank);
-  const logo = LOGOS[bank];
 
   return (
     <button
@@ -29,11 +23,7 @@ function BankPayCard({ bank }: { bank: BankBusinessId }) {
       title={`Открыть ${cfg.label}`}
       aria-label={`Оплатить в ${cfg.label}`}
     >
-      {logo ? (
-        <img src={logo} alt="" className="bank-business-pay-card__logo" aria-hidden />
-      ) : (
-        <span className="bank-business-pay-card__label">{cfg.shortLabel}</span>
-      )}
+      <span className="bank-business-pay-card__label">{cfg.shortLabel}</span>
     </button>
   );
 }
