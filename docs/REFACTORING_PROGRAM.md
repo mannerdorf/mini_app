@@ -266,3 +266,4 @@ src/features/admin/
 - Субагент UX: `.cursor/agents/cm-ux-master.md`
 - Субагент рефакторинг: `.cursor/agents/haulz-refactor.md`
 - Общий фильтр дат: `src/features/listWorkspace/`
+- Счета (модалка, QR, банки): `src/features/documents/invoices/`

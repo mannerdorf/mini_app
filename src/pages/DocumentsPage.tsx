@@ -7,7 +7,7 @@ import { ServiceRefreshFrom1cButton } from "../components/ServiceRefreshFrom1cBu
 import { serviceRefreshKindsForDocumentsSection } from "../lib/serviceRefreshFrom1c";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
-import { InvoiceDetailModal } from "../components/modals/InvoiceDetailModal";
+import { InvoiceDetailModal } from "../features/documents/invoices";
 import { ActDetailModal } from "../components/modals/ActDetailModal";
 import { NewOrderModal } from "../components/modals/NewOrderModal";
 import { DateText } from "../components/ui/DateText";

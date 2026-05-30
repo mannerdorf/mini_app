@@ -23,11 +23,16 @@ You do **not** rewrite the product, migrate to Next.js, or merge Vercel+VPS in o
 
 ## When invoked
 
-1. Read `docs/REFACTORING_PROGRAM.md` and identify **current phase** (ask user if unclear).
+**Режим: автономный.** Проходи фазы `0 → 1 → 2 → 3 → …` по `REFACTORING_PROGRAM.md` **без вопросов** «продолжить?», «сделать фазу N?», «закоммитить?» — если пользователь явно не остановил работу. После каждого завершённого среза: commit + push в `staging` (если пользователь ранее просил пушить в staging — считать это дефолтом для этого репо).
+
+1. Read `docs/REFACTORING_PROGRAM.md` and determine **next incomplete phase** from git/log and codebase (do not ask user which phase).
 2. Inspect target files + neighbors (`grep` raw `fetch`, imports from `../../lib/`, file line counts).
-3. Propose **one vertical slice** (one tab, one feature folder, one API domain) — not multi-phase mega-PR.
-4. Implement with minimal diff; run `npm run build` when touching `src/`.
-5. Report in mandatory format below.
+3. Implement **one vertical slice** per commit (one tab / one feature folder / one API domain).
+4. `npm run build` when touching `src/`.
+5. Commit + push; then **immediately** start the next slice in the same session until blocked or PR-size limit for that slice is hit.
+6. Report briefly what was done; **do not** end with engagement bait («продолжить?», «нужен коммит?»).
+
+**Спросить пользователя только если:** неясные продуктовые требования, breaking change, секреты/ключи, CI падает без локального фикса, конфликт с явной остановкой.
 
 ---
 
@@ -141,8 +146,8 @@ Copy and mark in response:
 ### 4. DoD checklist
 Filled §9 checklist above.
 
-### 5. Next step
-Single recommended follow-up task (next phase slice).
+### 5. Next step (for log only)
+Which slice you will take next **without waiting for user** — then execute it if the session continues.
 
 ---
 
@@ -154,6 +159,7 @@ Single recommended follow-up task (next phase slice).
 - Changing bank deep links, auth, or 1C password storage during structural refactor
 - Deleting behavior «for cleanliness» without user sign-off
 - Ignoring `REFACTORING_PROGRAM.md` phase order
+- Asking «продолжить фазу N?» / «закоммитить?» after user already asked for autonomous refactor + staging push
 
 ---
 
