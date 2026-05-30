@@ -2,6 +2,10 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { Loader2 } from "lucide-react";
 import { DateText } from "../../../components/ui/DateText";
+import {
+  fetchAdminUserActivityReport,
+  type AdminUserActivityReport,
+} from "../../../api/client/admin/userActivity";
 
 function toYMDLocal(d: Date): string {
   const y = d.getFullYear();
@@ -31,36 +35,7 @@ function sectionLabel(key: string): string {
   return SECTION_LABELS[key] || key;
 }
 
-type ReportPayload = {
-  period?: { from: string; to: string };
-  summary?: {
-    distinct_users: number;
-    total_logins: number;
-    total_ui_opens: number;
-    expense_requests_created: number;
-    claims_created: number;
-    pending_orders_created: number;
-  };
-  by_user?: Array<{
-    login: string;
-    company_name: string | null;
-    full_name: string | null;
-    logins: number;
-    ui_hits: number;
-    ui_sections: Record<string, number>;
-    expense_requests: number;
-    claims: number;
-    pending_orders: number;
-    last_event_at: string | null;
-  }>;
-  recent_events?: Array<{
-    login: string;
-    event_type: string;
-    meta: Record<string, unknown> | null;
-    created_at: string;
-  }>;
-  error?: string;
-};
+type ReportPayload = AdminUserActivityReport;
 
 export function AdminUserActivitySection({ adminToken }: { adminToken: string }) {
   const [{ from, to }, setRange] = useState(defaultPeriod);
@@ -72,20 +47,11 @@ export function AdminUserActivitySection({ adminToken }: { adminToken: string })
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ from, to });
-      const res = await fetch(`/api/admin-user-activity-report?${params}`, {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      });
-      const json = (await res.json().catch(() => ({}))) as ReportPayload;
-      if (!res.ok) {
-        setData(null);
-        setError(json.error || `Ошибка ${res.status}`);
-        return;
-      }
+      const json = await fetchAdminUserActivityReport(adminToken, { from, to });
       setData(json);
-    } catch {
+    } catch (e: unknown) {
       setData(null);
-      setError("Не удалось загрузить отчёт");
+      setError((e as Error)?.message || "Не удалось загрузить отчёт");
     } finally {
       setLoading(false);
     }

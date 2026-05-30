@@ -3,4 +3,6 @@
  */
 export { adminAuthHeaders } from "./auth";
 export * from "./legal";
+export * from "./perevozki";
+export * from "./userActivity";
 export { postAuthRegisteredLogin } from "../auth";

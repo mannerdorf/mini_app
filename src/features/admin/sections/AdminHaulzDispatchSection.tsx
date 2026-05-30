@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Flex } from "@maxhub/max-ui";
 import { HaulzDispatchSummary } from "../../../components/HaulzDispatchSummary";
 import * as dateUtils from "../../../lib/dateUtils";
+import { fetchAdminPerevozki } from "../../../api/client/admin/perevozki";
 import type { CargoItem } from "../../../types";
 import type { KeyedMutator } from "swr";
 
@@ -37,23 +38,7 @@ export function AdminHaulzDispatchSection({ adminToken }: { adminToken: string }
 
   const loadItems = useCallback(async (): Promise<CargoItem[]> => {
     if (!adminToken) return [];
-    const res = await fetch("/api/perevozki", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-      body: JSON.stringify({
-        adminToken,
-        dateFrom: dateRange.dateFrom,
-        dateTo: dateRange.dateTo,
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const msg = typeof (data as { error?: string })?.error === "string" ? (data as { error: string }).error : "Ошибка загрузки перевозок";
-      throw new Error(msg);
-    }
-    if (Array.isArray(data)) return data as CargoItem[];
-    const rawItems = (data as { items?: CargoItem[] })?.items;
-    return Array.isArray(rawItems) ? rawItems : [];
+    return fetchAdminPerevozki(adminToken, dateRange);
   }, [adminToken, dateRange.dateFrom, dateRange.dateTo]);
 
   useEffect(() => {
