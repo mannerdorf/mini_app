@@ -14,7 +14,6 @@ import "@fontsource/manrope/700.css";
 import "./design-tokens.css";
 import "./styles.css";
 import "./components/shipment-status.css";
-import { resolveHaulzApiOrigin } from "./constants/apiOrigin";
 
 const swrConfig = {
     revalidateOnFocus: false,
@@ -112,10 +111,10 @@ const setupDebugOverlay = () => {
 
 setupDebugOverlay();
 
-/** VPS Timeweb 72.56.36.185; переопределение: VITE_API_ORIGIN. */
-const FALLBACK_API_ORIGIN = resolveHaulzApiOrigin(import.meta.env.VITE_API_ORIGIN);
+/** VPS/legacy API; нативное приложение. Веб на Vercel — same-origin /api без переписывания. */
+const FALLBACK_API_ORIGIN = "https://api.haulz.ru";
 
-/** Статика на haulz.ru (Caddy/nginx); POST /api/* на этом хосте даёт 405 — API на VPS. */
+/** Статика на haulz.ru (Caddy/nginx); POST /api/* на этом хосте даёт 405 — API на api.haulz.ru. */
 const HAULZ_STATIC_ORIGINS = new Set([
   "https://haulz.ru",
   "http://haulz.ru",
@@ -133,6 +132,8 @@ const isCapacitorNative = (): boolean => {
 };
 
 const resolveApiOrigin = (): string => {
+  const envOrigin = normalizeOrigin(String(import.meta.env.VITE_API_ORIGIN || ""));
+  if (envOrigin) return envOrigin;
   if (typeof window !== "undefined" && !isCapacitorNative()) {
     const pageOrigin = normalizeOrigin(window.location.origin);
     if (HAULZ_STATIC_ORIGINS.has(pageOrigin)) return FALLBACK_API_ORIGIN;
