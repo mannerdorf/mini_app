@@ -3,6 +3,11 @@
  */
 
 import { apiFetchJson } from "../../utils";
+import { documentsAuthHeaders, documentsFetchJson, type DocumentsAuth } from "./documentsAuth";
+
+export type { DocumentsAuth } from "./documentsAuth";
+export * from "./documentsClaims";
+export * from "./documentsSendings";
 
 export type DocumentsInnScope = {
   inn?: string;
@@ -140,4 +145,108 @@ export async function fetchSendingsFerryMap(
   } catch {
     return {};
   }
+}
+
+export type SverkiRequestRow = {
+  id: number;
+  customerInn: string;
+  contract: string;
+  periodFrom: string;
+  periodTo: string;
+  status: "pending" | "edo_sent";
+  createdAt: string;
+};
+
+export async function fetchSverkiRequests(
+  auth: DocumentsAuth,
+  inn: string
+): Promise<SverkiRequestRow[]> {
+  try {
+    const { ok, data } = await documentsFetchJson<{ requests?: SverkiRequestRow[] }>(
+      `/api/sverki-requests?inn=${encodeURIComponent(inn)}`,
+      { method: "GET", headers: documentsAuthHeaders(auth) }
+    );
+    return ok && Array.isArray(data.requests) ? data.requests : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function postSverkiRequest(
+  auth: DocumentsAuth,
+  body: {
+    customerInn: string;
+    periodFrom: string;
+    periodTo: string;
+    contract: string;
+  }
+): Promise<void> {
+  const { ok, data } = await documentsFetchJson<{ error?: string }>("/api/sverki-requests", {
+    method: "POST",
+    headers: documentsAuthHeaders(auth, { "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+  });
+  if (!ok) throw new Error(data?.error || "Не удалось создать заявку");
+}
+
+/** Подписи договоров для заказа акта сверки */
+export async function fetchDogovorContractLabels(inn: string): Promise<string[]> {
+  try {
+    const data = await apiFetchJson<{ dogovors?: Array<{ docNumber?: string; title?: string }> }>(
+      `/api/dogovors?inn=${encodeURIComponent(inn)}`
+    );
+    const rows = Array.isArray(data?.dogovors) ? data.dogovors : [];
+    return Array.from(
+      new Set(
+        rows
+          .map((row) => {
+            const number = String(row?.docNumber || "").trim();
+            const title = String(row?.title || "").trim();
+            if (number && title) return `${number} - ${title}`;
+            return number || title;
+          })
+          .filter(Boolean)
+      )
+    );
+  } catch {
+    return [];
+  }
+}
+
+export type DownloadDocumentPayload = {
+  data: string;
+  name?: string;
+  isHtml?: boolean;
+  message?: string;
+  error?: string;
+};
+
+export async function postDownloadDocument(
+  body: Record<string, unknown>
+): Promise<DownloadDocumentPayload> {
+  const { ok, data } = await documentsFetchJson<DownloadDocumentPayload>("/api/download", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!ok) throw new Error(data?.message || data?.error || "Не удалось получить документ");
+  if (!data?.data) throw new Error("Документ не найден");
+  return data;
+}
+
+export async function postOrderCreate(body: {
+  login: string;
+  password: string;
+  punktOtpravki: string;
+  punktNaznacheniya: string;
+  nomerZayavki: string;
+  dataZabora: string;
+  tableRows: unknown[];
+}): Promise<void> {
+  const { ok, data } = await documentsFetchJson<{ error?: string }>("/api/order-create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!ok) throw new Error(data?.error || "Ошибка создания заявки");
 }

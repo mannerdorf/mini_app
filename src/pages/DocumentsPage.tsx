@@ -22,6 +22,20 @@ import {
     fetchEdoCounterpartyInns,
     fetchFerriesList,
     fetchSendingsFerryMap,
+    fetchClaimsList,
+    fetchClaimById,
+    postClaimAction,
+    saveClaimDraft,
+    fetchSverkiRequests,
+    postSverkiRequest,
+    fetchDogovorContractLabels,
+    postDownloadDocument,
+    postOrderCreate,
+    fetchSendingsEorMap,
+    postSendingsEorStatus,
+    postSendingsPlanDate,
+    fetchMarinesiaShipEta,
+    postSendingsFerryAssignment,
 } from "../api/client/documents";
 import {
     checkSanctionsByNomenclature,
@@ -716,8 +730,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
             return;
         }
         setClaimsLoading(true);
-        const params = new URLSearchParams();
-        if (claimsStatusFilter !== 'all') params.set('status', claimsStatusFilter);
         const claimsDateRange = computeDocumentsApiDateRange({
             dateFilter,
             customDateFrom,
@@ -726,22 +738,19 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
             selectedYearForFilter,
             selectedWeekForFilter,
         });
-        if (claimsDateRange.dateFrom) params.set('dateFrom', claimsDateRange.dateFrom);
-        if (claimsDateRange.dateTo) params.set('dateTo', claimsDateRange.dateTo);
         const selectedInn = String(effectiveActiveInn || auth?.inn || '').trim();
-        if (selectedInn) params.set('inn', selectedInn);
         try {
-            const res = await fetch(`/api/claims${params.toString() ? `?${params.toString()}` : ''}`, {
-                method: 'GET',
-                headers: {
-                    'x-login': auth.login,
-                    'x-password': auth.password,
-                    'x-inn': selectedInn,
-                },
-            });
-            const data = await res.json().catch(() => ({}));
+            const list = await fetchClaimsList(
+                { login: auth.login, password: auth.password, inn: selectedInn },
+                {
+                    status: claimsStatusFilter,
+                    dateFrom: claimsDateRange.dateFrom,
+                    dateTo: claimsDateRange.dateTo,
+                    inn: selectedInn,
+                }
+            );
             if (requestId === claimsRequestIdRef.current) {
-                setClaimsList(Array.isArray((data as any)?.claims) ? ((data as any).claims as any[]) : []);
+                setClaimsList(list as any[]);
             }
         } catch {
             if (requestId === claimsRequestIdRef.current) {
@@ -761,25 +770,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         }
         setSverkiOrderContractsLoading(true);
         try {
-            const params = new URLSearchParams();
-            params.set('inn', String(effectiveActiveInn));
-            const resp = await fetch(`/api/dogovors?${params.toString()}`);
-            const data = await resp.json().catch(() => ({} as any));
-            const rows = Array.isArray((data as any)?.dogovors)
-                ? ((data as any).dogovors as Array<{ docNumber?: string; title?: string }>)
-                : [];
-            const options = Array.from(
-                new Set(
-                    rows
-                        .map((row) => {
-                            const number = String(row?.docNumber || '').trim();
-                            const title = String(row?.title || '').trim();
-                            if (number && title) return `${number} - ${title}`;
-                            return number || title;
-                        })
-                        .filter(Boolean)
-                )
-            );
+            const options = await fetchDogovorContractLabels(String(effectiveActiveInn));
             setSverkiOrderContractOptions(options);
             setSverkiOrderContract((prev) => (prev && options.includes(prev) ? prev : (options[0] || '')));
         } catch {
@@ -845,16 +836,13 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         setClaimsCreateError(null);
         setClaimsCreateSubmitting(true);
         try {
-            const res = await fetch(`/api/claims/${claimId}`, {
-                method: 'GET',
-                headers: {
-                    'x-login': auth.login,
-                    'x-password': auth.password,
-                    'x-inn': String(effectiveActiveInn || auth?.inn || '').trim(),
-                },
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data?.error || 'Не удалось загрузить черновик');
+            const claimAuth = {
+                login: auth.login,
+                password: auth.password,
+                inn: String(effectiveActiveInn || auth?.inn || '').trim(),
+            };
+            const { ok, data } = await fetchClaimById(claimAuth, claimId);
+            if (!ok) throw new Error((data as { error?: string })?.error || 'Не удалось загрузить черновик');
             const claim = (data as any)?.claim || {};
             const events = Array.isArray((data as any)?.events) ? (data as any).events as any[] : [];
             const draftPayload = [...events].reverse().find((e: any) => (
@@ -889,16 +877,13 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         setClaimsDetailError(null);
         setClaimsDetailData(null);
         try {
-            const res = await fetch(`/api/claims/${claimId}`, {
-                method: 'GET',
-                headers: {
-                    'x-login': auth.login,
-                    'x-password': auth.password,
-                    'x-inn': String(effectiveActiveInn || auth?.inn || '').trim(),
-                },
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data?.error || 'Не удалось загрузить карточку претензии');
+            const claimAuth = {
+                login: auth.login,
+                password: auth.password,
+                inn: String(effectiveActiveInn || auth?.inn || '').trim(),
+            };
+            const { ok, data } = await fetchClaimById(claimAuth, claimId);
+            if (!ok) throw new Error((data as { error?: string })?.error || 'Не удалось загрузить карточку претензии');
             setClaimsDetailData(data);
         } catch (e: any) {
             setClaimsDetailError(e?.message || 'Не удалось загрузить карточку претензии');
@@ -910,18 +895,13 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         if (!auth?.login || !auth?.password) return;
         setClaimsActionLoadingId(claimId);
         try {
-            const res = await fetch(`/api/claims/${claimId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-login': auth.login,
-                    'x-password': auth.password,
-                    'x-inn': String(effectiveActiveInn || auth?.inn || '').trim(),
-                },
-                body: JSON.stringify({ action }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data?.error || 'Не удалось обновить статус претензии');
+            const claimAuth = {
+                login: auth.login,
+                password: auth.password,
+                inn: String(effectiveActiveInn || auth?.inn || '').trim(),
+            };
+            const { ok, data } = await postClaimAction(claimAuth, claimId, { action });
+            if (!ok) throw new Error((data as { error?: string })?.error || 'Не удалось обновить статус претензии');
             await reloadClaims();
         } catch (e: any) {
             setClaimsCreateError(e?.message || 'Ошибка действия по претензии');
@@ -958,23 +938,20 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
                     base64: await fileToBase64(file),
                 }))
             );
-            const res = await fetch(`/api/claims/${claimsReplyClaimId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-login': auth.login,
-                    'x-password': auth.password,
-                    'x-inn': String(effectiveActiveInn || auth?.inn || '').trim(),
-                },
-                body: JSON.stringify({
-                    action: 'upload_documents',
-                    photos: photosPayload,
-                    documents: documentsPayload,
-                    videoLinks: claimsReplyVideoLink.trim() ? [{ url: claimsReplyVideoLink.trim(), title: 'Видео по запросу документов' }] : [],
-                }),
+            const claimAuth = {
+                login: auth.login,
+                password: auth.password,
+                inn: String(effectiveActiveInn || auth?.inn || '').trim(),
+            };
+            const { ok, data } = await postClaimAction(claimAuth, claimsReplyClaimId, {
+                action: 'upload_documents',
+                photos: photosPayload,
+                documents: documentsPayload,
+                videoLinks: claimsReplyVideoLink.trim()
+                    ? [{ url: claimsReplyVideoLink.trim(), title: 'Видео по запросу документов' }]
+                    : [],
             });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data?.error || 'Не удалось отправить документы');
+            if (!ok) throw new Error((data as { error?: string })?.error || 'Не удалось отправить документы');
             setClaimsReplyOpen(false);
             setClaimsReplyClaimId(null);
             setClaimsReplyPhotoFiles([]);
@@ -993,25 +970,8 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
             return;
         }
         setSverkiRequestsLoading(true);
-        fetch(`/api/sverki-requests?inn=${encodeURIComponent(effectiveActiveInn)}`, {
-            method: 'GET',
-            headers: {
-                'x-login': auth.login,
-                'x-password': auth.password,
-            },
-        })
-            .then((res) => res.json().catch(() => ({})))
-            .then((data: { requests?: {
-                id: number;
-                customerInn: string;
-                contract: string;
-                periodFrom: string;
-                periodTo: string;
-                status: 'pending' | 'edo_sent';
-                createdAt: string;
-            }[] }) => {
-                setSverkiRequests(Array.isArray(data?.requests) ? data.requests : []);
-            })
+        fetchSverkiRequests({ login: auth.login, password: auth.password }, effectiveActiveInn)
+            .then(setSverkiRequests)
             .catch(() => setSverkiRequests([]))
             .finally(() => setSverkiRequestsLoading(false));
     }, [docSection, effectiveActiveInn, auth?.login, auth?.password]);
@@ -1031,18 +991,8 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         let cancelled = false;
         (async () => {
             try {
-                const resp = await fetch('/api/sendings-eor', {
-                    method: 'GET',
-                    headers: {
-                        'x-login': auth.login,
-                        'x-password': auth.password,
-                    },
-                });
-                if (!resp.ok) return;
-                const data = await resp.json().catch(() => ({}));
-                if (!cancelled && data && typeof data.map === 'object' && data.map !== null) {
-                    setEorStatusMap(data.map as Record<string, EorStatus[]>);
-                }
+                const map = await fetchSendingsEorMap({ login: auth.login, password: auth.password });
+                if (!cancelled && map) setEorStatusMap(map as Record<string, EorStatus[]>);
             } catch {
                 // ignore DB sync errors in UI
             }
@@ -2357,14 +2307,7 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
         setSverkiDownloadingId(row.id);
         setSverkiDownloadError(null);
         try {
-            const res = await fetch('/api/download', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ metod: 'АктСверки', number, dateDoc }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data?.message || data?.error || 'Не удалось получить документ');
-            if (!data?.data) throw new Error('Документ не найден');
+            const data = await postDownloadDocument({ metod: 'АктСверки', number, dateDoc });
             await downloadBase64File({
                 data: String(data.data),
                 name: data?.name || `АктСверки_${number}.pdf`,
@@ -2401,14 +2344,7 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
         setDogovorsDownloadingId(row.id);
         setDogovorsDownloadError(null);
         try {
-            const res = await fetch('/api/download', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ metod: 'Договор', number, dateDog, inn }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data?.message || data?.error || 'Не удалось получить документ');
-            if (!data?.data) throw new Error('Документ не найден');
+            const data = await postDownloadDocument({ metod: 'Договор', number, dateDog, inn });
             await downloadBase64File({
                 data: String(data.data),
                 name: data?.name || `Договор_${number}.pdf`,
@@ -3036,23 +2972,15 @@ useEffect(() => {
         try {
             const settled = await Promise.allSettled(
                 selectedSendingRowsMeta.map(async (row) => {
-                    const resp = await fetch('/api/sendings-eor', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            login: auth?.login,
-                            password: auth?.password,
-                            inn: effectiveActiveInn ?? null,
-                            rowKey: row.rowKey,
-                            statuses: [status],
-                            sendingNumber: row.sendingNumber || null,
-                            sendingDate: row.sendingDate || null,
-                        }),
+                    await postSendingsEorStatus({
+                        login: auth?.login,
+                        password: auth?.password,
+                        inn: effectiveActiveInn ?? null,
+                        rowKey: row.rowKey,
+                        statuses: [status],
+                        sendingNumber: row.sendingNumber || null,
+                        sendingDate: row.sendingDate || null,
                     });
-                    if (!resp.ok) {
-                        const data = await resp.json().catch(() => ({}));
-                        throw new Error(String(data?.error || `HTTP ${resp.status}`));
-                    }
                     return row.rowKey;
                 })
             );
@@ -3105,18 +3033,7 @@ useEffect(() => {
         setBulkSendingActionError(null);
         setBulkSendingActionInfo(null);
         try {
-            const resp = await fetch('/api/sendings-plan-date', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    date: bulkPlanDateValue,
-                    cargoNumbers,
-                }),
-            });
-            const data = await resp.json().catch(() => ({}));
-            if (!resp.ok) {
-                throw new Error(String(data?.error || `HTTP ${resp.status}`));
-            }
+            const data = await postSendingsPlanDate(bulkPlanDateValue, cargoNumbers);
             const updated = Number(data?.updated ?? 0);
             const requested = Number(data?.requested ?? cargoNumbers.length);
             const failed = Number(data?.failed ?? Math.max(0, requested - updated));
@@ -3209,31 +3126,15 @@ useEffect(() => {
 
         setFerryEtaLoadingByRow((prev) => ({ ...prev, [rowKey]: true }));
         try {
-            let eta: string | null = null;
-            if (ferry) {
-                const res = await fetch(`/api/marinesia-ship?mmsi=${encodeURIComponent(ferry.mmsi)}`);
-                const data = await res.json().catch(() => ({}));
-                if (data?.vessel?.eta) eta = String(data.vessel.eta);
-            }
-            const resp = await fetch('/api/sendings-ferry', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    login: auth?.login,
-                    password: auth?.password,
-                    rowKey,
-                    ferryId: ferryId ?? undefined,
-                    eta,
-                    inn: effectiveInn ?? undefined,
-                }),
+            const eta = ferry ? await fetchMarinesiaShipEta(ferry.mmsi) : null;
+            await postSendingsFerryAssignment({
+                login: auth?.login,
+                password: auth?.password,
+                rowKey,
+                ferryId: ferryId ?? undefined,
+                eta,
+                inn: effectiveInn ?? undefined,
             });
-            const result = await resp.json().catch(() => ({}));
-            if (!resp.ok) {
-                const msg = resp.status === 401
-                    ? 'Сохранение парома доступно только зарегистрированным пользователям. Войдите по email.'
-                    : (result?.error || `HTTP ${resp.status}`);
-                throw new Error(msg);
-            }
             setSendingsFerryMap((prev) => {
                 const next = { ...prev };
                 const entry = ferryId && ferry
@@ -4429,21 +4330,15 @@ useEffect(() => {
                 auth={{ login: auth.login, password: auth.password }}
                 activeInn={effectiveActiveInn || null}
                 onSubmit={async (data) => {
-                    const res = await fetch('/api/order-create', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            login: auth.login,
-                            password: auth.password,
-                            punktOtpravki: data.punktOtpravki,
-                            punktNaznacheniya: data.punktNaznacheniya,
-                            nomerZayavki: data.nomerZayavki,
-                            dataZabora: data.dataZabora,
-                            tableRows: data.tableRows,
-                        }),
+                    await postOrderCreate({
+                        login: auth.login,
+                        password: auth.password,
+                        punktOtpravki: data.punktOtpravki,
+                        punktNaznacheniya: data.punktNaznacheniya,
+                        nomerZayavki: data.nomerZayavki,
+                        dataZabora: data.dataZabora,
+                        tableRows: data.tableRows,
                     });
-                    const json = await res.json().catch(() => ({}));
-                    if (!res.ok) throw new Error(json?.error || 'Ошибка создания заявки');
                     void mutateOrders(undefined, { revalidate: true });
                 }}
             />
@@ -5564,18 +5459,10 @@ useEffect(() => {
                                                                                                         setByCustomerActionError(null);
                                                                                                         setByCustomerActionInfo(null);
                                                                                                         try {
-                                                                                                            const resp = await fetch('/api/sendings-plan-date', {
-                                                                                                                method: 'POST',
-                                                                                                                headers: { 'Content-Type': 'application/json' },
-                                                                                                                body: JSON.stringify({
-                                                                                                                    date: byCustomerPlanDateValue,
-                                                                                                                    cargoNumbers,
-                                                                                                                }),
-                                                                                                            });
-                                                                                                            const data = await resp.json().catch(() => ({}));
-                                                                                                            if (!resp.ok) {
-                                                                                                                throw new Error(String(data?.error || `HTTP ${resp.status}`));
-                                                                                                            }
+                                                                                                            const data = await postSendingsPlanDate(
+                                                                                                                byCustomerPlanDateValue,
+                                                                                                                cargoNumbers
+                                                                                                            );
                                                                                                             const updated = Number(data?.updated ?? 0);
                                                                                                             const requested = Number(data?.requested ?? cargoNumbers.length);
                                                                                                             const failed = Number(data?.failed ?? Math.max(0, requested - updated));
@@ -7948,22 +7835,22 @@ useEffect(() => {
                                             videoLinks: claimsCreateVideoLink.trim() ? [{ url: claimsCreateVideoLink.trim(), title: 'Видео от клиента' }] : [],
                                         };
                                         const isEditDraft = !!claimsEditingId;
-                                        const resp = await fetch(isEditDraft ? `/api/claims/${claimsEditingId}` : '/api/claims', {
-                                            method: 'POST',
-                                            headers: {
-                                                'Content-Type': 'application/json',
-                                                'x-login': auth.login,
-                                                'x-password': auth.password,
-                                                'x-inn': String(effectiveActiveInn || auth?.inn || '').trim(),
-                                            },
-                                            body: JSON.stringify(
-                                                isEditDraft
-                                                    ? { action: 'update_draft', ...bodyPayload }
-                                                    : bodyPayload
-                                            ),
-                                        });
-                                        const data = await resp.json().catch(() => ({}));
-                                        if (!resp.ok) throw new Error(data?.error || (isEditDraft ? 'Не удалось сохранить черновик' : 'Не удалось создать претензию'));
+                                        const claimAuth = {
+                                            login: auth.login,
+                                            password: auth.password,
+                                            inn: String(effectiveActiveInn || auth?.inn || '').trim(),
+                                        };
+                                        const { ok, data } = await saveClaimDraft(
+                                            claimAuth,
+                                            claimsEditingId,
+                                            bodyPayload
+                                        );
+                                        if (!ok) {
+                                            throw new Error(
+                                                (data as { error?: string })?.error ||
+                                                    (isEditDraft ? 'Не удалось сохранить черновик' : 'Не удалось создать претензию')
+                                            );
+                                        }
                                         setClaimsCreateOpen(false);
                                         setClaimsEditingId(null);
                                         await reloadClaims();
@@ -8066,22 +7953,15 @@ useEffect(() => {
                                     setSverkiOrderSubmitting(true);
                                     setSverkiOrderError(null);
                                     try {
-                                        const resp = await fetch('/api/sverki-requests', {
-                                            method: 'POST',
-                                            headers: {
-                                                'Content-Type': 'application/json',
-                                                'x-login': auth.login,
-                                                'x-password': auth.password,
-                                            },
-                                            body: JSON.stringify({
+                                        await postSverkiRequest(
+                                            { login: auth.login, password: auth.password },
+                                            {
                                                 customerInn: effectiveActiveInn,
                                                 periodFrom: sverkiOrderPeriodFrom,
                                                 periodTo: sverkiOrderPeriodTo,
                                                 contract: sverkiOrderContract.trim(),
-                                            }),
-                                        });
-                                        const data = await resp.json().catch(() => ({}));
-                                        if (!resp.ok) throw new Error(data?.error || 'Не удалось создать заявку');
+                                            }
+                                        );
                                         setSverkiOrderModalOpen(false);
                                         setSverkiRequests((prev) => {
                                             const row = data?.request;
