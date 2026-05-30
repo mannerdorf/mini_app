@@ -1489,11 +1489,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
   useEffect(() => {
     if (tab !== "users") return;
-    fetch(`/api/admin-customers-search?q=&limit=2000`, { headers: { Authorization: `Bearer ${adminToken}` } })
-      .then((res) => res.json())
-      .then((data: { customers?: { inn: string; customer_name: string }[] }) => {
+    searchAdminCustomers(adminToken, { limit: 2000 })
+      .then((customers) => {
         const map: Record<string, string> = {};
-        for (const c of data.customers || []) {
+        for (const c of customers) {
           if (c.inn && c.customer_name) map[c.inn] = c.customer_name;
         }
         setCustomerDirectoryMap(map);
@@ -1799,14 +1798,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (tab !== "customers") return;
     setCustomersLoading(true);
     const query = customersSearch.trim();
-    const url = query.length >= 2
-      ? `/api/admin-customers-search?q=${encodeURIComponent(query)}&limit=500`
-      : `/api/admin-customers-search?q=&limit=2000`;
-    fetch(url, { headers: { Authorization: `Bearer ${adminToken}` } })
-      .then((res) => res.json())
-      .then((data: { customers?: { inn: string; customer_name: string; email: string }[] }) => {
-        setCustomersList(data.customers || []);
-      })
+    searchAdminCustomers(adminToken, { q: query, limit: query.length >= 2 ? 500 : 2000 })
+      .then(setCustomersList)
       .catch(() => setCustomersList([]))
       .finally(() => setCustomersLoading(false));
   }, [tab, customersSearch, adminToken, customersFetchTrigger]);
@@ -3231,13 +3224,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
   const fetchCustomersForModal = useCallback(
     async (query: string): Promise<CustomerItem[]> => {
-      const res = await fetch(
-        `/api/admin-customers-search?q=${encodeURIComponent(query)}&limit=200`,
-        { headers: { Authorization: `Bearer ${adminToken}` } }
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data?.error as string) || "Ошибка загрузки справочника");
-      return data.customers || [];
+      const customers = await searchAdminCustomers(adminToken, { q: query, limit: 200 });
+      return customers.map((c) => ({
+        inn: c.inn,
+        customer_name: c.customer_name,
+        email: c.email || "",
+      }));
     },
     [adminToken]
   );
@@ -3472,11 +3464,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         : [];
     setEditorCustomers(list);
     setEditorError(null);
-    fetch(`/api/admin-customers-search?q=&limit=2000`, { headers: { Authorization: `Bearer ${adminToken}` } })
-      .then((res) => res.json())
-      .then((data: { customers?: { inn: string; customer_name: string }[] }) => {
+    searchAdminCustomers(adminToken, { limit: 2000 })
+      .then((customers) => {
         const map: Record<string, string> = {};
-        for (const c of data.customers || []) {
+        for (const c of customers) {
           if (c.inn && c.customer_name) map[c.inn] = c.customer_name;
         }
         setCustomerDirectoryMap(map);

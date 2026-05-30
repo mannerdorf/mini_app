@@ -20,6 +20,7 @@ export async function searchAdminCustomers(
   const res = await fetch(`/api/admin-customers-search?${params}`, {
     headers: adminAuthHeaders(adminToken),
   });
-  const data = (await res.json().catch(() => ({}))) as { customers?: AdminCustomerSearchRow[] };
+  const data = (await res.json().catch(() => ({}))) as { customers?: AdminCustomerSearchRow[]; error?: string };
+  if (!res.ok) throw new Error(data.error || "Ошибка запроса");
   return data.customers || [];
 }
