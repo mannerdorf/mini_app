@@ -2,12 +2,24 @@
 
 import { isClientAndroid, isClientMobile } from "./clientPlatform";
 
-export type BankBusinessId = "tbank" | "sber";
+export type BankBusinessId = "sber" | "tbank" | "alfa" | "vtb";
+
+/** Порядок кнопок в блоке «Оплата по QR» (Android). */
+export const BANK_BUSINESS_PAY_ORDER: BankBusinessId[] = ["sber", "tbank", "alfa", "vtb"];
+
+const androidLaunchIntent = (packageName: string, fallbackUrl: string, scheme?: string): string => {
+  const fallback = encodeURIComponent(fallbackUrl);
+  if (scheme) {
+    return `intent://#Intent;scheme=${scheme};package=${packageName};S.browser_fallback_url=${fallback};end`;
+  }
+  return `intent://#Intent;package=${packageName};action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;S.browser_fallback_url=${fallback};end`;
+};
 
 const BANK_CONFIG: Record<
   BankBusinessId,
   {
     label: string;
+    shortLabel: string;
     webUrl: string;
     /** Схемы для открытия приложения (iOS / часть Android). */
     appSchemes: string[];
@@ -15,21 +27,45 @@ const BANK_CONFIG: Record<
     storeUrl: string;
   }
 > = {
-  tbank: {
-    label: "Т-Бизнес",
-    webUrl: "https://business.tbank.ru/",
-    appSchemes: ["tbank://", "tinkoffbank://", "tinkoff://"],
-    androidIntent:
-      "intent://#Intent;scheme=tbank;package=ru.tinkoff.sme;S.browser_fallback_url=https%3A%2F%2Fbusiness.tbank.ru%2F;end",
-    storeUrl: "https://www.tbank.ru/apps/",
-  },
   sber: {
     label: "СберБизнес",
+    shortLabel: "Сбер",
     webUrl: "https://sbi.sberbank.ru:9443/ic/dcb/index.html#/login",
     appSchemes: ["sbbol://", "sberbankonline://"],
-    androidIntent:
-      "intent://#Intent;scheme=sbbol;package=ru.sberbank_sbbol;S.browser_fallback_url=https%3A%2F%2Fsbi.sberbank.ru%3A9443%2Fic%2Fdcb%2Findex.html%23%2Flogin;end",
+    androidIntent: androidLaunchIntent(
+      "ru.sberbank_sbbol",
+      "https://sbi.sberbank.ru:9443/ic/dcb/index.html#/login",
+      "sbbol"
+    ),
     storeUrl: "https://apps.sber.ru/apps/sberbusiness/",
+  },
+  tbank: {
+    label: "Т-Бизнес",
+    shortLabel: "Т-Бизнес",
+    webUrl: "https://business.tbank.ru/",
+    appSchemes: ["tbank://", "tinkoffbank://", "tinkoff://"],
+    androidIntent: androidLaunchIntent("ru.tinkoff.sme", "https://business.tbank.ru/", "tbank"),
+    storeUrl: "https://www.tbank.ru/apps/",
+  },
+  alfa: {
+    label: "Альфа-Бизнес",
+    shortLabel: "Альфа",
+    webUrl: "https://link.alfabank.ru/",
+    appSchemes: ["alfabank://", "alfabusiness://"],
+    androidIntent: androidLaunchIntent(
+      "ru.alfabank.oavdo.amc",
+      "https://link.alfabank.ru/",
+      "alfabank"
+    ),
+    storeUrl: "https://www.rustore.ru/catalog/app/ru.alfabank.oavdo.amc",
+  },
+  vtb: {
+    label: "ВТБ Бизнес",
+    shortLabel: "ВТБ",
+    webUrl: "https://www.vtb.ru/small-business/",
+    appSchemes: ["vtb://", "vtbbusiness://"],
+    androidIntent: androidLaunchIntent("ru.vtb.smb", "https://www.vtb.ru/small-business/", "vtb"),
+    storeUrl: "https://www.rustore.ru/catalog/app/ru.vtb.smb",
   },
 };
 

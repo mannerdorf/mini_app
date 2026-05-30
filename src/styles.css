@@ -4579,6 +4579,39 @@ button.edo-health-monitor {
     box-shadow: 0 2px 10px rgba(33, 160, 56, 0.12);
 }
 
+.bank-business-pay-card--alfa:hover {
+    border-color: rgba(239, 49, 36, 0.5);
+    box-shadow: 0 2px 10px rgba(239, 49, 36, 0.12);
+}
+
+.bank-business-pay-card--vtb:hover {
+    border-color: rgba(0, 70, 187, 0.45);
+    box-shadow: 0 2px 10px rgba(0, 70, 187, 0.12);
+}
+
+.bank-business-pay-card__label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    padding: 0 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.15;
+    text-align: center;
+    color: #1e293b;
+    letter-spacing: -0.02em;
+}
+
+.bank-business-pay-card--alfa .bank-business-pay-card__label {
+    color: #ef3124;
+}
+
+.bank-business-pay-card--vtb .bank-business-pay-card__label {
+    color: #0046bb;
+}
+
 .bank-business-pay-card__logo {
     display: block;
     width: 100%;
@@ -4595,7 +4628,7 @@ button.edo-health-monitor {
     gap: 0.5rem;
     align-items: stretch;
     margin-bottom: 0.45rem;
-    max-width: 360px;
+    max-width: 100%;
 }
 
 .bank-business-pay-row__hint {
