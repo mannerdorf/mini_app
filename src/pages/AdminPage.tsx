@@ -30,6 +30,21 @@ import {
   fetchAdminPresets,
   saveAdminPreset,
 } from "../api/client/admin/presets";
+import {
+  fetchAdminPaymentCalendar,
+  fetchAdminWorkSchedule,
+  saveAdminPaymentCalendar,
+  saveAdminWorkSchedule,
+} from "../api/client/admin/scheduling";
+import { searchAdminCustomers } from "../api/client/admin/customers";
+import {
+  deleteAdminFerry,
+  enrichAdminFerriesMarinesia,
+  fetchAdminFerries,
+  fetchAdminPvzList,
+  saveAdminFerry,
+} from "../api/client/admin/directories";
+import { fetchAdminMe } from "../api/client/admin/me";
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
@@ -1918,11 +1933,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   useEffect(() => {
     if (tab !== "ferries") return;
     setFerriesLoading(true);
-    fetch("/api/ferries", { headers: { Authorization: `Bearer ${adminToken}` } })
-      .then((res) => res.json())
-      .then((data: { ferries?: { id: number; name: string; mmsi: string; imo: string | null; vessel_type: string | null; teu_capacity: number | null; trailer_capacity: number | null; operator: string | null }[] }) => {
-        setFerriesList(data.ferries || []);
-      })
+    fetchAdminFerries(adminToken)
+      .then(setFerriesList)
       .catch(() => setFerriesList([]))
       .finally(() => setFerriesLoading(false));
   }, [tab, adminToken, ferriesFetchTrigger]);
@@ -1930,11 +1942,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   useEffect(() => {
     if (tab !== "pvz") return;
     setPvzLoading(true);
-    fetch("/api/pvz", { headers: { Authorization: `Bearer ${adminToken}` } })
-      .then((res) => res.json())
-      .then((data: { pvz?: { ВладелецИНН: string; ВладелецНаименование: string; Ссылка: string; Наименование: string; КодДляПечати: string; РегионНаименование: string; ГородНаименование: string; КонтактноеЛицо: string; ОтправительПолучательНаименование: string }[] }) => {
-        setPvzList(data.pvz || []);
-      })
+    fetchAdminPvzList(adminToken)
+      .then(setPvzList)
       .catch(() => setPvzList([]))
       .finally(() => setPvzLoading(false));
   }, [tab, adminToken, pvzFetchTrigger]);
@@ -2049,16 +2058,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const fetchPaymentCalendar = useCallback(() => {
     if (!adminToken) return;
     setPaymentCalendarLoading(true);
-    fetch("/api/admin-payment-calendar", { headers: { Authorization: `Bearer ${adminToken}` } })
-      .then((res) => res.json())
-      .then((data: { items?: { inn: string; customer_name: string | null; days_to_pay: number; payment_weekdays?: number[] }[] }) => {
-        setPaymentCalendarItems((data.items || []).map((r) => ({
-          inn: r.inn,
-          customer_name: r.customer_name,
-          days_to_pay: r.days_to_pay,
-          payment_weekdays: Array.isArray(r.payment_weekdays) ? r.payment_weekdays.filter((d) => d >= 1 && d <= 5) : [],
-        })));
-      })
+    fetchAdminPaymentCalendar(adminToken)
+      .then(setPaymentCalendarItems)
       .catch(() => setPaymentCalendarItems([]))
       .finally(() => setPaymentCalendarLoading(false));
   }, [adminToken]);
@@ -2066,15 +2067,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const fetchPaymentCalendarCustomers = useCallback(() => {
     if (!adminToken) return;
     setPaymentCalendarCustomerLoading(true);
-    const q = paymentCalendarSearch.trim();
-    const url = q.length >= 2
-      ? `/api/admin-customers-search?q=${encodeURIComponent(q)}&limit=500`
-      : `/api/admin-customers-search?q=&limit=500`;
-    fetch(url, { headers: { Authorization: `Bearer ${adminToken}` } })
-      .then((res) => res.json())
-      .then((data: { customers?: { inn: string; customer_name: string; email: string }[] }) => {
-        setPaymentCalendarCustomerList(data.customers || []);
-      })
+    searchAdminCustomers(adminToken, { q: paymentCalendarSearch, limit: 500 })
+      .then(setPaymentCalendarCustomerList)
       .catch(() => setPaymentCalendarCustomerList([]))
       .finally(() => setPaymentCalendarCustomerLoading(false));
   }, [adminToken, paymentCalendarSearch]);
@@ -2094,17 +2088,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const fetchWorkSchedule = useCallback(() => {
     if (!adminToken) return;
     setWorkScheduleLoading(true);
-    fetch("/api/admin-work-schedule", { headers: { Authorization: `Bearer ${adminToken}` } })
-      .then((res) => res.json())
-      .then((data: { items?: { inn: string; customer_name: string | null; days_of_week: number[]; work_start: string; work_end: string }[] }) => {
-        setWorkScheduleItems((data.items || []).map((r) => ({
-          inn: r.inn,
-          customer_name: r.customer_name,
-          days_of_week: Array.isArray(r.days_of_week) ? r.days_of_week.filter((d) => d >= 1 && d <= 7) : [1, 2, 3, 4, 5],
-          work_start: String(r.work_start || "09:00").slice(0, 5),
-          work_end: String(r.work_end || "18:00").slice(0, 5),
-        })));
-      })
+    fetchAdminWorkSchedule(adminToken)
+      .then(setWorkScheduleItems)
       .catch(() => setWorkScheduleItems([]))
       .finally(() => setWorkScheduleLoading(false));
   }, [adminToken]);
@@ -2112,15 +2097,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const fetchWorkScheduleCustomers = useCallback(() => {
     if (!adminToken) return;
     setWorkScheduleCustomerLoading(true);
-    const q = workScheduleSearch.trim();
-    const url = q.length >= 2
-      ? `/api/admin-customers-search?q=${encodeURIComponent(q)}&limit=500`
-      : `/api/admin-customers-search?q=&limit=500`;
-    fetch(url, { headers: { Authorization: `Bearer ${adminToken}` } })
-      .then((res) => res.json())
-      .then((data: { customers?: { inn: string; customer_name: string; email: string }[] }) => {
-        setWorkScheduleCustomerList(data.customers || []);
-      })
+    searchAdminCustomers(adminToken, { q: workScheduleSearch, limit: 500 })
+      .then(setWorkScheduleCustomerList)
       .catch(() => setWorkScheduleCustomerList([]))
       .finally(() => setWorkScheduleCustomerLoading(false));
   }, [adminToken, workScheduleSearch]);
@@ -2143,9 +2121,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       return;
     }
     setAdminMeLoaded(false);
-    fetch("/api/admin-me", { headers: { Authorization: `Bearer ${adminToken}` } })
-      .then((res) => (res.ok ? res.json() : {}))
-      .then((data: { isSuperAdmin?: boolean }) => {
+    fetchAdminMe(adminToken)
+      .then((data) => {
         setIsSuperAdmin(data?.isSuperAdmin === true);
         setAdminMeLoaded(true);
       })
@@ -6164,14 +6141,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 setFerriesEnrichLoading(true);
                 setFerriesEnrichMessage(null);
                 try {
-                  const res = await fetch("/api/ferries-enrich-marinesia", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                    body: JSON.stringify({}),
-                  });
-                  const data = await res.json().catch(() => ({}));
-                  if (!res.ok) throw new Error(data?.error || "Ошибка");
-                  setFerriesEnrichMessage(`Обновлено: ${data?.updated ?? 0} из ${data?.total ?? 0} паромов`);
+                  const data = await enrichAdminFerriesMarinesia(adminToken);
+                  setFerriesEnrichMessage(`Обновлено: ${data.updated} из ${data.total} паромов`);
                   setFerriesFetchTrigger((n) => n + 1);
                 } catch (e) {
                   setFerriesEnrichMessage((e as Error)?.message || "Ошибка обогащения");
@@ -6241,13 +6212,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       setFerryAddLoading(true);
                       setFerryAddError(null);
                       try {
-                        const res = await fetch("/api/ferries", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                          body: JSON.stringify({ name, mmsi }),
-                        });
-                        const data = await res.json().catch(() => ({}));
-                        if (!res.ok) throw new Error(data?.error || "Ошибка сохранения");
+                        await saveAdminFerry(adminToken, { name, mmsi });
                         setFerryAddModalOpen(false);
                         setFerriesFetchTrigger((n) => n + 1);
                       } catch (e) {
@@ -6318,13 +6283,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               onClick={async () => {
                                 setFerrySaveLoading(f.id);
                                 try {
-                                  const res = await fetch("/api/ferries", {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                                    body: JSON.stringify({ id: f.id, name: f.name, mmsi: mmsiVal.replace(/\D/g, "") }),
-                                  });
-                                  const data = await res.json().catch(() => ({}));
-                                  if (!res.ok) throw new Error(data?.error || "Ошибка");
+                                  await saveAdminFerry(adminToken, { id: f.id, name: f.name, mmsi: mmsiVal.replace(/\D/g, "") });
                                   setFerryEditMmsi((prev) => { const next = { ...prev }; delete next[f.id]; return next; });
                                   setFerriesFetchTrigger((n) => n + 1);
                                 } catch (e) {
@@ -6355,9 +6314,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             if (!window.confirm(`Удалить паром «${f.name}» (${f.mmsi})?`)) return;
                             setFerryDeleteLoading(f.id);
                             try {
-                              const res = await fetch(`/api/ferries?id=${f.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${adminToken}` } });
-                              const data = await res.json().catch(() => ({}));
-                              if (!res.ok) throw new Error(data?.error || "Ошибка");
+                              await deleteAdminFerry(adminToken, f.id);
                               setFerryEditMmsi((prev) => { const next = { ...prev }; delete next[f.id]; return next; });
                               setFerriesFetchTrigger((n) => n + 1);
                             } catch (err) {
@@ -6541,13 +6498,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 setPaymentCalendarSaving(true);
                 setError(null);
                 try {
-                  const res = await fetch("/api/admin-payment-calendar", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                    body: JSON.stringify({ inns: Array.from(paymentCalendarSelectedInns), days_to_pay: days }),
-                  });
-                  const data = await res.json().catch(() => ({}));
-                  if (!res.ok) throw new Error(data.error || "Ошибка сохранения");
+                  await saveAdminPaymentCalendar(adminToken, { inns: Array.from(paymentCalendarSelectedInns), days_to_pay: days });
                   fetchPaymentCalendar();
                   setPaymentCalendarSelectedInns(new Set());
                 } catch (e: unknown) {
@@ -6610,13 +6561,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 setPaymentCalendarSaving(true);
                 setError(null);
                 try {
-                  const res = await fetch("/api/admin-payment-calendar", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                    body: JSON.stringify({ inns: Array.from(paymentCalendarSelectedInns), payment_weekdays: paymentCalendarBulkWeekdays }),
+                  await saveAdminPaymentCalendar(adminToken, {
+                    inns: Array.from(paymentCalendarSelectedInns),
+                    payment_weekdays: paymentCalendarBulkWeekdays,
                   });
-                  const data = await res.json().catch(() => ({}));
-                  if (!res.ok) throw new Error(data.error || "Ошибка сохранения");
                   setPaymentCalendarItems((prev) => {
                     const next = new Map(prev.map((p) => [p.inn, { ...p }]));
                     for (const inn of paymentCalendarSelectedInns) {
@@ -6719,13 +6667,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               setPaymentCalendarSavingInn(c.inn);
                               setError(null);
                               try {
-                                const res = await fetch("/api/admin-payment-calendar", {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                                  body: JSON.stringify({ inn: c.inn, days_to_pay: val }),
-                                });
-                                const data = await res.json().catch(() => ({}));
-                                if (!res.ok) throw new Error(data.error || "Ошибка сохранения");
+                                await saveAdminPaymentCalendar(adminToken, { inn: c.inn, days_to_pay: val });
                                 fetchPaymentCalendar();
                               } catch (err: unknown) {
                                 setError((err as Error)?.message || "Ошибка");
@@ -6755,13 +6697,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     setPaymentCalendarSavingInn(c.inn);
                                     setError(null);
                                     try {
-                                      const res = await fetch("/api/admin-payment-calendar", {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                                        body: JSON.stringify({ inn: c.inn, payment_weekdays: next }),
-                                      });
-                                      const data = await res.json().catch(() => ({}));
-                                      if (!res.ok) throw new Error(data.error || "Ошибка сохранения");
+                                      await saveAdminPaymentCalendar(adminToken, { inn: c.inn, payment_weekdays: next });
                                       fetchPaymentCalendar();
                                     } catch (err: unknown) {
                                       setError((err as Error)?.message || "Ошибка");
@@ -6995,13 +6931,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     setError("Выберите дни недели и/или укажите часы работы");
                     return;
                   }
-                  const res = await fetch("/api/admin-work-schedule", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                    body: JSON.stringify(body),
-                  });
-                  const data = await res.json().catch(() => ({}));
-                  if (!res.ok) throw new Error(data.error || "Ошибка сохранения");
+                  await saveAdminWorkSchedule(adminToken, body);
                   fetchWorkSchedule();
                   setWorkScheduleSelectedInns(new Set());
                 } catch (e: unknown) {
@@ -7070,13 +7000,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     setWorkScheduleSavingInn(c.inn);
                                     setError(null);
                                     try {
-                                      const res = await fetch("/api/admin-work-schedule", {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                                        body: JSON.stringify({ inn: c.inn, days_of_week: next }),
-                                      });
-                                      const data = await res.json().catch(() => ({}));
-                                      if (!res.ok) throw new Error(data.error || "Ошибка сохранения");
+                                      await saveAdminWorkSchedule(adminToken, { inn: c.inn, days_of_week: next });
                                       fetchWorkSchedule();
                                     } catch (err: unknown) {
                                       setError((err as Error)?.message || "Ошибка");
@@ -7101,13 +7025,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               setWorkScheduleSavingInn(c.inn);
                               setError(null);
                               try {
-                                const res = await fetch("/api/admin-work-schedule", {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                                  body: JSON.stringify({ inn: c.inn, work_start: val }),
-                                });
-                                const data = await res.json().catch(() => ({}));
-                                if (!res.ok) throw new Error(data.error || "Ошибка сохранения");
+                                await saveAdminWorkSchedule(adminToken, { inn: c.inn, work_start: val });
                                 fetchWorkSchedule();
                               } catch (err: unknown) {
                                 setError((err as Error)?.message || "Ошибка");
@@ -7130,13 +7048,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               setWorkScheduleSavingInn(c.inn);
                               setError(null);
                               try {
-                                const res = await fetch("/api/admin-work-schedule", {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                                  body: JSON.stringify({ inn: c.inn, work_end: val }),
-                                });
-                                const data = await res.json().catch(() => ({}));
-                                if (!res.ok) throw new Error(data.error || "Ошибка сохранения");
+                                await saveAdminWorkSchedule(adminToken, { inn: c.inn, work_end: val });
                                 fetchWorkSchedule();
                               } catch (err: unknown) {
                                 setError((err as Error)?.message || "Ошибка");
