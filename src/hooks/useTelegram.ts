@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getClientPlatform } from '../lib/clientPlatform';
 
 const tg = window.Telegram?.WebApp;
 
@@ -33,6 +34,6 @@ export function useTelegram() {
     queryId: tg?.initDataUnsafe?.query_id,
     isExpanded: tg?.isExpanded,
     themeParams: tg?.themeParams, // Цвета темы
-    platform: tg?.platform, // 'ios', 'android', 'tdesktop'
+    platform: tg?.platform ?? getClientPlatform().platform,
   };
 }

@@ -1,5 +1,7 @@
 /** Открытие Т-Бизнес / СберБизнес: сайт на десктопе, приложение на мобильных. */
 
+import { isClientAndroid, isClientMobile } from "./clientPlatform";
+
 export type BankBusinessId = "tbank" | "sber";
 
 const BANK_CONFIG: Record<
@@ -33,6 +35,7 @@ const BANK_CONFIG: Record<
 
 export function isMobileBankOpenDevice(): boolean {
   if (typeof navigator === "undefined") return false;
+  if (isClientMobile()) return true;
   const ua = navigator.userAgent || "";
   if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) return true;
   return navigator.maxTouchPoints > 0 && window.innerWidth < 900;
@@ -60,8 +63,7 @@ export function openBankBusiness(bank: BankBusinessId): void {
     return;
   }
 
-  const isAndroid = /Android/i.test(navigator.userAgent);
-  if (isAndroid && cfg.androidIntent) {
+  if (isClientAndroid() && cfg.androidIntent) {
     window.location.href = cfg.androidIntent;
     return;
   }

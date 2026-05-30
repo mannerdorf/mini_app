@@ -23,6 +23,7 @@ import { CustomerSwitcher } from "./components/CustomerSwitcher";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AppMainContent } from "./components/AppMainContent";
 import { getWebApp, isMaxWebApp, isMaxDocsEnabled } from "./webApp";
+import { applyClientPlatformToDocument, getClientPlatform, isClientMobile } from "./lib/clientPlatform";
 import { DOCUMENT_METHODS } from "./documentMethods";
 const DashboardPage = lazyWithRetry(
     () => import("./pages/DashboardPage").then((m) => ({ default: m.DashboardPage })),
@@ -217,6 +218,10 @@ export default function App() {
         return window.localStorage.getItem("haulz.desktop.expanded") === "true";
     });
 
+    useEffect(() => {
+        applyClientPlatformToDocument();
+    }, []);
+
     // --- Telegram Init ---
     useEffect(() => {
         let mounted = true;
@@ -259,6 +264,7 @@ export default function App() {
                 cleanupHandler = () => webApp.offEvent?.("themeChanged", themeHandler);
             }
 
+            applyClientPlatformToDocument();
             return true;
         };
 
@@ -795,7 +801,12 @@ export default function App() {
             void fetch("/api/app-activity-beacon", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ login, password, section }),
+                body: JSON.stringify({
+                    login,
+                    password,
+                    section,
+                    platform: getClientPlatform().platform,
+                }),
                 keepalive: true,
             }).catch(() => {});
         }, 650);
@@ -1077,7 +1088,9 @@ export default function App() {
 
     const openMaxBotLink = (url: string) => {
         const webApp = getWebApp();
-        const isMobile = typeof window !== "undefined" && (window.innerWidth < 768 || /Android|iPhone|iPad/i.test(navigator.userAgent || ""));
+        const isMobile =
+            typeof window !== "undefined" &&
+            (isClientMobile() || window.innerWidth < 768 || /Android|iPhone|iPad/i.test(navigator.userAgent || ""));
         // Сначала пробуем Bridge.openLink (в MAX может передать ссылку в приложение)
         if (webApp && typeof webApp.openLink === "function") {
             try {

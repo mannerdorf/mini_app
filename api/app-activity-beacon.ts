@@ -15,6 +15,12 @@ function sanitizeSection(raw: unknown): string | null {
   return s;
 }
 
+function sanitizePlatform(raw: unknown): string | null {
+  const p = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (p === "ios" || p === "android" || p === "desktop" || p === "unknown") return p;
+  return null;
+}
+
 async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "app-activity-beacon");
   if (req.method !== "POST") {
@@ -34,6 +40,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   const login = typeof body?.login === "string" ? body.login.trim() : "";
   const password = typeof body?.password === "string" ? body.password : "";
   const section = sanitizeSection(body?.section);
+  const platform = sanitizePlatform(body?.platform);
   if (!login || !password || !section) {
     return res.status(400).json({ error: "Нужны login, password и section", request_id: ctx.requestId });
   }
@@ -60,7 +67,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       userId,
       login,
       eventType: "ui_section",
-      meta: { section },
+      meta: { section, ...(platform ? { platform } : {}) },
     });
 
     return res.status(204).end();
