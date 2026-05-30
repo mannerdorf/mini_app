@@ -20,7 +20,7 @@ import {
     sortGroupedByCustomer,
 } from "./cargoPipeline";
 import { initSharedFilterSets, saveSharedListFilters, sharedFromFilterSets } from "../lib/sharedListFilters";
-import { buildTransportOptionsFromSendingsInPeriod, buildTransportLinkedCargoNumbersInPeriod, collectSendingFreightCargoNumbers, normCargoKey } from "./documentsPipeline";
+import { buildTransportOptionsFromSendingsInPeriod, buildTransportLinkedCargoNumbersInPeriod, collectSendingFreightCargoNumbers, normCargoKey } from "../features/documents/lib/documentsPipeline";
 import { useCargoTransportFilter, usePerevozkiMultiAccounts, useSendings } from "../hooks/useApi";
 import { useCargoNomenclatureSearch } from "../hooks/useCargoNomenclatureSearch";
 import { CARGO_ROLE_FILTER_LABELS, pickupLogisticsFilterLabel, type CargoRoleFilterKey } from "../lib/cargoUtils";

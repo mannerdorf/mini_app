@@ -7,7 +7,7 @@ import {
 } from "../lib/statusUtils";
 import { cityToCode, formatInvoiceNumber } from "../lib/formatUtils";
 import { cargoLastMileIsSelfPickup, cargoMatchesRoleFilter, cargoPickupLogisticsIsTerminalTo, type CargoRoleFilterKey } from "../lib/cargoUtils";
-import { normCargoKey } from "./documentsPipeline";
+import { normCargoKey } from "../features/documents/lib/documentsPipeline";
 import { buildNomenclatureSearchTextFromCargoItem } from "../lib/perevozkaDetails";
 
 type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;

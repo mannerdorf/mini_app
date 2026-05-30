@@ -34,7 +34,7 @@ import { buildFilteredCargoItems } from "./cargoPipeline";
 import { formatCurrency, formatInvoiceNumber, stripOoo, cityToCode, normalizeInvoiceStatus } from "../lib/formatUtils";
 import { ClickableCargoNumber, leafRowClickProps } from "../components/ui/EntityLinks";
 import { RouteBadge, CargoTransportTypeIcon, getCargoItemRouteLabel } from "../components/shared/CargoTableDisplay";
-import { getFirstCargoNumberFromInvoice, buildCargoStateByNumber, filterCargoItemsForHeaderCustomer, filterItemsForHeaderCustomer } from "./documentsPipeline";
+import { getFirstCargoNumberFromInvoice, buildCargoStateByNumber, filterCargoItemsForHeaderCustomer, filterItemsForHeaderCustomer } from "../features/documents/lib/documentsPipeline";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import { usePerevozki, usePrevPeriodPerevozki, useInvoices } from "../hooks/useApi";
 import { fetchPerevozkaTimeline } from "../lib/perevozkaDetails";
