@@ -244,13 +244,18 @@ export function CargoDetailsModal({
         CitySender: 'Место отправления',
         CityReceiver: 'Место получения',
         Order: 'Номер заявки заказчика',
-        AutoReg: 'Транспортное средство',
         UPD: 'УПД',
         BillNum: 'Счет',
         Bill_Number: 'Счет',
     };
+    const plateWithoutRegion = (raw: string) => {
+        const s = raw.trim();
+        if (!s) return '';
+        const slash = s.indexOf('/');
+        return slash >= 0 ? s.slice(0, slash).trim() : s;
+    };
     const lastMile = {
-        autoReg: String((item as any).LMAutoReg ?? '').trim(),
+        autoReg: plateWithoutRegion(String((item as any).LMAutoReg ?? '')),
         autoType: String((item as any).LMAutoType ?? '').trim(),
         driver: String((item as any).LMDriver ?? '').trim(),
         driverTel: String((item as any).LMDriverTel ?? (item as any).DriverTel ?? '').trim(),
@@ -504,10 +509,6 @@ export function CargoDetailsModal({
                                 <div className="cargo-details-customer-tile-grid">
                                     <DetailItem label="Заказчик" value={customerDisplay || "-"} />
                                 </div>
-                                <DetailItem
-                                    label="Транспортное средство"
-                                    value={String(item.AutoReg ?? (item as any).autoReg ?? perevozkaMeta.autoReg ?? "-").trim() || "-"}
-                                />
                             </div>
                         )}
                     </div>
