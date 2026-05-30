@@ -9,7 +9,7 @@ import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
 import { InvoiceDetailModal } from "../features/documents/invoices";
 import { ActDetailModal } from "../features/documents/acts";
-import { NewOrderModal } from "../components/modals/NewOrderModal";
+import { NewOrderModal } from "../features/documents/orders";
 import { DateText } from "../components/ui/DateText";
 import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode } from "../lib/formatUtils";
 import { ClickableCargoNumber, ClickableInvoiceNumber } from "../components/ui/EntityLinks";

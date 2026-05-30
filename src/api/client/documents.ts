@@ -8,6 +8,7 @@ import { documentsAuthHeaders, documentsFetchJson, type DocumentsAuth } from "./
 export type { DocumentsAuth } from "./documentsAuth";
 export * from "./documentsClaims";
 export * from "./documentsSendings";
+export * from "./documentsOrders";
 
 export type DocumentsInnScope = {
   inn?: string;
