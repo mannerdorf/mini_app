@@ -8,9 +8,9 @@
 
 | Commit | Phase | Summary |
 |--------|-------|---------|
-| (pending) | 4.10 | admin-me API |
-| (pending) | 4.9 | ferries + pvz directories API |
-| (pending) | 4.8 | payment calendar + work schedule + customers search |
+| `771e3cf5` | 4.10 | admin-me API + log |
+| `a6c2fc32` | 4.9 | ferries + pvz directories API |
+| `51b353b5` | 4.8 | scheduling, customers search; AdminPage wiring (incl. ferries/me) |
 | `0a544e27` | 4.7 | admin presets API |
 
 ## Next slice
