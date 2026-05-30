@@ -8,7 +8,7 @@ import { serviceRefreshKindsForDocumentsSection } from "../lib/serviceRefreshFro
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
 import { InvoiceDetailModal } from "../features/documents/invoices";
-import { ActDetailModal } from "../components/modals/ActDetailModal";
+import { ActDetailModal } from "../features/documents/acts";
 import { NewOrderModal } from "../components/modals/NewOrderModal";
 import { DateText } from "../components/ui/DateText";
 import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode } from "../lib/formatUtils";

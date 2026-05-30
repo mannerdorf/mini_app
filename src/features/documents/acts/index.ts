@@ -1,0 +1,1 @@
+export { ActDetailModal } from "./ActDetailModal";

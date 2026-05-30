@@ -40,7 +40,7 @@ import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "./lib/
 import type { BillStatusFilterKey } from "./lib/statusUtils";
 import { CustomPeriodModal } from "./components/modals/CustomPeriodModal";
 import { CargoDetailsModal } from "./components/modals/CargoDetailsModal";
-import { ActDetailModal } from "./components/modals/ActDetailModal";
+import { ActDetailModal } from "./features/documents/acts";
 import { InvoiceDetailModal } from "./components/modals/InvoiceDetailModal";
 import { LegalModal } from "./components/modals/LegalModal";
 const DocumentsPage = lazyWithRetry(

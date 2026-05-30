@@ -10,11 +10,10 @@ import { RefSubdivisionsView } from "../pnl/RefSubdivisionsView";
 import { SUBDIVISIONS } from "../pnl/constants";
 import { stripOoo } from "../lib/formatUtils";
 import { getCachedDocumentEdoInfo } from "../lib/edoStatus";
-import { DocumentsEdoTableStatus } from "./documentsViewBlocks";
+import { DocumentsEdoTableStatus } from "../features/documents/views/documentsViewBlocks";
 import { formatDisplayDate, formatDisplayDateFromDate, getCurrentMonthYm } from "../lib/dateUtils";
 import { downloadBase64File } from "../utils";
-import { AdminDashboardsPanel } from "../components/AdminDashboardsPanel";
-import { AdminLegalSection } from "../components/AdminLegalSection";
+import { AdminDashboardsPanel, AdminLegalSection } from "../features/admin";
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
