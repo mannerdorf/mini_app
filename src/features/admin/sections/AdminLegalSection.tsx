@@ -2,34 +2,15 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { Loader2, FileText, Shield } from "lucide-react";
 import { formatDateTime } from "../../../lib/dateUtils";
-
-type VersionRow = {
-  id: number;
-  document_type: string;
-  version_label: string;
-  published_at: string | null;
-  is_current: boolean;
-  created_at: string;
-  body_length: number;
-};
-
-type JournalRow = {
-  id: number;
-  login: string;
-  document_type: string;
-  version_label: string;
-  accepted_at: string;
-  company_name: string;
-};
-
-type SummaryRow = {
-  login: string;
-  company_name: string;
-  offer_version_label: string | null;
-  offer_accepted_at: string | null;
-  consent_version_label: string | null;
-  consent_accepted_at: string | null;
-};
+import { fetchLegalPublic } from "../../../api/client/legal";
+import {
+  fetchAdminLegalDocuments,
+  publishAdminLegalDocument,
+  type AdminLegalCurrent,
+  type AdminLegalJournalRow,
+  type AdminLegalSummaryRow,
+  type AdminLegalVersionRow,
+} from "../../../api/client/admin/legal";
 
 export function AdminLegalSection({ adminToken }: { adminToken: string }) {
   const [subTab, setSubTab] = useState<"versions" | "journal">("versions");
@@ -37,10 +18,10 @@ export function AdminLegalSection({ adminToken }: { adminToken: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [versions, setVersions] = useState<VersionRow[]>([]);
-  const [journal, setJournal] = useState<JournalRow[]>([]);
-  const [summary, setSummary] = useState<SummaryRow[]>([]);
-  const [current, setCurrent] = useState<{ offer: { version_label: string } | null; consent: { version_label: string } | null }>({
+  const [versions, setVersions] = useState<AdminLegalVersionRow[]>([]);
+  const [journal, setJournal] = useState<AdminLegalJournalRow[]>([]);
+  const [summary, setSummary] = useState<AdminLegalSummaryRow[]>([]);
+  const [current, setCurrent] = useState<AdminLegalCurrent>({
     offer: null,
     consent: null,
   });
@@ -52,17 +33,11 @@ export function AdminLegalSection({ adminToken }: { adminToken: string }) {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams();
-      if (journalSearch.trim()) params.set("q", journalSearch.trim());
-      const res = await fetch(`/api/admin-legal-documents?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data as { error?: string }).error || "Ошибка загрузки");
-      setVersions((data as { versions?: VersionRow[] }).versions || []);
-      setJournal((data as { journal?: JournalRow[] }).journal || []);
-      setSummary((data as { summary?: SummaryRow[] }).summary || []);
-      setCurrent((data as { current?: typeof current }).current || { offer: null, consent: null });
+      const data = await fetchAdminLegalDocuments(adminToken, { journalSearch });
+      setVersions(data.versions);
+      setJournal(data.journal);
+      setSummary(data.summary);
+      setCurrent(data.current);
     } catch (e: unknown) {
       setError((e as Error)?.message || "Ошибка");
     } finally {
@@ -78,12 +53,8 @@ export function AdminLegalSection({ adminToken }: { adminToken: string }) {
     setVersionLabel("");
     setError(null);
     try {
-      const res = await fetch("/api/legal-public");
-      const data = await res.json().catch(() => ({}));
-      const doc =
-        type === "consent"
-          ? (data as { consent?: { body_text?: string } }).consent
-          : (data as { offer?: { body_text?: string } }).offer;
+      const data = await fetchLegalPublic();
+      const doc = type === "consent" ? data.consent : data.offer;
       if (doc?.body_text) setBodyText(doc.body_text);
     } catch {
       /* текст можно вставить вручную */
@@ -105,17 +76,11 @@ export function AdminLegalSection({ adminToken }: { adminToken: string }) {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin-legal-documents", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${adminToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          document_type: docType,
-          version_label: versionLabel.trim(),
-          body_text: bodyText,
-        }),
+      await publishAdminLegalDocument(adminToken, {
+        document_type: docType,
+        version_label: versionLabel.trim(),
+        body_text: bodyText,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data as { error?: string }).error || "Ошибка публикации");
       setVersionLabel("");
       setBodyText("");
       await load();

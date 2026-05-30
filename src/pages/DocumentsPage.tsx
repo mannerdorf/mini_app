@@ -115,7 +115,7 @@ import {
     sendingRowInSelectedPeriod,
     buildEdoCargoCardItems,
     findInvoiceLinkedToAct,
-} from "./documentsPipeline";
+} from "../features/documents/lib/documentsPipeline";
 import {
     DocumentsApiDebugPanel,
     DocumentsEdoMonitorGroupedTable,
@@ -134,7 +134,7 @@ import {
     formatTariffRouteLabel,
     TariffTransportTypeIcon,
     type DocumentsApiDebugSnapshot,
-} from "./documentsViewBlocks";
+} from "../features/documents/views/documentsViewBlocks";
 import { AppBadge } from "../components/shared/AppBadge";
 import {
     cargoExpandMotionProps,
