@@ -8,9 +8,9 @@
 
 | Commit | Phase | Summary |
 |--------|-------|---------|
-| (pending) | 3.23 | useSendingsRowRuntime + DocumentsPage wiring |
-| (pending) | 3.22 | sendingsRowRuntime transit/status/planned-date |
-| (pending) | 3.21 | sendingsRowHelpers |
+| `4ce52767` | 3.23 | useSendingsRowRuntime + DocumentsPage wiring |
+| `f6fb4b8e` | 3.22 | sendingsRowRuntime transit/status/planned-date |
+| `7dbc7149` | 3.21 | sendingsRowHelpers |
 | `39d70bf5` | 3.20 | transport helpers + parcel wiring |
 
 ## Metrics
