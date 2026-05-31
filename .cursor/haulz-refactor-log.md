@@ -8,9 +8,9 @@
 
 | Commit | Phase | Summary |
 |--------|-------|---------|
-| (pending) | 5.11 | AppShellModals — legal, pin, chat |
-| (pending) | 5.10 | AppTabBar wrapper |
-| (pending) | 5.9 | AppHeader — search, theme, debug menu |
+| `7bfe7fad` | 5.11 | AppShellModals — legal, pin, chat |
+| `90f28bf0` | 5.10 | AppTabBar wrapper |
+| `c1dad0d1` | 5.9 | AppHeader — search, theme, debug menu |
 | `10a91aac` | 5.7–5.8 | useAccountActions + useSupportBotLinks |
 | `7b8f2f10` | 5.6 | AppNavigationContext |
 
