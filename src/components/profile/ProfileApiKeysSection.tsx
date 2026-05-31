@@ -93,7 +93,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
     const [scopeChecks, setScopeChecks] = useState(defaultScopeChecks);
     const [newToken, setNewToken] = useState<string | null>(null);
     const [catalogOpen, setCatalogOpen] = useState(false);
-    const [guideOpen, setGuideOpen] = useState(true);
+    const [guideOpen, setGuideOpen] = useState(false);
     const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
     const [editingKeyId, setEditingKeyId] = useState<string | null>(null);
     const [editScopeChecks, setEditScopeChecks] = useState(defaultScopeChecks);
@@ -302,18 +302,6 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                 </Panel>
             ) : null}
 
-            {newToken ? (
-                <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "0.75rem", background: "rgba(16,185,129,0.08)" }}>
-                    <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Сохраните токен</Typography.Body>
-                    <Typography.Body style={{ fontSize: "0.8rem", marginBottom: "0.5rem", wordBreak: "break-all", fontFamily: "monospace" }}>
-                        {newToken}
-                    </Typography.Body>
-                    <Button size="sm" variant="secondary" onClick={() => setNewToken(null)}>
-                        Скрыть
-                    </Button>
-                </Panel>
-            ) : null}
-
             <Panel className="cargo-card" style={{ padding: "0", marginBottom: "0.75rem" }}>
                 <button
                     type="button"
@@ -337,6 +325,31 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                     </div>
                 ) : null}
             </Panel>
+
+            {newToken ? (
+                <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "0.75rem", background: "rgba(16,185,129,0.08)" }}>
+                    <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Сохраните токен</Typography.Body>
+                    <div className="profile-api-keys-keyrow">
+                        <code className="profile-api-keys-keycode">{newToken}</code>
+                        <button
+                            type="button"
+                            className="profile-api-keys-copy-inline"
+                            title="Копировать токен"
+                            aria-label="Копировать токен в буфер обмена"
+                            onClick={() => copyKeySnippet("__new_token__", newToken)}
+                        >
+                            {copiedKeyId === "__new_token__" ? (
+                                <Check className="w-4 h-4" strokeWidth={2.5} />
+                            ) : (
+                                <Copy className="w-4 h-4" strokeWidth={2} />
+                            )}
+                        </button>
+                    </div>
+                    <Button size="sm" variant="secondary" onClick={() => setNewToken(null)} style={{ marginTop: "0.5rem" }}>
+                        Скрыть
+                    </Button>
+                </Panel>
+            ) : null}
 
             <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "0.75rem" }} onClick={(e) => e.stopPropagation()}>
                 <Flex align="center" style={{ gap: "0.5rem", marginBottom: "0.75rem" }}>
