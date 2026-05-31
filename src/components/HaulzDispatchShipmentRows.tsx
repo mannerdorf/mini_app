@@ -23,7 +23,7 @@ export type HaulzDispatchShipmentRowsProps = {
     dispatchTimelineSteps: PerevozkaTimelineStep[];
     dispatchTimelineLoading: boolean;
     dispatchTimelineError: string | null;
-    onOpenCargo: (cargoNumber: string) => void;
+    onOpenCargo: (cargoNumber: string, prefetchedItem?: CargoItem) => void;
     /** Отступ у № при вложенности под строкой заказчика. */
     nestedFirstColumn?: boolean;
 };
@@ -86,7 +86,7 @@ export function HaulzDispatchShipmentRows({
                                         : "haulz-dispatch-table__cell haulz-dispatch-table__cell--num"
                                 }
                             >
-                                <ClickableCargoNumber number={num} onOpen={onOpenCargo} />
+                                <ClickableCargoNumber number={num} onOpen={(n) => onOpenCargo(n, row)} />
                             </td>
                             {showCustomerColumn && (
                                 <td className="haulz-dispatch-table__cell customer-col haulz-dispatch-table__cell--customer" title={cust}>
@@ -154,7 +154,7 @@ export function HaulzDispatchShipmentRows({
                                                                   ? "#22c55e"
                                                                   : "var(--color-text-secondary)";
                                                             const stepRowOpen = num
-                                                                ? leafRowClickProps(() => onOpenCargo(num), "Открыть карточку перевозки")
+                                                                ? leafRowClickProps(() => onOpenCargo(num, row), "Открыть карточку перевозки")
                                                                 : null;
                                                             return (
                                                                 <tr
@@ -187,7 +187,7 @@ export function HaulzDispatchShipmentRows({
                                             className="filter-button haulz-dispatch-table__detail-open-btn"
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                onOpenCargo(num);
+                                                onOpenCargo(num, row);
                                             }}
                                         >
                                             Открыть карточку перевозки

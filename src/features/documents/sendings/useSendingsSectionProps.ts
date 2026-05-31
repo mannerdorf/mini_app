@@ -40,6 +40,7 @@ export function useSendingsSectionProps(input: SendingsSectionProps): SendingsSe
     input.getSendingsFerryEntry,
     input.onOpenAisWithMmsi,
     input.onOpenCargo,
+    input.perevozkiItems,
     input.sendingsDetailsView,
     input.setSendingsDetailsView,
     input.sendingsSummaryGroupBy,

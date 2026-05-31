@@ -20,7 +20,7 @@ import { dispatchStatusDateSortKey } from "./haulzDispatchTableUtils";
 export type HaulzDispatchSummaryProps = {
     auth: AuthData;
     useServiceRequest?: boolean;
-    onOpenCargo: (cargoNumber: string) => void;
+    onOpenCargo: (cargoNumber: string, prefetchedItem?: CargoItem) => void;
     /** Те же перевозки, что уже загружены дашбордом по верхнему фильтру дат (без второго запроса). */
     perevozkiItems: CargoItem[];
     perevozkiLoading: boolean;

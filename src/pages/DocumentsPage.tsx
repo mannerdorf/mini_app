@@ -98,7 +98,7 @@ import {
     type TypeFilterKey,
 } from "../lib/sharedListFilters";
 import { formatDateFilterButtonLabel, usePersistedDateFilter } from "../features/listWorkspace";
-import type { AccountPermissions, AuthData, DateFilter, StatusFilter } from "../types";
+import type { AccountPermissions, AuthData, CargoItem, DateFilter, StatusFilter } from "../types";
 import { useDocumentsDateRange, computeDocumentsApiDateRange } from "./useDocumentsDateRange";
 import { useDocumentsDataLoad } from "./useDocumentsDataLoad";
 import { useCargoTransportFilter, usePerevozki } from "../hooks/useApi";
@@ -383,7 +383,7 @@ type DocumentsPageProps = {
     useServiceRequest?: boolean;
     activeInn?: string;
     searchText?: string;
-    onOpenCargo?: (cargoNumber: string) => void;
+    onOpenCargo?: (cargoNumber: string, prefetchedItem?: CargoItem) => void;
     onOpenAisWithMmsi?: (mmsi: string) => void;
     onOpenChat?: (context?: string) => void | Promise<void>;
     /** Права доступа (для зарегистрированных пользователей) */
@@ -1856,6 +1856,29 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         }
         return collapsed;
     }, [tariffsList, effectiveServiceMode, tariffsCustomerFilter, tariffsRouteFilter, tariffsTypeFilter, tariffsSortColumn, tariffsSortOrder]);
+    const uniqueTariffsCustomers = useMemo(
+        () => [...new Set(tariffsList.map((t) => String(t.customerName || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru")),
+        [tariffsList],
+    );
+    const uniqueTariffsRoutes = useMemo(() => {
+        const allowedRoutes = new Set(["MSK – KGD", "KGD – MSK"]);
+        const set = new Set<string>();
+        tariffsList.forEach((t) => {
+            if (t.isVet) return;
+            const route = formatTariffRouteLabel(t.cityFrom, t.cityTo);
+            if (allowedRoutes.has(route)) set.add(route);
+        });
+        return [...set].sort((a, b) => a.localeCompare(b, "ru"));
+    }, [tariffsList]);
+    const uniqueTariffsTypes = useMemo(() => {
+        const set = new Set<string>();
+        tariffsList.forEach((t) => {
+            if (t.isVet) return;
+            const type = String(t.transportType || "").trim();
+            if (type) set.add(type);
+        });
+        return [...set].sort((a, b) => a.localeCompare(b, "ru"));
+    }, [tariffsList]);
     const filteredSverki = useMemo(() => {
         const fromDate = new Date(`${apiDateRange.dateFrom}T00:00:00`);
         const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
@@ -2427,6 +2450,7 @@ useEffect(() => {
         getSendingsFerryEntry: getSendingsFerryEntry,
         onOpenAisWithMmsi: onOpenAisWithMmsi,
         onOpenCargo: onOpenCargo,
+        perevozkiItems: perevozkiItems,
         sendingsDetailsView: sendingsDetailsView,
         setSendingsDetailsView: setSendingsDetailsView,
         sendingsSummaryGroupBy: sendingsSummaryGroupBy,

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useMemo } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
@@ -34,7 +34,8 @@ import type { SendingsRowRuntime } from "./sendingsRowRuntime";
 import { DocumentsRouteBadge } from "../views/documentsViewBlocks";
 import { SendingsBulkActionsBar } from "./SendingsBulkActionsBar";
 import type { EorStatus } from "./sendingsTypes";
-import type { AuthData } from "../../../types";
+import type { AuthData, CargoItem } from "../../../types";
+import { hasPerevozkaCargoFields } from "../../../lib/perevozkaNumber";
 
 export type SendingsSectionProps = {
   tableModeEffective: any;
@@ -70,7 +71,8 @@ export type SendingsSectionProps = {
   effectiveActiveInn: any;
   getSendingsFerryEntry: any;
   onOpenAisWithMmsi: (mmsi: string) => void;
-  onOpenCargo: (cargoNumber: string) => void;
+  onOpenCargo: (cargoNumber: string, prefetchedItem?: CargoItem) => void;
+  perevozkiItems?: CargoItem[];
   sendingsDetailsView: any;
   setSendingsDetailsView: React.Dispatch<React.SetStateAction<'general' | 'byCargo' | 'byCustomer'>>;
   sendingsSummaryGroupBy: any;
@@ -150,6 +152,7 @@ export function SendingsSection({
   getSendingsFerryEntry,
   onOpenAisWithMmsi,
   onOpenCargo,
+  perevozkiItems,
   sendingsDetailsView,
   setSendingsDetailsView,
   sendingsSummaryGroupBy,
@@ -194,6 +197,37 @@ export function SendingsSection({
   auth,
 }: SendingsSectionProps) {
   const sendingsAnalyticsExtraColCount = getSendingsAnalyticsExtraColCount(hasAnalytics, showSums);
+  const cargoByNormKey = useMemo(() => {
+    const map = new Map<string, CargoItem>();
+    for (const item of perevozkiItems ?? []) {
+      const key = normCargoKey(String(item?.Number ?? (item as { number?: string }).number ?? ""));
+      if (key && !map.has(key)) map.set(key, item);
+    }
+    return map;
+  }, [perevozkiItems]);
+
+  const handleOpenCargo = useCallback(
+    (cargoNumber: string, partial?: Partial<CargoItem>) => {
+      const key = normCargoKey(cargoNumber);
+      const fromList = key ? cargoByNormKey.get(key) : undefined;
+      if (fromList) {
+        onOpenCargo(cargoNumber, fromList);
+        return;
+      }
+      const stub = {
+        Number: cargoNumber,
+        _role: "Customer" as const,
+        ...partial,
+      } as CargoItem;
+      if (hasPerevozkaCargoFields(stub as Record<string, unknown>)) {
+        onOpenCargo(cargoNumber, stub);
+        return;
+      }
+      onOpenCargo(cargoNumber);
+    },
+    [cargoByNormKey, onOpenCargo],
+  );
+
   return (
                 <AnimatePresence mode="wait">
                 {tableModeEffective ? (
@@ -425,7 +459,15 @@ export function SendingsSection({
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcelIdx + 1}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{goods?.ИДОтправления ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.ПосылкаНаименование ?? '—'}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}><ClickableCargoNumber number={parcel?.Перевозка} onOpen={onOpenCargo} /></td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}><ClickableCargoNumber number={parcel?.Перевозка} onOpen={(n) => handleOpenCargo(n, {
+                                                                                    Customer: parcel?.ЗаказчикНаименование ?? parcel?.Заказчик,
+                                                                                    State: cargoStateByNumber.get(normCargoKey(String(parcel?.Перевозка ?? ''))),
+                                                                                    PW: parcel?.ПлатныйВес,
+                                                                                    W: parcel?.ВесДляОтчета,
+                                                                                    Value: parcel?.ОбъемДляОтчета,
+                                                                                    Mest: goods?.Количество,
+                                                                                    Sum: getParcelFreightSum(parcel, cargoSumByNumber) || undefined,
+                                                                                })} /></td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcel?.ВесДляОтчета ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcel?.ОбъемДляОтчета ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const w = parseSendingMetricNumber(parcel?.ПлатныйВес); return w > 0 ? formatSendingMetricNum(w) : '—'; })()}</td>
@@ -545,7 +587,20 @@ export function SendingsSection({
                                                                                         >
                                                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcelIdx + 1}</td>
                                                                                             <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>
-                                                                                                <ClickableCargoNumber number={summary.cargo} onOpen={onOpenCargo} title="Открыть карточку перевозки" />
+                                                                                                <ClickableCargoNumber
+                                                                                                    number={summary.cargo}
+                                                                                                    onOpen={(n) =>
+                                                                                                        handleOpenCargo(n, {
+                                                                                                            State: summary.status,
+                                                                                                            Customer: summary.customer,
+                                                                                                            PW: summary.paidWeight,
+                                                                                                            W: summary.weight,
+                                                                                                            Value: summary.volume,
+                                                                                                            Mest: summary.count,
+                                                                                                        })
+                                                                                                    }
+                                                                                                    title="Открыть карточку перевозки"
+                                                                                                />
                                                                                             </td>
                                                                                             <td style={{ padding: '0.35rem 0.3rem' }}><StatusBadge status={summary.status || '—'} /></td>
                                                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{summary.count}</td>
@@ -956,7 +1011,20 @@ export function SendingsSection({
                                                                                                                         <tr key={`${rowKey}-cargo-${cr.cargo}-${crIdx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                                                                                             <td style={{ padding: '0.3rem 0.25rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{cr._idx}</td>
                                                                                                                             <td style={{ padding: '0.3rem 0.25rem', whiteSpace: 'nowrap' }}>
-                                                                                                                                <ClickableCargoNumber number={cr.cargo} onOpen={onOpenCargo} title="Открыть карточку перевозки" />
+                                                                                                                                <ClickableCargoNumber
+                                                                                                                                    number={cr.cargo}
+                                                                                                                                    onOpen={(n) =>
+                                                                                                                                        handleOpenCargo(n, {
+                                                                                                                                            State: cr.status,
+                                                                                                                                            Customer: cr.partyName,
+                                                                                                                                            PW: cr.paidWeight,
+                                                                                                                                            W: cr.weight,
+                                                                                                                                            Value: cr.volume,
+                                                                                                                                            Mest: cr.count,
+                                                                                                                                        })
+                                                                                                                                    }
+                                                                                                                                    title="Открыть карточку перевозки"
+                                                                                                                                />
                                                                                                                             </td>
                                                                                                                             <td style={{ padding: '0.3rem 0.25rem' }}><StatusBadge status={cr.status || '—'} /></td>
                                                                                                                             <td style={{ padding: '0.3rem 0.25rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{cr.count}</td>
@@ -1178,7 +1246,15 @@ export function SendingsSection({
                                                                         }}
                                                                     >
                                                                         <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.ПосылкаНаименование ?? parcel?.Посылка ?? '—'}</td>
-                                                                        <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}><ClickableCargoNumber number={parcel?.Перевозка} onOpen={onOpenCargo} /></td>
+                                                                        <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}><ClickableCargoNumber number={parcel?.Перевозка} onOpen={(n) => handleOpenCargo(n, {
+                                                                            Customer: parcel?.ЗаказчикНаименование ?? parcel?.Заказчик,
+                                                                            State: cargoStateByNumber.get(normCargoKey(String(parcel?.Перевозка ?? ''))),
+                                                                            PW: parcel?.ПлатныйВес,
+                                                                            W: parcel?.ВесДляОтчета,
+                                                                            Value: parcel?.ОбъемДляОтчета,
+                                                                            Mest: goods?.Количество,
+                                                                            Sum: getParcelFreightSum(parcel, cargoSumByNumber) || undefined,
+                                                                        })} /></td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{parcelNomenclature || '—'}</td>
                                                                         <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{getParcelTnvedCode(parcel) || '—'}</td>
                                                                         <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}><SendingsSanctionBadge result={rowSanctionResult ? parcelSanctionResult : null} /></td>
