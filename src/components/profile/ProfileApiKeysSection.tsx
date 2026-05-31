@@ -617,7 +617,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                     }}
                 >
                     <Typography.Body style={{ fontWeight: 600 }}>
-                        {catalogOpen ? "▼" : "▶"} Запросы приложения к API (справочник, как в Postman)
+                        {catalogOpen ? "▼" : "▶"} Запросы приложения к API
                     </Typography.Body>
                 </button>
                 {catalogOpen ? (

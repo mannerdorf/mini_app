@@ -9,13 +9,34 @@ type Props = {
     onBack: () => void;
 };
 
-/** Экран «Голосовые помощники»: привязка навыка Яндекс Алисы (код / отвязка). */
+/** Экран «Голосовые помощники»: привязка навыка Яндекс Алисы (код / отвязка). Только служебный режим. */
 export function ProfileVoiceAssistantsSection({ activeAccount, onBack }: Props) {
+    const voiceUnlocked =
+        activeAccount?.isRegisteredUser === true && activeAccount?.permissions?.service_mode === true;
     const [aliceCode, setAliceCode] = useState<string | null>(null);
     const [aliceExpiresAt, setAliceExpiresAt] = useState<number | null>(null);
     const [aliceLoading, setAliceLoading] = useState(false);
     const [aliceError, setAliceError] = useState<string | null>(null);
     const [aliceSuccess, setAliceSuccess] = useState<string | null>(null);
+
+    if (!voiceUnlocked) {
+        return (
+            <div className="w-full">
+                <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
+                    <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
+                        <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                    <Typography.Headline className="text-page-title">Голосовые помощники</Typography.Headline>
+                </Flex>
+                <Panel className="cargo-card" style={{ padding: "1rem" }}>
+                    <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+                        Голосовой помощник пока доступен только пользователям со служебным режимом. Обратитесь к
+                        администратору HAULZ, если вам нужен доступ.
+                    </Typography.Body>
+                </Panel>
+            </div>
+        );
+    }
 
     return (
         <div className="w-full">
