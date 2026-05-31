@@ -2,29 +2,29 @@
 
 ## Last updated
 
-2026-05-31 — batch 3.6–3.8 (documents sendings feature module)
+2026-05-31 — batch 3.9–3.11 (sendings UI components)
 
 ## Completed slices (newest first)
 
 | Commit | Phase | Summary |
 |--------|-------|---------|
-| `036f06f0` | 3.8 | SendingsBulkActionsBar + DocumentsPage wiring |
-| `7d14c688` | 3.7 | sendingsTypes + useSendingsServerSync |
-| `f0cf3f69` | 3.6 | sendingsMetrics extracted from pipeline |
-| `12899cd7` | 5.x | refactor log (phase 5 complete) |
-| `24683eb5` | 5.17 | useTwoFaSettingsSync |
+| `607861a7` | 3.11 | SendingsPreface + wire components in DocumentsPage |
+| `8c2b1e5e` | 3.10 | SendingsInfographic |
+| `67eb055d` | 3.9 | SendingsToolbarFilters |
+| `036f06f0` | 3.8 | SendingsBulkActionsBar |
+| `f0cf3f69` | 3.6 | sendingsMetrics |
 
 ## Metrics
 
-- New module: `src/features/documents/sendings/` (~460 lines metrics + hook + bulk bar)
-- `DocumentsPage.tsx`: **−40 net** on bulk bar + sync hook (sendings UI still in page — next slices)
-- `documentsPipeline.ts`: sendings helpers re-exported via `sendingsMetrics`
+- `DocumentsPage.tsx`: **7783 → ~7655** lines (−128 on preface/infographic/toolbar)
+- `src/features/documents/sendings/`: **~1100 lines** (metrics, hooks, 5 UI components)
+- Sendings table/cards (~1100 lines JSX) still in DocumentsPage
 
 ## Next slice
 
-- **ID:** `3.9-sendings-section-ui`
-- **Task:** extract main `{docSection === 'Отправки'}` table/cards block (~1400 lines) into `SendingsSection.tsx`
-- **Then:** `3.10-claims-ui`, phase 4.4 admin audit API
+- **ID:** `3.12-sendings-table-cards`
+- **Task:** extract `{docSection === 'Отправки'}` table + cards AnimatePresence blocks into `SendingsSection.tsx`
+- **Then:** `3.13-useSendingsSection` (derived data hook), `3.10-claims-ui`, phase 4.4 admin audit API
 
 ## Blockers
 
