@@ -47,6 +47,7 @@ import {
   enrichAdminFerriesMarinesia,
   fetchAdminFerries,
   fetchAdminPvzList,
+  refreshAdminPvzCache,
   saveAdminFerry,
 } from "../api/client/admin/directories";
 import { fetchAdminMe } from "../api/client/admin/me";
@@ -59,7 +60,23 @@ import {
 } from "../api/client/admin/expenseRequests";
 import { fetchAdminSverkiRequests, deleteAdminSverkiRequest, updateAdminSverkiRequestStatus } from "../api/client/admin/sverki";
 import { fetchAdminClaims, fetchAdminClaimDetail, postAdminClaimUpdate } from "../api/client/admin/claims";
-import { fetchAdminAutoRegisterCandidates } from "../api/client/admin/autoRegister";
+import { fetchAdminAutoRegisterCandidates, runAdminAutoRegisterBatch } from "../api/client/admin/autoRegister";
+import {
+  createAdminEmployee,
+  deleteAdminEmployee,
+  deleteAdminEmployeeRateHistory,
+  fetchAdminEmployeeDirectory,
+  fetchAdminEmployeeRateHistory,
+  patchAdminEmployee,
+  patchAdminEmployeeRateHistory,
+} from "../api/client/admin/employees";
+import {
+  deleteAdminTimesheetPayout,
+  fetchAdminTimesheet,
+  patchAdminTimesheet,
+  postAdminTimesheetPayout,
+  putAdminTimesheetCell,
+} from "../api/client/admin/timesheet";
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
@@ -2723,20 +2740,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     async (employeeId: number) => {
       if (!adminToken || !isSuperAdmin) return;
       try {
-        const res = await fetch(`/api/admin-employee-directory?rate_history_for=${employeeId}`, {
-          headers: { Authorization: `Bearer ${adminToken}` },
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data?.error || "Ошибка загрузки истории ставки");
-        const raw = Array.isArray(data?.rate_history) ? data.rate_history : [];
-        setEmployeeDirectoryRateHistory(
-          raw.map((r: { id?: number; effective_from?: string; accrual_rate?: number; created_at?: string }) => ({
-            id: Number(r.id),
-            effective_from: String(r.effective_from || "").slice(0, 10),
-            accrual_rate: Number(r.accrual_rate ?? 0),
-            created_at: String(r.created_at || ""),
-          })).filter((r) => Number.isFinite(r.id) && r.id > 0)
-        );
+        setEmployeeDirectoryRateHistory(await fetchAdminEmployeeRateHistory(adminToken, employeeId));
       } catch {
         setEmployeeDirectoryRateHistory([]);
       }
@@ -2748,20 +2752,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (!adminToken || !isSuperAdmin) return;
     setEmployeeDirectoryLoading(true);
     try {
-      const monthQuery = monthForTimesheet && /^\d{4}-\d{2}$/.test(monthForTimesheet)
-        ? `?month=${encodeURIComponent(monthForTimesheet)}`
-        : "";
-      const res = await fetch(`/api/admin-employee-directory${monthQuery}`, {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 401) {
+      setEmployeeDirectoryItems(await fetchAdminEmployeeDirectory(adminToken, { month: monthForTimesheet }));
+    } catch (e: unknown) {
+      if ((e as Error & { status?: number })?.status === 401) {
         onLogoutRef.current?.("expired");
         return;
       }
-      if (!res.ok) throw new Error(data?.error || "Ошибка загрузки справочника сотрудников");
-      setEmployeeDirectoryItems(Array.isArray(data?.items) ? data.items : []);
-    } catch (e: unknown) {
       setError((e as Error)?.message || "Ошибка загрузки справочника сотрудников");
       setEmployeeDirectoryItems([]);
     } finally {
@@ -2787,20 +2783,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const fetchTimesheetEntries = useCallback(async () => {
     if (!adminToken || !isSuperAdmin || !/^\d{4}-\d{2}$/.test(timesheetMonth)) return;
     try {
-      const res = await fetch(`/api/admin-timesheet?month=${encodeURIComponent(timesheetMonth)}`, {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 401) {
+      const data = await fetchAdminTimesheet(adminToken, timesheetMonth);
+      setTimesheetHours(data.entries);
+      setTimesheetPaymentMarks(data.paymentMarks);
+      setTimesheetShiftRateOverrides(data.shiftRateOverrides);
+      setTimesheetPayoutsByEmployee(data.payoutsByEmployee);
+    } catch (e: unknown) {
+      if ((e as Error & { status?: number })?.status === 401) {
         onLogoutRef.current?.("expired");
         return;
       }
-      if (!res.ok) throw new Error(data?.error || "Ошибка загрузки табеля");
-      setTimesheetHours(data?.entries && typeof data.entries === "object" ? data.entries : {});
-      setTimesheetPaymentMarks(data?.paymentMarks && typeof data.paymentMarks === "object" ? data.paymentMarks : {});
-      setTimesheetShiftRateOverrides(data?.shiftRateOverrides && typeof data.shiftRateOverrides === "object" ? data.shiftRateOverrides : {});
-      setTimesheetPayoutsByEmployee(data?.payoutsByEmployee && typeof data.payoutsByEmployee === "object" ? data.payoutsByEmployee : {});
-    } catch (e: unknown) {
       setError((e as Error)?.message || "Ошибка загрузки табеля");
       setTimesheetHours({});
       setTimesheetPaymentMarks({});
@@ -2813,26 +2805,17 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     async (employeeId: number, dateIso: string, value: string) => {
       if (!adminToken || !isSuperAdmin) return;
       try {
-        const res = await fetch("/api/admin-timesheet", {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${adminToken}`,
-          },
-          body: JSON.stringify({
-            month: timesheetMonth,
-            employeeId,
-            date: dateIso,
-            value,
-          }),
+        await putAdminTimesheetCell(adminToken, {
+          month: timesheetMonth,
+          employeeId,
+          date: dateIso,
+          value,
         });
-        const data = await res.json().catch(() => ({}));
-        if (res.status === 401) {
+      } catch (e: unknown) {
+        if ((e as Error & { status?: number })?.status === 401) {
           onLogoutRef.current?.("expired");
           return;
         }
-        if (!res.ok) throw new Error(data?.error || "Ошибка сохранения табеля");
-      } catch (e: unknown) {
         setError((e as Error)?.message || "Ошибка сохранения табеля");
       }
     },
@@ -2842,26 +2825,17 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     async (employeeId: number, dateIso: string, paid: boolean) => {
       if (!adminToken || !isSuperAdmin) return;
       try {
-        const res = await fetch("/api/admin-timesheet", {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${adminToken}`,
-          },
-          body: JSON.stringify({
-            month: timesheetMonth,
-            employeeId,
-            date: dateIso,
-            paid,
-          }),
+        await patchAdminTimesheet(adminToken, {
+          month: timesheetMonth,
+          employeeId,
+          date: dateIso,
+          paid,
         });
-        const data = await res.json().catch(() => ({}));
-        if (res.status === 401) {
+      } catch (e: unknown) {
+        if ((e as Error & { status?: number })?.status === 401) {
           onLogoutRef.current?.("expired");
           return;
         }
-        if (!res.ok) throw new Error(data?.error || "Ошибка сохранения оплаты");
-      } catch (e: unknown) {
         setError((e as Error)?.message || "Ошибка сохранения оплаты");
         await fetchTimesheetEntries();
       }
@@ -2872,26 +2846,17 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     async (employeeId: number, dateIso: string, shiftRate: string) => {
       if (!adminToken || !isSuperAdmin) return;
       try {
-        const res = await fetch("/api/admin-timesheet", {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${adminToken}`,
-          },
-          body: JSON.stringify({
-            month: timesheetMonth,
-            employeeId,
-            date: dateIso,
-            shiftRate,
-          }),
+        await patchAdminTimesheet(adminToken, {
+          month: timesheetMonth,
+          employeeId,
+          date: dateIso,
+          shiftRate,
         });
-        const data = await res.json().catch(() => ({}));
-        if (res.status === 401) {
+      } catch (e: unknown) {
+        if ((e as Error & { status?: number })?.status === 401) {
           onLogoutRef.current?.("expired");
           return;
         }
-        if (!res.ok) throw new Error(data?.error || "Ошибка сохранения стоимости смены");
-      } catch (e: unknown) {
         setError((e as Error)?.message || "Ошибка сохранения стоимости смены");
         await fetchTimesheetEntries();
       }
@@ -2903,25 +2868,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       if (!adminToken || !isSuperAdmin) return;
       setTimesheetPayoutSavingEmployeeId(employeeId);
       try {
-        const res = await fetch("/api/admin-timesheet", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${adminToken}`,
-          },
-          body: JSON.stringify({
-            month: timesheetMonth,
-            employeeId,
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.status === 401) {
+        await postAdminTimesheetPayout(adminToken, { month: timesheetMonth, employeeId });
+        await fetchTimesheetEntries();
+      } catch (e: unknown) {
+        if ((e as Error & { status?: number })?.status === 401) {
           onLogoutRef.current?.("expired");
           return;
         }
-        if (!res.ok) throw new Error(data?.error || "Ошибка проведения выплаты");
-        await fetchTimesheetEntries();
-      } catch (e: unknown) {
         setError((e as Error)?.message || "Ошибка проведения выплаты");
       } finally {
         setTimesheetPayoutSavingEmployeeId(null);
@@ -2943,32 +2896,23 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       }
       setTimesheetPayoutActionLoadingId(payoutId);
       try {
-        const res = await fetch("/api/admin-timesheet", {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${adminToken}`,
-          },
-          body: JSON.stringify({
-            month: timesheetMonth,
-            employeeId,
-            payoutId,
-            payoutDate,
-            amount,
-          }),
+        await patchAdminTimesheet(adminToken, {
+          month: timesheetMonth,
+          employeeId,
+          payoutId,
+          payoutDate,
+          amount,
         });
-        const data = await res.json().catch(() => ({}));
-        if (res.status === 401) {
-          onLogoutRef.current?.("expired");
-          return;
-        }
-        if (!res.ok) throw new Error(data?.error || "Ошибка изменения выплаты");
         await fetchTimesheetEntries();
         setTimesheetPayoutEditingId(null);
         setTimesheetPayoutEditingEmployeeId(null);
         setTimesheetPayoutEditDate("");
         setTimesheetPayoutEditAmount("");
       } catch (e: unknown) {
+        if ((e as Error & { status?: number })?.status === 401) {
+          onLogoutRef.current?.("expired");
+          return;
+        }
         setError((e as Error)?.message || "Ошибка изменения выплаты");
       } finally {
         setTimesheetPayoutActionLoadingId(null);
@@ -2982,24 +2926,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       if (!window.confirm("Удалить выплату? Действие нельзя отменить.")) return;
       setTimesheetPayoutActionLoadingId(payoutId);
       try {
-        const res = await fetch("/api/admin-timesheet", {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${adminToken}`,
-          },
-          body: JSON.stringify({
-            month: timesheetMonth,
-            employeeId,
-            payoutId,
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.status === 401) {
-          onLogoutRef.current?.("expired");
-          return;
-        }
-        if (!res.ok) throw new Error(data?.error || "Ошибка удаления выплаты");
+        await deleteAdminTimesheetPayout(adminToken, { month: timesheetMonth, employeeId, payoutId });
         await fetchTimesheetEntries();
         if (timesheetPayoutEditingId === payoutId) {
           setTimesheetPayoutEditingId(null);
@@ -3008,6 +2935,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           setTimesheetPayoutEditAmount("");
         }
       } catch (e: unknown) {
+        if ((e as Error & { status?: number })?.status === 401) {
+          onLogoutRef.current?.("expired");
+          return;
+        }
         setError((e as Error)?.message || "Ошибка удаления выплаты");
       } finally {
         setTimesheetPayoutActionLoadingId(null);
@@ -5153,24 +5084,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         setError(null);
                         setAutoRegisterResult(null);
                         try {
-                          const res = await fetch("/api/admin-auto-register-candidates", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                            body: JSON.stringify({ limit: autoRegisterBatchSize }),
-                          });
-                          const data = await res.json().catch(() => ({}));
-                          if (!res.ok) throw new Error(data?.error || "Ошибка запуска авто-регистрации");
-                          setAutoRegisterResult({
-                            processed: Number(data?.processed || 0),
-                            created: Number(data?.created || 0),
-                            skipped_existing: Number(data?.skipped_existing || 0),
-                            email_sent: Number(data?.email_sent || 0),
-                            email_failed: Number(data?.email_failed || 0),
-                            remaining_candidates: Number(data?.remaining_candidates || 0),
-                            run_limit: Number(data?.run_limit || 0),
-                            email_delay_ms: Number(data?.email_delay_ms || 0),
-                            email_jitter_ms: Number(data?.email_jitter_ms || 0),
-                          });
+                          const data = await runAdminAutoRegisterBatch(adminToken, autoRegisterBatchSize);
+                          setAutoRegisterResult(data);
                           await fetchUsers();
                           setAutoRegisterFetchTrigger((n) => n + 1);
                         } catch (e: unknown) {
@@ -6197,13 +6112,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 setPvzSyncLoading(true);
                 setPvzSyncMessage(null);
                 try {
-                  const res = await fetch("/api/admin-refresh-pvz-cache", {
-                    method: "POST",
-                    headers: { Authorization: `Bearer ${adminToken}` },
-                  });
-                  const data = await res.json().catch(() => ({}));
-                  if (!res.ok) throw new Error(data?.error || "Не удалось обновить справочник ПВЗ");
-                  setPvzSyncMessage(`Обновлено: ${Number(data?.pvz_count ?? 0)} записей`);
+                  const data = await refreshAdminPvzCache(adminToken);
+                  setPvzSyncMessage(`Обновлено: ${data.pvz_count} записей`);
                   setPvzFetchTrigger((n) => n + 1);
                 } catch (e: unknown) {
                   setPvzSyncMessage((e as Error)?.message || "Не удалось обновить справочник ПВЗ");
@@ -8846,22 +8756,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   const departmentValue = employeeDirectoryRole === "department_head"
                     ? [employeeDirectoryPrimaryDepartment, ...employeeDirectoryDepartments.filter((d) => d !== employeeDirectoryPrimaryDepartment)].join(", ")
                     : employeeDirectoryDepartment;
-                  const res = await fetch("/api/admin-employee-directory", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                    body: JSON.stringify({
-                      email: employeeDirectoryEmail.trim() ? employeeDirectoryEmail.trim().toLowerCase() : "",
-                      full_name: employeeDirectoryFullName.trim(),
-                      department: departmentValue,
-                      position: employeeDirectoryPosition.trim(),
-                      cooperation_type: employeeDirectoryCooperationType,
-                      accrual_type: employeeDirectoryAccrualType,
-                      accrual_rate: Number(employeeDirectoryAccrualRate),
-                      employee_role: employeeDirectoryRole,
-                    }),
+                  await createAdminEmployee(adminToken, {
+                    email: employeeDirectoryEmail.trim() ? employeeDirectoryEmail.trim().toLowerCase() : "",
+                    full_name: employeeDirectoryFullName.trim(),
+                    department: departmentValue,
+                    position: employeeDirectoryPosition.trim(),
+                    cooperation_type: employeeDirectoryCooperationType,
+                    accrual_type: employeeDirectoryAccrualType,
+                    accrual_rate: Number(employeeDirectoryAccrualRate),
+                    employee_role: employeeDirectoryRole,
                   });
-                  const data = await res.json().catch(() => ({}));
-                  if (!res.ok) throw new Error(data?.error || "Ошибка сохранения атрибутов сотрудника");
                   setEmployeeDirectoryEmail("");
                   setEmployeeDirectoryFullName("");
                   setEmployeeDirectoryDepartment("");
@@ -8954,13 +8858,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         checked={emp.active}
                         onToggle={async () => {
                           try {
-                            const res = await fetch(`/api/admin-employee-directory?id=${emp.id}`, {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                              body: JSON.stringify({ active: !emp.active }),
-                            });
-                            const data = await res.json().catch(() => ({}));
-                            if (!res.ok) throw new Error(data?.error || "Ошибка обновления");
+                            await patchAdminEmployee(adminToken, emp.id, { active: !emp.active });
                             setEmployeeDirectoryItems((prev) => prev.map((x) => (x.id === emp.id ? { ...x, active: !x.active } : x)));
                           } catch (e: unknown) {
                             setError((e as Error)?.message || "Ошибка обновления");
@@ -8974,12 +8872,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         onClick={async (e) => {
                           e.stopPropagation();
                           try {
-                            const res = await fetch(`/api/admin-employee-directory?id=${emp.id}`, {
-                              method: "DELETE",
-                              headers: { Authorization: `Bearer ${adminToken}` },
-                            });
-                            const data = await res.json().catch(() => ({}));
-                            if (!res.ok) throw new Error(data?.error || "Ошибка удаления");
+                            await deleteAdminEmployee(adminToken, emp.id);
                             setEmployeeDirectoryItems((prev) => prev.filter((x) => x.id !== emp.id));
                           } catch (e: unknown) {
                             setError((e as Error)?.message || "Ошибка удаления");
@@ -9203,16 +9096,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                               setEmployeeDirectoryHistorySaving(true);
                                               setError(null);
                                               try {
-                                                const res = await fetch(`/api/admin-employee-directory?rate_history_id=${h.id}`, {
-                                                  method: "PATCH",
-                                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                                                  body: JSON.stringify({
-                                                    accrual_rate: Number(employeeDirectoryHistoryEditRate),
-                                                    effective_from: employeeDirectoryHistoryEditDate || h.effective_from,
-                                                  }),
+                                                const data = await patchAdminEmployeeRateHistory(adminToken, h.id, {
+                                                  accrual_rate: Number(employeeDirectoryHistoryEditRate),
+                                                  effective_from: employeeDirectoryHistoryEditDate || h.effective_from,
                                                 });
-                                                const data = await res.json().catch(() => ({}));
-                                                if (!res.ok) throw new Error(data?.error || "Ошибка сохранения");
                                                 setEmployeeDirectoryHistoryEditingId(null);
                                                 void loadEmployeeRateHistory(emp.id);
                                                 if (Number.isFinite(data?.accrual_rate)) {
@@ -9270,12 +9157,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                               setEmployeeDirectoryHistorySaving(true);
                                               setError(null);
                                               try {
-                                                const res = await fetch(
-                                                  `/api/admin-employee-directory?rate_history_id=${h.id}&employee_id=${emp.id}`,
-                                                  { method: "DELETE", headers: { Authorization: `Bearer ${adminToken}` } }
-                                                );
-                                                const data = await res.json().catch(() => ({}));
-                                                if (!res.ok) throw new Error(data?.error || "Ошибка удаления");
+                                                const data = await deleteAdminEmployeeRateHistory(adminToken, h.id, emp.id);
                                                 if (employeeDirectoryHistoryEditingId === h.id) setEmployeeDirectoryHistoryEditingId(null);
                                                 void loadEmployeeRateHistory(emp.id);
                                                 if (Number.isFinite(data?.accrual_rate)) {
@@ -9316,22 +9198,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               const departmentValue = employeeDirectoryEditRole === "department_head"
                                 ? [employeeDirectoryEditPrimaryDepartment, ...employeeDirectoryEditDepartments.filter((d) => d !== employeeDirectoryEditPrimaryDepartment)].join(", ")
                                 : employeeDirectoryEditDepartment;
-                              const res = await fetch(`/api/admin-employee-directory?id=${emp.id}`, {
-                                method: "PATCH",
-                                headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                                body: JSON.stringify({
-                                  full_name: employeeDirectoryEditFullName.trim(),
-                                  department: departmentValue,
-                                  position: employeeDirectoryEditPosition.trim(),
-                                  cooperation_type: employeeDirectoryEditCooperationType,
-                                  accrual_type: employeeDirectoryEditAccrualType,
-                                  accrual_rate: Number(employeeDirectoryEditAccrualRate),
-                                  accrual_rate_effective_from: employeeDirectoryEditRateEffectiveFrom || todayIsoDateMoscow(),
-                                  employee_role: employeeDirectoryEditRole,
-                                }),
+                              const data = await patchAdminEmployee(adminToken, emp.id, {
+                                full_name: employeeDirectoryEditFullName.trim(),
+                                department: departmentValue,
+                                position: employeeDirectoryEditPosition.trim(),
+                                cooperation_type: employeeDirectoryEditCooperationType,
+                                accrual_type: employeeDirectoryEditAccrualType,
+                                accrual_rate: Number(employeeDirectoryEditAccrualRate),
+                                accrual_rate_effective_from: employeeDirectoryEditRateEffectiveFrom || todayIsoDateMoscow(),
+                                employee_role: employeeDirectoryEditRole,
                               });
-                              const data = await res.json().catch(() => ({}));
-                              if (!res.ok) throw new Error(data?.error || "Ошибка сохранения атрибутов");
                               const savedRate =
                                 typeof data?.accrual_rate === "number" && Number.isFinite(data.accrual_rate)
                                   ? data.accrual_rate

@@ -73,3 +73,13 @@ export async function fetchAdminPvzList(adminToken: string): Promise<AdminPvzRow
   const data = (await res.json().catch(() => ({}))) as { pvz?: AdminPvzRow[] };
   return data.pvz || [];
 }
+
+export async function refreshAdminPvzCache(adminToken: string): Promise<{ pvz_count: number }> {
+  const res = await fetch("/api/admin-refresh-pvz-cache", {
+    method: "POST",
+    headers: adminAuthHeaders(adminToken),
+  });
+  const data = (await res.json().catch(() => ({}))) as { pvz_count?: number; error?: string };
+  if (!res.ok) throw new Error(data.error || "Не удалось обновить справочник ПВЗ");
+  return { pvz_count: Number(data.pvz_count ?? 0) };
+}
