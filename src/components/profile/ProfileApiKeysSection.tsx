@@ -25,8 +25,13 @@ type Props = {
 
 const defaultScopeChecks = (): Record<UserApiKeyScopeClient, boolean> => ({
     "cargo:read": true,
-    "sendings:read": true,
-    "orders:read": true,
+    "invoices:read": false,
+    "acts:read": false,
+    "orders:read": false,
+    "claims:read": false,
+    "contracts:read": false,
+    "sverki:read": false,
+    "tariffs:read": false,
 });
 
 export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
@@ -97,7 +102,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
         if (!login || !password) return;
         const scopes = buildSelectedScopes();
         if (scopes.length === 0) {
-            setError("Выберите хотя бы один scope (перевозки, отправки или заявки).");
+            setError("Выберите хотя бы один scope (перевозки, счета, УПД, заявки и т.д.).");
             return;
         }
         const allowed = buildAllowedInnsPayload();
@@ -409,15 +414,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                 {catalogOpen ? (
                     <div style={{ padding: "0 0 1rem" }}>
                         <ProfileApiCatalogPostman
-                            tryAuth={
-                                activeAccount?.login && activeAccount?.password
-                                    ? {
-                                          login: activeAccount.login,
-                                          password: activeAccount.password,
-                                          inn: autoTestInn ?? undefined,
-                                      }
-                                    : null
-                            }
+                            tryAuth={autoTestInn ? { inn: autoTestInn } : null}
                             defaultBearer={autoTestBearer}
                             autoTestPrefill={autoTestPrefill}
                         />

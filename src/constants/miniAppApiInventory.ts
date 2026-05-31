@@ -1,9 +1,9 @@
 /**
- * Справочник методов для раздела «Профиль → API» (консоль теста).
- * Группы: перевозки, документы (запросы/списки), скачать документы (GetFile).
+ * Справочник Partner API v1 для раздела «Профиль → API» (консоль теста).
+ * Авторизация только через Bearer haulz_… — отдельный scope на каждый тип данных.
  */
 
-/** Плейсхолдеры в body: строки "{{LOGIN}}", "{{PASSWORD}}", "{{INN}}" подставляются из аккаунта в консоли теста. */
+/** Плейсхолдер "{{INN}}" в body подставляется из контекста аккаунта в консоли теста. */
 export type ApiTryExample = {
     id: string;
     label: string;
@@ -28,6 +28,13 @@ const BODY_DATES_INN = {
     serviceMode: false,
 };
 
+const BODY_INN_ONLY = {
+    inn: "{{INN}}",
+};
+
+const DOC_PERIOD_EXAMPLE = [{ id: "period", label: "Период и ИНН (Bearer)", body: { ...BODY_DATES_INN } }];
+const DOC_INN_EXAMPLE = [{ id: "inn", label: "Фильтр по ИНН (Bearer)", body: { ...BODY_INN_ONLY } }];
+
 export const MINI_APP_API_INVENTORY: ApiInventorySection[] = [
     {
         group: "Partner API v1",
@@ -35,192 +42,74 @@ export const MINI_APP_API_INVENTORY: ApiInventorySection[] = [
             {
                 method: "GET",
                 path: "/api/partner/v1/health",
-                note: "Проверка доступности Partner API v1. Bearer опционален (показывает bearer_present и bearer_full_key_format). Базовый URL для внешних интеграций: https://mini-app-lake-phi.vercel.app",
+                note: "Проверка доступности Partner API v1. Bearer опционален.",
                 examples: [{ id: "health", label: "Health check", query: {} }],
             },
             {
                 method: "POST",
                 path: "/api/partner/v1/cargo",
-                note: "Список перевозок (как вкладка «Грузы»): Authorization: Bearer + полный ключ haulz_… (scope cargo:read). Тело: dateFrom, dateTo, inn, serviceMode — без логина/пароля.",
+                note: "Перевозки из кэша. Scope: cargo:read. Тело: dateFrom, dateTo, inn, serviceMode.",
+                examples: DOC_PERIOD_EXAMPLE,
+            },
+            {
+                method: "POST",
+                path: "/api/partner/v1/invoices",
+                note: "Счета из кэша (режим запроса). Scope: invoices:read. Тело: dateFrom, dateTo, inn.",
                 examples: [
                     {
-                        id: "cargo-bearer",
-                        label: "Период и ИНН (только Bearer)",
-                        body: { ...BODY_DATES_INN },
-                    },
-                    {
-                        id: "cargo-inn",
-                        label: "Фильтр по ИНН заказчика",
-                        body: { dateFrom: "2026-01-01", dateTo: "2026-01-31", inn: "7722461620", serviceMode: false },
+                        id: "inv-period",
+                        label: "Период и ИНН",
+                        body: { dateFrom: "2026-01-01", dateTo: "2026-01-31", inn: "{{INN}}" },
                     },
                 ],
             },
             {
                 method: "POST",
-                path: "/api/partner/v1/sendings",
-                note: "Список отправок из кэша: Bearer haulz_… (scope sendings:read). Тело как у /api/sendings для зарегистрированного пользователя, без login/password.",
+                path: "/api/partner/v1/acts",
+                note: "УПД из кэша (режим запроса). Scope: acts:read. Тело: dateFrom, dateTo, inn.",
                 examples: [
                     {
-                        id: "sendings-bearer",
-                        label: "Период (только Bearer)",
-                        body: { ...BODY_DATES_INN },
+                        id: "acts-period",
+                        label: "Период и ИНН",
+                        body: { dateFrom: "2026-01-01", dateTo: "2026-01-31", inn: "{{INN}}" },
                     },
                 ],
             },
             {
                 method: "POST",
                 path: "/api/partner/v1/orders",
-                note: "Список заявок из кэша: Bearer haulz_… (scope orders:read). Тело: dateFrom, dateTo, inn, serviceMode.",
-                examples: [
-                    {
-                        id: "orders-bearer",
-                        label: "Период (только Bearer)",
-                        body: { ...BODY_DATES_INN },
-                    },
-                ],
+                note: "Заявки из кэша (режим запроса). Scope: orders:read. Тело: dateFrom, dateTo, inn, serviceMode.",
+                examples: DOC_PERIOD_EXAMPLE,
             },
-        ],
-    },
-    {
-        group: "Документы (login/password)",
-        items: [
             {
                 method: "POST",
-                path: "/api/invoices",
-                note: "Запросить счета (кэш / 1С). Тело: login, password, dateFrom, dateTo, inn, serviceMode, isRegisteredUser.",
+                path: "/api/partner/v1/claims",
+                note: "Претензии пользователя (режим запроса). Scope: claims:read. Тело: dateFrom, dateTo, inn.",
                 examples: [
                     {
-                        id: "inv-reg",
-                        label: "Зарегистрированный пользователь (кэш)",
-                        body: {
-                            login: "{{LOGIN}}",
-                            password: "{{PASSWORD}}",
-                            ...BODY_DATES_INN,
-                            isRegisteredUser: true,
-                        },
+                        id: "claims-period",
+                        label: "Период и ИНН",
+                        body: { dateFrom: "2026-01-01", dateTo: "2026-01-31", inn: "{{INN}}" },
                     },
                 ],
             },
             {
                 method: "POST",
-                path: "/api/acts",
-                note: "Запросить список УПД (GetActs; кэш / 1С). То же тело, что для счетов.",
-                examples: [
-                    {
-                        id: "acts-reg",
-                        label: "Зарегистрированный пользователь (кэш)",
-                        body: {
-                            login: "{{LOGIN}}",
-                            password: "{{PASSWORD}}",
-                            ...BODY_DATES_INN,
-                            isRegisteredUser: true,
-                        },
-                    },
-                ],
-            },
-            {
-                method: "GET",
-                path: "/api/dogovors",
-                note: "Запросить договоры из кэша. Опционально query inn — только по этому ИНН заказчика.",
-                examples: [
-                    { id: "dog-all", label: "Все договоры в кэше", query: {} },
-                    { id: "dog-inn", label: "Фильтр по ИНН", query: { inn: "7722461620" } },
-                ],
-            },
-            {
-                method: "GET",
-                path: "/api/tariffs",
-                note: "Запросить тарифы из кэша. Опционально ?inn= — фильтр по ИНН заказчика.",
-                examples: [
-                    { id: "tar-all", label: "Все тарифы", query: {} },
-                    { id: "tar-inn", label: "По ИНН", query: { inn: "7722461620" } },
-                ],
-            },
-            {
-                method: "GET",
-                path: "/api/sverki",
-                note: "Запросить акты сверок из кэша. Опционально ?inn=.",
-                examples: [
-                    { id: "sv-all", label: "Все акты сверок", query: {} },
-                    { id: "sv-inn", label: "По ИНН", query: { inn: "7722461620" } },
-                ],
-            },
-        ],
-    },
-    {
-        group: "Скачать документы",
-        items: [
-            {
-                method: "POST",
-                path: "/api/download",
-                note: "Скачать ЭР (PDF через прокси). metod=ЭР, number — номер перевозки (как во вкладке документов). Для зарегистрированного пользователя — isRegisteredUser и проверка доступа к перевозке.",
-                examples: [
-                    {
-                        id: "dl-er",
-                        label: "ЭР по номеру перевозки",
-                        body: {
-                            login: "{{LOGIN}}",
-                            password: "{{PASSWORD}}",
-                            metod: "ЭР",
-                            number: "000123456",
-                            isRegisteredUser: true,
-                        },
-                    },
-                ],
+                path: "/api/partner/v1/contracts",
+                note: "Договоры из кэша (режим запроса). Scope: contracts:read. Тело: inn (опционально).",
+                examples: DOC_INN_EXAMPLE,
             },
             {
                 method: "POST",
-                path: "/api/download",
-                note: "Скачать АПП. metod=АПП, number — номер перевозки.",
-                examples: [
-                    {
-                        id: "dl-app",
-                        label: "АПП по номеру перевозки",
-                        body: {
-                            login: "{{LOGIN}}",
-                            password: "{{PASSWORD}}",
-                            metod: "АПП",
-                            number: "000123456",
-                            isRegisteredUser: true,
-                        },
-                    },
-                ],
+                path: "/api/partner/v1/sverki",
+                note: "Акты сверок из кэша (режим запроса). Scope: sverki:read. Тело: inn (опционально).",
+                examples: DOC_INN_EXAMPLE,
             },
             {
                 method: "POST",
-                path: "/api/download",
-                note: "Скачать счёт (PDF). В 1С metod=Счет; number — номер перевозки из номенклатуры или номер счёта (маска 0000-…), см. приложение.",
-                examples: [
-                    {
-                        id: "dl-schet",
-                        label: "Счёт (пример с номером перевозки)",
-                        body: {
-                            login: "{{LOGIN}}",
-                            password: "{{PASSWORD}}",
-                            metod: "Счет",
-                            number: "000123456",
-                            isRegisteredUser: true,
-                        },
-                    },
-                ],
-            },
-            {
-                method: "POST",
-                path: "/api/download",
-                note: "Скачать УПД (файл). В API metod=Акт (не слово «УПД»); number — номер перевозки из УПД.",
-                examples: [
-                    {
-                        id: "dl-upd",
-                        label: "УПД (metod Акт)",
-                        body: {
-                            login: "{{LOGIN}}",
-                            password: "{{PASSWORD}}",
-                            metod: "Акт",
-                            number: "000123456",
-                            isRegisteredUser: true,
-                        },
-                    },
-                ],
+                path: "/api/partner/v1/tariffs",
+                note: "Тарифы из кэша (режим запроса). Scope: tariffs:read. Тело: inn (опционально).",
+                examples: DOC_INN_EXAMPLE,
             },
         ],
     },

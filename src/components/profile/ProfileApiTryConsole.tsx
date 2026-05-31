@@ -10,7 +10,7 @@ import {
 } from "../../lib/buildApiRequestSnippet";
 import { resolveApiOrigin } from "../../lib/resolveApiOrigin";
 
-export type ProfileTryAuth = { login: string; password: string; inn?: string } | null;
+export type ProfileTryAuth = { inn?: string } | null;
 
 type ParamRow = { enabled: boolean; key: string; value: string };
 
@@ -23,19 +23,17 @@ function parseMethods(raw: string): string[] {
         .filter(Boolean);
 }
 
-function injectAuthPlaceholders(obj: unknown, auth: ProfileTryAuth): unknown {
-    if (!auth) return obj;
+function injectInnPlaceholder(obj: unknown, auth: ProfileTryAuth): unknown {
+    if (!auth?.inn?.trim()) return obj;
     if (typeof obj === "string") {
-        if (obj === "{{LOGIN}}") return auth.login;
-        if (obj === "{{PASSWORD}}") return auth.password;
-        if (obj === "{{INN}}") return auth.inn?.trim() || "";
+        if (obj === "{{INN}}") return auth.inn.trim();
         return obj;
     }
-    if (Array.isArray(obj)) return obj.map((x) => injectAuthPlaceholders(x, auth));
+    if (Array.isArray(obj)) return obj.map((x) => injectInnPlaceholder(x, auth));
     if (obj && typeof obj === "object") {
         const o: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-            o[k] = injectAuthPlaceholders(v, auth);
+            o[k] = injectInnPlaceholder(v, auth);
         }
         return o;
     }
@@ -48,13 +46,7 @@ function buildExamples(item: ApiInventoryItem): ApiTryExample[] {
     if (m === "GET" || m === "HEAD") {
         return [{ id: "default", label: "Базовый запрос", query: {} }];
     }
-    return [
-        {
-            id: "default",
-            label: "Минимум (подставьте логин/пароль в JSON)",
-            body: { login: "{{LOGIN}}", password: "{{PASSWORD}}" },
-        },
-    ];
+    return [{ id: "default", label: "Базовый запрос", body: { dateFrom: "2026-01-01", dateTo: "2026-01-31", inn: "{{INN}}", serviceMode: false } }];
 }
 
 function queryToRows(q: Record<string, string> | undefined): ParamRow[] {
@@ -129,8 +121,9 @@ function defaultTabForItem(item: ApiInventoryItem): TabId {
     return "params";
 }
 
-function validatePartnerBearer(token: string, isPartnerV1: boolean): string | null {
-    if (!isPartnerV1) return null;
+function validatePartnerBearer(token: string, path: string): string | null {
+    if (!path.includes("/api/partner/v1/")) return null;
+    if (path.includes("/health")) return null;
     const t = token.replace(/^Bearer\s+/i, "").trim();
     if (!t) return "Укажите полный API-ключ на вкладке Authorization (Bearer haulz_…).";
     if (HAULZ_API_KEY_RE.test(t)) return null;
@@ -216,7 +209,7 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
         const ex = examples.find((e) => e.id === exampleId) ?? examples[0];
         if (!ex) return;
         setParamRows(queryToRows(ex.query));
-        const bodyWithAuth = ex.body != null ? injectAuthPlaceholders(ex.body, tryAuth) : null;
+        const bodyWithAuth = ex.body != null ? injectInnPlaceholder(ex.body, tryAuth) : null;
         setBodyJson(bodyWithAuth != null ? JSON.stringify(bodyWithAuth, null, 2) : "");
         setHeadersJson(ex.headers && Object.keys(ex.headers).length > 0 ? JSON.stringify(ex.headers, null, 2) : "{}");
     }, [exampleId, examples, tryAuth]);
@@ -254,18 +247,13 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
             headers.Authorization = bearerForRequest.startsWith("Bearer ") ? bearerForRequest : `Bearer ${bearerForRequest}`;
         }
 
-        if (path.includes("/api/my-api-keys") && tryAuth && (method === "GET" || method === "DELETE")) {
-            headers["x-login"] = tryAuth.login;
-            headers["x-password"] = tryAuth.password;
-        }
-
         let body: string | undefined;
         if (!["GET", "HEAD"].includes(method)) {
             const raw = bodyJson.trim();
             if (raw) {
                 try {
                     const parsed = JSON.parse(raw) as unknown;
-                    const injected = injectAuthPlaceholders(parsed, tryAuth);
+                    const injected = injectInnPlaceholder(parsed, tryAuth);
                     body = JSON.stringify(injected, null, forSnippet ? 2 : 0);
                     headers["Content-Type"] = headers["Content-Type"] || "application/json";
                 } catch {
@@ -287,7 +275,7 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
         setSendErr(null);
         setResp(null);
 
-        const bearerErr = validatePartnerBearer(bearer, isPartnerV1);
+        const bearerErr = validatePartnerBearer(bearer, pathField);
         if (bearerErr) {
             setSendErr(bearerErr);
             setTab("auth");
@@ -318,7 +306,7 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
         } finally {
             setLoading(false);
         }
-    }, [bearer, collectRequestParts, isPartnerV1]);
+    }, [bearer, collectRequestParts, pathField]);
 
     const copySnippet = useCallback(() => {
         if (!snippetText) return;
@@ -365,10 +353,6 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
                     aria-readonly
                     onFocus={(e) => e.target.select()}
                 />
-                <button type="button" className="profile-api-try__send" onClick={() => void send()} disabled={loading}>
-                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" fill="currentColor" />}
-                    <span>Send</span>
-                </button>
             </div>
 
             <p className="profile-api-try__hint profile-api-try__hint--origin">
@@ -588,8 +572,7 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
                         />
                     ) : null}
                     <p className="profile-api-try__hint">
-                        Плейсхолдеры <code>{"{{LOGIN}}"}</code>, <code>{"{{PASSWORD}}"}</code>, <code>{"{{INN}}"}</code> подставляются из
-                        аккаунта при Send и в примере запроса.
+                        Плейсхолдер <code>{"{{INN}}"}</code> подставляется автоматически, если у аккаунта один доступный ИНН.
                     </p>
                 </div>
             ) : null}
@@ -597,7 +580,7 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
             {tab === "auth" ? (
                 <div className="profile-api-try__panel">
                     <label className="profile-api-try__auth-label" htmlFor="profile-api-bearer">
-                        Bearer-токен (API-ключ haulz_… или партнёрский ключ)
+                        Bearer-токен (полный API-ключ haulz_…)
                     </label>
                     <textarea
                         id="profile-api-bearer"
@@ -605,22 +588,18 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
                         value={bearer}
                         onChange={(e) => setBearer(e.target.value)}
                         rows={3}
-                        placeholder="Bearer haulz_… или только токен без префикса"
+                        placeholder="haulz_… или Bearer haulz_…"
                     />
                     <p className="profile-api-try__hint">
-                        Для Partner API v1 (<code>/api/partner/v1/*</code>) укажите Bearer с полным ключом haulz_… из Профиль → API.
-                        {isPartnerV1 ? " Этот метод не принимает login/password в теле." : " Для счетов, УПД и скачиваний в теле используются login/password (или плейсхолдеры)."}
+                        Укажите полный ключ из Профиль → API. Авторизация только через Bearer — login/password в запросах не используются.
                     </p>
-                    {isPartnerV1 && bearer.trim() && validatePartnerBearer(bearer, true) ? (
-                        <p className="profile-api-try__warn">{validatePartnerBearer(bearer, true)}</p>
+                    {bearer.trim() && validatePartnerBearer(bearer, pathField) ? (
+                        <p className="profile-api-try__warn">{validatePartnerBearer(bearer, pathField)}</p>
                     ) : null}
-                    {isPartnerV1 && !bearer.trim() ? (
+                    {!bearer.trim() && !pathField.includes("/health") ? (
                         <p className="profile-api-try__warn">
-                            Префикс ключа из списка (haulz_…_) не подходит для запроса — нужен полный токен, показанный при создании ключа.
+                            Префикс ключа из списка (haulz_…_) не подходит — нужен полный токен, показанный один раз при создании ключа.
                         </p>
-                    ) : null}
-                    {!tryAuth ? (
-                        <p className="profile-api-try__warn">Войдите в аккаунт в приложении — иначе подстановка логина/пароля в примерах не сработает.</p>
                     ) : null}
                 </div>
             ) : null}
@@ -645,6 +624,16 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
                         </select>
                         <button
                             type="button"
+                            className="profile-api-try__snippet-send"
+                            onClick={() => void send()}
+                            disabled={loading}
+                            title="Отправить запрос"
+                        >
+                            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" fill="currentColor" />}
+                            <span>Send</span>
+                        </button>
+                        <button
+                            type="button"
                             className="profile-api-try__snippet-copy"
                             onClick={copySnippet}
                             title="Скопировать пример"
@@ -656,7 +645,7 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
                     </div>
                 </div>
                 <pre className="profile-api-try__snippet-pre">{snippetText || "—"}</pre>
-                {isPartnerV1 && !bearer.trim() ? (
+                {isPartnerV1 && !bearer.trim() && !pathField.includes("/health") ? (
                     <p className="profile-api-try__hint">
                         В примере подставлен плейсхолдер <code>haulz_YOUR_FULL_API_KEY</code> — замените на полный ключ из вкладки Authorization.
                     </p>

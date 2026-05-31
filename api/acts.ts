@@ -23,6 +23,10 @@ function actInn(item: any): string {
   return String(v).trim();
 }
 
+export function actsItemInn(item: any): string {
+  return actInn(item);
+}
+
 function actDate(item: any): string {
   const d = item?.DateDoc ?? item?.Date ?? item?.dateDoc ?? item?.date ?? "";
   return normalizeDateOnly(d);
@@ -84,6 +88,34 @@ function normalizeDateOnly(raw: unknown): string {
   const parsed = new Date(s);
   if (Number.isNaN(parsed.getTime())) return "";
   return parsed.toISOString().split("T")[0];
+}
+
+/** Кэш УПД для зарегистрированного пользователя (Partner API v1 и isRegisteredUser). */
+export async function readRegisteredActsFromCache(
+  pool: ReturnType<typeof getPool>,
+  verified: VerifiedRegisteredUser,
+  login: string,
+  dateFrom: string,
+  dateTo: string,
+  inn: unknown,
+): Promise<any[]> {
+  try {
+    let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+      "SELECT data, fetched_at FROM cache_acts WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
+      [CACHE_FRESH_MINUTES],
+    );
+    if (cacheRow.rows.length === 0) {
+      cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+        "SELECT data, fetched_at FROM cache_acts WHERE id = 1",
+      );
+    }
+    if (cacheRow.rows.length === 0) return [];
+    const data = cacheRow.rows[0].data as any[];
+    const list = Array.isArray(data) ? data : [];
+    return filterActsForRegisteredUser(pool, verified, login, inn, dateFrom, dateTo, list);
+  } catch {
+    return [];
+  }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

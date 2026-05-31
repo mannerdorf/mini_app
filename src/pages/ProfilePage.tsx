@@ -1044,14 +1044,12 @@ export function ProfilePage({
             onClick: () => setCurrentView('employees')
         }] : [])
         ] : []),
-        ...(!!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true ? [
-        { 
-            id: 'voiceAssistants', 
-            label: 'Голосовые помощники', 
+        {
+            id: 'voiceAssistants',
+            label: 'Голосовые помощники',
             icon: <Mic className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
-            onClick: () => setCurrentView('voiceAssistants')
+            onClick: () => setCurrentView('voiceAssistants'),
         },
-        ] : []),
         ...(activeAccount?.permissions?.chat === true ? [{
             id: 'chat' as const,
             label: 'Чат с Грузиком',

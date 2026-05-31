@@ -16,26 +16,6 @@ export function ProfileVoiceAssistantsSection({ activeAccount, onBack }: Props) 
     const [aliceError, setAliceError] = useState<string | null>(null);
     const [aliceSuccess, setAliceSuccess] = useState<string | null>(null);
 
-    const serviceModeAllowed = !!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true;
-
-    if (!serviceModeAllowed) {
-        return (
-            <div className="w-full">
-                <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
-                    <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
-                        <ArrowLeft className="w-4 h-4" />
-                    </Button>
-                    <Typography.Headline className="text-page-title">Голосовые помощники</Typography.Headline>
-                </Flex>
-                <Panel className="cargo-card" style={{ padding: "1rem" }}>
-                    <Typography.Body style={{ color: "var(--color-text-secondary)" }}>
-                        Доступно только при включённом служебном режиме.
-                    </Typography.Body>
-                </Panel>
-            </div>
-        );
-    }
-
     return (
         <div className="w-full">
             <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
