@@ -2,7 +2,10 @@ import React, { Suspense, lazy } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { Loader2, Package } from "lucide-react";
 import { ErrorBoundary } from "./ErrorBoundary";
-import type { Account, AuthData, Tab } from "../types";
+import { useAuth } from "../contexts/AuthContext";
+import { useAppShell } from "../contexts/AppShellContext";
+import { WB_TAB } from "../wb/appWb";
+import type { Account, Tab } from "../types";
 
 const ExpenseRequestsPage = lazy(() =>
   import("../pages/ExpenseRequestsPage").then((m) => ({ default: m.ExpenseRequestsPage })),
@@ -13,19 +16,9 @@ const WildberriesPage = lazy(() =>
 
 type Props = {
   showDashboard: boolean;
-  activeTab: Tab;
-  auth: AuthData | null;
-  selectedAuths: AuthData[];
-  accounts: Account[];
-  activeAccountId: string | null;
-  activeAccount: Account | null;
   contextCargoNumber: string | null;
   useServiceRequest: boolean;
   setContextCargoNumber: (value: string | null) => void;
-  setActiveTab: (tab: Tab) => void;
-  setSelectedAccountIds: (ids: string[]) => void;
-  setActiveAccountId: (id: string) => void;
-  updateActiveAccountCustomer: (customer: string) => void;
   openCargoWithFilters: (filters: { statuses?: string[]; customer?: string }) => void;
   openCargoFromChat: (cargoNumber: string) => void;
   openCargoFromDocuments: (cargoNumber: string) => void;
@@ -38,7 +31,6 @@ type Props = {
   aisOpenWithMmsi: string | null;
   setAisOpenWithMmsi: (value: string | null) => void;
   openTelegramBotWithAccount: () => Promise<void>;
-  openWildberries: () => void;
   handleSwitchAccount: (accountId: string) => void;
   handleAddAccount: (account: Account) => Promise<void>;
   handleRemoveAccount: (accountId: string) => void;
@@ -168,19 +160,9 @@ function SectionBoundary({ section, children }: { section: string; children: Rea
 
 export function AppMainContent({
   showDashboard,
-  activeTab,
-  auth,
-  selectedAuths,
-  accounts,
-  activeAccountId,
-  activeAccount,
   contextCargoNumber,
   useServiceRequest,
   setContextCargoNumber,
-  setActiveTab,
-  setSelectedAccountIds,
-  setActiveAccountId,
-  updateActiveAccountCustomer,
   openCargoWithFilters,
   openCargoFromChat,
   openCargoFromDocuments,
@@ -193,7 +175,6 @@ export function AppMainContent({
   aisOpenWithMmsi,
   setAisOpenWithMmsi,
   openTelegramBotWithAccount,
-  openWildberries,
   handleSwitchAccount,
   handleAddAccount,
   handleRemoveAccount,
@@ -208,6 +189,19 @@ export function AppMainContent({
   DocumentsPageComponent,
   profileSaasShellActive,
 }: Props) {
+  const {
+    auth,
+    selectedAuths,
+    accounts,
+    activeAccountId,
+    activeAccount,
+    setSelectedAccountIds,
+    setActiveAccountId,
+    updateActiveAccountCustomer,
+  } = useAuth();
+  const { activeTab, setActiveTab } = useAppShell();
+  const openWildberries = () => setActiveTab(WB_TAB);
+
   const CargoPage = CargoPageComponent;
   const DashboardPage = DashboardPageComponent;
   const ProfilePage = ProfilePageComponent;

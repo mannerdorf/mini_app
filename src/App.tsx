@@ -1,6 +1,6 @@
 import React, { FormEvent, useEffect, useState, useCallback, useMemo, useRef, useLayoutEffect, Suspense, lazy } from "react";
 import {
-    LogOut, Truck, Loader2, Check, X, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Users, Scale, RussianRuble, List, Download, Maximize, Minimize2,
+    LogOut, Truck, Loader2, Check, X, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Users, Scale, RussianRuble, List, Download, Maximize, Minimize2,
     Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, TrendingDown, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship, RefreshCw, Lock, Moon, Sun
 } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -22,6 +22,7 @@ import { AccountSwitcher } from "./components/AccountSwitcher";
 import { CustomerSwitcher } from "./components/CustomerSwitcher";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AppMainContent } from "./components/AppMainContent";
+import { LoginScreen } from "./components/LoginScreen";
 import { getWebApp, isMaxWebApp, isMaxDocsEnabled } from "./webApp";
 import { applyClientPlatformToDocument, getClientPlatform, isClientMobile } from "./lib/clientPlatform";
 import { DOCUMENT_METHODS } from "./documentMethods";
@@ -55,10 +56,6 @@ const CMSStandalonePage = lazyWithRetry(
     () => import("./pages/CMSStandalonePage").then((m) => ({ default: m.CMSStandalonePage })),
     "CMSStandalonePage"
 );
-const ForgotPasswordPage = lazyWithRetry(
-    () => import("./pages/ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage })),
-    "ForgotPasswordPage"
-);
 const CargoPage = lazyWithRetry(
     () => import("./pages/CargoPage").then((m) => ({ default: m.CargoPage })),
     "CargoPage"
@@ -79,24 +76,16 @@ import {
     useResetGlobalSearchOnWildberries,
     isGlobalSearchTab,
 } from "./wb/appWb";
-import { PUBLIC_OFFER_TEXT, PERSONAL_DATA_CONSENT_TEXT } from "./constants/legalTexts";
 import { HAULZ_MAX_SUPPORT_BOT_URL, HAULZ_SPLASH_BACKGROUND, HAULZ_TG_SUPPORT_BOT_URL } from "./constants/brand";
-import { HaulzBrandLogo } from "./components/HaulzBrandLogo";
-import {
-    loadAuthMethodsConfig,
-    postAuthRegisteredLogin,
-    type AuthMethodsConfig,
-} from "./api/client/auth";
+import { postAuthRegisteredLogin } from "./api/client/auth";
 import {
     fetchTwoFaSettings,
     persistTwoFaSettingsSilent,
-    sendTelegramTwoFaCode,
-    verifyTwoFactorCode,
 } from "./api/client/twoFa";
 import { postCompaniesSave } from "./api/client/companies";
 import { createMaxAuthDeepLinkToken } from "./api/client/maxLink";
 import { postGetPerevozkaJson, postGetCustomers, postPerevozkiList } from "./api/client/perevozkiClient";
-import { fetchLegalPublic, recordLegalAcceptanceQuiet } from "./api/client/legal";
+import { recordLegalAcceptanceQuiet } from "./api/client/legal";
 import { useLegalCompliance } from "./hooks/useLegalCompliance";
 import { LegalReacceptModal } from "./components/modals/LegalReacceptModal";
 import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry } from "./lib/cargoUtils";
@@ -152,14 +141,6 @@ function lazyWithRetry<T extends React.ComponentType<any>>(
     });
 }
 
-const resolveChecked = (value: unknown): boolean => {
-    if (typeof value === "boolean") return value;
-    if (value && typeof value === "object") {
-        const target = (value as { target?: { checked?: boolean } }).target;
-        if (typeof target?.checked === "boolean") return target.checked;
-    }
-    return false;
-};
 
 const getFileNameFromDisposition = (header: string | null, fallback: string) => {
     if (!header) return fallback;
@@ -292,27 +273,6 @@ function AppRoot() {
             setUseServiceRequest(false);
         }
     }, [serviceModeUnlocked, useServiceRequest]);
-    const [authMethods, setAuthMethods] = useState<AuthMethodsConfig>({
-        api_v1: true,
-        api_v2: true,
-        cms: true,
-    });
-    useEffect(() => {
-        let cancelled = false;
-        const loadConfig = async () => {
-            const cfg = await loadAuthMethodsConfig();
-            if (cancelled) return;
-            if (!cfg) {
-                console.warn("Failed to load auth config");
-                return;
-            }
-            setAuthMethods(cfg);
-        };
-        loadConfig();
-        return () => {
-            cancelled = true;
-        };
-    }, []);
     const persistTwoFactorSettings = useCallback(async (account: Account, patch: Partial<Account>) => {
         const login = account.login;
         if (!login) return;
@@ -395,49 +355,6 @@ function AppRoot() {
     const [overlayInvoice, setOverlayInvoice] = useState<Record<string, unknown> | null>(null);
     const [overlayAct, setOverlayAct] = useState<Record<string, unknown> | null>(null);
     const [overlayFavVersion, setOverlayFavVersion] = useState(0);
-    
-    // ИНИЦИАЛИЗАЦИЯ ПУСТЫМИ СТРОКАМИ (данные берутся с фронта)
-    const [login, setLogin] = useState(""); 
-    const [password, setPassword] = useState(""); 
-    
-    const [agreeOffer, setAgreeOffer] = useState(true);
-    const [agreePersonal, setAgreePersonal] = useState(true);
-    const [loginOfferText, setLoginOfferText] = useState(PUBLIC_OFFER_TEXT);
-    const [loginConsentText, setLoginConsentText] = useState(PERSONAL_DATA_CONSENT_TEXT);
-    const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        if (auth) return;
-        void fetchLegalPublic()
-            .then((pub) => {
-                if (pub.offer?.body_text) setLoginOfferText(pub.offer.body_text);
-                if (pub.consent?.body_text) setLoginConsentText(pub.consent.body_text);
-            })
-            .catch(() => { /* остаются тексты по умолчанию */ });
-    }, [auth]);
-
-    const recordLoginLegalAcceptance = useCallback((loginVal: string, passwordVal: string, opts?: { skipLegal?: boolean }) => {
-        if (opts?.skipLegal) return;
-        const offerOk = agreeOffer;
-        if (offerOk && agreePersonal) {
-            recordLegalAcceptanceQuiet(loginVal, passwordVal);
-        }
-    }, [agreeOffer, agreePersonal]);
-    const [error, setError] = useState<string | null>(null);
-    const [showPassword, setShowPassword] = useState(false); 
-    const [twoFactorPending, setTwoFactorPending] = useState(false);
-    const [twoFactorCode, setTwoFactorCode] = useState("");
-    const [showForgotPage, setShowForgotPage] = useState(() => {
-        try {
-            if (typeof window === "undefined") return false;
-            return new URL(window.location.href).searchParams.get("forgot") === "1";
-        } catch {
-            return false;
-        }
-    });
-    const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
-    const [twoFactorLoading, setTwoFactorLoading] = useState(false);
-    const [pendingLogin, setPendingLogin] = useState<{ login: string; loginKey: string; password: string; customer?: string | null; customers?: CustomerOption[]; perevozkiInn?: string } | null>(null);
     
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
     const [debugMenuOpen, setDebugMenuOpen] = useState(false);
@@ -1069,322 +986,10 @@ function AppRoot() {
         return accountId;
     };
 
-    const handleLoginSubmit = async (e: FormEvent) => {
-        e.preventDefault();
-        setError(null);
-        setTwoFactorError(null);
-        if (!login || !password) return setError("Введите логин и пароль");
-        if (!authMethods.cms) {
-            if (!agreePersonal) return setError("Подтвердите согласие на обработку персональных данных");
-            if (!agreeOffer) return setError("Подтвердите согласие с публичной офертой");
-        }
-        if (!authMethods.cms && !authMethods.api_v2 && !authMethods.api_v1) {
-            setError("Недоступны способы авторизации");
-            return;
-        }
-
-        try {
-            setLoading(true);
-            const loginKey = login.trim().toLowerCase();
-
-            const attemptCmsAuth = async (): Promise<true | string> => {
-                const { ok: regOk, data: regData } = await postAuthRegisteredLogin({ email: loginKey, password });
-                if (!regOk) {
-                    return (typeof regData?.error === "string" ? regData.error : null) || "Неверный email или пароль";
-                }
-                if (regData?.ok && regData?.user) {
-                    const u = regData.user as Record<string, unknown>;
-                    const cmsPerms = normalizePermissions(u.permissions);
-                    const cmsServiceMode = cmsPerms?.service_mode === true;
-                    if (!cmsServiceMode) {
-                        if (!agreeOffer) return "Подтвердите согласие с публичной офертой";
-                        if (!agreePersonal) return "Подтвердите согласие на обработку персональных данных";
-                    }
-                    const existingAccount = accounts.find((acc) => acc.login === loginKey);
-                    const customers: CustomerOption[] = u.inn ? [{ name: u.companyName || u.inn, inn: u.inn }] : [];
-                    const accessAllInns = !!u.accessAllInns;
-                    if (existingAccount) {
-                        setAccounts((prev) =>
-                            prev.map((acc) =>
-                                acc.id === existingAccount.id
-                                    ? {
-                                        ...acc,
-                                        password,
-                                        customers,
-                                        activeCustomerInn: acc.activeCustomerInn ?? u.inn,
-                                        customer: u.companyName,
-                                        isRegisteredUser: true,
-                                        accessAllInns,
-                                        inCustomerDirectory: !!u.inCustomerDirectory,
-                                        ...(normalizePermissions(u.permissions) ? { permissions: normalizePermissions(u.permissions) } : {}),
-                                        financialAccess: u.financialAccess,
-                                    }
-                                    : acc
-                            )
-                        );
-                        setActiveAccountId(existingAccount.id);
-                    } else {
-                        const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                        const newAccount: Account = {
-                            login: loginKey,
-                            password,
-                            id: accountId,
-                            customers,
-                            activeCustomerInn: u.inn,
-                            customer: u.companyName,
-                            isRegisteredUser: true,
-                            accessAllInns,
-                            inCustomerDirectory: !!u.inCustomerDirectory,
-                            ...(normalizePermissions(u.permissions) ? { permissions: normalizePermissions(u.permissions) } : {}),
-                            financialAccess: u.financialAccess,
-                        };
-                        setAccounts((prev) => [...prev, newAccount]);
-                        setActiveAccountId(accountId);
-                    }
-                    setActiveTab((prev) => prev || "cargo");
-                    recordLoginLegalAcceptance(loginKey, password, { skipLegal: cmsServiceMode });
-                    return true;
-                }
-                return "Неверный email или пароль";
-            };
-
-            const attemptApiV2Auth = async (): Promise<boolean> => {
-                const { ok: customersOk, data: customersData } = await postGetCustomers(login, password);
-                if (!customersOk) return false;
-                const rawList = Array.isArray(customersData?.customers)
-                    ? customersData.customers
-                    : Array.isArray(customersData?.Customers)
-                        ? customersData.Customers
-                        : [];
-                const customers: CustomerOption[] = dedupeCustomersByInn(
-                    rawList
-                        .map((c: any) => ({
-                            name: String(c?.name ?? c?.Name ?? "").trim() || String(c?.Inn ?? c?.inn ?? ""),
-                            inn: String(c?.inn ?? c?.INN ?? c?.Inn ?? "").trim(),
-                        }))
-                        .filter((c: CustomerOption) => c.inn.length > 0)
-                );
-                if (customers.length === 0) return false;
-                const existingInns = await getExistingInns(accounts.map((a) => (typeof a.login === "string" ? a.login.trim().toLowerCase() : "")).filter(Boolean));
-                const alreadyAdded = customers.find((c) => c.inn && existingInns.has(c.inn));
-                if (alreadyAdded) {
-                    setError("Компания уже в списке");
-                    return true;
-                }
-                const twoFaJson = await fetchTwoFaSettings(loginKey);
-                const twoFaSettings = twoFaJson?.settings;
-                const twoFaEnabled = !!twoFaSettings?.enabled;
-                const twoFaMethod = twoFaSettings?.method === "telegram" ? "telegram" : "google";
-                const twoFaLinked = !!twoFaSettings?.telegramLinked;
-                const twoFaGoogleSecretSet = !!twoFaSettings?.googleSecretSet;
-                if (twoFaEnabled && twoFaMethod === "telegram" && twoFaLinked) {
-                    await sendTelegramTwoFaCode(loginKey);
-                    setPendingLogin({ login, password, customer: undefined, loginKey, customers, twoFaMethod: "telegram" });
-                    setTwoFactorPending(true);
-                    setTwoFactorCode("");
-                    return true;
-                }
-                if (twoFaEnabled && twoFaMethod === "google" && twoFaGoogleSecretSet) {
-                    setPendingLogin({ login, password, customer: undefined, loginKey, customers, twoFaMethod: "google" });
-                    setTwoFactorPending(true);
-                    setTwoFactorCode("");
-                    return true;
-                }
-                const existingAccount = accounts.find((acc) => acc.login === login);
-                const firstCustomer = customers[0];
-                const firstInn = firstCustomer.inn;
-                const firstName = firstCustomer.name;
-                if (existingAccount) {
-                    setAccounts((prev) =>
-                        prev.map((acc) =>
-                            acc.id === existingAccount.id
-                                ? { ...acc, customers, activeCustomerInn: firstInn, customer: firstName }
-                                : acc
-                        )
-                    );
-                    setActiveAccountId(existingAccount.id);
-                } else {
-                    const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                    const newAccount: Account = { login, password, id: accountId, customers, activeCustomerInn: firstInn, customer: firstName };
-                    setAccounts((prev) => [...prev, newAccount]);
-                    setActiveAccountId(accountId);
-                }
-                setActiveTab((prev) => prev || "cargo");
-                postCompaniesSave({ login: loginKey, customers })
-                    .then((data: unknown) => {
-                        const d = data as { saved?: number; warning?: string };
-                        if (d?.saved !== undefined && d.saved === 0 && d.warning) console.warn("companies-save:", d.warning);
-                    })
-                    .catch((err) => console.warn("companies-save error:", err));
-                recordLoginLegalAcceptance(loginKey, password);
-                return true;
-            };
-
-            const attemptApiV1Auth = async (): Promise<boolean> => {
-                const { dateFrom, dateTo } = getDateRange("все");
-                const res = await postPerevozkiList({ login, password, dateFrom, dateTo });
-                await ensureOk(res, "Ошибка авторизации");
-                const payload = await readJsonOrText(res);
-                const detectedCustomer = extractCustomerFromPerevozki(payload);
-                const detectedInn = extractInnFromPerevozki(payload);
-                const existingInns = await getExistingInns(accounts.map((a) => (typeof a.login === "string" ? a.login.trim().toLowerCase() : "")).filter(Boolean));
-                if (detectedInn && existingInns.has(detectedInn)) {
-                    setError("Компания уже в списке");
-                    return true;
-                }
-                const twoFaJson = await fetchTwoFaSettings(loginKey);
-                const twoFaSettings = twoFaJson?.settings;
-                const twoFaEnabled = !!twoFaSettings?.enabled;
-                const twoFaMethod = twoFaSettings?.method === "telegram" ? "telegram" : "google";
-                const twoFaLinked = !!twoFaSettings?.telegramLinked;
-                const twoFaGoogleSecretSet = !!twoFaSettings?.googleSecretSet;
-                if (twoFaEnabled && twoFaMethod === "telegram" && twoFaLinked) {
-                    await sendTelegramTwoFaCode(loginKey);
-                    setPendingLogin({ login, password, customer: detectedCustomer, loginKey, perevozkiInn: detectedInn ?? undefined, twoFaMethod: "telegram" });
-                    setTwoFactorPending(true);
-                    setTwoFactorCode("");
-                    return true;
-                }
-                if (twoFaEnabled && twoFaMethod === "google" && twoFaGoogleSecretSet) {
-                    setPendingLogin({ login, password, customer: detectedCustomer, loginKey, perevozkiInn: detectedInn ?? undefined, twoFaMethod: "google" });
-                    setTwoFactorPending(true);
-                    setTwoFactorCode("");
-                    return true;
-                }
-                const existingAccount = accounts.find((acc) => acc.login === login);
-                let accountId: string;
-                if (existingAccount) {
-                    accountId = existingAccount.id;
-                    if (detectedCustomer && existingAccount.customer !== detectedCustomer) {
-                        setAccounts((prev) =>
-                            prev.map((acc) =>
-                                acc.id === existingAccount.id
-                                    ? { ...acc, customer: detectedCustomer }
-                                    : acc
-                            )
-                        );
-                    }
-                    setActiveAccountId(accountId);
-                } else {
-                    accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                    const newAccount: Account = {
-                        login,
-                        password,
-                        id: accountId,
-                        customer: detectedCustomer || undefined,
-                        ...(detectedInn ? { activeCustomerInn: detectedInn } : {}),
-                    };
-                    setAccounts((prev) => [...prev, newAccount]);
-                    setActiveAccountId(accountId);
-                }
-                const companyInn = detectedInn ?? "";
-                const companyName = detectedCustomer || login.trim() || "Компания";
-                postCompaniesSave({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }).catch(() => {});
-                setActiveTab((prev) => prev || "cargo");
-                recordLoginLegalAcceptance(loginKey, password);
-                return true;
-            };
-
-            let lastError = "Неверный логин или пароль";
-            if (authMethods.cms) {
-                const cmsResult = await attemptCmsAuth();
-                if (cmsResult === true) return;
-                lastError = cmsResult;
-            }
-            if (authMethods.api_v2 && (await attemptApiV2Auth())) return;
-            if (authMethods.api_v1 && (await attemptApiV1Auth())) return;
-            setError(lastError);
-        } catch (err: any) {
-            const raw = err?.message || "Ошибка сети.";
-            const message = extractErrorMessage(raw) || (typeof raw === "string" ? raw : "Ошибка сети.");
-            setError(message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleTwoFactorSubmit = async (e: FormEvent) => {
-        e.preventDefault();
-        setTwoFactorError(null);
-        if (!pendingLogin?.loginKey || !twoFactorCode.trim()) {
-            setTwoFactorError(pendingLogin?.twoFaMethod === "google" ? "Введите код из приложения." : "Введите код из Telegram.");
-            return;
-        }
-        try {
-            setTwoFactorLoading(true);
-            const isGoogle = pendingLogin.twoFaMethod === "google";
-            await verifyTwoFactorCode(isGoogle ? "google" : "telegram", pendingLogin.loginKey, twoFactorCode);
-
-            const detectedCustomer = pendingLogin.customer;
-            const customers = pendingLogin.customers;
-            const firstInn = customers?.length ? customers[0].inn : undefined;
-            const existingAccount = accounts.find(acc => acc.login === pendingLogin.login);
-            let accountId: string;
-            const firstCustomerName = customers?.length ? customers[0].name : undefined;
-            if (existingAccount) {
-                accountId = existingAccount.id;
-                setAccounts(prev =>
-                    prev.map(acc =>
-                        acc.id === existingAccount.id
-                            ? {
-                                ...acc,
-                                ...(detectedCustomer && acc.customer !== detectedCustomer ? { customer: detectedCustomer } : {}),
-                                ...(customers?.length ? { customers, activeCustomerInn: firstInn, customer: firstCustomerName ?? acc.customer } : {}),
-                            }
-                            : acc
-                    )
-                );
-                setActiveAccountId(accountId);
-            } else {
-                accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                const newAccount: Account = {
-                    login: pendingLogin.login,
-                    password: pendingLogin.password,
-                    id: accountId,
-                    customer: firstCustomerName ?? detectedCustomer ?? undefined,
-                    ...(customers?.length ? { customers, activeCustomerInn: firstInn } : {}),
-                };
-                setAccounts(prev => [...prev, newAccount]);
-                setActiveAccountId(accountId);
-            }
-            const loginKeyToSave = pendingLogin.loginKey;
-            const customersToSave = pendingLogin.customers;
-            const loginDisplay = pendingLogin.login?.trim() || "";
-
-            setActiveTab((prev) => prev || "cargo");
-            setTwoFactorPending(false);
-            setPendingLogin(null);
-            setTwoFactorCode("");
-
-            if (customersToSave?.length) {
-                // Способ 2 (Getcustomers): сохраняем список заказчиков в БД
-                postCompaniesSave({ login: loginKeyToSave, customers: customersToSave })
-                    .then((data: unknown) => {
-                        const d = data as { saved?: number; warning?: string };
-                        if (d?.saved !== undefined && d.saved === 0 && d.warning) console.warn("companies-save:", d.warning);
-                    })
-                    .catch((err) => console.warn("companies-save error:", err));
-            } else {
-                // Способ 1 (GetPerevozki): одна компания с ИНН из ответа API
-                const perevozkiInn = pendingLogin.perevozkiInn ?? "";
-                postCompaniesSave({
-                    login: loginKeyToSave,
-                    customers: [{ name: (detectedCustomer ?? loginDisplay) || "Компания", inn: perevozkiInn }],
-                }).catch(() => {});
-            }
-            recordLoginLegalAcceptance(loginKeyToSave, pendingLogin.password);
-        } catch (err: any) {
-            setTwoFactorError(err?.message || "Неверный код");
-        } finally {
-            setTwoFactorLoading(false);
-        }
-    };
-
     const handleLogout = () => {
         setAccounts([]);
         setActiveAccountId(null);
         setActiveTab("cargo");
-        setPassword(""); 
         if (typeof window !== "undefined") {
             try {
                 window.localStorage.removeItem("haulz.auth");
@@ -1485,7 +1090,7 @@ function AppRoot() {
                         if (d?.saved !== undefined && d.saved === 0 && d.warning) console.warn("companies-save:", d.warning);
                     })
                     .catch((err) => console.warn("companies-save error:", err));
-                recordLoginLegalAcceptance(loginKey, password);
+                recordLegalAcceptanceQuiet(loginKey, password);
                 return;
             }
         }
@@ -1522,7 +1127,7 @@ function AppRoot() {
         const companyInn = detectedInn ?? "";
         const companyName = detectedCustomer || login.trim() || "Компания";
         postCompaniesSave({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }).catch(() => {});
-        recordLoginLegalAcceptance(loginKey, password);
+        recordLegalAcceptanceQuiet(loginKey, password);
     };
 
     // 404 для неизвестного path (не "/", "/admin", "/cms")
@@ -1547,200 +1152,8 @@ function AppRoot() {
         );
     }
 
-    if (!auth && showForgotPage) {
-        return (
-            <Suspense fallback={<div className="p-8 flex justify-center items-center min-h-[40vh]"><Loader2 className="w-8 h-8 animate-spin" /></div>}>
-                <ForgotPasswordPage
-                    initialEmail={login}
-                    onBackToLogin={() => {
-                        setShowForgotPage(false);
-                        try {
-                            const u = new URL(window.location.href);
-                            u.searchParams.delete("forgot");
-                            window.history.replaceState(null, "", u.toString());
-                        } catch {
-                            // ignore
-                        }
-                    }}
-                />
-            </Suspense>
-        );
-    }
-
     if (!auth) {
-        return (
-            <>
-                <Container className={`app-container login-form-wrapper`}>
-                <Panel mode="secondary" className="login-card">
-                    <div className="login-brand">
-                        <HaulzBrandLogo />
-                        <Typography.Body className="tagline">
-                            Доставка грузов в Калининград и обратно
-                        </Typography.Body>
-                    </div>
-                    {twoFactorPending ? (
-                        <form onSubmit={handleTwoFactorSubmit} className="form">
-                            <Typography.Body style={{ marginBottom: '0.75rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
-                                {pendingLogin?.twoFaMethod === "google" ? "Введите 6-значный код из приложения" : "Введите код из Telegram"}
-                            </Typography.Body>
-                            <div className="field">
-                                <Input
-                                    className="login-input"
-                                    type="text"
-                                    inputMode="numeric"
-                                    autoComplete="one-time-code"
-                                    placeholder={pendingLogin?.twoFaMethod === "google" ? "000000" : "Код подтверждения"}
-                                    value={twoFactorCode}
-                                    onChange={(e) => setTwoFactorCode(pendingLogin?.twoFaMethod === "google" ? e.target.value.replace(/\D/g, "").slice(0, 6) : e.target.value)}
-                                />
-                            </div>
-                            <Button className="button-primary" type="submit" disabled={twoFactorLoading}>
-                                {twoFactorLoading ? <Loader2 className="animate-spin w-5 h-5" /> : "Подтвердить код"}
-                            </Button>
-                            <Flex justify="center" style={{ marginTop: '0.75rem', gap: '0.5rem' }}>
-                                {pendingLogin?.twoFaMethod === "telegram" && (
-                                <Button
-                                    type="button"
-                                    className="filter-button"
-                                    disabled={twoFactorLoading}
-                                    onClick={async () => {
-                                        if (!pendingLogin?.loginKey) return;
-                                        try {
-                                            setTwoFactorError(null);
-                                            setTwoFactorLoading(true);
-                                            await sendTelegramTwoFaCode(pendingLogin.loginKey);
-                                        } catch (err: any) {
-                                            setTwoFactorError(err?.message || "Не удалось отправить код");
-                                        } finally {
-                                            setTwoFactorLoading(false);
-                                        }
-                                    }}
-                                >
-                                    Отправить код еще раз
-                                </Button>
-                                )}
-                                <Button
-                                    type="button"
-                                    className="filter-button"
-                                    disabled={twoFactorLoading}
-                                    onClick={() => {
-                                        setTwoFactorPending(false);
-                                        setPendingLogin(null);
-                                        setTwoFactorCode("");
-                                    }}
-                                >
-                                    Назад
-                                </Button>
-                            </Flex>
-                            {twoFactorError && (
-                                <Flex align="center" className="login-error mt-4">
-                                    <AlertTriangle className="w-5 h-5 mr-2" />
-                                    <Typography.Body>{twoFactorError}</Typography.Body>
-                                </Flex>
-                            )}
-                        </form>
-                    ) : (
-                        <form onSubmit={handleLoginSubmit} className="form">
-                            <div className="field">
-                                <Input
-                                    className="login-input"
-                                    type="text"
-                                    placeholder="Логин (email)"
-                                    value={login}
-                                    onChange={(e) => setLogin(e.target.value)}
-                                    autoComplete="username"
-                                />
-                            </div>
-                            <div className="field">
-                                <div className="password-input-container">
-                                    <Input
-                                        className="login-input password"
-                                        type={showPassword ? "text" : "password"}
-                                        placeholder="Пароль"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        autoComplete="current-password"
-                                        style={{paddingRight: '3rem'}}
-                                    />
-                                    <Button type="button" className="toggle-password-visibility" onClick={() => setShowPassword(!showPassword)}>
-                                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                                    </Button>
-                                </div>
-                            </div>
-                            {/* ТУМБЛЕРЫ ВОССТАНОВЛЕНЫ */}
-                            <label className="checkbox-row switch-wrapper">
-                                <Typography.Body>
-                                    Согласие с{" "}
-                                    <a href="#" onClick={(e) => { e.preventDefault(); setIsOfferOpen(true); }}>
-                                        публичной офертой
-                                    </a>
-                                </Typography.Body>
-                                <Switch
-                                    checked={agreeOffer}
-                                    onCheckedChange={(value) => setAgreeOffer(resolveChecked(value))}
-                                    onChange={(event) => setAgreeOffer(resolveChecked(event))}
-                                />
-                            </label>
-                            <label className="checkbox-row switch-wrapper">
-                                <Typography.Body>
-                                    Согласие на{" "}
-                                    <a href="#" onClick={(e) => { e.preventDefault(); setIsPersonalConsentOpen(true); }}>
-                                        обработку данных
-                                    </a>
-                                </Typography.Body>
-                                <Switch
-                                    checked={agreePersonal}
-                                    onCheckedChange={(value) => setAgreePersonal(resolveChecked(value))}
-                                    onChange={(event) => setAgreePersonal(resolveChecked(event))}
-                                />
-                            </label>
-                            <Button className="button-primary" type="submit" disabled={loading}>
-                                {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Подтвердить"}
-                            </Button>
-                            <Flex justify="center" style={{ marginTop: '1rem' }}>
-                                <button
-                                    type="button"
-                                    style={{
-                                        color: 'var(--color-primary-blue)',
-                                        cursor: 'pointer',
-                                        textDecoration: 'underline',
-                                        fontSize: '0.9rem',
-                                        background: 'none',
-                                        border: 'none',
-                                        padding: 0,
-                                    }}
-                                    onClick={() => {
-                                        setShowForgotPage(true);
-                                        try {
-                                            const u = new URL(window.location.href);
-                                            u.searchParams.set('forgot', '1');
-                                            window.history.pushState(null, '', u.toString());
-                                        } catch {
-                                            // ignore
-                                        }
-                                    }}
-                                >
-                                    Забыли пароль?
-                                </button>
-                            </Flex>
-                        </form>
-                    )}
-                    {error && (
-                        <Flex align="center" className="login-error mt-4">
-                            <AlertTriangle className="w-5 h-5 mr-2" />
-                            <Typography.Body>{error}</Typography.Body>
-                        </Flex>
-                    )}
-                    <LegalModal isOpen={!!isOfferOpen} onClose={() => setIsOfferOpen(false)} title="Публичная оферта">
-                        {loginOfferText}
-                    </LegalModal>
-                    <LegalModal isOpen={!!isPersonalConsentOpen} onClose={() => setIsPersonalConsentOpen(false)} title="Согласие на обработку персональных данных">
-                        {loginConsentText}
-                    </LegalModal>
-                </Panel>
-                </Container>
-            </>
-        );
+        return <LoginScreen />;
     }
 
     if (isWbOnlyUser) {
@@ -1761,19 +1174,9 @@ function AppRoot() {
                 >
                     <AppMainContent
                         showDashboard={false}
-                        activeTab={WB_TAB}
-                        auth={auth}
-                        selectedAuths={selectedAuths}
-                        accounts={accounts}
-                        activeAccountId={activeAccountId}
-                        activeAccount={activeAccount}
                         contextCargoNumber={contextCargoNumber}
                         useServiceRequest={false}
                         setContextCargoNumber={setContextCargoNumber}
-                        setActiveTab={setActiveTab}
-                        setSelectedAccountIds={setSelectedAccountIds}
-                        setActiveAccountId={setActiveAccountId}
-                        updateActiveAccountCustomer={updateActiveAccountCustomer}
                         openCargoWithFilters={openCargoWithFilters}
                         openCargoFromChat={openCargoFromChat}
                         openCargoFromDocuments={openCargoFromDocuments}
@@ -1793,7 +1196,6 @@ function AppRoot() {
                         setIsOfferOpen={setIsOfferOpen}
                         setIsPersonalConsentOpen={setIsPersonalConsentOpen}
                         openSecretPinModal={openSecretPinModal}
-                        openWildberries={() => setActiveTab(WB_TAB)}
                         CargoDetailsModal={CargoDetailsModal}
                         CargoPageComponent={CargoPage}
                         DashboardPageComponent={DashboardPage}
@@ -1999,19 +1401,9 @@ function AppRoot() {
                     >
                         <AppMainContent
                             showDashboard={showDashboard}
-                            activeTab={activeTab}
-                            auth={auth}
-                            selectedAuths={selectedAuths}
-                            accounts={accounts}
-                            activeAccountId={activeAccountId}
-                            activeAccount={activeAccount}
                             contextCargoNumber={contextCargoNumber}
                             useServiceRequest={useServiceRequest}
                             setContextCargoNumber={setContextCargoNumber}
-                            setActiveTab={setActiveTab}
-                            setSelectedAccountIds={setSelectedAccountIds}
-                            setActiveAccountId={setActiveAccountId}
-                            updateActiveAccountCustomer={updateActiveAccountCustomer}
                             openCargoWithFilters={openCargoWithFilters}
                             openCargoFromChat={openCargoFromChat}
                             openCargoFromDocuments={openCargoFromDocuments}
@@ -2031,7 +1423,6 @@ function AppRoot() {
                         setIsOfferOpen={setIsOfferOpen}
                         setIsPersonalConsentOpen={setIsPersonalConsentOpen}
                         openSecretPinModal={openSecretPinModal}
-                        openWildberries={() => setActiveTab(WB_TAB)}
                         CargoDetailsModal={CargoDetailsModal}
                         CargoPageComponent={CargoPage}
                         DashboardPageComponent={DashboardPage}
