@@ -16,9 +16,19 @@ import {
 import { normCargoKey } from "../lib/documentsPipeline";
 import { pickNomenclatureText } from "../../../lib/sanctions";
 import {
+  getRequestParcels,
+  getParcelTnvedCode,
+  getParcelSanctionResult,
+  getParcelSearchText,
 } from "./sendingsParcelHelpers";
 import { getSendingRowTransportMode } from "./sendingsTransportHelpers";
 import { SendingsSanctionBadge } from "./SendingsSanctionBadge";
+import {
+  getSendingRowKey,
+  getSendingsAnalyticsExtraColCount,
+} from "./sendingsRowHelpers";
+import { getSendingRowParcelMetrics } from "./sendingsMetrics";
+import type { SendingsRowRuntime } from "./sendingsRowRuntime";
 import { DocumentsRouteBadge } from "../views/documentsViewBlocks";
 import { SendingsBulkActionsBar } from "./SendingsBulkActionsBar";
 import type { EorStatus } from "./sendingsTypes";
@@ -43,16 +53,11 @@ export type SendingsSectionProps = {
   canEditPlanDate: any;
   canRunSanctionsCheck: any;
   sendingRowsSorted: any;
+  sendingsRowRuntime: SendingsRowRuntime;
   normalizeTransportDisplay: any;
-  getSendingRowKey: any;
   effectiveSearchText: any;
-  getSendingStatusKey: any;
-  getSendingTransitHours: any;
-  getSendingTransitIsFinal: any;
-  getSendingPlannedArrivalDate: any;
   expandedSendingRow: any;
   setExpandedSendingRow: React.Dispatch<React.SetStateAction<string | null>>;
-  getSendingRowParcelMetrics: any;
   cargoSumByNumber: any;
   sendingSanctionMap: Record<string, SanctionCheckResult>;
   eorStatusMap: any;
@@ -71,7 +76,6 @@ export type SendingsSectionProps = {
   sendingsSummarySortColumn: any;
   sendingsSummarySortOrder: any;
   handleSendingsSummarySort: (column: 'index' | 'cargo' | 'status' | 'count' | 'volume' | 'weight' | 'paidWeight' | 'customer' | 'density') => void;
-  sendingsAnalyticsExtraColCount: any;
   cargoStateByNumber: any;
   cargoPlanDateByNumber: Map<string, string>;
   cargoReceiverByNumber: any;
@@ -128,16 +132,11 @@ export function SendingsSection({
   canEditPlanDate,
   canRunSanctionsCheck,
   sendingRowsSorted,
+  sendingsRowRuntime,
   normalizeTransportDisplay,
-  getSendingRowKey,
   effectiveSearchText,
-  getSendingStatusKey,
-  getSendingTransitHours,
-  getSendingTransitIsFinal,
-  getSendingPlannedArrivalDate,
   expandedSendingRow,
   setExpandedSendingRow,
-  getSendingRowParcelMetrics,
   cargoSumByNumber,
   sendingSanctionMap,
   eorStatusMap,
@@ -156,7 +155,6 @@ export function SendingsSection({
   sendingsSummarySortColumn,
   sendingsSummarySortOrder,
   handleSendingsSummarySort,
-  sendingsAnalyticsExtraColCount,
   cargoStateByNumber,
   cargoPlanDateByNumber,
   cargoReceiverByNumber,
@@ -193,6 +191,7 @@ export function SendingsSection({
   applyByCustomerPlanDate,
   auth,
 }: SendingsSectionProps) {
+  const sendingsAnalyticsExtraColCount = getSendingsAnalyticsExtraColCount(hasAnalytics, showSums);
   return (
                 <AnimatePresence mode="wait">
                 {tableModeEffective ? (
@@ -250,12 +249,12 @@ export function SendingsSection({
                                 const hasParcelSearchMatches = !!searchLower && parcelMatches.length > 0;
                                 const parcelsToRender = hasParcelSearchMatches ? parcelMatches : parcels;
                                 const transportType = getSendingRowTransportMode(row, vehicle);
-                                const sendingStatusKey = getSendingStatusKey(row);
+                                const sendingStatusKey = sendingsRowRuntime.getSendingStatusKey(row);
                                 const sendingStatusLabel = sendingStatusKey === 'all' ? '' : STATUS_MAP[sendingStatusKey];
-                                const transitHours = getSendingTransitHours(row);
+                                const transitHours = sendingsRowRuntime.getSendingTransitHours(row);
                                 const transitDays = transitHours == null ? null : Math.round((transitHours / 24) * 10) / 10;
-                                const isFinalTransit = getSendingTransitIsFinal(row);
-                                const plannedArrivalDate = getSendingPlannedArrivalDate(row);
+                                const isFinalTransit = sendingsRowRuntime.getSendingTransitIsFinal(row);
+                                const plannedArrivalDate = sendingsRowRuntime.getSendingPlannedArrivalDate(row);
                                 const routeFrom = String(row?.ПунктОтправленияГородАэропорт ?? row?.CitySender ?? row?.ГородОтправления ?? '').trim();
                                 const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
                                 const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
@@ -1056,12 +1055,12 @@ export function SendingsSection({
                             const hasParcelSearchMatches = !!searchLower && parcelMatches.length > 0;
                             const parcelsToRender = hasParcelSearchMatches ? parcelMatches : parcels;
                             const transportType = getSendingRowTransportMode(row, vehicle);
-                            const sendingStatusKey = getSendingStatusKey(row);
+                            const sendingStatusKey = sendingsRowRuntime.getSendingStatusKey(row);
                             const sendingStatusLabel = sendingStatusKey === 'all' ? '' : STATUS_MAP[sendingStatusKey];
-                            const transitHours = getSendingTransitHours(row);
+                            const transitHours = sendingsRowRuntime.getSendingTransitHours(row);
                             const transitDays = transitHours == null ? null : Math.round((transitHours / 24) * 10) / 10;
-                            const isFinalTransit = getSendingTransitIsFinal(row);
-                            const plannedArrivalDate = getSendingPlannedArrivalDate(row);
+                            const isFinalTransit = sendingsRowRuntime.getSendingTransitIsFinal(row);
+                            const plannedArrivalDate = sendingsRowRuntime.getSendingPlannedArrivalDate(row);
                             const routeFrom = String(row?.ПунктОтправленияГородАэропорт ?? row?.CitySender ?? row?.ГородОтправления ?? '').trim();
                             const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
                             const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';

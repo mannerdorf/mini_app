@@ -22,6 +22,9 @@ import {
     useSendingsSortState,
     getSendingSanctionResult,
     getParcelSearchText,
+    useSendingsRowRuntime,
+    useSendingsStatusKeyResolver,
+    useSendingsVisibleMeta,
     type EorStatus,
 } from "../features/documents/sendings";
 import { DateText } from "../components/ui/DateText";
@@ -1345,33 +1348,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         });
         return m;
     }, [perevozkiItems, parseDateTimeValue, normCargoKey]);
-    const pickSendingTransitStopDate = useCallback((
-        cargoNumbers: string[],
-        rowStatusKey: StatusFilter,
-        rowStopDate: Date | null,
-        explicitEnd: Date | null,
-        start: Date,
-    ): { frozen: boolean; end: Date } => {
-        let readyStopDate: Date | null = null;
-        cargoNumbers.forEach((cargoNumber) => {
-            const statusKey = getFilterKeyByStatus(String(cargoStateByNumber.get(normCargoKey(cargoNumber)) ?? ''));
-            if (statusKey !== 'ready' && statusKey !== 'delivered') return;
-            const cargoStopDate = cargoStopDateByNumber.get(normCargoKey(cargoNumber))
-                ?? cargoStopDateByNumber.get(cargoNumber);
-            if (!cargoStopDate) return;
-            if (cargoStopDate.getTime() < start.getTime()) return;
-            if (!readyStopDate || cargoStopDate.getTime() < readyStopDate.getTime()) {
-                readyStopDate = cargoStopDate;
-            }
-        });
-        const hasReadyStatusInRow = rowStatusKey === 'ready' || rowStatusKey === 'delivered';
-        const frozen = readyStopDate != null || hasReadyStatusInRow;
-        if (frozen) {
-            const end = readyStopDate ?? rowStopDate ?? explicitEnd ?? start;
-            return { frozen: true, end };
-        }
-        return { frozen: false, end: explicitEnd ?? new Date() };
-    }, [cargoStateByNumber, cargoStopDateByNumber, normCargoKey]);
     const cargoPlanDateByNumber = useMemo(() => {
         const m = new Map<string, Date>();
         const plannedKeys = [
@@ -1434,109 +1410,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         });
         return m;
     }, [perevozkiItems, parseDateTimeValue, normCargoKey]);
-    const getSendingCargoNumbers = useCallback((row: any): string[] => {
-        const numbers: string[] = [];
-        const add = (value: unknown) => {
-            const v = String(value ?? '').trim();
-            if (v) numbers.push(v);
-        };
-        add(row?.НомерПеревозки);
-        add(row?.CargoNumber);
-        add(row?.NumberPerevozki);
-        add(row?.ИДОтправления);
-        add(row?.Номер);
-        add(row?.Number);
-        add(row?.number);
-        const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
-        const parcels = Array.isArray(rawParcels)
-            ? rawParcels
-            : (rawParcels && typeof rawParcels === 'object'
-                ? Object.values(rawParcels as Record<string, any>)
-                : []);
-        parcels.forEach((parcel: any) => {
-            add(parcel?.Перевозка);
-            add(parcel?.ИДОтправления);
-            add(parcel?.НомерПеревозки);
-            add(parcel?.CargoNumber);
-            add(parcel?.NumberPerevozki);
-            const goodsRaw = parcel?.Товары;
-            const goods = Array.isArray(goodsRaw)
-                ? (goodsRaw[0] ?? {})
-                : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : null);
-            if (goods && typeof goods === 'object') {
-                add((goods as any)?.Перевозка);
-                add((goods as any)?.ИДОтправления);
-                add((goods as any)?.НомерПеревозки);
-                add((goods as any)?.CargoNumber);
-                add((goods as any)?.NumberPerevozki);
-            }
-        });
-        return Array.from(new Set(numbers));
-    }, []);
-    const getSendingPlannedArrivalDate = useCallback((row: any): Date | null => {
-        try {
-            const plannedKeys = [
-                'ДатаПрибытияПлан', 'ДатаДоставкиПлан', 'ПланДатаПрибытия', 'ПлановаяДатаПрибытия', 'ПлановаяДатаДоставки',
-                'DateArrivalPlan', 'DateDeliveryPlan', 'DeliveryDatePlan', 'PlannedDeliveryDate', 'PlanDeliveryDate',
-                'DateArrival', 'PlanDate', 'DateVrPlan', 'DatePrihPlan',
-                'ПланируемаяДата', 'ДатаПланируемойДоставки', 'ПланДатаДоставки', 'ПлановаяДата',
-                'PlannedArrivalDate', 'PlannedDate', 'DatePlan', 'ПланДата',
-            ];
-            const dates: Date[] = [];
-            const addDate = (value: unknown) => {
-                const parsed = parseDateTimeValue(value);
-                if (parsed && parsed.getFullYear() >= 1990) dates.push(parsed);
-            };
-            const collectFrom = (obj: any) => {
-                if (!obj || typeof obj !== 'object') return;
-                plannedKeys.forEach((k) => addDate(obj?.[k]));
-            };
-
-            collectFrom(row);
-            const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
-            const parcels = Array.isArray(rawParcels)
-                ? rawParcels
-                : (rawParcels && typeof rawParcels === 'object'
-                    ? Object.values(rawParcels as Record<string, any>)
-                    : []);
-            parcels.forEach((parcel: any) => {
-                collectFrom(parcel);
-                const goodsRaw = parcel?.Товары ?? parcel?.Goods ?? parcel?.goods;
-                if (Array.isArray(goodsRaw)) {
-                    goodsRaw.forEach((g) => collectFrom(g));
-                } else if (goodsRaw && typeof goodsRaw === 'object') {
-                    Object.values(goodsRaw as Record<string, any>).forEach((g) => collectFrom(g));
-                }
-            });
-
-            if (dates.length === 0) {
-                const cargoNumbers = getSendingCargoNumbers(row);
-                cargoNumbers.forEach((num) => {
-                    const key = normCargoKey(num);
-                    const planDate = cargoPlanDateByNumber.get(key) ?? cargoPlanDateByNumber.get(num);
-                    if (planDate) dates.push(planDate);
-                });
-            }
-            if (dates.length === 0) {
-                const sendingIds = [
-                    row?.Номер ?? row?.Number ?? row?.number,
-                    row?.ИДОтправления ?? row?.ID ?? row?.Id,
-                ].filter((v) => v != null && String(v).trim());
-                sendingIds.forEach((id) => {
-                    const key = normCargoKey(String(id));
-                    const planDate = sendingPlanDateBySendingId.get(key) ?? sendingPlanDateBySendingId.get(String(id));
-                    if (planDate) dates.push(planDate);
-                });
-            }
-
-            if (dates.length === 0) return null;
-            const minDate = dates.reduce((min, d) => (d.getTime() < min.getTime() ? d : min), dates[0]);
-            if (minDate.getFullYear() < 1990) return null;
-            return minDate;
-        } catch {
-            return null;
-        }
-    }, [parseDateTimeValue, getSendingCargoNumbers, cargoPlanDateByNumber, sendingPlanDateBySendingId, normCargoKey]);
+    const getSendingStatusKey = useSendingsStatusKeyResolver({ cargoStateByNumber, normCargoKey });
     const cargoCustomerByNumber = useMemo(() => {
         const m = new Map<string, string>();
         (perevozkiItems || []).forEach((c: any) => {
@@ -2032,141 +1906,18 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             sendingRowMatchesTransportFilter(row, transportFilter, transportLinkedCargoNumbers),
         );
     }, [sendingsForTransportOptions, transportFilter, transportLinkedCargoNumbers]);
-    /** Все перевозки на одном ТС в текущей выборке (для остановки таймера «в пути»). */
-    const vehicleFreightCargoNumbers = useMemo(() => {
-        const m = new Map<string, Set<string>>();
-        (filteredSendings || []).forEach((row: any) => {
-            const vehicle = normalizeTransportDisplay(
-                row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '',
-            );
-            if (!vehicle) return;
-            const bucket = m.get(vehicle) ?? new Set<string>();
-            collectSendingFreightCargoNumbers(row).forEach((num) => bucket.add(num));
-            m.set(vehicle, bucket);
-        });
-        return m;
-    }, [filteredSendings, normalizeTransportDisplay]);
-    const getSendingTransitHours = useCallback((row: any): number | null => {
-        const start = parseDateTimeValue(
-            row?.DateOtpr
-            ?? row?.DateSend
-            ?? row?.DateShipment
-            ?? row?.ShipmentDate
-            ?? row?.ДатаОтправки
-            ?? row?.ДатаОтгрузки
-            ?? row?.DateDoc
-            ?? row?.Date
-            ?? row?.date
-            ?? row?.Дата
-        );
-        if (!start) return null;
-        const rowStatusKey = getFilterKeyByStatus(
-            String(
-                row?.State
-                ?? row?.state
-                ?? row?.Статус
-                ?? row?.Status
-                ?? row?.StatusName
-                ?? ''
-            )
-        );
-        const rowStopDate = parseDateTimeValue(
-            row?.StatusDate
-            ?? row?.DateStatus
-            ?? row?.DateState
-            ?? row?.UpdatedAt
-            ?? row?.updated_at
-            ?? row?.ДатаСтатуса
-            ?? row?.ДатаИзменения
-        );
-        const explicitEnd = parseDateTimeValue(
-            row?.DatePrih
-            ?? row?.DateVr
-            ?? row?.DateDelivery
-            ?? row?.DeliveryDate
-            ?? row?.ДатаДоставки
-            ?? row?.ДатаПрибытия
-        );
-        const cargoNumbers = (() => {
-            const vehicle = normalizeTransportDisplay(
-                row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '',
-            );
-            const rowNumbers = collectSendingFreightCargoNumbers(row);
-            if (!vehicle) return rowNumbers;
-            const onVehicle = vehicleFreightCargoNumbers.get(vehicle);
-            if (!onVehicle?.size) return rowNumbers;
-            return Array.from(onVehicle);
-        })();
-        const { end } = pickSendingTransitStopDate(
-            cargoNumbers,
-            rowStatusKey,
-            rowStopDate,
-            explicitEnd,
-            start,
-        );
-        const diffMs = end.getTime() - start.getTime();
-        if (!Number.isFinite(diffMs) || diffMs < 0) return null;
-        return Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
-    }, [parseDateTimeValue, pickSendingTransitStopDate, normalizeTransportDisplay, vehicleFreightCargoNumbers]);
-    const getSendingTransitIsFinal = useCallback((row: any): boolean => {
-        const start = parseDateTimeValue(
-            row?.DateOtpr
-            ?? row?.DateSend
-            ?? row?.DateShipment
-            ?? row?.ShipmentDate
-            ?? row?.ДатаОтправки
-            ?? row?.ДатаОтгрузки
-            ?? row?.DateDoc
-            ?? row?.Date
-            ?? row?.date
-            ?? row?.Дата
-        );
-        if (!start) return false;
-        const rowStatusKey = getFilterKeyByStatus(
-            String(
-                row?.State
-                ?? row?.state
-                ?? row?.Статус
-                ?? row?.Status
-                ?? row?.StatusName
-                ?? ''
-            )
-        );
-        const rowStopDate = parseDateTimeValue(
-            row?.StatusDate
-            ?? row?.DateStatus
-            ?? row?.DateState
-            ?? row?.UpdatedAt
-            ?? row?.updated_at
-            ?? row?.ДатаСтатуса
-            ?? row?.ДатаИзменения
-        );
-        const explicitEnd = parseDateTimeValue(
-            row?.DatePrih
-            ?? row?.DateVr
-            ?? row?.DateDelivery
-            ?? row?.DeliveryDate
-            ?? row?.ДатаДоставки
-            ?? row?.ДатаПрибытия
-        );
-        const cargoNumbers = (() => {
-            const vehicle = normalizeTransportDisplay(
-                row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '',
-            );
-            const rowNumbers = collectSendingFreightCargoNumbers(row);
-            if (!vehicle) return rowNumbers;
-            const onVehicle = vehicleFreightCargoNumbers.get(vehicle);
-            if (!onVehicle?.size) return rowNumbers;
-            return Array.from(onVehicle);
-        })();
-        return pickSendingTransitStopDate(
-            cargoNumbers,
-            rowStatusKey,
-            rowStopDate,
-            explicitEnd,
-            start,
-        ).frozen;
-    }, [parseDateTimeValue, pickSendingTransitStopDate, normalizeTransportDisplay, vehicleFreightCargoNumbers]);
+
+    const sendingsRowRuntime = useSendingsRowRuntime({
+        filteredSendings,
+        normCargoKey,
+        parseDateTimeValue,
+        normalizeTransportDisplay,
+        cargoStateByNumber,
+        cargoStopDateByNumber,
+        cargoPlanDateByNumber,
+        sendingPlanDateBySendingId,
+    });
+    const { getSendingTransitHours, getSendingTransitIsFinal } = sendingsRowRuntime;
     const sendingsInitialLoading = sendingsLoading && (sendingsItems?.length ?? 0) === 0;
     const sendingsSummary = useMemo(() => buildDocsSummary(filteredSendings), [filteredSendings]);
     const filteredTariffs = useMemo(() => {
@@ -2321,35 +2072,6 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
         () => extractCustomerClaimPayloadFromEvents(Array.isArray(claimsDetailData?.events) ? claimsDetailData.events : []),
         [claimsDetailData?.events]
     );
-    const getSendingStatusKey = useCallback((row: any): StatusFilter => {
-        const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
-        const firstParcel = Array.isArray(rawParcels)
-            ? rawParcels[0]
-            : (rawParcels && typeof rawParcels === 'object'
-                ? Object.values(rawParcels as Record<string, any>)[0]
-                : undefined);
-        const cargoNumber = String(
-            row?.НомерПеревозки
-            ?? row?.Перевозка
-            ?? row?.CargoNumber
-            ?? row?.NumberPerevozki
-            ?? (firstParcel as any)?.Перевозка
-            ?? ''
-        ).trim();
-        const cargoStatus = cargoNumber ? cargoStateByNumber.get(normCargoKey(cargoNumber)) : undefined;
-        return getFilterKeyByStatus(
-            String(
-                cargoStatus
-                ?? row?.State
-                ?? row?.state
-                ?? row?.Статус
-                ?? row?.Status
-                ?? row?.StatusName
-                ?? ''
-            )
-        );
-    }, [cargoStateByNumber, normCargoKey]);
-
     const groupedByCustomer = useMemo(() => {
         const map = new Map<string, { customer: string; items: any[]; sum: number }>();
         filteredItems.forEach(inv => {
@@ -2808,26 +2530,7 @@ useEffect(() => {
         setOrdersParcelsSortColumn(column);
         setOrdersParcelsSortOrder('asc');
     }, [ordersParcelsSortColumn]);
-    const sendingsAnalyticsExtraColCount = hasAnalytics ? (2 + (showSums ? 2 : 0)) : 0;
-    const getSendingRowKey = useCallback((row: any, idx: number): string => {
-        const number = String(row?.Номер ?? row?.Number ?? row?.number ?? '').trim();
-        return number || `${idx}`;
-    }, []);
-    const visibleSendingMeta = useMemo(
-        () =>
-            sendingRowsSorted.map((row: any, idx: number) => {
-                const rawDate = row?.Дата ?? row?.Date ?? row?.date ?? '';
-                const sendingNumber = String(row?.Номер ?? row?.Number ?? row?.number ?? '').trim();
-                return {
-                    rowKey: getSendingRowKey(row, idx),
-                    row,
-                    sendingNumber,
-                    sendingDate: rawDate ? String(rawDate) : '',
-                    cargoNumbers: getSendingCargoNumbers(row),
-                };
-            }),
-        [sendingRowsSorted, getSendingRowKey, getSendingCargoNumbers]
-    );
+    const visibleSendingMeta = useSendingsVisibleMeta(sendingRowsSorted);
     const {
         selectedSendingRowKeys,
         setSelectedSendingRowKeys,
@@ -2938,16 +2641,11 @@ useEffect(() => {
         canEditPlanDate: canEditPlanDate,
         canRunSanctionsCheck: canRunSanctionsCheck,
         sendingRowsSorted: sendingRowsSorted,
+        sendingsRowRuntime: sendingsRowRuntime,
         normalizeTransportDisplay: normalizeTransportDisplay,
-        getSendingRowKey: getSendingRowKey,
         effectiveSearchText: effectiveSearchText,
-        getSendingStatusKey: getSendingStatusKey,
-        getSendingTransitHours: getSendingTransitHours,
-        getSendingTransitIsFinal: getSendingTransitIsFinal,
-        getSendingPlannedArrivalDate: getSendingPlannedArrivalDate,
         expandedSendingRow: expandedSendingRow,
         setExpandedSendingRow: setExpandedSendingRow,
-        getSendingRowParcelMetrics: getSendingRowParcelMetrics,
         cargoSumByNumber: cargoSumByNumber,
         sendingSanctionMap: sendingSanctionMap,
         eorStatusMap: eorStatusMap,
@@ -2966,7 +2664,6 @@ useEffect(() => {
         sendingsSummarySortColumn: sendingsSummarySortColumn,
         sendingsSummarySortOrder: sendingsSummarySortOrder,
         handleSendingsSummarySort: handleSendingsSummarySort,
-        sendingsAnalyticsExtraColCount: sendingsAnalyticsExtraColCount,
         cargoStateByNumber: cargoStateByNumber,
         cargoPlanDateByNumber: cargoPlanDateByNumber,
         cargoReceiverByNumber: cargoReceiverByNumber,
