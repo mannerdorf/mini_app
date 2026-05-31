@@ -8,7 +8,7 @@
 
 | Commit | Phase | Summary |
 |--------|-------|---------|
-| (pending) | 4.20 | claim detail + postAdminClaimUpdate |
+| `b5fb1532` | 4.20 | claim detail + postAdminClaimUpdate |
 | `81f61df0` | 4.19 | sverki update/delete mutations API |
 | `80ce784a` | 4.18 | auto-register candidates API |
 | `a2b3d8e9` | 4.17 | admin claims list API |
