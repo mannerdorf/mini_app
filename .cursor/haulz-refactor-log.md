@@ -8,9 +8,9 @@
 
 | Commit | Phase | Summary |
 |--------|-------|---------|
-| (pending) | 3.20 | transport helpers + DocumentsPage wiring |
-| (pending) | 3.19 | SendingsSanctionBadge + SendingsSection imports |
-| (pending) | 3.18 | sendingsParcelHelpers |
+| `39d70bf5` | 3.20 | transport helpers + DocumentsPage wiring |
+| `e4549c9b` | 3.19 | SendingsSanctionBadge + SendingsSection imports |
+| `ebbdda10` | 3.18 | sendingsParcelHelpers |
 | `e899fd01` | 3.17 | useSendingsSortState + DocumentsPage wiring |
 
 ## Metrics
