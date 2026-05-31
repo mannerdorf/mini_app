@@ -1,4 +1,5 @@
 import React, { FormEvent, Suspense, lazy, useCallback, useEffect, useState } from "react";
+import { Button, Container, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 import { HaulzBrandLogo } from "./HaulzBrandLogo";
 import { LegalModal } from "./modals/LegalModal";
 import { PUBLIC_OFFER_TEXT, PERSONAL_DATA_CONSENT_TEXT } from "../constants/legalTexts";
