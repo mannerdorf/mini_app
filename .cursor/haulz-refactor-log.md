@@ -2,27 +2,26 @@
 
 ## Last updated
 
-2026-05-31 — batch 3.21–3.23 (sendings row helpers)
+2026-05-31 — batch 3.24–3.26 (sendings sort/filter pipeline)
 
 ## Completed slices (newest first)
 
 | Commit | Phase | Summary |
 |--------|-------|---------|
-| `4ce52767` | 3.23 | useSendingsRowRuntime + DocumentsPage wiring |
-| `f6fb4b8e` | 3.22 | sendingsRowRuntime transit/status/planned-date |
-| `7dbc7149` | 3.21 | sendingsRowHelpers |
-| `39d70bf5` | 3.20 | transport helpers + parcel wiring |
+| (pending) | 3.26 | useSendingsListPipeline + DocumentsPage wiring |
+| (pending) | 3.25 | sendingsInfographicData + sendingsListTotals |
+| (pending) | 3.24 | sendingsSortFilter |
+| `7b14a875` | 3.23 | useSendingsRowRuntime + DocumentsPage wiring |
 
 ## Metrics
 
-- `DocumentsPage.tsx`: **~6460 → ~6157** lines (−303 row/status/transit helpers)
-- `SendingsSection` props: **82 → 76** (`sendingsRowRuntime` bundles 6 getters)
-- New: `sendingsRowHelpers`, `sendingsRowRuntime`, `useSendingsRowRuntime`
+- `DocumentsPage.tsx`: **~6157 → ~6037** lines (−120 sort/infographic/totals)
+- New: `sendingsSortFilter`, `sendingsInfographicData`, `sendingsListTotals`, `useSendingsListPipeline`
 
 ## Next slice
 
-- **ID:** `3.24-sendings-sort-filter` or `3.10-claims-ui`
-- **Task:** extract `sendingRowsSorted`, `sendingsInfographic`, delivery status filter logic
+- **ID:** `3.27-sendings-base-filter` or `3.10-claims-ui`
+- **Task:** extract `sendingsForTransportOptions`, `filteredSendings`, transport route options
 - **Then:** phase 4.4 admin audit API
 
 ## Blockers

@@ -46,3 +46,17 @@ export {
   useSendingsStatusKeyResolver,
   useSendingsPlannedArrivalResolver,
 } from "./useSendingsRowRuntime";
+export {
+  filterSendingsByDeliveryStatus,
+  sortSendingRows,
+  buildSortedSendingRows,
+} from "./sendingsSortFilter";
+export type { SortSendingRowsOptions } from "./sendingsSortFilter";
+export { buildSendingsInfographicData } from "./sendingsInfographicData";
+export {
+  buildSendingsTableTotals,
+  buildSendingsVehicleSummary,
+  getSendingVehicleLabel,
+} from "./sendingsListTotals";
+export type { SendingsTableTotals } from "./sendingsListTotals";
+export { useSendingsListPipeline } from "./useSendingsListPipeline";

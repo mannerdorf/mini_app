@@ -25,6 +25,7 @@ import {
     useSendingsRowRuntime,
     useSendingsStatusKeyResolver,
     useSendingsVisibleMeta,
+    useSendingsListPipeline,
     type EorStatus,
 } from "../features/documents/sendings";
 import { DateText } from "../components/ui/DateText";
@@ -1918,6 +1919,24 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
         sendingPlanDateBySendingId,
     });
     const { getSendingTransitHours, getSendingTransitIsFinal } = sendingsRowRuntime;
+
+    const {
+        sendingRowsSorted,
+        sendingsInfographic,
+        sendingsTableTotals,
+        sendingsRepeatedVehicleTotals,
+        sendingsVehicleGrandTotals,
+    } = useSendingsListPipeline({
+        filteredSendings,
+        deliveryStatusFilterSet,
+        getSendingStatusKey,
+        sendingsSortColumn,
+        sendingsSortOrder,
+        normalizeTransportDisplay,
+        getSendingTransitHours,
+        cargoSumByNumber,
+        hasAnalytics,
+    });
     const sendingsInitialLoading = sendingsLoading && (sendingsItems?.length ?? 0) === 0;
     const sendingsSummary = useMemo(() => buildDocsSummary(filteredSendings), [filteredSendings]);
     const filteredTariffs = useMemo(() => {
@@ -2375,145 +2394,6 @@ useEffect(() => {
             return ordersSortOrder === 'asc' ? cmp : -cmp;
         });
     }, [filteredOrders, ordersSortColumn, ordersSortOrder]);
-    const sendingRowsSorted = useMemo(() => {
-        const statusFilteredRows = deliveryStatusFilterSet.size > 0
-            ? filteredSendings.filter((row: any) => deliveryStatusFilterSet.has(getSendingStatusKey(row)))
-            : filteredSendings;
-        const getDate = (row: any) => String(row?.Дата ?? row?.Date ?? row?.date ?? "");
-        const getNumber = (row: any) => String(row?.Номер ?? row?.Number ?? row?.number ?? "");
-        const getRoute = (row: any) => {
-            const routeFrom = String(row?.ПунктОтправленияГородАэропорт ?? row?.CitySender ?? row?.ГородОтправления ?? '').trim();
-            const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
-            return [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '';
-        };
-        const getType = (row: any) => {
-            const vehicle = normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? "");
-            const hasPlate = /[A-ZА-Я][0-9]{3}[A-ZА-Я]{2}(?:\s*\/?\s*[0-9]{2,3})?/u.test(vehicle.toUpperCase());
-            return hasPlate ? 'авто' : 'паром';
-        };
-        const getTransitHours = (row: any) => getSendingTransitHours(row) ?? -1;
-        const getVehicle = (row: any) => normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? "");
-        const getComment = (row: any) => String(row?.Комментарий ?? row?.Comment ?? "");
-        const getPaidWeight = (row: any) => getSendingRowParcelMetrics(row, cargoSumByNumber).paidWeight;
-        const getCost = (row: any) => getSendingRowParcelMetrics(row, cargoSumByNumber).cost;
-        const getDeclaredCost = (row: any) => getSendingRowParcelMetrics(row, cargoSumByNumber).declaredCost;
-        return [...statusFilteredRows].sort((a, b) => {
-            let cmp = 0;
-            switch (sendingsSortColumn) {
-                case 'date':
-                    cmp = getDate(a).localeCompare(getDate(b));
-                    break;
-                case 'number':
-                    cmp = getNumber(a).localeCompare(getNumber(b), undefined, { numeric: true });
-                    break;
-                case 'route':
-                    cmp = getRoute(a).localeCompare(getRoute(b));
-                    break;
-                case 'type':
-                    cmp = getType(a).localeCompare(getType(b));
-                    break;
-                case 'transitHours':
-                    cmp = getTransitHours(a) - getTransitHours(b);
-                    break;
-                case 'vehicle':
-                    cmp = getVehicle(a).localeCompare(getVehicle(b));
-                    break;
-                case 'comment':
-                    cmp = getComment(a).localeCompare(getComment(b));
-                    break;
-                case 'paidWeight':
-                    cmp = getPaidWeight(a) - getPaidWeight(b);
-                    break;
-                case 'cost':
-                    cmp = getCost(a) - getCost(b);
-                    break;
-                case 'declaredCost':
-                    cmp = getDeclaredCost(a) - getDeclaredCost(b);
-                    break;
-            }
-            return sendingsSortOrder === 'asc' ? cmp : -cmp;
-        });
-    }, [filteredSendings, deliveryStatusFilterSet, getSendingStatusKey, sendingsSortColumn, sendingsSortOrder, normalizeTransportDisplay, getSendingTransitHours, cargoSumByNumber]);
-    const sendingsInfographic = useMemo(() => {
-        let ferry = 0;
-        let auto = 0;
-        const byRoute = new Map<string, number>();
-        const statusCounts: Record<'in_transit' | 'ready' | 'delivering' | 'delivered', number> = {
-            in_transit: 0,
-            ready: 0,
-            delivering: 0,
-            delivered: 0,
-        };
-        sendingRowsSorted.forEach((row: any) => {
-            const vehicle = normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? "");
-            const hasPlate = /[A-ZА-Я][0-9]{3}[A-ZА-Я]{2}(?:\s*\/?\s*[0-9]{2,3})?/u.test(vehicle.toUpperCase());
-            if (hasPlate) auto += 1;
-            else ferry += 1;
-            const statusKey = getSendingStatusKey(row);
-            if (statusKey === 'in_transit' || statusKey === 'ready' || statusKey === 'delivering' || statusKey === 'delivered') {
-                statusCounts[statusKey] += 1;
-            }
-            const routeFrom = String(row?.ПунктОтправленияГородАэропорт ?? row?.CitySender ?? row?.ГородОтправления ?? '').trim();
-            const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
-            const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
-            byRoute.set(route, (byRoute.get(route) ?? 0) + 1);
-        });
-        const knownTotal = statusCounts.in_transit + statusCounts.ready + statusCounts.delivering + statusCounts.delivered;
-        const total = knownTotal || 1;
-        const statusBadges = [
-            { key: 'in_transit', label: STATUS_MAP.in_transit, count: statusCounts.in_transit, color: '#2563eb', bg: 'rgba(37,99,235,0.12)' },
-            { key: 'ready', label: STATUS_MAP.ready, count: statusCounts.ready, color: '#7c3aed', bg: 'rgba(124,58,237,0.12)' },
-            { key: 'delivering', label: STATUS_MAP.delivering, count: statusCounts.delivering, color: '#d97706', bg: 'rgba(217,119,6,0.12)' },
-            { key: 'delivered', label: STATUS_MAP.delivered, count: statusCounts.delivered, color: '#16a34a', bg: 'rgba(22,163,74,0.12)' },
-        ]
-            .filter((s) => s.count > 0)
-            .map((s) => ({ ...s, percent: Math.round((s.count / total) * 1000) / 10 }));
-        const routes = [...byRoute.entries()]
-            .map(([route, count]) => ({ route, count }))
-            .sort((a, b) => b.count - a.count || a.route.localeCompare(b.route, 'ru'));
-        return { ferry, auto, routes, statusBadges };
-    }, [sendingRowsSorted, normalizeTransportDisplay, getSendingStatusKey]);
-    const getSendingVehicleLabel = useCallback(
-        (row: any) =>
-            normalizeTransportDisplay(
-                row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? ""
-            ) || "—",
-        [normalizeTransportDisplay]
-    );
-    const sendingsTotalsByVehicle = useMemo(() => {
-        if (!hasAnalytics) return [];
-        return buildSendingsTotalsByVehicle(sendingRowsSorted, getSendingVehicleLabel, cargoSumByNumber);
-    }, [hasAnalytics, sendingRowsSorted, getSendingVehicleLabel, cargoSumByNumber]);
-    /** Сводка по ТС — только если в периоде 2+ отправки на одно ТС. */
-    const sendingsRepeatedVehicleTotals = useMemo(
-        () => sendingsTotalsByVehicle.filter((row) => row.sendingsCount >= 2),
-        [sendingsTotalsByVehicle],
-    );
-    const sendingsVehicleGrandTotals = useMemo(() => {
-        return sendingsRepeatedVehicleTotals.reduce(
-            (acc, row) => {
-                acc.sendingsCount += row.sendingsCount;
-                acc.paidWeight += row.paidWeight;
-                acc.cost += row.cost;
-                acc.declaredCost += row.declaredCost;
-                return acc;
-            },
-            { sendingsCount: 0, paidWeight: 0, cost: 0, declaredCost: 0 }
-        );
-    }, [sendingsRepeatedVehicleTotals]);
-    const sendingsTableTotals = useMemo(() => {
-        return sendingRowsSorted.reduce(
-            (acc, row: any) => {
-                const metrics = getSendingRowParcelMetrics(row, cargoSumByNumber);
-                acc.sendingsCount += 1;
-                acc.paidWeight += metrics.paidWeight;
-                acc.cost += metrics.cost;
-                acc.declaredCost += metrics.declaredCost;
-                return acc;
-            },
-            { sendingsCount: 0, paidWeight: 0, cost: 0, declaredCost: 0 }
-        );
-    }, [sendingRowsSorted, cargoSumByNumber]);
     const handleOrdersSort = useCallback((column: 'date' | 'number' | 'clientNumber' | 'pickupDate' | 'cargo' | 'sender' | 'receiver' | 'route' | 'customer' | 'comment') => {
         if (ordersSortColumn === column) {
             setOrdersSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
