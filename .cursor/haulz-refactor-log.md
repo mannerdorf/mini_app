@@ -8,7 +8,7 @@
 
 | Commit | Phase | Summary |
 |--------|-------|---------|
-| (pending) | 5.3–5.5 | AppMainContent useAuth/useAppShell; LoginScreen; App cleanup |
+| `6c2d4000` | 5.3–5.5 | AppMainContent useAuth/useAppShell; LoginScreen; App cleanup |
 | `115be3d1` | 5.2 | AppShellContext + App providers |
 | `4960250c` | 5.1 | AuthContext |
 | `d028bc5a` | 4.24–4.27 | employees, timesheet, auto-register batch, pvz refresh API |
