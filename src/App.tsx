@@ -68,18 +68,16 @@ const ProfilePage = lazyWithRetry(
     "ProfilePage"
 );
 import { AppRuntimeProvider } from "./contexts/AppRuntimeContext";
+import { AuthProvider, useAuth, normalizePermissions } from "./contexts/AuthContext";
+import { AppShellProvider, useAppShell } from "./contexts/AppShellContext";
 import { shouldShowNotFound } from "./lib/notFoundRoute";
-import { getInitialAuthState } from "./lib/authState";
 import {
     WB_TAB,
     isWbOnlyAccount,
     isWildberriesTab,
-    wildberriesInitialTabFromUrl,
-    syncAppUrlWithActiveTab,
     WbOnlyAppLayout,
     useResetGlobalSearchOnWildberries,
     isGlobalSearchTab,
-    TABS_ALLOWED_ON_RESTORE,
 } from "./wb/appWb";
 import { PUBLIC_OFFER_TEXT, PERSONAL_DATA_CONSENT_TEXT } from "./constants/legalTexts";
 import { HAULZ_MAX_SUPPORT_BOT_URL, HAULZ_SPLASH_BACKGROUND, HAULZ_TG_SUPPORT_BOT_URL } from "./constants/brand";
@@ -163,33 +161,6 @@ const resolveChecked = (value: unknown): boolean => {
     return false;
 };
 
-const toBooleanPermission = (value: unknown): boolean | undefined => {
-    if (typeof value === "boolean") return value;
-    if (typeof value === "number") {
-        if (value === 1) return true;
-        if (value === 0) return false;
-        return undefined;
-    }
-    if (typeof value === "string") {
-        const normalized = value.trim().toLowerCase();
-        if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") return true;
-        if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") return false;
-    }
-    return undefined;
-};
-
-const normalizePermissions = (raw: unknown): AccountPermissions | undefined => {
-    if (!raw || typeof raw !== "object") return undefined;
-    const out: Record<string, boolean> = {};
-    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-        const boolValue = toBooleanPermission(value);
-        if (boolValue !== undefined) out[key] = boolValue;
-    }
-    if (out.dashboard === true) out.analytics = true;
-    if (out.analytics !== true) out.dashboard = false;
-    return out as AccountPermissions;
-};
-
 const getFileNameFromDisposition = (header: string | null, fallback: string) => {
     if (!header) return fallback;
     const utf8Match = header.match(/filename\*=UTF-8''([^;]+)/i);
@@ -203,20 +174,29 @@ const getFileNameFromDisposition = (header: string | null, fallback: string) => 
 
 // ================== COMPONENTS ==================
 
-export default function App() {
-    type AppTheme = "light" | "dark";
-    const [theme, setTheme] = useState<AppTheme>(() => {
-        if (typeof window === "undefined") return "light";
-        try {
-            return window.localStorage.getItem("haulz.theme") === "dark" ? "dark" : "light";
-        } catch {
-            return "light";
-        }
-    });
-    const [desktopExpanded, setDesktopExpanded] = useState<boolean>(() => {
-        if (typeof window === "undefined") return false;
-        return window.localStorage.getItem("haulz.desktop.expanded") === "true";
-    });
+function AppRoot() {
+    const {
+        accounts,
+        setAccounts,
+        activeAccountId,
+        setActiveAccountId,
+        selectedAccountIds,
+        setSelectedAccountIds,
+        auth,
+        activeAccount,
+        selectedAuths,
+        updateActiveAccountCustomer,
+    } = useAuth();
+    const {
+        theme,
+        setTheme,
+        desktopExpanded,
+        setDesktopExpanded,
+        activeTab,
+        setActiveTab,
+        hasRestoredTabRef,
+        hasUrlTabOverrideRef,
+    } = useAppShell();
 
     useEffect(() => {
         applyClientPlatformToDocument();
@@ -256,7 +236,7 @@ export default function App() {
 
             const themeHandler = () => {
                 const scheme = String((webApp as any)?.colorScheme || "").toLowerCase();
-                if (scheme === "dark" || scheme === "light") setTheme(scheme as AppTheme);
+                if (scheme === "dark" || scheme === "light") setTheme(scheme as "light" | "dark");
             };
 
             if (typeof webApp.onEvent === "function") {
@@ -289,33 +269,10 @@ export default function App() {
             mounted = false;
             cleanupHandler?.();
         };
-    }, []);
+    }, [setTheme]);
 
-    // Множественные аккаунты (синхронное восстановление из localStorage — избегаем пустой страницы при первом входе)
-    const [accounts, setAccounts] = useState<Account[]>(() => getInitialAuthState().accounts);
-    const [activeAccountId, setActiveAccountId] = useState<string | null>(() => getInitialAuthState().activeAccountId);
-    /** Выбранные компании для отображения перевозок (можно несколько) */
-    const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(() => getInitialAuthState().selectedAccountIds);
     const [useServiceRequest, setUseServiceRequest] = useState(false);
     const [serviceRefreshSpinning, setServiceRefreshSpinning] = useState(false);
-    // Вычисляем текущий активный аккаунт
-    const auth = useMemo(() => {
-        if (!activeAccountId) return null;
-        const account = accounts.find(acc => acc.id === activeAccountId);
-        if (!account || typeof account.login !== "string" || typeof account.password !== "string") return null;
-        const inn = account.activeCustomerInn ?? account.customers?.[0]?.inn ?? "";
-        const forceInn = !!account.isRegisteredUser && !account.accessAllInns && !!inn;
-        return {
-            login: account.login,
-            password: account.password,
-            ...((forceInn || account.activeCustomerInn || inn) ? { inn: inn || account.activeCustomerInn || undefined } : {}),
-            ...(account.isRegisteredUser ? { isRegisteredUser: true } : {}),
-        };
-    }, [accounts, activeAccountId]);
-    const activeAccount = useMemo(() => {
-        if (!activeAccountId) return null;
-        return accounts.find(acc => acc.id === activeAccountId) || null;
-    }, [accounts, activeAccountId]);
 
     const legalCompliance = useLegalCompliance(activeAccount);
 
@@ -323,32 +280,6 @@ export default function App() {
 
     /** Оболочка HAULZ Analytics (CSS-токены, motion на главных экранах) — для всех пользователей. */
     const profileSaasShellActive = true;
-
-    /** Аккаунты для отображения перевозок (один или несколько). У сотрудников без доступа ко всем заказчикам всегда передаём ИНН — фильтрация по компании. */
-    const selectedAuths = useMemo((): AuthData[] => {
-        const ids = selectedAccountIds.length > 0
-            ? selectedAccountIds
-            : (activeAccountId && accounts.some((a) => a.id === activeAccountId) ? [activeAccountId] : []);
-        return ids
-            .map((id) => accounts.find((acc) => acc.id === id))
-            .filter((acc): acc is Account => !!acc)
-            .map((acc) => {
-                const inn = acc.activeCustomerInn ?? acc.customers?.[0]?.inn ?? "";
-                return {
-                    login: acc.login,
-                    password: acc.password,
-                    ...(inn || acc.activeCustomerInn ? { inn: inn || acc.activeCustomerInn || undefined } : {}),
-                    ...(acc.isRegisteredUser ? { isRegisteredUser: true } : {}),
-                };
-            });
-    }, [accounts, selectedAccountIds, activeAccountId]);
-
-    // Если выбранных компаний нет, но есть активный аккаунт — подставляем его
-    useEffect(() => {
-        if (accounts.length > 0 && selectedAccountIds.length === 0 && activeAccountId && accounts.some((a) => a.id === activeAccountId)) {
-            setSelectedAccountIds([activeAccountId]);
-        }
-    }, [accounts.length, activeAccountId, selectedAccountIds.length]);
 
     // Режим сквозной выборки без жёсткой привязки к ИНН:
     // переключатель доступен только тем, у кого в админке включён «Служебный режим» (service_mode).
@@ -421,46 +352,13 @@ export default function App() {
             cancelled = true;
         };
     }, [activeAccount?.id, activeAccount?.login]);
-    const [activeTab, setActiveTab] = useState<Tab>(() => {
-        if (typeof window === "undefined") return "cargo";
-        const wbTab = wildberriesInitialTabFromUrl();
-        if (wbTab) return wbTab;
-        try {
-            const url = new URL(window.location.href);
-            const t = (url.searchParams.get("tab") || "").toLowerCase();
-            if (t === "profile") return "profile";
-            if (t === "cargo") return "cargo";
-            if (t === "home" || t === "dashboard") return "dashboard";
-            if (t === "docs") return "docs";
-            if (t === "expense_requests") return "expense_requests";
-        } catch {
-            // ignore
-        }
-        // Первый запуск: "Грузы"
-        return "cargo";
-    });
     const [showDashboard, setShowDashboard] = useState(false);
     const [showPinModal, setShowPinModal] = useState(false);
     const [pinCode, setPinCode] = useState('');
     const [pinError, setPinError] = useState(false);
-    const hasRestoredTabRef = React.useRef(false);
-    const hasUrlTabOverrideRef = React.useRef(false);
     const registeredLoginRefreshInFlightRef = useRef(false);
     const syncedRegisteredAccountsRef = useRef<Set<string>>(new Set());
 
-    const updateActiveAccountCustomer = useCallback((customer: string) => {
-        if (!activeAccountId || !customer) return;
-        setAccounts(prev => {
-            const current = prev.find(acc => acc.id === activeAccountId);
-            if (!current || current.customer === customer) {
-                return prev;
-            }
-            return prev.map(acc =>
-                acc.id === activeAccountId ? { ...acc, customer } : acc
-            );
-        });
-    }, [activeAccountId]);
-    
     const openSecretPinModal = () => {
         setShowPinModal(true);
         setPinCode('');
@@ -596,33 +494,6 @@ export default function App() {
         if (fallback !== activeTab) setActiveTab(fallback);
     }, [activeAccount?.id, activeAccount?.isRegisteredUser, activeAccount?.permissions, activeTab, isWbOnlyUser]);
 
-    useEffect(() => {
-        const cls = `${theme}-mode`;
-        document.documentElement.className = cls;
-        document.body.className = cls;
-        try {
-            window.localStorage.setItem("haulz.theme", theme);
-        } catch {
-            // ignore
-        }
-        const metaTheme = document.querySelector('meta[name="theme-color"]');
-        if (metaTheme) {
-            metaTheme.setAttribute("content", HAULZ_SPLASH_BACKGROUND);
-        }
-        const webApp = getWebApp();
-        if (webApp && typeof webApp.setBackgroundColor === "function") {
-            webApp.setBackgroundColor(HAULZ_SPLASH_BACKGROUND);
-        }
-    }, [theme]);
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        try {
-            window.localStorage.setItem("haulz.desktop.expanded", String(desktopExpanded));
-        } catch {
-            // ignore
-        }
-    }, [desktopExpanded]);
-
     useResetGlobalSearchOnWildberries(activeTab, setIsSearchExpanded, setSearchText);
 
     useEffect(() => {
@@ -676,120 +547,6 @@ export default function App() {
         }
     }, []);
 
-    // Загрузка аккаунтов из localStorage
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        try {
-            // Если tab задан в URL — не перетираем восстановлением из localStorage
-            try {
-                const url = new URL(window.location.href);
-                const t = (url.searchParams.get("tab") || "").toLowerCase();
-                if (t) hasUrlTabOverrideRef.current = true;
-            } catch {
-                // ignore
-            }
-
-            // Загружаем массив аккаунтов (новый формат) — приоритет над haulz.auth
-            const savedAccounts = window.localStorage.getItem("haulz.accounts");
-            const savedActiveId = window.localStorage.getItem("haulz.activeAccountId");
-            const savedTab = window.localStorage.getItem("haulz.lastTab");
-            if (savedAccounts) {
-                try {
-                    let parsedAccounts = JSON.parse(savedAccounts) as Account[];
-                    if (Array.isArray(parsedAccounts) && parsedAccounts.length > 0) {
-                        // При загрузке: подставить customer по первому заказчику; не доверять inCustomerDirectory из кэша — подтянем с бэкенда
-                        parsedAccounts = parsedAccounts.map((acc) => {
-                            const withCustomer = acc.customers?.length && !acc.customer ? { ...acc, customer: acc.customers[0].name } : acc;
-                            const normalizedPerms = normalizePermissions(withCustomer.permissions);
-                            return {
-                                ...withCustomer,
-                                ...(normalizedPerms ? { permissions: normalizedPerms } : {}),
-                                inCustomerDirectory: undefined as boolean | undefined,
-                            };
-                        });
-                        setAccounts(parsedAccounts);
-                        if (savedActiveId && parsedAccounts.find(acc => acc.id === savedActiveId)) {
-                            setActiveAccountId(savedActiveId);
-                        } else {
-                            setActiveAccountId(parsedAccounts[0].id);
-                        }
-                        const savedSelectedIds = window.localStorage.getItem("haulz.selectedAccountIds");
-                        let didSetSelected = false;
-                        if (savedSelectedIds) {
-                            try {
-                                const ids = JSON.parse(savedSelectedIds) as string[];
-                                if (Array.isArray(ids) && ids.length > 0) {
-                                    const valid = ids.filter((id) => parsedAccounts.some((acc) => acc.id === id));
-                                    if (valid.length > 0) {
-                                        setSelectedAccountIds(valid);
-                                        didSetSelected = true;
-                                    }
-                                }
-                            } catch {
-                                // ignore
-                            }
-                        }
-                        if (!didSetSelected) {
-                            const firstId = (savedActiveId && parsedAccounts.find(acc => acc.id === savedActiveId) ? savedActiveId : parsedAccounts[0].id) ?? null;
-                            setSelectedAccountIds(firstId ? [firstId] : []);
-                        }
-                        // Восстанавливаем последнюю вкладку (без сохранения секретного режима)
-                        if (savedTab && !hasUrlTabOverrideRef.current) {
-                            const t = savedTab as Tab;
-                            if (TABS_ALLOWED_ON_RESTORE.includes(t)) {
-                                if (t === "docs") {
-                                    setActiveTab("docs");
-                                } else if (t === "home") {
-                                    setActiveTab("dashboard");
-                                } else {
-                                    setActiveTab(t);
-                                }
-                            }
-                        }
-                        hasRestoredTabRef.current = true;
-                    }
-                } catch {
-                    // Игнорируем ошибки парсинга
-                }
-            }
-            // Если нет сохранённых аккаунтов — миграция со старого формата haulz.auth
-            if (!savedAccounts) {
-                const saved = window.localStorage.getItem("haulz.auth");
-                if (saved) {
-                    try {
-                        const parsed = JSON.parse(saved) as AuthData;
-                        if (parsed?.login && parsed?.password) {
-                            const accountId = parsed.id || `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                            const account: Account = { login: parsed.login, password: parsed.password, id: accountId };
-                            setAccounts([account]);
-                            setActiveAccountId(accountId);
-                            setSelectedAccountIds([accountId]);
-                        }
-                    } catch {
-                        // ignore
-                    }
-                }
-            }
-        } catch {
-            // игнорируем ошибки чтения
-        }
-    }, []);
-
-    // Сохраняем последнюю вкладку, чтобы при следующем запуске открыть на ней
-    useEffect(() => {
-        if (!hasRestoredTabRef.current) return;
-        try {
-            window.localStorage.setItem("haulz.lastTab", activeTab);
-        } catch {
-            // игнорируем ошибки записи
-        }
-    }, [activeTab]);
-
-    // Синхронизируем URL. Не трогаем ?tab=cms — это админка.
-    useEffect(() => {
-        syncAppUrlWithActiveTab(activeTab);
-    }, [activeTab]);
-
     // Журнал разделов приложения для админ-отчёта активности (debounce; без учёта фоновых refresh входа).
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -812,25 +569,6 @@ export default function App() {
         }, 650);
         return () => window.clearTimeout(t);
     }, [activeTab, activeAccount?.isRegisteredUser, activeAccount?.login, activeAccount?.password]);
-    
-    // Сохранение аккаунтов и выбранных компаний в localStorage
-    useEffect(() => {
-        if (typeof window === "undefined" || accounts.length === 0) return;
-        try {
-            window.localStorage.setItem(
-                "haulz.accounts",
-                JSON.stringify(accounts.map((acc) => normalizeAccountCustomerSelection(acc)))
-            );
-            if (activeAccountId) {
-                window.localStorage.setItem("haulz.activeAccountId", activeAccountId);
-            }
-            if (selectedAccountIds.length > 0) {
-                window.localStorage.setItem("haulz.selectedAccountIds", JSON.stringify(selectedAccountIds));
-            }
-        } catch {
-            // игнорируем ошибки записи
-        }
-    }, [accounts, activeAccountId, selectedAccountIds]);
 
     // Подтянуть данные зарегистрированного пользователя с бэкенда (в т.ч. inCustomerDirectory из справочника заказчиков в БД)
     useEffect(() => {
@@ -2463,5 +2201,15 @@ export default function App() {
             />
             </Container>
         </>
+    );
+}
+
+export default function App() {
+    return (
+        <AuthProvider>
+            <AppShellProvider>
+                <AppRoot />
+            </AppShellProvider>
+        </AuthProvider>
     );
 }
