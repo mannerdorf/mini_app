@@ -2,6 +2,12 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Copy, Loader2, Play, X } from "lucide-react";
 import type { ApiInventoryItem, ApiTryExample } from "../../constants/miniAppApiInventory";
 import { PARTNER_API_PUBLIC_ORIGIN } from "../../constants/partnerApi";
+import {
+    apiSnippetLanguageOptions,
+    buildApiRequestSnippet,
+    type ApiRequestParts,
+    type ApiSnippetLanguage,
+} from "../../lib/buildApiRequestSnippet";
 import { resolveApiOrigin } from "../../lib/resolveApiOrigin";
 
 export type ProfileTryAuth = { login: string; password: string } | null;
@@ -95,7 +101,8 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
     const [loading, setLoading] = useState(false);
     const [resp, setResp] = useState<{ status: number; ok: boolean; body: string; ms: number } | null>(null);
     const [sendErr, setSendErr] = useState<string | null>(null);
-    const [curlCopied, setCurlCopied] = useState(false);
+    const [snippetLang, setSnippetLang] = useState<ApiSnippetLanguage>("curl");
+    const [snippetCopied, setSnippetCopied] = useState(false);
 
     const apiOrigin = useMemo(() => (typeof window !== "undefined" ? resolveApiOrigin() : PARTNER_API_PUBLIC_ORIGIN), []);
 
@@ -129,9 +136,7 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
     const fullUrl = `${origin}${pathField.startsWith("/") ? pathField : `/${pathField}`}`;
     const isPartnerV1 = pathField.includes("/api/partner/v1/");
 
-    const send = useCallback(async () => {
-        setSendErr(null);
-        setResp(null);
+    const collectRequestParts = useCallback((forSnippet = false): { parts: ApiRequestParts | null; error?: string } => {
         const method = methodSel.toUpperCase();
         let path = pathField.trim() || item.path;
         if (!path.startsWith("/")) path = `/${path}`;
@@ -140,8 +145,7 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
         for (const r of paramRows) {
             if (r.enabled && r.key.trim()) qs.set(r.key.trim(), r.value);
         }
-        const qStr = qs.toString();
-        const url = `${origin}${path}${qStr ? `?${qStr}` : ""}`;
+        const url = `${origin}${path}${qs.toString() ? `?${qs.toString()}` : ""}`;
 
         const headers: Record<string, string> = {};
         let extra: Record<string, string> = {};
@@ -149,23 +153,21 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
             extra = JSON.parse(headersJson || "{}") as Record<string, string>;
             if (typeof extra !== "object" || extra === null || Array.isArray(extra)) throw new Error("headers не объект");
         } catch {
-            setSendErr("Вкладка «Заголовки»: невалидный JSON объекта");
-            return;
+            return { parts: null, error: "Вкладка «Заголовки»: невалидный JSON объекта" };
         }
         for (const [k, v] of Object.entries(extra)) {
             if (k.trim()) headers[k.trim()] = String(v ?? "");
         }
 
-        if (bearer.trim()) {
-            const b = bearer.trim();
-            headers.Authorization = b.startsWith("Bearer ") ? b : `Bearer ${b}`;
+        const bearerRaw = bearer.trim();
+        const bearerForRequest = bearerRaw || (forSnippet && isPartnerV1 ? "haulz_YOUR_FULL_API_KEY" : "");
+        if (bearerForRequest) {
+            headers.Authorization = bearerForRequest.startsWith("Bearer ") ? bearerForRequest : `Bearer ${bearerForRequest}`;
         }
 
-        if (path.includes("/api/my-api-keys") && (method === "GET" || method === "DELETE")) {
-            if (tryAuth) {
-                headers["x-login"] = tryAuth.login;
-                headers["x-password"] = tryAuth.password;
-            }
+        if (path.includes("/api/my-api-keys") && tryAuth && (method === "GET" || method === "DELETE")) {
+            headers["x-login"] = tryAuth.login;
+            headers["x-password"] = tryAuth.password;
         }
 
         let body: string | undefined;
@@ -175,19 +177,37 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
                 try {
                     const parsed = JSON.parse(raw) as unknown;
                     const injected = injectAuthPlaceholders(parsed, tryAuth);
-                    body = JSON.stringify(injected);
+                    body = JSON.stringify(injected, null, forSnippet ? 2 : 0);
                     headers["Content-Type"] = headers["Content-Type"] || "application/json";
                 } catch {
-                    setSendErr("Вкладка «Тело»: невалидный JSON");
-                    return;
+                    return { parts: null, error: "Вкладка «Тело»: невалидный JSON" };
                 }
             }
         }
 
+        return { parts: { method, url, headers, body } };
+    }, [bearer, bodyJson, headersJson, isPartnerV1, item.path, methodSel, origin, paramRows, pathField, tryAuth]);
+
+    const requestParts = useMemo(() => collectRequestParts(true).parts, [collectRequestParts]);
+    const snippetText = useMemo(
+        () => (requestParts ? buildApiRequestSnippet(requestParts, snippetLang) : ""),
+        [requestParts, snippetLang],
+    );
+
+    const send = useCallback(async () => {
+        setSendErr(null);
+        setResp(null);
+        const collected = collectRequestParts(false);
+        if (!collected.parts) {
+            setSendErr(collected.error || "Не удалось собрать запрос");
+            return;
+        }
+        const { method, url, headers, body } = collected.parts;
+
         setLoading(true);
         const t0 = Date.now();
         try {
-            const res = await fetch(url, { method, headers, body });
+            const res = await fetch(url, { method, headers, body: body?.trim() ? body : undefined });
             const text = await res.text();
             let pretty = text;
             try {
@@ -201,48 +221,14 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
         } finally {
             setLoading(false);
         }
-    }, [
-        bearer,
-        bodyJson,
-        headersJson,
-        item.path,
-        methodSel,
-        origin,
-        paramRows,
-        pathField,
-        tryAuth,
-    ]);
+    }, [collectRequestParts]);
 
-    const buildCurlCommand = useCallback((): string => {
-        const method = methodSel.toUpperCase();
-        let path = pathField.trim() || item.path;
-        if (!path.startsWith("/")) path = `/${path}`;
-        const qs = new URLSearchParams();
-        for (const r of paramRows) {
-            if (r.enabled && r.key.trim()) qs.set(r.key.trim(), r.value);
-        }
-        const url = `${origin}${path}${qs.toString() ? `?${qs.toString()}` : ""}`;
-        const parts = [`curl -X ${method} '${url}'`];
-        if (bearer.trim()) {
-            const b = bearer.trim();
-            parts.push(`-H 'Authorization: ${b.startsWith("Bearer ") ? b : `Bearer ${b}`}'`);
-        }
-        if (path.includes("/api/my-api-keys") && tryAuth && (method === "GET" || method === "DELETE")) {
-            parts.push(`-H 'x-login: ${tryAuth.login}'`);
-            parts.push(`-H 'x-password: ${tryAuth.password}'`);
-        }
-        if (!["GET", "HEAD"].includes(method) && bodyJson.trim()) {
-            parts.push(`-H 'Content-Type: application/json'`);
-            parts.push(`-d '${bodyJson.trim().replace(/'/g, "'\\''")}'`);
-        }
-        return parts.join(" \\\n  ");
-    }, [bearer, bodyJson, item.path, methodSel, origin, paramRows, pathField, tryAuth]);
-
-    const copyCurl = useCallback(() => {
-        void navigator.clipboard?.writeText(buildCurlCommand()).catch(() => {});
-        setCurlCopied(true);
-        window.setTimeout(() => setCurlCopied(false), 1600);
-    }, [buildCurlCommand]);
+    const copySnippet = useCallback(() => {
+        if (!snippetText) return;
+        void navigator.clipboard?.writeText(snippetText).catch(() => {});
+        setSnippetCopied(true);
+        window.setTimeout(() => setSnippetCopied(false), 1600);
+    }, [snippetText]);
 
     const pill = METHOD_PILL[methodSel] ?? { bg: "#6b7280", fg: "#fff" };
 
@@ -285,10 +271,6 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
                 <button type="button" className="profile-api-try__send" onClick={() => void send()} disabled={loading}>
                     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" fill="currentColor" />}
                     <span>Send</span>
-                </button>
-                <button type="button" className="profile-api-try__send profile-api-try__send--secondary" onClick={copyCurl} title="Скопировать curl">
-                    <Copy className="w-4 h-4" />
-                    <span>{curlCopied ? "OK" : "curl"}</span>
                 </button>
             </div>
 
@@ -470,6 +452,42 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
             ) : null}
 
             {sendErr ? <div className="profile-api-try__error">{sendErr}</div> : null}
+
+            <div className="profile-api-try__snippet">
+                <div className="profile-api-try__snippet-head">
+                    <span className="profile-api-try__snippet-title">Code snippet</span>
+                    <div className="profile-api-try__snippet-actions">
+                        <select
+                            className="profile-api-try__snippet-select"
+                            value={snippetLang}
+                            onChange={(e) => setSnippetLang(e.target.value as ApiSnippetLanguage)}
+                            aria-label="Формат примера запроса"
+                        >
+                            {apiSnippetLanguageOptions().map((opt) => (
+                                <option key={opt.id} value={opt.id}>
+                                    {opt.label}
+                                </option>
+                            ))}
+                        </select>
+                        <button
+                            type="button"
+                            className="profile-api-try__snippet-copy"
+                            onClick={copySnippet}
+                            title="Скопировать пример"
+                            aria-label="Скопировать пример запроса"
+                        >
+                            <Copy className="w-4 h-4" />
+                            <span>{snippetCopied ? "Скопировано" : "Копировать"}</span>
+                        </button>
+                    </div>
+                </div>
+                <pre className="profile-api-try__snippet-pre">{snippetText || "—"}</pre>
+                {isPartnerV1 && !bearer.trim() ? (
+                    <p className="profile-api-try__hint">
+                        В примере подставлен плейсхолдер <code>haulz_YOUR_FULL_API_KEY</code> — замените на полный ключ из вкладки Authorization.
+                    </p>
+                ) : null}
+            </div>
 
             <div className="profile-api-try__response-head">Response</div>
             <div className="profile-api-try__response-box">
