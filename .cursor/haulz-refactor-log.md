@@ -8,9 +8,9 @@
 
 | Commit | Phase | Summary |
 |--------|-------|---------|
-| (pending) | 3.17 | useSendingsSortState + DocumentsPage wiring |
-| (pending) | 3.16 | useSendingsFerryActions |
-| (pending) | 3.15 | useSendingsBulkActions + sendingsPlanDateAction |
+| `3dc52b47` | 3.17 | useSendingsSortState + DocumentsPage wiring |
+| `0136afce` | 3.16 | useSendingsFerryActions |
+| `5f1237a8` | 3.15 | useSendingsBulkActions + sendingsPlanDateAction |
 | `52162e2d` | 3.14 | refactor log commit hashes |
 | `78f9b1c9` | 3.12 | SendingsSection table/cards extraction |
 
