@@ -43,6 +43,13 @@ const DOWNLOAD_BODY = (metod: string) => ({
     inn: "{{INN}}",
 });
 
+const DOWNLOAD_REESTR_BODY = {
+    metod: "РеестрКсчету",
+    number: "0000123456",
+    dateDoc: "2026-01-15T12:00:00",
+    inn: "{{INN}}",
+};
+
 export const MINI_APP_API_INVENTORY: ApiInventorySection[] = [
     {
         group: "Partner API v1",
@@ -148,6 +155,13 @@ export const MINI_APP_API_INVENTORY: ApiInventorySection[] = [
                 navLabel: "Скачать счёт",
                 note: "Скачать счёт (PDF). Scope: documents:read. metod=Счет, number — номер перевозки или счёта.",
                 examples: [{ id: "dl-schet", label: "Счёт по номеру перевозки", body: DOWNLOAD_BODY("Счет") }],
+            },
+            {
+                method: "POST",
+                path: "/api/partner/v1/download",
+                navLabel: "Скачать реестр",
+                note: "Скачать реестр к счёту (PDF). Scope: documents:read. metod=РеестрКсчету, number — номер счёта, dateDoc — дата счёта (YYYY-MM-DDTHH:MM:SS).",
+                examples: [{ id: "dl-reestr", label: "Реестр по номеру счёта", body: DOWNLOAD_REESTR_BODY }],
             },
             {
                 method: "POST",

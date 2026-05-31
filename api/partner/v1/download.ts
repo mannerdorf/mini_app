@@ -5,13 +5,13 @@ import { resolvePartnerOrUserApiAuth } from "../../../lib/partnerOrUserApiAuth.j
 import { assertBodyInnAllowedForApiKey } from "../../../lib/userApiKeyInnFilter.js";
 import { readPartnerJsonBody } from "../../../lib/partnerV1PostRoute.js";
 import { validateGetFileParams, proxyGetFileDownload } from "../../../lib/getFileProxy.js";
-import { assertPartnerDownloadCargoAccess } from "../../../lib/partnerDownloadAccess.js";
+import { assertPartnerDownloadCargoAccess, assertPartnerDownloadInvoiceAccess } from "../../../lib/partnerDownloadAccess.js";
 import { getPool } from "../../_db.js";
 
 /**
  * Partner API v1: скачать документ (GetFile через прокси).
  * Authorization: Bearer haulz_… (scope documents:read).
- * Тело: metod (ЭР | АПП | Счет | Акт), number, inn (опционально).
+ * Тело: metod (ЭР | АПП | Счет | Акт | РеестрКсчету), number, inn (опционально), dateDoc (для реестра).
  * Ответ POST: JSON { data: base64, name } — как у /api/download.
  */
 async function handler(req: VercelRequest, res: VercelResponse) {
@@ -36,10 +36,10 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(validated.status).json({ error: validated.error, request_id: ctx.requestId });
   }
 
-  const allowedMetods = new Set(["ЭР", "АПП", "Счет", "Счёт", "Акт"]);
+  const allowedMetods = new Set(["ЭР", "АПП", "Счет", "Счёт", "Акт", "РеестрКсчету"]);
   if (!allowedMetods.has(validated.params.metod)) {
     return res.status(400).json({
-      error: "Unsupported metod for Partner API. Allowed: ЭР, АПП, Счет, Акт",
+      error: "Unsupported metod for Partner API. Allowed: ЭР, АПП, Счет, Акт, РеестрКсчету",
       request_id: ctx.requestId,
     });
   }
@@ -50,14 +50,24 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const pool = getPool();
-  const access = await assertPartnerDownloadCargoAccess(
-    pool,
-    auth.verified,
-    auth.keyAllowedInnsCanon,
-    validated.params.metod,
-    validated.params.number,
-    body.inn,
-  );
+  const access =
+    validated.params.metod === "РеестрКсчету"
+      ? await assertPartnerDownloadInvoiceAccess(
+          pool,
+          auth.verified,
+          auth.keyAllowedInnsCanon,
+          auth.login,
+          validated.params.number,
+          body.inn,
+        )
+      : await assertPartnerDownloadCargoAccess(
+          pool,
+          auth.verified,
+          auth.keyAllowedInnsCanon,
+          validated.params.metod,
+          validated.params.number,
+          body.inn,
+        );
   if (!access.ok) {
     return res.status(access.status).json({ error: access.error, request_id: ctx.requestId });
   }

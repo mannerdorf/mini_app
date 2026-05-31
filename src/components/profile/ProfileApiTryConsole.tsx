@@ -75,6 +75,8 @@ const STRING_BODY_KEYS = new Set([
     "inn",
     "Inn",
     "INN",
+    "dateDoc",
+    "DateDoc",
 ]);
 
 function parseBodyFieldValue(raw: string, key?: string): unknown {
