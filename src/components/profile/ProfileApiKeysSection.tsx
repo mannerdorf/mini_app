@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Check, Copy, Key, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 import type { Account } from "../../types";
@@ -10,6 +10,12 @@ import {
 } from "../../constants/userApiKeyScopesClient";
 import { PARTNER_API_PUBLIC_ORIGIN } from "../../constants/partnerApi";
 import { createMyApiKey, fetchMyApiKeys, revokeMyApiKey, type MyApiKeyRow } from "../../api/client/profile/myApiKeys";
+import {
+    clearProfileApiKeyToken,
+    resolveAutoTestBearer,
+    resolveSingleAutoTestInn,
+    saveProfileApiKeyToken,
+} from "../../lib/profileApiKeySession";
 import { ProfileApiCatalogPostman } from "./ProfileApiCatalogPostman";
 
 type Props = {
@@ -64,6 +70,13 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
         void load();
     }, [load]);
 
+    const autoTestInn = useMemo(() => resolveSingleAutoTestInn(keys, assignableInns), [keys, assignableInns]);
+    const autoTestBearer = useMemo(
+        () => resolveAutoTestBearer(login, keys, autoTestInn, newToken),
+        [login, keys, autoTestInn, newToken],
+    );
+    const autoTestPrefill = keys.length === 1 && autoTestInn != null;
+
     const buildAllowedInnsPayload = (): string[] => {
         if (assignableInns.length > 0) {
             return assignableInns.filter((inn) => innChecks[inn]);
@@ -99,7 +112,10 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                 scopes,
                 allowed_inns: allowed,
             });
-            if (typeof data.token === "string") setNewToken(data.token);
+            if (typeof data.token === "string") {
+                setNewToken(data.token);
+                if (data.id) saveProfileApiKeyToken(login, data.id, data.token);
+            }
             setNewLabel("");
             await load();
         } catch (e: unknown) {
@@ -121,6 +137,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
         setError(null);
         try {
             await revokeMyApiKey(login, password, id);
+            clearProfileApiKeyToken(login, id);
             await load();
         } catch (e: unknown) {
             setError((e as Error)?.message || "Ошибка");
@@ -394,9 +411,15 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                         <ProfileApiCatalogPostman
                             tryAuth={
                                 activeAccount?.login && activeAccount?.password
-                                    ? { login: activeAccount.login, password: activeAccount.password }
+                                    ? {
+                                          login: activeAccount.login,
+                                          password: activeAccount.password,
+                                          inn: autoTestInn ?? undefined,
+                                      }
                                     : null
                             }
+                            defaultBearer={autoTestBearer}
+                            autoTestPrefill={autoTestPrefill}
                         />
                     </div>
                 ) : null}

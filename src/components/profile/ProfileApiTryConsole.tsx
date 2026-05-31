@@ -10,9 +10,11 @@ import {
 } from "../../lib/buildApiRequestSnippet";
 import { resolveApiOrigin } from "../../lib/resolveApiOrigin";
 
-export type ProfileTryAuth = { login: string; password: string } | null;
+export type ProfileTryAuth = { login: string; password: string; inn?: string } | null;
 
 type ParamRow = { enabled: boolean; key: string; value: string };
+
+const HAULZ_API_KEY_RE = /^haulz_([a-f0-9]{12})_([a-f0-9]{64})$/i;
 
 function parseMethods(raw: string): string[] {
     return raw
@@ -26,6 +28,7 @@ function injectAuthPlaceholders(obj: unknown, auth: ProfileTryAuth): unknown {
     if (typeof obj === "string") {
         if (obj === "{{LOGIN}}") return auth.login;
         if (obj === "{{PASSWORD}}") return auth.password;
+        if (obj === "{{INN}}") return auth.inn?.trim() || "";
         return obj;
     }
     if (Array.isArray(obj)) return obj.map((x) => injectAuthPlaceholders(x, auth));
@@ -65,6 +68,78 @@ function queryToRows(q: Record<string, string> | undefined): ParamRow[] {
     return rows.slice(0, 12);
 }
 
+function formatBodyFieldValue(value: unknown): string {
+    if (typeof value === "string") return value;
+    return JSON.stringify(value);
+}
+
+function parseBodyFieldValue(raw: string): unknown {
+    const t = raw.trim();
+    if (!t) return "";
+    if (t === "true") return true;
+    if (t === "false") return false;
+    if (t === "null") return null;
+    if (/^-?\d+$/.test(t)) return Number(t);
+    if (/^-?\d+\.\d+$/.test(t)) return Number(t);
+    if (t.startsWith("{") || t.startsWith("[") || (t.startsWith('"') && t.endsWith('"'))) {
+        try {
+            return JSON.parse(t);
+        } catch {
+            return t;
+        }
+    }
+    return t;
+}
+
+function parseBodyJsonToRows(json: string): ParamRow[] | null {
+    const raw = json.trim();
+    if (!raw) return [];
+    try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+        const rows: ParamRow[] = Object.entries(parsed as Record<string, unknown>).map(([key, value]) => ({
+            enabled: true,
+            key,
+            value: formatBodyFieldValue(value),
+        }));
+        const pad = Math.max(0, 5 - rows.length);
+        for (let i = 0; i < pad; i++) rows.push({ enabled: false, key: "", value: "" });
+        return rows.slice(0, 16);
+    } catch {
+        return null;
+    }
+}
+
+function rowsToBodyJson(rows: ParamRow[]): string {
+    const obj: Record<string, unknown> = {};
+    for (const row of rows) {
+        if (row.enabled && row.key.trim()) obj[row.key.trim()] = parseBodyFieldValue(row.value);
+    }
+    return JSON.stringify(obj, null, 2);
+}
+
+type TabId = "params" | "headers" | "body" | "auth";
+
+function defaultTabForItem(item: ApiInventoryItem): TabId {
+    const m = (parseMethods(item.method)[0] || "GET").toUpperCase();
+    if (["POST", "PUT", "PATCH"].includes(m)) {
+        const ex = buildExamples(item)[0];
+        if (ex?.body != null) return "body";
+    }
+    return "params";
+}
+
+function validatePartnerBearer(token: string, isPartnerV1: boolean): string | null {
+    if (!isPartnerV1) return null;
+    const t = token.replace(/^Bearer\s+/i, "").trim();
+    if (!t) return "Укажите полный API-ключ на вкладке Authorization (Bearer haulz_…).";
+    if (HAULZ_API_KEY_RE.test(t)) return null;
+    if (t.startsWith("haulz_") && (t.endsWith("_") || !t.includes("_", 6))) {
+        return "Указан только префикс ключа (haulz_…_). Нужен полный токен haulz_<id>_<секрет 64 символа>, который показывается один раз при создании ключа.";
+    }
+    return "Неверный формат ключа. Ожидается haulz_<12 hex>_<64 hex>.";
+}
+
 const METHOD_PILL: Record<string, { bg: string; fg: string }> = {
     GET: { bg: "#49cc90", fg: "#fff" },
     POST: { bg: "#fca130", fg: "#1a1a1a" },
@@ -74,30 +149,31 @@ const METHOD_PILL: Record<string, { bg: string; fg: string }> = {
     HEAD: { bg: "#9012fe", fg: "#fff" },
 };
 
-type TabId = "params" | "headers" | "body" | "auth";
-
 type Props = {
     item: ApiInventoryItem;
     tryAuth: ProfileTryAuth;
+    defaultBearer?: string | null;
+    autoTestPrefill?: boolean;
     onClose: () => void;
 };
 
 /**
  * Консоль теста запроса (оформление в духе Postman): примеры, вкладки, Send, ответ сервера.
  */
-export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
+export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPrefill, onClose }: Props) {
     const examples = useMemo(() => buildExamples(item), [item]);
     const methodsAvail = useMemo(() => parseMethods(item.method), [item.method]);
     const [exampleId, setExampleId] = useState(examples[0]?.id ?? "default");
     const [methodSel, setMethodSel] = useState(methodsAvail[0] || "GET");
     const [pathField, setPathField] = useState(item.path);
-    const [tab, setTab] = useState<TabId>("params");
+    const [tab, setTab] = useState<TabId>(() => defaultTabForItem(item));
     const [paramRows, setParamRows] = useState<ParamRow[]>(() => queryToRows(examples[0]?.query));
     const [headersJson, setHeadersJson] = useState("{}");
     const [bodyJson, setBodyJson] = useState(() =>
         examples[0]?.body != null ? JSON.stringify(examples[0].body, null, 2) : "",
     );
-    const [bearer, setBearer] = useState("");
+    const [bearer, setBearer] = useState(defaultBearer?.trim() || "");
+    const [showRawBodyJson, setShowRawBodyJson] = useState(false);
     const [loading, setLoading] = useState(false);
     const [resp, setResp] = useState<{ status: number; ok: boolean; body: string; ms: number } | null>(null);
     const [sendErr, setSendErr] = useState<string | null>(null);
@@ -105,6 +181,9 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
     const [snippetCopied, setSnippetCopied] = useState(false);
 
     const apiOrigin = useMemo(() => (typeof window !== "undefined" ? resolveApiOrigin() : PARTNER_API_PUBLIC_ORIGIN), []);
+
+    const bodyRows = useMemo(() => parseBodyJsonToRows(bodyJson), [bodyJson]);
+    const bodyFieldCount = useMemo(() => bodyRows?.filter((r) => r.enabled && r.key.trim()).length ?? 0, [bodyRows]);
 
     const headerKeyCount = useMemo(() => {
         try {
@@ -120,17 +199,27 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
         const m = parseMethods(item.method);
         setMethodSel(m[0] || "GET");
         setPathField(item.path);
+        setTab(defaultTabForItem(item));
         const ex = buildExamples(item);
         setExampleId(ex[0]?.id ?? "default");
     }, [item]);
 
     useEffect(() => {
+        if (defaultBearer?.trim()) setBearer(defaultBearer.trim());
+    }, [defaultBearer]);
+
+    const updateBodyRows = useCallback((nextRows: ParamRow[]) => {
+        setBodyJson(rowsToBodyJson(nextRows));
+    }, []);
+
+    useEffect(() => {
         const ex = examples.find((e) => e.id === exampleId) ?? examples[0];
         if (!ex) return;
         setParamRows(queryToRows(ex.query));
-        setBodyJson(ex.body != null ? JSON.stringify(ex.body, null, 2) : "");
+        const bodyWithAuth = ex.body != null ? injectAuthPlaceholders(ex.body, tryAuth) : null;
+        setBodyJson(bodyWithAuth != null ? JSON.stringify(bodyWithAuth, null, 2) : "");
         setHeadersJson(ex.headers && Object.keys(ex.headers).length > 0 ? JSON.stringify(ex.headers, null, 2) : "{}");
-    }, [exampleId, examples]);
+    }, [exampleId, examples, tryAuth]);
 
     const origin = apiOrigin;
     const fullUrl = `${origin}${pathField.startsWith("/") ? pathField : `/${pathField}`}`;
@@ -197,6 +286,14 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
     const send = useCallback(async () => {
         setSendErr(null);
         setResp(null);
+
+        const bearerErr = validatePartnerBearer(bearer, isPartnerV1);
+        if (bearerErr) {
+            setSendErr(bearerErr);
+            setTab("auth");
+            return;
+        }
+
         const collected = collectRequestParts(false);
         if (!collected.parts) {
             setSendErr(collected.error || "Не удалось собрать запрос");
@@ -221,7 +318,7 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
         } finally {
             setLoading(false);
         }
-    }, [collectRequestParts]);
+    }, [bearer, collectRequestParts, isPartnerV1]);
 
     const copySnippet = useCallback(() => {
         if (!snippetText) return;
@@ -314,6 +411,13 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
 
             <p className="profile-api-try__note">{item.note}</p>
 
+            {autoTestPrefill ? (
+                <p className="profile-api-try__hint profile-api-try__hint--autofill">
+                    Один активный ключ и один ИНН — Bearer и <code>inn</code> в теле подставлены автоматически.
+                    {!defaultBearer?.trim() ? " Полный токен не сохранён в сессии — вставьте его на вкладке Authorization." : null}
+                </p>
+            ) : null}
+
             <div className="profile-api-try__tabs" role="tablist">
                 <button
                     type="button"
@@ -342,6 +446,7 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
                     onClick={() => setTab("body")}
                 >
                     Body
+                    {bodyFieldCount > 0 ? <span className="profile-api-try__tab-badge">{bodyFieldCount}</span> : null}
                 </button>
                 <button
                     type="button"
@@ -394,7 +499,11 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
                             />
                         </div>
                     ))}
-                    <p className="profile-api-try__hint">Для GET параметры уходят в query string. Для POST с телом см. вкладку Body.</p>
+                    <p className="profile-api-try__hint">
+                        {["POST", "PUT", "PATCH"].includes(methodSel.toUpperCase()) && bodyFieldCount > 0
+                            ? "Query-параметры в URL — здесь. Поля dateFrom, dateTo, inn и др. для POST — во вкладке Body."
+                            : "Для GET параметры уходят в query string. Для POST с JSON-телом см. вкладку Body."}
+                    </p>
                 </div>
             ) : null}
 
@@ -413,17 +522,74 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
 
             {tab === "body" ? (
                 <div className="profile-api-try__panel">
-                    <textarea
-                        className="profile-api-try__textarea profile-api-try__textarea--mono"
-                        value={bodyJson}
-                        onChange={(e) => setBodyJson(e.target.value)}
-                        spellCheck={false}
-                        rows={12}
-                        placeholder="JSON тело"
-                    />
+                    {bodyRows ? (
+                        <>
+                            <div className="profile-api-try__table-head">
+                                <span />
+                                <span>Key</span>
+                                <span>Value</span>
+                            </div>
+                            {bodyRows.map((row, i) => (
+                                <div key={i} className="profile-api-try__table-row">
+                                    <input
+                                        type="checkbox"
+                                        checked={row.enabled}
+                                        onChange={(e) => {
+                                            const next = [...bodyRows];
+                                            next[i] = { ...row, enabled: e.target.checked };
+                                            updateBodyRows(next);
+                                        }}
+                                    />
+                                    <input
+                                        className="profile-api-try__cell"
+                                        value={row.key}
+                                        placeholder="ключ"
+                                        onChange={(e) => {
+                                            const next = [...bodyRows];
+                                            next[i] = { ...row, key: e.target.value };
+                                            updateBodyRows(next);
+                                        }}
+                                    />
+                                    <input
+                                        className="profile-api-try__cell"
+                                        value={row.value}
+                                        placeholder="значение"
+                                        onChange={(e) => {
+                                            const next = [...bodyRows];
+                                            next[i] = { ...row, value: e.target.value };
+                                            updateBodyRows(next);
+                                        }}
+                                    />
+                                </div>
+                            ))}
+                            <p className="profile-api-try__hint">
+                                Поля JSON-тела запроса. Для Partner API: <code>dateFrom</code>, <code>dateTo</code>, <code>inn</code>,{" "}
+                                <code>serviceMode</code>.
+                            </p>
+                        </>
+                    ) : (
+                        <p className="profile-api-try__warn">Невалидный JSON — исправьте в режиме Raw JSON ниже.</p>
+                    )}
+                    <button
+                        type="button"
+                        className="profile-api-try__raw-toggle"
+                        onClick={() => setShowRawBodyJson((v) => !v)}
+                    >
+                        {showRawBodyJson ? "Скрыть Raw JSON" : "Raw JSON"}
+                    </button>
+                    {showRawBodyJson ? (
+                        <textarea
+                            className="profile-api-try__textarea profile-api-try__textarea--mono"
+                            value={bodyJson}
+                            onChange={(e) => setBodyJson(e.target.value)}
+                            spellCheck={false}
+                            rows={8}
+                            placeholder="JSON тело"
+                        />
+                    ) : null}
                     <p className="profile-api-try__hint">
-                        Строки <code>{"{{LOGIN}}"}</code> и <code>{"{{PASSWORD}}"}</code> в JSON заменяются на данные текущего аккаунта (если
-                        вы вошли в приложение).
+                        Плейсхолдеры <code>{"{{LOGIN}}"}</code>, <code>{"{{PASSWORD}}"}</code>, <code>{"{{INN}}"}</code> подставляются из
+                        аккаунта при Send и в примере запроса.
                     </p>
                 </div>
             ) : null}
@@ -445,6 +611,14 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
                         Для Partner API v1 (<code>/api/partner/v1/*</code>) укажите Bearer с полным ключом haulz_… из Профиль → API.
                         {isPartnerV1 ? " Этот метод не принимает login/password в теле." : " Для счетов, УПД и скачиваний в теле используются login/password (или плейсхолдеры)."}
                     </p>
+                    {isPartnerV1 && bearer.trim() && validatePartnerBearer(bearer, true) ? (
+                        <p className="profile-api-try__warn">{validatePartnerBearer(bearer, true)}</p>
+                    ) : null}
+                    {isPartnerV1 && !bearer.trim() ? (
+                        <p className="profile-api-try__warn">
+                            Префикс ключа из списка (haulz_…_) не подходит для запроса — нужен полный токен, показанный при создании ключа.
+                        </p>
+                    ) : null}
                     {!tryAuth ? (
                         <p className="profile-api-try__warn">Войдите в аккаунт в приложении — иначе подстановка логина/пароля в примерах не сработает.</p>
                     ) : null}

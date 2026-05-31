@@ -43,12 +43,14 @@ function MethodBadges({ method }: { method: string }) {
 
 type Props = {
     tryAuth: ProfileTryAuth;
+    defaultBearer?: string | null;
+    autoTestPrefill?: boolean;
 };
 
 /**
  * Справочник эндпоинтов в духе Postman: группы, список, копирование пути, консоль теста запроса.
  */
-export function ProfileApiCatalogPostman({ tryAuth }: Props) {
+export function ProfileApiCatalogPostman({ tryAuth, defaultBearer, autoTestPrefill }: Props) {
     const [sectionIdx, setSectionIdx] = useState(0);
     const [copiedPath, setCopiedPath] = useState<string | null>(null);
     const [sel, setSel] = useState<{ gi: number; ii: number } | null>(null);
@@ -124,6 +126,8 @@ export function ProfileApiCatalogPostman({ tryAuth }: Props) {
                                         key={`profile-api-try-${sectionIdx}-${ii}`}
                                         item={it}
                                         tryAuth={tryAuth}
+                                        defaultBearer={defaultBearer}
+                                        autoTestPrefill={autoTestPrefill}
                                         onClose={() => setSel(null)}
                                     />
                                 ) : null}

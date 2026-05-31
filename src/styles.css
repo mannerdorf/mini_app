@@ -5951,6 +5951,16 @@ button.unpaid-plan-monitor:hover {
     font-size: 0.72rem;
     line-height: 1.45;
 }
+.profile-api-try__hint--autofill {
+    margin: 0.35rem 0 0;
+    padding: 0.4rem 0.55rem;
+    border-radius: 6px;
+    background: rgba(48, 209, 88, 0.08);
+    border: 1px solid rgba(48, 209, 88, 0.25);
+    color: var(--color-text-secondary);
+    font-size: 0.72rem;
+    line-height: 1.45;
+}
 .profile-api-try__path-edit {
     display: flex;
     align-items: center;
@@ -6122,6 +6132,20 @@ button.unpaid-plan-monitor:hover {
     margin: 0.45rem 0 0;
     font-size: 0.68rem;
     color: var(--color-pending-status, #ffd60a);
+}
+.profile-api-try__raw-toggle {
+    margin-top: 0.45rem;
+    padding: 0.25rem 0.45rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    border-radius: 5px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-secondary, rgba(255, 255, 255, 0.04));
+    color: var(--color-text-secondary);
+    cursor: pointer;
+}
+.profile-api-try__raw-toggle:hover {
+    color: var(--color-text-primary);
 }
 .profile-api-try__error {
     margin-top: 0.45rem;

@@ -3,7 +3,7 @@
  * Группы: перевозки, документы (запросы/списки), скачать документы (GetFile).
  */
 
-/** Плейсхолдеры в body: строки "{{LOGIN}}" и "{{PASSWORD}}" подставляются из аккаунта в консоли теста. */
+/** Плейсхолдеры в body: строки "{{LOGIN}}", "{{PASSWORD}}", "{{INN}}" подставляются из аккаунта в консоли теста. */
 export type ApiTryExample = {
     id: string;
     label: string;
@@ -24,7 +24,7 @@ export type ApiInventorySection = { group: string; items: ApiInventoryItem[] };
 const BODY_DATES_INN = {
     dateFrom: "2026-01-01",
     dateTo: "2026-01-31",
-    inn: "",
+    inn: "{{INN}}",
     serviceMode: false,
 };
 
