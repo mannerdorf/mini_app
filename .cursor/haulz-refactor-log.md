@@ -8,8 +8,8 @@
 
 | Commit | Phase | Summary |
 |--------|-------|---------|
-| (pending) | 5.8 | useSupportBotLinks hook |
-| (pending) | 5.7 | useAccountActions hook |
+| `517aa61a` | 5.8 | useSupportBotLinks hook |
+| `7878f3a1` | 5.7 | useAccountActions hook |
 | `7b8f2f10` | 5.6 | AppNavigationContext + document overlays |
 | `6c2d4000` | 5.3–5.5 | AppMainContent contexts + LoginScreen |
 | `115be3d1` | 5.2 | AppShellContext + App providers |
