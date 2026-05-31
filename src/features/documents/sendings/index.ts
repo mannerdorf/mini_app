@@ -15,3 +15,12 @@ export type { SendingsInfographicData } from "./SendingsInfographic";
 export { SendingsPreface } from "./SendingsPreface";
 export { SendingsSection } from "./SendingsSection";
 export type { SendingsSectionProps } from "./SendingsSection";
+export { SendingsSanctionBadge } from "./SendingsSanctionBadge";
+export {
+  getRequestParcels,
+  getParcelTnvedCode,
+  getParcelSanctionResult,
+  getSendingSanctionResult,
+  getParcelSearchText,
+} from "./sendingsParcelHelpers";
+export { getSendingTransportType, getSendingRowTransportMode } from "./sendingsTransportHelpers";

@@ -20,6 +20,8 @@ import {
     useSendingsServerSync,
     useSendingsSectionProps,
     useSendingsSortState,
+    getSendingSanctionResult,
+    getParcelSearchText,
     type EorStatus,
 } from "../features/documents/sendings";
 import { DateText } from "../components/ui/DateText";
@@ -43,9 +45,6 @@ import {
     postOrderCreate,
 } from "../api/client/documents";
 import {
-    checkSanctionsByNomenclature,
-    mergeSanctionVerdicts,
-    pickNomenclatureText,
     type SanctionCheckResult,
 } from "../lib/sanctions";
 import { normalizeStatus, STATUS_MAP, getFilterKeyByStatus, BILL_STATUS_MAP, getSumColorByPaymentStatus } from "../lib/statusUtils";
@@ -112,10 +111,7 @@ import {
     formatSendingMetricNum,
     parseSendingMetricNumber,
     getFirstCargoNumberFromInvoice,
-    getSendingParcelsFromRow,
     getSendingRowParcelMetrics,
-    getParcelFreightSum,
-    getParcelDeclaredCost,
     collectSendingFreightCargoNumbers,
     sendingRowInSelectedPeriod,
     buildEdoCargoCardItems,
@@ -2812,36 +2808,6 @@ useEffect(() => {
         setOrdersParcelsSortColumn(column);
         setOrdersParcelsSortOrder('asc');
     }, [ordersParcelsSortColumn]);
-    const getRequestParcels = useCallback((row: any): any[] => getSendingParcelsFromRow(row), []);
-    const getParcelTnvedCode = useCallback((parcel: any): string => {
-        const goodsRaw = parcel?.Товары ?? parcel?.Goods ?? parcel?.goods;
-        const goods = Array.isArray(goodsRaw) ? goodsRaw[0] : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : {});
-        return checkSanctionsByNomenclature(
-            pickNomenclatureText(parcel),
-            goods?.ТНВЭД ?? goods?.TNVED ?? goods?.tnved ?? goods?.HsCode ?? goods?.HSCode ?? parcel?.ТНВЭД ?? parcel?.TNVED ?? parcel?.tnved
-        ).tnvedCode;
-    }, []);
-    const getParcelSanctionResult = useCallback((parcel: any): SanctionCheckResult => {
-        const goodsRaw = parcel?.Товары ?? parcel?.Goods ?? parcel?.goods;
-        const goods = Array.isArray(goodsRaw) ? goodsRaw[0] : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : {});
-        return checkSanctionsByNomenclature(
-            pickNomenclatureText(parcel),
-            goods?.ТНВЭД ?? goods?.TNVED ?? goods?.tnved ?? goods?.HsCode ?? goods?.HSCode ?? parcel?.ТНВЭД ?? parcel?.TNVED ?? parcel?.tnved
-        );
-    }, []);
-    const getSendingSanctionResult = useCallback((row: any): SanctionCheckResult => {
-        const parcels = getRequestParcels(row);
-        if (parcels.length === 0) {
-            return { verdict: 'review', tnvedCode: '', reason: 'нет данных по посылкам для проверки', matchedBy: 'none' };
-        }
-        return mergeSanctionVerdicts(parcels.map(getParcelSanctionResult));
-    }, [getParcelSanctionResult, getRequestParcels]);
-    const renderSanctionBadge = useCallback((result?: SanctionCheckResult | null) => {
-        if (!result) return <AppBadge tone="neutral">Не проверено</AppBadge>;
-        if (result.verdict === 'sanctioned') return <AppBadge tone="danger" title={result.reason}>Санкции</AppBadge>;
-        if (result.verdict === 'review') return <AppBadge tone="warning" title={result.reason}>Проверить</AppBadge>;
-        return <AppBadge tone="success" title={result.reason}>Нет</AppBadge>;
-    }, []);
     const sendingsAnalyticsExtraColCount = hasAnalytics ? (2 + (showSums ? 2 : 0)) : 0;
     const getSendingRowKey = useCallback((row: any, idx: number): string => {
         const number = String(row?.Номер ?? row?.Number ?? row?.number ?? '').trim();
@@ -2932,44 +2898,6 @@ useEffect(() => {
         setSendingsFerryMap,
         resetSendingsUiState,
     });
-    const getParcelSearchText = useCallback((parcel: any): string => {
-        const parts: string[] = [];
-        const seen = new WeakSet<object>();
-        const collect = (value: unknown, depth = 0) => {
-            if (value == null || depth > 8) return;
-            if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-                const s = String(value).trim();
-                if (s) parts.push(s);
-                return;
-            }
-            if (Array.isArray(value)) {
-                value.forEach((item) => collect(item, depth + 1));
-                return;
-            }
-            if (typeof value === 'object') {
-                const obj = value as Record<string, unknown>;
-                if (seen.has(obj)) return;
-                seen.add(obj);
-                Object.values(obj).forEach((v) => collect(v, depth + 1));
-            }
-        };
-        collect(parcel);
-        return parts.join(' ').toLowerCase();
-    }, []);
-    const getSendingTransportType = useCallback((vehicleText: string): 'ferry' | 'auto' | '' => {
-        const s = String(vehicleText ?? '').toUpperCase().trim();
-        if (!s) return '';
-        const hasPlate = /[A-ZА-Я][0-9]{3}[A-ZА-Я]{2}(?:\s*\/?\s*[0-9]{2,3})?/u.test(s);
-        return hasPlate ? 'auto' : 'ferry';
-    }, []);
-    /** Тип ТС в отправках: флаг AK из API имеет приоритет над эвристикой по номеру прицепа (иначе «ПРИЦЕП …» ошибочно даёт авто). */
-    const getSendingRowTransportMode = useCallback(
-        (row: any, vehicleText: string): 'ferry' | 'auto' | '' => {
-            if (row?.AK === true || row?.AK === 'true' || row?.AK === '1' || row?.AK === 1) return 'ferry';
-            return getSendingTransportType(vehicleText);
-        },
-        [getSendingTransportType],
-    );
     const closeDocumentsToolbarDropdownsExceptSendings = useCallback(() => {
         setIsDateDropdownOpen(false);
         setIsCustomerDropdownOpen(false);
@@ -3012,10 +2940,7 @@ useEffect(() => {
         sendingRowsSorted: sendingRowsSorted,
         normalizeTransportDisplay: normalizeTransportDisplay,
         getSendingRowKey: getSendingRowKey,
-        getRequestParcels: getRequestParcels,
         effectiveSearchText: effectiveSearchText,
-        getParcelSearchText: getParcelSearchText,
-        getSendingRowTransportMode: getSendingRowTransportMode,
         getSendingStatusKey: getSendingStatusKey,
         getSendingTransitHours: getSendingTransitHours,
         getSendingTransitIsFinal: getSendingTransitIsFinal,
@@ -3025,7 +2950,6 @@ useEffect(() => {
         getSendingRowParcelMetrics: getSendingRowParcelMetrics,
         cargoSumByNumber: cargoSumByNumber,
         sendingSanctionMap: sendingSanctionMap,
-        renderSanctionBadge: renderSanctionBadge,
         eorStatusMap: eorStatusMap,
         ferriesList: ferriesList,
         sendingsFerryMap: sendingsFerryMap,
@@ -3063,11 +2987,6 @@ useEffect(() => {
         setByCustomerActionError: setByCustomerActionError,
         byCustomerActionInfo: byCustomerActionInfo,
         setByCustomerActionInfo: setByCustomerActionInfo,
-        pickNomenclatureText: pickNomenclatureText,
-        getParcelTnvedCode: getParcelTnvedCode,
-        getParcelSanctionResult: getParcelSanctionResult,
-        getParcelFreightSum: getParcelFreightSum,
-        getParcelDeclaredCost: getParcelDeclaredCost,
         selectedVisibleSendingCount: selectedVisibleSendingCount,
         bulkSendingActionLoading: bulkSendingActionLoading,
         bulkEorMenuOpen: bulkEorMenuOpen,

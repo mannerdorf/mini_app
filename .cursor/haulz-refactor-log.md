@@ -2,28 +2,27 @@
 
 ## Last updated
 
-2026-05-31 — batch 3.15–3.17 (sendings handlers hooks)
+2026-05-31 — batch 3.18–3.20 (sendings parcel/sanction helpers)
 
 ## Completed slices (newest first)
 
 | Commit | Phase | Summary |
 |--------|-------|---------|
-| `3dc52b47` | 3.17 | useSendingsSortState + DocumentsPage wiring |
-| `0136afce` | 3.16 | useSendingsFerryActions |
-| `5f1237a8` | 3.15 | useSendingsBulkActions + sendingsPlanDateAction |
-| `52162e2d` | 3.14 | refactor log commit hashes |
-| `78f9b1c9` | 3.12 | SendingsSection table/cards extraction |
+| (pending) | 3.20 | transport helpers + DocumentsPage wiring |
+| (pending) | 3.19 | SendingsSanctionBadge + SendingsSection imports |
+| (pending) | 3.18 | sendingsParcelHelpers |
+| `e899fd01` | 3.17 | useSendingsSortState + DocumentsPage wiring |
 
 ## Metrics
 
-- `DocumentsPage.tsx`: **~6715 → ~6540** lines (−175 handlers/state)
-- `src/features/documents/sendings/`: **~2900 lines** (+ bulk/ferry/sort hooks)
-- Inline byCustomer plan-date logic moved to `applyByCustomerPlanDate`
+- `DocumentsPage.tsx`: **~6541 → ~6460** lines (−80 parcel/sanction helpers)
+- `SendingsSection` props: **91 → 82** (−9 helpers moved to module imports)
+- New: `sendingsParcelHelpers`, `SendingsSanctionBadge`, `sendingsTransportHelpers`
 
 ## Next slice
 
-- **ID:** `3.18-sendings-parcel-helpers` or `3.10-claims-ui`
-- **Task:** extract parcel/sanction helpers (`getParcelTnvedCode`, `renderSanctionBadge`, …) from DocumentsPage
+- **ID:** `3.21-sendings-row-helpers` or `3.10-claims-ui`
+- **Task:** extract `getSendingRowKey`, `visibleSendingMeta`, transport/status helpers from DocumentsPage
 - **Then:** phase 4.4 admin audit API
 
 ## Blockers
