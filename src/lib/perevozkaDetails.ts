@@ -18,6 +18,7 @@ type PerevozkaDetailsOptions = {
 
 const STEPS_KEYS = ['items', 'Steps', 'stages', 'Statuses'];
 const NOMENCLATURE_KEYS = ['Packages', 'Nomenclature', 'Goods', 'CargoNomenclature', 'ПринятыйГруз', 'Номенклатура', 'TablePart', 'CargoItems', 'Items', 'GoodsList', 'Nomenklatura'];
+const GETPEREVOZKA_CLIENT_TIMEOUT_MS = 28_000;
 
 function normalizeStageKey(s: string): string {
     return s.replace(/\s+/g, '').toLowerCase();
@@ -154,11 +155,24 @@ export async function fetchPerevozkaDetails(
             ...(requestInn ? { inn: requestInn } : {}),
             ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
         };
-    const res = await fetch(PROXY_API_GETPEREVOZKA_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), GETPEREVOZKA_CLIENT_TIMEOUT_MS);
+    let res: Response;
+    try {
+        res = await fetch(PROXY_API_GETPEREVOZKA_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+        });
+    } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') {
+            throw new Error('Превышено время ожидания статусов перевозки');
+        }
+        throw e;
+    } finally {
+        clearTimeout(timer);
+    }
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as any)?.error || (err as any)?.details || `Ошибка ${res.status}`);

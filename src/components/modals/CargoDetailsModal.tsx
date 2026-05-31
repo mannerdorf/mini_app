@@ -64,6 +64,7 @@ export function CargoDetailsModal({
             setPerevozkaNomenclature([]);
             setPerevozkaMeta({ autoReg: '', autoType: '', driver: '' });
             setPerevozkaError(null);
+            setPerevozkaLoading(false);
             return;
         }
         let cancelled = false;
@@ -77,8 +78,12 @@ export function CargoDetailsModal({
                     setPerevozkaMeta(meta || { autoReg: '', autoType: '', driver: '' });
                 }
             })
-            .catch((e: any) => { if (!cancelled) setPerevozkaError(e?.message || 'Не удалось загрузить статусы'); })
-            .finally(() => { if (!cancelled) setPerevozkaLoading(false); });
+            .catch((e: any) => {
+                if (!cancelled) setPerevozkaError(e?.message || 'Не удалось загрузить статусы');
+            })
+            .finally(() => {
+                if (!cancelled) setPerevozkaLoading(false);
+            });
         return () => { cancelled = true; };
     }, [isOpen, item?.Number, auth?.login, auth?.password]);
 

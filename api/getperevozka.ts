@@ -8,6 +8,29 @@ const GETAPI_BASE =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 const GET_PEREVOZKA_METHODS = ["Getperevozka", "GetPerevozka"] as const;
+/** Таймаут одного запроса в 1С — без него Vercel/браузер ждут бесконечно. */
+const UPSTREAM_TIMEOUT_MS = 12_000;
+
+function extractTimelineFromJson(json: unknown): unknown[] | null {
+  if (!json || typeof json !== "object") return null;
+  if (Array.isArray(json)) return json;
+  const record = json as Record<string, unknown>;
+  for (const key of ["items", "Steps", "stages", "Statuses"]) {
+    const val = record[key];
+    if (Array.isArray(val) && val.length > 0) return val;
+  }
+  return null;
+}
+
+async function fetchUpstreamWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /** Варианты номера для 1С: с ведущими нулями и без (как в sendings-plan-date) */
 function normalizePerevozkaNumberForLookup(num: string): string {
@@ -57,8 +80,8 @@ async function requestGetPerevozkaFrom1C(params: {
   serviceLogin: string;
   servicePassword: string;
 }) {
-  let lastStatus = 500;
-  let lastText = "";
+  let lastStatus = 504;
+  let lastText = "Upstream timeout";
   for (const methodName of GET_PEREVOZKA_METHODS) {
     const url = new URL(GETAPI_BASE);
     url.searchParams.set("metod", methodName);
@@ -66,19 +89,25 @@ async function requestGetPerevozkaFrom1C(params: {
     if (params.inn && String(params.inn).trim()) {
       url.searchParams.set("INN", String(params.inn).trim());
     }
-    const upstream = await fetch(url.toString(), {
-      method: "GET",
-      headers: {
-        Auth: `Basic ${params.serviceLogin}:${params.servicePassword}`,
-        Authorization: SERVICE_AUTH,
-        Accept: "application/json",
-      },
-    });
-    const text = await upstream.text();
-    lastStatus = upstream.status;
-    lastText = text;
-    if (upstream.ok) {
-      return { ok: true as const, status: upstream.status, text };
+    try {
+      const upstream = await fetchUpstreamWithTimeout(url.toString(), {
+        method: "GET",
+        headers: {
+          Auth: `Basic ${params.serviceLogin}:${params.servicePassword}`,
+          Authorization: SERVICE_AUTH,
+          Accept: "application/json",
+        },
+      });
+      const text = await upstream.text();
+      lastStatus = upstream.status;
+      lastText = text;
+      if (upstream.ok) {
+        return { ok: true as const, status: upstream.status, text };
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      lastStatus = 504;
+      lastText = msg.includes("abort") ? "Upstream timeout" : msg;
     }
   }
   return { ok: false as const, status: lastStatus, text: lastText };
@@ -194,6 +223,10 @@ export default async function handler(
         try {
           const json = JSON.parse(text);
           if (item && !hasPerevozkaCargoFields(json)) {
+            const steps = extractTimelineFromJson(json);
+            if (steps) {
+              return res.status(200).json({ ...(item as Record<string, unknown>), items: steps });
+            }
             return res.status(200).json(item);
           }
           return res.status(200).json(json);
