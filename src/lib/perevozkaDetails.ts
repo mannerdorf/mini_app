@@ -2,6 +2,7 @@
  * Загрузка деталей перевозки (Getperevozka): статусы, номенклатура, мета (авто, водитель).
  */
 import { cityToCode } from "./formatUtils";
+import { formatPerevozkaNumberForApi } from "./perevozkaNumber";
 import type { AuthData, CargoItem, PerevozkaTimelineStep } from "../types";
 import { PROXY_API_GETPEREVOZKA_URL } from "../constants/config";
 
@@ -142,13 +143,14 @@ export async function fetchPerevozkaDetails(
     options?: PerevozkaDetailsOptions
 ): Promise<PerevozkaDetailsResult> {
     const forceServiceAuth = options?.forceServiceAuth === true;
+    const apiNumber = formatPerevozkaNumberForApi(number);
     const requestInn = String(item?.INN ?? item?.Inn ?? item?.inn ?? auth?.inn ?? "").trim();
     const payload = forceServiceAuth
-        ? { number, ...(requestInn ? { inn: requestInn } : {}) }
+        ? { number: apiNumber, ...(requestInn ? { inn: requestInn } : {}) }
         : {
             login: auth.login,
             password: auth.password,
-            number,
+            number: apiNumber,
             ...(requestInn ? { inn: requestInn } : {}),
             ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
         };

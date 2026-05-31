@@ -8,6 +8,7 @@ import { DOCUMENT_METHODS } from "../../documentMethods";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { PLANNED_TERMINAL_ARRIVAL_LABEL } from "../../constants/plannedArrivalLabels";
 import { formatCurrency, stripOoo, cityToCode, transliterateFilename, formatInvoiceNumber } from "../../lib/formatUtils";
+import { formatPerevozkaNumberForApi } from "../../lib/perevozkaNumber";
 import { normalizeStatus, getFilterKeyByStatus, getSumColorByPaymentStatus } from "../../lib/statusUtils";
 import { formatDate } from "../../lib/dateUtils";
 import { getPlanDays, getCargoDisplayRoleLabel, getCargoRoleSet, cargoLastMileIsSelfPickup } from "../../lib/cargoUtils";
@@ -179,7 +180,7 @@ export function CargoDetailsModal({
                     login: auth.login,
                     password: auth.password,
                     metod,
-                    number: item.Number,
+                    number: formatPerevozkaNumberForApi(item.Number),
                     ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
                 }),
             });
@@ -228,7 +229,7 @@ export function CargoDetailsModal({
         }
     };
 
-    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'Sum_paid', 'SumPaid', 'sum_paid', 'sumPaid', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', 'PZV_Sender', 'PZV_Receiver', 'PZV_Sender_Id', 'PZV_Receiver_Id', '_role', '_roles', 'Driver', 'DriverTel', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel', 'CitySender', 'CityReceiver', 'UPD', 'upd', 'BillNum', 'Bill_Number', 'billnum', 'bill_number'];
+    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'Sum_paid', 'SumPaid', 'sum_paid', 'sumPaid', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', 'PZV_Sender', 'PZV_Receiver', 'PZV_Sender_Id', 'PZV_Receiver_Id', '_role', '_roles', 'Driver', 'DriverTel', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel', 'CitySender', 'CityReceiver', 'UPD', 'upd', 'BillNum', 'Bill_Number', 'billnum', 'bill_number', 'Success', 'success', 'Statuses', 'statuses', 'error', 'request_id'];
     const parseAmount = (val: unknown): number => {
         if (val === undefined || val === null || (typeof val === 'string' && val.trim() === '')) return 0;
         const num = typeof val === 'string' ? parseFloat(val.replace(',', '.')) : Number(val);

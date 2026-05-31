@@ -243,7 +243,7 @@ export type DashboardPageProps = {
     hasDashboard?: boolean;
     /** Stagger + spring по блокам (только при глобальном SaaS-стиле). */
     saasDashboardMotion?: boolean;
-    onOpenCargo?: (cargoNumber: string) => void;
+    onOpenCargo?: (cargoNumber: string, prefetchedItem?: CargoItem) => void;
     onOpenInvoice?: (invoice: Record<string, unknown>) => void;
     onOpenDocumentsEdo?: () => void;
     onOpenDocumentsInvoices?: () => void;
@@ -3520,12 +3520,12 @@ export function DashboardPage({
                                                                             {sortedItems.map((item, itemIndex) => {
                                                                                 const cargoNum = item.Number ? String(item.Number) : '';
                                                                                 const leafOpen = cargoNum && onOpenCargo
-                                                                                    ? leafRowClickProps(() => onOpenCargo(cargoNum), 'Открыть карточку перевозки')
+                                                                                    ? leafRowClickProps(() => onOpenCargo(cargoNum, item), 'Открыть карточку перевозки')
                                                                                     : null;
                                                                                 return (
                                                                                 <tr key={`${item.Number ?? itemIndex}-${itemIndex}`} style={{ borderBottom: '1px solid var(--color-border)', ...(leafOpen?.style ?? {}) }} onClick={leafOpen?.onClick} title={leafOpen?.title}>
                                                                                     <td style={{ padding: '0.3rem' }}>
-                                                                                        <ClickableCargoNumber number={cargoNum} onOpen={onOpenCargo} />
+                                                                                        <ClickableCargoNumber number={cargoNum} onOpen={(n) => onOpenCargo?.(n, item)} />
                                                                                     </td>
                                                                                     <td style={{ padding: '0.3rem' }}><DateText value={item.DatePrih} /></td>
                                                                                     <td style={{ padding: '0.3rem' }}>{normalizeStatus(item.State)}</td>
@@ -3700,7 +3700,7 @@ export function DashboardPage({
                                                                                 return (
                                                                                 <tr key={i} style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
                                                                                     <td style={{ padding: '0.2rem 0.3rem' }}>
-                                                                                        <ClickableCargoNumber number={cargoNum} onOpen={onOpenCargo} />
+                                                                                        <ClickableCargoNumber number={cargoNum} onOpen={(n) => onOpenCargo?.(n, it as CargoItem)} />
                                                                                     </td>
                                                                                     <td style={{ padding: '0.2rem 0.3rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                                                                         <CargoTransportTypeIcon item={it as CargoItem} size={12} className="w-3 h-3" />
@@ -3895,7 +3895,7 @@ export function DashboardPage({
                                                 return (
                                                     <tr key={`cargo-flow-row-${cargoNum || idx}-${idx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                         <td style={{ padding: '0.35rem 0.45rem', whiteSpace: 'nowrap' }}>
-                                                            <ClickableCargoNumber number={cargoNum} onOpen={onOpenCargo} />
+                                                                                        <ClickableCargoNumber number={cargoNum} onOpen={(n) => onOpenCargo?.(n, it as CargoItem)} />
                                                         </td>
                                                         <td style={{ padding: '0.35rem 0.45rem', whiteSpace: 'nowrap' }}>
                                                             {planKey ? <DateText value={planKey} /> : '—'}
@@ -4064,7 +4064,7 @@ export function DashboardPage({
                                                             title={expandedSlaCargoNumber === (item.Number ?? '') ? 'Свернуть статусы' : 'Показать статусы перевозки'}
                                                         >
                                                             <td style={{ padding: '0.35rem 0.3rem', color: '#ef4444' }}>
-                                                                <ClickableCargoNumber number={item.Number ? String(item.Number) : ''} onOpen={onOpenCargo} style={{ color: '#ef4444' }} />
+                                                                <ClickableCargoNumber number={item.Number ? String(item.Number) : ''} onOpen={(n) => onOpenCargo?.(n, item)} style={{ color: '#ef4444' }} />
                                                             </td>
                                                             <td style={{ padding: '0.35rem 0.3rem' }}><DateText value={item.DatePrih} /></td>
                                                             <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
@@ -4107,7 +4107,7 @@ export function DashboardPage({
                                                                                     const dateColor = outOfSlaFromThisStep ? '#ef4444' : (planEndMs > 0 && stepMs > 0 ? '#22c55e' : 'var(--color-text-secondary)');
                                                                                     const cargoNum = item.Number ? String(item.Number) : '';
                                                                                     const stepRowOpen = cargoNum && onOpenCargo
-                                                                                        ? leafRowClickProps(() => onOpenCargo(cargoNum), 'Открыть карточку перевозки')
+                                                                                        ? leafRowClickProps(() => onOpenCargo(cargoNum, item), 'Открыть карточку перевозки')
                                                                                         : null;
                                                                                     return (
                                                                                     <tr key={i} style={{ borderBottom: '1px solid var(--color-border)', ...(stepRowOpen?.style ?? {}) }} onClick={stepRowOpen?.onClick} title={stepRowOpen?.title}>

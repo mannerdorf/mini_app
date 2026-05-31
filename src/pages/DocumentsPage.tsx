@@ -38,6 +38,7 @@ import {
 } from "../features/documents/claims";
 import { DateText } from "../components/ui/DateText";
 import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode } from "../lib/formatUtils";
+import { formatPerevozkaNumberForApi } from "../lib/perevozkaNumber";
 import { ClickableCargoNumber, ClickableInvoiceNumber } from "../components/ui/EntityLinks";
 import { CargoTransportTypeIcon } from "../components/shared/CargoTableDisplay";
 import { downloadBase64File } from "../utils";
@@ -1506,9 +1507,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
             CitySender: '',
             CityReceiver: '',
         };
-        const numberRaw = number.replace(/^0+/, '') || number;
-        const numberForApi = /^\d{5,9}$/.test(numberRaw) ? numberRaw.padStart(9, '0') : number;
-        fetchPerevozkaDetails(auth, numberForApi, cargoItem as any)
+        fetchPerevozkaDetails(auth, formatPerevozkaNumberForApi(number), cargoItem as any)
             .then(({ nomenclature }) => {
                 if (cancelled) return;
                 const normalized = normalizeAcceptedCargoNomenclatureRows(Array.isArray(nomenclature) ? nomenclature : []);

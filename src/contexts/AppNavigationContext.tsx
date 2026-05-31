@@ -11,10 +11,12 @@ import { useAuth } from "./AuthContext";
 import { useAppShell } from "./AppShellContext";
 import { getWebApp } from "../webApp";
 import { postGetPerevozkaJson } from "../api/client/perevozkiClient";
+import { buildCargoItemFromGetPerevozkaResponse, normalizePrefetchedCargoItem } from "../lib/parseGetPerevozkaResponse";
+import { formatPerevozkaNumberForApi, hasPerevozkaCargoFields } from "../lib/perevozkaNumber";
 import { CargoDetailsModal } from "../components/modals/CargoDetailsModal";
 import { InvoiceDetailModal } from "../components/modals/InvoiceDetailModal";
 import { ActDetailModal } from "../features/documents/acts";
-import type { CargoItem, PerevozkiRole, StatusFilter } from "../types";
+import type { CargoItem, StatusFilter } from "../types";
 
 export type AppNavigationContextValue = {
   contextCargoNumber: string | null;
@@ -24,7 +26,7 @@ export type AppNavigationContextValue = {
   openCargoWithFilters: (filters: { status?: StatusFilter; search?: string }) => void;
   openCargoFromChat: (cargoNumber: string) => void;
   openCargoFromDocuments: (cargoNumber: string) => void;
-  openCargoInPlace: (cargoNumber: string, inn?: string) => void;
+  openCargoInPlace: (cargoNumber: string, prefetchedOrInn?: CargoItem | string, inn?: string) => void;
   openInvoiceInPlace: (invoice: Record<string, unknown>) => void;
   openActInPlace: (act: Record<string, unknown>) => void;
   openClaimFromCargo: (cargoNumber: string) => void;
@@ -57,6 +59,8 @@ export function AppNavigationProvider({ children, setSearchText, useServiceReque
   const [overlayCargoNumber, setOverlayCargoNumber] = useState<string | null>(null);
   const [overlayCargoItem, setOverlayCargoItem] = useState<CargoItem | null>(null);
   const [overlayCargoLoading, setOverlayCargoLoading] = useState(false);
+  const [overlayCargoNotFound, setOverlayCargoNotFound] = useState(false);
+  const [overlayCargoSource, setOverlayCargoSource] = useState<"fetch" | "prefetch">("fetch");
   const [overlayCargoInn, setOverlayCargoInn] = useState<string | null>(null);
   const [overlayInvoice, setOverlayInvoice] = useState<Record<string, unknown> | null>(null);
   const [overlayAct, setOverlayAct] = useState<Record<string, unknown> | null>(null);
@@ -109,14 +113,20 @@ export function AppNavigationProvider({ children, setSearchText, useServiceReque
       if (!overlayCargoNumber) {
         setOverlayCargoItem(null);
         setOverlayCargoInn(null);
+        setOverlayCargoNotFound(false);
+        setOverlayCargoSource("fetch");
       }
+      return;
+    }
+    if (overlayCargoSource === "prefetch") {
+      setOverlayCargoLoading(false);
       return;
     }
     let cancelled = false;
     setOverlayCargoLoading(true);
+    setOverlayCargoNotFound(false);
     const inn = overlayCargoInn ?? activeAccount.activeCustomerInn ?? activeAccount.customers?.[0]?.inn ?? undefined;
-    const numberRaw = String(overlayCargoNumber).replace(/^0+/, "") || overlayCargoNumber;
-    const numberForApi = /^\d{5,9}$/.test(numberRaw) ? numberRaw.padStart(9, "0") : overlayCargoNumber;
+    const numberForApi = formatPerevozkaNumberForApi(overlayCargoNumber);
     postGetPerevozkaJson({
       login: activeAccount.login,
       password: activeAccount.password,
@@ -126,33 +136,20 @@ export function AppNavigationProvider({ children, setSearchText, useServiceReque
     })
       .then((data) => {
         if (cancelled) return;
-        const raw = Array.isArray(data) ? data[0] : data;
-        const statuses = raw?.Statuses ?? raw?.statuses;
-        const lastStatus = Array.isArray(statuses) && statuses.length > 0 ? statuses[statuses.length - 1] : null;
-        const stateFromStatuses = lastStatus?.Status ?? lastStatus?.status ?? null;
-        const item: CargoItem = raw
-          ? {
-              ...raw,
-              Number: raw?.Number ?? raw?.number ?? overlayCargoNumber,
-              DatePrih: raw?.DatePrih ?? raw?.datePrih,
-              DateVr: raw?.DateVr ?? raw?.dateVr,
-              State: raw?.State ?? raw?.state ?? stateFromStatuses ?? undefined,
-              Mest: raw?.Mest ?? raw?.mest,
-              PW: raw?.PW ?? raw?.pw,
-              W: raw?.W ?? raw?.w,
-              Value: raw?.Value ?? raw?.value,
-              Sum: raw?.Sum ?? raw?.sum,
-              StateBill: raw?.StateBill ?? raw?.stateBill,
-              Sender: raw?.Sender ?? raw?.sender,
-              Customer: raw?.Customer ?? raw?.customer,
-              Receiver: raw?.Receiver ?? raw?.receiver,
-              _role: "Customer",
-            }
-          : { Number: overlayCargoNumber, _role: "Customer" as PerevozkiRole };
+        const item = buildCargoItemFromGetPerevozkaResponse(data, overlayCargoNumber);
+        if (!item) {
+          setOverlayCargoItem(null);
+          setOverlayCargoNotFound(true);
+          return;
+        }
         setOverlayCargoItem(item);
+        setOverlayCargoNotFound(false);
       })
       .catch(() => {
-        if (!cancelled) setOverlayCargoItem(null);
+        if (!cancelled) {
+          setOverlayCargoItem(null);
+          setOverlayCargoNotFound(true);
+        }
       })
       .finally(() => {
         if (!cancelled) setOverlayCargoLoading(false);
@@ -163,10 +160,12 @@ export function AppNavigationProvider({ children, setSearchText, useServiceReque
   }, [
     overlayCargoNumber,
     overlayCargoInn,
+    overlayCargoSource,
     activeAccount?.login,
     activeAccount?.password,
     activeAccount?.activeCustomerInn,
     activeAccount?.customers,
+    activeAccount?.isRegisteredUser,
   ]);
 
   const openCargoFromChat = useCallback(
@@ -231,11 +230,26 @@ export function AppNavigationProvider({ children, setSearchText, useServiceReque
     [setActiveTab],
   );
 
-  const openCargoInPlace = useCallback((cargoNumber: string, inn?: string) => {
+  const openCargoInPlace = useCallback((cargoNumber: string, prefetchedOrInn?: CargoItem | string, inn?: string) => {
     if (!cargoNumber) return;
+    let prefetched: CargoItem | undefined;
+    let innArg = inn;
+    if (prefetchedOrInn && typeof prefetchedOrInn === "object" && !Array.isArray(prefetchedOrInn)) {
+      prefetched = prefetchedOrInn;
+    } else if (typeof prefetchedOrInn === "string") {
+      innArg = prefetchedOrInn;
+    }
     setOverlayCargoNumber(cargoNumber);
+    setOverlayCargoInn(innArg ?? null);
+    setOverlayCargoNotFound(false);
+    if (prefetched && hasPerevozkaCargoFields(prefetched as Record<string, unknown>)) {
+      setOverlayCargoSource("prefetch");
+      setOverlayCargoItem(normalizePrefetchedCargoItem(prefetched, cargoNumber));
+      setOverlayCargoLoading(false);
+      return;
+    }
+    setOverlayCargoSource("fetch");
     setOverlayCargoItem(null);
-    setOverlayCargoInn(inn ?? null);
   }, []);
 
   const openInvoiceInPlace = useCallback((invoice: Record<string, unknown>) => {
@@ -295,6 +309,8 @@ export function AppNavigationProvider({ children, setSearchText, useServiceReque
     setOverlayCargoNumber(null);
     setOverlayCargoItem(null);
     setOverlayCargoInn(null);
+    setOverlayCargoNotFound(false);
+    setOverlayCargoSource("fetch");
   };
 
   return (
@@ -360,6 +376,56 @@ export function AppNavigationProvider({ children, setSearchText, useServiceReque
             onClick={closeCargoOverlay}
           >
             <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--color-primary)" }} />
+          </div>
+        ) : overlayCargoNotFound ? (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 10000,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "rgba(0,0,0,0.4)",
+            }}
+            onClick={closeCargoOverlay}
+          >
+            <div
+              role="dialog"
+              aria-labelledby="cargo-not-found-title"
+              style={{
+                background: "var(--color-bg-card, #fff)",
+                borderRadius: 12,
+                padding: "1.25rem 1.5rem",
+                maxWidth: 320,
+                width: "calc(100% - 2rem)",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p id="cargo-not-found-title" style={{ margin: "0 0 1rem", fontWeight: 600, fontSize: "1rem" }}>
+                Перевозка не найдена
+              </p>
+              <p style={{ margin: "0 0 1rem", color: "var(--color-text-secondary)", fontSize: "0.875rem" }}>
+                {overlayCargoNumber ? `№ ${overlayCargoNumber}` : "Проверьте номер перевозки и попробуйте снова."}
+              </p>
+              <button
+                type="button"
+                onClick={closeCargoOverlay}
+                style={{
+                  width: "100%",
+                  padding: "0.5rem 1rem",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "var(--color-primary, #3b82f6)",
+                  color: "#fff",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Закрыть
+              </button>
+            </div>
           </div>
         ) : overlayCargoItem ? (
           <div style={{ position: "fixed", inset: 0, zIndex: 10000 }}>
