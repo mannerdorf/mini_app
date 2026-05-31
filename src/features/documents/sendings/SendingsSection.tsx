@@ -6,16 +6,22 @@ import { DateText } from "../../../components/ui/DateText";
 import { ClickableCargoNumber } from "../../../components/ui/EntityLinks";
 import { CargoTransportTypeIcon } from "../../../components/shared/CargoTableDisplay";
 import { StatusBadge } from "../../../components/shared/StatusBadges";
-import { AppBadge } from "../../../components/shared/AppBadge";
 import { TapSwitch } from "../../../components/TapSwitch";
 import { formatCurrency, stripOoo, formatInvoiceNumber, cityToCode } from "../../../lib/formatUtils";
 import { STATUS_MAP, normalizeStatus } from "../../../lib/statusUtils";
-import { formatSendingMetricNum, parseSendingMetricNumber } from "./sendingsMetrics";
+import {
+  formatSendingMetricNum,
+  parseSendingMetricNumber,
+} from "./sendingsMetrics";
 import { normCargoKey } from "../lib/documentsPipeline";
+import { pickNomenclatureText } from "../../../lib/sanctions";
+import {
+} from "./sendingsParcelHelpers";
+import { getSendingRowTransportMode } from "./sendingsTransportHelpers";
+import { SendingsSanctionBadge } from "./SendingsSanctionBadge";
 import { DocumentsRouteBadge } from "../views/documentsViewBlocks";
 import { SendingsBulkActionsBar } from "./SendingsBulkActionsBar";
 import type { EorStatus } from "./sendingsTypes";
-import type { SanctionCheckResult } from "../../../lib/sanctions";
 import type { AuthData } from "../../../types";
 
 export type SendingsSectionProps = {
@@ -39,10 +45,7 @@ export type SendingsSectionProps = {
   sendingRowsSorted: any;
   normalizeTransportDisplay: any;
   getSendingRowKey: any;
-  getRequestParcels: any;
   effectiveSearchText: any;
-  getParcelSearchText: any;
-  getSendingRowTransportMode: any;
   getSendingStatusKey: any;
   getSendingTransitHours: any;
   getSendingTransitIsFinal: any;
@@ -52,7 +55,6 @@ export type SendingsSectionProps = {
   getSendingRowParcelMetrics: any;
   cargoSumByNumber: any;
   sendingSanctionMap: Record<string, SanctionCheckResult>;
-  renderSanctionBadge: (result: SanctionCheckResult | null) => React.ReactNode;
   eorStatusMap: any;
   ferriesList: any;
   sendingsFerryMap: any;
@@ -90,11 +92,6 @@ export type SendingsSectionProps = {
   setByCustomerActionError: React.Dispatch<React.SetStateAction<string | null>>;
   byCustomerActionInfo: any;
   setByCustomerActionInfo: React.Dispatch<React.SetStateAction<string | null>>;
-  pickNomenclatureText: any;
-  getParcelTnvedCode: any;
-  getParcelSanctionResult: any;
-  getParcelFreightSum: any;
-  getParcelDeclaredCost: any;
   selectedVisibleSendingCount: any;
   bulkSendingActionLoading: any;
   bulkEorMenuOpen: any;
@@ -133,10 +130,7 @@ export function SendingsSection({
   sendingRowsSorted,
   normalizeTransportDisplay,
   getSendingRowKey,
-  getRequestParcels,
   effectiveSearchText,
-  getParcelSearchText,
-  getSendingRowTransportMode,
   getSendingStatusKey,
   getSendingTransitHours,
   getSendingTransitIsFinal,
@@ -146,7 +140,6 @@ export function SendingsSection({
   getSendingRowParcelMetrics,
   cargoSumByNumber,
   sendingSanctionMap,
-  renderSanctionBadge,
   eorStatusMap,
   ferriesList,
   sendingsFerryMap,
@@ -184,11 +177,6 @@ export function SendingsSection({
   setByCustomerActionError,
   byCustomerActionInfo,
   setByCustomerActionInfo,
-  pickNomenclatureText,
-  getParcelTnvedCode,
-  getParcelSanctionResult,
-  getParcelFreightSum,
-  getParcelDeclaredCost,
   selectedVisibleSendingCount,
   bulkSendingActionLoading,
   bulkEorMenuOpen,
@@ -347,7 +335,7 @@ export function SendingsSection({
                                             )}
                                             {hasAnalytics && (
                                                 <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>
-                                                    {renderSanctionBadge(rowSanctionResult)}
+                                                    <SendingsSanctionBadge result={rowSanctionResult} />
                                                 </td>
                                             )}
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>
@@ -442,7 +430,7 @@ export function SendingsSection({
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const w = parseSendingMetricNumber(parcel?.ПлатныйВес); return w > 0 ? formatSendingMetricNum(w) : '—'; })()}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem' }}>{parcelNomenclature || '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{getParcelTnvedCode(parcel) || '—'}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{renderSanctionBadge(rowSanctionResult ? parcelSanctionResult : null)}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}><SendingsSanctionBadge result={rowSanctionResult ? parcelSanctionResult : null} /></td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const sum = getParcelFreightSum(parcel, cargoSumByNumber); return sum > 0 ? formatCurrency(sum, true) : '—'; })()}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const sum = getParcelDeclaredCost(parcel); return sum > 0 ? formatCurrency(sum, true) : '—'; })()}</td>
@@ -1141,7 +1129,7 @@ export function SendingsSection({
                                     </Flex>
                                     {hasAnalytics && (
                                         <div style={{ marginBottom: '0.35rem' }}>
-                                            {renderSanctionBadge(rowSanctionResult)}
+                                            <SendingsSanctionBadge result={rowSanctionResult} />
                                         </div>
                                     )}
                                     <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={vehicle || '—'}>
@@ -1192,7 +1180,7 @@ export function SendingsSection({
                                                                         <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}><ClickableCargoNumber number={parcel?.Перевозка} onOpen={onOpenCargo} /></td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{parcelNomenclature || '—'}</td>
                                                                         <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{getParcelTnvedCode(parcel) || '—'}</td>
-                                                                        <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{renderSanctionBadge(rowSanctionResult ? parcelSanctionResult : null)}</td>
+                                                                        <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}><SendingsSanctionBadge result={rowSanctionResult ? parcelSanctionResult : null} /></td>
                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
                                                                     </tr>
                                                                 );
