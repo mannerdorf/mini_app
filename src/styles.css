@@ -3096,6 +3096,15 @@ body {
 .modal-close-button:focus { outline: none; box-shadow: none; }
 .modal-close-button:hover { background-color: var(--color-bg-hover); color: var(--color-text-primary); }
 .document-buttons { display: flex; gap: var(--tight-gap, 8px); margin-bottom: var(--element-gap, 16px); flex-wrap: wrap; }
+.document-buttons--cargo {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 520px) {
+    .document-buttons--cargo {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
 .doc-button {
     flex: 1;
     display: flex;
@@ -3451,10 +3460,17 @@ body {
         gap: 0.35rem;
     }
 
+    .modal-content--cargo-details .document-buttons--cargo {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .modal-content--cargo-details .doc-button {
         min-width: 0;
         padding: 0.45rem 0.35rem;
         font-size: 0.72rem;
+        white-space: nowrap;
+        overflow: visible;
+        flex: unset;
     }
 
     .modal-content--cargo-details .cargo-details-last-mile-block {

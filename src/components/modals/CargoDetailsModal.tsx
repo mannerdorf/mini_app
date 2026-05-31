@@ -655,14 +655,26 @@ export function CargoDetailsModal({
                     const isCustomer = isCustomerRole;
                     const availableDocs = isCustomer ? ['ЭР', 'АПП', 'СЧЕТ', 'УПД'] : ['АПП'];
                     return (
-                        <div className="document-buttons">
+                        <div className="document-buttons document-buttons--cargo">
                             {availableDocs.map(doc => {
                                 const isUPD = doc === 'УПД';
                                 const isHighlighted = isUPD && isPaid;
                                 return (
-                                    <Button key={doc} className={`doc-button ${isHighlighted ? 'doc-button-highlighted' : ''}`} onClick={() => handleDownload(doc)} disabled={downloading === doc} style={isHighlighted ? { border: '2px solid var(--color-primary-blue)', boxShadow: '0 0 8px rgba(37, 99, 235, 0.3)' } : {}}>
-                                        {downloading === doc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-2" />} {doc}
-                                    </Button>
+                                    <button
+                                        key={doc}
+                                        type="button"
+                                        className={`filter-button edo-doc-download-btn doc-button ${isHighlighted ? 'doc-button-highlighted' : ''}`}
+                                        onClick={() => handleDownload(doc)}
+                                        disabled={downloading === doc}
+                                        style={isHighlighted ? { border: '2px solid var(--color-primary-blue)', boxShadow: '0 0 8px rgba(37, 99, 235, 0.3)' } : undefined}
+                                    >
+                                        {downloading === doc ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
+                                        ) : (
+                                            <Download className="w-4 h-4" aria-hidden />
+                                        )}
+                                        {doc}
+                                    </button>
                                 );
                             })}
                         </div>
