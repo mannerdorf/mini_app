@@ -53,3 +53,25 @@ export async function registerAdminUser(
   if (!res.ok) throw new Error(data.error || "Ошибка регистрации");
   return data;
 }
+
+export type AdminPatchUserResponse = {
+  password?: string;
+  emailSent?: boolean;
+  emailError?: string;
+  error?: string;
+};
+
+export async function patchAdminUser(
+  adminToken: string,
+  userId: number,
+  body: Record<string, unknown>
+): Promise<AdminPatchUserResponse> {
+  const res = await fetch(`/api/admin-user-update?id=${userId}`, {
+    method: "PATCH",
+    headers: adminAuthHeaders(adminToken, { "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json().catch(() => ({}))) as AdminPatchUserResponse;
+  if (!res.ok) throw new Error(data.error || "Ошибка");
+  return data;
+}

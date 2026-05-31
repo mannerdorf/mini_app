@@ -50,8 +50,13 @@ import {
   saveAdminFerry,
 } from "../api/client/admin/directories";
 import { fetchAdminMe } from "../api/client/admin/me";
-import { fetchAdminUsers, registerAdminUser } from "../api/client/admin/users";
-import { fetchAdminExpenseRequests } from "../api/client/admin/expenseRequests";
+import { fetchAdminUsers, registerAdminUser, patchAdminUser } from "../api/client/admin/users";
+import {
+  fetchAdminExpenseRequests,
+  patchAdminExpenseRequest,
+  deleteAdminExpenseRequest,
+  updateAdminExpenseRequest,
+} from "../api/client/admin/expenseRequests";
 import { fetchAdminSverkiRequests, deleteAdminSverkiRequest, updateAdminSverkiRequestStatus } from "../api/client/admin/sverki";
 import { fetchAdminClaims, fetchAdminClaimDetail, postAdminClaimUpdate } from "../api/client/admin/claims";
 import { fetchAdminAutoRegisterCandidates } from "../api/client/admin/autoRegister";
@@ -2578,10 +2583,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     };
     if (adminToken) {
       try {
-        let res = await fetch("/api/admin-expense-requests", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-          body: JSON.stringify({ uid: itemId, status: newStatus, rejection_reason: rejectReason }),
+        let res = await patchAdminExpenseRequest(adminToken, {
+          uid: itemId,
+          status: newStatus,
+          rejection_reason: rejectReason,
         });
         if (res.status === 404 && fullItem) {
           await fetch("/api/expense-requests-webhook", {
@@ -2589,10 +2594,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ ...fullItem, status: newStatus, login: itemLogin }),
           });
-          res = await fetch("/api/admin-expense-requests", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-            body: JSON.stringify({ uid: itemId, status: newStatus, rejection_reason: rejectReason }),
+          res = await patchAdminExpenseRequest(adminToken, {
+            uid: itemId,
+            status: newStatus,
+            rejection_reason: rejectReason,
           });
         }
         if (res.ok) {
@@ -2625,11 +2630,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     };
     if (adminToken) {
       try {
-        const res = await fetch(`/api/admin-expense-requests?uid=${encodeURIComponent(itemId)}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${adminToken}` },
-        });
-        if (res.ok) {
+        if (await deleteAdminExpenseRequest(adminToken, itemId)) {
           updateLocal();
           reloadAllExpenseRequests();
           return;
@@ -2677,19 +2678,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     };
     if (adminToken) {
       try {
-        const res = await fetch("/api/admin-expense-requests", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-          body: JSON.stringify(payload),
-        });
-        if (res.ok) {
+        const result = await updateAdminExpenseRequest(adminToken, payload);
+        if (result.ok) {
           setExpenseEditId(null);
           reloadAllExpenseRequests();
           return;
         }
-        const errData = await res.json().catch(() => ({}));
-        const detail = errData?.details ? `: ${errData.details}` : "";
-        setError(String(errData?.error || "Ошибка сохранения заявки") + detail);
+        setError(result.error);
       } catch (e) {
         setError((e as Error)?.message || "Ошибка сохранения заявки");
       }
@@ -3236,15 +3231,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           : Boolean(user?.access_all_inns ?? user?.permissions?.service_mode),
       };
       try {
-        const res = await fetch(`/api/admin-user-update?id=${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-          body: JSON.stringify(body),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) failed.push({ id, error: (data?.error as string) || "Ошибка" });
-      } catch {
-        failed.push({ id, error: "Ошибка запроса" });
+        await patchAdminUser(adminToken, id, body);
+      } catch (e) {
+        failed.push({ id, error: (e as Error)?.message || "Ошибка" });
       }
     }
     await fetchUsers();
@@ -3264,15 +3253,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     const failed: { id: number; error: string }[] = [];
     for (const id of selectedUserIds) {
       try {
-        const res = await fetch(`/api/admin-user-update?id=${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-          body: JSON.stringify({ active: false }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) failed.push({ id, error: (data?.error as string) || "Ошибка" });
-      } catch {
-        failed.push({ id, error: "Ошибка запроса" });
+        await patchAdminUser(adminToken, id, { active: false });
+      } catch (e) {
+        failed.push({ id, error: (e as Error)?.message || "Ошибка" });
       }
     }
     await fetchUsers();
@@ -3294,23 +3277,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     setEditorLoading(true);
     setEditorError(null);
     try {
-      const res = await fetch(`/api/admin-user-update?id=${selectedUser.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`,
-        },
-        body: JSON.stringify({
-          permissions: permissionsForAdminEditor(isSuperAdmin, editorPermissions, selectedUser.permissions),
-          financial_access: editorFinancial,
-          access_all_inns: isSuperAdmin
-            ? editorAccessAllInns
-            : Boolean(selectedUser.permissions?.service_mode ?? selectedUser.access_all_inns),
-          customers: editorCustomers.map((c) => ({ inn: c.inn, name: c.customer_name })),
-        }),
+      await patchAdminUser(adminToken, selectedUser.id, {
+        permissions: permissionsForAdminEditor(isSuperAdmin, editorPermissions, selectedUser.permissions),
+        financial_access: editorFinancial,
+        access_all_inns: isSuperAdmin
+          ? editorAccessAllInns
+          : Boolean(selectedUser.permissions?.service_mode ?? selectedUser.access_all_inns),
+        customers: editorCustomers.map((c) => ({ inn: c.inn, name: c.customer_name })),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Ошибка сохранения");
       await fetchUsers();
       setSelectedUser(null);
     } catch (e: unknown) {
@@ -3325,16 +3299,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     setEditorError(null);
     setResetPasswordInfo(null);
     try {
-      const res = await fetch(`/api/admin-user-update?id=${selectedUser.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`,
-        },
-        body: JSON.stringify({ reset_password: true, send_password_to_email: editorSendPasswordToEmail }),
+      const data = await patchAdminUser(adminToken, selectedUser.id, {
+        reset_password: true,
+        send_password_to_email: editorSendPasswordToEmail,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Ошибка сброса пароля");
       setResetPasswordInfo({
         password: data.password,
         emailSent: data.emailSent,
@@ -3704,12 +3672,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       aria-label="Деактивировать пользователя"
                       onClick={async () => {
                         try {
-                          const res = await fetch(`/api/admin-user-update?id=${u.id}`, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                            body: JSON.stringify({ active: false }),
-                          });
-                          if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "Ошибка");
+                          await patchAdminUser(adminToken, u.id, { active: false });
                           setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, active: false } : x)));
                         } catch (e: unknown) {
                           setError((e as Error)?.message || "Ошибка обновления");
@@ -4189,13 +4152,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             setEditorChangeLoginLoading(true);
                             setEditorError(null);
                             try {
-                              const res = await fetch(`/api/admin-user-update?id=${selectedUser.id}`, {
-                                method: "PATCH",
-                                headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                                body: JSON.stringify({ login: newLogin }),
-                              });
-                              const data = await res.json().catch(() => ({}));
-                              if (!res.ok) throw new Error(data?.error || "Ошибка");
+                              await patchAdminUser(adminToken, selectedUser.id, { login: newLogin });
                               setUsers((prev) => prev.map((u) => (u.id === selectedUser.id ? { ...u, login: newLogin } : u)));
                               setEditorChangeLoginOpen(false);
                               openPermissionsEditor({ ...selectedUser, login: newLogin });
@@ -4231,13 +4188,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               if (!selectedUser || deleteProfileLoading) return;
                               setDeleteProfileLoading(true);
                               try {
-                                const res = await fetch(`/api/admin-user-update?id=${selectedUser.id}`, {
-                                  method: "PATCH",
-                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                                  body: JSON.stringify({ delete_profile: true }),
-                                });
-                                const data = await res.json().catch(() => ({}));
-                                if (!res.ok) throw new Error(data?.error || "Ошибка удаления");
+                                await patchAdminUser(adminToken, selectedUser.id, { delete_profile: true });
                                 setDeleteProfileConfirmOpen(false);
                                 closePermissionsEditor();
                                 fetchUsers();
@@ -4521,12 +4472,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               ) : null;
               const performSetActive = async (u: User, next: boolean) => {
                 try {
-                  const res = await fetch(`/api/admin-user-update?id=${u.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                    body: JSON.stringify({ active: next }),
-                  });
-                  if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "Ошибка");
+                  await patchAdminUser(adminToken, u.id, { active: next });
                   setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, active: next } : x)));
                   setDeactivateConfirmUserId(null);
                 } catch (e: unknown) {
