@@ -1,6 +1,11 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Copy, Check } from "lucide-react";
-import { MINI_APP_API_INVENTORY } from "../../constants/miniAppApiInventory";
+import {
+    buildApiCatalogNavEntries,
+    getApiInventoryItem,
+    MINI_APP_API_INVENTORY,
+    type ApiInventoryItem,
+} from "../../constants/miniAppApiInventory";
 import { ProfileApiTryConsole, type ProfileTryAuth } from "./ProfileApiTryConsole";
 
 const METHOD_STYLE: Record<string, { bg: string; fg: string }> = {
@@ -20,7 +25,7 @@ function parseMethods(raw: string): string[] {
         .filter(Boolean);
 }
 
-function MethodBadges({ method }: { method: string }) {
+function MethodBadges({ method, compact }: { method: string; compact?: boolean }) {
     const methods = parseMethods(method);
     const list = methods.length > 0 ? methods : ["GET"];
     return (
@@ -30,7 +35,7 @@ function MethodBadges({ method }: { method: string }) {
                 return (
                     <span
                         key={`${method}-${m}`}
-                        className="profile-api-catalog-postman__method-pill"
+                        className={`profile-api-catalog-postman__method-pill${compact ? " profile-api-catalog-postman__method-pill--compact" : ""}`}
                         style={{ backgroundColor: st.bg, color: st.fg }}
                     >
                         {m}
@@ -43,21 +48,28 @@ function MethodBadges({ method }: { method: string }) {
 
 type Props = {
     tryAuth: ProfileTryAuth;
+    defaultBearer?: string | null;
+    autoTestPrefill?: boolean;
 };
 
 /**
- * Справочник эндпоинтов в духе Postman: группы, список, копирование пути, консоль теста запроса.
+ * Справочник эндпоинтов в духе Postman: все методы в боковом меню, консоль теста справа.
  */
-export function ProfileApiCatalogPostman({ tryAuth }: Props) {
-    const [sectionIdx, setSectionIdx] = useState(0);
+export function ProfileApiCatalogPostman({ tryAuth, defaultBearer, autoTestPrefill }: Props) {
+    const navEntries = useMemo(() => buildApiCatalogNavEntries(), []);
+    const firstItem = navEntries.find((e) => e.type === "item");
+    const [sel, setSel] = useState<{ gi: number; ii: number } | null>(
+        firstItem ? { gi: firstItem.gi, ii: firstItem.ii } : null,
+    );
     const [copiedPath, setCopiedPath] = useState<string | null>(null);
-    const [sel, setSel] = useState<{ gi: number; ii: number } | null>(null);
+    const [consoleOpen, setConsoleOpen] = useState(false);
 
-    const section = MINI_APP_API_INVENTORY[sectionIdx] ?? MINI_APP_API_INVENTORY[0];
+    const selectedItem: ApiInventoryItem | null = sel ? getApiInventoryItem(sel.gi, sel.ii) : null;
+    const selectedGroup = sel ? MINI_APP_API_INVENTORY[sel.gi]?.group : null;
 
     useEffect(() => {
-        setSel(null);
-    }, [sectionIdx]);
+        setConsoleOpen(false);
+    }, [sel?.gi, sel?.ii]);
 
     const copyPath = useCallback((path: string) => {
         void navigator.clipboard?.writeText(path).catch(() => {});
@@ -65,72 +77,88 @@ export function ProfileApiCatalogPostman({ tryAuth }: Props) {
         window.setTimeout(() => setCopiedPath((p) => (p === path ? null : p)), 1600);
     }, []);
 
+    const selectItem = useCallback((gi: number, ii: number) => {
+        setSel({ gi, ii });
+    }, []);
+
     return (
         <div className="profile-api-catalog-postman">
-            <nav className="profile-api-catalog-postman__nav" aria-label="Группы запросов">
-                {MINI_APP_API_INVENTORY.map((s, i) => (
-                    <button
-                        key={s.group}
-                        type="button"
-                        className={`profile-api-catalog-postman__nav-btn${i === sectionIdx ? " is-active" : ""}`}
-                        onClick={() => setSectionIdx(i)}
-                    >
-                        {s.group}
-                    </button>
-                ))}
+            <nav className="profile-api-catalog-postman__nav" aria-label="Методы API">
+                {navEntries.map((entry, idx) => {
+                    if (entry.type === "group") {
+                        return (
+                            <div key={`group-${idx}`} className="profile-api-catalog-postman__nav-group">
+                                {entry.label}
+                            </div>
+                        );
+                    }
+                    const isActive = sel?.gi === entry.gi && sel?.ii === entry.ii;
+                    return (
+                        <button
+                            key={`nav-${entry.gi}-${entry.ii}`}
+                            type="button"
+                            className={`profile-api-catalog-postman__nav-item${isActive ? " is-active" : ""}`}
+                            onClick={() => selectItem(entry.gi, entry.ii)}
+                            title={`${entry.method} ${entry.path}`}
+                        >
+                            <MethodBadges method={entry.method} compact />
+                            <span className="profile-api-catalog-postman__nav-label">{entry.navLabel}</span>
+                        </button>
+                    );
+                })}
             </nav>
             <div className="profile-api-catalog-postman__main">
-                <div className="profile-api-catalog-postman__main-head">
-                    <h3 className="profile-api-catalog-postman__main-title">{section.group}</h3>
-                    <span className="profile-api-catalog-postman__count">{section.items.length} запросов</span>
-                </div>
-                <ul className="profile-api-catalog-postman__list" role="list">
-                    {section.items.map((it, ii) => {
-                        const isOpen = sel?.gi === sectionIdx && sel?.ii === ii;
-                        return (
-                            <li
-                                key={`profile-api-inv-${sectionIdx}-${ii}`}
-                                className={`profile-api-catalog-postman__item${isOpen ? " is-open" : ""}`}
-                            >
-                                <div className="profile-api-catalog-postman__row-top">
-                                    <MethodBadges method={it.method} />
-                                    <code className="profile-api-catalog-postman__path">{it.path}</code>
-                                    <button
-                                        type="button"
-                                        className="profile-api-catalog-postman__copy"
-                                        title="Копировать путь"
-                                        aria-label={`Копировать ${it.path}`}
-                                        onClick={() => copyPath(it.path)}
-                                    >
-                                        {copiedPath === it.path ? (
-                                            <Check className="profile-api-catalog-postman__copy-icon" strokeWidth={2.5} />
-                                        ) : (
-                                            <Copy className="profile-api-catalog-postman__copy-icon" strokeWidth={2} />
-                                        )}
-                                    </button>
-                                </div>
-                                <p className="profile-api-catalog-postman__desc">{it.note}</p>
-                                <div className="profile-api-catalog-postman__item-actions">
-                                    <button
-                                        type="button"
-                                        className="profile-api-catalog-postman__try-btn"
-                                        onClick={() => setSel(isOpen ? null : { gi: sectionIdx, ii })}
-                                    >
-                                        {isOpen ? "Свернуть консоль" : "Тест запроса"}
-                                    </button>
-                                </div>
-                                {isOpen ? (
-                                    <ProfileApiTryConsole
-                                        key={`profile-api-try-${sectionIdx}-${ii}`}
-                                        item={it}
-                                        tryAuth={tryAuth}
-                                        onClose={() => setSel(null)}
-                                    />
-                                ) : null}
-                            </li>
-                        );
-                    })}
-                </ul>
+                {!selectedItem ? (
+                    <p className="profile-api-catalog-postman__empty">Выберите метод в меню слева.</p>
+                ) : (
+                    <>
+                        <div className="profile-api-catalog-postman__main-head">
+                            <div>
+                                <p className="profile-api-catalog-postman__main-group">{selectedGroup}</p>
+                                <h3 className="profile-api-catalog-postman__main-title">{selectedItem.navLabel}</h3>
+                            </div>
+                        </div>
+                        <div className="profile-api-catalog-postman__detail">
+                            <div className="profile-api-catalog-postman__row-top">
+                                <MethodBadges method={selectedItem.method} />
+                                <code className="profile-api-catalog-postman__path">{selectedItem.path}</code>
+                                <button
+                                    type="button"
+                                    className="profile-api-catalog-postman__copy"
+                                    title="Копировать путь"
+                                    aria-label={`Копировать ${selectedItem.path}`}
+                                    onClick={() => copyPath(selectedItem.path)}
+                                >
+                                    {copiedPath === selectedItem.path ? (
+                                        <Check className="profile-api-catalog-postman__copy-icon" strokeWidth={2.5} />
+                                    ) : (
+                                        <Copy className="profile-api-catalog-postman__copy-icon" strokeWidth={2} />
+                                    )}
+                                </button>
+                            </div>
+                            <p className="profile-api-catalog-postman__desc">{selectedItem.note}</p>
+                            <div className="profile-api-catalog-postman__item-actions">
+                                <button
+                                    type="button"
+                                    className="profile-api-catalog-postman__try-btn"
+                                    onClick={() => setConsoleOpen((v) => !v)}
+                                >
+                                    {consoleOpen ? "Свернуть консоль" : "Тест запроса"}
+                                </button>
+                            </div>
+                            {consoleOpen && sel ? (
+                                <ProfileApiTryConsole
+                                    key={`profile-api-try-${sel.gi}-${sel.ii}`}
+                                    item={selectedItem}
+                                    tryAuth={tryAuth}
+                                    defaultBearer={defaultBearer}
+                                    autoTestPrefill={autoTestPrefill}
+                                    onClose={() => setConsoleOpen(false)}
+                                />
+                            ) : null}
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );

@@ -13,7 +13,7 @@ import { getCachedDocumentEdoInfo } from "../lib/edoStatus";
 import { DocumentsEdoTableStatus } from "../features/documents/views/documentsViewBlocks";
 import { formatDisplayDate, formatDisplayDateFromDate, getCurrentMonthYm } from "../lib/dateUtils";
 import { downloadBase64File } from "../utils";
-import { AdminDashboardsPanel, AdminLegalSection } from "../features/admin";
+import { AdminDashboardsPanel, AdminLegalSection, AdminUserApiKeysSection } from "../features/admin";
 import {
   fetchAdminAuditLog,
   fetchAdminIntegrationHealth,
@@ -8298,6 +8298,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               }}
             />
           </Panel>
+
+          {adminToken ? <AdminUserApiKeysSection adminToken={adminToken} /> : null}
 
           <Panel className="cargo-card" style={{ padding: "0.85rem", border: "1px solid var(--color-border)", marginTop: "0.9rem" }}>
             <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Partner API и webhooks (v1)</Typography.Body>

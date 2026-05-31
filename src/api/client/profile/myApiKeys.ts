@@ -13,6 +13,8 @@ export type MyApiKeyRow = {
   allowed_inns: string[];
   created_at: string;
   last_used_at: string | null;
+  disabled_at?: string | null;
+  enabled?: boolean;
 };
 
 export type MyApiKeysListResponse = {
@@ -45,7 +47,7 @@ export function formatMyApiKeysError(status: number, message: string | undefined
   const msg = message?.trim() || "";
   if (status === 401) return msg || "Неверный логин или пароль";
   if (status === 403) {
-    return msg || "Нет доступа. Нужно право «Служебный режим» (service_mode).";
+    return msg || "Нет доступа к разделу API.";
   }
   if (status === 400) return msg || "Некорректный запрос";
   if (status === 404) return msg || "Ключ не найден или уже отозван";
@@ -100,4 +102,34 @@ export async function revokeMyApiKey(login: string, password: string, id: string
   if (!res.ok) {
     throw new Error(formatMyApiKeysError(res.status, data.error));
   }
+}
+
+export type UpdateMyApiKeyParams = {
+  login: string;
+  password: string;
+  id: string;
+  enabled?: boolean;
+  scopes?: UserApiKeyScopeClient[];
+  allowed_inns?: string[];
+  label?: string;
+};
+
+export type MyApiKeysUpdateResponse = {
+  ok?: boolean;
+  key?: MyApiKeyRow;
+  error?: string;
+};
+
+export async function updateMyApiKey(params: UpdateMyApiKeyParams): Promise<MyApiKeyRow> {
+  const { login, password, id, ...rest } = params;
+  const res = await fetch("/api/my-api-keys", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...profileAuthHeaders(login, password) },
+    body: JSON.stringify({ login, password, id, ...rest }),
+  });
+  const data = (await res.json().catch(() => ({}))) as MyApiKeysUpdateResponse;
+  if (!res.ok || !data.key) {
+    throw new Error(formatMyApiKeysError(res.status, data.error));
+  }
+  return data.key;
 }

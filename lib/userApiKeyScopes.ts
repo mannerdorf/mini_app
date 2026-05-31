@@ -1,5 +1,15 @@
-/** Допустимые scope для ключей (совпадают с проверкой в partner/v1 и my-api-keys). */
-export const USER_API_KEY_SCOPES = ["cargo:read", "sendings:read", "orders:read"] as const;
+export const USER_API_KEY_SCOPES = [
+  "cargo:read",
+  "sendings:read",
+  "invoices:read",
+  "acts:read",
+  "orders:read",
+  "claims:read",
+  "contracts:read",
+  "sverki:read",
+  "tariffs:read",
+  "documents:read",
+] as const;
 
 export type UserApiKeyScope = (typeof USER_API_KEY_SCOPES)[number];
 

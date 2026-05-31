@@ -5,6 +5,7 @@ import { cityToCode } from "./formatUtils";
 import { formatPerevozkaNumberForApi } from "./perevozkaNumber";
 import type { AuthData, CargoItem, PerevozkaTimelineStep } from "../types";
 import { PROXY_API_GETPEREVOZKA_URL } from "../constants/config";
+import { normalizePerevozkaSteps } from "../../api/lib/postbGetapiNormalize.js";
 
 export type PerevozkaDetailsResult = {
     steps: PerevozkaTimelineStep[] | null;
@@ -16,8 +17,11 @@ type PerevozkaDetailsOptions = {
     forceServiceAuth?: boolean;
 };
 
-const STEPS_KEYS = ['items', 'Steps', 'stages', 'Statuses'];
+const STEPS_KEYS = ['items', 'Items', 'Steps', 'stages', 'Statuses', 'statuses', 'Статусы', 'статусы', 'History', 'history'];
 const NOMENCLATURE_KEYS = ['Packages', 'Nomenclature', 'Goods', 'CargoNomenclature', 'ПринятыйГруз', 'Номенклатура', 'TablePart', 'CargoItems', 'Items', 'GoodsList', 'Nomenklatura'];
+const GETPEREVOZKA_CLIENT_TIMEOUT_MS = 58_000;
+
+const TIMELINE_NEST_KEYS = ['Response', 'Data', 'Result', 'result', 'data'];
 
 function normalizeStageKey(s: string): string {
     return s.replace(/\s+/g, '').toLowerCase();
@@ -136,11 +140,89 @@ export function buildNomenclatureSearchTextFromCargoItem(item: CargoItem | Recor
     return rows.length > 0 ? buildNomenclatureSearchText(rows) : "";
 }
 
-export async function fetchPerevozkaDetails(
+function mapRawElementsToSteps(raw: unknown[], item: CargoItem): PerevozkaTimelineStep[] {
+    return raw.map((el: any) => {
+        const rawLabel = el?.Stage ?? el?.Name ?? el?.Status ?? el?.label ?? el?.title ?? String(el);
+        const labelStr = typeof rawLabel === "string" ? rawLabel : String(rawLabel);
+        const date = el?.Date ?? el?.date ?? el?.DatePrih ?? el?.DateVr;
+        const displayLabel = mapTimelineStageLabel(labelStr, item);
+        return { label: displayLabel, date, completed: true };
+    });
+}
+
+function sortTimelineSteps(steps: PerevozkaTimelineStep[], item: CargoItem): PerevozkaTimelineStep[] {
+    const fromCity = cityToCode(item.CitySender) || "—";
+    const toCity = cityToCode(item.CityReceiver) || "—";
+    const senderLabel = `Получена в ${fromCity}`;
+    const arrivedAtDestLabel = `Прибыла в ${toCity}`;
+    const orderOf = (l: string, i: number): number => {
+        if (l === "Получена информация") return 1;
+        if (l === senderLabel) return 2;
+        if (l === "Измерена") return 3;
+        if (l === "Консолидация") return 4;
+        if (l === "Загружена в ТС") return 5;
+        if (l === "Отправлена") return 6;
+        if (l === arrivedAtDestLabel) return 7;
+        if (l === "Запланирована доставка") return 8;
+        if (l === "Доставлена") return 9;
+        return 10 + i;
+    };
+    return steps
+        .map((s, i) => ({ s, key: orderOf(s.label, i) }))
+        .sort((a, b) => a.key - b.key)
+        .map((x) => x.s);
+}
+
+function stepsFromNormalized(data: unknown, item: CargoItem): PerevozkaTimelineStep[] {
+    return normalizePerevozkaSteps(data).map((s) => ({
+        label: mapTimelineStageLabel(s.title, item),
+        date: s.date || undefined,
+        completed: true,
+    }));
+}
+
+function extractRawTimelineArray(data: unknown): unknown[] {
+    if (Array.isArray(data)) return data;
+    if (!data || typeof data !== 'object') return [];
+    const record = data as Record<string, unknown>;
+    for (const key of STEPS_KEYS) {
+        const val = record[key];
+        if (Array.isArray(val) && val.length > 0) return val;
+    }
+    for (const nest of TIMELINE_NEST_KEYS) {
+        const nested = record[nest];
+        if (!nested || typeof nested !== 'object' || Array.isArray(nested)) continue;
+        for (const key of STEPS_KEYS) {
+            const val = (nested as Record<string, unknown>)[key];
+            if (Array.isArray(val) && val.length > 0) return val;
+        }
+    }
+    return [];
+}
+
+function isMeaningfulStepLabel(label: string): boolean {
+    const t = String(label ?? "").trim();
+    return t !== "" && t !== "—" && t !== "-";
+}
+
+function resolveTimelineSteps(data: unknown, item: CargoItem): PerevozkaTimelineStep[] {
+    const raw = extractRawTimelineArray(data);
+    let sorted = sortTimelineSteps(
+        raw.length > 0 ? mapRawElementsToSteps(raw, item) : [],
+        item,
+    );
+    if (sorted.length === 0) {
+        const normalized = stepsFromNormalized(data, item).filter((s) => isMeaningfulStepLabel(s.label));
+        if (normalized.length > 1) sorted = sortTimelineSteps(normalized, item);
+    }
+    return sorted.filter((s) => isMeaningfulStepLabel(s.label));
+}
+
+async function fetchPerevozkaDetailsOnce(
     auth: AuthData,
     number: string,
     item: CargoItem,
-    options?: PerevozkaDetailsOptions
+    options?: PerevozkaDetailsOptions,
 ): Promise<PerevozkaDetailsResult> {
     const forceServiceAuth = options?.forceServiceAuth === true;
     const apiNumber = formatPerevozkaNumberForApi(number);
@@ -154,45 +236,30 @@ export async function fetchPerevozkaDetails(
             ...(requestInn ? { inn: requestInn } : {}),
             ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
         };
-    const res = await fetch(PROXY_API_GETPEREVOZKA_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), GETPEREVOZKA_CLIENT_TIMEOUT_MS);
+    let res: Response;
+    try {
+        res = await fetch(PROXY_API_GETPEREVOZKA_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+        });
+    } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') {
+            throw new Error('Превышено время ожидания статусов перевозки');
+        }
+        throw e;
+    } finally {
+        clearTimeout(timer);
+    }
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as any)?.error || (err as any)?.details || `Ошибка ${res.status}`);
     }
     const data = await res.json();
-    const raw = Array.isArray(data) ? data : (data?.items ?? data?.Steps ?? data?.stages ?? data?.Statuses ?? []);
-    const steps: PerevozkaTimelineStep[] = Array.isArray(raw)
-        ? raw.map((el: any) => {
-            const rawLabel = el?.Stage ?? el?.Name ?? el?.Status ?? el?.label ?? String(el);
-            const labelStr = typeof rawLabel === 'string' ? rawLabel : String(rawLabel);
-            const date = el?.Date ?? el?.date ?? el?.DatePrih ?? el?.DateVr;
-            const displayLabel = mapTimelineStageLabel(labelStr, item);
-            return { label: displayLabel, date, completed: true };
-        })
-        : [];
-    const fromCity = cityToCode(item.CitySender) || '—';
-    const toCity = cityToCode(item.CityReceiver) || '—';
-    const senderLabel = `Получена в ${fromCity}`;
-    const arrivedAtDestLabel = `Прибыла в ${toCity}`;
-    const orderOf = (l: string, i: number): number => {
-        if (l === 'Получена информация') return 1;
-        if (l === senderLabel) return 2;
-        if (l === 'Измерена') return 3;
-        if (l === 'Консолидация') return 4;
-        if (l === 'Загружена в ТС') return 5;
-        if (l === 'Отправлена') return 6;
-        if (l === arrivedAtDestLabel) return 7;
-        if (l === 'Запланирована доставка') return 8;
-        if (l === 'Доставлена') return 9;
-        return 10 + i;
-    };
-    const sorted = steps.map((s, i) => ({ s, key: orderOf(s.label, i) }))
-        .sort((a, b) => a.key - b.key)
-        .map((x) => x.s);
+    const sorted = resolveTimelineSteps(data, item);
     const nomenclature = extractNomenclatureFromPerevozka(data);
     const tryReadField = (fieldNames: string[]): string => {
         const candidates: any[] = [
@@ -220,6 +287,24 @@ export async function fetchPerevozkaDetails(
         driver: tryReadField(['Driver', 'driver', 'DriverFio', 'DriverName']),
     };
     return { steps: sorted.length ? sorted : null, nomenclature, meta };
+}
+
+export async function fetchPerevozkaDetails(
+    auth: AuthData,
+    number: string,
+    item: CargoItem,
+    options?: PerevozkaDetailsOptions,
+): Promise<PerevozkaDetailsResult> {
+    const first = await fetchPerevozkaDetailsOnce(auth, number, item, options);
+    const firstCount = first.steps?.length ?? 0;
+    if (firstCount > 1 || options?.forceServiceAuth) return first;
+
+    const retry = await fetchPerevozkaDetailsOnce(auth, number, item, {
+        ...options,
+        forceServiceAuth: true,
+    });
+    if ((retry.steps?.length ?? 0) > firstCount) return retry;
+    return first;
 }
 
 export async function fetchPerevozkaTimeline(

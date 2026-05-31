@@ -13,6 +13,32 @@ function normKey(k: string): string {
 
 /** Из произвольного объекта строки таблицы статусов. */
 export function rowFromLooseObject(obj: Record<string, unknown>): { title: string; date: string } | null {
+  const directTitle = asStr(
+    obj.Stage ??
+      obj.stage ??
+      obj.Name ??
+      obj.name ??
+      obj.Status ??
+      obj.status ??
+      obj.State ??
+      obj.state ??
+      obj.Состояние ??
+      obj.состояние,
+  );
+  const directDate = asStr(
+    obj.Date ??
+      obj.date ??
+      obj.DatePrih ??
+      obj.datePrih ??
+      obj.DateVr ??
+      obj.dateVr ??
+      obj.Период ??
+      obj.период,
+  );
+  if (directTitle) {
+    return { title: directTitle, date: directDate };
+  }
+  if (directDate) return null;
   let title = "";
   let date = "";
   for (const [k, v] of Object.entries(obj)) {
@@ -79,9 +105,53 @@ export function parseJsonLoose(text: string): unknown {
   }
 }
 
+function stepsFromStatusArray(rows: unknown[]): Array<{ title: string; date: string }> {
+  const out: Array<{ title: string; date: string }> = [];
+  for (const row of rows) {
+    if (!isPlainObject(row)) continue;
+    const r = row as Record<string, unknown>;
+    const title = remapPostbStatusLabel(
+      asStr(
+        r.Stage ??
+          r.stage ??
+          r.Состояние ??
+          r.состояние ??
+          r.Status ??
+          r.status ??
+          r.State ??
+          r.state ??
+          r.Name ??
+          r.name,
+      ),
+    );
+    const date = asStr(
+      r.Date ??
+        r.date ??
+        r.Период ??
+        r.период ??
+        r.DatePrih ??
+        r.datePrih ??
+        r.DateVr ??
+        r.dateVr,
+    );
+    if (title || date) out.push({ title: title || "—", date });
+  }
+  return out;
+}
+
 /** Шаги перевозки для таймлайна. */
 export function normalizePerevozkaSteps(data: unknown): Array<{ title: string; date: string }> {
   if (!data) return [];
+  if (isPlainObject(data)) {
+    const o = data as Record<string, unknown>;
+    for (const key of ["Статусы", "статусы", "Statuses", "statuses"]) {
+      const statu = o[key];
+      if (Array.isArray(statu) && statu.length > 0) {
+        const fromArray = stepsFromStatusArray(statu);
+        if (fromArray.length > 0) return fromArray;
+      }
+    }
+  }
   const buckets: Record<string, unknown>[][] = [];
   findStatusArrays(data, 8, buckets);
   let best: Record<string, unknown>[] = [];
@@ -99,8 +169,15 @@ export function normalizePerevozkaSteps(data: unknown): Array<{ title: string; d
     const o = data as Record<string, unknown>;
     const direct = rowFromLooseObject(o);
     if (direct) return [direct];
-    const st = asStr(o.Статус ?? o.статус ?? o.Status ?? o.status);
-    if (st) return [{ title: st, date: asStr(o.Дата ?? o.дата ?? o.Date ?? o.date) }];
+    const st = asStr(o.Статус ?? o.статус ?? o.Status ?? o.status ?? o.State ?? o.state);
+    if (st) {
+      return [
+        {
+          title: remapPostbStatusLabel(st),
+          date: asStr(o.Дата ?? o.дата ?? o.Date ?? o.date ?? o.DatePrih ?? o.datePrih),
+        },
+      ];
+    }
   }
   return [];
 }

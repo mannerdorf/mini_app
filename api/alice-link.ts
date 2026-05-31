@@ -1,5 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { initRequestContext } from "./_lib/observability.js";
+import { getPool } from "./_db.js";
+import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { getRegisteredUserPermissions, hasServiceModePermission } from "../lib/legalDocuments.js";
 
 const CODE_TTL_SECONDS = 60 * 10; // 10 minutes
 
@@ -51,6 +54,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const inn = body?.inn != null ? String(body.inn).trim() : undefined;
   if (!login || !password) {
     return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
+  }
+
+  const pool = getPool();
+  const verified = await verifyRegisteredUser(pool, login, password);
+  if (!verified) {
+    return res.status(401).json({ error: "Неверный логин или пароль", request_id: ctx.requestId });
+  }
+  const perms = await getRegisteredUserPermissions(pool, login);
+  if (!hasServiceModePermission(perms)) {
+    return res.status(403).json({
+      error: "Голосовой помощник доступен только в служебном режиме",
+      request_id: ctx.requestId,
+    });
   }
 
   let code = "";

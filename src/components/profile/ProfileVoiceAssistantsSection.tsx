@@ -2,23 +2,24 @@ import React, { useState } from "react";
 import { AlertTriangle, ArrowLeft, Loader2 } from "lucide-react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import type { Account } from "../../types";
+import { VOICE_ASSISTANT_GUIDE_SECTIONS } from "../../pages/profile/voiceAssistantGuideContent";
 
 type Props = {
     activeAccount: Account | null;
     onBack: () => void;
 };
 
-/** Экран «Голосовые помощники»: привязка навыка Яндекс Алисы (код / отвязка). */
+/** Экран «Голосовые помощники»: привязка навыка Яндекс Алисы (код / отвязка). Только служебный режим. */
 export function ProfileVoiceAssistantsSection({ activeAccount, onBack }: Props) {
+    const voiceUnlocked =
+        activeAccount?.isRegisteredUser === true && activeAccount?.permissions?.service_mode === true;
     const [aliceCode, setAliceCode] = useState<string | null>(null);
     const [aliceExpiresAt, setAliceExpiresAt] = useState<number | null>(null);
     const [aliceLoading, setAliceLoading] = useState(false);
     const [aliceError, setAliceError] = useState<string | null>(null);
     const [aliceSuccess, setAliceSuccess] = useState<string | null>(null);
 
-    const serviceModeAllowed = !!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true;
-
-    if (!serviceModeAllowed) {
+    if (!voiceUnlocked) {
         return (
             <div className="w-full">
                 <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
@@ -28,8 +29,9 @@ export function ProfileVoiceAssistantsSection({ activeAccount, onBack }: Props) 
                     <Typography.Headline className="text-page-title">Голосовые помощники</Typography.Headline>
                 </Flex>
                 <Panel className="cargo-card" style={{ padding: "1rem" }}>
-                    <Typography.Body style={{ color: "var(--color-text-secondary)" }}>
-                        Доступно только при включённом служебном режиме.
+                    <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+                        Голосовой помощник пока доступен только пользователям со служебным режимом. Обратитесь к
+                        администратору HAULZ, если вам нужен доступ.
                     </Typography.Body>
                 </Panel>
             </div>
@@ -47,7 +49,7 @@ export function ProfileVoiceAssistantsSection({ activeAccount, onBack }: Props) 
             <Typography.Body style={{ marginBottom: "0.75rem", fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>Алиса</Typography.Body>
             <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                 <Typography.Body style={{ fontSize: "0.9rem" }}>
-                    Скажите Алисе: «Запусти навык Холз» и назовите код ниже. После привязки Алиса подтвердит компанию. Грузик в Алисе подскажет, что актуально по перевозкам, где конкретный груз, что надо оплатить, что доставлено сегодня, есть ли задержки и какие документы можно открыть. Номер можно назвать с ведущим нулём или без него: 0135702 и 135702 найдутся одинаково.
+                    Получите код ниже и назовите его Алисе после фразы «Запусти навык Холз». Подробная инструкция — в блоках ниже.
                 </Typography.Body>
                 <Button
                     className="button-primary"
@@ -139,46 +141,65 @@ export function ProfileVoiceAssistantsSection({ activeAccount, onBack }: Props) 
             </Panel>
 
             <Typography.Body style={{ marginTop: "1.25rem", marginBottom: "0.5rem", fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
-                Описание навыков
+                Инструкция
             </Typography.Body>
-            <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-                    «Запусти навык Холз» → назовите код из приложения → Алиса подтвердит компанию. Ниже — фразы и сценарии.
-                </Typography.Body>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                    <Typography.Body style={{ fontSize: "0.8rem", fontWeight: 600 }}>Что можно спросить</Typography.Body>
-                    <Typography.Body style={{ fontSize: "0.8rem" }}>
-                        • «Что актуально?» / «Что требует внимания?» — сводка по задержкам, оплатам, грузам в пути и доставкам.
-                    </Typography.Body>
-                    <Typography.Body style={{ fontSize: "0.8rem" }}>
-                        • «Где груз 135702?» / «Что с перевозкой 0135702?» — статус, маршрут, даты, оплата и доступные документы.
-                    </Typography.Body>
-                    <Typography.Body style={{ fontSize: "0.8rem" }}>
-                        • «Что надо оплатить?» / «Есть задолженность?» — количество перевозок к оплате, сумма и номера.
-                    </Typography.Body>
-                    <Typography.Body style={{ fontSize: "0.8rem" }}>
-                        • «Что доставлено сегодня?» / «Какие грузы на доставке?» — доставки и прибытия за период.
-                    </Typography.Body>
-                    <Typography.Body style={{ fontSize: "0.8rem" }}>
-                        • «Есть задержки?» / «Что опаздывает?» — перевозки с риском нарушения срока.
-                    </Typography.Body>
-                    <Typography.Body style={{ fontSize: "0.8rem" }}>
-                        • «Пришли счёт по грузу 135702» / «Есть УПД по перевозке 135702?» — ссылка на документ в тексте ответа.
-                    </Typography.Body>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                    <Typography.Body style={{ fontSize: "0.8rem", fontWeight: 600 }}>Управление</Typography.Body>
-                    <Typography.Body style={{ fontSize: "0.8rem" }}>
-                        • «Работай от имени компании [название]» / «Переключись на компанию [название]» — переключить компанию (если привязано несколько).
-                    </Typography.Body>
-                    <Typography.Body style={{ fontSize: "0.8rem" }}>
-                        • «Отвяжи компанию» / «Отвяжи заказчика» / «Отвяжи» — отвязать навык; новый код — в приложении.
-                    </Typography.Body>
-                </div>
-                <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}>
-                    Другие вопросы (контакты, груз по номеру) Алиса передаёт в чат поддержки с контекстом вашей компании.
-                </Typography.Body>
-            </Panel>
+            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+                Как подключить навык и что спрашивать у Грузика.
+            </Typography.Body>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                {VOICE_ASSISTANT_GUIDE_SECTIONS.map((section) => (
+                    <Panel
+                        key={section.id}
+                        className="cargo-card"
+                        style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}
+                    >
+                        <Typography.Body style={{ fontSize: "0.9rem", fontWeight: 600 }}>{section.title}</Typography.Body>
+                        {section.intro && (
+                            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                                {section.intro}
+                            </Typography.Body>
+                        )}
+                        {section.steps && section.steps.length > 0 && (
+                            <ol style={{ margin: 0, paddingLeft: "1.25rem", display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                                {section.steps.map((step, idx) => (
+                                    <li key={idx}>
+                                        <Typography.Body style={{ fontSize: "0.85rem" }}>{step}</Typography.Body>
+                                    </li>
+                                ))}
+                            </ol>
+                        )}
+                        {section.items && section.items.length > 0 && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                                {section.items.map((item) => (
+                                    <div key={item.label}>
+                                        <Typography.Body style={{ fontSize: "0.8rem", fontWeight: 600 }}>{item.label}</Typography.Body>
+                                        <Typography.Body style={{ fontSize: "0.8rem" }}>{item.phrases}</Typography.Body>
+                                        {item.hint && (
+                                            <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}>
+                                                {item.hint}
+                                            </Typography.Body>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {section.bullets && section.bullets.length > 0 && (
+                            <ul style={{ margin: 0, paddingLeft: "1.25rem", display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                                {section.bullets.map((bullet, idx) => (
+                                    <li key={idx}>
+                                        <Typography.Body style={{ fontSize: "0.85rem" }}>{bullet}</Typography.Body>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                        {section.footnote && (
+                            <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.25rem" }}>
+                                {section.footnote}
+                            </Typography.Body>
+                        )}
+                    </Panel>
+                ))}
+            </div>
         </div>
     );
 }

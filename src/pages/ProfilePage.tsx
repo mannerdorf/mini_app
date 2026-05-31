@@ -1010,6 +1010,14 @@ export function ProfilePage({
         if (currentView === 'departmentTimesheet' && activeAccount?.login) void fetchDepartmentTimesheet();
     }, [currentView, activeAccount?.login, fetchDepartmentTimesheet]);
 
+    useEffect(() => {
+        const voiceUnlocked =
+            activeAccount?.isRegisteredUser === true && activeAccount?.permissions?.service_mode === true;
+        if (currentView === 'voiceAssistants' && !voiceUnlocked) {
+            setCurrentView('main');
+        }
+    }, [currentView, activeAccount?.isRegisteredUser, activeAccount?.permissions?.service_mode]);
+
     // Настройки
     const settingsItems = [
         { 
@@ -1044,14 +1052,14 @@ export function ProfilePage({
             onClick: () => setCurrentView('employees')
         }] : [])
         ] : []),
-        ...(!!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true ? [
-        { 
-            id: 'voiceAssistants', 
-            label: 'Голосовые помощники', 
-            icon: <Mic className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
-            onClick: () => setCurrentView('voiceAssistants')
-        },
-        ] : []),
+        ...(activeAccount?.isRegisteredUser === true && activeAccount?.permissions?.service_mode === true
+            ? [{
+                id: 'voiceAssistants',
+                label: 'Голосовые помощники',
+                icon: <Mic className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+                onClick: () => setCurrentView('voiceAssistants'),
+            }]
+            : []),
         ...(activeAccount?.permissions?.chat === true ? [{
             id: 'chat' as const,
             label: 'Чат с Грузиком',
@@ -1064,7 +1072,7 @@ export function ProfilePage({
             icon: <Bell className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('notifications')
         },
-        ...(activeAccount?.isRegisteredUser === true && activeAccount?.permissions?.service_mode === true
+        ...(activeAccount?.isRegisteredUser === true
             ? [{
                 id: 'apiKeys' as const,
                 label: 'API',

@@ -3,11 +3,103 @@ import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { respondCorsPreflight } from "./_lib/cors.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { normalizePerevozkaSteps } from "./lib/postbGetapiNormalize.js";
 
 const GETAPI_BASE =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 const GET_PEREVOZKA_METHODS = ["Getperevozka", "GetPerevozka"] as const;
+/** Таймаут одного запроса в 1С (maxDuration функции = 60 с). */
+const UPSTREAM_TIMEOUT_MS = 55_000;
+
+const TIMELINE_ARRAY_KEYS = [
+  "items",
+  "Items",
+  "Steps",
+  "stages",
+  "Statuses",
+  "statuses",
+  "Статусы",
+  "статусы",
+  "History",
+  "history",
+  "История",
+  "история",
+] as const;
+
+function extractTimelineFromJson(json: unknown): unknown[] | null {
+  if (!json || typeof json !== "object") return null;
+  if (Array.isArray(json)) return json;
+  const record = json as Record<string, unknown>;
+  for (const key of TIMELINE_ARRAY_KEYS) {
+    const val = record[key];
+    if (Array.isArray(val) && val.length > 0) return val;
+  }
+  for (const nest of ["Response", "Data", "Result", "result", "data"]) {
+    const nested = record[nest];
+    if (!nested || typeof nested !== "object" || Array.isArray(nested)) continue;
+    for (const key of TIMELINE_ARRAY_KEYS) {
+      const val = (nested as Record<string, unknown>)[key];
+      if (Array.isArray(val) && val.length > 0) return val;
+    }
+  }
+  return null;
+}
+
+function isMeaningfulTimelineStep(step: { title: string; date: string }): boolean {
+  const title = String(step.title ?? "").trim();
+  return title !== "" && title !== "—" && title !== "-";
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return Boolean(v) && typeof v === "object" && !Array.isArray(v);
+}
+
+/** Массив шагов из ответа 1С. Один шаг из поля State — не таймлайн. */
+function resolveTimelineRows(payload: unknown): unknown[] | null {
+  const direct = extractTimelineFromJson(payload);
+  if (direct && direct.length > 0) return direct;
+  const norm = normalizePerevozkaSteps(payload).filter(isMeaningfulTimelineStep);
+  if (norm.length <= 1) return null;
+  return norm.map((s) => ({ Stage: s.title, Date: s.date }));
+}
+
+function buildPerevozkaResponse(
+  cacheItem: Record<string, unknown> | undefined,
+  json: unknown,
+): unknown {
+  const timeline = resolveTimelineRows(json);
+  const cargoJson = hasPerevozkaCargoFields(json);
+  let base: Record<string, unknown>;
+  if (cacheItem && !cargoJson) {
+    base = { ...cacheItem, ...(isPlainObject(json) ? json : {}) };
+  } else if (isPlainObject(json)) {
+    base = { ...json };
+  } else if (cacheItem) {
+    base = { ...cacheItem };
+  } else {
+    return json;
+  }
+  if (!timeline?.length) return base;
+  return { ...base, items: timeline };
+}
+
+function postbHaulzAuthHeader(serviceLogin: string, servicePassword: string): string {
+  return (
+    process.env.POSTB_HAULZ_AUTH?.trim() ||
+    `Basic ${serviceLogin}:${servicePassword}`
+  );
+}
+
+async function fetchUpstreamWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /** Варианты номера для 1С: с ведущими нулями и без (как в sendings-plan-date) */
 function normalizePerevozkaNumberForLookup(num: string): string {
@@ -54,11 +146,10 @@ function numberVariants(num: string): string[] {
 async function requestGetPerevozkaFrom1C(params: {
   number: string;
   inn?: string;
-  serviceLogin: string;
-  servicePassword: string;
+  haulzAuth: string;
 }) {
-  let lastStatus = 500;
-  let lastText = "";
+  let lastStatus = 504;
+  let lastText = "Upstream timeout";
   for (const methodName of GET_PEREVOZKA_METHODS) {
     const url = new URL(GETAPI_BASE);
     url.searchParams.set("metod", methodName);
@@ -66,19 +157,25 @@ async function requestGetPerevozkaFrom1C(params: {
     if (params.inn && String(params.inn).trim()) {
       url.searchParams.set("INN", String(params.inn).trim());
     }
-    const upstream = await fetch(url.toString(), {
-      method: "GET",
-      headers: {
-        Auth: `Basic ${params.serviceLogin}:${params.servicePassword}`,
-        Authorization: SERVICE_AUTH,
-        Accept: "application/json",
-      },
-    });
-    const text = await upstream.text();
-    lastStatus = upstream.status;
-    lastText = text;
-    if (upstream.ok) {
-      return { ok: true as const, status: upstream.status, text };
+    try {
+      const upstream = await fetchUpstreamWithTimeout(url.toString(), {
+        method: "GET",
+        headers: {
+          Auth: params.haulzAuth,
+          Authorization: SERVICE_AUTH,
+          Accept: "application/json",
+        },
+      });
+      const text = await upstream.text();
+      lastStatus = upstream.status;
+      lastText = text;
+      if (upstream.ok) {
+        return { ok: true as const, status: upstream.status, text };
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      lastStatus = 504;
+      lastText = msg.includes("abort") ? "Upstream timeout" : msg;
     }
   }
   return { ok: false as const, status: lastStatus, text: lastText };
@@ -148,6 +245,8 @@ export default async function handler(
     return res.status(400).json({ error: "Invalid number", request_id: ctx.requestId });
   }
 
+  const haulzAuth = postbHaulzAuthHeader(serviceLogin, servicePassword);
+
   if (isRegisteredUser) {
     try {
       const pool = getPool();
@@ -174,8 +273,7 @@ export default async function handler(
       let upstream = await requestGetPerevozkaFrom1C({
         number: norm,
         inn: innFor1C,
-        serviceLogin,
-        servicePassword,
+        haulzAuth,
       });
       if (!upstream.ok && !item) {
         const variants = numberVariants(norm).filter((v) => v !== norm);
@@ -183,8 +281,7 @@ export default async function handler(
           upstream = await requestGetPerevozkaFrom1C({
             number: alt,
             inn: innFor1C,
-            serviceLogin,
-            servicePassword,
+            haulzAuth,
           });
           if (upstream.ok) break;
         }
@@ -193,10 +290,9 @@ export default async function handler(
         const text = upstream.text;
         try {
           const json = JSON.parse(text);
-          if (item && !hasPerevozkaCargoFields(json)) {
-            return res.status(200).json(item);
-          }
-          return res.status(200).json(json);
+          return res
+            .status(200)
+            .json(buildPerevozkaResponse(item as Record<string, unknown> | undefined, json));
         } catch {
           return res.status(200).send(text);
         }
@@ -215,8 +311,7 @@ export default async function handler(
     let upstream = await requestGetPerevozkaFrom1C({
       number,
       inn,
-      serviceLogin,
-      servicePassword,
+      haulzAuth,
     });
     if (!upstream.ok) {
       const variants = numberVariants(number).filter((v) => v !== number);
@@ -224,8 +319,7 @@ export default async function handler(
         upstream = await requestGetPerevozkaFrom1C({
           number: alt,
           inn,
-          serviceLogin,
-          servicePassword,
+          haulzAuth,
         });
         if (upstream.ok) break;
       }
@@ -248,7 +342,7 @@ export default async function handler(
 
     try {
       const json = JSON.parse(text);
-      return res.status(200).json(json);
+      return res.status(200).json(buildPerevozkaResponse(undefined, json));
     } catch {
       return res.status(200).send(text);
     }
