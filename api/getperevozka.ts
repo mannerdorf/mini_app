@@ -10,7 +10,7 @@ const GETAPI_BASE =
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 const GET_PEREVOZKA_METHODS = ["Getperevozka", "GetPerevozka"] as const;
 /** Таймаут одного запроса в 1С (maxDuration функции = 60 с). */
-const UPSTREAM_TIMEOUT_MS = 45_000;
+const UPSTREAM_TIMEOUT_MS = 55_000;
 
 const TIMELINE_ARRAY_KEYS = [
   "items",
@@ -51,21 +51,44 @@ function isMeaningfulTimelineStep(step: { title: string; date: string }): boolea
   return title !== "" && title !== "—" && title !== "-";
 }
 
-/** Добавляет items[] из эвристики 1С, если в ответе ещё нет шагов таймлайна. */
-function attachNormalizedSteps(payload: unknown): unknown {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return payload;
-  const record = payload as Record<string, unknown>;
-  const hasSteps = TIMELINE_ARRAY_KEYS.some((key) => {
-    const val = record[key];
-    return Array.isArray(val) && val.length > 0;
-  });
-  if (hasSteps) return payload;
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return Boolean(v) && typeof v === "object" && !Array.isArray(v);
+}
+
+/** Массив шагов из ответа 1С. Один шаг из поля State — не таймлайн. */
+function resolveTimelineRows(payload: unknown): unknown[] | null {
+  const direct = extractTimelineFromJson(payload);
+  if (direct && direct.length > 0) return direct;
   const norm = normalizePerevozkaSteps(payload).filter(isMeaningfulTimelineStep);
-  if (norm.length === 0) return payload;
-  return {
-    ...record,
-    items: norm.map((s) => ({ Stage: s.title, Date: s.date })),
-  };
+  if (norm.length <= 1) return null;
+  return norm.map((s) => ({ Stage: s.title, Date: s.date }));
+}
+
+function buildPerevozkaResponse(
+  cacheItem: Record<string, unknown> | undefined,
+  json: unknown,
+): unknown {
+  const timeline = resolveTimelineRows(json);
+  const cargoJson = hasPerevozkaCargoFields(json);
+  let base: Record<string, unknown>;
+  if (cacheItem && !cargoJson) {
+    base = { ...cacheItem, ...(isPlainObject(json) ? json : {}) };
+  } else if (isPlainObject(json)) {
+    base = { ...json };
+  } else if (cacheItem) {
+    base = { ...cacheItem };
+  } else {
+    return json;
+  }
+  if (!timeline?.length) return base;
+  return { ...base, items: timeline };
+}
+
+function postbHaulzAuthHeader(serviceLogin: string, servicePassword: string): string {
+  return (
+    process.env.POSTB_HAULZ_AUTH?.trim() ||
+    `Basic ${serviceLogin}:${servicePassword}`
+  );
 }
 
 async function fetchUpstreamWithTimeout(url: string, init: RequestInit): Promise<Response> {
@@ -123,8 +146,7 @@ function numberVariants(num: string): string[] {
 async function requestGetPerevozkaFrom1C(params: {
   number: string;
   inn?: string;
-  serviceLogin: string;
-  servicePassword: string;
+  haulzAuth: string;
 }) {
   let lastStatus = 504;
   let lastText = "Upstream timeout";
@@ -139,7 +161,7 @@ async function requestGetPerevozkaFrom1C(params: {
       const upstream = await fetchUpstreamWithTimeout(url.toString(), {
         method: "GET",
         headers: {
-          Auth: `Basic ${params.serviceLogin}:${params.servicePassword}`,
+          Auth: params.haulzAuth,
           Authorization: SERVICE_AUTH,
           Accept: "application/json",
         },
@@ -223,6 +245,8 @@ export default async function handler(
     return res.status(400).json({ error: "Invalid number", request_id: ctx.requestId });
   }
 
+  const haulzAuth = postbHaulzAuthHeader(serviceLogin, servicePassword);
+
   if (isRegisteredUser) {
     try {
       const pool = getPool();
@@ -249,8 +273,7 @@ export default async function handler(
       let upstream = await requestGetPerevozkaFrom1C({
         number: norm,
         inn: innFor1C,
-        serviceLogin,
-        servicePassword,
+        haulzAuth,
       });
       if (!upstream.ok && !item) {
         const variants = numberVariants(norm).filter((v) => v !== norm);
@@ -258,8 +281,7 @@ export default async function handler(
           upstream = await requestGetPerevozkaFrom1C({
             number: alt,
             inn: innFor1C,
-            serviceLogin,
-            servicePassword,
+            haulzAuth,
           });
           if (upstream.ok) break;
         }
@@ -268,14 +290,9 @@ export default async function handler(
         const text = upstream.text;
         try {
           const json = JSON.parse(text);
-          if (item && !hasPerevozkaCargoFields(json)) {
-            const steps = extractTimelineFromJson(json);
-            if (steps) {
-              return res.status(200).json({ ...(item as Record<string, unknown>), items: steps });
-            }
-            return res.status(200).json(attachNormalizedSteps(item));
-          }
-          return res.status(200).json(attachNormalizedSteps(json));
+          return res
+            .status(200)
+            .json(buildPerevozkaResponse(item as Record<string, unknown> | undefined, json));
         } catch {
           return res.status(200).send(text);
         }
@@ -283,7 +300,7 @@ export default async function handler(
       if (!item) {
         return res.status(404).json({ error: "Перевозка не найдена", request_id: ctx.requestId });
       }
-      return res.status(200).json(attachNormalizedSteps(item));
+      return res.status(200).json(item);
     } catch (e) {
       logError(ctx, "getperevozka_registered_user_failed", e);
       return res.status(500).json({ error: "Ошибка запроса", request_id: ctx.requestId });
@@ -294,8 +311,7 @@ export default async function handler(
     let upstream = await requestGetPerevozkaFrom1C({
       number,
       inn,
-      serviceLogin,
-      servicePassword,
+      haulzAuth,
     });
     if (!upstream.ok) {
       const variants = numberVariants(number).filter((v) => v !== number);
@@ -303,8 +319,7 @@ export default async function handler(
         upstream = await requestGetPerevozkaFrom1C({
           number: alt,
           inn,
-          serviceLogin,
-          servicePassword,
+          haulzAuth,
         });
         if (upstream.ok) break;
       }
@@ -327,7 +342,7 @@ export default async function handler(
 
     try {
       const json = JSON.parse(text);
-      return res.status(200).json(attachNormalizedSteps(json));
+      return res.status(200).json(buildPerevozkaResponse(undefined, json));
     } catch {
       return res.status(200).send(text);
     }

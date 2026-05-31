@@ -19,7 +19,9 @@ type PerevozkaDetailsOptions = {
 
 const STEPS_KEYS = ['items', 'Items', 'Steps', 'stages', 'Statuses', 'statuses', 'Статусы', 'статусы', 'History', 'history'];
 const NOMENCLATURE_KEYS = ['Packages', 'Nomenclature', 'Goods', 'CargoNomenclature', 'ПринятыйГруз', 'Номенклатура', 'TablePart', 'CargoItems', 'Items', 'GoodsList', 'Nomenklatura'];
-const GETPEREVOZKA_CLIENT_TIMEOUT_MS = 52_000;
+const GETPEREVOZKA_CLIENT_TIMEOUT_MS = 58_000;
+
+const TIMELINE_NEST_KEYS = ['Response', 'Data', 'Result', 'result', 'data'];
 
 function normalizeStageKey(s: string): string {
     return s.replace(/\s+/g, '').toLowerCase();
@@ -179,53 +181,48 @@ function stepsFromNormalized(data: unknown, item: CargoItem): PerevozkaTimelineS
     }));
 }
 
+function extractRawTimelineArray(data: unknown): unknown[] {
+    if (Array.isArray(data)) return data;
+    if (!data || typeof data !== 'object') return [];
+    const record = data as Record<string, unknown>;
+    for (const key of STEPS_KEYS) {
+        const val = record[key];
+        if (Array.isArray(val) && val.length > 0) return val;
+    }
+    for (const nest of TIMELINE_NEST_KEYS) {
+        const nested = record[nest];
+        if (!nested || typeof nested !== 'object' || Array.isArray(nested)) continue;
+        for (const key of STEPS_KEYS) {
+            const val = (nested as Record<string, unknown>)[key];
+            if (Array.isArray(val) && val.length > 0) return val;
+        }
+    }
+    return [];
+}
+
 function isMeaningfulStepLabel(label: string): boolean {
     const t = String(label ?? "").trim();
     return t !== "" && t !== "—" && t !== "-";
 }
 
-function buildFallbackStepsFromCargoItem(item: CargoItem): PerevozkaTimelineStep[] {
-    const rawState = item?.State ?? (item as Record<string, unknown>)?.state;
-    const state = typeof rawState === "string" ? rawState.trim() : String(rawState ?? "").trim();
-    if (!state || state === "[object Object]") return [];
-    const dateRaw =
-        item?.StatusDate ??
-        item?.DateStatus ??
-        item?.DatePrih ??
-        item?.DateVr ??
-        (item as Record<string, unknown>)?.statusDate;
-    return [
-        {
-            label: mapTimelineStageLabel(state, item),
-            date: dateRaw != null ? String(dateRaw) : undefined,
-            completed: true,
-        },
-    ];
-}
-
 function resolveTimelineSteps(data: unknown, item: CargoItem): PerevozkaTimelineStep[] {
-    const raw = Array.isArray(data)
-        ? data
-        : (data as Record<string, unknown>)?.items ??
-          (data as Record<string, unknown>)?.Steps ??
-          (data as Record<string, unknown>)?.stages ??
-          (data as Record<string, unknown>)?.Statuses ??
-          [];
+    const raw = extractRawTimelineArray(data);
     let sorted = sortTimelineSteps(
-        Array.isArray(raw) ? mapRawElementsToSteps(raw, item) : [],
+        raw.length > 0 ? mapRawElementsToSteps(raw, item) : [],
         item,
     );
-    if (sorted.length === 0) sorted = sortTimelineSteps(stepsFromNormalized(data, item), item);
-    if (sorted.length === 0) sorted = sortTimelineSteps(stepsFromNormalized(item, item), item);
-    if (sorted.length === 0) sorted = sortTimelineSteps(buildFallbackStepsFromCargoItem(item), item);
+    if (sorted.length === 0) {
+        const normalized = stepsFromNormalized(data, item).filter((s) => isMeaningfulStepLabel(s.label));
+        if (normalized.length > 1) sorted = sortTimelineSteps(normalized, item);
+    }
     return sorted.filter((s) => isMeaningfulStepLabel(s.label));
 }
 
-export async function fetchPerevozkaDetails(
+async function fetchPerevozkaDetailsOnce(
     auth: AuthData,
     number: string,
     item: CargoItem,
-    options?: PerevozkaDetailsOptions
+    options?: PerevozkaDetailsOptions,
 ): Promise<PerevozkaDetailsResult> {
     const forceServiceAuth = options?.forceServiceAuth === true;
     const apiNumber = formatPerevozkaNumberForApi(number);
@@ -290,6 +287,24 @@ export async function fetchPerevozkaDetails(
         driver: tryReadField(['Driver', 'driver', 'DriverFio', 'DriverName']),
     };
     return { steps: sorted.length ? sorted : null, nomenclature, meta };
+}
+
+export async function fetchPerevozkaDetails(
+    auth: AuthData,
+    number: string,
+    item: CargoItem,
+    options?: PerevozkaDetailsOptions,
+): Promise<PerevozkaDetailsResult> {
+    const first = await fetchPerevozkaDetailsOnce(auth, number, item, options);
+    const firstCount = first.steps?.length ?? 0;
+    if (firstCount > 1 || options?.forceServiceAuth) return first;
+
+    const retry = await fetchPerevozkaDetailsOnce(auth, number, item, {
+        ...options,
+        forceServiceAuth: true,
+    });
+    if ((retry.steps?.length ?? 0) > firstCount) return retry;
+    return first;
 }
 
 export async function fetchPerevozkaTimeline(
