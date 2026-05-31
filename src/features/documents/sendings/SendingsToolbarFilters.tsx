@@ -1,14 +1,18 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { Button, Typography } from "@maxhub/max-ui";
 import { ChevronDown } from "lucide-react";
 import { FilterDropdownPortal } from "../../../components/ui/FilterDropdownPortal";
 import { routeKeyToCargoLabel, type RouteFilterKey } from "../../../lib/sharedListFilters";
 import { STATUS_MAP } from "../../../lib/statusUtils";
 import type { StatusFilter, TypeFilterKey } from "../../../types";
+import { SendingsTransportFilter } from "./SendingsTransportFilter";
 
 type CloseOtherDropdowns = () => void;
 
 type Props = {
+  transportFilter: string;
+  setTransportFilter: React.Dispatch<React.SetStateAction<string>>;
+  transportOptionsCurrentSection: string[];
   typeFilterSet: Set<TypeFilterKey>;
   setTypeFilterSet: React.Dispatch<React.SetStateAction<Set<TypeFilterKey>>>;
   routeFilterSet: Set<RouteFilterKey>;
@@ -25,6 +29,9 @@ type Props = {
 };
 
 export function SendingsToolbarFilters({
+  transportFilter,
+  setTransportFilter,
+  transportOptionsCurrentSection,
   typeFilterSet,
   setTypeFilterSet,
   routeFilterSet,
@@ -42,11 +49,22 @@ export function SendingsToolbarFilters({
   const typeButtonRef = useRef<HTMLDivElement | null>(null);
   const routeCargoButtonRef = useRef<HTMLDivElement | null>(null);
   const deliveryStatusButtonRef = useRef<HTMLDivElement | null>(null);
+  const [isTransportDropdownOpen, setIsTransportDropdownOpen] = useState(false);
+  const [transportSearchQuery, setTransportSearchQuery] = useState("");
 
   const closeAll = () => {
     setIsTypeDropdownOpen(false);
     setIsRouteCargoDropdownOpen(false);
     setIsDeliveryStatusDropdownOpen(false);
+    setIsTransportDropdownOpen(false);
+    setTransportSearchQuery("");
+  };
+
+  const closeOtherSendingsDropdowns = () => {
+    setIsTypeDropdownOpen(false);
+    setIsRouteCargoDropdownOpen(false);
+    setIsDeliveryStatusDropdownOpen(false);
+    setIsTransportDropdownOpen(false);
   };
 
   return (
@@ -58,6 +76,7 @@ export function SendingsToolbarFilters({
             closeOtherDropdowns();
             setIsRouteCargoDropdownOpen(false);
             setIsDeliveryStatusDropdownOpen(false);
+            setIsTransportDropdownOpen(false);
             setIsTypeDropdownOpen((open) => !open);
           }}
         >
@@ -120,6 +139,7 @@ export function SendingsToolbarFilters({
             closeOtherDropdowns();
             setIsTypeDropdownOpen(false);
             setIsDeliveryStatusDropdownOpen(false);
+            setIsTransportDropdownOpen(false);
             setIsRouteCargoDropdownOpen((open) => !open);
           }}
         >
@@ -174,6 +194,7 @@ export function SendingsToolbarFilters({
             closeOtherDropdowns();
             setIsTypeDropdownOpen(false);
             setIsRouteCargoDropdownOpen(false);
+            setIsTransportDropdownOpen(false);
             setIsDeliveryStatusDropdownOpen((open) => !open);
           }}
         >
@@ -223,6 +244,19 @@ export function SendingsToolbarFilters({
             </div>
           ))}
       </FilterDropdownPortal>
+      <SendingsTransportFilter
+        transportFilter={transportFilter}
+        setTransportFilter={setTransportFilter}
+        transportOptions={transportOptionsCurrentSection}
+        isOpen={isTransportDropdownOpen}
+        setIsOpen={setIsTransportDropdownOpen}
+        searchQuery={transportSearchQuery}
+        setSearchQuery={setTransportSearchQuery}
+        closeOtherDropdowns={() => {
+          closeOtherDropdowns();
+          closeOtherSendingsDropdowns();
+        }}
+      />
     </>
   );
 }
