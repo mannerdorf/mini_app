@@ -52,8 +52,9 @@ import {
 import { fetchAdminMe } from "../api/client/admin/me";
 import { fetchAdminUsers } from "../api/client/admin/users";
 import { fetchAdminExpenseRequests } from "../api/client/admin/expenseRequests";
-import { fetchAdminSverkiRequests } from "../api/client/admin/sverki";
+import { fetchAdminSverkiRequests, deleteAdminSverkiRequest, updateAdminSverkiRequestStatus } from "../api/client/admin/sverki";
 import { fetchAdminClaims } from "../api/client/admin/claims";
+import { fetchAdminAutoRegisterCandidates } from "../api/client/admin/autoRegister";
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
@@ -1965,17 +1966,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   useEffect(() => {
     if (tab !== "customers") return;
     setAutoRegisterLoading(true);
-    const params = new URLSearchParams();
-    if (customersSearch.trim().length >= 2) params.set("q", customersSearch.trim());
-    fetch(`/api/admin-auto-register-candidates?${params.toString()}`, {
-      headers: { Authorization: `Bearer ${adminToken}` },
-    })
-      .then((res) => res.json().catch(() => ({})))
+    fetchAdminAutoRegisterCandidates(adminToken, { q: customersSearch.trim() })
       .then((data) => {
-        if (data?.error) throw new Error(String(data.error));
-        setAutoRegisterCandidates(Array.isArray(data?.candidates) ? data.candidates : []);
-        setAutoRegisterStats(data?.stats || null);
-        setAutoRegisterAutoModeEnabled(Boolean(data?.auto_mode_enabled));
+        setAutoRegisterCandidates(data.candidates);
+        setAutoRegisterStats(data.stats);
+        setAutoRegisterAutoModeEnabled(data.auto_mode_enabled);
         setAutoRegisterResult(null);
       })
       .catch((e: unknown) => {
@@ -2254,16 +2249,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (!adminToken) return;
     setSverkiRequestsUpdatingId(id);
     try {
-      const res = await fetch("/api/admin-sverki-requests-update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`,
-        },
-        body: JSON.stringify({ id, status: "edo_sent" }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Ошибка обновления статуса заявки");
+      await updateAdminSverkiRequestStatus(adminToken, id, "edo_sent");
       setSverkiRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status: "edo_sent", updatedAt: new Date().toISOString() } : r)));
     } catch (e: any) {
       setError(e?.message || "Ошибка обновления статуса заявки");
@@ -2277,16 +2263,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (!confirmed) return;
     setSverkiRequestsUpdatingId(id);
     try {
-      const res = await fetch("/api/admin-sverki-requests-update", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`,
-        },
-        body: JSON.stringify({ id }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Ошибка удаления заявки");
+      await deleteAdminSverkiRequest(adminToken, id);
       setSverkiRequests((prev) => prev.filter((r) => r.id !== id));
     } catch (e: any) {
       setError(e?.message || "Ошибка удаления заявки");
