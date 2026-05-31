@@ -80,3 +80,23 @@ SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sendi
 
 **После миграций функция всё ещё не работает**  
 Перезапустите приложение (Vercel deployment или локальный сервер), чтобы подхватить изменения в БД.
+
+## API-ключи (Профиль → API)
+
+Миграция **063_user_api_keys.sql** — таблица `user_api_keys` для персональных ключей Partner API v1.
+
+### Как применить
+
+1. Vercel Dashboard → Storage → Postgres → Query Editor
+2. Выполните содержимое [`migrations/063_user_api_keys.sql`](../migrations/063_user_api_keys.sql)
+
+### Проверка
+
+```sql
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'user_api_keys' ORDER BY ordinal_position;
+```
+
+Должны быть поля: `id`, `user_login`, `label`, `public_id`, `secret_hash`, `scopes`, `allowed_inns`, `created_at`, `revoked_at`, `last_used_at`.
+
+Подробнее: [PARTNER_API.md](./PARTNER_API.md), smoke-тест: `bash scripts/smoke-partner-api.sh`.

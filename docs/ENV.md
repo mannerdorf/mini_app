@@ -15,6 +15,8 @@
 
 **Не задавать** на Layero `VITE_API_ORIGIN=https://api.haulz.ru`, если API на Vercel (см. `deploy/README-vercel.md`).
 
+Partner API v1 для внешних интеграторов: базовый URL **`https://mini-app-lake-phi.vercel.app`** — см. [PARTNER_API.md](./PARTNER_API.md).
+
 ---
 
 ## База и кэш

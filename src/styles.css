@@ -5941,6 +5941,16 @@ button.unpaid-plan-monitor:hover {
 .profile-api-try__send:not(:disabled):hover {
     filter: brightness(1.06);
 }
+.profile-api-try__send--secondary {
+    background: var(--color-bg-card, #f3f4f6);
+    color: var(--color-text-primary, #111);
+    border: 1px solid var(--color-border, #d1d5db);
+}
+.profile-api-try__hint--origin {
+    margin: 0.35rem 0 0.65rem;
+    font-size: 0.72rem;
+    line-height: 1.45;
+}
 .profile-api-try__path-edit {
     display: flex;
     align-items: center;
