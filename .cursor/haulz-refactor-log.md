@@ -8,9 +8,9 @@
 
 | Commit | Phase | Summary |
 |--------|-------|---------|
-| (pending) | 3.14 | cleanup unused sendings imports + log |
-| (pending) | 3.13 | useSendingsSectionProps hook |
-| (pending) | 3.12 | SendingsSection table/cards extraction |
+| `bf83115db` | 3.14 | cleanup log + next slice |
+| `386f8f07` | 3.13 | useSendingsSectionProps hook |
+| `78f9b1c9` | 3.12 | SendingsSection table/cards extraction |
 | `607861a7` | 3.11 | SendingsPreface + wire components in DocumentsPage |
 | `8c2b1e5e` | 3.10 | SendingsInfographic |
 | `67eb055d` | 3.9 | SendingsToolbarFilters |
