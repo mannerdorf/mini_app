@@ -247,6 +247,234 @@ function extractCode(text: string) {
   return match ? match[0] : null;
 }
 
+type AliceIntentName =
+  | "summary"
+  | "attention"
+  | "shipment_status"
+  | "in_transit"
+  | "payments"
+  | "deliveries"
+  | "documents"
+  | "company"
+  | "unlink"
+  | "help"
+  | "fallback_chat";
+
+type AliceIntent = {
+  name: AliceIntentName;
+  number?: string;
+  period?: "today" | "yesterday" | "week" | "month" | "six_months";
+  documentType?: "ЭР" | "АПП" | "СЧЕТ" | "УПД";
+  companyQuery?: string;
+};
+
+const DOCUMENT_METHODS: Record<NonNullable<AliceIntent["documentType"]>, string> = {
+  "ЭР": "ЭР",
+  "АПП": "АПП",
+  "СЧЕТ": "Счет",
+  "УПД": "Акт",
+};
+
+function normalizeText(text: string): string {
+  return String(text || "").toLowerCase().replace(/ё/g, "е").trim();
+}
+
+function hasAny(text: string, words: string[]): boolean {
+  return words.some((word) => text.includes(word));
+}
+
+/** Нормализованный ключ номера: 0135702 и 135702 считаются одной перевозкой. */
+function normalizeCargoNumber(value: any): string {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  return digits.replace(/^0+/, "") || digits;
+}
+
+function getOriginalCargoNumber(item: any): string {
+  return String(item?.Number ?? item?.number ?? "").trim();
+}
+
+function extractCargoNumber(text: string): string | undefined {
+  const direct = text.match(/\b0?\d{4,7}\b/);
+  return direct ? direct[0] : undefined;
+}
+
+function extractDocumentType(text: string): AliceIntent["documentType"] {
+  if (text.includes("упд") || text.includes("акт")) return "УПД";
+  if (text.includes("апп")) return "АПП";
+  if (text.includes("счет") || text.includes("счёт")) return "СЧЕТ";
+  if (text.includes("эр") || text.includes("расписк")) return "ЭР";
+  return undefined;
+}
+
+function detectPeriod(text: string): NonNullable<AliceIntent["period"]> {
+  if (text.includes("вчера")) return "yesterday";
+  if (text.includes("недел")) return "week";
+  if (text.includes("месяц") || text.includes("месяц") || text.includes("мае") || text.includes("май")) return "month";
+  if (text.includes("сегодня") || text.includes("день") || text.includes("сейчас")) return "today";
+  return "six_months";
+}
+
+function classifyIntent(rawText: string, sessionState: any): AliceIntent {
+  const text = normalizeText(rawText);
+  const number = extractCargoNumber(text);
+  const documentType = extractDocumentType(text);
+
+  if (hasAny(text, ["что умеешь", "помощь", "помоги", "команды", "как пользоваться"])) return { name: "help" };
+  if ((text.includes("отвяжи") && hasAny(text, ["компани", "заказчик"])) || text === "отвяжи") return { name: "unlink" };
+
+  const companySwitchMatch = text.match(/(?:работай\s+от\s+имени|переключись\s+на|выбери\s+компанию|компания)\s+(.+)/i);
+  if (companySwitchMatch && hasAny(text, ["работай", "переключись", "выбери", "компани"])) {
+    return { name: "company", companyQuery: companySwitchMatch[1].trim() };
+  }
+  if (hasAny(text, ["какая компания", "какой заказчик", "кто выбран"])) return { name: "company" };
+
+  if (documentType || hasAny(text, ["документ", "документы", "пришли", "отправь"])) {
+    return { name: "documents", number, documentType };
+  }
+
+  if (number && hasAny(text, ["где", "статус", "перевозк", "груз", "найди", "когда", "что с"])) {
+    return { name: "shipment_status", number };
+  }
+
+  if (hasAny(text, ["задерж", "опазд", "проблем", "риск", "срывает", "требует внимания"])) return { name: "attention" };
+  if (hasAny(text, ["актуаль", "сводк", "что нового", "что сейчас", "кратко", "что в работе", "что у меня в работе"])) {
+    return { name: "summary", period: detectPeriod(text) };
+  }
+  if (hasAny(text, ["оплат", "долг", "задолж", "счет", "счёт", "просроч"])) return { name: "payments" };
+  if (hasAny(text, ["достав", "приехал", "пришло", "прибыл", "на доставке"])) {
+    return { name: "deliveries", period: detectPeriod(text) };
+  }
+  if (hasAny(text, ["в пути", "в дороге", "едут", "перевозятся"])) return { name: "in_transit" };
+  if (hasAny(text, ["сколько перевозок", "перевозок за", "перевозок на"])) return { name: "summary", period: detectPeriod(text) };
+  if (sessionState?.pending_question === "shipment_number" && number) return { name: "shipment_status", number };
+  if (sessionState?.pending_question === "document_number" && number) {
+    return { name: "documents", number, documentType: sessionState?.document_type };
+  }
+
+  return { name: "fallback_chat" };
+}
+
+function dateKey(date: Date): string {
+  return date.toISOString().split("T")[0];
+}
+
+function getRange(period: AliceIntent["period"] = "six_months") {
+  const now = new Date();
+  const to = new Date(now);
+  const from = new Date(now);
+  let label = "за последние шесть месяцев";
+
+  if (period === "today") {
+    label = "за сегодня";
+  } else if (period === "yesterday") {
+    from.setDate(from.getDate() - 1);
+    to.setDate(to.getDate() - 1);
+    label = "за вчера";
+  } else if (period === "week") {
+    from.setDate(from.getDate() - 7);
+    label = "за неделю";
+  } else if (period === "month") {
+    from.setMonth(from.getMonth() - 1);
+    label = "за месяц";
+  } else {
+    from.setMonth(from.getMonth() - 6);
+  }
+
+  return { dateFrom: dateKey(from), dateTo: dateKey(to), label };
+}
+
+function parseDateMs(value: any): number {
+  const raw = String(value ?? "").trim();
+  if (!raw) return 0;
+  const time = new Date(raw).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function isDateInRange(value: any, dateFrom: string, dateTo: string): boolean {
+  const raw = String(value ?? "").trim();
+  if (!raw) return false;
+  const key = raw.split("T")[0];
+  return key >= dateFrom && key <= dateTo;
+}
+
+function isFerry(item: any): boolean {
+  return item?.AK === true || item?.AK === "true" || item?.AK === "1" || item?.AK === 1;
+}
+
+function cityCode(value: any): string {
+  const text = String(value ?? "").toLowerCase();
+  if (text.includes("калининг") || text.includes("kgd")) return "KGD";
+  if (text.includes("моск") || text.includes("msk")) return "MSK";
+  return text.trim().toUpperCase();
+}
+
+function getApproxPlanDays(item: any): number {
+  if (cityCode(item?.CitySender) === "KGD" && cityCode(item?.CityReceiver) === "MSK") return 60;
+  return isFerry(item) ? 20 : 7;
+}
+
+function getDelayDays(item: any): number {
+  const start = parseDateMs(item?.DatePrih);
+  if (!start) return 0;
+  const statusKey = getFilterKeyByStatus(item?.State);
+  const end = statusKey === "delivered" ? parseDateMs(item?.DateVr) : Date.now();
+  if (!end) return 0;
+  const actualDays = Math.max(0, Math.round((end - start) / (24 * 60 * 60 * 1000)));
+  return Math.max(0, actualDays - getApproxPlanDays(item));
+}
+
+function compactCargo(item: any) {
+  return {
+    Number: item?.Number,
+    number: item?.number,
+    State: item?.State,
+    Sum: item?.Sum,
+    CitySender: item?.CitySender,
+    CityReceiver: item?.CityReceiver,
+    StateBill: item?.StateBill,
+    DatePrih: item?.DatePrih,
+    DateVr: item?.DateVr,
+    Mest: item?.Mest,
+    PW: item?.PW,
+    UPD: item?.UPD,
+    BillNum: item?.BillNum,
+    Bill_Number: item?.Bill_Number,
+  };
+}
+
+function moneyRub(value: number): string {
+  return `${Math.round(value).toLocaleString("ru-RU")} рублей`;
+}
+
+function getSum(item: any): number {
+  const raw = item?.Sum;
+  const n = typeof raw === "string" ? Number(raw.replace(",", ".")) : Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatDateForSpeech(value: any): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const [y, m, d] = raw.split("T")[0].split("-");
+  if (y && m && d) return `${d}.${m}.${y}`;
+  return raw;
+}
+
+function formatShipmentDetails(item: any): string {
+  const numberPhrase = speechNumberPhrase(item?.Number ?? item?.number) || "—";
+  const originalNumber = getOriginalCargoNumber(item);
+  const status = item?.State ? normalizeStatus(item.State) : "статус не указан";
+  const route = item?.CitySender || item?.CityReceiver ? ` Маршрут: ${item?.CitySender || "?"} — ${item?.CityReceiver || "?"}.` : "";
+  const received = item?.DatePrih ? ` Принято ${formatDateForSpeech(item.DatePrih)}.` : "";
+  const delivered = item?.DateVr ? ` Дата доставки ${formatDateForSpeech(item.DateVr)}.` : "";
+  const bill = item?.StateBill ? ` Оплата: ${item.StateBill}.` : "";
+  const docs: string[] = [];
+  if (item?.BillNum || item?.Bill_Number) docs.push("счет");
+  if (item?.UPD) docs.push("УПД");
+  const docsText = docs.length ? ` Документы: ${docs.join(", ")}.` : "";
+  return `Перевозка ${numberPhrase}${originalNumber ? ` (${originalNumber})` : ""}: ${status}.${route}${received}${delivered}${bill}${docsText} Могу отправить подробности в чат.`;
+}
+
 function aliceResponse(text: string, session_state?: any) {
   return {
     version: "1.0",
@@ -273,9 +501,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (text.includes("код проверки") || text.includes("проверка навыка") || text.includes("verification")) {
     return res.status(200).json(aliceResponse(`Код проверки: ${ALICE_VERIFICATION_CODE}`));
   }
+
+  const bindRaw = await getRedisValue(`alice:bind:${userId}`);
+
   // Привязка по коду
   const code = extractCode(text);
-  if (code) {
+  const normalizedForCode = normalizeText(text);
+  const bindingByCode = !!code && (
+    hasAny(normalizedForCode, ["код", "авторизац", "введи"]) ||
+    (!bindRaw && normalizedForCode === code)
+  );
+  if (bindingByCode) {
     const raw = await getRedisValue(`alice:link:${code}`);
     if (!raw) {
       return res.status(200).json(aliceResponse("Код не найден или истек. Получите новый код в мини‑приложении."));
@@ -315,7 +551,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .json(aliceResponse(`Вы авторизованы под компанией ${companyName}. Я Грузик, AI-помощник HAULZ. Чем я могу вам помочь?`));
   }
 
-  const bindRaw = await getRedisValue(`alice:bind:${userId}`);
   if (!bindRaw) {
     return res
       .status(200)
@@ -350,109 +585,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const PEREVOZKI_MS = 6000;
   const CHAT_MS = 8000;
 
+  const fetchCargoItems = async (period: AliceIntent["period"] = "six_months") => {
+    const range = getRange(period);
+    const resData = await withTimeout(fetch(`${APP_DOMAIN}/api/perevozki`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        login: bind.login,
+        password: bind.password,
+        dateFrom: range.dateFrom,
+        dateTo: range.dateTo,
+        ...(bind.inn ? { inn: bind.inn } : {}),
+      }),
+    }), PEREVOZKI_MS);
+    const payload = await resData.json();
+    const items = Array.isArray(payload) ? payload : payload?.items || [];
+    return { items, ...range };
+  };
+
+  const detailState = (items: any[], lastIntent: string, extra: Record<string, any> = {}) => ({
+    awaiting_details: items.length > 0,
+    last_intent: lastIntent,
+    last_data: items.slice(0, 10).map(compactCargo),
+    ...extra,
+  });
+
   try {
+    const intent = classifyIntent(text, sessionState);
+    console.info("[alice] intent", {
+      intent: intent.name,
+      period: intent.period,
+      hasNumber: !!intent.number,
+      hasDocumentType: !!intent.documentType,
+      userId,
+    });
+
     if (sessionState?.awaiting_details && isYes(text)) {
-      const intent = sessionState?.last_intent || "";
       const data = Array.isArray(sessionState?.last_data) ? sessionState.last_data : [];
       const chatLines = data.slice(0, 10).map((i: any) => formatLineForChat(i));
       const header = "Написал в чат.\nНомер / дата / кол-во / плат вес / сумма\n";
       const body = chatLines.length ? chatLines.join("\n") : "Нет данных.";
-      const fullText = header + body;
-      if (intent === "in_transit") {
-        return res.status(200).json(aliceResponse(chatLines.length ? fullText : "Написал в чат. Перевозок в пути нет.", { awaiting_details: false }));
-      }
-      if (intent === "unpaid_bills") {
-        return res.status(200).json(aliceResponse(chatLines.length ? fullText : "Написал в чат. Перевозок, требующих оплаты, нет.", { awaiting_details: false }));
-      }
-    }
-
-    if (text.includes("перевозк") && (text.includes("пути") || text.includes("в дороге") || text.includes("в пути"))) {
-      const today = new Date();
-      const dateTo = today.toISOString().split("T")[0];
-      const from = new Date();
-      from.setMonth(from.getMonth() - 6);
-      const dateFrom = from.toISOString().split("T")[0];
-      const resData = await withTimeout(fetch(`${APP_DOMAIN}/api/perevozki`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo, ...(bind.inn ? { inn: bind.inn } : {}) }),
-      }), PEREVOZKI_MS);
-      const payload = await resData.json();
-      const items = Array.isArray(payload) ? payload : payload?.items || [];
-      const inTransit = items.filter((i: any) => getFilterKeyByStatus(i.State) === "in_transit");
-      const count = inTransit.length;
-      const briefNums = formatBriefNumbers(inTransit, 7);
-      const summary = inTransit.slice(0, 10).map((i: any) => ({
-        Number: i?.Number,
-        State: i?.State,
-        Sum: i?.Sum,
-        CitySender: i?.CitySender,
-        CityReceiver: i?.CityReceiver,
-        StateBill: i?.StateBill,
-        DatePrih: i?.DatePrih,
-        DateVr: i?.DateVr,
-        Mest: i?.Mest,
-        PW: i?.PW,
+      return res.status(200).json(aliceResponse(header + body, {
+        ...sessionState,
+        awaiting_details: false,
+        pending_question: undefined,
       }));
-      const briefText =
-        count === 0
-          ? "Сейчас нет перевозок в пути."
-          : (() => {
-              const nums = joinSpeechNumbers(inTransit, 7);
-              const word = count === 1 ? "перевозка" : count < 5 ? "перевозки" : "перевозок";
-              return `У вас ${count} ${word} номера ${nums}. Хотите подробнее?`;
-            })();
-      return res
-        .status(200)
-        .json(aliceResponse(briefText, { awaiting_details: count > 0, last_intent: "in_transit", last_data: summary }));
     }
 
-    if (text.includes("счет") || text.includes("счёт") || text.includes("оплат")) {
-      const today = new Date();
-      const dateTo = today.toISOString().split("T")[0];
-      const from = new Date();
-      from.setMonth(from.getMonth() - 6);
-      const dateFrom = from.toISOString().split("T")[0];
-      const resData = await withTimeout(fetch(`${APP_DOMAIN}/api/perevozki`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo, ...(bind.inn ? { inn: bind.inn } : {}) }),
-      }), PEREVOZKI_MS);
-      const payload = await resData.json();
-      const items = Array.isArray(payload) ? payload : payload?.items || [];
-      const unpaid = items.filter((i: any) => getPaymentFilterKey(i.StateBill) === "unpaid");
-      const count = unpaid.length;
-      const briefNums = formatBriefNumbers(unpaid, 7);
-      const summary = unpaid.slice(0, 10).map((i: any) => ({
-        Number: i?.Number,
-        State: i?.State,
-        Sum: i?.Sum,
-        CitySender: i?.CitySender,
-        CityReceiver: i?.CityReceiver,
-        StateBill: i?.StateBill,
-        DatePrih: i?.DatePrih,
-        DateVr: i?.DateVr,
-        Mest: i?.Mest,
-        PW: i?.PW,
-      }));
-      const briefText =
-        count === 0
-          ? "Перевозок, требующих оплаты, нет."
-          : (() => {
-              const nums = joinSpeechNumbers(unpaid, 7);
-              const word = count === 1 ? "перевозка" : count < 5 ? "перевозки" : "перевозок";
-              return `Требуют оплаты ${count} ${word} номера ${nums}. Хотите подробнее?`;
-            })();
-      return res
-        .status(200)
-        .json(aliceResponse(briefText, { awaiting_details: count > 0, last_intent: "unpaid_bills", last_data: summary }));
+    if (intent.name === "help") {
+      return res.status(200).json(aliceResponse(
+        "Я могу сказать, что актуально по перевозкам, где конкретный груз, что надо оплатить, что доставлено сегодня, есть ли задержки, и подготовить ссылку на документ. Например: что требует внимания, где груз 135702, что надо оплатить."
+      ));
     }
 
-    // Отвязка компании голосом
-    if (
-      (text.includes("отвяжи") && (text.includes("компанию") || text.includes("заказчика") || text.includes("компани"))) ||
-      (text === "отвяжи")
-    ) {
+    if (intent.name === "unlink") {
       const loginKey = String(bind.login || "").trim().toLowerCase();
       await deleteRedisValue(`alice:bind:${userId}`);
       if (loginKey) await deleteRedisValue(`alice:login:${loginKey}`);
@@ -475,151 +661,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json(aliceResponse("Компания отвязана. Чтобы снова пользоваться навыком, получите новый код в мини‑приложении Холз."));
     }
 
-    // Краткий статус «что в работе»
-    if (
-      text.includes("что в работе") ||
-      text.includes("что у меня в работе") ||
-      text.includes("кратко что в работе") ||
-      text.includes("одна фраза")
-    ) {
-      const today = new Date();
-      const dateTo = today.toISOString().split("T")[0];
-      const from = new Date();
-      from.setMonth(from.getMonth() - 6);
-      const dateFrom = from.toISOString().split("T")[0];
-      const resData = await withTimeout(fetch(`${APP_DOMAIN}/api/perevozki`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo, ...(bind.inn ? { inn: bind.inn } : {}) }),
-      }), PEREVOZKI_MS);
-      const payload = await resData.json();
-      const items = Array.isArray(payload) ? payload : payload?.items || [];
-      const inTransit = items.filter((i: any) => getFilterKeyByStatus(i.State) === "in_transit");
-      const unpaid = items.filter((i: any) => getPaymentFilterKey(i.StateBill) === "unpaid");
-      const n = inTransit.length;
-      const m = unpaid.length;
-      const inWord = n === 1 ? "перевозка" : n < 5 ? "перевозки" : "перевозок";
-      const unWord = m === 1 ? "перевозка" : m < 5 ? "перевозки" : "перевозок";
-      const msg =
-        n === 0 && m === 0
-          ? "Сейчас нет перевозок в пути и нет счетов к оплате."
-          : n === 0
-            ? `В пути перевозок нет. К оплате ${m} ${unWord}.`
-            : m === 0
-              ? `В пути ${n} ${inWord}. К оплате перевозок нет.`
-              : `В пути ${n} ${inWord}, к оплате ${m} ${unWord}.`;
-      return res.status(200).json(aliceResponse(msg));
-    }
-
-    // Сводка за день: ответ принято, в пути, на доставке, доставлено, счета на оплату
-    if (
-      text.includes("сводка за день") ||
-      text.includes("сводка за сегодня") ||
-      text.includes("сводка на сегодня") ||
-      text.includes("что за день") ||
-      text.includes("сводка дня")
-    ) {
-      const today = new Date();
-      const dateFrom = today.toISOString().split("T")[0];
-      const dateTo = dateFrom;
-      const resData = await withTimeout(fetch(`${APP_DOMAIN}/api/perevozki`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo, ...(bind.inn ? { inn: bind.inn } : {}) }),
-      }), PEREVOZKI_MS);
-      const payload = await resData.json();
-      const items = Array.isArray(payload) ? payload : payload?.items || [];
-      const accepted = items.filter((i: any) => getFilterKeyByStatus(i.State) === "accepted");
-      const inTransit = items.filter((i: any) => getFilterKeyByStatus(i.State) === "in_transit");
-      const delivering = items.filter((i: any) => getFilterKeyByStatus(i.State) === "delivering");
-      const delivered = items.filter((i: any) => getFilterKeyByStatus(i.State) === "delivered");
-      const unpaid = items.filter((i: any) => getPaymentFilterKey(i.StateBill) === "unpaid");
-      const unpaidSum = unpaid.reduce((s: number, i: any) => s + (Number(i?.Sum) || 0), 0);
-      const parts: string[] = [];
-      parts.push(`Ответ принято ${accepted.length} ${wordПеревозки(accepted.length)}`);
-      parts.push(`В пути ${inTransit.length} ${wordПеревозки(inTransit.length)}`);
-      parts.push(`На доставке ${delivering.length} ${wordПеревозки(delivering.length)}`);
-      parts.push(`Доставлено ${delivered.length} ${wordПеревозки(delivered.length)}`);
-      if (unpaid.length > 0) {
-        const sumStr = Math.round(unpaidSum).toLocaleString("ru-RU");
-        parts.push(`${unpaid.length} ${wordСчета(unpaid.length)} на оплату на сумму ${sumStr} рублей`);
+    if (intent.name === "company") {
+      if (!intent.companyQuery) {
+        return res.status(200).json(aliceResponse(`Сейчас выбрана компания ${bind?.customer || "Заказчик"}.`));
       }
-      const msg = parts.join(". ");
-      return res.status(200).json(aliceResponse(msg));
-    }
-
-    // Сводка за период: сегодня / неделя
-    if (
-      text.includes("сколько перевозок") ||
-      text.includes("перевозок за сегодня") ||
-      text.includes("перевозок на этой неделе") ||
-      text.includes("что пришло на этой неделе") ||
-      (text.includes("за сегодня") && text.includes("перевозк")) ||
-      (text.includes("за неделю") && text.includes("перевозк"))
-    ) {
-      const now = new Date();
-      let dateFrom: string;
-      let dateTo: string;
-      let periodLabel: string;
-      if (text.includes("недел") || text.includes("неделю")) {
-        const start = new Date(now);
-        start.setDate(start.getDate() - start.getDay());
-        start.setHours(0, 0, 0, 0);
-        dateFrom = start.toISOString().split("T")[0];
-        dateTo = now.toISOString().split("T")[0];
-        periodLabel = "на этой неделе";
-      } else {
-        dateFrom = now.toISOString().split("T")[0];
-        dateTo = dateFrom;
-        periodLabel = "за сегодня";
-      }
-      const resData = await withTimeout(fetch(`${APP_DOMAIN}/api/perevozki`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo, ...(bind.inn ? { inn: bind.inn } : {}) }),
-      }), PEREVOZKI_MS);
-      const payload = await resData.json();
-      const items = Array.isArray(payload) ? payload : payload?.items || [];
-      const count = items.length;
-      const word = count === 1 ? "перевозка" : count < 5 ? "перевозки" : "перевозок";
-      const nums = joinSpeechNumbers(items, 7);
-      const msg =
-        count === 0
-          ? `Перевозок ${periodLabel} нет.`
-          : nums ? `У вас ${periodLabel} ${count} ${word} номера ${nums}.` : `У вас ${periodLabel} ${count} ${word}.`;
-      return res.status(200).json(aliceResponse(msg));
-    }
-
-    // Статус по номеру перевозки: «статус перевозки 135702», «перевозка 135702», «груз 135702»
-    let requestedNum: string | null = null;
-    if (/\b(статус|перевозк|груз)\b/i.test(text)) {
-      const m = text.match(/(?:статус\s+перевозки?\s*|перевозки?\s+номер\s*|перевозка\s*|груз[а]?\s*)[:\s]*(\d{4,7})|(\d{5,7})\b/);
-      if (m) requestedNum = (m[1] || m[2] || "").trim();
-    }
-    if (requestedNum) {
-      const from = new Date();
-      from.setMonth(from.getMonth() - 6);
-      const dateFrom = from.toISOString().split("T")[0];
-      const dateTo = new Date().toISOString().split("T")[0];
-      const resData = await withTimeout(fetch(`${APP_DOMAIN}/api/perevozki`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo, ...(bind.inn ? { inn: bind.inn } : {}) }),
-      }), PEREVOZKI_MS);
-      const payload = await resData.json();
-      const items = Array.isArray(payload) ? payload : payload?.items || [];
-      const found = items.find((i: any) => speechNumber(i?.Number ?? i?.number) === speechNumber(requestedNum));
-      if (found) {
-        const lines = formatDetailedList([found], 1);
-        return res.status(200).json(aliceResponse(lines[0] || "Данные по перевозке не найдены."));
-      }
-      return res.status(200).json(aliceResponse(`Перевозку номер ${speechNumberPhrase(requestedNum)} не нашла. Проверьте номер или период.`));
-    }
-
-    // Выбор компании: «работай от имени компании X», «переключись на компанию X»
-    const companySwitchMatch = text.match(/(?:работай\s+от\s+имени|переключись\s+на|выбери\s+компанию|компания)\s+(.+)/i);
-    const companyNameQuery = companySwitchMatch ? companySwitchMatch[1].trim() : "";
-    if (companyNameQuery && (text.includes("работай") || text.includes("переключись") || text.includes("выбери") || text.includes("компани"))) {
       const listRaw = await getRedisValue(`alice:list:${userId}`);
       let list: any[] = [];
       try {
@@ -630,20 +675,168 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!Array.isArray(list) || list.length === 0) {
         return res.status(200).json(aliceResponse("У вас привязана только одна компания. Добавьте ещё в мини‑приложении и введите новый код в Алисе."));
       }
-      const q = companyNameQuery.toLowerCase();
+      const q = intent.companyQuery.toLowerCase();
       const match = list.find((b: any) => {
         const customer = String(b?.customer ?? "").toLowerCase();
-        return customer.includes(q) || q.includes(customer);
+        const inn = String(b?.inn ?? "").toLowerCase();
+        return customer.includes(q) || q.includes(customer) || (inn && q.includes(inn));
       });
       if (!match) {
         const names = list.map((b: any) => b?.customer || "Без названия").slice(0, 5);
-        return res.status(200).json(aliceResponse(`Компанию «${companyNameQuery}» не нашла. Доступны: ${names.join(", ")}.`));
+        return res.status(200).json(aliceResponse(`Компанию «${intent.companyQuery}» не нашла. Доступны: ${names.join(", ")}.`));
       }
       await setRedisValue(`alice:bind:${userId}`, JSON.stringify(match));
       const loginKey = String(match.login || "").trim().toLowerCase();
       if (loginKey) await setRedisValue(`alice:login:${loginKey}`, userId, 60 * 60 * 24 * 365);
       const companyName = match?.customer || "Заказчик";
-      return res.status(200).json(aliceResponse(`Я Грузик. Теперь работаю от имени компании ${companyName}. Чем могу помочь?`));
+      return res.status(200).json(aliceResponse(`Теперь работаю от имени компании ${companyName}. Чем могу помочь?`, {
+        selected_company: companyName,
+      }));
+    }
+
+    if (intent.name === "shipment_status") {
+      if (!intent.number) {
+        return res.status(200).json(aliceResponse("Назовите номер перевозки.", {
+          pending_question: "shipment_number",
+        }));
+      }
+      const { items } = await fetchCargoItems("six_months");
+      const requested = normalizeCargoNumber(intent.number);
+      const found = items.find((i: any) => normalizeCargoNumber(i?.Number ?? i?.number) === requested);
+      if (found) {
+        return res.status(200).json(aliceResponse(formatShipmentDetails(found), {
+          last_intent: "shipment_status",
+          last_number: getOriginalCargoNumber(found) || intent.number,
+          last_data: [compactCargo(found)],
+          awaiting_details: true,
+        }));
+      }
+      return res.status(200).json(aliceResponse(`Перевозку номер ${speechNumberPhrase(intent.number)} не нашла. Проверьте номер или период.`));
+    }
+
+    if (intent.name === "documents") {
+      const documentType = intent.documentType;
+      if (!documentType) {
+        return res.status(200).json(aliceResponse("Какой документ нужен: ЭР, АПП, счет или УПД?", {
+          pending_question: "document_type",
+          last_number: intent.number || sessionState?.last_number,
+        }));
+      }
+      const number = intent.number || sessionState?.last_number;
+      if (!number) {
+        return res.status(200).json(aliceResponse("Назовите номер перевозки, по которой нужен документ.", {
+          pending_question: "document_number",
+          document_type: documentType,
+        }));
+      }
+      const { items } = await fetchCargoItems("six_months");
+      const found = items.find((i: any) => normalizeCargoNumber(i?.Number ?? i?.number) === normalizeCargoNumber(number));
+      const originalNumber = getOriginalCargoNumber(found) || number;
+      const shortRes = await withTimeout(fetch(`${APP_DOMAIN}/api/shorten-doc`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          login: bind.login,
+          password: bind.password,
+          metod: DOCUMENT_METHODS[documentType],
+          number: originalNumber,
+          isRegisteredUser: true,
+        }),
+      }), PEREVOZKI_MS);
+      const shortData = await shortRes.json().catch(() => ({}));
+      if (shortRes.ok && shortData?.shortUrl) {
+        return res.status(200).json(aliceResponse(`Подготовила ${documentType} по перевозке ${speechNumberPhrase(originalNumber)}. Ссылка в тексте ответа: ${shortData.shortUrl}`, {
+          last_intent: "documents",
+          last_number: originalNumber,
+        }));
+      }
+      return res.status(200).json(aliceResponse(`Не удалось подготовить ${documentType} по перевозке ${speechNumberPhrase(originalNumber)}. Документ можно проверить в карточке перевозки.`));
+    }
+
+    if (intent.name === "payments") {
+      const { items } = await fetchCargoItems("six_months");
+      const unpaid = items.filter((i: any) => getPaymentFilterKey(i.StateBill) === "unpaid");
+      const count = unpaid.length;
+      const total = unpaid.reduce((sum: number, item: any) => sum + getSum(item), 0);
+      const sorted = [...unpaid].sort((a, b) => parseDateMs(a?.DatePrih) - parseDateMs(b?.DatePrih));
+      const nums = joinSpeechNumbers(sorted, 5);
+      const msg =
+        count === 0
+          ? "К оплате ничего не вижу."
+          : `К оплате ${count} ${wordПеревозки(count)} на сумму ${moneyRub(total)}${nums ? `. Номера ${nums}` : ""}. Хотите список?`;
+      return res.status(200).json(aliceResponse(msg, detailState(sorted, "payments")));
+    }
+
+    if (intent.name === "in_transit") {
+      const { items } = await fetchCargoItems("six_months");
+      const inTransit = items.filter((i: any) => getFilterKeyByStatus(i.State) === "in_transit");
+      const count = inTransit.length;
+      const msg =
+        count === 0
+          ? "Сейчас нет перевозок в пути."
+          : `В пути ${count} ${wordПеревозки(count)}${joinSpeechNumbers(inTransit, 7) ? `, номера ${joinSpeechNumbers(inTransit, 7)}` : ""}. Хотите подробнее?`;
+      return res.status(200).json(aliceResponse(msg, detailState(inTransit, "in_transit")));
+    }
+
+    if (intent.name === "deliveries") {
+      const { items, dateFrom, dateTo, label } = await fetchCargoItems(intent.period || "today");
+      const delivering = items.filter((i: any) => getFilterKeyByStatus(i.State) === "delivering");
+      const delivered = items.filter((i: any) => getFilterKeyByStatus(i.State) === "delivered" && (!i?.DateVr || isDateInRange(i.DateVr, dateFrom, dateTo)));
+      const target = normalizeText(text).includes("на доставке") ? delivering : delivered;
+      const prefix = normalizeText(text).includes("на доставке") ? "На доставке" : `Доставлено ${label}`;
+      const count = target.length;
+      const msg =
+        count === 0
+          ? `${prefix} перевозок нет.`
+          : `${prefix} ${count} ${wordПеревозки(count)}${joinSpeechNumbers(target, 7) ? `, номера ${joinSpeechNumbers(target, 7)}` : ""}. Хотите список?`;
+      return res.status(200).json(aliceResponse(msg, detailState(target, "deliveries", { period: intent.period || "today" })));
+    }
+
+    if (intent.name === "attention") {
+      const { items } = await fetchCargoItems("six_months");
+      const unpaid = items.filter((i: any) => getPaymentFilterKey(i.StateBill) === "unpaid");
+      const delayed = items
+        .map((item: any) => ({ item, delayDays: getDelayDays(item) }))
+        .filter(({ item, delayDays }: any) => delayDays > 0 && getFilterKeyByStatus(item?.State) !== "delivered")
+        .sort((a: any, b: any) => b.delayDays - a.delayDays);
+      const delivering = items.filter((i: any) => getFilterKeyByStatus(i.State) === "delivering");
+      if (delayed.length > 0) {
+        const delayItems = delayed.map((x: any) => x.item);
+        const maxDelay = delayed[0]?.delayDays || 0;
+        return res.status(200).json(aliceResponse(`Есть ${delayed.length} ${wordПеревозки(delayed.length)} с риском задержки, максимальное отклонение около ${maxDelay} дней. Номера ${joinSpeechNumbers(delayItems, 5)}. Хотите список?`, detailState(delayItems, "attention")));
+      }
+      if (unpaid.length > 0) {
+        const total = unpaid.reduce((sum: number, item: any) => sum + getSum(item), 0);
+        return res.status(200).json(aliceResponse(`Сейчас требует внимания оплата: ${unpaid.length} ${wordПеревозки(unpaid.length)} на сумму ${moneyRub(total)}. Хотите список?`, detailState(unpaid, "payments")));
+      }
+      const msg =
+        delivering.length > 0
+          ? `Критичных вопросов не вижу. На доставке ${delivering.length} ${wordПеревозки(delivering.length)}.`
+          : "Критичных вопросов не вижу: задержек и счетов к оплате нет.";
+      return res.status(200).json(aliceResponse(msg));
+    }
+
+    if (intent.name === "summary") {
+      const { items, dateFrom, dateTo } = await fetchCargoItems(intent.period || "six_months");
+      const accepted = items.filter((i: any) => getFilterKeyByStatus(i.State) === "accepted");
+      const inTransit = items.filter((i: any) => getFilterKeyByStatus(i.State) === "in_transit");
+      const delivering = items.filter((i: any) => getFilterKeyByStatus(i.State) === "delivering");
+      const deliveredToday = items.filter((i: any) => getFilterKeyByStatus(i.State) === "delivered" && (!i?.DateVr || isDateInRange(i.DateVr, dateFrom, dateTo)));
+      const unpaid = items.filter((i: any) => getPaymentFilterKey(i.StateBill) === "unpaid");
+      const delayed = items.filter((i: any) => getDelayDays(i) > 0 && getFilterKeyByStatus(i.State) !== "delivered");
+      const unpaidSum = unpaid.reduce((sum: number, item: any) => sum + getSum(item), 0);
+      const parts: string[] = [];
+      if (delayed.length > 0) parts.push(`есть ${delayed.length} ${wordПеревозки(delayed.length)} с риском задержки`);
+      if (unpaid.length > 0) parts.push(`к оплате ${unpaid.length} ${wordПеревозки(unpaid.length)} на ${moneyRub(unpaidSum)}`);
+      parts.push(`в пути ${inTransit.length} ${wordПеревозки(inTransit.length)}`);
+      if (delivering.length > 0) parts.push(`на доставке ${delivering.length}`);
+      if (deliveredToday.length > 0) parts.push(`доставлено ${deliveredToday.length}`);
+      if (accepted.length > 0) parts.push(`принято ${accepted.length}`);
+      const important = delayed.length > 0 ? delayed : unpaid.length > 0 ? unpaid : inTransit;
+      const msg = parts.length
+        ? `Актуально: ${parts.join(", ")}.${important.length > 0 ? " Хотите список?" : ""}`
+        : "Критичных вопросов не вижу. Активных перевозок и счетов к оплате нет.";
+      return res.status(200).json(aliceResponse(msg, detailState(important, "summary")));
     }
 
     // Обновляем данные в RAG в фоне (не ждём), чтобы не съедать таймаут ответа Алисе
