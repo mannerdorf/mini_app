@@ -2,31 +2,28 @@
 
 ## Last updated
 
-2026-05-31 — batch 3.12–3.14 (SendingsSection + props hook)
+2026-05-31 — batch 3.15–3.17 (sendings handlers hooks)
 
 ## Completed slices (newest first)
 
 | Commit | Phase | Summary |
 |--------|-------|---------|
-| `bf8315db` | 3.14 | cleanup log + next slice |
-| `386f8f07` | 3.13 | useSendingsSectionProps hook |
+| (pending) | 3.17 | useSendingsSortState + DocumentsPage wiring |
+| (pending) | 3.16 | useSendingsFerryActions |
+| (pending) | 3.15 | useSendingsBulkActions + sendingsPlanDateAction |
+| `52162e2d` | 3.14 | refactor log commit hashes |
 | `78f9b1c9` | 3.12 | SendingsSection table/cards extraction |
-| `607861a7` | 3.11 | SendingsPreface + wire components in DocumentsPage |
-| `8c2b1e5e` | 3.10 | SendingsInfographic |
-| `67eb055d` | 3.9 | SendingsToolbarFilters |
-| `036f06f0` | 3.8 | SendingsBulkActionsBar |
-| `f0cf3f69` | 3.6 | sendingsMetrics |
 
 ## Metrics
 
-- `DocumentsPage.tsx`: **~7655 → ~6715** lines (−940 on SendingsSection extract)
-- `src/features/documents/sendings/`: **~2400 lines** (metrics, hooks, 6 UI components)
-- Sendings table/cards moved to `SendingsSection.tsx` (~1240 lines)
+- `DocumentsPage.tsx`: **~6715 → ~6540** lines (−175 handlers/state)
+- `src/features/documents/sendings/`: **~2900 lines** (+ bulk/ferry/sort hooks)
+- Inline byCustomer plan-date logic moved to `applyByCustomerPlanDate`
 
 ## Next slice
 
-- **ID:** `3.15-sendings-handlers` or claims UI (`3.10-claims-ui`)
-- **Task:** move bulk/EOR/plan-date handlers from DocumentsPage into sendings feature module
+- **ID:** `3.18-sendings-parcel-helpers` or `3.10-claims-ui`
+- **Task:** extract parcel/sanction helpers (`getParcelTnvedCode`, `renderSanctionBadge`, …) from DocumentsPage
 - **Then:** phase 4.4 admin audit API
 
 ## Blockers

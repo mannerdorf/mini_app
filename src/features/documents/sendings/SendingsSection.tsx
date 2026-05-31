@@ -108,8 +108,8 @@ export type SendingsSectionProps = {
   applyBulkEorStatus: (status: EorStatus) => void;
   applyBulkPlanDate: () => void;
   applyBulkSanctionsCheck: () => void;
+  applyByCustomerPlanDate: (cargoNumbers: string[], groupBy: "customer" | "receiver") => Promise<void>;
   auth: AuthData | null | undefined;
-  postSendingsPlanDate: any;
 };
 
 export function SendingsSection({
@@ -202,8 +202,8 @@ export function SendingsSection({
   applyBulkEorStatus,
   applyBulkPlanDate,
   applyBulkSanctionsCheck,
+  applyByCustomerPlanDate,
   auth,
-  postSendingsPlanDate,
 }: SendingsSectionProps) {
   return (
                 <AnimatePresence mode="wait">
@@ -671,45 +671,13 @@ export function SendingsSection({
                                                                                                     className="button-primary"
                                                                                                     style={{ minWidth: 'auto', padding: '0.35rem 0.55rem' }}
                                                                                                     disabled={byCustomerActionLoading || !byCustomerPlanDateValue}
-                                                                                                    onClick={async () => {
-                                                                                                        if (!byCustomerPlanDateValue) {
-                                                                                                            setByCustomerActionError('Укажите плановую дату прибытия на терминал.');
-                                                                                                            return;
-                                                                                                        }
-                                                                                                        const cargoNumbers = Array.from(new Set(
-                                                                                                            selectedSummaryRows
-                                                                                                                .flatMap((summary) => summary.cargoNumbers.map((cargo) => String(cargo).trim()))
-                                                                                                                .filter(Boolean)
-                                                                                                        ));
-                                                                                                        if (cargoNumbers.length === 0) {
-                                                                                                            setByCustomerActionError(sendingsSummaryGroupBy === 'receiver' ? 'По выбранным получателям не найдены номера перевозок.' : 'По выбранным заказчикам не найдены номера перевозок.');
-                                                                                                            return;
-                                                                                                        }
-                                                                                                        setByCustomerActionLoading(true);
-                                                                                                        setByCustomerActionError(null);
-                                                                                                        setByCustomerActionInfo(null);
-                                                                                                        try {
-                                                                                                            const data = await postSendingsPlanDate(
-                                                                                                                byCustomerPlanDateValue,
-                                                                                                                cargoNumbers
-                                                                                                            );
-                                                                                                            const updated = Number(data?.updated ?? 0);
-                                                                                                            const requested = Number(data?.requested ?? cargoNumbers.length);
-                                                                                                            const failed = Number(data?.failed ?? Math.max(0, requested - updated));
-                                                                                                            const firstError = Array.isArray(data?.errors) && data.errors.length > 0
-                                                                                                                ? String(data.errors[0]?.error || '').trim()
-                                                                                                                : '';
-                                                                                                            if (failed > 0) {
-                                                                                                                setByCustomerActionError(`Плановая дата прибытия на терминал записана частично: ${updated} из ${requested}.${firstError ? ` Причина: ${firstError}` : ''}`);
-                                                                                                            } else {
-                                                                                                                setByCustomerActionInfo(`Плановая дата прибытия на терминал ${byCustomerPlanDateValue} записана для ${updated} перевозок.`);
-                                                                                                            }
-                                                                                                            setByCustomerPlanDateOpen(false);
-                                                                                                        } catch (e: any) {
-                                                                                                            setByCustomerActionError(String(e?.message || 'Не удалось записать плановую дату прибытия на терминал.'));
-                                                                                                        } finally {
-                                                                                                            setByCustomerActionLoading(false);
-                                                                                                        }
+                                                                                                    onClick={() => {
+                                                                                                        void applyByCustomerPlanDate(
+                                                                                                            selectedSummaryRows.flatMap((summary) =>
+                                                                                                                summary.cargoNumbers.map((cargo) => String(cargo).trim()),
+                                                                                                            ),
+                                                                                                            sendingsSummaryGroupBy,
+                                                                                                        );
                                                                                                     }}
                                                                                                 >
                                                                                                     Записать

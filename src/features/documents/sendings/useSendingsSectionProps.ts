@@ -95,7 +95,7 @@ export function useSendingsSectionProps(input: SendingsSectionProps): SendingsSe
     input.applyBulkEorStatus,
     input.applyBulkPlanDate,
     input.applyBulkSanctionsCheck,
+    input.applyByCustomerPlanDate,
     input.auth,
-    input.postSendingsPlanDate,
   ]);
 }

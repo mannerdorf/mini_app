@@ -15,8 +15,11 @@ import {
     SendingsPreface,
     SendingsSection,
     SendingsToolbarFilters,
+    useSendingsBulkActions,
+    useSendingsFerryActions,
     useSendingsServerSync,
     useSendingsSectionProps,
+    useSendingsSortState,
     type EorStatus,
 } from "../features/documents/sendings";
 import { DateText } from "../components/ui/DateText";
@@ -38,10 +41,6 @@ import {
     fetchDogovorContractLabels,
     postDownloadDocument,
     postOrderCreate,
-    postSendingsEorStatus,
-    postSendingsPlanDate,
-    fetchMarinesiaShipEta,
-    postSendingsFerryAssignment,
 } from "../api/client/documents";
 import {
     checkSanctionsByNomenclature,
@@ -517,41 +516,19 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const canEditPlanDate = canEditEor || (permissions?.supervisor === true);
     const canRunSanctionsCheck = hasAnalytics === true;
     const canSelectSendingRows = canEditPlanDate || canRunSanctionsCheck;
+    const {
+        sendingsSortColumn,
+        sendingsSortOrder,
+        sendingsSummarySortColumn,
+        sendingsSummarySortOrder,
+        handleSendingsSort,
+        handleSendingsSummarySort,
+    } = useSendingsSortState();
     const [eorStatusMap, setEorStatusMap] = useState<Record<string, EorStatus[]>>({});
-    const [selectedSendingRowKeys, setSelectedSendingRowKeys] = useState<Set<string>>(() => new Set());
     const [sendingSanctionMap, setSendingSanctionMap] = useState<Record<string, SanctionCheckResult>>({});
-    const [bulkEorMenuOpen, setBulkEorMenuOpen] = useState(false);
-    const [bulkPlanDateOpen, setBulkPlanDateOpen] = useState(false);
-    const [bulkPlanDateValue, setBulkPlanDateValue] = useState("");
-    const [bulkSendingActionLoading, setBulkSendingActionLoading] = useState(false);
-    const [bulkSendingActionError, setBulkSendingActionError] = useState<string | null>(null);
-    const [bulkSendingActionInfo, setBulkSendingActionInfo] = useState<string | null>(null);
-    const [selectedByCustomerSummaryKeys, setSelectedByCustomerSummaryKeys] = useState<Set<string>>(() => new Set());
-    const [byCustomerPlanDateOpen, setByCustomerPlanDateOpen] = useState(false);
-    const [byCustomerPlanDateValue, setByCustomerPlanDateValue] = useState("");
-    const [byCustomerActionLoading, setByCustomerActionLoading] = useState(false);
-    const [byCustomerActionError, setByCustomerActionError] = useState<string | null>(null);
-    const [byCustomerActionInfo, setByCustomerActionInfo] = useState<string | null>(null);
-    const [expandedByCustomerKey, setExpandedByCustomerKey] = useState<string | null>(null);
     const [ferriesList, setFerriesList] = useState<{ id: number; name: string; mmsi: string }[]>([]);
     const [sendingsFerryMap, setSendingsFerryMap] = useState<Record<string, { ferry_id: number; ferry_name: string; eta: string | null }>>({});
     const [ferryEtaLoadingByRow, setFerryEtaLoadingByRow] = useState<Record<string, boolean>>({});
-    const [sendingsFerryActionError, setSendingsFerryActionError] = useState<string | null>(null);
-    const resetSendingsUiState = useCallback(() => {
-        setSelectedSendingRowKeys(new Set());
-        setBulkEorMenuOpen(false);
-        setBulkPlanDateOpen(false);
-        setSendingsFerryActionError(null);
-        setBulkSendingActionLoading(false);
-        setBulkSendingActionError(null);
-        setBulkSendingActionInfo(null);
-        setSelectedByCustomerSummaryKeys(new Set());
-        setByCustomerPlanDateOpen(false);
-        setByCustomerPlanDateValue("");
-        setByCustomerActionLoading(false);
-        setByCustomerActionError(null);
-        setByCustomerActionInfo(null);
-    }, []);
     const [tariffsList, setTariffsList] = useState<{
         id: number;
         docDate: string | null;
@@ -1008,27 +985,14 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         setClaimsCustomerFilter('');
         setIsClaimsCustomerDropdownOpen(false);
     }, [effectiveServiceMode]);
-    useSendingsServerSync({
-        docSection,
-        showEorColumn,
-        auth,
-        setEorStatusMap,
-        setFerriesList,
-        setSendingsFerryMap,
-        resetSendingsUiState,
-    });
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
     const [innerTableSortColumn, setInnerTableSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'paid' | 'balance' | 'deliveryStatus' | 'route'>('date');
     const [innerTableSortOrder, setInnerTableSortOrder] = useState<'asc' | 'desc'>('desc');
     const [innerTableActSortColumn, setInnerTableActSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'deliveryStatus' | 'route'>('date');
     const [innerTableActSortOrder, setInnerTableActSortOrder] = useState<'asc' | 'desc'>('desc');
-    const [sendingsSortColumn, setSendingsSortColumn] = useState<'date' | 'number' | 'route' | 'type' | 'transitHours' | 'vehicle' | 'comment' | 'paidWeight' | 'cost' | 'declaredCost'>('date');
-    const [sendingsSortOrder, setSendingsSortOrder] = useState<'asc' | 'desc'>('desc');
     const [sendingsDetailsView, setSendingsDetailsView] = useState<'general' | 'byCargo' | 'byCustomer'>('general');
     const [sendingsSummaryGroupBy, setSendingsSummaryGroupBy] = useState<'customer' | 'receiver'>('customer');
-    const [sendingsSummarySortColumn, setSendingsSummarySortColumn] = useState<'index' | 'cargo' | 'status' | 'count' | 'volume' | 'weight' | 'paidWeight' | 'customer' | 'density'>('index');
-    const [sendingsSummarySortOrder, setSendingsSummarySortOrder] = useState<'asc' | 'desc'>('asc');
     const [transportFilter, setTransportFilter] = useState<string>('');
     const [transportSearchQuery, setTransportSearchQuery] = useState<string>('');
     const [isDeliveryStatusDropdownOpen, setIsDeliveryStatusDropdownOpen] = useState(false);
@@ -2832,22 +2796,6 @@ useEffect(() => {
             { sendingsCount: 0, paidWeight: 0, cost: 0, declaredCost: 0 }
         );
     }, [sendingRowsSorted, cargoSumByNumber]);
-    const handleSendingsSort = useCallback((column: 'date' | 'number' | 'route' | 'type' | 'transitHours' | 'vehicle' | 'comment' | 'paidWeight' | 'cost' | 'declaredCost') => {
-        if (sendingsSortColumn === column) {
-            setSendingsSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-            return;
-        }
-        setSendingsSortColumn(column);
-        setSendingsSortOrder(column === 'date' ? 'desc' : 'asc');
-    }, [sendingsSortColumn]);
-    const handleSendingsSummarySort = useCallback((column: 'index' | 'cargo' | 'status' | 'count' | 'volume' | 'weight' | 'paidWeight' | 'customer' | 'density') => {
-        if (sendingsSummarySortColumn === column) {
-            setSendingsSummarySortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-            return;
-        }
-        setSendingsSummarySortColumn(column);
-        setSendingsSummarySortOrder(column === 'index' ? 'asc' : 'desc');
-    }, [sendingsSummarySortColumn]);
     const handleOrdersSort = useCallback((column: 'date' | 'number' | 'clientNumber' | 'pickupDate' | 'cargo' | 'sender' | 'receiver' | 'route' | 'customer' | 'comment') => {
         if (ordersSortColumn === column) {
             setOrdersSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
@@ -2914,126 +2862,76 @@ useEffect(() => {
             }),
         [sendingRowsSorted, getSendingRowKey, getSendingCargoNumbers]
     );
-    const selectedVisibleSendingCount = useMemo(
-        () => visibleSendingMeta.reduce((acc, row) => acc + (selectedSendingRowKeys.has(row.rowKey) ? 1 : 0), 0),
-        [visibleSendingMeta, selectedSendingRowKeys]
-    );
-    const allVisibleSendingsSelected = visibleSendingMeta.length > 0 && selectedVisibleSendingCount === visibleSendingMeta.length;
-    useEffect(() => {
-        if (selectedSendingRowKeys.size === 0) return;
-        const visibleKeys = new Set(visibleSendingMeta.map((row) => row.rowKey));
-        setSelectedSendingRowKeys((prev) => {
-            const next = new Set<string>();
-            prev.forEach((key) => {
-                if (visibleKeys.has(key)) next.add(key);
-            });
-            return next.size === prev.size ? prev : next;
-        });
-    }, [visibleSendingMeta, selectedSendingRowKeys.size]);
-    const selectedSendingRowsMeta = useMemo(
-        () => visibleSendingMeta.filter((row) => selectedSendingRowKeys.has(row.rowKey)),
-        [visibleSendingMeta, selectedSendingRowKeys]
-    );
-    const applyBulkSanctionsCheck = useCallback(() => {
-        if (!canRunSanctionsCheck || selectedSendingRowsMeta.length === 0) return;
-        const next: Record<string, SanctionCheckResult> = {};
-        selectedSendingRowsMeta.forEach((row) => {
-            next[row.rowKey] = getSendingSanctionResult(row.row);
-        });
-        setSendingSanctionMap((prev) => ({ ...prev, ...next }));
-        const sanctionedCount = Object.values(next).filter((item) => item.verdict === 'sanctioned').length;
-        const reviewCount = Object.values(next).filter((item) => item.verdict === 'review').length;
-        setBulkSendingActionError(null);
-        setBulkSendingActionInfo(`Санкции проверены: ${selectedSendingRowsMeta.length}. Санкции: ${sanctionedCount}, проверить: ${reviewCount}.`);
-    }, [canRunSanctionsCheck, selectedSendingRowsMeta, getSendingSanctionResult]);
-    const applyBulkEorStatus = useCallback(async (status: EorStatus) => {
-        if (!canEditEor || selectedSendingRowsMeta.length === 0) return;
-        setBulkSendingActionLoading(true);
-        setBulkSendingActionError(null);
-        setBulkSendingActionInfo(null);
-        try {
-            const settled = await Promise.allSettled(
-                selectedSendingRowsMeta.map(async (row) => {
-                    await postSendingsEorStatus({
-                        login: auth?.login,
-                        password: auth?.password,
-                        inn: effectiveActiveInn ?? null,
-                        rowKey: row.rowKey,
-                        statuses: [status],
-                        sendingNumber: row.sendingNumber || null,
-                        sendingDate: row.sendingDate || null,
-                    });
-                    return row.rowKey;
-                })
-            );
-            const successKeys = settled
-                .filter((item): item is PromiseFulfilledResult<string> => item.status === 'fulfilled')
-                .map((item) => item.value);
-            if (successKeys.length > 0) {
-                setEorStatusMap((prev) => {
-                    const next = { ...prev };
-                    successKeys.forEach((rowKey) => {
-                        next[rowKey] = [status];
-                    });
-                    return next;
-                });
-            }
-            const failed = settled.length - successKeys.length;
-            if (failed > 0) {
-                setBulkSendingActionError(`EOR обновлён частично: ${successKeys.length} из ${settled.length}.`);
-            } else {
-                setBulkSendingActionInfo(`EOR обновлён для ${successKeys.length} отправок.`);
-            }
-            setBulkEorMenuOpen(false);
-        } catch (e: any) {
-            setBulkSendingActionError(String(e?.message || 'Не удалось обновить EOR.'));
-        } finally {
-            setBulkSendingActionLoading(false);
-        }
-    }, [canEditEor, selectedSendingRowsMeta, auth?.login, auth?.password, effectiveActiveInn]);
-    const applyBulkPlanDate = useCallback(async () => {
-        if (!canEditPlanDate || selectedSendingRowsMeta.length === 0) return;
-        if (!bulkPlanDateValue) {
-            setBulkSendingActionError('Укажите плановую дату прибытия на терминал.');
-            return;
-        }
-        const cargoNumbers = Array.from(new Set(
-            selectedSendingRowsMeta
-                .flatMap((row) => {
-                    const direct = String(row.sendingNumber || '').trim();
-                    if (direct) return [direct];
-                    // fallback only when sending number is empty
-                    return row.cargoNumbers.map((v) => String(v).trim()).filter(Boolean);
-                })
-                .filter(Boolean)
-        ));
-        if (cargoNumbers.length === 0) {
-            setBulkSendingActionError('По выбранным отправкам не найдены номера перевозок.');
-            return;
-        }
-        setBulkSendingActionLoading(true);
-        setBulkSendingActionError(null);
-        setBulkSendingActionInfo(null);
-        try {
-            const data = await postSendingsPlanDate(bulkPlanDateValue, cargoNumbers);
-            const updated = Number(data?.updated ?? 0);
-            const requested = Number(data?.requested ?? cargoNumbers.length);
-            const failed = Number(data?.failed ?? Math.max(0, requested - updated));
-            const firstError = Array.isArray(data?.errors) && data.errors.length > 0
-                ? String(data.errors[0]?.error || '').trim()
-                : '';
-            if (failed > 0) {
-                setBulkSendingActionError(`Плановая дата прибытия на терминал записана частично: ${updated} из ${requested}.${firstError ? ` Причина: ${firstError}` : ''}`);
-            } else {
-                setBulkSendingActionInfo(`Плановая дата прибытия на терминал ${bulkPlanDateValue} записана для ${updated} перевозок.`);
-            }
-            setBulkPlanDateOpen(false);
-        } catch (e: any) {
-            setBulkSendingActionError(String(e?.message || 'Не удалось записать плановую дату прибытия на терминал.'));
-        } finally {
-            setBulkSendingActionLoading(false);
-        }
-    }, [canEditPlanDate, selectedSendingRowsMeta, bulkPlanDateValue, auth?.login, auth?.password]);
+    const {
+        selectedSendingRowKeys,
+        setSelectedSendingRowKeys,
+        bulkEorMenuOpen,
+        setBulkEorMenuOpen,
+        bulkPlanDateOpen,
+        setBulkPlanDateOpen,
+        bulkPlanDateValue,
+        setBulkPlanDateValue,
+        bulkSendingActionLoading,
+        bulkSendingActionError,
+        bulkSendingActionInfo,
+        selectedByCustomerSummaryKeys,
+        setSelectedByCustomerSummaryKeys,
+        byCustomerPlanDateOpen,
+        setByCustomerPlanDateOpen,
+        byCustomerPlanDateValue,
+        setByCustomerPlanDateValue,
+        byCustomerActionLoading,
+        setByCustomerActionLoading,
+        byCustomerActionError,
+        setByCustomerActionError,
+        byCustomerActionInfo,
+        setByCustomerActionInfo,
+        expandedByCustomerKey,
+        setExpandedByCustomerKey,
+        selectedVisibleSendingCount,
+        allVisibleSendingsSelected,
+        applyBulkSanctionsCheck,
+        applyBulkEorStatus,
+        applyBulkPlanDate,
+        applyByCustomerPlanDate,
+        resetBulkUiState,
+    } = useSendingsBulkActions({
+        visibleSendingMeta,
+        canRunSanctionsCheck,
+        canEditEor,
+        canEditPlanDate,
+        getSendingSanctionResult,
+        setEorStatusMap,
+        setSendingSanctionMap,
+        auth,
+        effectiveActiveInn,
+    });
+    const {
+        sendingsFerryActionError,
+        getSendingsFerryEntry,
+        handleFerrySelect,
+        resetFerryUiState,
+    } = useSendingsFerryActions({
+        auth,
+        ferriesList,
+        sendingsFerryMap,
+        setSendingsFerryMap,
+        setFerryEtaLoadingByRow,
+        effectiveActiveInn,
+    });
+    const resetSendingsUiState = useCallback(() => {
+        resetBulkUiState();
+        resetFerryUiState();
+    }, [resetBulkUiState, resetFerryUiState]);
+    useSendingsServerSync({
+        docSection,
+        showEorColumn,
+        auth,
+        setEorStatusMap,
+        setFerriesList,
+        setSendingsFerryMap,
+        resetSendingsUiState,
+    });
     const getParcelSearchText = useCallback((parcel: any): string => {
         const parts: string[] = [];
         const seen = new WeakSet<object>();
@@ -3072,78 +2970,6 @@ useEffect(() => {
         },
         [getSendingTransportType],
     );
-    const getSendingsFerryEntry = useCallback((rowKey: string, number: string) => {
-        const withNormalized = (raw: string) => {
-            const base = String(raw ?? '').trim();
-            if (!base) return [] as string[];
-            const compact = base.replace(/\D+/g, '');
-            return compact && compact !== base ? [base, compact] : [base];
-        };
-        const candidates = [...withNormalized(rowKey), ...withNormalized(number)];
-        for (const candidate of Array.from(new Set(candidates))) {
-            const entry = sendingsFerryMap[candidate];
-            if (entry) return entry;
-        }
-        return null;
-    }, [sendingsFerryMap]);
-    const handleFerrySelect = useCallback(async (rowKey: string, ferryIdStr: string, effectiveInn: string | null) => {
-        setSendingsFerryActionError(null);
-        const parsed = ferryIdStr.trim() ? parseInt(ferryIdStr, 10) : NaN;
-        const ferryId = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-        const ferry = ferryId != null ? ferriesList.find((f) => Number(f.id) === ferryId) : null;
-        if (!ferry && ferryId != null) return;
-
-        const keys = [rowKey, rowKey.replace(/\D/g, '')].filter(Boolean);
-        const optimisticEntry = ferryId && ferry
-            ? { ferry_id: ferryId, ferry_name: ferry.name, eta: null as string | null }
-            : null;
-        setSendingsFerryMap((prev) => {
-            const next = { ...prev };
-            keys.forEach((k) => {
-                if (optimisticEntry) next[k] = optimisticEntry;
-                else delete next[k];
-            });
-            return next;
-        });
-
-        setFerryEtaLoadingByRow((prev) => ({ ...prev, [rowKey]: true }));
-        try {
-            const eta = ferry ? await fetchMarinesiaShipEta(ferry.mmsi) : null;
-            await postSendingsFerryAssignment({
-                login: auth?.login,
-                password: auth?.password,
-                rowKey,
-                ferryId: ferryId ?? undefined,
-                eta,
-                inn: effectiveInn ?? undefined,
-            });
-            setSendingsFerryMap((prev) => {
-                const next = { ...prev };
-                const entry = ferryId && ferry
-                    ? { ferry_id: ferryId, ferry_name: ferry.name, eta }
-                    : null;
-                keys.forEach((k) => {
-                    if (entry) next[k] = entry;
-                    else delete next[k];
-                });
-                return next;
-            });
-        } catch (err) {
-            setSendingsFerryMap((prev) => {
-                const next = { ...prev };
-                keys.forEach((k) => delete next[k]);
-                return next;
-            });
-            setSendingsFerryActionError(String((err as Error)?.message ?? 'Не удалось сохранить паром'));
-        } finally {
-            setFerryEtaLoadingByRow((prev) => {
-                const next = { ...prev };
-                delete next[rowKey];
-                return next;
-            });
-        }
-    }, [auth?.login, auth?.password, ferriesList, effectiveActiveInn]);
-
     const closeDocumentsToolbarDropdownsExceptSendings = useCallback(() => {
         setIsDateDropdownOpen(false);
         setIsCustomerDropdownOpen(false);
@@ -3256,7 +3082,7 @@ useEffect(() => {
         applyBulkPlanDate: applyBulkPlanDate,
         applyBulkSanctionsCheck: applyBulkSanctionsCheck,
         auth: auth,
-        postSendingsPlanDate: postSendingsPlanDate,
+        applyByCustomerPlanDate: applyByCustomerPlanDate,
     });
 
     return (
