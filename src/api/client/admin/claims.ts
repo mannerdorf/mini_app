@@ -62,3 +62,36 @@ export async function fetchAdminClaims(
     chart: Array.isArray(data.chart) ? data.chart : [],
   };
 }
+
+export async function fetchAdminClaimDetail(
+  adminToken: string,
+  id: number
+): Promise<Record<string, unknown> | null> {
+  const res = await fetch(`/api/admin-claim-detail?id=${id}`, {
+    headers: adminAuthHeaders(adminToken),
+  });
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown> & { error?: string };
+  if (!res.ok) throw new Error(data.error || "Ошибка загрузки претензии");
+  return data || null;
+}
+
+export async function postAdminClaimUpdate(
+  adminToken: string,
+  payload: Record<string, unknown>
+): Promise<void> {
+  const res = await fetch("/api/admin-claim-update", {
+    method: "POST",
+    headers: adminAuthHeaders(adminToken, { "Content-Type": "application/json" }),
+    body: JSON.stringify(payload),
+  });
+  let data: { error?: string } = {};
+  try {
+    const text = await res.text();
+    if (text) data = JSON.parse(text) as { error?: string };
+  } catch {
+    if (!res.ok) {
+      data = { error: res.status === 413 ? "Файл или запрос слишком большой (лимит размера)" : `Ошибка ${res.status}` };
+    }
+  }
+  if (!res.ok) throw new Error(data.error || "Ошибка обновления претензии");
+}

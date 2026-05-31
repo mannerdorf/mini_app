@@ -53,7 +53,7 @@ import { fetchAdminMe } from "../api/client/admin/me";
 import { fetchAdminUsers } from "../api/client/admin/users";
 import { fetchAdminExpenseRequests } from "../api/client/admin/expenseRequests";
 import { fetchAdminSverkiRequests, deleteAdminSverkiRequest, updateAdminSverkiRequestStatus } from "../api/client/admin/sverki";
-import { fetchAdminClaims } from "../api/client/admin/claims";
+import { fetchAdminClaims, fetchAdminClaimDetail, postAdminClaimUpdate } from "../api/client/admin/claims";
 import { fetchAdminAutoRegisterCandidates } from "../api/client/admin/autoRegister";
 
 const PERMISSION_KEYS = [
@@ -2281,26 +2281,17 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (!adminToken) return;
     setAdminClaimsUpdatingId(id);
     try {
-      const res = await fetch("/api/admin-claim-update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`,
-        },
-        body: JSON.stringify({
-          claimId: id,
-          status,
-          approvedAmount: approvedAmount != null ? approvedAmount : undefined,
-          expertLogin: extras?.expertLogin || undefined,
-          managerNote: extras?.managerNote || undefined,
-          leaderComment: extras?.leaderComment || undefined,
-          accountantLogin: extras?.accountantLogin || undefined,
-          internalComment: extras?.internalComment || undefined,
-          enqueuePush: true,
-        }),
+      await postAdminClaimUpdate(adminToken, {
+        claimId: id,
+        status,
+        approvedAmount: approvedAmount != null ? approvedAmount : undefined,
+        expertLogin: extras?.expertLogin || undefined,
+        managerNote: extras?.managerNote || undefined,
+        leaderComment: extras?.leaderComment || undefined,
+        accountantLogin: extras?.accountantLogin || undefined,
+        internalComment: extras?.internalComment || undefined,
+        enqueuePush: true,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Ошибка обновления претензии");
       reloadAdminClaims();
     } catch (e: unknown) {
       setError((e as Error)?.message || "Ошибка обновления претензии");
@@ -2314,19 +2305,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (!confirmed) return;
     setAdminClaimsUpdatingId(id);
     try {
-      const res = await fetch("/api/admin-claim-update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`,
-        },
-        body: JSON.stringify({
-          action: "delete",
-          claimId: id,
-        }),
+      await postAdminClaimUpdate(adminToken, {
+        action: "delete",
+        claimId: id,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Ошибка удаления претензии");
       if (adminClaimDetailId === id) setAdminClaimDetailId(null);
       reloadAdminClaims();
     } catch (e: unknown) {
@@ -2408,32 +2390,17 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         }))
       );
       const videoLinksPayload = video ? [{ url: video, title: adminClaimAttachRole === "leader" ? "Видео от руководителя" : "Видео от менеджера" }] : [];
-      const res = await fetch("/api/admin-claim-update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`,
-        },
-        body: JSON.stringify({
-          action: "upload_documents",
-          claimId: Number(adminClaimDetail.claim.id),
-          actorRole: adminClaimAttachRole,
-          photos: photosPayload,
-          documents: documentsPayload,
-          videoLinks: videoLinksPayload,
-          managerNote: adminClaimAttachRole === "manager" ? adminClaimNoteDraft.trim() : undefined,
-          leaderComment: adminClaimAttachRole === "leader" ? adminLeaderCommentDraft.trim() : undefined,
-          enqueuePush: false,
-        }),
+      await postAdminClaimUpdate(adminToken, {
+        action: "upload_documents",
+        claimId: Number(adminClaimDetail.claim.id),
+        actorRole: adminClaimAttachRole,
+        photos: photosPayload,
+        documents: documentsPayload,
+        videoLinks: videoLinksPayload,
+        managerNote: adminClaimAttachRole === "manager" ? adminClaimNoteDraft.trim() : undefined,
+        leaderComment: adminClaimAttachRole === "leader" ? adminLeaderCommentDraft.trim() : undefined,
+        enqueuePush: false,
       });
-      let data: { error?: string } = {};
-      try {
-        const text = await res.text();
-        if (text) data = JSON.parse(text) as { error?: string };
-      } catch {
-        if (!res.ok) data = { error: res.status === 413 ? "Файл или запрос слишком большой (лимит размера)" : `Ошибка ${res.status}` };
-      }
-      if (!res.ok) throw new Error(data?.error || "Ошибка прикрепления файлов");
       setAdminClaimAttachPhotoFiles([]);
       setAdminClaimAttachDocumentFiles([]);
       setAdminClaimAttachVideoLink("");
@@ -2465,14 +2432,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
     let cancelled = false;
     setAdminClaimDetailLoading(true);
-    fetch(`/api/admin-claim-detail?id=${adminClaimDetailId}`, {
-      headers: { Authorization: `Bearer ${adminToken}` },
-    })
-      .then((res) => res.json().catch(() => ({})))
+    fetchAdminClaimDetail(adminToken, adminClaimDetailId)
       .then((data) => {
         if (cancelled) return;
         setAdminClaimDetail(data || null);
-        const claim = data?.claim || {};
+        const claim = (data as { claim?: Record<string, unknown> })?.claim || {};
         setAdminClaimNoteDraft(String(claim?.managerNote || ""));
         setAdminLeaderCommentDraft(String(claim?.leaderComment || ""));
         setAdminClaimApprovedAmountDraft(claim?.approvedAmount != null ? String(claim.approvedAmount) : "");
