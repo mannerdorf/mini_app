@@ -11,6 +11,8 @@ import { formatCurrency, stripOoo, formatInvoiceNumber, cityToCode } from "../..
 import { STATUS_MAP, normalizeStatus } from "../../../lib/statusUtils";
 import {
   formatSendingMetricNum,
+  getParcelFreightSum,
+  getSendingRowParcelMetrics,
   parseSendingMetricNumber,
 } from "./sendingsMetrics";
 import { normCargoKey } from "../lib/documentsPipeline";
@@ -27,7 +29,6 @@ import {
   getSendingRowKey,
   getSendingsAnalyticsExtraColCount,
 } from "./sendingsRowHelpers";
-import { getSendingRowParcelMetrics } from "./sendingsMetrics";
 import type { SendingsRowRuntime } from "./sendingsRowRuntime";
 import { DocumentsRouteBadge } from "../views/documentsViewBlocks";
 import { SendingsBulkActionsBar } from "./SendingsBulkActionsBar";
