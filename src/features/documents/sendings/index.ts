@@ -10,6 +10,7 @@ export { useSendingsSortState } from "./useSendingsSortState";
 export type { SendingsSortColumn, SendingsSummarySortColumn } from "./useSendingsSortState";
 export { SendingsBulkActionsBar } from "./SendingsBulkActionsBar";
 export { SendingsToolbarFilters } from "./SendingsToolbarFilters";
+export { SendingsTransportFilter } from "./SendingsTransportFilter";
 export { SendingsInfographic } from "./SendingsInfographic";
 export type { SendingsInfographicData } from "./SendingsInfographic";
 export { SendingsPreface } from "./SendingsPreface";

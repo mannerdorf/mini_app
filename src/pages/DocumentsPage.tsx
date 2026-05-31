@@ -2606,6 +2606,9 @@ useEffect(() => {
                         )}
                         {docSection === 'Отправки' && (
                             <SendingsToolbarFilters
+                                transportFilter={transportFilter}
+                                setTransportFilter={setTransportFilter}
+                                transportOptionsCurrentSection={transportOptionsCurrentSection}
                                 typeFilterSet={typeFilterSet}
                                 setTypeFilterSet={setTypeFilterSet}
                                 routeFilterSet={routeFilterSet}
@@ -2763,7 +2766,7 @@ useEffect(() => {
                         </FilterDropdownPortal>
                         </>
                         )}
-                        {(((effectiveServiceMode && docSection !== 'Заявки' && docSection !== 'Акты сверок' && docSection !== 'Договоры' && docSection !== 'Претензии') || docSection === 'Отправки') && docSection !== 'Тарифы') && (
+                        {((effectiveServiceMode && docSection !== 'Заявки' && docSection !== 'Акты сверок' && docSection !== 'Договоры' && docSection !== 'Претензии' && docSection !== 'Отправки') && docSection !== 'Тарифы') && (
                         <>
                         <div ref={transportButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsTransportDropdownOpen(!isTransportDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
