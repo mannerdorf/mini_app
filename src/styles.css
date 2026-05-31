@@ -3020,10 +3020,16 @@ body {
 .modal-content--cargo-details .shipment-status-panel__counter,
 .modal-content--cargo-details .shipment-status-step__date,
 .modal-content--cargo-details .shipment-status-panel__loading,
-.modal-content--cargo-details .shipment-status-panel__error {
+.modal-content--cargo-details .shipment-status-panel__error,
+.modal-content--cargo-details .shipment-status-panel__empty {
     font-size: var(--font-size-footnote, 12px) !important;
     font-weight: 500 !important;
     line-height: 1.35 !important;
+}
+
+.modal-content--cargo-details .shipment-status-panel__empty {
+    margin: 0.35rem 0 0;
+    color: var(--color-text-secondary);
 }
 
 .modal-content--cargo-details .shipment-status-panel__counter {

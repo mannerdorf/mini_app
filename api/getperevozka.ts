@@ -3,6 +3,7 @@ import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { respondCorsPreflight } from "./_lib/cors.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { normalizePerevozkaSteps } from "./lib/postbGetapiNormalize.js";
 
 const GETAPI_BASE =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
@@ -20,6 +21,23 @@ function extractTimelineFromJson(json: unknown): unknown[] | null {
     if (Array.isArray(val) && val.length > 0) return val;
   }
   return null;
+}
+
+/** Добавляет items[] из эвристики 1С, если в ответе ещё нет шагов таймлайна. */
+function attachNormalizedSteps(payload: unknown): unknown {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return payload;
+  const record = payload as Record<string, unknown>;
+  const hasSteps = ["items", "Steps", "stages", "Statuses"].some((key) => {
+    const val = record[key];
+    return Array.isArray(val) && val.length > 0;
+  });
+  if (hasSteps) return payload;
+  const norm = normalizePerevozkaSteps(payload);
+  if (norm.length === 0) return payload;
+  return {
+    ...record,
+    items: norm.map((s) => ({ Stage: s.title, Date: s.date })),
+  };
 }
 
 async function fetchUpstreamWithTimeout(url: string, init: RequestInit): Promise<Response> {
@@ -227,9 +245,9 @@ export default async function handler(
             if (steps) {
               return res.status(200).json({ ...(item as Record<string, unknown>), items: steps });
             }
-            return res.status(200).json(item);
+            return res.status(200).json(attachNormalizedSteps(item));
           }
-          return res.status(200).json(json);
+          return res.status(200).json(attachNormalizedSteps(json));
         } catch {
           return res.status(200).send(text);
         }
@@ -237,7 +255,7 @@ export default async function handler(
       if (!item) {
         return res.status(404).json({ error: "Перевозка не найдена", request_id: ctx.requestId });
       }
-      return res.status(200).json(item);
+      return res.status(200).json(attachNormalizedSteps(item));
     } catch (e) {
       logError(ctx, "getperevozka_registered_user_failed", e);
       return res.status(500).json({ error: "Ошибка запроса", request_id: ctx.requestId });
@@ -281,7 +299,7 @@ export default async function handler(
 
     try {
       const json = JSON.parse(text);
-      return res.status(200).json(json);
+      return res.status(200).json(attachNormalizedSteps(json));
     } catch {
       return res.status(200).send(text);
     }

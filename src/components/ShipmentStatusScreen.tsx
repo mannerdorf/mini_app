@@ -322,6 +322,10 @@ export function ShipmentStatusPanel({
 
       {error && !loading && <p className="shipment-status-panel__error">{error}</p>}
 
+      {!loading && !error && trackingSteps.length === 0 && (
+        <p className="shipment-status-panel__empty">Нет данных по статусам перевозки</p>
+      )}
+
       {!loading && !error && trackingSteps.length > 0 && (
         <>
           <RouteMap fromCity={fromCity} toCity={toCity} stepCount={completedCount} />

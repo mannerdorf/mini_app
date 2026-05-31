@@ -13,6 +13,29 @@ function normKey(k: string): string {
 
 /** Из произвольного объекта строки таблицы статусов. */
 export function rowFromLooseObject(obj: Record<string, unknown>): { title: string; date: string } | null {
+  const directTitle = asStr(
+    obj.Stage ??
+      obj.stage ??
+      obj.Name ??
+      obj.name ??
+      obj.Status ??
+      obj.status ??
+      obj.Состояние ??
+      obj.состояние,
+  );
+  const directDate = asStr(
+    obj.Date ??
+      obj.date ??
+      obj.DatePrih ??
+      obj.datePrih ??
+      obj.DateVr ??
+      obj.dateVr ??
+      obj.Период ??
+      obj.период,
+  );
+  if (directTitle || directDate) {
+    return { title: directTitle || "—", date: directDate };
+  }
   let title = "";
   let date = "";
   for (const [k, v] of Object.entries(obj)) {

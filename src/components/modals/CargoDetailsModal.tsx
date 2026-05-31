@@ -57,6 +57,7 @@ export function CargoDetailsModal({
     const [nomenclatureOpen, setNomenclatureOpen] = useState(false);
     const [perevozkaLoading, setPerevozkaLoading] = useState(false);
     const [perevozkaError, setPerevozkaError] = useState<string | null>(null);
+    const [perevozkaFetched, setPerevozkaFetched] = useState(false);
 
     useEffect(() => {
         if (!isOpen || !item?.Number || !auth?.login || !auth?.password) {
@@ -65,11 +66,13 @@ export function CargoDetailsModal({
             setPerevozkaMeta({ autoReg: '', autoType: '', driver: '' });
             setPerevozkaError(null);
             setPerevozkaLoading(false);
+            setPerevozkaFetched(false);
             return;
         }
         let cancelled = false;
         setPerevozkaLoading(true);
         setPerevozkaError(null);
+        setPerevozkaFetched(false);
         fetchPerevozkaDetails(auth, item.Number, item)
             .then(({ steps, nomenclature, meta }) => {
                 if (!cancelled) {
@@ -82,7 +85,10 @@ export function CargoDetailsModal({
                 if (!cancelled) setPerevozkaError(e?.message || 'Не удалось загрузить статусы');
             })
             .finally(() => {
-                if (!cancelled) setPerevozkaLoading(false);
+                if (!cancelled) {
+                    setPerevozkaLoading(false);
+                    setPerevozkaFetched(true);
+                }
             });
         return () => { cancelled = true; };
     }, [isOpen, item?.Number, auth?.login, auth?.password]);
@@ -518,7 +524,7 @@ export function CargoDetailsModal({
                             </div>
                         )}
                     </div>
-                    {(perevozkaLoading || perevozkaTimeline || perevozkaError) && (
+                    {(perevozkaLoading || perevozkaFetched || perevozkaTimeline || perevozkaError) && (
                         <aside className="cargo-details-modal-timeline shipment-status-timeline-wrap">
                             {(() => {
                                 const totalHours = (() => {

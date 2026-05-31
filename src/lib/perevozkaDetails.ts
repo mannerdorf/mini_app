@@ -5,6 +5,7 @@ import { cityToCode } from "./formatUtils";
 import { formatPerevozkaNumberForApi } from "./perevozkaNumber";
 import type { AuthData, CargoItem, PerevozkaTimelineStep } from "../types";
 import { PROXY_API_GETPEREVOZKA_URL } from "../constants/config";
+import { normalizePerevozkaSteps } from "../../api/lib/postbGetapiNormalize.js";
 
 export type PerevozkaDetailsResult = {
     steps: PerevozkaTimelineStep[] | null;
@@ -137,6 +138,83 @@ export function buildNomenclatureSearchTextFromCargoItem(item: CargoItem | Recor
     return rows.length > 0 ? buildNomenclatureSearchText(rows) : "";
 }
 
+function mapRawElementsToSteps(raw: unknown[], item: CargoItem): PerevozkaTimelineStep[] {
+    return raw.map((el: any) => {
+        const rawLabel = el?.Stage ?? el?.Name ?? el?.Status ?? el?.label ?? el?.title ?? String(el);
+        const labelStr = typeof rawLabel === "string" ? rawLabel : String(rawLabel);
+        const date = el?.Date ?? el?.date ?? el?.DatePrih ?? el?.DateVr;
+        const displayLabel = mapTimelineStageLabel(labelStr, item);
+        return { label: displayLabel, date, completed: true };
+    });
+}
+
+function sortTimelineSteps(steps: PerevozkaTimelineStep[], item: CargoItem): PerevozkaTimelineStep[] {
+    const fromCity = cityToCode(item.CitySender) || "—";
+    const toCity = cityToCode(item.CityReceiver) || "—";
+    const senderLabel = `Получена в ${fromCity}`;
+    const arrivedAtDestLabel = `Прибыла в ${toCity}`;
+    const orderOf = (l: string, i: number): number => {
+        if (l === "Получена информация") return 1;
+        if (l === senderLabel) return 2;
+        if (l === "Измерена") return 3;
+        if (l === "Консолидация") return 4;
+        if (l === "Загружена в ТС") return 5;
+        if (l === "Отправлена") return 6;
+        if (l === arrivedAtDestLabel) return 7;
+        if (l === "Запланирована доставка") return 8;
+        if (l === "Доставлена") return 9;
+        return 10 + i;
+    };
+    return steps
+        .map((s, i) => ({ s, key: orderOf(s.label, i) }))
+        .sort((a, b) => a.key - b.key)
+        .map((x) => x.s);
+}
+
+function stepsFromNormalized(data: unknown, item: CargoItem): PerevozkaTimelineStep[] {
+    return normalizePerevozkaSteps(data).map((s) => ({
+        label: mapTimelineStageLabel(s.title, item),
+        date: s.date || undefined,
+        completed: true,
+    }));
+}
+
+function buildFallbackStepsFromCargoItem(item: CargoItem): PerevozkaTimelineStep[] {
+    const state = String(item?.State ?? (item as Record<string, unknown>)?.state ?? "").trim();
+    if (!state) return [];
+    const dateRaw =
+        item?.StatusDate ??
+        item?.DateStatus ??
+        item?.DatePrih ??
+        item?.DateVr ??
+        (item as Record<string, unknown>)?.statusDate;
+    return [
+        {
+            label: mapTimelineStageLabel(state, item),
+            date: dateRaw != null ? String(dateRaw) : undefined,
+            completed: true,
+        },
+    ];
+}
+
+function resolveTimelineSteps(data: unknown, item: CargoItem): PerevozkaTimelineStep[] {
+    const raw = Array.isArray(data)
+        ? data
+        : (data as Record<string, unknown>)?.items ??
+          (data as Record<string, unknown>)?.Steps ??
+          (data as Record<string, unknown>)?.stages ??
+          (data as Record<string, unknown>)?.Statuses ??
+          [];
+    let sorted = sortTimelineSteps(
+        Array.isArray(raw) ? mapRawElementsToSteps(raw, item) : [],
+        item,
+    );
+    if (sorted.length === 0) sorted = sortTimelineSteps(stepsFromNormalized(data, item), item);
+    if (sorted.length === 0) sorted = sortTimelineSteps(stepsFromNormalized(item, item), item);
+    if (sorted.length === 0) sorted = sortTimelineSteps(buildFallbackStepsFromCargoItem(item), item);
+    return sorted;
+}
+
 export async function fetchPerevozkaDetails(
     auth: AuthData,
     number: string,
@@ -178,35 +256,7 @@ export async function fetchPerevozkaDetails(
         throw new Error((err as any)?.error || (err as any)?.details || `Ошибка ${res.status}`);
     }
     const data = await res.json();
-    const raw = Array.isArray(data) ? data : (data?.items ?? data?.Steps ?? data?.stages ?? data?.Statuses ?? []);
-    const steps: PerevozkaTimelineStep[] = Array.isArray(raw)
-        ? raw.map((el: any) => {
-            const rawLabel = el?.Stage ?? el?.Name ?? el?.Status ?? el?.label ?? String(el);
-            const labelStr = typeof rawLabel === 'string' ? rawLabel : String(rawLabel);
-            const date = el?.Date ?? el?.date ?? el?.DatePrih ?? el?.DateVr;
-            const displayLabel = mapTimelineStageLabel(labelStr, item);
-            return { label: displayLabel, date, completed: true };
-        })
-        : [];
-    const fromCity = cityToCode(item.CitySender) || '—';
-    const toCity = cityToCode(item.CityReceiver) || '—';
-    const senderLabel = `Получена в ${fromCity}`;
-    const arrivedAtDestLabel = `Прибыла в ${toCity}`;
-    const orderOf = (l: string, i: number): number => {
-        if (l === 'Получена информация') return 1;
-        if (l === senderLabel) return 2;
-        if (l === 'Измерена') return 3;
-        if (l === 'Консолидация') return 4;
-        if (l === 'Загружена в ТС') return 5;
-        if (l === 'Отправлена') return 6;
-        if (l === arrivedAtDestLabel) return 7;
-        if (l === 'Запланирована доставка') return 8;
-        if (l === 'Доставлена') return 9;
-        return 10 + i;
-    };
-    const sorted = steps.map((s, i) => ({ s, key: orderOf(s.label, i) }))
-        .sort((a, b) => a.key - b.key)
-        .map((x) => x.s);
+    const sorted = resolveTimelineSteps(data, item);
     const nomenclature = extractNomenclatureFromPerevozka(data);
     const tryReadField = (fieldNames: string[]): string => {
         const candidates: any[] = [
