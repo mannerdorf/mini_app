@@ -2,12 +2,13 @@
 
 ## Last updated
 
-2026-05-31 — batch 3.33–3.35 (documents transport filter + claims toolbar)
+2026-05-31 — hotfix filteredItems regression (phase 3.29)
 
 ## Completed slices (newest first)
 
 | Commit | Phase | Summary |
 |--------|-------|---------|
+| `41e8b1e2` | hotfix | restore filteredItems / filteredActs / filteredOrders |
 | `1fdb957b` | 3.35 | ClaimsToolbarFilters + claimStatusConstants |
 | `077444eb` | 3.34 | SendingsTransportFilter → alias DocumentsTransportFilter |
 | `90bf334b` | 3.33 | DocumentsTransportFilter for Счета/УПД/ЭДО |
