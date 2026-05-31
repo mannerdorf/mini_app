@@ -663,10 +663,9 @@ export function CargoDetailsModal({
                                     <button
                                         key={doc}
                                         type="button"
-                                        className={`filter-button edo-doc-download-btn doc-button ${isHighlighted ? 'doc-button-highlighted' : ''}`}
+                                        className={`doc-button doc-button--cargo ${isHighlighted ? 'doc-button-highlighted' : ''}`}
                                         onClick={() => handleDownload(doc)}
                                         disabled={downloading === doc}
-                                        style={isHighlighted ? { border: '2px solid var(--color-primary-blue)', boxShadow: '0 0 8px rgba(37, 99, 235, 0.3)' } : undefined}
                                     >
                                         {downloading === doc ? (
                                             <Loader2 className="w-4 h-4 animate-spin" aria-hidden />

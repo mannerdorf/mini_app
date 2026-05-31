@@ -3107,11 +3107,12 @@ body {
 }
 .doc-button {
     flex: 1;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 0.35rem;
     padding: var(--space-2, 8px) var(--space-3, 12px);
-    background-color: var(--color-primary-blue);
+    background-color: var(--color-primary-blue, #2563eb);
     color: #fff;
     border-radius: var(--radius-md, 12px);
     border: none;
@@ -3121,7 +3122,19 @@ body {
     min-width: 80px;
     transition: background-color 0.2s, opacity 0.2s;
 }
+.doc-button svg {
+    flex-shrink: 0;
+    color: #fff;
+}
+.doc-button--cargo {
+    width: 100%;
+    min-height: var(--control-height-chip, 36px);
+}
 .doc-button:hover:not(:disabled) { background-color: #0077ed; opacity: 0.95; }
+.doc-button:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
 .doc-button-highlighted { border: 2px solid var(--color-primary-blue) !important; box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.25) !important; animation: pulse-highlight 2s ease-in-out infinite; }
 @keyframes pulse-highlight {
     0%, 100% { box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.25); }
@@ -3464,13 +3477,21 @@ body {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .modal-content--cargo-details .doc-button {
+    .modal-content--cargo-details .doc-button,
+    .modal-content--cargo-details .doc-button--cargo {
         min-width: 0;
         padding: 0.45rem 0.35rem;
         font-size: 0.72rem;
         white-space: nowrap;
         overflow: visible;
         flex: unset;
+        background-color: var(--color-primary-blue, #2563eb);
+        color: #fff;
+        border: none;
+    }
+
+    .modal-content--cargo-details .doc-button svg {
+        color: #fff;
     }
 
     .modal-content--cargo-details .cargo-details-last-mile-block {
