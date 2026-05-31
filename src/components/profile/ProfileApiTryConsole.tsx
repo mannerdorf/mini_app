@@ -65,12 +65,28 @@ function formatBodyFieldValue(value: unknown): string {
     return JSON.stringify(value);
 }
 
-function parseBodyFieldValue(raw: string): unknown {
+/** Поля, которые всегда уходят строкой (номера перевозок с ведущими нулями и т.п.). */
+const STRING_BODY_KEYS = new Set([
+    "number",
+    "Number",
+    "Номер",
+    "metod",
+    "Metod",
+    "inn",
+    "Inn",
+    "INN",
+]);
+
+function parseBodyFieldValue(raw: string, key?: string): unknown {
     const t = raw.trim();
     if (!t) return "";
+    const keyNorm = key?.trim();
+    if (keyNorm && STRING_BODY_KEYS.has(keyNorm)) return raw.trim();
     if (t === "true") return true;
     if (t === "false") return false;
     if (t === "null") return null;
+    // Числовая строка с ведущими нулями — идентификатор, не number.
+    if (/^0+\d+$/.test(t)) return t;
     if (/^-?\d+$/.test(t)) return Number(t);
     if (/^-?\d+\.\d+$/.test(t)) return Number(t);
     if (t.startsWith("{") || t.startsWith("[") || (t.startsWith('"') && t.endsWith('"'))) {
@@ -105,7 +121,7 @@ function parseBodyJsonToRows(json: string): ParamRow[] | null {
 function rowsToBodyJson(rows: ParamRow[]): string {
     const obj: Record<string, unknown> = {};
     for (const row of rows) {
-        if (row.enabled && row.key.trim()) obj[row.key.trim()] = parseBodyFieldValue(row.value);
+        if (row.enabled && row.key.trim()) obj[row.key.trim()] = parseBodyFieldValue(row.value, row.key.trim());
     }
     return JSON.stringify(obj, null, 2);
 }

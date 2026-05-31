@@ -9,30 +9,58 @@ const GETAPI_BASE =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 const GET_PEREVOZKA_METHODS = ["Getperevozka", "GetPerevozka"] as const;
-/** Таймаут одного запроса в 1С — без него Vercel/браузер ждут бесконечно. */
-const UPSTREAM_TIMEOUT_MS = 12_000;
+/** Таймаут одного запроса в 1С (maxDuration функции = 60 с). */
+const UPSTREAM_TIMEOUT_MS = 45_000;
+
+const TIMELINE_ARRAY_KEYS = [
+  "items",
+  "Items",
+  "Steps",
+  "stages",
+  "Statuses",
+  "statuses",
+  "Статусы",
+  "статусы",
+  "History",
+  "history",
+  "История",
+  "история",
+] as const;
 
 function extractTimelineFromJson(json: unknown): unknown[] | null {
   if (!json || typeof json !== "object") return null;
   if (Array.isArray(json)) return json;
   const record = json as Record<string, unknown>;
-  for (const key of ["items", "Steps", "stages", "Statuses"]) {
+  for (const key of TIMELINE_ARRAY_KEYS) {
     const val = record[key];
     if (Array.isArray(val) && val.length > 0) return val;
   }
+  for (const nest of ["Response", "Data", "Result", "result", "data"]) {
+    const nested = record[nest];
+    if (!nested || typeof nested !== "object" || Array.isArray(nested)) continue;
+    for (const key of TIMELINE_ARRAY_KEYS) {
+      const val = (nested as Record<string, unknown>)[key];
+      if (Array.isArray(val) && val.length > 0) return val;
+    }
+  }
   return null;
+}
+
+function isMeaningfulTimelineStep(step: { title: string; date: string }): boolean {
+  const title = String(step.title ?? "").trim();
+  return title !== "" && title !== "—" && title !== "-";
 }
 
 /** Добавляет items[] из эвристики 1С, если в ответе ещё нет шагов таймлайна. */
 function attachNormalizedSteps(payload: unknown): unknown {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return payload;
   const record = payload as Record<string, unknown>;
-  const hasSteps = ["items", "Steps", "stages", "Statuses"].some((key) => {
+  const hasSteps = TIMELINE_ARRAY_KEYS.some((key) => {
     const val = record[key];
     return Array.isArray(val) && val.length > 0;
   });
   if (hasSteps) return payload;
-  const norm = normalizePerevozkaSteps(payload);
+  const norm = normalizePerevozkaSteps(payload).filter(isMeaningfulTimelineStep);
   if (norm.length === 0) return payload;
   return {
     ...record,

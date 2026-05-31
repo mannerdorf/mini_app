@@ -17,9 +17,9 @@ type PerevozkaDetailsOptions = {
     forceServiceAuth?: boolean;
 };
 
-const STEPS_KEYS = ['items', 'Steps', 'stages', 'Statuses'];
+const STEPS_KEYS = ['items', 'Items', 'Steps', 'stages', 'Statuses', 'statuses', 'Статусы', 'статусы', 'History', 'history'];
 const NOMENCLATURE_KEYS = ['Packages', 'Nomenclature', 'Goods', 'CargoNomenclature', 'ПринятыйГруз', 'Номенклатура', 'TablePart', 'CargoItems', 'Items', 'GoodsList', 'Nomenklatura'];
-const GETPEREVOZKA_CLIENT_TIMEOUT_MS = 28_000;
+const GETPEREVOZKA_CLIENT_TIMEOUT_MS = 52_000;
 
 function normalizeStageKey(s: string): string {
     return s.replace(/\s+/g, '').toLowerCase();
@@ -179,9 +179,15 @@ function stepsFromNormalized(data: unknown, item: CargoItem): PerevozkaTimelineS
     }));
 }
 
+function isMeaningfulStepLabel(label: string): boolean {
+    const t = String(label ?? "").trim();
+    return t !== "" && t !== "—" && t !== "-";
+}
+
 function buildFallbackStepsFromCargoItem(item: CargoItem): PerevozkaTimelineStep[] {
-    const state = String(item?.State ?? (item as Record<string, unknown>)?.state ?? "").trim();
-    if (!state) return [];
+    const rawState = item?.State ?? (item as Record<string, unknown>)?.state;
+    const state = typeof rawState === "string" ? rawState.trim() : String(rawState ?? "").trim();
+    if (!state || state === "[object Object]") return [];
     const dateRaw =
         item?.StatusDate ??
         item?.DateStatus ??
@@ -212,7 +218,7 @@ function resolveTimelineSteps(data: unknown, item: CargoItem): PerevozkaTimeline
     if (sorted.length === 0) sorted = sortTimelineSteps(stepsFromNormalized(data, item), item);
     if (sorted.length === 0) sorted = sortTimelineSteps(stepsFromNormalized(item, item), item);
     if (sorted.length === 0) sorted = sortTimelineSteps(buildFallbackStepsFromCargoItem(item), item);
-    return sorted;
+    return sorted.filter((s) => isMeaningfulStepLabel(s.label));
 }
 
 export async function fetchPerevozkaDetails(
