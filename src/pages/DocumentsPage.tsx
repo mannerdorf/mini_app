@@ -26,6 +26,7 @@ import {
     useSendingsStatusKeyResolver,
     useSendingsVisibleMeta,
     useSendingsListPipeline,
+    useSendingsBaseFilter,
     type EorStatus,
 } from "../features/documents/sendings";
 import { DateText } from "../components/ui/DateText";
@@ -1631,282 +1632,26 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         } catch { return false; }
     }, []);
 
-    /** Те же фильтры, что у таблицы счетов, но без ТС — чтобы список ТС совпадал с текущей выборкой (напр. только «в пути»). */
-    const sendingsForTransportOptions = useMemo(() => {
-        let res = buildFilteredOrders({
-            items: sendingsItems || [],
-            activeInn: effectiveActiveInn,
-            useServiceRequest: true,
-            customerFilter,
-            typeFilterSet: new Set<TypeFilterKey>(),
-            routeFilterSet,
-            deliveryStatusFilterSet: new Set<StatusFilter>(),
-            transportFilter: '',
-            searchText: effectiveSearchText,
-            sortBy,
-            sortOrder,
-        });
-        if (typeFilterSet.size > 0 && res.length > 0) {
-            res = res.filter((row: any) => {
-                const vehicle = normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '');
-                const transportType = vehicle ? (/[A-ZА-Я][0-9]{3}[A-ZА-Я]{2}(?:\s*\/?\s*[0-9]{2,3})?/u.test(vehicle.toUpperCase()) ? 'auto' : 'ferry') : '';
-                return (typeFilterSet.has('auto') && transportType === 'auto') || (typeFilterSet.has('ferry') && transportType === 'ferry');
-            });
-        }
-        if (!sendingsLoading) {
-            res = res.filter((row: any) =>
-                sendingRowInSelectedPeriod(row, apiDateRange.dateFrom, apiDateRange.dateTo)
-            );
-        }
-        return res;
-    }, [sendingsItems, sendingsLoading, effectiveActiveInn, customerFilter, typeFilterSet, routeFilterSet, effectiveSearchText, sortBy, sortOrder, normalizeTransportDisplay, apiDateRange.dateFrom, apiDateRange.dateTo]);
-    const transportOptionsCurrentSection = useMemo(() => {
-        const set = new Set<string>();
-        sendingsForTransportOptions.forEach((row: any) => {
-            const v = normalizeTransportDisplay(
-                row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.autoReg ?? row?.AutoType ?? '',
-            );
-            if (v) set.add(v);
-        });
-        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [sendingsForTransportOptions, normalizeTransportDisplay]);
-    const uniqueSendingRoutes = useMemo(() => {
-        const set = new Set<string>();
-        (sendingsItems || []).forEach((item: any) => {
-            const from = cityToCode(item?.ПунктОтправленияГородАэропорт ?? item?.CitySender ?? item?.ГородОтправления);
-            const to = cityToCode(item?.ПунктНазначенияГородАэропорт ?? item?.CityReceiver ?? item?.ГородНазначения);
-            const route = [from, to].filter(Boolean).join(' – ');
-            if (route) set.add(route);
-        });
-        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [sendingsItems]);
-    useEffect(() => {
-        if (!transportFilter) return;
-        if (transportOptionsCurrentSection.includes(transportFilter)) return;
-        setTransportFilter('');
-    }, [transportFilter, transportOptionsCurrentSection]);
-
-    const uniqueTariffsRoutes = useMemo(() => {
-        const set = new Set<string>();
-        const allowedRoutes = new Set(["MSK – KGD", "KGD – MSK"]);
-        tariffsList.forEach((t) => {
-            const route = formatTariffRouteLabel(t.cityFrom, t.cityTo);
-            if (route && allowedRoutes.has(route)) set.add(route);
-        });
-        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [tariffsList]);
-
-    const uniqueTariffsCustomers = useMemo(() => {
-        const set = new Set<string>();
-        tariffsList.forEach((t) => {
-            const customer = String(t.customerName || '').trim();
-            if (customer) set.add(customer);
-        });
-        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [tariffsList]);
-
-    const uniqueTariffsTypes = useMemo(() => {
-        const set = new Set<string>();
-        tariffsList.forEach((t) => {
-            const type = String(t.transportType || '').trim();
-            if (type) set.add(type);
-        });
-        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [tariffsList]);
-
-const toDocFavoriteKey = useCallback((section: 'claims' | 'contracts' | 'reconciliation' | 'tariffs', itemKey: string | number | undefined): string => {
-    return `${section}:${String(itemKey ?? '').trim()}`;
-}, []);
-
-const toggleDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconciliation' | 'tariffs', itemKey: string | number | undefined) => {
-    const key = toDocFavoriteKey(section, itemKey);
-    if (!key || key.endsWith(':')) return;
-    try {
-        const raw = typeof localStorage !== 'undefined' && localStorage.getItem('haulz.docFavorites');
-        const arr: string[] = raw ? JSON.parse(raw) : [];
-        const set = new Set(arr);
-        if (set.has(key)) set.delete(key);
-        else set.add(key);
-        localStorage.setItem('haulz.docFavorites', JSON.stringify([...set]));
-        setFavVersion(v => v + 1);
-    } catch {}
-}, [toDocFavoriteKey]);
-
-const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconciliation' | 'tariffs', itemKey: string | number | undefined): boolean => {
-    const key = toDocFavoriteKey(section, itemKey);
-    if (!key || key.endsWith(':')) return false;
-    try {
-        const raw = typeof localStorage !== 'undefined' && localStorage.getItem('haulz.docFavorites');
-        const arr: string[] = raw ? JSON.parse(raw) : [];
-        return arr.includes(key);
-    } catch { return false; }
-}, [toDocFavoriteKey]);
-
-    const invoiceFilterInputs = useMemo(
-        () => ({
-            billStatusFilterSet,
-            deliveryStatusFilterSet,
-            typeFilterSet,
-            routeFilterSet,
-            invoiceFavoritesOnly,
-            edoStatusFilterSet,
-            transportFilter,
-            edoCounterpartyFilter,
-        }),
-        [
-            billStatusFilterSet,
-            deliveryStatusFilterSet,
-            typeFilterSet,
-            routeFilterSet,
-            invoiceFavoritesOnly,
-            edoStatusFilterSet,
-            transportFilter,
-            edoCounterpartyFilter,
-        ],
-    );
-
-    const buildFilteredInvoicesForSection = useCallback(
-        (section: "Счета" | "ЭДО") => {
-            const scoped = resolveInvoiceFiltersForDocSection(section, invoiceFilterInputs);
-            return buildFilteredInvoices({
-                items,
-                activeInn: effectiveActiveInn,
-                useServiceRequest: effectiveServiceMode,
-                customerFilter,
-                invoiceFavoritesOnly: scoped.invoiceFavoritesOnly,
-                billStatusFilterSet: scoped.billStatusFilterSet,
-                typeFilterSet: scoped.typeFilterSet,
-                routeFilterSet: scoped.routeFilterSet,
-                deliveryStatusFilterSet: scoped.deliveryStatusFilterSet,
-                transportFilter: scoped.transportFilter,
-                transportLinkedCargoNumbers,
-                searchText: effectiveSearchText,
-                edoStatusFilterSet: scoped.edoStatusFilterSet,
-                edoCounterpartyFilter: section === "ЭДО" ? edoCounterpartyFilter : "all",
-                edoPartnerInns: section === "ЭДО" ? edoPartnerInns : undefined,
-                sortBy,
-                sortOrder,
-                isInvoiceFavorite,
-                getFirstCargoNumberFromInvoice,
-                cargoStateByNumber,
-                cargoRouteByNumber,
-                cargoTransportByNumber,
-            });
-        },
-        [
-            invoiceFilterInputs,
-            edoCounterpartyFilter,
-            edoPartnerInns,
-            items,
-            effectiveActiveInn,
-            effectiveServiceMode,
-            customerFilter,
-            transportLinkedCargoNumbers,
-            effectiveSearchText,
-            sortBy,
-            sortOrder,
-            isInvoiceFavorite,
-            getFirstCargoNumberFromInvoice,
-            cargoStateByNumber,
-            cargoRouteByNumber,
-            cargoTransportByNumber,
-        ],
-    );
-
-    const filteredInvoiceItems = useMemo(
-        () => buildFilteredInvoicesForSection("Счета"),
-        [buildFilteredInvoicesForSection],
-    );
-
-    const filteredEdoItems = useMemo(
-        () => buildFilteredInvoicesForSection("ЭДО"),
-        [buildFilteredInvoicesForSection],
-    );
-
-    const filteredItems = useMemo(
-        () => (docSection === "ЭДО" ? filteredEdoItems : filteredInvoiceItems),
-        [docSection, filteredEdoItems, filteredInvoiceItems],
-    );
-
-    const documentsSummary = useMemo(
-        () => buildInvoicesSummary(filteredInvoiceItems, actsItems, perevozkiItems),
-        [filteredInvoiceItems, actsItems, perevozkiItems],
-    );
-
-    /** ЭДО по типам документа для итоговой строки склеенной таблицы счетов (подписано / с непустым статусом) */
-    const mergedInvoicesEdoTotals = useMemo(
-        () => aggregateInvoiceEdoDocStats(filteredInvoiceItems),
-        [filteredInvoiceItems],
-    );
-
-    const edoCargoCardItems = useMemo(
-        () => buildEdoCargoCardItems(filteredEdoItems, perevozkiItems, getFirstCargoNumberFromInvoice),
-        [filteredEdoItems, perevozkiItems, getFirstCargoNumberFromInvoice],
-    );
-
-    const sortedActs = useMemo(() => {
-        const list = [...(actsItems || [])];
-        const getDate = (a: any) => (a.DateDoc ?? a.Date ?? a.date ?? '').toString();
-        list.sort((a, b) => {
-            const cmp = getDate(a).localeCompare(getDate(b));
-            return sortOrder === 'desc' ? -cmp : cmp;
-        });
-        return list;
-    }, [actsItems, sortOrder]);
-
-    const filteredActs = useMemo(() => {
-        return buildFilteredActs({
-            sortedActs,
-            activeInn: effectiveActiveInn,
-            useServiceRequest: effectiveServiceMode,
-            actCustomerFilter,
-            searchText: effectiveSearchText,
-            edoStatusFilterSet,
-            transportFilter,
-            transportLinkedCargoNumbers,
-            getFirstCargoNumberFromInvoice,
-            cargoTransportByNumber,
-            invoices: items,
-        });
-    }, [sortedActs, effectiveActiveInn, effectiveServiceMode, actCustomerFilter, effectiveSearchText, edoStatusFilterSet, transportFilter, transportLinkedCargoNumbers, getFirstCargoNumberFromInvoice, cargoTransportByNumber, normCargoKey, items]);
-
-    const actsSummary = useMemo(
-        () => buildActsSummary(filteredActs, perevozkiItems),
-        [filteredActs, perevozkiItems],
-    );
-    const filteredOrders = useMemo(() => {
-        const base = buildFilteredOrders({
-            items: ordersItems || [],
-            activeInn: effectiveActiveInn,
-            useServiceRequest: effectiveServiceMode,
-            customerFilter,
-            typeFilterSet: new Set<TypeFilterKey>(),
-            routeFilterSet: new Set<RouteFilterKey>(),
-            deliveryStatusFilterSet: new Set<StatusFilter>(),
-            transportFilter: '',
-            searchText: effectiveSearchText,
-            sortBy,
-            sortOrder,
-        });
-        return base.filter((i: any) => {
-            if (orderReceiverFilter && String(i?.ПолучательНаименование ?? i?.Получатель ?? i?.ГрузополучательНаименование ?? i?.Грузополучатель ?? i?.Receiver ?? i?.receiver ?? i?.Consignee ?? '').trim() !== orderReceiverFilter) return false;
-            if (orderSenderFilter && String(i?.ОтправительНаименование ?? i?.Отправитель ?? i?.ГрузоотправительНаименование ?? i?.Грузоотправитель ?? i?.Sender ?? i?.sender ?? i?.Shipper ?? i?.Consignor ?? '').trim() !== orderSenderFilter) return false;
-            if (orderRouteFilter !== 'all') {
-                const fromRaw = String(i?.ПунктОтправкиНаименование ?? i?.ПунктОтправленияНаименование ?? i?.ПунктОтправки ?? i?.ПунктОтправления ?? i?.CitySender ?? '').trim();
-                const toRaw = String(i?.ПунктНазначенияНаименование ?? i?.ПунктПолученияНаименование ?? i?.ПунктНазначения ?? i?.ПунктДоставки ?? i?.CityReceiver ?? '').trim();
-                const route = [cityToCode(fromRaw) || fromRaw, cityToCode(toRaw) || toRaw].filter(Boolean).join(' – ');
-                if (route !== orderRouteFilter) return false;
-            }
-            return true;
-        });
-    }, [ordersItems, effectiveActiveInn, effectiveServiceMode, customerFilter, effectiveSearchText, sortBy, sortOrder, orderReceiverFilter, orderSenderFilter, orderRouteFilter]);
-    const ordersSummary = useMemo(() => buildDocsSummary(filteredOrders), [filteredOrders]);
-    const filteredSendings = useMemo(() => {
-        if (!transportFilter) return sendingsForTransportOptions;
-        return sendingsForTransportOptions.filter((row: any) =>
-            sendingRowMatchesTransportFilter(row, transportFilter, transportLinkedCargoNumbers),
-        );
-    }, [sendingsForTransportOptions, transportFilter, transportLinkedCargoNumbers]);
+    const {
+        transportOptionsCurrentSection,
+        filteredSendings,
+    } = useSendingsBaseFilter({
+        sendingsItems: sendingsItems || [],
+        sendingsLoading,
+        effectiveActiveInn,
+        customerFilter,
+        typeFilterSet,
+        routeFilterSet,
+        effectiveSearchText,
+        sortBy,
+        sortOrder,
+        normalizeTransportDisplay,
+        dateFrom: apiDateRange.dateFrom,
+        dateTo: apiDateRange.dateTo,
+        transportFilter,
+        transportLinkedCargoNumbers,
+        setTransportFilter,
+    });
 
     const sendingsRowRuntime = useSendingsRowRuntime({
         filteredSendings,

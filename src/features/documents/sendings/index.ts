@@ -60,3 +60,14 @@ export {
 } from "./sendingsListTotals";
 export type { SendingsTableTotals } from "./sendingsListTotals";
 export { useSendingsListPipeline } from "./useSendingsListPipeline";
+export {
+  buildSendingsForTransportOptions,
+  filterSendingsByTransport,
+} from "./sendingsBaseFilter";
+export type { BuildSendingsForTransportOptionsParams } from "./sendingsBaseFilter";
+export {
+  buildTransportOptionsFromSendings,
+  buildUniqueSendingRoutes,
+  useSendingsTransportFilterSync,
+} from "./sendingsTransportOptions";
+export { useSendingsBaseFilter } from "./useSendingsBaseFilter";
