@@ -40,13 +40,14 @@ export function clearProfileApiKeyToken(login: string, keyId: string): void {
     }
 }
 
-/** ИНН для автотеста: один активный ключ и ровно один доступный ИНН. */
+/** ИНН для автотеста: один активный включённый ключ и ровно один доступный ИНН. */
 export function resolveSingleAutoTestInn(
-    keys: { allowed_inns?: string[] }[],
+    keys: { allowed_inns?: string[]; enabled?: boolean }[],
     assignableInns: string[],
 ): string | null {
-    if (keys.length !== 1) return null;
-    const allowed = (keys[0].allowed_inns ?? [])
+    const active = keys.filter((k) => k.enabled !== false);
+    if (active.length !== 1) return null;
+    const allowed = (active[0].allowed_inns ?? [])
         .map((x) => String(x).replace(/\D/g, "").trim())
         .filter(Boolean);
     if (allowed.length === 1) return allowed[0];
@@ -58,12 +59,13 @@ export function resolveSingleAutoTestInn(
 
 export function resolveAutoTestBearer(
     login: string,
-    keys: { id: string }[],
+    keys: { id: string; enabled?: boolean }[],
     autoTestInn: string | null,
     newToken?: string | null,
 ): string | null {
-    if (keys.length !== 1 || !autoTestInn) return null;
+    const active = keys.filter((k) => k.enabled !== false);
+    if (active.length !== 1 || !autoTestInn) return null;
     const fresh = newToken?.trim();
     if (fresh && isFullHaulzApiKey(fresh)) return fresh;
-    return loadProfileApiKeyToken(login, keys[0].id);
+    return loadProfileApiKeyToken(login, active[0].id);
 }

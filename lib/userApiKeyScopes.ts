@@ -8,6 +8,7 @@ export const USER_API_KEY_SCOPES = [
   "contracts:read",
   "sverki:read",
   "tariffs:read",
+  "documents:read",
 ] as const;
 
 export type UserApiKeyScope = (typeof USER_API_KEY_SCOPES)[number];

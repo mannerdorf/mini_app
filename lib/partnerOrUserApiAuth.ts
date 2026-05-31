@@ -58,7 +58,7 @@ export async function resolvePartnerOrUserApiAuth(
       scopes: string[];
       allowed_inns: string[];
     }>(
-      `SELECT id, user_login, secret_hash, scopes, allowed_inns
+      `SELECT id, user_login, secret_hash, scopes, allowed_inns, disabled_at
        FROM user_api_keys
        WHERE public_id = $1 AND revoked_at IS NULL`,
       [parsed.publicId],
@@ -66,6 +66,10 @@ export async function resolvePartnerOrUserApiAuth(
     const r = rows[0];
     if (!r || !verifyUserApiKeySecretPart(parsed.secretPart, r.secret_hash)) {
       sendJson(res, 401, { error: "Неверный API-ключ", request_id: requestId });
+      return { ok: false };
+    }
+    if (r.disabled_at) {
+      sendJson(res, 403, { error: "API-ключ отключён. Включите его в Профиль → API.", request_id: requestId });
       return { ok: false };
     }
     const scopes = Array.isArray(r.scopes) ? r.scopes.map((x) => String(x).trim()) : [];
@@ -80,23 +84,6 @@ export async function resolvePartnerOrUserApiAuth(
     const verified = await getRegisteredUserProfile(pool, loginKey);
     if (!verified) {
       sendJson(res, 401, { error: "Пользователь не найден или неактивен", request_id: requestId });
-      return { ok: false };
-    }
-    const { rows: permRows } = await pool.query<{ permissions: unknown }>(
-      `SELECT permissions FROM registered_users WHERE lower(trim(login)) = $1 AND active = true`,
-      [loginKey],
-    );
-    const perm = permRows[0]?.permissions;
-    const serviceModeOk =
-      perm &&
-      typeof perm === "object" &&
-      !Array.isArray(perm) &&
-      (perm as Record<string, unknown>).service_mode === true;
-    if (!serviceModeOk) {
-      sendJson(res, 403, {
-        error: "Запросы с API-ключом разрешены только пользователям с правом «Служебный режим» (service_mode).",
-        request_id: requestId,
-      });
       return { ok: false };
     }
     void pool.query(`UPDATE user_api_keys SET last_used_at = now() WHERE id = $1`, [r.id]).catch(() => {});

@@ -8,6 +8,7 @@ export const USER_API_KEY_SCOPES_CLIENT = [
   "contracts:read",
   "sverki:read",
   "tariffs:read",
+  "documents:read",
 ] as const;
 
 export type UserApiKeyScopeClient = (typeof USER_API_KEY_SCOPES_CLIENT)[number];
@@ -56,6 +57,11 @@ export const USER_API_KEY_SCOPE_INFO_RU: Record<
     title: "Тарифы (только чтение)",
     description: "Список тарифов из кэша, опционально по ИНН.",
     apiHint: "POST /api/partner/v1/tariffs",
+  },
+  "documents:read": {
+    title: "Скачивание документов",
+    description: "PDF и файлы по перевозке: ЭР, АПП, счёт, УПД (GetFile через прокси).",
+    apiHint: "POST /api/partner/v1/download",
   },
 };
 

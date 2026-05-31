@@ -5667,6 +5667,203 @@ button.unpaid-plan-monitor:hover {
     color: var(--color-text-primary);
     border-color: var(--color-primary-blue, #0071e3);
 }
+.profile-api-keys-active-card--disabled {
+    opacity: 0.72;
+}
+.profile-api-keys-disabled-badge {
+    font-weight: 500;
+    font-size: 0.75rem;
+    color: #b45309;
+}
+.profile-api-keys-active-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+.profile-api-keys-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0;
+    cursor: pointer;
+    font-size: 0.72rem;
+    color: var(--color-text-secondary);
+}
+.profile-api-keys-toggle input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+.profile-api-keys-toggle-label {
+    min-width: 2.1rem;
+    text-align: right;
+    font-weight: 600;
+}
+.profile-api-keys-toggle-switch {
+    width: 34px;
+    height: 20px;
+}
+.profile-api-keys-toggle-switch .switch-knob {
+    width: 16px;
+    height: 16px;
+}
+.profile-api-keys-toggle-switch.checked .switch-knob {
+    transform: translateX(14px);
+}
+.profile-api-keys-icon-btn,
+.profile-api-keys-delete-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.profile-api-keys-icon-btn {
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-card);
+    color: var(--color-text-secondary);
+}
+.profile-api-keys-icon-btn:hover,
+.profile-api-keys-icon-btn.is-active {
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    border-color: var(--color-primary-blue, #0071e3);
+}
+.profile-api-keys-delete-btn {
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    background: transparent;
+    color: #b91c1c;
+}
+.profile-api-keys-delete-btn:hover {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.55);
+}
+.profile-api-keys-edit-panel {
+    margin-top: 0.65rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-hover);
+}
+.light-mode .profile-api-keys-edit-panel {
+    background: #f9fafb;
+    border-color: #e5e7eb;
+}
+.profile-api-keys-edit-panel .profile-api-keys-scope-list {
+    margin-bottom: 0.55rem;
+}
+.profile-api-keys-scope-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.12rem;
+}
+.profile-api-keys-scope-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.78rem;
+    line-height: 1.25;
+    cursor: pointer;
+    padding: 0.12rem 0;
+    margin: 0;
+}
+.profile-api-keys-scope-row input {
+    flex-shrink: 0;
+    margin: 0;
+}
+.profile-api-keys-scope-row__main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.45rem;
+}
+.profile-api-keys-scope-row__title {
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+.profile-api-keys-scope-row__hint {
+    font-size: 0.67rem;
+    color: var(--color-text-secondary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    word-break: break-all;
+}
+
+/* Профиль → API: описание Partner API */
+.profile-partner-api-guide__section {
+    margin: 0;
+}
+.profile-partner-api-guide__list {
+    margin: 0;
+    padding-left: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+.profile-partner-api-guide__code-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+    margin-bottom: 0.35rem;
+}
+.profile-partner-api-guide__code {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 0.55rem 0.65rem;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-hover);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.72rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-all;
+    overflow-x: auto;
+}
+.light-mode .profile-partner-api-guide__code {
+    background: #f3f4f6;
+    border-color: #e5e7eb;
+}
+.profile-partner-api-guide__table-wrap {
+    overflow-x: auto;
+    margin-top: 0.25rem;
+}
+.profile-partner-api-guide__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    min-width: 280px;
+}
+.profile-partner-api-guide__table th,
+.profile-partner-api-guide__table td {
+    padding: 0.35rem 0.45rem;
+    border-bottom: 1px solid var(--color-border);
+    text-align: left;
+    vertical-align: top;
+}
+.profile-partner-api-guide__table th {
+    font-weight: 600;
+    background: var(--color-bg-hover);
+    font-size: 0.72rem;
+}
+.profile-partner-api-guide__table code {
+    font-size: 0.68rem;
+    word-break: break-all;
+}
 
 /* --- Профиль → API: справочник эндпоинтов (верстка в духе Postman) --- */
 .profile-api-catalog-postman {
@@ -5711,6 +5908,69 @@ button.unpaid-plan-monitor:hover {
     background: var(--color-bg-card);
     border-left-color: var(--color-primary-blue, #0071e3);
     font-weight: 600;
+}
+.profile-api-catalog-postman__nav-group {
+    padding: 0.5rem 0.75rem 0.25rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-secondary);
+}
+.profile-api-catalog-postman__nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    width: 100%;
+    text-align: left;
+    padding: 0.4rem 0.55rem 0.4rem 0.65rem;
+    margin: 0;
+    border: none;
+    background: transparent;
+    color: var(--color-text-primary);
+    font-size: 0.74rem;
+    line-height: 1.3;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: background 0.15s, border-color 0.15s;
+}
+.profile-api-catalog-postman__nav-item:hover {
+    background: var(--color-bg-secondary);
+}
+.profile-api-catalog-postman__nav-item.is-active {
+    background: var(--color-bg-card);
+    border-left-color: var(--color-primary-blue, #0071e3);
+    font-weight: 600;
+}
+.profile-api-catalog-postman__nav-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.profile-api-catalog-postman__method-pill--compact {
+    font-size: 8px;
+    padding: 2px 4px;
+    min-width: 28px;
+    text-align: center;
+}
+.profile-api-catalog-postman__main-group {
+    margin: 0 0 0.15rem;
+    font-size: 0.68rem;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.profile-api-catalog-postman__detail {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+.profile-api-catalog-postman__empty {
+    margin: 1rem 0;
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
 }
 .profile-api-catalog-postman__main {
     flex: 1;
@@ -6350,16 +6610,20 @@ button.unpaid-plan-monitor:hover {
     .profile-api-catalog-postman__nav {
         flex: 0 0 auto;
         max-width: none;
+        max-height: 38vh;
         border-right: none;
         border-bottom: 1px solid var(--color-border);
-        display: flex;
-        flex-direction: row;
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        overflow-y: hidden;
-        padding: 0.35rem 0.25rem;
-        gap: 0.25rem;
+        display: block;
+        overflow-x: hidden;
+        overflow-y: auto;
+        padding: 0.25rem 0;
         -webkit-overflow-scrolling: touch;
+    }
+    .profile-api-catalog-postman__nav-group {
+        padding: 0.35rem 0.65rem 0.15rem;
+    }
+    .profile-api-catalog-postman__nav-item {
+        padding: 0.45rem 0.65rem;
     }
     .profile-api-catalog-postman__nav-btn {
         flex: 0 0 auto;

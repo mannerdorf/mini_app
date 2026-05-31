@@ -10,9 +10,11 @@ import { getRegisteredUserProfile } from "../lib/verifyRegisteredUser.js";
 type Body = {
   login?: string;
   password?: string;
+  id?: string;
   label?: string;
   scopes?: unknown;
   allowed_inns?: unknown;
+  enabled?: unknown;
 };
 
 function parseBody(req: VercelRequest): Body {
@@ -65,31 +67,6 @@ async function loadAssignableInnsCanon(pool: ReturnType<typeof getPool>, login: 
   return out;
 }
 
-function permissionsAllowServiceMode(permissions: unknown): boolean {
-  if (!permissions || typeof permissions !== "object" || Array.isArray(permissions)) return false;
-  return (permissions as Record<string, unknown>).service_mode === true;
-}
-
-async function assertMyApiKeysServiceMode(
-  pool: ReturnType<typeof getPool>,
-  loginKey: string,
-  res: VercelResponse,
-  requestId: string,
-): Promise<boolean> {
-  const { rows } = await pool.query<{ permissions: unknown }>(
-    `SELECT permissions FROM registered_users WHERE lower(trim(login)) = $1 AND active = true`,
-    [loginKey],
-  );
-  if (!permissionsAllowServiceMode(rows[0]?.permissions)) {
-    res.status(403).json({
-      error: "Раздел API доступен только при праве «Служебный режим» (service_mode) у пользователя.",
-      request_id: requestId,
-    });
-    return false;
-  }
-  return true;
-}
-
 function parseAllowedInnsInput(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   const out: string[] = [];
@@ -101,6 +78,33 @@ function parseAllowedInnsInput(raw: unknown): string[] {
     out.push(c);
   }
   return out;
+}
+
+async function resolveStoredAllowedInns(
+  pool: ReturnType<typeof getPool>,
+  loginKey: string,
+  requestedInns: string[],
+  res: VercelResponse,
+  requestId: string,
+): Promise<string[] | null> {
+  const verified = await getRegisteredUserProfile(pool, loginKey);
+  if (!verified) {
+    res.status(403).json({ error: "Профиль пользователя недоступен", request_id: requestId });
+    return null;
+  }
+  if (requestedInns.length === 0) return [];
+  const assignable = await loadAssignableInnsCanon(pool, loginKey);
+  if (verified.accessAllInns) return requestedInns;
+  const bad = requestedInns.filter((inn) => !assignable.has(inn));
+  if (bad.length > 0) {
+    res.status(400).json({
+      error: "Есть ИНН вне списка доступных компаний",
+      invalid_inns: bad,
+      request_id: requestId,
+    });
+    return null;
+  }
+  return requestedInns;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -120,10 +124,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const pool = getPool();
   const loginKey = login.trim().toLowerCase();
 
-  if (!(await assertMyApiKeysServiceMode(pool, loginKey, res, ctx.requestId))) {
-    return;
-  }
-
   if (req.method === "GET") {
     try {
       const assignable = await loadAssignableInnsCanon(pool, loginKey);
@@ -136,8 +136,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         created_at: string;
         revoked_at: string | null;
         last_used_at: string | null;
+        disabled_at: string | null;
       }>(
-        `SELECT id, label, public_id, scopes, allowed_inns, created_at, revoked_at, last_used_at
+        `SELECT id, label, public_id, scopes, allowed_inns, created_at, revoked_at, last_used_at, disabled_at
          FROM user_api_keys
          WHERE lower(trim(user_login)) = $1 AND revoked_at IS NULL
          ORDER BY created_at DESC`,
@@ -157,6 +158,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           created_at: r.created_at,
           revoked_at: r.revoked_at,
           last_used_at: r.last_used_at,
+          disabled_at: r.disabled_at,
+          enabled: !r.disabled_at,
         })),
         available_scopes: [...USER_API_KEY_SCOPES],
         request_id: ctx.requestId,
@@ -177,24 +180,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!verified) {
       return res.status(403).json({ error: "Профиль пользователя недоступен", request_id: ctx.requestId });
     }
-    const assignable = await loadAssignableInnsCanon(pool, loginKey);
     const requestedInns = parseAllowedInnsInput(body.allowed_inns);
-    let storedAllowed: string[] = [];
-    if (requestedInns.length > 0) {
-      if (verified.accessAllInns) {
-        storedAllowed = requestedInns;
-      } else {
-        const bad = requestedInns.filter((inn) => !assignable.has(inn));
-        if (bad.length > 0) {
-          return res.status(400).json({
-            error: "Есть ИНН вне списка доступных компаний",
-            invalid_inns: bad,
-            request_id: ctx.requestId,
-          });
-        }
-        storedAllowed = requestedInns;
-      }
-    }
+    const storedAllowed = await resolveStoredAllowedInns(pool, loginKey, requestedInns, res, ctx.requestId);
+    if (storedAllowed === null) return;
     const gen = generateUserApiKey();
     try {
       const { rows } = await pool.query<{ id: string }>(
@@ -225,6 +213,92 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  if (req.method === "PATCH") {
+    const idRaw = typeof body.id === "string" ? body.id.trim() : "";
+    if (!idRaw) {
+      return res.status(400).json({ error: "Укажите id ключа", request_id: ctx.requestId });
+    }
+
+    const sets: string[] = [];
+    const params: unknown[] = [idRaw, loginKey];
+    let paramIdx = 3;
+
+    if (body.enabled !== undefined) {
+      const enabled = body.enabled === true || body.enabled === "true" || body.enabled === 1;
+      sets.push(enabled ? `disabled_at = NULL` : `disabled_at = now()`);
+    }
+
+    if (body.scopes !== undefined) {
+      const scopes = normalizeScopes(body.scopes);
+      if (scopes.length === 0) {
+        return res.status(400).json({ error: "Выберите хотя бы один scope", request_id: ctx.requestId });
+      }
+      sets.push(`scopes = $${paramIdx}::text[]`);
+      params.push(scopes);
+      paramIdx += 1;
+    }
+
+    if (body.allowed_inns !== undefined) {
+      const requestedInns = parseAllowedInnsInput(body.allowed_inns);
+      const storedAllowed = await resolveStoredAllowedInns(pool, loginKey, requestedInns, res, ctx.requestId);
+      if (storedAllowed === null) return;
+      sets.push(`allowed_inns = $${paramIdx}::text[]`);
+      params.push(storedAllowed);
+      paramIdx += 1;
+    }
+
+    if (typeof body.label === "string" && body.label.trim()) {
+      sets.push(`label = $${paramIdx}`);
+      params.push(body.label.trim().slice(0, 200));
+      paramIdx += 1;
+    }
+
+    if (sets.length === 0) {
+      return res.status(400).json({ error: "Нечего обновлять (enabled, scopes, allowed_inns, label)", request_id: ctx.requestId });
+    }
+
+    try {
+      const upd = await pool.query(
+        `UPDATE user_api_keys SET ${sets.join(", ")}
+         WHERE id = $1::uuid AND lower(trim(user_login)) = $2 AND revoked_at IS NULL
+         RETURNING id, label, scopes, allowed_inns, disabled_at, last_used_at, public_id, created_at`,
+        params,
+      );
+      const row = upd.rows[0] as {
+        id: string;
+        label: string;
+        public_id: string;
+        scopes: string[];
+        allowed_inns: string[];
+        disabled_at: string | null;
+        last_used_at: string | null;
+        created_at: string;
+      } | undefined;
+      if (!row) {
+        return res.status(404).json({ error: "Ключ не найден или уже отозван", request_id: ctx.requestId });
+      }
+      return res.status(200).json({
+        ok: true,
+        key: {
+          id: row.id,
+          label: row.label,
+          key_hint: `haulz_${row.public_id.slice(0, 4)}…${row.public_id.slice(-4)}`,
+          key_prefix: `haulz_${row.public_id}_`,
+          scopes: row.scopes || [],
+          allowed_inns: (row.allowed_inns || []).map((x) => canonInnForApiKey(String(x))),
+          created_at: row.created_at,
+          last_used_at: row.last_used_at,
+          disabled_at: row.disabled_at,
+          enabled: !row.disabled_at,
+        },
+        request_id: ctx.requestId,
+      });
+    } catch (e) {
+      logError(ctx, "my_api_keys_patch_failed", e);
+      return res.status(500).json({ error: "Не удалось обновить ключ", request_id: ctx.requestId });
+    }
+  }
+
   if (req.method === "DELETE") {
     const q = req.query as { id?: string | string[] };
     const fromQuery = Array.isArray(q?.id) ? q.id[0] : q?.id;
@@ -250,6 +324,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  res.setHeader("Allow", "GET, POST, DELETE");
+  res.setHeader("Allow", "GET, POST, PATCH, DELETE");
   return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
 }

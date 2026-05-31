@@ -1062,7 +1062,7 @@ export function ProfilePage({
             icon: <Bell className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('notifications')
         },
-        ...(activeAccount?.isRegisteredUser === true && activeAccount?.permissions?.service_mode === true
+        ...(activeAccount?.isRegisteredUser === true
             ? [{
                 id: 'apiKeys' as const,
                 label: 'API',

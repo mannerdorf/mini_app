@@ -3,3 +3,4 @@ export { AdminLegalSection } from "./sections/AdminLegalSection";
 export { AdminFotDashboardSection } from "./sections/AdminFotDashboardSection";
 export { AdminHaulzDispatchSection } from "./sections/AdminHaulzDispatchSection";
 export { AdminUserActivitySection } from "./sections/AdminUserActivitySection";
+export { AdminUserApiKeysSection } from "./sections/AdminUserApiKeysSection";
