@@ -3895,7 +3895,7 @@ export function DashboardPage({
                                                 return (
                                                     <tr key={`cargo-flow-row-${cargoNum || idx}-${idx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                         <td style={{ padding: '0.35rem 0.45rem', whiteSpace: 'nowrap' }}>
-                                                                                        <ClickableCargoNumber number={cargoNum} onOpen={(n) => onOpenCargo?.(n, it as CargoItem)} />
+                                                                                        <ClickableCargoNumber number={cargoNum} onOpen={(n) => onOpenCargo?.(n, item)} />
                                                         </td>
                                                         <td style={{ padding: '0.35rem 0.45rem', whiteSpace: 'nowrap' }}>
                                                             {planKey ? <DateText value={planKey} /> : '—'}

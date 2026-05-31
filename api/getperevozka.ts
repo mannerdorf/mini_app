@@ -10,6 +10,36 @@ const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 const GET_PEREVOZKA_METHODS = ["Getperevozka", "GetPerevozka"] as const;
 
 /** Варианты номера для 1С: с ведущими нулями и без (как в sendings-plan-date) */
+function normalizePerevozkaNumberForLookup(num: string): string {
+  const trimmed = String(num).trim();
+  const digits = trimmed.replace(/^0000-/, "").replace(/\D/g, "");
+  if (!digits) return trimmed;
+  const core = digits.replace(/^0+/, "") || digits;
+  if (/^\d{1,9}$/.test(core)) return core.padStart(9, "0");
+  return trimmed;
+}
+
+function perevozkaNumbersMatch(a: string, b: string): boolean {
+  const left = normalizePerevozkaNumberForLookup(a);
+  const right = normalizePerevozkaNumberForLookup(b);
+  if (left === right) return true;
+  const strip = (s: string) => {
+    const d = s.replace(/^0000-/, "").replace(/\D/g, "");
+    return (d.replace(/^0+/, "") || d).trim();
+  };
+  return strip(a) === strip(b);
+}
+
+function hasPerevozkaCargoFields(obj: unknown): boolean {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return false;
+  const record = obj as Record<string, unknown>;
+  const keys = ["Number", "number", "Номер", "Mest", "mest", "Sender", "sender", "Customer", "customer", "Receiver", "receiver", "DatePrih", "datePrih", "State", "state"];
+  return keys.some((key) => {
+    const value = record[key];
+    return value !== undefined && value !== null && String(value).trim() !== "";
+  });
+}
+
 function numberVariants(num: string): string[] {
   const trimmed = String(num).trim();
   const digits = trimmed.replace(/\D/g, "");
@@ -99,6 +129,7 @@ export default async function handler(
       request_id: ctx.requestId,
     });
   }
+  number = normalizePerevozkaNumberForLookup(number);
   if (!serviceLogin || !servicePassword) {
     return res.status(503).json({
       error: "Service credentials are not configured",
@@ -130,11 +161,10 @@ export default async function handler(
       const data = cacheRow.rows.length > 0 ? (cacheRow.rows[0].data as any[]) : [];
       const list = Array.isArray(data) ? data : [];
       const norm = String(number).trim();
-      const normForCompare = norm.replace(/^0+/, "") || norm;
       const item = list.find((i: any) => {
         const n = String(i?.Number ?? i?.number ?? "").trim();
-        const nForCompare = n.replace(/^0+/, "") || n;
-        if (nForCompare !== normForCompare && n !== norm) return false;
+        if (!n) return false;
+        if (!perevozkaNumbersMatch(n, norm)) return false;
         if (verified.accessAllInns) return true;
         const itemInn = String(i?.INN ?? i?.Inn ?? i?.inn ?? "").trim();
         return itemInn === (verified.inn ?? "");
@@ -163,6 +193,9 @@ export default async function handler(
         const text = upstream.text;
         try {
           const json = JSON.parse(text);
+          if (item && !hasPerevozkaCargoFields(json)) {
+            return res.status(200).json(item);
+          }
           return res.status(200).json(json);
         } catch {
           return res.status(200).send(text);

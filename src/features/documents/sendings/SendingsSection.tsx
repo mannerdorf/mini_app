@@ -11,6 +11,7 @@ import { formatCurrency, stripOoo, formatInvoiceNumber, cityToCode } from "../..
 import { STATUS_MAP, normalizeStatus } from "../../../lib/statusUtils";
 import {
   formatSendingMetricNum,
+  getParcelDeclaredCost,
   getParcelFreightSum,
   getSendingRowParcelMetrics,
   parseSendingMetricNumber,
