@@ -4,105 +4,35 @@ import "./styles.css";
 import { AppMainContent } from "./components/AppMainContent";
 import { AppAuthenticatedLayout } from "./components/AppAuthenticatedLayout";
 import { LoginScreen } from "./components/LoginScreen";
-import { getWebApp, isMaxWebApp } from "./webApp";
 import { applyClientPlatformToDocument } from "./lib/clientPlatform";
 import { CMSStandalonePage, NotFoundPage } from "./app/lazyPages";
 import { AppRuntimeProvider } from "./contexts/AppRuntimeContext";
-import { AuthProvider, useAuth, normalizePermissions } from "./contexts/AuthContext";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AppShellProvider, useAppShell } from "./contexts/AppShellContext";
 import { AppNavigationProvider } from "./contexts/AppNavigationContext";
 import { shouldShowNotFound } from "./lib/notFoundRoute";
 import { isWbOnlyAccount, WbOnlyAppLayout } from "./wb/appWb";
-import { HAULZ_SPLASH_BACKGROUND } from "./constants/brand";
-import { fetchTwoFaSettings } from "./api/client/twoFa";
 import { useLegalCompliance } from "./hooks/useLegalCompliance";
 import { useShowCustomerColumn } from "./hooks/useShowCustomerColumn";
 import { useRegisteredAccountSync } from "./hooks/useRegisteredAccountSync";
 import { useSecretDashboard } from "./hooks/useSecretDashboard";
+import { useTelegramWebAppInit } from "./hooks/useTelegramWebAppInit";
+import { useAppLogout } from "./hooks/useAppLogout";
+import { useTwoFaSettingsSync } from "./hooks/useTwoFaSettingsSync";
 import { stripOoo } from "./lib/formatUtils";
 
 function AppRoot() {
     const {
-        accounts,
-        setAccounts,
-        setActiveAccountId,
         auth,
         activeAccount,
     } = useAuth();
-    const { setTheme, desktopExpanded, setActiveTab } = useAppShell();
+    const { setTheme, desktopExpanded } = useAppShell();
 
     useEffect(() => {
         applyClientPlatformToDocument();
     }, []);
 
-    // --- Telegram Init ---
-    useEffect(() => {
-        let mounted = true;
-        let cleanupHandler: (() => void) | undefined;
-        let attempts = 0;
-
-        const initWebApp = () => {
-            const webApp = getWebApp();
-            if (!webApp || !mounted) return false;
-
-            try {
-                if (typeof webApp.ready === "function") {
-                    webApp.ready();
-                }
-
-                // Тот же синий, что PWA splash — оверскролл и скругления webview не чёрные (Telegram / MAX).
-                if (typeof webApp.setBackgroundColor === "function") {
-                    webApp.setBackgroundColor(HAULZ_SPLASH_BACKGROUND);
-                }
-                if (isMaxWebApp()) {
-                    if (typeof webApp.setHeaderColor === "function") {
-                        webApp.setHeaderColor("#2563eb");
-                    }
-                }
-                
-                if (typeof webApp.expand === "function") {
-                    webApp.expand();
-                }
-            } catch {
-                // Игнорируем, если WebApp API частично недоступен
-            }
-
-            const themeHandler = () => {
-                const scheme = String((webApp as any)?.colorScheme || "").toLowerCase();
-                if (scheme === "dark" || scheme === "light") setTheme(scheme as "light" | "dark");
-            };
-
-            if (typeof webApp.onEvent === "function") {
-                webApp.onEvent("themeChanged", themeHandler);
-                cleanupHandler = () => webApp.offEvent?.("themeChanged", themeHandler);
-            }
-
-            applyClientPlatformToDocument();
-            return true;
-        };
-
-        // На Android WebApp может появиться позже, поэтому немного подождём
-        if (!initWebApp()) {
-            const timer = setInterval(() => {
-                attempts += 1;
-                const ready = initWebApp();
-                if (ready || attempts > 40) {
-                    clearInterval(timer);
-                }
-            }, 100);
-
-            return () => {
-                mounted = false;
-                clearInterval(timer);
-                cleanupHandler?.();
-            };
-        }
-
-        return () => {
-            mounted = false;
-            cleanupHandler?.();
-        };
-    }, [setTheme]);
+    useTelegramWebAppInit(setTheme);
 
     const [useServiceRequest, setUseServiceRequest] = useState(false);
     const [serviceRefreshSpinning, setServiceRefreshSpinning] = useState(false);
@@ -125,36 +55,7 @@ function AppRoot() {
             setUseServiceRequest(false);
         }
     }, [serviceModeUnlocked, useServiceRequest]);
-    useEffect(() => {
-        if (!activeAccount?.login) return;
-        let cancelled = false;
-        const load = async () => {
-            try {
-                const data = await fetchTwoFaSettings(activeAccount.login);
-                const settings = data?.settings;
-                if (!settings || cancelled) return;
-                setAccounts(prev =>
-                    prev.map(acc =>
-                                acc.id === activeAccount.id
-                            ? {
-                                ...acc,
-                                twoFactorEnabled: !!settings.enabled,
-                                twoFactorMethod: settings.method === "telegram" ? "telegram" : "google",
-                                twoFactorTelegramLinked: !!settings.telegramLinked,
-                                twoFactorGoogleSecretSet: !!settings.googleSecretSet
-                            }
-                            : acc
-                    )
-                );
-            } catch {
-                // ignore load errors
-            }
-        };
-        load();
-        return () => {
-            cancelled = true;
-        };
-    }, [activeAccount?.id, activeAccount?.login, setAccounts]);
+    useTwoFaSettingsSync();
     const {
         showDashboard,
         showPinModal,
@@ -188,21 +89,7 @@ function AppRoot() {
     const [isChatOpen, setIsChatOpen] = useState(false);
     useRegisteredAccountSync(isWbOnlyUser);
 
-    const handleLogout = () => {
-        setAccounts([]);
-        setActiveAccountId(null);
-        setActiveTab("cargo");
-        if (typeof window !== "undefined") {
-            try {
-                window.localStorage.removeItem("haulz.auth");
-                window.localStorage.removeItem("haulz.accounts");
-                window.localStorage.removeItem("haulz.activeAccountId");
-            } catch {
-                // игнорируем ошибки удаления
-            }
-        }
-        setSearchText('');
-    }
+    const handleLogout = useAppLogout(setSearchText);
     
     // 404 для неизвестного path (не "/", "/admin", "/cms")
     if (typeof window !== "undefined" && shouldShowNotFound()) {
