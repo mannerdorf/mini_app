@@ -53,6 +53,7 @@ import { fetchAdminMe } from "../api/client/admin/me";
 import { fetchAdminUsers } from "../api/client/admin/users";
 import { fetchAdminExpenseRequests } from "../api/client/admin/expenseRequests";
 import { fetchAdminSverkiRequests } from "../api/client/admin/sverki";
+import { fetchAdminClaims } from "../api/client/admin/claims";
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
@@ -2171,23 +2172,19 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
     setAdminClaimsLoading(true);
     try {
-      const params = new URLSearchParams();
       const viewStatus = adminClaimsView === "new"
         ? "new"
         : adminClaimsView === "in_progress"
           ? "in_progress"
           : "";
       const effectiveStatus = adminClaimsStatusFilter || viewStatus;
-      if (effectiveStatus) params.set("status", effectiveStatus);
-      if (adminClaimsSearch.trim()) params.set("q", adminClaimsSearch.trim());
-      const res = await fetch(`/api/admin-claims${params.toString() ? `?${params.toString()}` : ""}`, {
-        headers: { Authorization: `Bearer ${adminToken}` },
+      const data = await fetchAdminClaims(adminToken, {
+        status: effectiveStatus || undefined,
+        q: adminClaimsSearch,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Ошибка загрузки претензий");
-      setAdminClaims(Array.isArray(data?.claims) ? data.claims : []);
-      setAdminClaimsKpi(data?.kpi || null);
-      setAdminClaimsChart(Array.isArray(data?.chart) ? data.chart : []);
+      setAdminClaims(data.claims);
+      setAdminClaimsKpi(data.kpi);
+      setAdminClaimsChart(data.chart);
     } catch {
       setAdminClaims([]);
       setAdminClaimsKpi(null);
