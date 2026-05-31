@@ -30,12 +30,18 @@ const BODY_DATES_INN = {
 
 export const MINI_APP_API_INVENTORY: ApiInventorySection[] = [
     {
-        group: "Перевозки",
+        group: "Partner API v1",
         items: [
+            {
+                method: "GET",
+                path: "/api/partner/v1/health",
+                note: "Проверка доступности Partner API v1. Bearer опционален (показывает bearer_present и bearer_full_key_format). Базовый URL для внешних интеграций: https://mini-app-lake-phi.vercel.app",
+                examples: [{ id: "health", label: "Health check", query: {} }],
+            },
             {
                 method: "POST",
                 path: "/api/partner/v1/cargo",
-                note: "Список перевозок (как вкладка «Грузы»): только Authorization: Bearer и полный ключ haulz_… из Профиль → API (scope cargo:read). В теле — dateFrom, dateTo, inn, serviceMode; без логина/пароля.",
+                note: "Список перевозок (как вкладка «Грузы»): Authorization: Bearer + полный ключ haulz_… (scope cargo:read). Тело: dateFrom, dateTo, inn, serviceMode — без логина/пароля.",
                 examples: [
                     {
                         id: "cargo-bearer",
@@ -49,10 +55,34 @@ export const MINI_APP_API_INVENTORY: ApiInventorySection[] = [
                     },
                 ],
             },
+            {
+                method: "POST",
+                path: "/api/partner/v1/sendings",
+                note: "Список отправок из кэша: Bearer haulz_… (scope sendings:read). Тело как у /api/sendings для зарегистрированного пользователя, без login/password.",
+                examples: [
+                    {
+                        id: "sendings-bearer",
+                        label: "Период (только Bearer)",
+                        body: { ...BODY_DATES_INN },
+                    },
+                ],
+            },
+            {
+                method: "POST",
+                path: "/api/partner/v1/orders",
+                note: "Список заявок из кэша: Bearer haulz_… (scope orders:read). Тело: dateFrom, dateTo, inn, serviceMode.",
+                examples: [
+                    {
+                        id: "orders-bearer",
+                        label: "Период (только Bearer)",
+                        body: { ...BODY_DATES_INN },
+                    },
+                ],
+            },
         ],
     },
     {
-        group: "Документы",
+        group: "Документы (login/password)",
         items: [
             {
                 method: "POST",

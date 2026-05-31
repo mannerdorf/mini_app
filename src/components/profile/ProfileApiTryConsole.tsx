@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Play, X } from "lucide-react";
+import { Copy, Loader2, Play, X } from "lucide-react";
 import type { ApiInventoryItem, ApiTryExample } from "../../constants/miniAppApiInventory";
+import { PARTNER_API_PUBLIC_ORIGIN } from "../../constants/partnerApi";
+import { resolveApiOrigin } from "../../lib/resolveApiOrigin";
 
 export type ProfileTryAuth = { login: string; password: string } | null;
 
@@ -93,6 +95,9 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
     const [loading, setLoading] = useState(false);
     const [resp, setResp] = useState<{ status: number; ok: boolean; body: string; ms: number } | null>(null);
     const [sendErr, setSendErr] = useState<string | null>(null);
+    const [curlCopied, setCurlCopied] = useState(false);
+
+    const apiOrigin = useMemo(() => (typeof window !== "undefined" ? resolveApiOrigin() : PARTNER_API_PUBLIC_ORIGIN), []);
 
     const headerKeyCount = useMemo(() => {
         try {
@@ -120,8 +125,9 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
         setHeadersJson(ex.headers && Object.keys(ex.headers).length > 0 ? JSON.stringify(ex.headers, null, 2) : "{}");
     }, [exampleId, examples]);
 
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const origin = apiOrigin;
     const fullUrl = `${origin}${pathField.startsWith("/") ? pathField : `/${pathField}`}`;
+    const isPartnerV1 = pathField.includes("/api/partner/v1/");
 
     const send = useCallback(async () => {
         setSendErr(null);
@@ -207,6 +213,37 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
         tryAuth,
     ]);
 
+    const buildCurlCommand = useCallback((): string => {
+        const method = methodSel.toUpperCase();
+        let path = pathField.trim() || item.path;
+        if (!path.startsWith("/")) path = `/${path}`;
+        const qs = new URLSearchParams();
+        for (const r of paramRows) {
+            if (r.enabled && r.key.trim()) qs.set(r.key.trim(), r.value);
+        }
+        const url = `${origin}${path}${qs.toString() ? `?${qs.toString()}` : ""}`;
+        const parts = [`curl -X ${method} '${url}'`];
+        if (bearer.trim()) {
+            const b = bearer.trim();
+            parts.push(`-H 'Authorization: ${b.startsWith("Bearer ") ? b : `Bearer ${b}`}'`);
+        }
+        if (path.includes("/api/my-api-keys") && tryAuth && (method === "GET" || method === "DELETE")) {
+            parts.push(`-H 'x-login: ${tryAuth.login}'`);
+            parts.push(`-H 'x-password: ${tryAuth.password}'`);
+        }
+        if (!["GET", "HEAD"].includes(method) && bodyJson.trim()) {
+            parts.push(`-H 'Content-Type: application/json'`);
+            parts.push(`-d '${bodyJson.trim().replace(/'/g, "'\\''")}'`);
+        }
+        return parts.join(" \\\n  ");
+    }, [bearer, bodyJson, item.path, methodSel, origin, paramRows, pathField, tryAuth]);
+
+    const copyCurl = useCallback(() => {
+        void navigator.clipboard?.writeText(buildCurlCommand()).catch(() => {});
+        setCurlCopied(true);
+        window.setTimeout(() => setCurlCopied(false), 1600);
+    }, [buildCurlCommand]);
+
     const pill = METHOD_PILL[methodSel] ?? { bg: "#6b7280", fg: "#fff" };
 
     return (
@@ -249,7 +286,21 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
                     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" fill="currentColor" />}
                     <span>Send</span>
                 </button>
+                <button type="button" className="profile-api-try__send profile-api-try__send--secondary" onClick={copyCurl} title="Скопировать curl">
+                    <Copy className="w-4 h-4" />
+                    <span>{curlCopied ? "OK" : "curl"}</span>
+                </button>
             </div>
+
+            <p className="profile-api-try__hint profile-api-try__hint--origin">
+                Базовый URL для внешних интеграций: <code>{PARTNER_API_PUBLIC_ORIGIN}</code>
+                {origin !== PARTNER_API_PUBLIC_ORIGIN ? (
+                    <>
+                        {" "}
+                        (из приложения запрос уходит на <code>{origin}</code>)
+                    </>
+                ) : null}
+            </p>
 
             <div className="profile-api-try__path-edit">
                 <span className="profile-api-try__path-label">Путь</span>
@@ -409,8 +460,8 @@ export function ProfileApiTryConsole({ item, tryAuth, onClose }: Props) {
                         placeholder="Bearer haulz_… или только токен без префикса"
                     />
                     <p className="profile-api-try__hint">
-                        Для <code>POST /api/partner/v1/cargo</code> укажите Bearer с полным ключом haulz_… из Профиль → API. Для счетов, УПД и скачиваний
-                        в теле запроса используются <code>login</code> / <code>password</code> (или подстановка из аккаунта через плейсхолдеры).
+                        Для Partner API v1 (<code>/api/partner/v1/*</code>) укажите Bearer с полным ключом haulz_… из Профиль → API.
+                        {isPartnerV1 ? " Этот метод не принимает login/password в теле." : " Для счетов, УПД и скачиваний в теле используются login/password (или плейсхолдеры)."}
                     </p>
                     {!tryAuth ? (
                         <p className="profile-api-try__warn">Войдите в аккаунт в приложении — иначе подстановка логина/пароля в примерах не сработает.</p>

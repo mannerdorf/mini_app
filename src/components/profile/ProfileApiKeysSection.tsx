@@ -2,28 +2,29 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Check, Copy, Key, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 import type { Account } from "../../types";
-import { USER_API_KEY_SCOPES_CLIENT, scopeTitleRu } from "../../constants/userApiKeyScopesClient";
+import {
+    USER_API_KEY_SCOPES_CLIENT,
+    USER_API_KEY_SCOPE_INFO_RU,
+    scopeTitleRu,
+    type UserApiKeyScopeClient,
+} from "../../constants/userApiKeyScopesClient";
+import { PARTNER_API_PUBLIC_ORIGIN } from "../../constants/partnerApi";
+import { createMyApiKey, fetchMyApiKeys, revokeMyApiKey, type MyApiKeyRow } from "../../api/client/profile/myApiKeys";
 import { ProfileApiCatalogPostman } from "./ProfileApiCatalogPostman";
-
-type ApiKeyRow = {
-    id: string;
-    label: string;
-    key_hint: string;
-    /** Префикс до секрета — безопасно копировать (см. GET /api/my-api-keys). */
-    key_prefix?: string;
-    scopes: string[];
-    allowed_inns: string[];
-    created_at: string;
-    last_used_at: string | null;
-};
 
 type Props = {
     activeAccount: Account | null;
     onBack: () => void;
 };
 
+const defaultScopeChecks = (): Record<UserApiKeyScopeClient, boolean> => ({
+    "cargo:read": true,
+    "sendings:read": true,
+    "orders:read": true,
+});
+
 export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
-    const [keys, setKeys] = useState<ApiKeyRow[]>([]);
+    const [keys, setKeys] = useState<MyApiKeyRow[]>([]);
     const [assignableInns, setAssignableInns] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -31,6 +32,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
     const [newLabel, setNewLabel] = useState("");
     const [innChecks, setInnChecks] = useState<Record<string, boolean>>({});
     const [commaInns, setCommaInns] = useState("");
+    const [scopeChecks, setScopeChecks] = useState(defaultScopeChecks);
     const [newToken, setNewToken] = useState<string | null>(null);
     const [catalogOpen, setCatalogOpen] = useState(false);
     const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
@@ -44,14 +46,9 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch("/api/my-api-keys", {
-                method: "GET",
-                headers: { "x-login": login, "x-password": password },
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error((data?.error as string) || "Ошибка загрузки");
-            setKeys(Array.isArray(data.keys) ? data.keys : []);
-            const ai = Array.isArray(data.assignable_inns) ? data.assignable_inns.map((x: string) => String(x)) : [];
+            const data = await fetchMyApiKeys(login, password);
+            setKeys(data.keys);
+            const ai = data.assignable_inns;
             setAssignableInns(ai);
             const next: Record<string, boolean> = {};
             for (const inn of ai) next[inn] = false;
@@ -80,26 +77,28 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
         return [];
     };
 
+    const buildSelectedScopes = (): UserApiKeyScopeClient[] =>
+        USER_API_KEY_SCOPES_CLIENT.filter((s) => scopeChecks[s]);
+
     const handleCreate = async () => {
         if (!login || !password) return;
+        const scopes = buildSelectedScopes();
+        if (scopes.length === 0) {
+            setError("Выберите хотя бы один scope (перевозки, отправки или заявки).");
+            return;
+        }
         const allowed = buildAllowedInnsPayload();
         setCreating(true);
         setError(null);
         setNewToken(null);
         try {
-            const res = await fetch("/api/my-api-keys", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    login,
-                    password,
-                    label: newLabel.trim() || "API key",
-                    scopes: [...USER_API_KEY_SCOPES_CLIENT],
-                    allowed_inns: allowed,
-                }),
+            const data = await createMyApiKey({
+                login,
+                password,
+                label: newLabel.trim() || "API key",
+                scopes,
+                allowed_inns: allowed,
             });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error((data?.error as string) || "Не удалось создать ключ");
             if (typeof data.token === "string") setNewToken(data.token);
             setNewLabel("");
             await load();
@@ -121,12 +120,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
         if (!confirm("Отозвать этот ключ? Запросы с ним перестанут работать.")) return;
         setError(null);
         try {
-            const res = await fetch(`/api/my-api-keys?id=${encodeURIComponent(id)}`, {
-                method: "DELETE",
-                headers: { "x-login": login, "x-password": password },
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error((data?.error as string) || "Не удалось отозвать");
+            await revokeMyApiKey(login, password, id);
             await load();
         } catch (e: unknown) {
             setError((e as Error)?.message || "Ошибка");
@@ -179,17 +173,29 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                 <Typography.Headline className="text-page-title">API</Typography.Headline>
             </Flex>
 
-            <Typography.Body style={{ marginBottom: "0.75rem", color: "var(--color-text-secondary)", fontSize: "0.9rem" }}>
-                Создавайте ключи с ограничением по ИНН (при необходимости). Для перевозок через{" "}
+            <Typography.Body style={{ marginBottom: "0.75rem", color: "var(--color-text-secondary)", fontSize: "0.9rem", lineHeight: 1.5 }}>
+                Базовый URL для внешних интеграций:{" "}
+                <Typography.Body as="span" style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
+                    {PARTNER_API_PUBLIC_ORIGIN}
+                </Typography.Body>
+                . Partner API v1:{" "}
                 <Typography.Body as="span" style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
                     POST /api/partner/v1/cargo
+                </Typography.Body>
+                ,{" "}
+                <Typography.Body as="span" style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
+                    /sendings
+                </Typography.Body>
+                ,{" "}
+                <Typography.Body as="span" style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
+                    /orders
                 </Typography.Body>{" "}
-                укажите{" "}
+                с заголовком{" "}
                 <Typography.Body as="span" style={{ fontWeight: 600 }}>
-                    Authorization: Bearer &lt;токен&gt;
-                </Typography.Body>{" "}
-                и тело только с полями периода и ИНН (без логина/пароля). Отдельных ключей на сервере нет — только ключи, которые вы создаёте
-                здесь. Остальные методы из справочника ниже — по логину/паролю в теле или публичные GET к кэшу, см. подписи к каждому запросу.
+                    Authorization: Bearer &lt;полный токен haulz_…&gt;
+                </Typography.Body>
+                . Подробнее — в{" "}
+                <Typography.Body as="span" style={{ fontWeight: 600 }}>docs/PARTNER_API.md</Typography.Body> в репозитории.
             </Typography.Body>
 
             {error ? (
@@ -225,6 +231,31 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                             onChange={(e) => setNewLabel(e.target.value)}
                             placeholder="Например, интеграция 1С"
                         />
+                    </div>
+                    <div>
+                        <Typography.Body style={{ fontSize: "0.8rem", marginBottom: "0.35rem" }}>Права (scope)</Typography.Body>
+                        <Flex direction="column" style={{ gap: "0.5rem" }}>
+                            {USER_API_KEY_SCOPES_CLIENT.map((scope) => {
+                                const info = USER_API_KEY_SCOPE_INFO_RU[scope];
+                                return (
+                                    <label key={scope} style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start", fontSize: "0.85rem" }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={!!scopeChecks[scope]}
+                                            onChange={() => setScopeChecks((prev) => ({ ...prev, [scope]: !prev[scope] }))}
+                                            style={{ marginTop: "0.2rem" }}
+                                        />
+                                        <span>
+                                            <strong>{info.title}</strong>
+                                            <br />
+                                            <span style={{ color: "var(--color-text-secondary)", fontSize: "0.78rem" }}>{info.description}</span>
+                                            <br />
+                                            <code style={{ fontSize: "0.72rem" }}>{info.apiHint}</code>
+                                        </span>
+                                    </label>
+                                );
+                            })}
+                        </Flex>
                     </div>
                     {assignableInns.length > 0 ? (
                         <div>
@@ -280,8 +311,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                             lineHeight: 1.4,
                         }}
                     >
-                        Префикс в отдельной строке можно скопировать в буфер. Секретную часть токена храните только у себя — после
-                        создания она больше не показывается.
+                        Префикс можно копировать. Полный токен показывается один раз при создании. Поле last_used_at обновляется при вызове Partner API.
                     </Typography.Body>
                 ) : null}
                 {loading ? (
@@ -333,6 +363,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                                     >
                                         {(k.scopes || []).map((sc) => scopeTitleRu(String(sc))).join(" · ") || "Partner v1"}
                                         {k.allowed_inns?.length ? ` · ИНН: ${k.allowed_inns.join(", ")}` : " · ИНН: все доступные"}
+                                        {k.last_used_at ? ` · использован: ${new Date(k.last_used_at).toLocaleString("ru-RU")}` : ""}
                                     </Typography.Body>
                                 </div>
                             );
