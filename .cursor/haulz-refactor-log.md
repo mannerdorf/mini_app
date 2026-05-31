@@ -2,32 +2,29 @@
 
 ## Last updated
 
-2026-05-31 — batch 5.3–5.5 (AppMainContent contexts + LoginScreen extraction)
+2026-05-31 — batch 5.6–5.8 (navigation context + account/support hooks)
 
 ## Completed slices (newest first)
 
 | Commit | Phase | Summary |
 |--------|-------|---------|
-| `6c2d4000` | 5.3–5.5 | AppMainContent useAuth/useAppShell; LoginScreen; App cleanup |
+| (pending) | 5.8 | useSupportBotLinks hook |
+| (pending) | 5.7 | useAccountActions hook |
+| `7b8f2f10` | 5.6 | AppNavigationContext + document overlays |
+| `6c2d4000` | 5.3–5.5 | AppMainContent contexts + LoginScreen |
 | `115be3d1` | 5.2 | AppShellContext + App providers |
 | `4960250c` | 5.1 | AuthContext |
-| `d028bc5a` | 4.24–4.27 | employees, timesheet, auto-register batch, pvz refresh API |
 
 ## Metrics
 
-- `App.tsx`: **2215 → ~1600** lines (−615)
-- `AppMainContent.tsx`: props **~40 → ~28** (auth/shell via contexts)
-- New: `LoginScreen.tsx` (~670 lines) — login, 2FA, forgot password
-
-## Phase 4 status
-
-**API client:** all `/api/admin-*` fetch removed from `AdminPage.tsx` ✅  
-**Next (phase 4 UI):** shrink AdminPage into `features/admin/*` (long-term)
+- `App.tsx`: **~1600 → ~1110** lines (phase 5.6–5.8)
+- `AppMainContent.tsx`: props **~28 → ~12** (navigation + account + bots via hooks/contexts)
+- New: `AppNavigationContext.tsx`, `useAccountActions.ts`, `useSupportBotLinks.ts`
 
 ## Next slice
 
-- **ID:** `5.6-app-navigation-context`
-- **Task:** extract openCargo*/overlay navigation from AppRoot into hook or context
+- **ID:** `5.9-app-header-extract`
+- **Task:** extract App header / search bar into `AppHeader.tsx`
 - **Then:** phase 3.6 sendings, phase 4 UI split
 
 ## Blockers

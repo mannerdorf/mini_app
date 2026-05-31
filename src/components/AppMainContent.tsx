@@ -5,8 +5,10 @@ import { ErrorBoundary } from "./ErrorBoundary";
 import { useAuth } from "../contexts/AuthContext";
 import { useAppShell } from "../contexts/AppShellContext";
 import { useAppNavigation } from "../contexts/AppNavigationContext";
+import { useAccountActions } from "../hooks/useAccountActions";
+import { useSupportBotLinks } from "../hooks/useSupportBotLinks";
 import { WB_TAB } from "../wb/appWb";
-import type { Account, Tab } from "../types";
+import type { Tab } from "../types";
 
 const ExpenseRequestsPage = lazy(() =>
   import("../pages/ExpenseRequestsPage").then((m) => ({ default: m.ExpenseRequestsPage })),
@@ -18,11 +20,6 @@ const WildberriesPage = lazy(() =>
 type Props = {
   showDashboard: boolean;
   useServiceRequest: boolean;
-  openTelegramBotWithAccount: () => Promise<void>;
-  handleSwitchAccount: (accountId: string) => void;
-  handleAddAccount: (account: Account) => Promise<void>;
-  handleRemoveAccount: (accountId: string) => void;
-  handleUpdateAccount: (accountId: string, patch: Partial<Account>) => void;
   setIsOfferOpen: (value: boolean) => void;
   setIsPersonalConsentOpen: (value: boolean) => void;
   openSecretPinModal: () => void;
@@ -149,11 +146,6 @@ function SectionBoundary({ section, children }: { section: string; children: Rea
 export function AppMainContent({
   showDashboard,
   useServiceRequest,
-  openTelegramBotWithAccount,
-  handleSwitchAccount,
-  handleAddAccount,
-  handleRemoveAccount,
-  handleUpdateAccount,
   setIsOfferOpen,
   setIsPersonalConsentOpen,
   openSecretPinModal,
@@ -189,6 +181,13 @@ export function AppMainContent({
     openDocumentsWithSection,
     openAisWithMmsi,
   } = useAppNavigation();
+  const {
+    handleSwitchAccount,
+    handleAddAccount,
+    handleRemoveAccount,
+    handleUpdateAccount,
+  } = useAccountActions();
+  const { openTelegramBotWithAccount, openMaxBotWithAccount } = useSupportBotLinks();
   const openWildberries = () => setActiveTab(WB_TAB);
 
   const CargoPage = CargoPageComponent;
@@ -320,7 +319,7 @@ export function AppMainContent({
             aisOpenWithMmsi={aisOpenWithMmsi}
             setAisOpenWithMmsi={setAisOpenWithMmsi}
             onOpenTelegramBot={openTelegramBotWithAccount}
-            onOpenMaxBot={undefined}
+            onOpenMaxBot={openMaxBotWithAccount}
             onUpdateAccount={handleUpdateAccount}
             onOpenWildberries={openWildberries}
             profileSaasShellActive={profileSaasShellActive}
@@ -369,7 +368,7 @@ export function AppMainContent({
             aisOpenWithMmsi={aisOpenWithMmsi}
             setAisOpenWithMmsi={setAisOpenWithMmsi}
             onOpenTelegramBot={openTelegramBotWithAccount}
-            onOpenMaxBot={undefined}
+            onOpenMaxBot={openMaxBotWithAccount}
             onUpdateAccount={handleUpdateAccount}
             onOpenWildberries={openWildberries}
             profileSaasShellActive={profileSaasShellActive}

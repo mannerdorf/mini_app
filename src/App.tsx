@@ -75,16 +75,11 @@ import {
     useResetGlobalSearchOnWildberries,
     isGlobalSearchTab,
 } from "./wb/appWb";
-import { HAULZ_MAX_SUPPORT_BOT_URL, HAULZ_SPLASH_BACKGROUND, HAULZ_TG_SUPPORT_BOT_URL } from "./constants/brand";
+import { HAULZ_SPLASH_BACKGROUND } from "./constants/brand";
 import { postAuthRegisteredLogin } from "./api/client/auth";
 import {
     fetchTwoFaSettings,
-    persistTwoFaSettingsSilent,
 } from "./api/client/twoFa";
-import { postCompaniesSave } from "./api/client/companies";
-import { createMaxAuthDeepLinkToken } from "./api/client/maxLink";
-import { postGetPerevozkaJson, postGetCustomers, postPerevozkiList } from "./api/client/perevozkiClient";
-import { recordLegalAcceptanceQuiet } from "./api/client/legal";
 import { useLegalCompliance } from "./hooks/useLegalCompliance";
 import { LegalReacceptModal } from "./components/modals/LegalReacceptModal";
 import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry } from "./lib/cargoUtils";
@@ -92,6 +87,7 @@ import * as dateUtils from "./lib/dateUtils";
 import { formatCurrency, stripOoo, formatInvoiceNumber, cityToCode, transliterateFilename, normalizeInvoiceStatus, parseCargoNumbersFromText } from "./lib/formatUtils";
 import { usePerevozki, usePerevozkiMulti, usePerevozkiMultiAccounts, usePrevPeriodPerevozki, useInvoices } from "./hooks/useApi";
 import { useShowCustomerColumn } from "./hooks/useShowCustomerColumn";
+import { useAccountActions } from "./hooks/useAccountActions";
 import {
     hasStaleActiveCustomerInn,
     isSingleRegisteredCustomerAccount,
@@ -256,6 +252,11 @@ function AppRoot() {
 
     const legalCompliance = useLegalCompliance(activeAccount);
 
+    const {
+        handleSwitchAccount,
+        handleUpdateAccount,
+    } = useAccountActions();
+
     const showCustomerColumn = useShowCustomerColumn(activeAccount, useServiceRequest);
 
     /** Оболочка HAULZ Analytics (CSS-токены, motion на главных экранах) — для всех пользователей. */
@@ -272,15 +273,6 @@ function AppRoot() {
             setUseServiceRequest(false);
         }
     }, [serviceModeUnlocked, useServiceRequest]);
-    const persistTwoFactorSettings = useCallback(async (account: Account, patch: Partial<Account>) => {
-        const login = account.login;
-        if (!login) return;
-        const enabled = patch.twoFactorEnabled ?? account.twoFactorEnabled ?? false;
-        const method = patch.twoFactorMethod ?? account.twoFactorMethod ?? "google";
-        const telegramLinked = patch.twoFactorTelegramLinked ?? account.twoFactorTelegramLinked ?? false;
-        await persistTwoFaSettingsSilent({ login, enabled, method, telegramLinked });
-    }, []);
-
     useEffect(() => {
         if (!activeAccount?.login) return;
         let cancelled = false;
@@ -652,95 +644,6 @@ function AppRoot() {
 
     const handleSearch = (text: string) => setSearchText(text.toLowerCase().trim());
 
-    const openExternalLink = (url: string) => {
-        const webApp = getWebApp();
-        if (webApp && typeof (webApp as any).openLink === "function") {
-            (webApp as any).openLink(url);
-        } else {
-            window.open(url, "_blank", "noopener,noreferrer");
-        }
-    };
-
-    const openTelegramBotWithAccount = async () => {
-        const url = new URL(HAULZ_TG_SUPPORT_BOT_URL);
-        const webApp = getWebApp();
-        if (webApp && typeof webApp.openTelegramLink === "function") {
-            webApp.openTelegramLink(url.toString());
-        } else {
-            openExternalLink(url.toString());
-        }
-    };
-
-    const openMaxBotWithAccount = async () => {
-        const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
-        if (!activeAccount) {
-            throw new Error("Сначала выберите компанию.");
-        }
-        const data = await createMaxAuthDeepLinkToken({
-                login: activeAccount.login,
-                password: activeAccount.password,
-                customer: activeAccount.customer || null,
-                inn: activeAccount.activeCustomerInn ?? null,
-                accountId: activeAccount.id,
-            });
-        // По доке MAX диплинк бота: https://max.ru/<botName>?start=<payload> (именно start, не startapp)
-        const url = new URL(HAULZ_MAX_SUPPORT_BOT_URL);
-        url.searchParams.set("start", `haulz_auth_${data.token}`);
-        openMaxBotLink(url.toString());
-    };
-
-    const openMaxBotLink = (url: string) => {
-        const webApp = getWebApp();
-        const isMobile =
-            typeof window !== "undefined" &&
-            (isClientMobile() || window.innerWidth < 768 || /Android|iPhone|iPad/i.test(navigator.userAgent || ""));
-        // Сначала пробуем Bridge.openLink (в MAX может передать ссылку в приложение)
-        if (webApp && typeof webApp.openLink === "function") {
-            try {
-                webApp.openLink(url);
-            } catch (e) {
-                console.warn("[openMaxBotLink] openLink failed:", e);
-            }
-        }
-        // На телефоне openLink часто не срабатывает — через 100 мс пробуем открыть в этом же окне (уход из мини-аппа на диплинк)
-        if (isMobile) {
-            setTimeout(() => {
-                const w = window.open(url, "_blank", "noopener,noreferrer");
-                if (!w || w.closed) window.location.href = url;
-            }, 100);
-            return;
-        }
-        if (!webApp || typeof webApp.openLink !== "function") {
-            window.open(url, "_blank", "noopener,noreferrer");
-        }
-    };
-
-    const openAiChatDeepLink = (cargoNumber?: string) => {
-        if (typeof window !== "undefined" && cargoNumber) {
-            window.sessionStorage.setItem(
-                "haulz.chat.prefill",
-                `Интересует информация по перевозке номер ${cargoNumber}`
-            );
-            if (activeAccount?.login && activeAccount?.password) {
-                const inn = activeAccount.activeCustomerInn ?? activeAccount.customers?.[0]?.inn ?? undefined;
-                postGetPerevozkaJson({
-                        login: activeAccount.login,
-                        password: activeAccount.password,
-                        number: cargoNumber,
-                        ...(inn ? { inn } : {}),
-                        ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}),
-                    })
-                    .then((data) => {
-                        try {
-                            window.sessionStorage.setItem("haulz.chat.cargoPreload", JSON.stringify(data));
-                        } catch (_) {}
-                    })
-                    .catch(() => {});
-            }
-        }
-        setActiveTab("cargo");
-    };
-
     const chatIdentity = (() => {
         const webApp = getWebApp();
         const userId = webApp?.initDataUnsafe?.user?.id;
@@ -824,134 +727,6 @@ function AppRoot() {
         setIsSearchExpanded(false); setSearchText('');
     }
     
-    // Удаление аккаунта
-    const handleRemoveAccount = (accountId: string) => {
-        const newAccounts = accounts.filter(acc => acc.id !== accountId);
-        setAccounts(newAccounts);
-        setSelectedAccountIds((prev) => {
-            const next = prev.filter((id) => id !== accountId);
-            if (next.length === 0 && newAccounts.length > 0) return [newAccounts[0].id];
-            return next;
-        });
-        if (activeAccountId === accountId) {
-            if (newAccounts.length > 0) {
-                setActiveAccountId(newAccounts[0].id);
-            } else {
-                setActiveAccountId(null);
-                setActiveTab("cargo");
-            }
-        }
-    };
-    
-    // Переключение аккаунта (одна компания — подставляем как единственную выбранную)
-    const handleSwitchAccount = (accountId: string) => {
-        setActiveAccountId(accountId);
-        setSelectedAccountIds([accountId]);
-    };
-
-    // Подключить/отключить компанию в мультивыборе (для списка перевозок)
-    const handleToggleSelectedAccount = (accountId: string) => {
-        setSelectedAccountIds((prev) => {
-            const has = prev.includes(accountId);
-            if (has) {
-                if (prev.length <= 1) return prev;
-                const next = prev.filter((id) => id !== accountId);
-                setActiveAccountId(next[0] ?? null);
-                return next;
-            }
-            const next = [...prev, accountId];
-            if (prev.length === 0) setActiveAccountId(accountId);
-            return next;
-        });
-    };
-
-
-    // Обновление полей аккаунта (например, 2FA настройки)
-    const handleUpdateAccount = (accountId: string, patch: Partial<Account>) => {
-        let target: Account | null = null;
-        setAccounts(prev => {
-            const next = prev.map(acc => acc.id === accountId ? { ...acc, ...patch } : acc);
-            target = next.find(acc => acc.id === accountId) || null;
-            return next;
-        });
-        if (target && ("twoFactorEnabled" in patch || "twoFactorMethod" in patch || "twoFactorTelegramLinked" in patch)) {
-            void persistTwoFactorSettings(target, patch);
-        }
-    };
-    
-    const handleAddAccount = async (login: string, password: string) => {
-        if (accounts.find(acc => acc.login === login)) {
-            throw new Error("Аккаунт с таким логином уже добавлен");
-        }
-
-        const loginKey = login.trim().toLowerCase();
-
-        // Сначала пробуем способ 2 (Getcustomers)
-        const { ok: customersOk, data: customersData } = await postGetCustomers(login, password);
-        if (customersOk) {
-            const rawList = Array.isArray(customersData?.customers) ? customersData.customers : Array.isArray(customersData?.Customers) ? customersData.Customers : [];
-            const customers: CustomerOption[] = dedupeCustomersByInn(
-                rawList.map((c: any) => ({
-                    name: String(c?.name ?? c?.Name ?? "").trim() || String(c?.Inn ?? c?.inn ?? ""),
-                    inn: String(c?.inn ?? c?.INN ?? c?.Inn ?? "").trim(),
-                })).filter((c: CustomerOption) => c.inn.length > 0)
-            );
-            if (customers.length > 0) {
-                const existingInns = await getExistingInns(accounts.map((a) => (typeof a.login === "string" ? a.login.trim().toLowerCase() : "")).filter(Boolean));
-                const alreadyAdded = customers.find((c) => c.inn && existingInns.has(c.inn));
-                if (alreadyAdded) {
-                    throw new Error("Компания уже в списке");
-                }
-                const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                const newAccount: Account = { login, password, id: accountId, customers, activeCustomerInn: customers[0].inn, customer: customers[0].name };
-                setAccounts(prev => [...prev, newAccount]);
-                setActiveAccountId(accountId);
-                postCompaniesSave({ login: loginKey, customers })
-                    .then((data: unknown) => {
-                        const d = data as { saved?: number; warning?: string };
-                        if (d?.saved !== undefined && d.saved === 0 && d.warning) console.warn("companies-save:", d.warning);
-                    })
-                    .catch((err) => console.warn("companies-save error:", err));
-                recordLegalAcceptanceQuiet(loginKey, password);
-                return;
-            }
-        }
-
-        // Способ 1 (GetPerevozki)
-        const { dateFrom, dateTo } = getDateRange("все");
-        const res = await postPerevozkiList({ login, password, dateFrom, dateTo });
-        if (!res.ok) {
-            let message = `Ошибка авторизации`;
-            try {
-                const payload = await readJsonOrText(res);
-                const extracted = extractErrorMessage(payload);
-                if (extracted) message = extracted;
-            } catch { }
-            throw new Error(message);
-        }
-        const payload = await readJsonOrText(res);
-        const detectedCustomer = extractCustomerFromPerevozki(payload);
-        const detectedInn = extractInnFromPerevozki(payload);
-        const existingInns = await getExistingInns(accounts.map((a) => (typeof a.login === "string" ? a.login.trim().toLowerCase() : "")).filter(Boolean));
-        if (detectedInn && existingInns.has(detectedInn)) {
-            throw new Error("Компания уже в списке");
-        }
-        const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const newAccount: Account = {
-            login,
-            password,
-            id: accountId,
-            customer: detectedCustomer || undefined,
-            ...(detectedInn ? { activeCustomerInn: detectedInn } : {}),
-        };
-        setAccounts(prev => [...prev, newAccount]);
-        setActiveAccountId(accountId);
-        const companyInn = detectedInn ?? "";
-        const companyName = detectedCustomer || login.trim() || "Компания";
-        postCompaniesSave({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }).catch(() => {});
-        recordLegalAcceptanceQuiet(loginKey, password);
-    };
-
     // 404 для неизвестного path (не "/", "/admin", "/cms")
     if (typeof window !== "undefined" && shouldShowNotFound()) {
         return (
@@ -998,11 +773,6 @@ function AppRoot() {
                     <AppMainContent
                         showDashboard={false}
                         useServiceRequest={false}
-                        openTelegramBotWithAccount={openTelegramBotWithAccount}
-                        handleSwitchAccount={handleSwitchAccount}
-                        handleAddAccount={handleAddAccount}
-                        handleRemoveAccount={handleRemoveAccount}
-                        handleUpdateAccount={handleUpdateAccount}
                         setIsOfferOpen={setIsOfferOpen}
                         setIsPersonalConsentOpen={setIsPersonalConsentOpen}
                         openSecretPinModal={openSecretPinModal}
@@ -1214,14 +984,9 @@ function AppRoot() {
                         <AppMainContent
                             showDashboard={showDashboard}
                             useServiceRequest={useServiceRequest}
-                            openTelegramBotWithAccount={openTelegramBotWithAccount}
-                        handleSwitchAccount={handleSwitchAccount}
-                        handleAddAccount={handleAddAccount}
-                        handleRemoveAccount={handleRemoveAccount}
-                        handleUpdateAccount={handleUpdateAccount}
-                        setIsOfferOpen={setIsOfferOpen}
-                        setIsPersonalConsentOpen={setIsPersonalConsentOpen}
-                        openSecretPinModal={openSecretPinModal}
+                            setIsOfferOpen={setIsOfferOpen}
+                            setIsPersonalConsentOpen={setIsPersonalConsentOpen}
+                            openSecretPinModal={openSecretPinModal}
                         CargoDetailsModal={CargoDetailsModal}
                         CargoPageComponent={CargoPage}
                         DashboardPageComponent={DashboardPage}
