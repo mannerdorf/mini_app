@@ -1,0 +1,132 @@
+import React from "react";
+import { Container } from "@maxhub/max-ui";
+import { AppHeader } from "./AppHeader";
+import { AppTabBar } from "./AppTabBar";
+import { AppShellModals } from "./AppShellModals";
+import { AppMainContent } from "./AppMainContent";
+import { AppRuntimeProvider } from "../contexts/AppRuntimeContext";
+import { useAuth } from "../contexts/AuthContext";
+import { useAppShell } from "../contexts/AppShellContext";
+import { stripOoo } from "../lib/formatUtils";
+import type { useLegalCompliance } from "../hooks/useLegalCompliance";
+import type { FormEvent } from "react";
+
+type LegalCompliance = ReturnType<typeof useLegalCompliance>;
+
+type Props = {
+  searchText: string;
+  setSearchText: React.Dispatch<React.SetStateAction<string>>;
+  useServiceRequest: boolean;
+  setUseServiceRequest: React.Dispatch<React.SetStateAction<boolean>>;
+  serviceModeUnlocked: boolean;
+  serviceRefreshSpinning: boolean;
+  setServiceRefreshSpinning: React.Dispatch<React.SetStateAction<boolean>>;
+  showDashboard: boolean;
+  profileSaasShellActive: boolean;
+  showCustomerColumn: boolean;
+  legalCompliance: LegalCompliance;
+  isOfferOpen: boolean;
+  setIsOfferOpen: (value: boolean) => void;
+  isPersonalConsentOpen: boolean;
+  setIsPersonalConsentOpen: (value: boolean) => void;
+  showPinModal: boolean;
+  setShowPinModal: (value: boolean) => void;
+  pinCode: string;
+  setPinCode: (value: string) => void;
+  pinError: boolean;
+  setPinError: (value: boolean) => void;
+  onPinSubmit: (e?: FormEvent) => void;
+  isChatOpen: boolean;
+  setIsChatOpen: (value: boolean) => void;
+  openSecretPinModal: () => void;
+  onLogout: () => void;
+};
+
+export function AppAuthenticatedLayout({
+  searchText,
+  setSearchText,
+  useServiceRequest,
+  setUseServiceRequest,
+  serviceModeUnlocked,
+  serviceRefreshSpinning,
+  setServiceRefreshSpinning,
+  showDashboard,
+  profileSaasShellActive,
+  showCustomerColumn,
+  legalCompliance,
+  isOfferOpen,
+  setIsOfferOpen,
+  isPersonalConsentOpen,
+  setIsPersonalConsentOpen,
+  showPinModal,
+  setShowPinModal,
+  pinCode,
+  setPinCode,
+  pinError,
+  setPinError,
+  onPinSubmit,
+  isChatOpen,
+  setIsChatOpen,
+  openSecretPinModal,
+  onLogout,
+}: Props) {
+  const { auth, activeAccount } = useAuth();
+  const { desktopExpanded } = useAppShell();
+
+  return (
+    <Container
+      className={`app-container${profileSaasShellActive ? " profile-saas-shell" : ""}${showCustomerColumn ? "" : " app-hide-customer-column"}`}
+    >
+      <AppHeader
+        searchText={searchText}
+        setSearchText={setSearchText}
+        useServiceRequest={useServiceRequest}
+        setUseServiceRequest={setUseServiceRequest}
+        serviceModeUnlocked={serviceModeUnlocked}
+        serviceRefreshSpinning={serviceRefreshSpinning}
+        setServiceRefreshSpinning={setServiceRefreshSpinning}
+        onLogout={onLogout}
+      />
+      <div className={`app-main${desktopExpanded ? " app-main-wide" : ""}`}>
+        <div className="w-full">
+          <AppRuntimeProvider
+            value={{
+              useServiceRequest,
+              searchText,
+              activeInn: activeAccount?.activeCustomerInn ?? auth?.inn ?? "",
+              activeCustomerName: stripOoo(activeAccount?.customer ?? ""),
+              showCustomerColumn,
+            }}
+          >
+            <AppMainContent
+              showDashboard={showDashboard}
+              useServiceRequest={useServiceRequest}
+              setIsOfferOpen={setIsOfferOpen}
+              setIsPersonalConsentOpen={setIsPersonalConsentOpen}
+              openSecretPinModal={openSecretPinModal}
+              profileSaasShellActive={profileSaasShellActive}
+            />
+          </AppRuntimeProvider>
+        </div>
+      </div>
+      <AppTabBar showDashboard={showDashboard} />
+      <AppShellModals
+        authLogin={auth?.login}
+        legalCompliance={legalCompliance}
+        isOfferOpen={isOfferOpen}
+        setIsOfferOpen={setIsOfferOpen}
+        isPersonalConsentOpen={isPersonalConsentOpen}
+        setIsPersonalConsentOpen={setIsPersonalConsentOpen}
+        showPinModal={showPinModal}
+        setShowPinModal={setShowPinModal}
+        pinCode={pinCode}
+        setPinCode={setPinCode}
+        pinError={pinError}
+        setPinError={setPinError}
+        onPinSubmit={onPinSubmit}
+        isChatOpen={isChatOpen}
+        setIsChatOpen={setIsChatOpen}
+      />
+    </Container>
+  );
+}

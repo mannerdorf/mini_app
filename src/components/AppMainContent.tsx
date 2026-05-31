@@ -2,13 +2,15 @@ import React, { Suspense, lazy } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { Loader2, Package } from "lucide-react";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { CargoDetailsModal } from "./modals/CargoDetailsModal";
+import { CargoPage, DashboardPage, DocumentsPage, ProfilePage } from "../app/lazyPages";
 import { useAuth } from "../contexts/AuthContext";
 import { useAppShell } from "../contexts/AppShellContext";
 import { useAppNavigation } from "../contexts/AppNavigationContext";
 import { useAccountActions } from "../hooks/useAccountActions";
 import { useSupportBotLinks } from "../hooks/useSupportBotLinks";
 import { WB_TAB } from "../wb/appWb";
-import type { Tab } from "../types";
+import type { Account, Tab } from "../types";
 
 const ExpenseRequestsPage = lazy(() =>
   import("../pages/ExpenseRequestsPage").then((m) => ({ default: m.ExpenseRequestsPage })),
@@ -23,11 +25,6 @@ type Props = {
   setIsOfferOpen: (value: boolean) => void;
   setIsPersonalConsentOpen: (value: boolean) => void;
   openSecretPinModal: () => void;
-  CargoDetailsModal: React.ComponentType<any>;
-  CargoPageComponent: React.ComponentType<any>;
-  DashboardPageComponent: React.ComponentType<any>;
-  ProfilePageComponent: React.ComponentType<any>;
-  DocumentsPageComponent: React.ComponentType<any>;
   profileSaasShellActive: boolean;
 };
 
@@ -149,11 +146,6 @@ export function AppMainContent({
   setIsOfferOpen,
   setIsPersonalConsentOpen,
   openSecretPinModal,
-  CargoDetailsModal,
-  CargoPageComponent,
-  DashboardPageComponent,
-  ProfilePageComponent,
-  DocumentsPageComponent,
   profileSaasShellActive,
 }: Props) {
   const {
@@ -190,10 +182,6 @@ export function AppMainContent({
   const { openTelegramBotWithAccount, openMaxBotWithAccount } = useSupportBotLinks();
   const openWildberries = () => setActiveTab(WB_TAB);
 
-  const CargoPage = CargoPageComponent;
-  const DashboardPage = DashboardPageComponent;
-  const ProfilePage = ProfilePageComponent;
-  const DocumentsPage = DocumentsPageComponent;
   return (
     <>
       {showDashboard && activeTab === "dashboard" && auth && (
