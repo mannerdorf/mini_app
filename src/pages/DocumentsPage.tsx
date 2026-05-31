@@ -32,13 +32,20 @@ import {
 import { DocumentsTransportFilter, isDocumentsTransportFilterVisible } from "../features/documents";
 import {
     ClaimsToolbarFilters,
+    ClaimsCreateModal,
     CLAIM_STATUS_BADGE,
     CLAIM_STATUS_LABELS,
+    CLAIM_ROW_ACTION_BUTTON_STYLE,
+    FILE_PICKER_BUTTON_STYLE,
+    MANIPULATION_SIGN_LABELS_RU,
+    PACKAGING_TYPE_LABELS_RU,
+    extractCustomerClaimPayloadFromEvents,
+    fileToBase64,
+    mapClaimEnumToRu,
     type ClaimStatusKey,
 } from "../features/documents/claims";
 import { DateText } from "../components/ui/DateText";
 import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode } from "../lib/formatUtils";
-import { formatPerevozkaNumberForApi } from "../lib/perevozkaNumber";
 import { ClickableCargoNumber, ClickableInvoiceNumber } from "../components/ui/EntityLinks";
 import { CargoTransportTypeIcon } from "../components/shared/CargoTableDisplay";
 import { downloadBase64File } from "../utils";
@@ -50,7 +57,6 @@ import {
     fetchClaimsList,
     fetchClaimById,
     postClaimAction,
-    saveClaimDraft,
     fetchSverkiRequests,
     postSverkiRequest,
     fetchDogovorContractLabels,
@@ -103,7 +109,6 @@ import { useDocumentsDateRange, computeDocumentsApiDateRange } from "./useDocume
 import { useDocumentsDataLoad } from "./useDocumentsDataLoad";
 import { useCargoTransportFilter, usePerevozki } from "../hooks/useApi";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
-import { fetchPerevozkaDetails } from "../lib/perevozkaDetails";
 import {
     buildActsSummary,
     buildCargoRouteByNumber,
@@ -158,199 +163,6 @@ import {
     cargoSummaryMotion,
     cargoTableGroupRowVariants,
 } from "./cargoMotion";
-
-const MAX_CLAIM_FILE_BYTES = 5 * 1024 * 1024;
-const MANIPULATION_SIGN_OPTIONS = [
-    { id: 'fragile', label: 'Хрупкое' },
-    { id: 'keep_dry', label: 'Беречь от влаги' },
-    { id: 'this_side_up', label: 'Верх / Не кантовать' },
-    { id: 'do_not_stack', label: 'Не штабелировать' },
-    { id: 'temperature_control', label: 'Температурный режим' },
-    { id: 'handle_with_care', label: 'Осторожно, обращаться бережно' },
-] as const;
-const PACKAGING_TYPE_OPTIONS = [
-    { id: 'box', label: 'Коробка' },
-    { id: 'pallet', label: 'Паллет' },
-    { id: 'crate', label: 'Ящик' },
-    { id: 'bag', label: 'Мешок' },
-    { id: 'film', label: 'Стретч-пленка' },
-    { id: 'wooden_frame', label: 'Обрешетка' },
-    { id: 'without_packaging', label: 'Без упаковки' },
-] as const;
-
-const MANIPULATION_SIGN_LABELS_RU: Record<string, string> = Object.fromEntries(MANIPULATION_SIGN_OPTIONS.map((o) => [o.id, o.label]));
-const PACKAGING_TYPE_LABELS_RU: Record<string, string> = Object.fromEntries(PACKAGING_TYPE_OPTIONS.map((o) => [o.id, o.label]));
-
-function mapClaimEnumToRu(values: string[], labels: Record<string, string>): string[] {
-    return values.map((v) => labels[String(v).trim()] || v);
-}
-const FILE_PICKER_BUTTON_STYLE: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '10rem',
-    height: 44,
-    boxSizing: 'border-box',
-    padding: '0.42rem 0.8rem',
-    borderRadius: 8,
-    border: '1px solid var(--color-border)',
-    background: 'var(--color-bg-card, #fff)',
-    cursor: 'pointer',
-    fontSize: '0.82rem',
-    fontWeight: 500,
-};
-const CLAIM_ROW_ACTION_BUTTON_STYLE: React.CSSProperties = {
-    width: 110,
-    height: 36,
-    boxSizing: 'border-box',
-    marginTop: 0,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '0 0.7rem',
-    whiteSpace: 'nowrap',
-};
-
-async function fileToBase64(file: File): Promise<string> {
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ''));
-        reader.onerror = () => reject(new Error(`Не удалось прочитать файл: ${file.name}`));
-        reader.readAsDataURL(file);
-    });
-    const commaIdx = dataUrl.indexOf(',');
-    return commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : dataUrl;
-}
-
-function formatPhoneMask(value: string): string {
-    const digitsOnly = String(value || '').replace(/\D/g, '');
-    if (!digitsOnly) return '';
-    let digits = digitsOnly;
-    if (digits.startsWith('8')) digits = `7${digits.slice(1)}`;
-    if (!digits.startsWith('7')) digits = `7${digits}`;
-    digits = digits.slice(0, 11);
-    const p1 = digits.slice(1, 4);
-    const p2 = digits.slice(4, 7);
-    const p3 = digits.slice(7, 9);
-    const p4 = digits.slice(9, 11);
-    let out = '+7';
-    if (p1) out += ` (${p1}`;
-    if (p1.length === 3) out += ')';
-    if (p2) out += ` ${p2}`;
-    if (p3) out += `-${p3}`;
-    if (p4) out += `-${p4}`;
-    return out;
-}
-
-function normalizeAcceptedCargoNomenclatureRows(rows: Record<string, unknown>[]): Array<{ key: string; barcode: string; name: string; declaredCost: string }> {
-    const result: Array<{ key: string; barcode: string; name: string; declaredCost: string }> = [];
-    const seen = new Set<string>();
-    rows.forEach((row, idx) => {
-        const barcode = String(
-            row?.Package
-            ?? (row as any)?.package
-            ?? (row as any)?.Barcode
-            ?? (row as any)?.barcode
-            ?? (row as any)?.Штрихкод
-            ?? ''
-        ).trim();
-        const skuRaw = (row as any)?.SKUs
-            ?? (row as any)?.skus
-            ?? (row as any)?.SKU
-            ?? (row as any)?.Nomenclature
-            ?? (row as any)?.Номенклатура
-            ?? (row as any)?.Goods
-            ?? (row as any)?.Товар
-            ?? (row as any)?.Name;
-        const name = (() => {
-            if (Array.isArray(skuRaw)) {
-                const values = skuRaw.map((it: any) => {
-                    if (it == null) return '';
-                    if (typeof it === 'string') return it;
-                    if (typeof it === 'object') return String(it?.SKU ?? it?.sku ?? it?.Name ?? it?.Номенклатура ?? '');
-                    return String(it);
-                }).map((s) => String(s).trim()).filter(Boolean);
-                return values.join('\n');
-            }
-            if (skuRaw && typeof skuRaw === 'object') {
-                return String((skuRaw as any)?.SKU ?? (skuRaw as any)?.sku ?? (skuRaw as any)?.Name ?? (skuRaw as any)?.Номенклатура ?? '').trim();
-            }
-            return String(skuRaw ?? '').trim();
-        })();
-        const declaredRaw = (row as any)?.DeclaredCost
-            ?? (row as any)?.declaredCost
-            ?? (row as any)?.DeclaredValue
-            ?? (row as any)?.declaredValue
-            ?? (row as any)?.ОбъявленнаяСтоимость
-            ?? (row as any)?.ОбъявлСтоимость
-            ?? (row as any)?.Объявленная_стоимость
-            ?? (row as any)?.InsuredValue
-            ?? (row as any)?.Стоимость;
-        const declaredCost = (() => {
-            const value = String(declaredRaw ?? '').trim();
-            if (!value) return '';
-            const normalized = value.replace(/\s/g, '').replace(',', '.');
-            const asNumber = Number(normalized);
-            if (Number.isFinite(asNumber)) {
-                return `${asNumber.toLocaleString('ru-RU')} ₽`;
-            }
-            return value;
-        })();
-        if (!barcode && !name) return;
-        const dedupeKey = `${barcode}::${name}::${declaredCost}`;
-        if (seen.has(dedupeKey)) return;
-        seen.add(dedupeKey);
-        result.push({
-            key: `${barcode || 'row'}:${idx}`,
-            barcode,
-            name: name || '—',
-            declaredCost: declaredCost || '—',
-        });
-    });
-    return result;
-}
-
-function extractCustomerClaimPayloadFromEvents(events: any[]): {
-    contactName: string;
-    selectedPlaces: string[];
-    manipulationSigns: string[];
-    packagingTypes: string[];
-} {
-    if (!Array.isArray(events) || events.length === 0) {
-        return { contactName: '', selectedPlaces: [], manipulationSigns: [], packagingTypes: [] };
-    }
-    for (let i = events.length - 1; i >= 0; i -= 1) {
-        const event = events[i];
-        const eventType = String(event?.eventType || '').trim().toLowerCase();
-        if (eventType !== 'claim_draft_saved' && eventType !== 'claim_created') continue;
-        const rawPayload = event?.payload;
-        const payload = typeof rawPayload === 'string'
-            ? (() => {
-                try {
-                    return JSON.parse(rawPayload);
-                } catch {
-                    return {};
-                }
-            })()
-            : (rawPayload && typeof rawPayload === 'object' ? rawPayload : {});
-        const selectedPlaces = Array.isArray((payload as any)?.selectedPlaces)
-            ? (payload as any).selectedPlaces.map((v: any) => String(v || '').trim()).filter(Boolean)
-            : [];
-        const manipulationSigns = Array.isArray((payload as any)?.manipulationSigns)
-            ? (payload as any).manipulationSigns.map((v: any) => String(v || '').trim()).filter(Boolean)
-            : [];
-        const packagingTypes = Array.isArray((payload as any)?.packagingTypes)
-            ? (payload as any).packagingTypes.map((v: any) => String(v || '').trim()).filter(Boolean)
-            : [];
-        return {
-            contactName: String((payload as any)?.customerContactName || '').trim(),
-            selectedPlaces,
-            manipulationSigns,
-            packagingTypes,
-        };
-    }
-    return { contactName: '', selectedPlaces: [], manipulationSigns: [], packagingTypes: [] };
-}
 
 type DocSectionKey = 'Счета' | 'ЭДО' | 'УПД' | 'Заявки' | 'Отправки' | 'Претензии' | 'Договоры' | 'Акты сверок' | 'Тарифы';
 const DOC_SECTIONS: { key: DocSectionKey; label: string }[] = [
@@ -554,28 +366,8 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [claimsStatusFilter, setClaimsStatusFilter] = useState<string>('all');
     const [claimsCustomerFilter, setClaimsCustomerFilter] = useState<string>('');
     const [claimsCreateOpen, setClaimsCreateOpen] = useState(false);
-    const [claimsCreateSubmitting, setClaimsCreateSubmitting] = useState(false);
-    const [claimsCreateError, setClaimsCreateError] = useState<string | null>(null);
-    const [claimsCreateCargoNumber, setClaimsCreateCargoNumber] = useState('');
-    const [claimsCreateCargoNumberDebounced, setClaimsCreateCargoNumberDebounced] = useState('');
-    const [claimsCargoDropdownOpen, setClaimsCargoDropdownOpen] = useState(false);
-    const claimsCargoInputRef = useRef<HTMLDivElement>(null);
-    const [claimsCreateType, setClaimsCreateType] = useState<'cargo_damage' | 'quantity_mismatch' | 'cargo_loss' | 'other'>('cargo_damage');
-    const [claimsCreateDescription, setClaimsCreateDescription] = useState('');
-    const [claimsCreateAmount, setClaimsCreateAmount] = useState('');
-    const [claimsCreateContactName, setClaimsCreateContactName] = useState('');
-    const [claimsCreatePhone, setClaimsCreatePhone] = useState('');
-    const [claimsCreateEmail, setClaimsCreateEmail] = useState('');
-    const [claimsCreateVideoLink, setClaimsCreateVideoLink] = useState('');
-    const [claimsCreateManipulationSignIds, setClaimsCreateManipulationSignIds] = useState<string[]>([]);
-    const [claimsCreateManipulationPhotoFiles, setClaimsCreateManipulationPhotoFiles] = useState<File[]>([]);
-    const [claimsCreatePackagingTypeIds, setClaimsCreatePackagingTypeIds] = useState<string[]>([]);
-    const [claimsCreateSelectedPlaceKeys, setClaimsCreateSelectedPlaceKeys] = useState<string[]>([]);
-    const [claimsAcceptedNomenclatureLoading, setClaimsAcceptedNomenclatureLoading] = useState(false);
-    const [claimsAcceptedNomenclatureError, setClaimsAcceptedNomenclatureError] = useState<string | null>(null);
-    const [claimsAcceptedNomenclatureRows, setClaimsAcceptedNomenclatureRows] = useState<Array<{ key: string; barcode: string; name: string; declaredCost: string }>>([]);
-    const [claimsCreatePhotoFiles, setClaimsCreatePhotoFiles] = useState<File[]>([]);
-    const [claimsCreateDocumentFiles, setClaimsCreateDocumentFiles] = useState<File[]>([]);
+    const [claimsCreatePrefill, setClaimsCreatePrefill] = useState('');
+    const [claimsModalBusy, setClaimsModalBusy] = useState(false);
     const [claimsEditingId, setClaimsEditingId] = useState<number | null>(null);
     const [claimsActionLoadingId, setClaimsActionLoadingId] = useState<number | null>(null);
     const [claimsReplyOpen, setClaimsReplyOpen] = useState(false);
@@ -751,26 +543,10 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         reloadClaims();
     }, [reloadClaims]);
     const openClaimsCreateModal = useCallback((prefillCargoNumber?: string) => {
-        const prefill = String(prefillCargoNumber || '').trim();
-        setClaimsCreateError(null);
         setClaimsEditingId(null);
-        setClaimsCreateCargoNumber(prefill);
-        setClaimsCreateCargoNumberDebounced(prefill);
-        setClaimsCreateType('cargo_damage');
-        setClaimsCreateDescription('');
-        setClaimsCreateAmount('');
-        setClaimsCreateContactName('');
-        setClaimsCreatePhone('');
-        setClaimsCreateEmail(auth?.login || '');
-        setClaimsCreateVideoLink('');
-        setClaimsCreateManipulationSignIds([]);
-        setClaimsCreateManipulationPhotoFiles([]);
-        setClaimsCreatePackagingTypeIds([]);
-        setClaimsCreateSelectedPlaceKeys([]);
-        setClaimsCreatePhotoFiles([]);
-        setClaimsCreateDocumentFiles([]);
+        setClaimsCreatePrefill(String(prefillCargoNumber || '').trim());
         setClaimsCreateOpen(true);
-    }, [auth?.login]);
+    }, []);
 
     useEffect(() => {
         if (docSection !== 'Претензии') return;
@@ -798,45 +574,11 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         if (hasPrefill) setDocSection('Претензии');
     }, [docSection, allowedDocSections]);
 
-    const openDraftEditor = useCallback(async (claimId: number) => {
-        if (!auth?.login || !auth?.password) return;
-        setClaimsCreateError(null);
-        setClaimsCreateSubmitting(true);
-        try {
-            const claimAuth = {
-                login: auth.login,
-                password: auth.password,
-                inn: String(effectiveActiveInn || auth?.inn || '').trim(),
-            };
-            const { ok, data } = await fetchClaimById(claimAuth, claimId);
-            if (!ok) throw new Error((data as { error?: string })?.error || 'Не удалось загрузить черновик');
-            const claim = (data as any)?.claim || {};
-            const events = Array.isArray((data as any)?.events) ? (data as any).events as any[] : [];
-            const draftPayload = [...events].reverse().find((e: any) => (
-                e?.eventType === 'claim_draft_saved' || e?.eventType === 'claim_created'
-            ))?.payload || {};
-            setClaimsEditingId(claimId);
-            setClaimsCreateCargoNumber(String(claim?.cargoNumber || ''));
-            setClaimsCreateType((String(claim?.claimType || 'cargo_damage') as any));
-            setClaimsCreateDescription(String(claim?.description || ''));
-            setClaimsCreateAmount(claim?.requestedAmount != null ? String(claim.requestedAmount) : '');
-            setClaimsCreateContactName(String(draftPayload?.customerContactName || ''));
-            setClaimsCreatePhone(String(claim?.customerPhone || ''));
-            setClaimsCreateEmail(String(claim?.customerEmail || auth.login || ''));
-            setClaimsCreateVideoLink('');
-            setClaimsCreateManipulationSignIds(Array.isArray(draftPayload?.manipulationSigns) ? draftPayload.manipulationSigns.map((x: any) => String(x)) : []);
-            setClaimsCreatePackagingTypeIds(Array.isArray(draftPayload?.packagingTypes) ? draftPayload.packagingTypes.map((x: any) => String(x)) : []);
-            setClaimsCreateSelectedPlaceKeys([]);
-            setClaimsCreatePhotoFiles([]);
-            setClaimsCreateManipulationPhotoFiles([]);
-            setClaimsCreateDocumentFiles([]);
-            setClaimsCreateOpen(true);
-        } catch (e: any) {
-            setClaimsCreateError(e?.message || 'Не удалось открыть черновик');
-        } finally {
-            setClaimsCreateSubmitting(false);
-        }
-    }, [auth?.login, auth?.password, auth?.inn, effectiveActiveInn]);
+    const openDraftEditor = useCallback((claimId: number) => {
+        setClaimsEditingId(claimId);
+        setClaimsCreatePrefill('');
+        setClaimsCreateOpen(true);
+    }, []);
     const openClaimDetailModal = useCallback(async (claimId: number) => {
         if (!auth?.login || !auth?.password) return;
         setClaimsDetailOpen(true);
@@ -871,7 +613,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
             if (!ok) throw new Error((data as { error?: string })?.error || 'Не удалось обновить статус претензии');
             await reloadClaims();
         } catch (e: any) {
-            setClaimsCreateError(e?.message || 'Ошибка действия по претензии');
+            console.error(e?.message || 'Ошибка действия по претензии');
         } finally {
             setClaimsActionLoadingId(null);
         }
@@ -1451,103 +1193,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
     }, [items, perevozkiItems, getFirstCargoNumberFromInvoice]);
-    const claimCargoFilteredOptions = useMemo(() => {
-        const q = String(claimsCreateCargoNumber || '').trim().toLowerCase();
-        if (!q) return claimCargoOptions;
-        return claimCargoOptions.filter((opt) => String(opt).toLowerCase().includes(q));
-    }, [claimCargoOptions, claimsCreateCargoNumber]);
-    useEffect(() => {
-        if (!claimsCreateOpen) setClaimsCargoDropdownOpen(false);
-    }, [claimsCreateOpen]);
-    useEffect(() => {
-        if (!claimsCargoDropdownOpen) return;
-        const handler = (e: MouseEvent) => {
-            if (claimsCargoInputRef.current && !claimsCargoInputRef.current.contains(e.target as Node)) {
-                setClaimsCargoDropdownOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handler);
-        return () => document.removeEventListener('mousedown', handler);
-    }, [claimsCargoDropdownOpen]);
-    useEffect(() => {
-        const q = String(claimsCreateCargoNumber || '').trim();
-        if (!q) {
-            setClaimsCreateCargoNumberDebounced('');
-            return;
-        }
-        const t = setTimeout(() => setClaimsCreateCargoNumberDebounced(q), 400);
-        return () => clearTimeout(t);
-    }, [claimsCreateCargoNumber]);
-    const normalizeClaimCargoNumber = useCallback((rawValue: string): string => {
-        const raw = String(rawValue || '').trim();
-        if (!raw) return '';
-        // Mobile keyboard/input may inject spaces or separators; keep only likely cargo number.
-        const compact = raw.replace(/\s+/g, '');
-        const digitMatch = compact.match(/\d{5,12}/);
-        return (digitMatch ? digitMatch[0] : compact).trim();
-    }, []);
-    useEffect(() => {
-        const number = normalizeClaimCargoNumber(String(claimsCreateCargoNumberDebounced || ''));
-        if (!number || !auth?.login || !auth?.password) {
-            setClaimsAcceptedNomenclatureRows([]);
-            setClaimsAcceptedNomenclatureError(null);
-            setClaimsAcceptedNomenclatureLoading(false);
-            return;
-        }
-        let cancelled = false;
-        setClaimsAcceptedNomenclatureLoading(true);
-        setClaimsAcceptedNomenclatureError(null);
-        const selectedCargoKey = normCargoKey(number);
-        const matchedCargo = (perevozkiItems || []).find((c: any) => {
-            const raw = String(c?.Number ?? c?.number ?? '').trim();
-            return raw && normCargoKey(raw) === selectedCargoKey;
-        });
-        const cargoItem = matchedCargo || {
-            Number: number,
-            CitySender: '',
-            CityReceiver: '',
-        };
-        fetchPerevozkaDetails(auth, formatPerevozkaNumberForApi(number), cargoItem as any)
-            .then(({ nomenclature }) => {
-                if (cancelled) return;
-                const normalized = normalizeAcceptedCargoNomenclatureRows(Array.isArray(nomenclature) ? nomenclature : []);
-                setClaimsAcceptedNomenclatureRows(normalized);
-            })
-            .catch((e: any) => {
-                if (cancelled) return;
-                setClaimsAcceptedNomenclatureRows([]);
-                setClaimsAcceptedNomenclatureError(e?.message || 'Не удалось загрузить номенклатуру принятого груза');
-            })
-            .finally(() => {
-                if (cancelled) return;
-                setClaimsAcceptedNomenclatureLoading(false);
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, [claimsCreateCargoNumberDebounced, auth?.login, auth?.password, perevozkiItems, normCargoKey, auth, normalizeClaimCargoNumber]);
-    const claimNomenclatureOptions = claimsAcceptedNomenclatureRows;
-    useEffect(() => {
-        const allowed = new Set(claimNomenclatureOptions.map((row) => row.key));
-        setClaimsCreateSelectedPlaceKeys((prev) => prev.filter((k) => allowed.has(k)));
-    }, [claimNomenclatureOptions]);
-    useEffect(() => {
-        if (claimsCreateManipulationSignIds.length === 0 && claimsCreateManipulationPhotoFiles.length > 0) {
-            setClaimsCreateManipulationPhotoFiles([]);
-        }
-    }, [claimsCreateManipulationSignIds, claimsCreateManipulationPhotoFiles.length]);
-    useEffect(() => {
-        if (claimsCreateType !== 'cargo_damage') {
-            if (claimsCreateManipulationSignIds.length > 0) setClaimsCreateManipulationSignIds([]);
-            if (claimsCreateManipulationPhotoFiles.length > 0) setClaimsCreateManipulationPhotoFiles([]);
-            if (claimsCreatePackagingTypeIds.length > 0) setClaimsCreatePackagingTypeIds([]);
-        }
-    }, [
-        claimsCreateType,
-        claimsCreateManipulationSignIds.length,
-        claimsCreateManipulationPhotoFiles.length,
-        claimsCreatePackagingTypeIds.length,
-    ]);
 
     const uniqueEdoStatuses = useMemo(() => {
         if (docSection === 'Счета' || docSection === 'ЭДО') {
@@ -4669,7 +4314,7 @@ useEffect(() => {
                                                             type="button"
                                                             className="filter-button"
                                                             onClick={() => openClaimDetailModal(row.id)}
-                                                            disabled={claimsActionLoadingId === row.id || claimsCreateSubmitting}
+                                                            disabled={claimsActionLoadingId === row.id || claimsModalBusy}
                                                             style={CLAIM_ROW_ACTION_BUTTON_STYLE}
                                                         >
                                                             Открыть
@@ -4680,7 +4325,7 @@ useEffect(() => {
                                                                     type="button"
                                                                     className="filter-button"
                                                                     onClick={() => openDraftEditor(row.id)}
-                                                                    disabled={claimsActionLoadingId === row.id || claimsCreateSubmitting}
+                                                                    disabled={claimsActionLoadingId === row.id || claimsModalBusy}
                                                                     style={CLAIM_ROW_ACTION_BUTTON_STYLE}
                                                                 >
                                                                     Изменить
@@ -4799,7 +4444,7 @@ useEffect(() => {
                                                 type="button"
                                                 className="filter-button"
                                                 onClick={() => openClaimDetailModal(row.id)}
-                                                disabled={claimsActionLoadingId === row.id || claimsCreateSubmitting}
+                                                disabled={claimsActionLoadingId === row.id || claimsModalBusy}
                                                 style={CLAIM_ROW_ACTION_BUTTON_STYLE}
                                             >
                                                 Открыть
@@ -4810,7 +4455,7 @@ useEffect(() => {
                                                         type="button"
                                                         className="filter-button"
                                                         onClick={() => openDraftEditor(row.id)}
-                                                        disabled={claimsActionLoadingId === row.id || claimsCreateSubmitting}
+                                                        disabled={claimsActionLoadingId === row.id || claimsModalBusy}
                                                         style={CLAIM_ROW_ACTION_BUTTON_STYLE}
                                                     >
                                                         Изменить
@@ -5103,674 +4748,22 @@ useEffect(() => {
                     </div>
                 </div>
             )}
-            {claimsCreateOpen && (
-                <div
-                    className="claims-create-overlay"
-                    style={{
-                        position: 'fixed',
-                        inset: 0,
-                        background: 'rgba(0,0,0,0.45)',
-                        zIndex: 1000,
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        justifyContent: 'center',
-                        overflowY: 'auto',
-                        WebkitOverflowScrolling: 'touch',
-                        padding: '1rem 0.5rem',
-                    }}
-                    onClick={() => {
-                        if (claimsCreateSubmitting) return;
-                        setClaimsCreateOpen(false);
-                        setClaimsEditingId(null);
-                    }}
-                >
-                    <div
-                        className="claims-create-content"
-                        style={{
-                            width: '100%',
-                            maxWidth: 560,
-                            borderRadius: 12,
-                            background: 'var(--color-bg-card, #fff)',
-                            padding: '1rem',
-                            maxHeight: 'calc(100vh - 2rem)',
-                            overflowY: 'auto',
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <Typography.Body style={{ fontWeight: 600, marginBottom: '0.75rem' }}>
-                            {claimsEditingId ? `Черновик претензии #${claimsEditingId}` : 'Новая претензия'}
-                        </Typography.Body>
-                        <div style={{ display: 'grid', gap: '0.55rem', marginBottom: '0.75rem' }}>
-                            <div ref={claimsCargoInputRef} style={{ position: 'relative' }}>
-                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Номер перевозки</Typography.Body>
-                                <div
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        border: '1px solid var(--color-border)',
-                                        borderRadius: 8,
-                                        background: 'var(--color-bg-card, #fff)',
-                                    }}
-                                >
-                                    <input
-                                        type="text"
-                                        className="admin-form-input"
-                                        placeholder="Начните вводить или выберите номер перевозки"
-                                        value={claimsCreateCargoNumber}
-                                        onChange={(e) => setClaimsCreateCargoNumber(e.target.value)}
-                                        onFocus={() => setClaimsCargoDropdownOpen(true)}
-                                        onClick={() => setClaimsCargoDropdownOpen(true)}
-                                        style={{ flex: 1, padding: '0.45rem', border: 'none', background: 'transparent' }}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setClaimsCargoDropdownOpen((v) => !v)}
-                                        style={{
-                                            padding: '0.35rem 0.5rem',
-                                            border: 'none',
-                                            background: 'none',
-                                            cursor: 'pointer',
-                                            color: 'var(--color-text-secondary)',
-                                        }}
-                                        title={claimsCargoDropdownOpen ? 'Свернуть список' : 'Показать список'}
-                                    >
-                                        <ChevronDown className="w-4 h-4" style={{ transform: claimsCargoDropdownOpen ? 'rotate(180deg)' : undefined, transition: 'transform 0.2s' }} />
-                                    </button>
-                                </div>
-                                {claimsCargoDropdownOpen && (
-                                    <div
-                                        style={{
-                                            position: 'absolute',
-                                            top: '100%',
-                                            left: 0,
-                                            right: 0,
-                                            marginTop: 2,
-                                            maxHeight: 220,
-                                            overflowY: 'auto',
-                                            background: 'var(--color-bg-card, #fff)',
-                                            border: '1px solid var(--color-border)',
-                                            borderRadius: 8,
-                                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                                            zIndex: 1100,
-                                        }}
-                                    >
-                                        {claimCargoFilteredOptions.length === 0 ? (
-                                            <div style={{ padding: '0.6rem 0.75rem', fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
-                                                Нет совпадений
-                                            </div>
-                                        ) : (
-                                            claimCargoFilteredOptions.map((opt) => (
-                                                <button
-                                                    key={opt}
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setClaimsCreateCargoNumber(opt);
-                                                        setClaimsCreateCargoNumberDebounced(opt);
-                                                        setClaimsCargoDropdownOpen(false);
-                                                    }}
-                                                    style={{
-                                                        display: 'block',
-                                                        width: '100%',
-                                                        padding: '0.45rem 0.75rem',
-                                                        textAlign: 'left',
-                                                        border: 'none',
-                                                        background: 'none',
-                                                        cursor: 'pointer',
-                                                        fontSize: '0.9rem',
-                                                    }}
-                                                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-hover, #f3f4f6)'; }}
-                                                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
-                                                >
-                                                    {opt}
-                                                </button>
-                                            ))
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                            <div>
-                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Тип претензии</Typography.Body>
-                                <select
-                                    className="admin-form-input"
-                                    value={claimsCreateType}
-                                    onChange={(e) => setClaimsCreateType(e.target.value as any)}
-                                    style={{ width: '100%', padding: '0.45rem' }}
-                                >
-                                    <option value="cargo_damage">Повреждение груза</option>
-                                    <option value="quantity_mismatch">Недовоз</option>
-                                    <option value="other">Прочее</option>
-                                </select>
-                            </div>
-                            <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.55rem', background: 'var(--color-bg-secondary, #f8f9fa)' }}>
-                                <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--color-text)', marginBottom: '0.2rem' }}>Сумма требования, ₽</Typography.Body>
-                                <input
-                                    type="number"
-                                    className="admin-form-input"
-                                    placeholder="Введите сумму в рублях"
-                                    value={claimsCreateAmount}
-                                    onChange={(e) => setClaimsCreateAmount(e.target.value)}
-                                    style={{ width: '100%', padding: '0.45rem', maxWidth: 200 }}
-                                />
-                            </div>
-                            <div>
-                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>
-                                    Укажите номера мест
-                                </Typography.Body>
-                                <details style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.45rem 0.55rem' }}>
-                                    <summary style={{ cursor: 'pointer', fontSize: '0.84rem', fontWeight: 500 }}>
-                                        Номенклатура принятого груза
-                                    </summary>
-                                    {claimsAcceptedNomenclatureLoading ? (
-                                        <Typography.Body style={{ marginTop: '0.45rem', fontSize: '0.76rem', color: 'var(--color-text-secondary)' }}>
-                                            Загрузка номенклатуры...
-                                        </Typography.Body>
-                                    ) : claimsAcceptedNomenclatureError ? (
-                                        <Typography.Body style={{ marginTop: '0.45rem', fontSize: '0.76rem', color: '#ef4444' }}>
-                                            {claimsAcceptedNomenclatureError}
-                                        </Typography.Body>
-                                    ) : claimNomenclatureOptions.length === 0 ? (
-                                        <Typography.Body style={{ marginTop: '0.45rem', fontSize: '0.76rem', color: 'var(--color-text-secondary)' }}>
-                                            Для выбранной перевозки нет данных по номенклатуре принятого груза.
-                                        </Typography.Body>
-                                    ) : (
-                                        <div style={{ marginTop: '0.45rem', maxHeight: 220, overflowY: 'auto' }}>
-                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
-                                                <thead>
-                                                    <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                        <th style={{ textAlign: 'left', padding: '0.25rem', width: 34 }}>#</th>
-                                                        <th style={{ textAlign: 'left', padding: '0.25rem', whiteSpace: 'nowrap' }}>Штрихкод</th>
-                                                        <th style={{ textAlign: 'left', padding: '0.25rem' }}>Номенклатура</th>
-                                                        <th style={{ textAlign: 'left', padding: '0.25rem', whiteSpace: 'nowrap' }}>Объявленная стоимость</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {claimNomenclatureOptions.map((row) => {
-                                                        const checked = claimsCreateSelectedPlaceKeys.includes(row.key);
-                                                        return (
-                                                            <tr key={row.key} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                                <td style={{ padding: '0.25rem' }}>
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={checked}
-                                                                        onChange={(e) => {
-                                                                            setClaimsCreateSelectedPlaceKeys((prev) => {
-                                                                                if (e.target.checked) return prev.includes(row.key) ? prev : [...prev, row.key];
-                                                                                return prev.filter((k) => k !== row.key);
-                                                                            });
-                                                                        }}
-                                                                    />
-                                                                </td>
-                                                                <td style={{ padding: '0.25rem', whiteSpace: 'nowrap' }}>{row.barcode || '—'}</td>
-                                                                <td style={{ padding: '0.25rem' }}>{row.name}</td>
-                                                                <td style={{ padding: '0.25rem', whiteSpace: 'nowrap' }}>{row.declaredCost}</td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    )}
-                                </details>
-                            </div>
-                            {claimsCreateType === 'cargo_damage' ? (
-                                <>
-                                    <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.55rem' }}>
-                                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>
-                                            Наличие манипуляционных знаков
-                                        </Typography.Body>
-                                        <div style={{ display: 'grid', gap: '0.35rem' }}>
-                                            {MANIPULATION_SIGN_OPTIONS.map((sign) => {
-                                                const checked = claimsCreateManipulationSignIds.includes(sign.id);
-                                                return (
-                                                    <Flex key={sign.id} align="center" justify="space-between" style={{ gap: '0.5rem' }}>
-                                                        <Typography.Body style={{ fontSize: '0.82rem' }}>{sign.label}</Typography.Body>
-                                                        <TapSwitch
-                                                            checked={checked}
-                                                            onToggle={() => {
-                                                                setClaimsCreateManipulationSignIds((prev) => (
-                                                                    prev.includes(sign.id)
-                                                                        ? prev.filter((id) => id !== sign.id)
-                                                                        : [...prev, sign.id]
-                                                                ));
-                                                            }}
-                                                        />
-                                                    </Flex>
-                                                );
-                                            })}
-                                        </div>
-                                        {claimsCreateManipulationSignIds.length > 0 ? (
-                                            <div style={{ marginTop: '0.5rem' }}>
-                                                <Typography.Body style={{ fontSize: '0.76rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>
-                                                    Фото манипуляционных знаков (до 5MB каждый)
-                                                </Typography.Body>
-                                                <input
-                                                    id="claims-manipulation-photos"
-                                                    type="file"
-                                                    accept="image/*"
-                                                    multiple
-                                                    onChange={(e) => {
-                                                        const files = Array.from(e.target.files || []);
-                                                        setClaimsCreateManipulationPhotoFiles(files);
-                                                        if (files.some((f) => f.size > MAX_CLAIM_FILE_BYTES)) {
-                                                            setClaimsCreateError('Размер одного фото не должен превышать 5MB');
-                                                        } else {
-                                                            setClaimsCreateError(null);
-                                                        }
-                                                    }}
-                                                    style={{ display: 'none' }}
-                                                />
-                                                <input
-                                                    id="claims-manipulation-photos-camera"
-                                                    type="file"
-                                                    accept="image/*"
-                                                    capture="environment"
-                                                    onChange={(e) => {
-                                                        const files = Array.from(e.target.files || []);
-                                                        if (files.length === 0) return;
-                                                        setClaimsCreateManipulationPhotoFiles((prev) => [...prev, ...files]);
-                                                        if (files.some((f) => f.size > MAX_CLAIM_FILE_BYTES)) {
-                                                            setClaimsCreateError('Размер одного фото не должен превышать 5MB');
-                                                        } else {
-                                                            setClaimsCreateError(null);
-                                                        }
-                                                        e.currentTarget.value = '';
-                                                    }}
-                                                    style={{ display: 'none' }}
-                                                />
-                                                <Flex align="center" gap="0.45rem" wrap="wrap">
-                                                    <label htmlFor="claims-manipulation-photos" style={FILE_PICKER_BUTTON_STYLE}>
-                                                        Выбрать фото
-                                                    </label>
-                                                    <label htmlFor="claims-manipulation-photos-camera" style={FILE_PICKER_BUTTON_STYLE}>
-                                                        Сделать фото
-                                                    </label>
-                                                    <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                                                        {claimsCreateManipulationPhotoFiles.length > 0
-                                                            ? `Выбрано: ${claimsCreateManipulationPhotoFiles.length}`
-                                                            : 'Файлы не выбраны'}
-                                                    </Typography.Body>
-                                                </Flex>
-                                                {claimsCreateManipulationPhotoFiles.length > 0 ? (
-                                                    <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginTop: '0.2rem' }}>
-                                                        Выбрано фото: {claimsCreateManipulationPhotoFiles.map((f) => f.name).join(', ')}
-                                                    </Typography.Body>
-                                                ) : null}
-                                            </div>
-                                        ) : null}
-                                    </div>
-                                    <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.55rem' }}>
-                                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>
-                                            Упаковка
-                                        </Typography.Body>
-                                        <div style={{ display: 'grid', gap: '0.35rem' }}>
-                                            {PACKAGING_TYPE_OPTIONS.map((pack) => {
-                                                const checked = claimsCreatePackagingTypeIds.includes(pack.id);
-                                                return (
-                                                    <Flex key={pack.id} align="center" justify="space-between" style={{ gap: '0.5rem' }}>
-                                                        <Typography.Body style={{ fontSize: '0.82rem' }}>{pack.label}</Typography.Body>
-                                                        <TapSwitch
-                                                            checked={checked}
-                                                            onToggle={() => {
-                                                                setClaimsCreatePackagingTypeIds((prev) => (
-                                                                    prev.includes(pack.id)
-                                                                        ? prev.filter((id) => id !== pack.id)
-                                                                        : [...prev, pack.id]
-                                                                ));
-                                                            }}
-                                                        />
-                                                    </Flex>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                </>
-                            ) : null}
-                            <div>
-                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Описание</Typography.Body>
-                                <textarea
-                                    className="admin-form-input"
-                                    placeholder="Опишите суть претензии, расчет суммы и обстоятельства"
-                                    value={claimsCreateDescription}
-                                    onChange={(e) => setClaimsCreateDescription(e.target.value)}
-                                    style={{ width: '100%', minHeight: 90, padding: '0.45rem' }}
-                                />
-                            </div>
-                            <div>
-                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Ссылка на видео (опционально)</Typography.Body>
-                                <input
-                                    type="url"
-                                    className="admin-form-input"
-                                    placeholder="https://..."
-                                    value={claimsCreateVideoLink}
-                                    onChange={(e) => setClaimsCreateVideoLink(e.target.value)}
-                                    style={{ width: '100%', padding: '0.45rem' }}
-                                />
-                            </div>
-                            <div>
-                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>
-                                    Фото (до 10 файлов, до 5MB каждый)
-                                </Typography.Body>
-                                <input
-                                    id="claims-photos"
-                                    type="file"
-                                    accept="image/*"
-                                    multiple
-                                    onChange={(e) => {
-                                        const files = Array.from(e.target.files || []);
-                                        setClaimsCreatePhotoFiles(files);
-                                        if (files.length > 10) {
-                                            setClaimsCreateError('Можно прикрепить не более 10 фото');
-                                        } else if (files.some((f) => f.size > MAX_CLAIM_FILE_BYTES)) {
-                                            setClaimsCreateError('Размер одного фото не должен превышать 5MB');
-                                        } else {
-                                            setClaimsCreateError(null);
-                                        }
-                                    }}
-                                    style={{ display: 'none' }}
-                                />
-                                <input
-                                    id="claims-photos-camera"
-                                    type="file"
-                                    accept="image/*"
-                                    capture="environment"
-                                    onChange={(e) => {
-                                        const files = Array.from(e.target.files || []);
-                                        if (files.length === 0) return;
-                                        const mergedCount = claimsCreatePhotoFiles.length + files.length;
-                                        setClaimsCreatePhotoFiles((prev) => [...prev, ...files].slice(0, 10));
-                                        if (mergedCount > 10) {
-                                            setClaimsCreateError('Можно прикрепить не более 10 фото');
-                                        } else if (files.some((f) => f.size > MAX_CLAIM_FILE_BYTES)) {
-                                            setClaimsCreateError('Размер одного фото не должен превышать 5MB');
-                                        } else {
-                                            setClaimsCreateError(null);
-                                        }
-                                        e.currentTarget.value = '';
-                                    }}
-                                    style={{ display: 'none' }}
-                                />
-                                <Flex align="center" gap="0.45rem" wrap="wrap">
-                                    <label htmlFor="claims-photos" style={FILE_PICKER_BUTTON_STYLE}>
-                                        Выбрать фото
-                                    </label>
-                                    <label htmlFor="claims-photos-camera" style={FILE_PICKER_BUTTON_STYLE}>
-                                        Сделать фото
-                                    </label>
-                                    <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                                        {claimsCreatePhotoFiles.length > 0
-                                            ? `Выбрано: ${claimsCreatePhotoFiles.length}`
-                                            : 'Файлы не выбраны'}
-                                    </Typography.Body>
-                                </Flex>
-                                {claimsCreatePhotoFiles.length > 0 ? (
-                                    <div style={{ marginTop: '0.25rem', display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                                        {claimsCreatePhotoFiles.map((file, idx) => (
-                                            <span
-                                                key={`${file.name}-${idx}`}
-                                                style={{
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: '0.3rem',
-                                                    padding: '0.15rem 0.4rem',
-                                                    borderRadius: 8,
-                                                    border: '1px solid var(--color-border)',
-                                                    background: 'var(--color-bg-hover)',
-                                                    fontSize: '0.72rem',
-                                                    color: 'var(--color-text-secondary)',
-                                                }}
-                                            >
-                                                {file.name}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setClaimsCreatePhotoFiles((prev) => prev.filter((_, i) => i !== idx))}
-                                                    style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: 0, lineHeight: 1 }}
-                                                    aria-label={`Удалить ${file.name}`}
-                                                >
-                                                    ×
-                                                </button>
-                                            </span>
-                                        ))}
-                                    </div>
-                                ) : null}
-                            </div>
-                            <div>
-                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>
-                                    PDF документы (до 5MB каждый)
-                                </Typography.Body>
-                                <input
-                                    id="claims-documents"
-                                    type="file"
-                                    accept="application/pdf"
-                                    multiple
-                                    onChange={(e) => {
-                                        const files = Array.from(e.target.files || []);
-                                        setClaimsCreateDocumentFiles(files);
-                                        if (files.some((f) => f.size > MAX_CLAIM_FILE_BYTES)) {
-                                            setClaimsCreateError('Размер одного PDF не должен превышать 5MB');
-                                        } else {
-                                            setClaimsCreateError(null);
-                                        }
-                                    }}
-                                    style={{ display: 'none' }}
-                                />
-                                <Flex align="center" gap="0.45rem" wrap="wrap">
-                                    <label htmlFor="claims-documents" style={FILE_PICKER_BUTTON_STYLE}>
-                                        Выбрать PDF
-                                    </label>
-                                    <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                                        {claimsCreateDocumentFiles.length > 0
-                                            ? `Выбрано: ${claimsCreateDocumentFiles.length}`
-                                            : 'Файлы не выбраны'}
-                                    </Typography.Body>
-                                </Flex>
-                                {claimsCreateDocumentFiles.length > 0 ? (
-                                    <div style={{ marginTop: '0.25rem', display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                                        {claimsCreateDocumentFiles.map((file, idx) => (
-                                            <span
-                                                key={`${file.name}-${idx}`}
-                                                style={{
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: '0.3rem',
-                                                    padding: '0.15rem 0.4rem',
-                                                    borderRadius: 8,
-                                                    border: '1px solid var(--color-border)',
-                                                    background: 'var(--color-bg-hover)',
-                                                    fontSize: '0.72rem',
-                                                    color: 'var(--color-text-secondary)',
-                                                }}
-                                            >
-                                                {file.name}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setClaimsCreateDocumentFiles((prev) => prev.filter((_, i) => i !== idx))}
-                                                    style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: 0, lineHeight: 1 }}
-                                                    aria-label={`Удалить ${file.name}`}
-                                                >
-                                                    ×
-                                                </button>
-                                            </span>
-                                        ))}
-                                    </div>
-                                ) : null}
-                            </div>
-                            <div>
-                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Контакты</Typography.Body>
-                                <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: '0.5rem' }}>
-                                    <div style={{ flex: '1 1 260px' }}>
-                                        <input
-                                            type="text"
-                                            className="admin-form-input"
-                                            placeholder="ФИО контактного лица"
-                                            value={claimsCreateContactName}
-                                            onChange={(e) => setClaimsCreateContactName(e.target.value)}
-                                            style={{ width: '100%', padding: '0.45rem' }}
-                                        />
-                                    </div>
-                                </Flex>
-                                <Flex gap="0.5rem" wrap="wrap">
-                                    <div style={{ flex: '1 1 180px' }}>
-                                        <input
-                                            type="tel"
-                                            inputMode="tel"
-                                            className="admin-form-input"
-                                            placeholder="+7 (___) ___-__-__"
-                                            value={claimsCreatePhone}
-                                            onChange={(e) => setClaimsCreatePhone(formatPhoneMask(e.target.value))}
-                                            style={{ width: '100%', padding: '0.45rem' }}
-                                        />
-                                    </div>
-                                    <div style={{ flex: '1 1 220px' }}>
-                                        <input
-                                            type="email"
-                                            className="admin-form-input"
-                                            placeholder="Email"
-                                            value={claimsCreateEmail}
-                                            onChange={(e) => setClaimsCreateEmail(e.target.value)}
-                                            style={{ width: '100%', padding: '0.45rem' }}
-                                        />
-                                    </div>
-                                </Flex>
-                            </div>
-                        </div>
-                        {claimsCreateError ? (
-                            <Typography.Body style={{ color: '#ef4444', fontSize: '0.78rem', marginBottom: '0.6rem' }}>
-                                {claimsCreateError}
-                            </Typography.Body>
-                        ) : null}
-                        <Flex justify="flex-end" gap="0.45rem" align="center" wrap="nowrap" style={{ flexWrap: 'nowrap' }}>
-                            <Button
-                                className="filter-button"
-                                disabled={claimsCreateSubmitting}
-                                style={{ height: 40, minWidth: 120, padding: '0 0.7rem', flexShrink: 0 }}
-                                onClick={() => {
-                                    setClaimsCreateOpen(false);
-                                    setClaimsEditingId(null);
-                                }}
-                            >
-                                Отмена
-                            </Button>
-                            <Button
-                                className="button-primary"
-                                disabled={claimsCreateSubmitting}
-                                style={{ height: 40, minWidth: 120, padding: '0 0.7rem', flexShrink: 0 }}
-                                onClick={async () => {
-                                    if (!auth?.login || !auth?.password) {
-                                        setClaimsCreateError('Не удалось определить авторизацию');
-                                        return;
-                                    }
-                                    if (!claimsCreateCargoNumber.trim() || !claimsCreateDescription.trim()) {
-                                        setClaimsCreateError('Заполните номер перевозки и описание');
-                                        return;
-                                    }
-                                    const amount = Number(claimsCreateAmount || 0);
-                                    if (!Number.isFinite(amount) || amount < 0) {
-                                        setClaimsCreateError('Некорректная сумма требования');
-                                        return;
-                                    }
-                                    const totalPhotoFiles = claimsCreatePhotoFiles.length + claimsCreateManipulationPhotoFiles.length;
-                                    if (totalPhotoFiles > 10) {
-                                        setClaimsCreateError('Можно прикрепить не более 10 фото');
-                                        return;
-                                    }
-                                    if (claimsCreatePhotoFiles.some((f) => f.size > MAX_CLAIM_FILE_BYTES)) {
-                                        setClaimsCreateError('Размер одного фото не должен превышать 5MB');
-                                        return;
-                                    }
-                                    if (claimsCreateManipulationPhotoFiles.some((f) => f.size > MAX_CLAIM_FILE_BYTES)) {
-                                        setClaimsCreateError('Размер одного фото не должен превышать 5MB');
-                                        return;
-                                    }
-                                    if (claimsCreateDocumentFiles.some((f) => f.size > MAX_CLAIM_FILE_BYTES)) {
-                                        setClaimsCreateError('Размер одного PDF не должен превышать 5MB');
-                                        return;
-                                    }
-                                    setClaimsCreateSubmitting(true);
-                                    setClaimsCreateError(null);
-                                    try {
-                                        const photosPayload = await Promise.all(
-                                            claimsCreatePhotoFiles.map(async (file) => ({
-                                                fileName: file.name,
-                                                mimeType: file.type || 'image/jpeg',
-                                                base64: await fileToBase64(file),
-                                            }))
-                                        );
-                                        const manipulationPhotosPayload = await Promise.all(
-                                            claimsCreateManipulationPhotoFiles.map(async (file) => ({
-                                                fileName: file.name,
-                                                mimeType: file.type || 'image/jpeg',
-                                                caption: `Манипуляционные знаки: ${claimsCreateManipulationSignIds
-                                                    .map((id) => MANIPULATION_SIGN_OPTIONS.find((s) => s.id === id)?.label || id)
-                                                    .join(', ')}`,
-                                                base64: await fileToBase64(file),
-                                            }))
-                                        );
-                                        const documentsPayload = await Promise.all(
-                                            claimsCreateDocumentFiles.map(async (file) => ({
-                                                fileName: file.name,
-                                                mimeType: file.type || 'application/pdf',
-                                                docType: 'other' as const,
-                                                base64: await fileToBase64(file),
-                                            }))
-                                        );
-                                        const selectedPlacesPayload = claimNomenclatureOptions
-                                            .filter((row) => claimsCreateSelectedPlaceKeys.includes(row.key))
-                                            .map((row) => ({
-                                                placeNumber: row.barcode || null,
-                                                name: row.name,
-                                                sourceDoc: 'accepted_cargo',
-                                            }));
-                                        const bodyPayload = {
-                                            cargoNumber: claimsCreateCargoNumber.trim(),
-                                            claimType: claimsCreateType,
-                                            description: claimsCreateDescription.trim(),
-                                            requestedAmount: amount,
-                                            customerContactName: claimsCreateContactName.trim(),
-                                            customerPhone: claimsCreatePhone.trim(),
-                                            customerEmail: claimsCreateEmail.trim(),
-                                            customerInn: effectiveActiveInn || undefined,
-                                            photos: [...photosPayload, ...manipulationPhotosPayload],
-                                            documents: documentsPayload,
-                                            selectedPlaces: selectedPlacesPayload,
-                                            manipulationSigns: claimsCreateManipulationSignIds,
-                                            packagingTypes: claimsCreatePackagingTypeIds,
-                                            videoLinks: claimsCreateVideoLink.trim() ? [{ url: claimsCreateVideoLink.trim(), title: 'Видео от клиента' }] : [],
-                                        };
-                                        const isEditDraft = !!claimsEditingId;
-                                        const claimAuth = {
-                                            login: auth.login,
-                                            password: auth.password,
-                                            inn: String(effectiveActiveInn || auth?.inn || '').trim(),
-                                        };
-                                        const { ok, data } = await saveClaimDraft(
-                                            claimAuth,
-                                            claimsEditingId,
-                                            bodyPayload
-                                        );
-                                        if (!ok) {
-                                            throw new Error(
-                                                (data as { error?: string })?.error ||
-                                                    (isEditDraft ? 'Не удалось сохранить черновик' : 'Не удалось создать претензию')
-                                            );
-                                        }
-                                        setClaimsCreateOpen(false);
-                                        setClaimsEditingId(null);
-                                        await reloadClaims();
-                                    } catch (e: any) {
-                                        setClaimsCreateError(e?.message || (claimsEditingId ? 'Ошибка сохранения черновика' : 'Ошибка создания претензии'));
-                                    } finally {
-                                        setClaimsCreateSubmitting(false);
-                                    }
-                                }}
-                            >
-                                {claimsCreateSubmitting
-                                    ? (claimsEditingId ? 'Сохранение...' : 'Создание...')
-                                    : (claimsEditingId ? 'Сохранить черновик' : 'Создать черновик')}
-                            </Button>
-                        </Flex>
-                    </div>
-                </div>
-            )}
+            <ClaimsCreateModal
+                isOpen={claimsCreateOpen}
+                editingId={claimsEditingId}
+                prefillCargoNumber={claimsCreatePrefill}
+                onClose={() => {
+                    setClaimsCreateOpen(false);
+                    setClaimsEditingId(null);
+                }}
+                onSaved={reloadClaims}
+                onBusyChange={setClaimsModalBusy}
+                auth={auth!}
+                effectiveActiveInn={effectiveActiveInn}
+                claimCargoOptions={claimCargoOptions}
+                perevozkiItems={perevozkiItems}
+                normCargoKey={normCargoKey}
+            />
             {sverkiOrderModalOpen && (
                 <div
                     style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
