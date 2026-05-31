@@ -5,7 +5,6 @@ import {
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { Button, Container, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
-import { ChatModal } from "./ChatModal";
 import "./styles.css";
 import {
     ensureOk,
@@ -17,11 +16,11 @@ import {
     dedupeCustomersByInn,
     dedupeCompaniesByName,
 } from "./utils";
-import { TabBar } from "./components/TabBar";
-import { AccountSwitcher } from "./components/AccountSwitcher";
-import { CustomerSwitcher } from "./components/CustomerSwitcher";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AppMainContent } from "./components/AppMainContent";
+import { AppHeader } from "./components/AppHeader";
+import { AppTabBar } from "./components/AppTabBar";
+import { AppShellModals } from "./components/AppShellModals";
 import { LoginScreen } from "./components/LoginScreen";
 import { getWebApp, isMaxWebApp, isMaxDocsEnabled } from "./webApp";
 import { applyClientPlatformToDocument, getClientPlatform, isClientMobile } from "./lib/clientPlatform";
@@ -30,8 +29,8 @@ const DashboardPage = lazyWithRetry(
     () => import("./pages/DashboardPage").then((m) => ({ default: m.DashboardPage })),
     "DashboardPage"
 );
+
 import { TapSwitch } from "./components/TapSwitch";
-import { FilterDropdownPortal } from "./components/ui/FilterDropdownPortal";
 import { DateText } from "./components/ui/DateText";
 import { DetailItem } from "./components/ui/DetailItem";
 import { FilterDialog } from "./components/shared/FilterDialog";
@@ -41,7 +40,6 @@ import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "./lib/
 import type { BillStatusFilterKey } from "./lib/statusUtils";
 import { CustomPeriodModal } from "./components/modals/CustomPeriodModal";
 import { CargoDetailsModal } from "./components/modals/CargoDetailsModal";
-import { LegalModal } from "./components/modals/LegalModal";
 const DocumentsPage = lazyWithRetry(
     () => import("./pages/DocumentsPage").then((m) => ({ default: m.DocumentsPage })),
     "DocumentsPage"
@@ -72,8 +70,6 @@ import {
     isWbOnlyAccount,
     isWildberriesTab,
     WbOnlyAppLayout,
-    useResetGlobalSearchOnWildberries,
-    isGlobalSearchTab,
 } from "./wb/appWb";
 import { HAULZ_SPLASH_BACKGROUND } from "./constants/brand";
 import { postAuthRegisteredLogin } from "./api/client/auth";
@@ -81,13 +77,11 @@ import {
     fetchTwoFaSettings,
 } from "./api/client/twoFa";
 import { useLegalCompliance } from "./hooks/useLegalCompliance";
-import { LegalReacceptModal } from "./components/modals/LegalReacceptModal";
 import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry } from "./lib/cargoUtils";
 import * as dateUtils from "./lib/dateUtils";
 import { formatCurrency, stripOoo, formatInvoiceNumber, cityToCode, transliterateFilename, normalizeInvoiceStatus, parseCargoNumbersFromText } from "./lib/formatUtils";
 import { usePerevozki, usePerevozkiMulti, usePerevozkiMultiAccounts, usePrevPeriodPerevozki, useInvoices } from "./hooks/useApi";
 import { useShowCustomerColumn } from "./hooks/useShowCustomerColumn";
-import { useAccountActions } from "./hooks/useAccountActions";
 import {
     hasStaleActiveCustomerInn,
     isSingleRegisteredCustomerAccount,
@@ -252,11 +246,6 @@ function AppRoot() {
 
     const legalCompliance = useLegalCompliance(activeAccount);
 
-    const {
-        handleSwitchAccount,
-        handleUpdateAccount,
-    } = useAccountActions();
-
     const showCustomerColumn = useShowCustomerColumn(activeAccount, useServiceRequest);
 
     /** Оболочка HAULZ Analytics (CSS-токены, motion на главных экранах) — для всех пользователей. */
@@ -338,9 +327,6 @@ function AppRoot() {
             setPinCode('');
         }
     }; 
-    const [isSearchExpanded, setIsSearchExpanded] = useState(false);
-    const [debugMenuOpen, setDebugMenuOpen] = useState(false);
-    const debugMenuRef = useRef<HTMLDivElement>(null);
     const [searchText, setSearchText] = useState(() => {
         if (typeof window === "undefined") return "";
         try {
@@ -392,17 +378,6 @@ function AppRoot() {
         const fallback: Tab = canHome ? "dashboard" : canDocs ? "docs" : canCargo ? "cargo" : canExpenseRequests ? "expense_requests" : "profile";
         if (fallback !== activeTab) setActiveTab(fallback);
     }, [activeAccount?.id, activeAccount?.isRegisteredUser, activeAccount?.permissions, activeTab, isWbOnlyUser]);
-
-    useResetGlobalSearchOnWildberries(activeTab, setIsSearchExpanded, setSearchText);
-
-    useEffect(() => {
-        if (!debugMenuOpen) return;
-        const onOutside = (e: MouseEvent) => {
-            if (debugMenuRef.current && !debugMenuRef.current.contains(e.target as Node)) setDebugMenuOpen(false);
-        };
-        document.addEventListener("click", onOutside);
-        return () => document.removeEventListener("click", onOutside);
-    }, [debugMenuOpen]);
 
     // Журнал разделов приложения для админ-отчёта активности (debounce; без учёта фоновых refresh входа).
     useEffect(() => {
@@ -642,8 +617,6 @@ function AppRoot() {
         return () => { cancelled = true; };
     }, [activeTab, activeAccount?.id, activeAccount?.isRegisteredUser, activeAccount?.login, activeAccount?.password]);
 
-    const handleSearch = (text: string) => setSearchText(text.toLowerCase().trim());
-
     const chatIdentity = (() => {
         const webApp = getWebApp();
         const userId = webApp?.initDataUnsafe?.user?.id;
@@ -724,7 +697,7 @@ function AppRoot() {
                 // игнорируем ошибки удаления
             }
         }
-        setIsSearchExpanded(false); setSearchText('');
+        setSearchText('');
     }
     
     // 404 для неизвестного path (не "/", "/admin", "/cms")
@@ -793,183 +766,16 @@ function AppRoot() {
         <AppNavigationProvider setSearchText={setSearchText} useServiceRequest={useServiceRequest}>
         <>
             <Container className={`app-container${profileSaasShellActive ? " profile-saas-shell" : ""}${showCustomerColumn ? "" : " app-hide-customer-column"}`}>
-            <header className={`app-header${desktopExpanded ? " app-header-wide" : ""}`}>
-                    <Flex align="center" justify="space-between" className="header-top-row">
-                    <Flex align="center" className="header-auth-info" style={{ position: 'relative', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        {!isWildberriesTab(activeTab) && !useServiceRequest && activeAccountId && activeAccount && (
-                            <CustomerSwitcher
-                                accounts={accounts}
-                                activeAccountId={activeAccountId}
-                                onSwitchAccount={handleSwitchAccount}
-                                onUpdateAccount={handleUpdateAccount}
-                            />
-                        )}
-                        {!isWildberriesTab(activeTab) && (
-                            <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }}>
-                                {serviceModeUnlocked && (
-                                    <>
-                                        <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>Служ.</Typography.Label>
-                                        <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
-                                            <TapSwitch
-                                                checked={useServiceRequest}
-                                                onToggle={() => setUseServiceRequest(v => !v)}
-                                            />
-                                        </span>
-                                    </>
-                                )}
-                                <Button
-                                    className="search-toggle-button desktop-expand-toggle"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setDesktopExpanded((prev) => !prev);
-                                    }}
-                                    title={desktopExpanded ? "Обычная ширина" : "Расширить окно"}
-                                    aria-label={desktopExpanded ? "Обычная ширина" : "Расширить окно"}
-                                >
-                                    {desktopExpanded ? <Minimize2 className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-                                </Button>
-                                {serviceModeUnlocked && useServiceRequest && (
-                                    <Button
-                                        className="search-toggle-button"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setServiceRefreshSpinning(true);
-                                            window.setTimeout(() => setServiceRefreshSpinning(false), 1500);
-                                            window.dispatchEvent(new CustomEvent('haulz-service-refresh'));
-                                        }}
-                                        title="Обновить из 1С (период текущей вкладки)"
-                                        aria-label="Обновить из 1С"
-                                        disabled={serviceRefreshSpinning}
-                                    >
-                                        {serviceRefreshSpinning ? (
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                        ) : (
-                                            <RefreshCw className="w-4 h-4" />
-                                        )}
-                                    </Button>
-                                )}
-                            </Flex>
-                        )}
-                    </Flex>
-                    <Flex align="center" className="space-x-3">
-                        {typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug") && (
-                            <div ref={debugMenuRef} style={{ position: "relative" }}>
-                                <Button
-                                    type="button"
-                                    className="search-toggle-button"
-                                    onClick={(e) => { e.stopPropagation(); setDebugMenuOpen((v) => !v); }}
-                                    title="Меню отладки"
-                                    aria-label="Меню отладки"
-                                    aria-expanded={debugMenuOpen}
-                                >
-                                    <Settings className="w-5 h-5" />
-                                </Button>
-                                {debugMenuOpen && (
-                                    <div
-                                        className="filter-dropdown"
-                                        role="menu"
-                                        style={{
-                                            position: "absolute",
-                                            right: 0,
-                                            top: "100%",
-                                            marginTop: "0.25rem",
-                                            minWidth: "200px",
-                                            padding: "0.5rem 0",
-                                            background: "var(--color-bg-elevated, #fff)",
-                                            border: "1px solid var(--color-border, #e5e7eb)",
-                                            borderRadius: "0.5rem",
-                                            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                                            zIndex: 1000,
-                                        }}
-                                    >
-                                        <button
-                                            type="button"
-                                            role="menuitem"
-                                            style={{ display: "block", width: "100%", padding: "0.5rem 0.75rem", textAlign: "left", background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem" }}
-                                            onClick={() => { window.location.reload(); }}
-                                        >
-                                            Обновить страницу
-                                        </button>
-                                        <button
-                                            type="button"
-                                            role="menuitem"
-                                            style={{ display: "block", width: "100%", padding: "0.5rem 0.75rem", textAlign: "left", background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem" }}
-                                            onClick={() => {
-                                                try {
-                                                    ["haulz.accounts", "haulz.activeAccountId", "haulz.selectedAccountIds", "haulz.auth", "haulz.dateFilterState", "haulz.theme", "haulz.favorites", "haulz.cargo.tableMode", "haulz.docs.tableMode", "haulz.docs.section"].forEach((k) => window.localStorage.removeItem(k));
-                                                } catch { /* ignore */ }
-                                                window.location.reload();
-                                            }}
-                                        >
-                                            Очистить данные и обновить
-                                        </button>
-                                        <button
-                                            type="button"
-                                            role="menuitem"
-                                            style={{ display: "block", width: "100%", padding: "0.5rem 0.75rem", textAlign: "left", background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem" }}
-                                            onClick={async () => {
-                                                const info = {
-                                                    url: window.location.href,
-                                                    userAgent: navigator.userAgent,
-                                                    localStorageKeys: Object.keys(window.localStorage).filter((k) => k.startsWith("haulz.")),
-                                                };
-                                                try {
-                                                    await navigator.clipboard.writeText(JSON.stringify(info, null, 2));
-                                                    setDebugMenuOpen(false);
-                                                } catch { /* ignore */ }
-                                            }}
-                                        >
-                                            Копировать инфо для отладки
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                        {isGlobalSearchTab(activeTab) && (
-                            <Button
-                                className="search-toggle-button"
-                                onClick={() => {
-                                    setIsSearchExpanded(!isSearchExpanded);
-                                    if (isSearchExpanded) {
-                                        handleSearch("");
-                                        setSearchText("");
-                                    }
-                                }}
-                                title={isSearchExpanded ? "Закрыть поиск" : "Поиск"}
-                                aria-label={isSearchExpanded ? "Закрыть поиск" : "Поиск"}
-                            >
-                                {isSearchExpanded ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
-                            </Button>
-                        )}
-                        <Button
-                            className="search-toggle-button"
-                            onClick={() => setTheme((prev) => (prev === "light" ? "dark" : "light"))}
-                            title={theme === "light" ? "Включить тёмный режим" : "Включить светлый режим"}
-                            aria-label={theme === "light" ? "Включить тёмный режим" : "Включить светлый режим"}
-                        >
-                            {theme === "light" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-                        </Button>
-                        <Button className="search-toggle-button" onClick={handleLogout} title="Выход" aria-label="Выйти">
-                            <LogOut className="w-5 h-5" />
-                        </Button>
-                    </Flex>
-                </Flex>
-                {isGlobalSearchTab(activeTab) && (
-                    <div className={`search-container ${isSearchExpanded ? 'expanded' : 'collapsed'}`}>
-                        <Search className="w-5 h-5 text-theme-secondary flex-shrink-0 ml-1" />
-                        <Input
-                            type="text"
-                            placeholder={activeTab === "cargo" ? "Номер, штрихкод, номенклатура…" : "Поиск..."}
-                            className="search-input"
-                            value={searchText}
-                            onChange={(e) => {
-                                setSearchText(e.target.value);
-                                handleSearch(e.target.value);
-                            }}
-                        />
-                    </div>
-                )}
-            </header>
+            <AppHeader
+                searchText={searchText}
+                setSearchText={setSearchText}
+                useServiceRequest={useServiceRequest}
+                setUseServiceRequest={setUseServiceRequest}
+                serviceModeUnlocked={serviceModeUnlocked}
+                serviceRefreshSpinning={serviceRefreshSpinning}
+                setServiceRefreshSpinning={setServiceRefreshSpinning}
+                onLogout={handleLogout}
+            />
             <div className={`app-main${desktopExpanded ? " app-main-wide" : ""}`}>
                 <div className="w-full">
                     <AppRuntimeProvider
@@ -997,102 +803,24 @@ function AppRoot() {
                 </AppRuntimeProvider>
             </div>
             </div>
-            <TabBar
-                active={activeTab} 
-                onChange={(tab) => {
-                    if (showDashboard) {
-                        if (tab === "home") {
-                            // При клике на "Главная" переходим на дашборд, но не выходим из секретного режима
-                            setActiveTab("dashboard");
-                        } else if (tab === "cargo") {
-                            // При клике на "Грузы" переходим на грузы, но остаемся в секретном режиме
-                            setActiveTab("cargo");
-                        } else {
-                            setActiveTab(tab);
-                        }
-                    } else {
-                        if (tab === "home") setActiveTab("dashboard");
-                        else setActiveTab(tab);
-                    }
-                }}
-                // вход в секретный режим теперь через "Уведомления" в профиле
-                showAllTabs={true}
-                permissions={activeAccount?.isRegisteredUser ? activeAccount.permissions ?? undefined : undefined}
-                expanded={desktopExpanded}
-            />
+            <AppTabBar showDashboard={showDashboard} />
 
-            <LegalModal
-                isOpen={!!isOfferOpen}
-                onClose={() => setIsOfferOpen(false)}
-                title="Публичная оферта"
-                stackAboveBlocker={legalCompliance.pending}
-            >
-                {legalCompliance.offerText}
-            </LegalModal>
-            <LegalModal
-                isOpen={!!isPersonalConsentOpen}
-                onClose={() => setIsPersonalConsentOpen(false)}
-                title="Согласие на обработку персональных данных"
-                stackAboveBlocker={legalCompliance.pending}
-            >
-                {legalCompliance.consentText}
-            </LegalModal>
-
-            {legalCompliance.pending && legalCompliance.status && (
-                <LegalReacceptModal
-                    status={legalCompliance.status}
-                    offerLabel={legalCompliance.status.current.offer?.version_label ?? ""}
-                    consentLabel={legalCompliance.status.current.consent?.version_label ?? ""}
-                    accepting={legalCompliance.accepting}
-                    error={legalCompliance.error}
-                    onOpenOffer={() => setIsOfferOpen(true)}
-                    onOpenConsent={() => setIsPersonalConsentOpen(true)}
-                    onAccept={legalCompliance.acceptCurrent}
-                />
-            )}
-            
-            {/* Модальное окно для ввода пин-кода */}
-            {showPinModal && (
-                <div className="modal-overlay" onClick={() => { setShowPinModal(false); setPinCode(''); setPinError(false); }}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <Button className="modal-close-button" onClick={() => { setShowPinModal(false); setPinCode(''); setPinError(false); }} aria-label="Закрыть">
-                                <X size={20} />
-                            </Button>
-                        </div>
-                        <form onSubmit={handlePinSubmit}>
-                            <div style={{ marginBottom: '1rem' }}>
-                                <Input
-                                    type="password"
-                                    className="login-input"
-                                    placeholder=""
-                                    value={pinCode}
-                                    onChange={(e) => {
-                                        setPinCode(e.target.value);
-                                        setPinError(false);
-                                    }}
-                                    autoFocus
-                                    maxLength={4}
-                                    style={{ textAlign: 'center', fontSize: '1.5rem', letterSpacing: '0.5rem' }}
-                                />
-                                {pinError && (
-                                    <Typography.Body className="login-error" style={{ marginTop: '0.5rem', textAlign: 'center' }}>
-                                        Неверный пин-код
-                                    </Typography.Body>
-                                )}
-                            </div>
-                            <Button className="button-primary" type="submit" style={{ width: '100%' }}>
-                                Войти
-                            </Button>
-                        </form>
-                    </div>
-                </div>
-            )}
-            
-            <ChatModal
-                isOpen={isChatOpen}
-                onClose={() => setIsChatOpen(false)}
-                userId={auth?.login || "anon"}
+            <AppShellModals
+                authLogin={auth?.login}
+                legalCompliance={legalCompliance}
+                isOfferOpen={isOfferOpen}
+                setIsOfferOpen={setIsOfferOpen}
+                isPersonalConsentOpen={isPersonalConsentOpen}
+                setIsPersonalConsentOpen={setIsPersonalConsentOpen}
+                showPinModal={showPinModal}
+                setShowPinModal={setShowPinModal}
+                pinCode={pinCode}
+                setPinCode={setPinCode}
+                pinError={pinError}
+                setPinError={setPinError}
+                onPinSubmit={handlePinSubmit}
+                isChatOpen={isChatOpen}
+                setIsChatOpen={setIsChatOpen}
             />
             </Container>
         </>
