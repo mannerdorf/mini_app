@@ -2,36 +2,29 @@
 
 ## Last updated
 
-2026-05-31 — batch 5.12–5.17 (layout, hooks, slim AppRoot)
+2026-05-31 — batch 3.6–3.8 (documents sendings feature module)
 
 ## Completed slices (newest first)
 
 | Commit | Phase | Summary |
 |--------|-------|---------|
-| `24683eb5` | 5.17 | useTwoFaSettingsSync — 2FA settings fetch |
-| `5f04e550` | 5.16 | useAppLogout — logout + storage clear |
-| `b3a7a2b0` | 5.15 | useTelegramWebAppInit — WebApp ready/theme |
-| `9765036a` | 5.12 | AppAuthenticatedLayout shell |
-| `800559f5` | 5.13 | useRegisteredAccountSync + useSecretDashboard |
-| `ced6fa14` | 5.14 | lazyPages + lazyWithRetry |
-| `7bfe7fad` | 5.11 | AppShellModals — legal, pin, chat |
-| `90f28bf0` | 5.10 | AppTabBar wrapper |
-| `c1dad0d1` | 5.9 | AppHeader — search, theme, debug menu |
+| `036f06f0` | 3.8 | SendingsBulkActionsBar + DocumentsPage wiring |
+| `7d14c688` | 3.7 | sendingsTypes + useSendingsServerSync |
+| `f0cf3f69` | 3.6 | sendingsMetrics extracted from pipeline |
+| `12899cd7` | 5.x | refactor log (phase 5 complete) |
+| `24683eb5` | 5.17 | useTwoFaSettingsSync |
 
 ## Metrics
 
-- `App.tsx`: **839 → ~193** lines (phase 5 complete, target < 1200 ✅)
-- New: `AppAuthenticatedLayout.tsx` (~132), `useRegisteredAccountSync.ts` (~318), `lazyPages.ts`, hooks under `src/hooks/`
-
-## Phase 5 status
-
-**Done.** AppRoot — orchestration only: route guards, WB-only branch, providers, layout props.
+- New module: `src/features/documents/sendings/` (~460 lines metrics + hook + bulk bar)
+- `DocumentsPage.tsx`: **−40 net** on bulk bar + sync hook (sendings UI still in page — next slices)
+- `documentsPipeline.ts`: sendings helpers re-exported via `sendingsMetrics`
 
 ## Next slice
 
-- **ID:** `3.6-documents-sendings`
-- **Task:** extract sendings sub-feature from `DocumentsPage` → `src/features/documents/sendings/*` (per REFACTORING_PROGRAM phase 3)
-- **Then:** phase 4.4 admin audit API, claims UI (3.x)
+- **ID:** `3.9-sendings-section-ui`
+- **Task:** extract main `{docSection === 'Отправки'}` table/cards block (~1400 lines) into `SendingsSection.tsx`
+- **Then:** `3.10-claims-ui`, phase 4.4 admin audit API
 
 ## Blockers
 
