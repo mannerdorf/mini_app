@@ -41,8 +41,6 @@ import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "./lib/
 import type { BillStatusFilterKey } from "./lib/statusUtils";
 import { CustomPeriodModal } from "./components/modals/CustomPeriodModal";
 import { CargoDetailsModal } from "./components/modals/CargoDetailsModal";
-import { ActDetailModal } from "./features/documents/acts";
-import { InvoiceDetailModal } from "./components/modals/InvoiceDetailModal";
 import { LegalModal } from "./components/modals/LegalModal";
 const DocumentsPage = lazyWithRetry(
     () => import("./pages/DocumentsPage").then((m) => ({ default: m.DocumentsPage })),
@@ -67,6 +65,7 @@ const ProfilePage = lazyWithRetry(
 import { AppRuntimeProvider } from "./contexts/AppRuntimeContext";
 import { AuthProvider, useAuth, normalizePermissions } from "./contexts/AuthContext";
 import { AppShellProvider, useAppShell } from "./contexts/AppShellContext";
+import { AppNavigationProvider } from "./contexts/AppNavigationContext";
 import { shouldShowNotFound } from "./lib/notFoundRoute";
 import {
     WB_TAB,
@@ -347,15 +346,6 @@ function AppRoot() {
             setPinCode('');
         }
     }; 
-    const [startParam, setStartParam] = useState<string | null>(null);
-    const [contextCargoNumber, setContextCargoNumber] = useState<string | null>(null);
-    const [overlayCargoNumber, setOverlayCargoNumber] = useState<string | null>(null);
-    const [overlayCargoItem, setOverlayCargoItem] = useState<CargoItem | null>(null);
-    const [overlayCargoLoading, setOverlayCargoLoading] = useState(false);
-    const [overlayInvoice, setOverlayInvoice] = useState<Record<string, unknown> | null>(null);
-    const [overlayAct, setOverlayAct] = useState<Record<string, unknown> | null>(null);
-    const [overlayFavVersion, setOverlayFavVersion] = useState(0);
-    
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
     const [debugMenuOpen, setDebugMenuOpen] = useState(false);
     const debugMenuRef = useRef<HTMLDivElement>(null);
@@ -421,48 +411,6 @@ function AppRoot() {
         document.addEventListener("click", onOutside);
         return () => document.removeEventListener("click", onOutside);
     }, [debugMenuOpen]);
-
-    // Обработка start_param для контекстного запуска
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        
-        const webApp = getWebApp();
-        if (!webApp) return;
-        
-        // Получаем start_param из WebApp (MAX/Telegram)
-        const param = (webApp as any).startParam || 
-                     (webApp as any).initDataUnsafe?.start_param ||
-                     new URLSearchParams(window.location.search).get('start_param') ||
-                     new URLSearchParams(window.location.search).get('startapp');
-        
-        if (param) {
-            setStartParam(param);
-            console.log('📱 Start param:', param);
-            
-            // Парсим параметры: invoice_123, upd_456, delivery_789
-            if (param.startsWith('invoice_')) {
-                const number = param.replace('invoice_', '');
-                setContextCargoNumber(number);
-                setActiveTab('cargo');
-            } else if (param.startsWith('upd_')) {
-                const number = param.replace('upd_', '');
-                setContextCargoNumber(number);
-                setActiveTab('cargo');
-            } else if (param.startsWith('delivery_')) {
-                const number = param.replace('delivery_', '');
-                setContextCargoNumber(number);
-                setActiveTab('cargo');
-            } else if (param.startsWith('haulz_n_')) {
-                // Обработка нашего нового формата: haulz_n_[номер](_c_[chatId])
-                const parts = param.split('_');
-                const number = parts[2]; // haulz(0)_n(1)_NUMBER(2)
-                if (number) {
-                    setContextCargoNumber(number);
-                    setActiveTab('cargo');
-                }
-            }
-        }
-    }, []);
 
     // Журнал разделов приложения для админ-отчёта активности (debounce; без учёта фоновых refresh входа).
     useEffect(() => {
@@ -793,132 +741,6 @@ function AppRoot() {
         setActiveTab("cargo");
     };
 
-    const openCargoFromChat = (cargoNumber: string) => {
-        if (!cargoNumber) return;
-        const num = String(cargoNumber).trim();
-        setSearchText(num);
-        handleSearch(num);
-        setContextCargoNumber(num);
-        setActiveTab("cargo");
-    };
-    const openCargoFromDocuments = (cargoNumber: string) => {
-        if (!cargoNumber) return;
-        const num = String(cargoNumber).trim();
-        try {
-            window.localStorage.setItem("haulz.cargo.tableMode", "true");
-        } catch {
-            // ignore storage errors
-        }
-        setSearchText(num);
-        handleSearch(num);
-        setContextCargoNumber(num);
-        setActiveTab("cargo");
-    };
-    const openClaimFromCargo = (cargoNumber: string) => {
-        const number = String(cargoNumber || "").trim();
-        if (!number) return;
-        try {
-            window.localStorage.setItem("haulz.docs.claims.prefillCargoNumber", number);
-        } catch {
-            // ignore storage errors
-        }
-        setActiveTab("docs");
-    };
-
-    const openDocumentsWithSection = (section: string) => {
-        try {
-            window.localStorage.setItem("haulz.docs.section", section);
-        } catch {
-            // ignore
-        }
-        setActiveTab("docs");
-    };
-
-    const [aisOpenWithMmsi, setAisOpenWithMmsi] = useState<string | null>(null);
-    const openAisWithMmsi = (mmsi: string) => {
-        if (!mmsi || mmsi.replace(/\D/g, "").length !== 9) return;
-        setAisOpenWithMmsi(mmsi);
-        setActiveTab("profile");
-    };
-
-    const [overlayCargoInn, setOverlayCargoInn] = useState<string | null>(null);
-
-    const openCargoInPlace = (cargoNumber: string, inn?: string) => {
-        if (!cargoNumber) return;
-        setOverlayCargoNumber(cargoNumber);
-        setOverlayCargoItem(null);
-        setOverlayCargoInn(inn ?? null);
-    };
-
-    const openInvoiceInPlace = (invoice: Record<string, unknown>) => {
-        if (!invoice || typeof invoice !== "object") return;
-        setOverlayInvoice(invoice);
-    };
-
-    const openActInPlace = (act: Record<string, unknown>) => {
-        if (!act || typeof act !== "object") return;
-        setOverlayAct(act);
-    };
-
-    const docOverlayZIndex = overlayCargoItem ? 10001 : undefined;
-
-    useEffect(() => {
-        if (!overlayCargoNumber || !activeAccount?.login || !activeAccount?.password) {
-            if (!overlayCargoNumber) {
-                setOverlayCargoItem(null);
-                setOverlayCargoInn(null);
-            }
-            return;
-        }
-        let cancelled = false;
-        setOverlayCargoLoading(true);
-        const inn = overlayCargoInn ?? activeAccount.activeCustomerInn ?? activeAccount.customers?.[0]?.inn ?? undefined;
-        const numberRaw = String(overlayCargoNumber).replace(/^0+/, '') || overlayCargoNumber;
-        const numberForApi = /^\d{5,9}$/.test(numberRaw) ? numberRaw.padStart(9, '0') : overlayCargoNumber;
-        postGetPerevozkaJson({
-                login: activeAccount.login,
-                password: activeAccount.password,
-                number: numberForApi,
-                ...(inn ? { inn } : {}),
-                ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}),
-            })
-            .then((data) => {
-                if (cancelled) return;
-                const raw = Array.isArray(data) ? data[0] : data;
-                const statuses = raw?.Statuses ?? raw?.statuses;
-                const lastStatus = Array.isArray(statuses) && statuses.length > 0 ? statuses[statuses.length - 1] : null;
-                const stateFromStatuses = lastStatus?.Status ?? lastStatus?.status ?? null;
-                const item: CargoItem = raw ? {
-                    ...raw,
-                    Number: raw?.Number ?? raw?.number ?? overlayCargoNumber,
-                    DatePrih: raw?.DatePrih ?? raw?.datePrih,
-                    DateVr: raw?.DateVr ?? raw?.dateVr,
-                    State: raw?.State ?? raw?.state ?? stateFromStatuses ?? undefined,
-                    Mest: raw?.Mest ?? raw?.mest,
-                    PW: raw?.PW ?? raw?.pw,
-                    W: raw?.W ?? raw?.w,
-                    Value: raw?.Value ?? raw?.value,
-                    Sum: raw?.Sum ?? raw?.sum,
-                    StateBill: raw?.StateBill ?? raw?.stateBill,
-                    Sender: raw?.Sender ?? raw?.sender,
-                    Customer: raw?.Customer ?? raw?.customer,
-                    Receiver: raw?.Receiver ?? raw?.receiver,
-                    _role: 'Customer',
-                } : { Number: overlayCargoNumber, _role: 'Customer' as PerevozkiRole };
-                setOverlayCargoItem(item);
-            })
-            .catch(() => { if (!cancelled) setOverlayCargoItem(null); })
-            .finally(() => { if (!cancelled) setOverlayCargoLoading(false); });
-        return () => { cancelled = true; };
-    }, [overlayCargoNumber, overlayCargoInn, activeAccount?.login, activeAccount?.password, activeAccount?.activeCustomerInn, activeAccount?.customers]);
-
-    const openCargoWithFilters = (filters: { status?: StatusFilter; search?: string }) => {
-        if (filters.search) {
-            setSearchText(filters.search);
-            handleSearch(filters.search);
-        }
-        setActiveTab("cargo");
-    };
     const chatIdentity = (() => {
         const webApp = getWebApp();
         const userId = webApp?.initDataUnsafe?.user?.id;
@@ -1158,6 +980,7 @@ function AppRoot() {
 
     if (isWbOnlyUser) {
         return (
+            <AppNavigationProvider setSearchText={setSearchText} useServiceRequest={false}>
             <WbOnlyAppLayout
                 desktopExpanded={desktopExpanded}
                 onLogout={handleLogout}
@@ -1174,20 +997,7 @@ function AppRoot() {
                 >
                     <AppMainContent
                         showDashboard={false}
-                        contextCargoNumber={contextCargoNumber}
                         useServiceRequest={false}
-                        setContextCargoNumber={setContextCargoNumber}
-                        openCargoWithFilters={openCargoWithFilters}
-                        openCargoFromChat={openCargoFromChat}
-                        openCargoFromDocuments={openCargoFromDocuments}
-                        openCargoInPlace={openCargoInPlace}
-                        openInvoiceInPlace={openInvoiceInPlace}
-                        openActInPlace={openActInPlace}
-                        openClaimFromCargo={openClaimFromCargo}
-                        openDocumentsWithSection={openDocumentsWithSection}
-                        openAisWithMmsi={openAisWithMmsi}
-                        aisOpenWithMmsi={aisOpenWithMmsi}
-                        setAisOpenWithMmsi={setAisOpenWithMmsi}
                         openTelegramBotWithAccount={openTelegramBotWithAccount}
                         handleSwitchAccount={handleSwitchAccount}
                         handleAddAccount={handleAddAccount}
@@ -1205,10 +1015,12 @@ function AppRoot() {
                     />
                 </AppRuntimeProvider>
             </WbOnlyAppLayout>
+            </AppNavigationProvider>
         );
     }
 
     return (
+        <AppNavigationProvider setSearchText={setSearchText} useServiceRequest={useServiceRequest}>
         <>
             <Container className={`app-container${profileSaasShellActive ? " profile-saas-shell" : ""}${showCustomerColumn ? "" : " app-hide-customer-column"}`}>
             <header className={`app-header${desktopExpanded ? " app-header-wide" : ""}`}>
@@ -1401,21 +1213,8 @@ function AppRoot() {
                     >
                         <AppMainContent
                             showDashboard={showDashboard}
-                            contextCargoNumber={contextCargoNumber}
                             useServiceRequest={useServiceRequest}
-                            setContextCargoNumber={setContextCargoNumber}
-                            openCargoWithFilters={openCargoWithFilters}
-                            openCargoFromChat={openCargoFromChat}
-                            openCargoFromDocuments={openCargoFromDocuments}
-                            openCargoInPlace={openCargoInPlace}
-                        openInvoiceInPlace={openInvoiceInPlace}
-                        openActInPlace={openActInPlace}
-                        openClaimFromCargo={openClaimFromCargo}
-                        openDocumentsWithSection={openDocumentsWithSection}
-                        openAisWithMmsi={openAisWithMmsi}
-                        aisOpenWithMmsi={aisOpenWithMmsi}
-                        setAisOpenWithMmsi={setAisOpenWithMmsi}
-                        openTelegramBotWithAccount={openTelegramBotWithAccount}
+                            openTelegramBotWithAccount={openTelegramBotWithAccount}
                         handleSwitchAccount={handleSwitchAccount}
                         handleAddAccount={handleAddAccount}
                         handleRemoveAccount={handleRemoveAccount}
@@ -1525,66 +1324,6 @@ function AppRoot() {
                 </div>
             )}
             
-            {overlayInvoice && activeAccount && (
-                <div style={docOverlayZIndex != null ? { position: "fixed", inset: 0, zIndex: docOverlayZIndex } : undefined}>
-                    <InvoiceDetailModal
-                        item={overlayInvoice}
-                        isOpen
-                        onClose={() => setOverlayInvoice(null)}
-                        onOpenCargo={(cargoNumber) => openCargoInPlace(cargoNumber)}
-                        auth={{
-                            login: activeAccount.login,
-                            password: activeAccount.password,
-                            inn: activeAccount.activeCustomerInn ?? undefined,
-                            ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}),
-                        }}
-                    />
-                </div>
-            )}
-
-            {overlayAct && activeAccount && (
-                <div style={docOverlayZIndex != null ? { position: "fixed", inset: 0, zIndex: docOverlayZIndex } : undefined}>
-                    <ActDetailModal
-                        item={overlayAct}
-                        isOpen
-                        onClose={() => setOverlayAct(null)}
-                        onOpenInvoice={(inv) => openInvoiceInPlace(inv)}
-                        onOpenCargo={(cargoNumber) => openCargoInPlace(cargoNumber)}
-                        auth={{
-                            login: activeAccount.login,
-                            password: activeAccount.password,
-                            inn: activeAccount.activeCustomerInn ?? undefined,
-                            ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}),
-                        }}
-                    />
-                </div>
-            )}
-
-            {/* Карточка перевозки поверх счёта — zIndex 10000 чтобы быть выше InvoiceDetailModal (9998) */}
-            {overlayCargoNumber && activeAccount && (
-                overlayCargoLoading ? (
-                    <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={() => { setOverlayCargoNumber(null); setOverlayCargoItem(null); setOverlayCargoInn(null); }}>
-                        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-primary)' }} />
-                    </div>
-                ) : overlayCargoItem ? (
-                    <div style={{ position: 'fixed', inset: 0, zIndex: 10000 }}>
-                    <CargoDetailsModal
-                        item={overlayCargoItem}
-                        isOpen={true}
-                        onClose={() => { setOverlayCargoNumber(null); setOverlayCargoItem(null); setOverlayCargoInn(null); }}
-                        auth={{ login: activeAccount.login, password: activeAccount.password, inn: (overlayCargoInn ?? activeAccount.activeCustomerInn ?? undefined) || undefined, ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}) }}
-                        onOpenChat={undefined}
-                        showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true}
-                        useServiceRequest={useServiceRequest}
-                        isFavorite={(n) => { try { const raw = localStorage.getItem('haulz.favorites'); const arr = raw ? JSON.parse(raw) : []; return arr.includes(n); } catch { return false; } }}
-                        onToggleFavorite={(n) => { if (!n) return; try { const raw = localStorage.getItem('haulz.favorites'); const arr = raw ? JSON.parse(raw) : []; const set = new Set(arr); if (set.has(n)) set.delete(n); else set.add(n); localStorage.setItem('haulz.favorites', JSON.stringify([...set])); setOverlayFavVersion(v => v + 1); } catch {} }}
-                        onOpenInvoice={openInvoiceInPlace}
-                        onOpenAct={openActInPlace}
-                    />
-                    </div>
-                ) : null
-            )}
-
             <ChatModal
                 isOpen={isChatOpen}
                 onClose={() => setIsChatOpen(false)}
@@ -1592,6 +1331,7 @@ function AppRoot() {
             />
             </Container>
         </>
+        </AppNavigationProvider>
     );
 }
 

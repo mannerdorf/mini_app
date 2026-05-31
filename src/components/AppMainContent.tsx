@@ -4,6 +4,7 @@ import { Loader2, Package } from "lucide-react";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { useAuth } from "../contexts/AuthContext";
 import { useAppShell } from "../contexts/AppShellContext";
+import { useAppNavigation } from "../contexts/AppNavigationContext";
 import { WB_TAB } from "../wb/appWb";
 import type { Account, Tab } from "../types";
 
@@ -16,20 +17,7 @@ const WildberriesPage = lazy(() =>
 
 type Props = {
   showDashboard: boolean;
-  contextCargoNumber: string | null;
   useServiceRequest: boolean;
-  setContextCargoNumber: (value: string | null) => void;
-  openCargoWithFilters: (filters: { statuses?: string[]; customer?: string }) => void;
-  openCargoFromChat: (cargoNumber: string) => void;
-  openCargoFromDocuments: (cargoNumber: string) => void;
-  openCargoInPlace: (cargoNumber: string, inn?: string) => void;
-  openInvoiceInPlace: (invoice: Record<string, unknown>) => void;
-  openActInPlace: (act: Record<string, unknown>) => void;
-  openClaimFromCargo: (cargoNumber: string) => void;
-  openDocumentsWithSection: (section: string) => void;
-  openAisWithMmsi: (mmsi: string) => void;
-  aisOpenWithMmsi: string | null;
-  setAisOpenWithMmsi: (value: string | null) => void;
   openTelegramBotWithAccount: () => Promise<void>;
   handleSwitchAccount: (accountId: string) => void;
   handleAddAccount: (account: Account) => Promise<void>;
@@ -160,20 +148,7 @@ function SectionBoundary({ section, children }: { section: string; children: Rea
 
 export function AppMainContent({
   showDashboard,
-  contextCargoNumber,
   useServiceRequest,
-  setContextCargoNumber,
-  openCargoWithFilters,
-  openCargoFromChat,
-  openCargoFromDocuments,
-  openCargoInPlace,
-  openInvoiceInPlace,
-  openActInPlace,
-  openClaimFromCargo,
-  openDocumentsWithSection,
-  openAisWithMmsi,
-  aisOpenWithMmsi,
-  setAisOpenWithMmsi,
   openTelegramBotWithAccount,
   handleSwitchAccount,
   handleAddAccount,
@@ -200,6 +175,20 @@ export function AppMainContent({
     updateActiveAccountCustomer,
   } = useAuth();
   const { activeTab, setActiveTab } = useAppShell();
+  const {
+    contextCargoNumber,
+    setContextCargoNumber,
+    aisOpenWithMmsi,
+    setAisOpenWithMmsi,
+    openCargoWithFilters,
+    openCargoFromChat,
+    openCargoInPlace,
+    openInvoiceInPlace,
+    openActInPlace,
+    openClaimFromCargo,
+    openDocumentsWithSection,
+    openAisWithMmsi,
+  } = useAppNavigation();
   const openWildberries = () => setActiveTab(WB_TAB);
 
   const CargoPage = CargoPageComponent;
