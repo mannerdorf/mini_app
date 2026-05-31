@@ -8,9 +8,9 @@
 
 | Commit | Phase | Summary |
 |--------|-------|---------|
-| (pending) | 3.29 | useSendingsBaseFilter + DocumentsPage wiring |
-| (pending) | 3.28 | sendingsTransportOptions |
-| (pending) | 3.27 | sendingsBaseFilter |
+| `72cbee7b` | 3.29 | useSendingsBaseFilter + DocumentsPage wiring |
+| `9df7607c` | 3.28 | sendingsTransportOptions |
+| `2045ff35` | 3.27 | sendingsBaseFilter |
 | `3326e356` | 3.26 | useSendingsListPipeline + DocumentsPage wiring |
 | `1b7b8b0a` | 3.25 | sendingsInfographicData + sendingsListTotals |
 | `62291f4d` | 3.24 | sendingsSortFilter |
