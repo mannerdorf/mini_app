@@ -52,6 +52,7 @@ import {
 import { fetchAdminMe } from "../api/client/admin/me";
 import { fetchAdminUsers } from "../api/client/admin/users";
 import { fetchAdminExpenseRequests } from "../api/client/admin/expenseRequests";
+import { fetchAdminSverkiRequests } from "../api/client/admin/sverki";
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
@@ -2151,10 +2152,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
     setSverkiRequestsLoading(true);
     try {
-      const res = await fetch("/api/admin-sverki-requests", { headers: { Authorization: `Bearer ${adminToken}` } });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || "Ошибка загрузки заявок актов сверки");
-      setSverkiRequests(Array.isArray(data?.requests) ? data.requests : []);
+      setSverkiRequests(await fetchAdminSverkiRequests(adminToken));
     } catch {
       setSverkiRequests([]);
     } finally {
