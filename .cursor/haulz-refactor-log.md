@@ -8,9 +8,9 @@
 
 | Commit | Phase | Summary |
 |--------|-------|---------|
-| (pending) | 3.26 | useSendingsListPipeline + DocumentsPage wiring |
-| (pending) | 3.25 | sendingsInfographicData + sendingsListTotals |
-| (pending) | 3.24 | sendingsSortFilter |
+| `3326e356` | 3.26 | useSendingsListPipeline + DocumentsPage wiring |
+| `1b7b8b0a` | 3.25 | sendingsInfographicData + sendingsListTotals |
+| `62291f4d` | 3.24 | sendingsSortFilter |
 | `7b14a875` | 3.23 | useSendingsRowRuntime + DocumentsPage wiring |
 
 ## Metrics
