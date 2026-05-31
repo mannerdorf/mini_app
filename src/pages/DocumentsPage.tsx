@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
-import { ChevronDown, ChevronUp, ArrowUp, ArrowDown, Share2, Heart, Ship, Loader2, Truck, Download } from "lucide-react";
+import { ChevronDown, ChevronUp, ArrowUp, ArrowDown, Share2, Heart, Loader2, Download } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { ServiceRefreshFrom1cButton } from "../components/ServiceRefreshFrom1cButton";
 import { serviceRefreshKindsForDocumentsSection } from "../lib/serviceRefreshFrom1c";
@@ -12,6 +12,9 @@ import { ActDetailModal } from "../features/documents/acts";
 import { NewOrderModal } from "../features/documents/orders";
 import {
     SendingsBulkActionsBar,
+    SendingsInfographic,
+    SendingsPreface,
+    SendingsToolbarFilters,
     useSendingsServerSync,
     type EorStatus,
 } from "../features/documents/sendings";
@@ -1069,7 +1072,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const orderSenderButtonRef = useRef<HTMLDivElement | null>(null);
     const orderRouteButtonRef = useRef<HTMLDivElement | null>(null);
     const billStatusButtonRef = useRef<HTMLDivElement | null>(null);
-    const typeButtonRef = useRef<HTMLDivElement | null>(null);
     const routeButtonRef = useRef<HTMLDivElement | null>(null);
     const tariffsCustomerButtonRef = useRef<HTMLDivElement | null>(null);
     const tariffsRouteButtonRef = useRef<HTMLDivElement | null>(null);
@@ -3141,6 +3143,27 @@ useEffect(() => {
         }
     }, [auth?.login, auth?.password, ferriesList, effectiveActiveInn]);
 
+    const closeDocumentsToolbarDropdownsExceptSendings = useCallback(() => {
+        setIsDateDropdownOpen(false);
+        setIsCustomerDropdownOpen(false);
+        setIsReceiverDropdownOpen(false);
+        setIsOrderSenderDropdownOpen(false);
+        setIsOrderRouteDropdownOpen(false);
+        setIsActCustomerDropdownOpen(false);
+        setIsBillStatusDropdownOpen(false);
+        setIsRouteDropdownOpen(false);
+        setIsEdoStatusDropdownOpen(false);
+        setIsTransportDropdownOpen(false);
+        setIsEdoCounterpartyDropdownOpen(false);
+        setIsSverkiCustomerDropdownOpen(false);
+        setIsDogovorsCustomerDropdownOpen(false);
+        setIsClaimsCustomerDropdownOpen(false);
+        setIsClaimsStatusDropdownOpen(false);
+        setIsTariffsCustomerDropdownOpen(false);
+        setIsTariffsRouteDropdownOpen(false);
+        setIsTariffsTypeDropdownOpen(false);
+    }, []);
+
     return (
         <div className={`w-full documents-page${documentsServiceSaasUi ? " documents-page--saas-analytics" : ""}${(docSection === 'Счета' || docSection === 'УПД') ? " documents-page--with-summary-sections" : ""}${docSection === 'ЭДО' ? " documents-page--with-edo-section" : ""}${docSection === 'Заявки' ? " documents-page--with-orders-section" : ""}${docSection === 'Отправки' ? " documents-page--with-sendings-section" : ""}${docSection === 'Тарифы' ? " documents-page--with-tariffs-section" : ""}${docSection === 'Договоры' ? " documents-page--with-contracts-section" : ""}${docSection === 'Акты сверок' ? " documents-page--with-sverki-section" : ""}`} style={{ minWidth: 0, maxWidth: '100%' }}>
             <div className="cargo-page-sticky-header documents-page-sticky-header">
@@ -3420,44 +3443,21 @@ useEffect(() => {
                             </>
                         )}
                         {docSection === 'Отправки' && (
-                        <>
-                        <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
-                                Тип: {typeFilterSet.size === 0 ? 'Все' : typeFilterSet.size === 2 ? 'Паром, Авто' : typeFilterSet.has('ferry') ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
-                            </Button>
-                        </div>
-                        <FilterDropdownPortal triggerRef={typeButtonRef} isOpen={isTypeDropdownOpen} onClose={() => setIsTypeDropdownOpen(false)}>
-                            <div className="dropdown-item" onClick={() => { setTypeFilterSet(new Set()); setIsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                            <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setTypeFilterSet(prev => { const next = new Set(prev); if (next.has('ferry')) next.delete('ferry'); else next.add('ferry'); return next; }); }} style={{ background: typeFilterSet.has('ferry') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Паром {typeFilterSet.has('ferry') ? '✓' : ''}</Typography.Body></div>
-                            <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setTypeFilterSet(prev => { const next = new Set(prev); if (next.has('auto')) next.delete('auto'); else next.add('auto'); return next; }); }} style={{ background: typeFilterSet.has('auto') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Авто {typeFilterSet.has('auto') ? '✓' : ''}</Typography.Body></div>
-                        </FilterDropdownPortal>
-                        <div ref={routeCargoButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsRouteCargoDropdownOpen(!isRouteCargoDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
-                                Маршрут: {routeFilterSet.size === 0 ? 'Все' : routeFilterSet.size === 2 ? 'Выбрано: 2' : routeKeyToCargoLabel([...routeFilterSet][0])} <ChevronDown className="w-4 h-4"/>
-                            </Button>
-                        </div>
-                        <FilterDropdownPortal triggerRef={routeCargoButtonRef} isOpen={isRouteCargoDropdownOpen} onClose={() => setIsRouteCargoDropdownOpen(false)}>
-                            <div className="dropdown-item" onClick={() => { setRouteFilterSet(new Set()); setIsRouteCargoDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                            {(['MSK-KGD', 'KGD-MSK'] as const).map(key => (
-                                <div key={key} className="dropdown-item" onClick={(e) => { e.stopPropagation(); setRouteFilterSet(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; }); }} style={{ background: routeFilterSet.has(key) ? 'var(--color-bg-hover)' : undefined }}>
-                                    <Typography.Body>{routeKeyToCargoLabel(key)} {routeFilterSet.has(key) ? '✓' : ''}</Typography.Body>
-                                </div>
-                            ))}
-                        </FilterDropdownPortal>
-                        <div ref={deliveryStatusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsDeliveryStatusDropdownOpen(!isDeliveryStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
-                                Статус перевозки: {deliveryStatusFilterSet.size === 0 ? 'Все' : deliveryStatusFilterSet.size === 1 ? STATUS_MAP[[...deliveryStatusFilterSet][0]] : `Выбрано: ${deliveryStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
-                            </Button>
-                        </div>
-                        <FilterDropdownPortal triggerRef={deliveryStatusButtonRef} isOpen={isDeliveryStatusDropdownOpen} onClose={() => setIsDeliveryStatusDropdownOpen(false)}>
-                            <div className="dropdown-item" onClick={() => { setDeliveryStatusFilterSet(new Set()); setIsDeliveryStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                            {(Object.keys(STATUS_MAP) as StatusFilter[]).filter(k => k !== 'favorites' && k !== 'all').map(key => (
-                                <div key={key} className="dropdown-item" onClick={(e) => { e.stopPropagation(); setDeliveryStatusFilterSet(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; }); }} style={{ background: deliveryStatusFilterSet.has(key) ? 'var(--color-bg-hover)' : undefined }}>
-                                    <Typography.Body>{STATUS_MAP[key]} {deliveryStatusFilterSet.has(key) ? '✓' : ''}</Typography.Body>
-                                </div>
-                            ))}
-                        </FilterDropdownPortal>
-                        </>
+                            <SendingsToolbarFilters
+                                typeFilterSet={typeFilterSet}
+                                setTypeFilterSet={setTypeFilterSet}
+                                routeFilterSet={routeFilterSet}
+                                setRouteFilterSet={setRouteFilterSet}
+                                deliveryStatusFilterSet={deliveryStatusFilterSet}
+                                setDeliveryStatusFilterSet={setDeliveryStatusFilterSet}
+                                isTypeDropdownOpen={isTypeDropdownOpen}
+                                setIsTypeDropdownOpen={setIsTypeDropdownOpen}
+                                isRouteCargoDropdownOpen={isRouteCargoDropdownOpen}
+                                setIsRouteCargoDropdownOpen={setIsRouteCargoDropdownOpen}
+                                isDeliveryStatusDropdownOpen={isDeliveryStatusDropdownOpen}
+                                setIsDeliveryStatusDropdownOpen={setIsDeliveryStatusDropdownOpen}
+                                closeOtherDropdowns={closeDocumentsToolbarDropdownsExceptSendings}
+                            />
                         )}
                         {docSection === 'УПД' && effectiveServiceMode && (
                             <>
@@ -4706,167 +4706,39 @@ useEffect(() => {
             {(sendingsInitialLoading || !!sendingsError) && <DocumentsStateBlocks loading={sendingsInitialLoading} error={sendingsError} emptyText="" />}
             {!sendingsLoading && !sendingsError && sendingRowsSorted.length > 0 && (
                 <>
-                <div className="cargo-card documents-sendings-infographic" style={{ padding: '0.6rem 0.75rem', marginBottom: '0.5rem' }}>
-                    <div className="documents-sendings-infographic-row">
-                        <AppBadge tone="info" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', flex: '0 0 auto' }}>
-                            <Ship className="w-3 h-3" /> {sendingsInfographic.ferry}
-                        </AppBadge>
-                        <AppBadge tone="neutral" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', flex: '0 0 auto' }}>
-                            <Truck className="w-3 h-3" /> {sendingsInfographic.auto}
-                        </AppBadge>
-                        {sendingsInfographic.routes.map((item) => (
-                            <AppBadge key={item.route} tone="neutral" style={{ flex: '0 0 auto' }}>
-                                {item.route}: {item.count}
-                            </AppBadge>
-                        ))}
-                        {sendingsInfographic.statusBadges.map((item) => {
-                            const isActive = deliveryStatusFilterSet.has(item.key as StatusFilter);
-                            return (
-                                <button
-                                    key={item.key}
-                                    type="button"
-                                    className="role-badge documents-sendings-infographic-filter-badge"
-                                    onClick={() => {
-                                        setDeliveryStatusFilterSet((prev) => {
-                                            if (prev.size === 1 && prev.has(item.key as StatusFilter)) return new Set<StatusFilter>();
-                                            return new Set<StatusFilter>([item.key as StatusFilter]);
-                                        });
-                                    }}
-                                    style={{
-                                        background: item.bg,
-                                        color: item.color,
-                                        border: isActive ? `1px solid ${item.color}` : '1px solid var(--color-border)',
-                                        flex: '0 0 auto',
-                                        cursor: 'pointer',
-                                        opacity: isActive || deliveryStatusFilterSet.size === 0 ? 1 : 0.75,
-                                    }}
-                                >
-                                    {item.label}: {item.percent}% ({item.count})
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-                {(canEditPlanDate || canRunSanctionsCheck) && tableModeEffective && (
-                    <SendingsBulkActionsBar
-                        selectedCount={selectedVisibleSendingCount}
-                        canEditEor={canEditEor}
-                        canEditPlanDate={canEditPlanDate}
-                        canRunSanctionsCheck={canRunSanctionsCheck}
-                        actionLoading={bulkSendingActionLoading}
-                        eorMenuOpen={bulkEorMenuOpen}
-                        setEorMenuOpen={setBulkEorMenuOpen}
-                        planDateOpen={bulkPlanDateOpen}
-                        setPlanDateOpen={setBulkPlanDateOpen}
-                        planDateValue={bulkPlanDateValue}
-                        setPlanDateValue={setBulkPlanDateValue}
-                        actionError={bulkSendingActionError}
-                        actionInfo={bulkSendingActionInfo}
-                        onApplyEorStatus={applyBulkEorStatus}
-                        onApplyPlanDate={applyBulkPlanDate}
-                        onApplySanctionsCheck={applyBulkSanctionsCheck}
-                    />
-                )}
-                {sendingsFerryActionError && (
-                    <div style={{ marginBottom: '0.5rem' }}>
-                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-error)' }}>
-                            {sendingsFerryActionError}
-                        </Typography.Body>
-                        {sendingsFerryActionError.includes('миграц') && (
-                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
-                                Выполните миграции 049_ferries.sql и 050_sendings_ferry.sql на БД (Vercel Postgres или подключение через psql).
-                            </Typography.Body>
-                        )}
-                    </div>
-                )}
-                {hasAnalytics && sendingsRepeatedVehicleTotals.length > 0 && (
-                    <div className="cargo-card documents-sendings-by-vehicle-summary" style={{ overflowX: 'auto', marginBottom: '0.65rem', padding: '0.55rem 0.65rem' }}>
-                        <Typography.Body style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: '0.45rem' }}>
-                            Итого по транспортным средствам
-                        </Typography.Body>
-                        <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-                            <thead>
-                                <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                    <th style={{ padding: '0.4rem 0.35rem', textAlign: 'left', fontWeight: 600 }}>ТС</th>
-                                    <th style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Отправок</th>
-                                    <th style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Плат. вес</th>
-                                    {showSums && <th style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }} title="Сумма за перевозку">Стоимость</th>}
-                                    {showSums && <th style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Объявл. стоимость</th>}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {sendingsRepeatedVehicleTotals.map((vehicleRow) => (
-                                    <tr key={vehicleRow.vehicle} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                        <td style={{ padding: '0.4rem 0.35rem', whiteSpace: 'nowrap', fontWeight: 600 }}>{vehicleRow.vehicle}</td>
-                                        <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{vehicleRow.sendingsCount}</td>
-                                        <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatSendingMetricNum(vehicleRow.paidWeight)}</td>
-                                        {showSums && (
-                                            <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                {formatCurrency(vehicleRow.cost, true)}
-                                            </td>
-                                        )}
-                                        {showSums && (
-                                            <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                {formatCurrency(vehicleRow.declaredCost, true)}
-                                            </td>
-                                        )}
-                                    </tr>
-                                ))}
-                                <tr style={{ borderTop: '2px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                    <td style={{ padding: '0.4rem 0.35rem', fontWeight: 700 }}>Всего</td>
-                                    <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{sendingsVehicleGrandTotals.sendingsCount}</td>
-                                    <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatSendingMetricNum(sendingsVehicleGrandTotals.paidWeight)}</td>
-                                    {showSums && (
-                                        <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                                            {formatCurrency(sendingsVehicleGrandTotals.cost, true)}
-                                        </td>
-                                    )}
-                                    {showSums && (
-                                        <td style={{ padding: '0.4rem 0.35rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                                            {formatCurrency(sendingsVehicleGrandTotals.declaredCost, true)}
-                                        </td>
-                                    )}
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-                {hasAnalytics && sendingRowsSorted.length > 0 && (
-                    <div className={`cargo-card cargo-summary-totals documents-summary-card documents-summary-totals documents-summary-totals--saas-kpi cargo-summary-totals--saas-kpi documents-sendings-table-summary${sendingsSummaryCollapsed ? " documents-sendings-table-summary--collapsed" : ""}`}>
-                        <button
-                            type="button"
-                            className="cargo-summary-totals-toggle documents-sendings-table-summary-toggle"
-                            onClick={() => setSendingsSummaryCollapsed((value) => !value)}
-                            aria-expanded={!sendingsSummaryCollapsed}
-                            aria-label={sendingsSummaryCollapsed ? "Развернуть итоги отправок" : "Свернуть итоги отправок"}
-                        >
-                            <Typography.Body style={{ fontSize: "0.78rem", fontWeight: 600 }}>Итого по выборке</Typography.Body>
-                            {sendingsSummaryCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                        </button>
-                        <div className="summary-metrics">
-                            {showSums && (
-                                <Flex direction="column" align="center">
-                                    <Typography.Label>Стоимость</Typography.Label>
-                                    <Typography.Body>{formatCurrency(sendingsTableTotals.cost, true)}</Typography.Body>
-                                </Flex>
-                            )}
-                            <Flex direction="column" align="center">
-                                <Typography.Label>Отправок</Typography.Label>
-                                <Typography.Body>{sendingsTableTotals.sendingsCount}</Typography.Body>
-                            </Flex>
-                            <Flex direction="column" align="center">
-                                <Typography.Label>Плат. вес</Typography.Label>
-                                <Typography.Body>{formatSendingMetricNum(sendingsTableTotals.paidWeight)}</Typography.Body>
-                            </Flex>
-                            {showSums && (
-                                <Flex direction="column" align="center">
-                                    <Typography.Label>Объявл. стоимость</Typography.Label>
-                                    <Typography.Body>{formatCurrency(sendingsTableTotals.declaredCost, true)}</Typography.Body>
-                                </Flex>
-                            )}
-                        </div>
-                    </div>
-                )}
+                <SendingsInfographic
+                    data={sendingsInfographic}
+                    deliveryStatusFilterSet={deliveryStatusFilterSet}
+                    setDeliveryStatusFilterSet={setDeliveryStatusFilterSet}
+                />
+                <SendingsPreface
+                    hasAnalytics={hasAnalytics}
+                    showSums={showSums}
+                    tableModeEffective={tableModeEffective}
+                    canEditEor={canEditEor}
+                    canEditPlanDate={canEditPlanDate}
+                    canRunSanctionsCheck={canRunSanctionsCheck}
+                    selectedVisibleSendingCount={selectedVisibleSendingCount}
+                    bulkSendingActionLoading={bulkSendingActionLoading}
+                    bulkEorMenuOpen={bulkEorMenuOpen}
+                    setBulkEorMenuOpen={setBulkEorMenuOpen}
+                    bulkPlanDateOpen={bulkPlanDateOpen}
+                    setBulkPlanDateOpen={setBulkPlanDateOpen}
+                    bulkPlanDateValue={bulkPlanDateValue}
+                    setBulkPlanDateValue={setBulkPlanDateValue}
+                    bulkSendingActionError={bulkSendingActionError}
+                    bulkSendingActionInfo={bulkSendingActionInfo}
+                    onApplyEorStatus={applyBulkEorStatus}
+                    onApplyPlanDate={applyBulkPlanDate}
+                    onApplySanctionsCheck={applyBulkSanctionsCheck}
+                    sendingsFerryActionError={sendingsFerryActionError}
+                    sendingsRepeatedVehicleTotals={sendingsRepeatedVehicleTotals}
+                    sendingsVehicleGrandTotals={sendingsVehicleGrandTotals}
+                    sendingsTableTotals={sendingsTableTotals}
+                    sendingsSummaryCollapsed={sendingsSummaryCollapsed}
+                    setSendingsSummaryCollapsed={setSendingsSummaryCollapsed}
+                    rowsCount={sendingRowsSorted.length}
+                />
                 <AnimatePresence mode="wait">
                 {tableModeEffective ? (
                 <motion.div key="docs-send-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
