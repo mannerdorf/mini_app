@@ -29,6 +29,7 @@ import {
     useSendingsBaseFilter,
     type EorStatus,
 } from "../features/documents/sendings";
+import { DocumentsTransportFilter, isDocumentsTransportFilterVisible } from "../features/documents";
 import { DateText } from "../components/ui/DateText";
 import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode } from "../lib/formatUtils";
 import { ClickableCargoNumber, ClickableInvoiceNumber } from "../components/ui/EntityLinks";
@@ -1024,7 +1025,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     }, [expandedSendingRow, sendingsDetailsView]);
     const deliveryStatusButtonRef = useRef<HTMLDivElement | null>(null);
     const routeCargoButtonRef = useRef<HTMLDivElement | null>(null);
-    const transportButtonRef = useRef<HTMLDivElement | null>(null);
     const edoStatusButtonRef = useRef<HTMLDivElement | null>(null);
     const edoCounterpartyButtonRef = useRef<HTMLDivElement | null>(null);
     const edoCounterpartyFilterLabel =
@@ -2246,6 +2246,17 @@ useEffect(() => {
         setIsTariffsRouteDropdownOpen(false);
         setIsTariffsTypeDropdownOpen(false);
     }, []);
+    const closeDocumentsToolbarDropdownsForTransport = useCallback(() => {
+        setIsDateDropdownOpen(false);
+        setIsCustomerDropdownOpen(false);
+        setIsReceiverDropdownOpen(false);
+        setIsActCustomerDropdownOpen(false);
+        setIsTypeDropdownOpen(false);
+        setIsRouteDropdownOpen(false);
+        setIsDeliveryStatusDropdownOpen(false);
+        setIsRouteCargoDropdownOpen(false);
+        setIsEdoStatusDropdownOpen(false);
+    }, []);
 
     const sendingsSectionProps = useSendingsSectionProps({
         tableModeEffective: tableModeEffective,
@@ -2766,32 +2777,17 @@ useEffect(() => {
                         </FilterDropdownPortal>
                         </>
                         )}
-                        {((effectiveServiceMode && docSection !== 'Заявки' && docSection !== 'Акты сверок' && docSection !== 'Договоры' && docSection !== 'Претензии' && docSection !== 'Отправки') && docSection !== 'Тарифы') && (
-                        <>
-                        <div ref={transportButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsTransportDropdownOpen(!isTransportDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
-                                Транспортное средство: {transportFilter || 'Все'} <ChevronDown className="w-4 h-4"/>
-                            </Button>
-                        </div>
-                        <FilterDropdownPortal triggerRef={transportButtonRef} isOpen={isTransportDropdownOpen} onClose={() => { setIsTransportDropdownOpen(false); setTransportSearchQuery(''); }}>
-                            <div className="dropdown-item" style={{ padding: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
-                                <input
-                                    type="text"
-                                    placeholder="Поиск..."
-                                    value={transportSearchQuery}
-                                    onChange={(e) => setTransportSearchQuery(e.target.value)}
-                                    className="filter-search-input"
-                                    style={{ width: '100%', padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid var(--color-border)', fontSize: '0.875rem', outline: 'none' }}
-                                />
-                            </div>
-                            <div className="dropdown-item" onClick={() => { setTransportFilter(''); setIsTransportDropdownOpen(false); setTransportSearchQuery(''); }}><Typography.Body>Все</Typography.Body></div>
-                            {transportOptionsCurrentSection
-                                .filter(v => !transportSearchQuery.trim() || v.toLowerCase().includes(transportSearchQuery.trim().toLowerCase()))
-                                .map(v => (
-                                    <div key={v} className="dropdown-item" onClick={() => { setTransportFilter(v); setIsTransportDropdownOpen(false); setTransportSearchQuery(''); }}><Typography.Body>{v}</Typography.Body></div>
-                                ))}
-                        </FilterDropdownPortal>
-                        </>
+                        {isDocumentsTransportFilterVisible(docSection, effectiveServiceMode) && (
+                            <DocumentsTransportFilter
+                                transportFilter={transportFilter}
+                                setTransportFilter={setTransportFilter}
+                                transportOptions={transportOptionsCurrentSection}
+                                isOpen={isTransportDropdownOpen}
+                                setIsOpen={setIsTransportDropdownOpen}
+                                searchQuery={transportSearchQuery}
+                                setSearchQuery={setTransportSearchQuery}
+                                closeOtherDropdowns={closeDocumentsToolbarDropdownsForTransport}
+                            />
                         )}
                         {docSection === 'Счета' && (
                         <>
