@@ -37,3 +37,19 @@ export async function fetchAdminUsers(adminToken: string): Promise<AdminUsersRes
     last_login_available: data.last_login_available !== false,
   };
 }
+
+export type AdminRegisterUserPayload = Record<string, unknown>;
+
+export async function registerAdminUser(
+  adminToken: string,
+  payload: AdminRegisterUserPayload
+): Promise<Record<string, unknown>> {
+  const res = await fetch("/api/admin-register-user", {
+    method: "POST",
+    headers: adminAuthHeaders(adminToken, { "Content-Type": "application/json" }),
+    body: JSON.stringify(payload),
+  });
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown> & { error?: string };
+  if (!res.ok) throw new Error(data.error || "Ошибка регистрации");
+  return data;
+}

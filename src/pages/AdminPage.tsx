@@ -50,7 +50,7 @@ import {
   saveAdminFerry,
 } from "../api/client/admin/directories";
 import { fetchAdminMe } from "../api/client/admin/me";
-import { fetchAdminUsers } from "../api/client/admin/users";
+import { fetchAdminUsers, registerAdminUser } from "../api/client/admin/users";
 import { fetchAdminExpenseRequests } from "../api/client/admin/expenseRequests";
 import { fetchAdminSverkiRequests, deleteAdminSverkiRequest, updateAdminSverkiRequestStatus } from "../api/client/admin/sverki";
 import { fetchAdminClaims, fetchAdminClaimDetail, postAdminClaimUpdate } from "../api/client/admin/claims";
@@ -3180,19 +3180,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     } else if (entry.customer) {
       payload.customers = [{ name: entry.customer, inn: "" }];
     }
-    const res = await fetch("/api/admin-register-user", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${adminToken}`,
-      },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(data?.error || "Ошибка регистрации");
-    }
-    return data;
+    return registerAdminUser(adminToken, payload);
   };
 
   const formEmailError = useMemo(() => {
@@ -5366,18 +5354,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     setRegisteringCustomerInn(c.inn);
                                     setError(null);
                                     try {
-                                      const res = await fetch("/api/admin-register-user", {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                                        body: JSON.stringify({
-                                          email: c.email?.trim(),
-                                          inn: c.inn,
-                                          company_name: c.customer_name || "",
-                                          send_email: true,
-                                        }),
+                                      await registerAdminUser(adminToken, {
+                                        email: c.email?.trim(),
+                                        inn: c.inn,
+                                        company_name: c.customer_name || "",
+                                        send_email: true,
                                       });
-                                      const data = await res.json().catch(() => ({}));
-                                      if (!res.ok) throw new Error(data?.error || "Ошибка регистрации");
                                       await fetchUsers();
                                     } catch (e: unknown) {
                                       setError((e as Error)?.message ?? "Ошибка");
