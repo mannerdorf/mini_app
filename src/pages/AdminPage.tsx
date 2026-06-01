@@ -8185,6 +8185,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 </Typography.Body>
                 <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
                   След. шаг с: {docCacheBackfill.state.nextFrom}
+                  {docCacheBackfill.state.nextKindLabel ? ` · ${docCacheBackfill.state.nextKindLabel}` : ""}
                 </Typography.Body>
                 <Typography.Body style={{ fontSize: "0.8rem", color: docCacheBackfill.state.done ? "#10b981" : "var(--color-text-secondary)" }}>
                   {docCacheBackfill.state.done ? "Завершено" : "В процессе"}

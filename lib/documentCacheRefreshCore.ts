@@ -274,6 +274,9 @@ export async function ensureDocumentCacheTables(pool: Pool): Promise<void> {
      )`,
   );
   await pool.query(
+    `alter table document_cache_backfill_state add column if not exists kind_cursor int not null default 0`,
+  );
+  await pool.query(
     `insert into document_cache_backfill_state (id, range_start, range_end, next_from, step_days, done, updated_at)
      select 1, $1::date, $2::date, $1::date, $3, false, now()
      where not exists (select 1 from document_cache_backfill_state where id = 1)`,

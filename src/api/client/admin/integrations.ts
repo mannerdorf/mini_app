@@ -73,6 +73,9 @@ export type DocumentCacheBackfillStatus = {
     rangeEnd: string;
     nextFrom: string;
     stepDays: number;
+    kindCursor?: number;
+    nextKind?: string;
+    nextKindLabel?: string;
     done: boolean;
     lastStep: unknown;
     updatedAt: string | null;
@@ -103,6 +106,12 @@ export async function postDocumentCacheBackfill(
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((data as { error?: string })?.error || "Ошибка backfill кэша");
+  if (!res.ok) {
+    const err =
+      (data as { error?: string })?.error ||
+      (data as { message?: string })?.message ||
+      `HTTP ${res.status}`;
+    throw new Error(String(err));
+  }
   return data as DocumentCacheBackfillStatus & { steps?: unknown[]; message?: string };
 }
