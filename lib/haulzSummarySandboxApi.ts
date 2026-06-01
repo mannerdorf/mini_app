@@ -311,6 +311,14 @@ export async function handleHaulzSummarySandboxRequest(
     }
 
     if (action === "send") {
+      const { isEmailNotificationEnabled } = await import("./notificationEmailPrefs.js");
+      if (!(await isEmailNotificationEnabled(pool, targetLogin, emailType))) {
+        res.status(400).json({
+          error: "У пользователя отключён этот тип email в профиле. Отправка возможна только после включения тумблера.",
+          request_id: requestId,
+        });
+        return true;
+      }
       const { isSummaryEmailUnsubscribed } = await import("./haulzSummaryUnsubscribe.js");
       if (emailType === "weekly_summary" && (await isSummaryEmailUnsubscribed(pool, targetLogin))) {
         res.status(400).json({ error: "Получатель отписан от рассылки", request_id: requestId });

@@ -1020,6 +1020,9 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
               {sendMessage}
             </Typography.Body>
           )}
+          <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>
+            «Отправить» сработает только если у пользователя включён соответствующий тумблер в профиле → Уведомления → Email.
+          </Typography.Body>
           {previewSubject && (
             <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
               Тема: {previewSubject}
