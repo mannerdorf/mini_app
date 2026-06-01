@@ -532,6 +532,26 @@ export function DashboardPage({
         selectedWeekForFilter,
     });
 
+    const [comparePeriodOverride, setComparePeriodOverride] = useState<{ dateFrom: string; dateTo: string } | null>(null);
+    const [isComparePeriodDialogOpen, setIsComparePeriodDialogOpen] = useState(false);
+
+    const comparePeriodRange = useMemo(
+        () => comparePeriodOverride ?? prevRange,
+        [comparePeriodOverride, prevRange],
+    );
+
+    useEffect(() => {
+        setComparePeriodOverride(null);
+    }, [
+        dateFilter,
+        customDateFrom,
+        customDateTo,
+        selectedMonthForFilter?.year,
+        selectedMonthForFilter?.month,
+        selectedYearForFilter,
+        selectedWeekForFilter,
+    ]);
+
     useEffect(() => {
         const d = dateUtils.parseDateOnly(apiDateRange.dateFrom);
         if (d) setHeatmapMonth({ year: d.getFullYear(), month: d.getMonth() + 1 });
@@ -560,10 +580,10 @@ export function DashboardPage({
         auth,
         dateFrom: apiDateRange.dateFrom,
         dateTo: apiDateRange.dateTo,
-        dateFromPrev: prevRange?.dateFrom ?? '',
-        dateToPrev: prevRange?.dateTo ?? '',
+        dateFromPrev: comparePeriodRange?.dateFrom ?? '',
+        dateToPrev: comparePeriodRange?.dateTo ?? '',
         useServiceRequest: true,
-        enabled: !!useServiceRequest && !!prevRange,
+        enabled: !!useServiceRequest && !!comparePeriodRange,
     });
 
     const filterInvoicesForHeaderCustomer = useCallback(
@@ -2639,10 +2659,54 @@ export function DashboardPage({
                         minWidth: 0,
                     }}
                 >
-                    <span style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ flexShrink: 1, minWidth: 0, overflow: 'hidden' }}>
                         <Typography.Body style={{ color: 'var(--color-primary-blue)', fontWeight: 600, fontSize: '0.6rem' }}>
                             <DateText value={apiDateRange.dateFrom} /> – <DateText value={apiDateRange.dateTo} />
                         </Typography.Body>
+                        {useServiceRequest ? (
+                            <button
+                                type="button"
+                                onClick={() => setIsComparePeriodDialogOpen(true)}
+                                style={{
+                                    display: 'block',
+                                    margin: 0,
+                                    marginTop: '0.2rem',
+                                    padding: 0,
+                                    border: 'none',
+                                    background: 'none',
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    maxWidth: '100%',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                }}
+                                title={
+                                    comparePeriodRange
+                                        ? `Период сравнения для динамики %${comparePeriodOverride ? ' (выбран вручную)' : ''}. Нажмите, чтобы изменить.`
+                                        : 'Выберите период для сравнения динамики'
+                                }
+                            >
+                                <Typography.Body
+                                    style={{
+                                        color: comparePeriodOverride ? 'var(--color-primary-blue)' : 'var(--color-text-secondary)',
+                                        fontWeight: 500,
+                                        fontSize: '0.55rem',
+                                    }}
+                                >
+                                    {prevPeriodLoading && !comparePeriodRange ? (
+                                        'в сравнении с предыдущим периодом…'
+                                    ) : comparePeriodRange ? (
+                                        <>
+                                            в сравнении с <DateText value={comparePeriodRange.dateFrom} /> – <DateText value={comparePeriodRange.dateTo} />
+                                            {comparePeriodOverride ? ' ✎' : ''}
+                                        </>
+                                    ) : (
+                                        'в сравнении с… (выберите период)'
+                                    )}
+                                </Typography.Body>
+                            </button>
+                        ) : null}
                     </span>
                     <Flex gap="0.25rem" align="center" style={{ flexShrink: 0 }}>
                         {showSums && (
@@ -5051,6 +5115,16 @@ export function DashboardPage({
                     setCustomDateFrom(f); 
                     setCustomDateTo(t); 
                 }} 
+            />
+            <FilterDialog
+                isOpen={isComparePeriodDialogOpen}
+                onClose={() => setIsComparePeriodDialogOpen(false)}
+                title="Период сравнения для динамики"
+                dateFrom={comparePeriodRange?.dateFrom ?? prevRange?.dateFrom ?? apiDateRange.dateFrom}
+                dateTo={comparePeriodRange?.dateTo ?? prevRange?.dateTo ?? apiDateRange.dateTo}
+                onApply={(f, t) => setComparePeriodOverride({ dateFrom: f, dateTo: t })}
+                onReset={comparePeriodOverride && prevRange ? () => setComparePeriodOverride(null) : undefined}
+                resetLabel="Период по умолчанию"
             />
         </div>
     );
