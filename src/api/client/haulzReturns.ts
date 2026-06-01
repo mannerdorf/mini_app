@@ -74,6 +74,31 @@ export async function uploadHaulzReturnsFile(
   if (!res.ok) throw new Error(parseJson(res, data));
 }
 
+export type HaulzReturnsUploadItem = {
+  role: "otpravka" | "ul_prio1" | "ul_prio2";
+  file: File;
+};
+
+/** Строго по одному файлу: следующий запрос только после ответа сервера. */
+export async function uploadHaulzReturnsFilesSequentially(
+  auth: AuthData,
+  jobId: string,
+  items: HaulzReturnsUploadItem[],
+  onProgress?: (current: number, total: number, fileName: string) => void,
+  gapMs = 150,
+): Promise<void> {
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]!;
+    onProgress?.(i + 1, items.length, item.file.name);
+    await uploadHaulzReturnsFile(auth, jobId, item.role, item.file);
+    if (i + 1 < items.length && gapMs > 0) {
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, gapMs);
+      });
+    }
+  }
+}
+
 export async function processHaulzReturnsJob(
   auth: AuthData,
   jobId: string,

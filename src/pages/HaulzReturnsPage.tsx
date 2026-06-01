@@ -9,7 +9,8 @@ import {
   listHaulzReturnsJobs,
   processHaulzReturnsJob,
   saveHaulzReturnsWorkbook,
-  uploadHaulzReturnsFile,
+  uploadHaulzReturnsFilesSequentially,
+  type HaulzReturnsUploadItem,
   type HaulzReturnsFileMeta,
   type HaulzReturnsJobSummary,
 } from "../api/client/haulzReturns";
@@ -26,28 +27,20 @@ import {
   type HaulzWorkbook,
 } from "../lib/haulzReturns";
 
-const UPLOAD_GAP_MS = 150;
-
 type UploadProgress = {
   current: number;
   total: number;
   fileName: string;
 };
 
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
+type FileSlot = {
+  id: string;
+  file: File;
+};
 
 type Props = {
   auth: AuthData | null;
   onBack: () => void;
-};
-
-type FileSlot = {
-  id: string;
-  file: File;
 };
 
 function uid() {
@@ -253,7 +246,7 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
     setUploadProgress(null);
     try {
       const title = otpravkaFile.name.replace(/\.(xlsx|xls)$/i, "") || "Возвраты";
-      const uploadQueue: { role: "otpravka" | "ul_prio1" | "ul_prio2"; file: File }[] = [
+      const uploadQueue: HaulzReturnsUploadItem[] = [
         { role: "otpravka", file: otpravkaFile },
         ...ulPrio1.map((slot) => ({ role: "ul_prio1" as const, file: slot.file })),
         ...ulPrio2.map((slot) => ({ role: "ul_prio2" as const, file: slot.file })),
@@ -261,21 +254,20 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
 
       const newJobId = await createHaulzReturnsJob(auth, title);
 
-      for (let i = 0; i < uploadQueue.length; i++) {
-        const item = uploadQueue[i]!;
-        setUploadProgress({ current: i + 1, total: uploadQueue.length, fileName: item.file.name });
-        await uploadHaulzReturnsFile(auth, newJobId, item.role, item.file);
-        if (i + 1 < uploadQueue.length) await sleep(UPLOAD_GAP_MS);
-      }
+      await uploadHaulzReturnsFilesSequentially(auth, newJobId, uploadQueue, (current, total, fileName) => {
+        setUploadProgress({ current, total, fileName });
+      });
       setUploadProgress(null);
 
       const otpravka = parseOtpravkaBuffer(await otpravkaFile.arrayBuffer(), otpravkaFile.name);
-      const ulPrio1Parsed = await Promise.all(
-        ulPrio1.map(async (slot) => parseUlBuffer(await slot.file.arrayBuffer(), slot.file.name)),
-      );
-      const ulPrio2Parsed = await Promise.all(
-        ulPrio2.map(async (slot) => parseUlBuffer(await slot.file.arrayBuffer(), slot.file.name)),
-      );
+      const ulPrio1Parsed = [];
+      for (const slot of ulPrio1) {
+        ulPrio1Parsed.push(await parseUlBuffer(await slot.file.arrayBuffer(), slot.file.name));
+      }
+      const ulPrio2Parsed = [];
+      for (const slot of ulPrio2) {
+        ulPrio2Parsed.push(await parseUlBuffer(await slot.file.arrayBuffer(), slot.file.name));
+      }
       const wbLocal = buildWorkbook({ otpravka, ulPrio1: ulPrio1Parsed, ulPrio2: ulPrio2Parsed });
 
       await processHaulzReturnsJob(auth, newJobId);
