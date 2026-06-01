@@ -1,6 +1,6 @@
 import type { AuthData } from "../../types";
 import type { HaulzWorkbook } from "../../../lib/haulzReturns/types";
-import { compactWorkbookForPatch } from "../../../lib/haulzReturns/processJob";
+import { compactWorkbookForPatch } from "../../../lib/haulzReturns/workbookApi";
 
 export type HaulzReturnsJobSummary = {
   id: string;
@@ -171,8 +171,10 @@ export async function saveHaulzReturnsWorkbook(auth: AuthData, jobId: string, wo
 export async function deleteHaulzReturnsJob(auth: AuthData, jobId: string): Promise<void> {
   const res = await fetch(`/api/haulz-returns/job?jobId=${encodeURIComponent(jobId)}`, {
     method: "DELETE",
-    headers: authHeaders(auth),
-    body: "{}",
+    headers: {
+      "x-login": auth.login,
+      "x-password": auth.password,
+    },
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(parseJson(res, data));

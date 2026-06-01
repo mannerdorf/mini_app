@@ -6,3 +6,4 @@ export * from "./validators";
 export * from "./exportExcel";
 export * from "./stopWords";
 export * from "./processJob";
+export * from "./workbookApi";

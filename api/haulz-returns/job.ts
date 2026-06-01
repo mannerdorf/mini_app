@@ -6,7 +6,7 @@ import {
   pgTableExists,
   resolveHaulzReturnsAccess,
 } from "../_haulzReturns.js";
-import { deserializeWorkbook, workbookForApi } from "../../lib/haulzReturns/processJob.js";
+import { deserializeWorkbook, workbookForApi } from "../../lib/haulzReturns/workbookApi.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "haulz_returns_job");
