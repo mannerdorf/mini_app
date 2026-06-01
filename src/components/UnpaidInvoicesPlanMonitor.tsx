@@ -97,7 +97,7 @@ export function UnpaidInvoicesPlanMonitor({
                     ? "Счета загружены, уточняем плановые даты…"
                   : isEmpty
                     ? "Задолженностей нет — все счета оплачены"
-                    : `${rows.length} к оплате${showSums ? ` · всего ${formatCurrency(totalBalance, true)}` : ""} · высокий приоритет: ${highCount} (до ${PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS} дн. до плана)`}
+                    : `${rows.length} к оплате за 3 мес.${showSums ? ` · всего ${formatCurrency(totalBalance, true)}` : ""} · высокий приоритет: ${highCount} (до ${PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS} дн. до плана)`}
               </Typography.Label>
             </div>
           </Flex>

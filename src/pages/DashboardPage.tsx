@@ -581,7 +581,13 @@ export function DashboardPage({
     const calendarDateFrom = `${calendarYear - 1}-01-01`;
     const calendarDateTo = new Date().toISOString().slice(0, 10);
 
-    /** Счета для мониторов ЭДО и задолженности — широкий период, не зависят от фильтра «Дата». */
+    const unpaidMonitorDateFrom = useMemo(() => {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 3);
+        return d.toISOString().slice(0, 10);
+    }, []);
+
+    /** Счета для монитора ЭДО — широкий период, не зависит от фильтра «Дата». */
     const monitorFetchEnabled = !!(auth?.login && auth?.password);
     const { items: monitorInvoiceItems, loading: monitorInvoicesLoading } = useInvoices({
         auth,
@@ -598,10 +604,22 @@ export function DashboardPage({
 
     const edoMonitorInvoices = monitorInvoicesFiltered;
 
-    const unpaidPlanMonitorInvoices = monitorInvoicesFiltered;
+    /** Монитор задолженности — только последние 3 месяца. */
+    const { items: unpaidPlanInvoiceItems, loading: unpaidPlanInvoicesLoading } = useInvoices({
+        auth,
+        dateFrom: unpaidMonitorDateFrom,
+        dateTo: calendarDateTo,
+        activeInn: auth?.inn || undefined,
+        useServiceRequest,
+        enabled: monitorFetchEnabled,
+    });
+    const unpaidPlanMonitorInvoices = useMemo(
+        () => filterInvoicesForHeaderCustomer(unpaidPlanInvoiceItems),
+        [unpaidPlanInvoiceItems, filterInvoicesForHeaderCustomer],
+    );
     const { items: unpaidPlanCargoItems, loading: unpaidPlanCargoLoading } = usePerevozki({
         auth,
-        dateFrom: calendarDateFrom,
+        dateFrom: unpaidMonitorDateFrom,
         dateTo: calendarDateTo,
         useServiceRequest,
         inn: !useServiceRequest ? auth?.inn : undefined,
@@ -2993,7 +3011,7 @@ export function DashboardPage({
                 <UnpaidInvoicesPlanMonitor
                     invoices={unpaidPlanMonitorInvoices as Record<string, unknown>[]}
                     cargoItems={unpaidPlanMonitorCargo}
-                    loading={monitorInvoicesLoading}
+                    loading={unpaidPlanInvoicesLoading}
                     cargoLoading={unpaidPlanCargoLoading}
                     showSums={showSums}
                     onOpen={onOpenDocumentsInvoices}
