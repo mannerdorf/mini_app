@@ -6,9 +6,8 @@ import {
   pgTableExists,
   resolveHaulzReturnsAccess,
 } from "../_haulzReturns.js";
-import { recalcWorkbookAfterItogChange, type HaulzWorkbook } from "../../lib/haulzReturns/workbookRecalc.js";
-import { mergeWorkbookPatch, workbookForApi } from "../../lib/haulzReturns/workbookApi.js";
-import { loadLatestWorkbook, saveWorkbook } from "../../lib/haulzReturns/workbookStorage.js";
+import type { HaulzWorkbook } from "../../lib/haulzReturns/types.js";
+import { deserializeWorkbook, mergeWorkbookPatch, workbookForApi } from "../../lib/haulzReturns/workbookApi.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "haulz_returns_job_workbook");
@@ -53,18 +52,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             : [],
       ),
     };
-    const stored = await loadLatestWorkbook(pool, jobId);
+
+    const { rows: storedRows } = await pool.query<{ sheets: unknown; itog_control_keys: unknown }>(
+      `select sheets, itog_control_keys
+       from haulz_returns_workbooks
+       where job_id = $1
+       order by version desc
+       limit 1`,
+      [jobId],
+    );
+    const stored = storedRows[0]
+      ? deserializeWorkbook(storedRows[0].sheets, storedRows[0].itog_control_keys)
+      : null;
     const merged = mergeWorkbookPatch(stored, wb);
-    const recalced = recalcWorkbookAfterItogChange(merged);
-    const version = await saveWorkbook(pool, jobId, access.loginKey, recalced);
+
+    const { rows: verRows } = await pool.query<{ v: number }>(
+      `select coalesce(max(version), 0) + 1 as v from haulz_returns_workbooks where job_id = $1`,
+      [jobId],
+    );
+    const version = verRows[0]?.v ?? 1;
+    await pool.query(
+      `insert into haulz_returns_workbooks (job_id, version, sheets, itog_control_keys, built_by_login)
+       values ($1, $2, $3::jsonb, $4::jsonb, $5)`,
+      [jobId, version, JSON.stringify(merged.sheets), JSON.stringify([...merged.itogControlKeys]), access.loginKey],
+    );
     await pool.query(
       `update haulz_returns_jobs set status = 'ready', updated_at = now() where id = $1`,
       [jobId],
     );
+
     return res.status(200).json({
       ok: true,
       workbookVersion: version,
-      workbook: workbookForApi(recalced),
+      workbook: workbookForApi(merged),
       request_id: ctx.requestId,
     });
   } catch (e) {
