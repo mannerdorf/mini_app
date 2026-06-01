@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Flex, Typography } from "@maxhub/max-ui";
-import { ChevronRight, Loader2, AlertCircle } from "lucide-react";
+import { ChevronRight, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { AppBadge } from "./shared/AppBadge";
 import { DateText } from "./ui/DateText";
 import { ClickableInvoiceNumber, leafRowClickProps } from "./ui/EntityLinks";
@@ -18,6 +18,8 @@ type Props = {
   invoices: Record<string, unknown>[];
   cargoItems: CargoItem[];
   loading?: boolean;
+  /** Перевозки для плановой даты — подгружаются отдельно, не блокируют список счетов. */
+  cargoLoading?: boolean;
   showSums?: boolean;
   onOpen?: () => void;
   onOpenInvoice?: (invoice: Record<string, unknown>) => void;
@@ -52,6 +54,7 @@ export function UnpaidInvoicesPlanMonitor({
   invoices,
   cargoItems,
   loading,
+  cargoLoading = false,
   showSums = true,
   onOpen,
   onOpenInvoice,
@@ -65,10 +68,13 @@ export function UnpaidInvoicesPlanMonitor({
   const highCount = rows.filter((r) => r.priority === "high").length;
   const totalBalance = rows.reduce((acc, r) => acc + r.balance, 0);
   const tableScrollable = rows.length > UNPAID_MONITOR_SCROLL_AFTER_ROWS;
+  const isEmpty = !loading && rows.length === 0;
+  const HeadIcon = isEmpty ? CheckCircle2 : AlertCircle;
+  const headIconColor = isEmpty ? "#10b981" : "var(--color-primary-blue)";
 
-  if (!loading && rows.length === 0) return null;
-
-  const cardClass = `unpaid-plan-monitor cargo-card${highCount > 0 ? " unpaid-plan-monitor--alert" : ""}`;
+  const cardClass = `unpaid-plan-monitor cargo-card${
+    highCount > 0 ? " unpaid-plan-monitor--alert" : isEmpty ? " unpaid-plan-monitor--ok" : ""
+  }`;
 
   return (
     <div className={cardClass}>
@@ -81,13 +87,17 @@ export function UnpaidInvoicesPlanMonitor({
       >
         <div className="unpaid-plan-monitor__head">
           <Flex align="center" gap="0.4rem" style={{ minWidth: 0 }}>
-            <AlertCircle className="w-4 h-4" style={{ color: "var(--color-primary-blue)", flexShrink: 0 }} />
+            <HeadIcon className="w-4 h-4" style={{ color: headIconColor, flexShrink: 0 }} aria-hidden />
             <div style={{ minWidth: 0, textAlign: "left" }}>
-              <Typography.Body className="unpaid-plan-monitor__title">Неоплаченные счета и план прибытия</Typography.Body>
+              <Typography.Body className="unpaid-plan-monitor__title">Монитор задолженности</Typography.Body>
               <Typography.Label className="unpaid-plan-monitor__subtitle">
                 {loading
-                  ? "Загрузка…"
-                  : `${rows.length} к оплате${showSums ? ` · всего ${formatCurrency(totalBalance, true)}` : ""} · высокий приоритет: ${highCount} (до ${PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS} дн. до плана)`}
+                  ? "Загрузка счетов…"
+                  : cargoLoading
+                    ? "Счета загружены, уточняем плановые даты…"
+                  : isEmpty
+                    ? "Задолженностей нет — все счета оплачены"
+                    : `${rows.length} к оплате${showSums ? ` · всего ${formatCurrency(totalBalance, true)}` : ""} · высокий приоритет: ${highCount} (до ${PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS} дн. до плана)`}
               </Typography.Label>
             </div>
           </Flex>
@@ -102,6 +112,18 @@ export function UnpaidInvoicesPlanMonitor({
             Счета…
           </Typography.Label>
         </Flex>
+      ) : isEmpty ? (
+        <>
+          <Typography.Body className="unpaid-plan-monitor__empty-title">Задолженностей нет</Typography.Body>
+          <Typography.Label className="unpaid-plan-monitor__empty-hint">
+            Неоплаченных счетов не найдено. При появлении задолженности счета появятся в этом блоке с плановой датой прибытия.
+          </Typography.Label>
+          {onOpen && (
+            <button type="button" className="unpaid-plan-monitor__more" onClick={onOpen}>
+              Открыть раздел «Счета»
+            </button>
+          )}
+        </>
       ) : (
         <>
         <div
@@ -166,7 +188,7 @@ export function UnpaidInvoicesPlanMonitor({
             </tbody>
           </table>
         </div>
-        {onOpen && rows.length > 0 && (
+        {onOpen && (
           <button type="button" className="unpaid-plan-monitor__more" onClick={onOpen}>
             Все счета в разделе «Счета»
           </button>

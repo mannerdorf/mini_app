@@ -508,6 +508,10 @@ export async function sendWeeklySummaryEmail(
   if (await isSummaryEmailUnsubscribed(pool, to)) {
     return { ok: false, error: "Получатель отписан от рассылки" };
   }
+  const { isEmailNotificationEnabled } = await import("./notificationEmailPrefs.js");
+  if (!(await isEmailNotificationEnabled(pool, to, "weekly_summary"))) {
+    return { ok: false, error: "еженедельная сводка отключена в профиле" };
+  }
   const {
     createSummaryMessageId,
     injectSummaryEmailTracking,

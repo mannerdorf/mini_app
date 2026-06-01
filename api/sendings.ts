@@ -323,7 +323,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const filterCachedItems = (list: any[], finalInns: Set<string> | null) =>
     filterSendingsCachedByInnAndDate(list, finalInns, dateFrom, dateTo);
 
-  const useDocumentCache = shouldServeFromDocumentCache(dateFrom);
+  const useDocumentCache = shouldServeFromDocumentCache(dateFrom, dateTo);
   let registeredVerified: VerifiedRegisteredUser | null = null;
 
   if (isRegisteredUser) {

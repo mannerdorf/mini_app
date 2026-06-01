@@ -3,6 +3,8 @@ import { normalizeCargoDateOnly } from "./cargoDateFilter.js";
 import { loadCustomersDirectory, loadUsersWithCompanies } from "./haulzSummaryDirectories.js";
 import { loadUnsubscribedSummaryEmails } from "./haulzSummaryUnsubscribe.js";
 import { getInvoicePaymentFilterKey } from "./invoicePaymentFilter.js";
+import { hasSummaryEmailSentToday } from "./haulzSummaryEmailDailyLimit.js";
+import { isEmailNotificationEnabled } from "./notificationEmailPrefs.js";
 import {
   buildWeeklySummaryData,
   getPreviousCalendarWeekRange,
@@ -27,6 +29,7 @@ export type SummaryCronSendJob = {
   sent: number;
   failed: number;
   skippedUnsubscribed: number;
+  skippedDailyLimit: number;
   trigger: "auto" | "manual";
   logId: number;
   errors: Array<{ targetLogin: string; inn: string; error: string }>;
@@ -145,6 +148,7 @@ function parseSendJob(raw: unknown): SummaryCronSendJob | null {
     sent: Math.max(0, Number(o.sent) || 0),
     failed: Math.max(0, Number(o.failed) || 0),
     skippedUnsubscribed: Math.max(0, Number(o.skippedUnsubscribed) || 0),
+    skippedDailyLimit: Math.max(0, Number(o.skippedDailyLimit) || 0),
     trigger: o.trigger === "manual" ? "manual" : "auto",
     logId: Math.max(0, Number(o.logId) || 0),
     errors,
@@ -232,6 +236,7 @@ export function serializeSendJobForApi(job: SummaryCronSendJob | null | undefine
     sent: job.sent,
     failed: job.failed,
     skippedUnsubscribed: job.skippedUnsubscribed,
+    skippedDailyLimit: job.skippedDailyLimit,
     total,
     progressPct,
     startedAt: job.startedAt,
@@ -251,6 +256,71 @@ export async function loadSummaryCronConfig(pool: Pool): Promise<SummaryCronConf
   }
 }
 
+async function persistSummaryCronConfigRow(
+  pool: Pool,
+  next: SummaryCronConfig,
+  updatedBy: string | null,
+): Promise<void> {
+  const params = [
+    next.enabled,
+    next.schedule,
+    next.periodMode,
+    next.periodDays,
+    JSON.stringify(next.criteria),
+    next.batchSize,
+    next.emailPauseSec,
+    next.batchPauseSec,
+    next.spreadWindowHours,
+    updatedBy,
+  ];
+  try {
+    await pool.query(
+      `INSERT INTO haulz_summary_cron_config (
+         id, enabled, schedule, period_mode, period_days, criteria,
+         batch_size, email_pause_sec, batch_pause_sec, spread_window_hours,
+         updated_at, updated_by
+       ) VALUES (1, $1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, now(), $10)
+       ON CONFLICT (id) DO UPDATE SET
+         enabled = EXCLUDED.enabled,
+         schedule = EXCLUDED.schedule,
+         period_mode = EXCLUDED.period_mode,
+         period_days = EXCLUDED.period_days,
+         criteria = EXCLUDED.criteria,
+         batch_size = EXCLUDED.batch_size,
+         email_pause_sec = EXCLUDED.email_pause_sec,
+         batch_pause_sec = EXCLUDED.batch_pause_sec,
+         spread_window_hours = EXCLUDED.spread_window_hours,
+         updated_at = now(),
+         updated_by = EXCLUDED.updated_by`,
+      params,
+    );
+  } catch (e: unknown) {
+    const code = (e as { code?: string })?.code;
+    if (code !== "42703") throw e;
+    await pool.query(
+      `INSERT INTO haulz_summary_cron_config (
+         id, enabled, schedule, period_mode, period_days, criteria, updated_at, updated_by
+       ) VALUES (1, $1, $2, $3, $4, $5::jsonb, now(), $6)
+       ON CONFLICT (id) DO UPDATE SET
+         enabled = EXCLUDED.enabled,
+         schedule = EXCLUDED.schedule,
+         period_mode = EXCLUDED.period_mode,
+         period_days = EXCLUDED.period_days,
+         criteria = EXCLUDED.criteria,
+         updated_at = now(),
+         updated_by = EXCLUDED.updated_by`,
+      [
+        next.enabled,
+        next.schedule,
+        next.periodMode,
+        next.periodDays,
+        JSON.stringify(next.criteria),
+        updatedBy,
+      ],
+    );
+  }
+}
+
 export async function saveSummaryCronConfig(
   pool: Pool,
   patch: Partial<SummaryCronConfig> & { updatedBy?: string },
@@ -265,37 +335,15 @@ export async function saveSummaryCronConfig(
     batchPauseSec: patch.batchPauseSec ?? current.batchPauseSec,
     spreadWindowHours: patch.spreadWindowHours ?? current.spreadWindowHours,
   };
-  await pool.query(
-    `INSERT INTO haulz_summary_cron_config (
-       id, enabled, schedule, period_mode, period_days, criteria,
-       batch_size, email_pause_sec, batch_pause_sec, spread_window_hours,
-       updated_at, updated_by
-     ) VALUES (1, $1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, now(), $10)
-     ON CONFLICT (id) DO UPDATE SET
-       enabled = EXCLUDED.enabled,
-       schedule = EXCLUDED.schedule,
-       period_mode = EXCLUDED.period_mode,
-       period_days = EXCLUDED.period_days,
-       criteria = EXCLUDED.criteria,
-       batch_size = EXCLUDED.batch_size,
-       email_pause_sec = EXCLUDED.email_pause_sec,
-       batch_pause_sec = EXCLUDED.batch_pause_sec,
-       spread_window_hours = EXCLUDED.spread_window_hours,
-       updated_at = now(),
-       updated_by = EXCLUDED.updated_by`,
-    [
-      next.enabled,
-      next.schedule,
-      next.periodMode,
-      next.periodDays,
-      JSON.stringify(next.criteria),
-      next.batchSize,
-      next.emailPauseSec,
-      next.batchPauseSec,
-      next.spreadWindowHours,
-      patch.updatedBy || next.updatedBy || null,
-    ],
-  );
+  const updatedBy = patch.updatedBy || next.updatedBy || null;
+  await persistSummaryCronConfigRow(pool, next, updatedBy);
+  if (!next.enabled) {
+    try {
+      await cancelPartnerSummarySendJob(pool);
+    } catch {
+      /* нет активной рассылки */
+    }
+  }
   return loadSummaryCronConfig(pool);
 }
 
@@ -409,7 +457,25 @@ export async function buildSummaryCronRecipients(
     }
   }
 
-  return recipients.sort(
+  /** Один получатель (логин) — не более одного письма за рассылку. */
+  const byLogin = new Map<string, SummaryCronRecipient>();
+  for (const r of recipients) {
+    const prev = byLogin.get(r.targetLogin);
+    if (!prev) {
+      byLogin.set(r.targetLogin, r);
+      continue;
+    }
+    byLogin.set(r.targetLogin, {
+      ...prev,
+      reasons: [...new Set([...prev.reasons, ...r.reasons])],
+      companyName:
+        prev.companyName === r.companyName || prev.companyName.includes(r.companyName)
+          ? prev.companyName
+          : `${prev.companyName}, ${r.companyName}`,
+    });
+  }
+
+  return Array.from(byLogin.values()).sort(
     (a, b) => a.targetLogin.localeCompare(b.targetLogin, "ru") || a.companyName.localeCompare(b.companyName, "ru"),
   );
 }
@@ -515,10 +581,23 @@ async function sendOneSummaryEmail(
   r: SummaryCronRecipient,
   period: { dateFrom: string; dateTo: string },
   dispatchLogId?: number,
-): Promise<{ ok: boolean; error?: string; skippedUnsubscribed?: boolean }> {
+): Promise<{
+  ok: boolean;
+  error?: string;
+  messageId?: string;
+  skippedUnsubscribed?: boolean;
+  skippedDailyLimit?: boolean;
+  skippedPrefs?: boolean;
+}> {
   const { isSummaryEmailUnsubscribed } = await import("./haulzSummaryUnsubscribe.js");
   if (await isSummaryEmailUnsubscribed(pool, r.targetLogin)) {
     return { ok: false, skippedUnsubscribed: true, error: "отписан от рассылки" };
+  }
+  if (!(await isEmailNotificationEnabled(pool, r.targetLogin, "weekly_summary"))) {
+    return { ok: false, skippedPrefs: true, error: "еженедельная сводка отключена в профиле" };
+  }
+  if (await hasSummaryEmailSentToday(pool, r.targetLogin)) {
+    return { ok: false, skippedDailyLimit: true, error: "уже отправлено сегодня (лимит 1 письмо в сутки)" };
   }
   const data = await buildWeeklySummaryData(pool, {
     inn: r.inn,
@@ -579,6 +658,7 @@ async function recoverSendJobFromDispatchLog(
     sent: Math.max(0, Number(row.sent) || 0),
     failed: Math.max(0, Number(row.failed) || 0),
     skippedUnsubscribed: Math.max(0, Number(row.skipped_unsubscribed) || 0),
+    skippedDailyLimit: 0,
     trigger: String(row.trigger) === "manual" ? "manual" : "auto",
     logId,
     errors,
@@ -705,6 +785,12 @@ async function processSendJobBatch(
       } else if (sendResult.skippedUnsubscribed) {
         job.skippedUnsubscribed += 1;
         await updateDispatchRecipientStatus(pool, job.logId, r, "skipped_unsubscribed", { error: sendResult.error });
+      } else if (sendResult.skippedDailyLimit) {
+        job.skippedDailyLimit += 1;
+        await updateDispatchRecipientStatus(pool, job.logId, r, "skipped_daily_limit", { error: sendResult.error });
+      } else if (sendResult.skippedPrefs) {
+        job.skippedUnsubscribed += 1;
+        await updateDispatchRecipientStatus(pool, job.logId, r, "skipped_prefs", { error: sendResult.error });
       } else {
         job.failed += 1;
         batchFailed += 1;
@@ -760,6 +846,7 @@ async function startSendJob(
     sent: 0,
     failed: 0,
     skippedUnsubscribed: 0,
+    skippedDailyLimit: 0,
     trigger,
     logId: 0,
     errors: [],
@@ -845,6 +932,19 @@ export async function runPartnerSummaryCron(
   let job = await resolveActiveSendJob(pool);
 
   if (options.continueOnly) {
+    if (!config.enabled) {
+      if (job) await cancelPartnerSummarySendJob(pool);
+      return {
+        ok: true,
+        skipped: true,
+        reason: "Автоотправка выключена",
+        period,
+        sent: 0,
+        failed: 0,
+        recipients: 0,
+        errors: [],
+      };
+    }
     if (!job) {
       return {
         ok: true,
@@ -888,6 +988,7 @@ export async function runPartnerSummaryCron(
             sent: 0,
             failed: 0,
             skippedUnsubscribed: 0,
+            skippedDailyLimit: 0,
             trigger: "manual",
             logId: 0,
             errors: [],
@@ -920,6 +1021,19 @@ export async function runPartnerSummaryCron(
   }
 
   if (job) {
+    if (!config.enabled) {
+      await cancelPartnerSummarySendJob(pool);
+      return {
+        ok: true,
+        skipped: true,
+        reason: "Автоотправка выключена — рассылка остановлена",
+        period,
+        sent: 0,
+        failed: 0,
+        recipients: 0,
+        errors: [],
+      };
+    }
     job = (await resolveActiveSendJob(pool)) ?? job;
     const { job: updated, batchSent, done } = await processSendJobBatch(pool, config, job);
     return runResultFromJob(updated, {
@@ -971,6 +1085,7 @@ export async function runPartnerSummaryCron(
         sent: 0,
         failed: 0,
         skippedUnsubscribed: 0,
+        skippedDailyLimit: 0,
         trigger: "auto",
         logId: 0,
         errors: [],

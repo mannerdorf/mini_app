@@ -6,6 +6,8 @@ export type DispatchRecipientStatus =
   | "sent"
   | "failed"
   | "skipped_unsubscribed"
+  | "skipped_daily_limit"
+  | "skipped_prefs"
   | "cancelled";
 
 export type DispatchRecipientRow = {

@@ -94,7 +94,8 @@ export function filterItemsForHeaderCustomer(
     const itemName = stripOoo(String(item.Customer ?? item.customer ?? "")).toLowerCase();
     if (inn && itemInn) return itemInn === inn;
     if (nameKey && itemName) return itemName === nameKey;
-    if (inn && !itemInn && nameKey) return itemName === nameKey;
+    // Счета из API уже отфильтрованы по ИНН логина; в строке часто нет поля ИНН.
+    if (inn && !itemInn) return true;
     return false;
   });
 }

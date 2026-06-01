@@ -61,7 +61,7 @@ export function AppHeader({
     return () => document.removeEventListener("click", onOutside);
   }, [debugMenuOpen]);
 
-  const handleSearch = (text: string) => setSearchText(text.toLowerCase().trim());
+  const clearSearch = () => setSearchText("");
 
   return (
     <header className={`app-header${desktopExpanded ? " app-header-wide" : ""}`}>
@@ -248,8 +248,7 @@ export function AppHeader({
               onClick={() => {
                 setIsSearchExpanded(!isSearchExpanded);
                 if (isSearchExpanded) {
-                  handleSearch("");
-                  setSearchText("");
+                  clearSearch();
                 }
               }}
               title={isSearchExpanded ? "Закрыть поиск" : "Поиск"}
@@ -279,10 +278,7 @@ export function AppHeader({
             placeholder={activeTab === "cargo" ? "Номер, штрихкод, номенклатура…" : "Поиск..."}
             className="search-input"
             value={searchText}
-            onChange={(e) => {
-              setSearchText(e.target.value);
-              handleSearch(e.target.value);
-            }}
+            onChange={(e) => setSearchText(e.target.value.toLowerCase())}
           />
         </div>
       )}

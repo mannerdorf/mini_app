@@ -64,3 +64,66 @@ export async function postAdminZvonobotSandbox(
   }
   return data;
 }
+
+export type DocumentCacheBackfillStatus = {
+  historyDays: number;
+  stepDaysDefault: number;
+  state: {
+    rangeStart: string;
+    rangeEnd: string;
+    nextFrom: string;
+    stepDays: number;
+    kindCursor?: number;
+    nextKind?: string;
+    nextKindLabel?: string;
+    done: boolean;
+    lastStep: unknown;
+    updatedAt: string | null;
+  };
+  coverage: {
+    perevozki: { count: number; minDate: string | null; maxDate: string | null; fetchedAt: string | null };
+    sendings: { count: number; minDate: string | null; maxDate: string | null; fetchedAt: string | null };
+    invoices: { count: number; minDate: string | null; maxDate: string | null; fetchedAt: string | null };
+    acts: { count: number; minDate: string | null; maxDate: string | null; fetchedAt: string | null };
+  };
+  coverageByMonth?: Array<{
+    month: string;
+    monthLabel: string;
+    perevozki: number;
+    sendings: number;
+    invoices: number;
+    acts: number;
+    backfillStatus?: "done" | "current" | "pending" | "before_range";
+  }>;
+  cacheEarliestDate?: string;
+};
+
+export async function fetchDocumentCacheBackfillStatus(adminToken: string): Promise<DocumentCacheBackfillStatus> {
+  const res = await fetch("/api/admin-document-cache-backfill", {
+    method: "GET",
+    headers: adminAuthHeaders(adminToken),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string })?.error || "Ошибка статуса backfill");
+  return data as DocumentCacheBackfillStatus;
+}
+
+export async function postDocumentCacheBackfill(
+  adminToken: string,
+  body: { action: "reset" | "step" | "reset_and_run"; historyDays?: number; stepDays?: number; maxSteps?: number }
+): Promise<DocumentCacheBackfillStatus & { steps?: unknown[]; message?: string }> {
+  const res = await fetch("/api/admin-document-cache-backfill", {
+    method: "POST",
+    headers: adminAuthHeaders(adminToken, { "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err =
+      (data as { error?: string })?.error ||
+      (data as { message?: string })?.message ||
+      `HTTP ${res.status}`;
+    throw new Error(String(err));
+  }
+  return data as DocumentCacheBackfillStatus & { steps?: unknown[]; message?: string };
+}

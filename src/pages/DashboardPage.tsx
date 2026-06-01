@@ -565,13 +565,6 @@ export function DashboardPage({
         useServiceRequest: true,
         enabled: !!useServiceRequest && !!prevRange,
     });
-    const { items: invoiceItems, loading: invoicesLoading } = useInvoices({
-        auth,
-        dateFrom: apiDateRange.dateFrom,
-        dateTo: apiDateRange.dateTo,
-        activeInn: auth?.inn || undefined,
-        useServiceRequest,
-    });
 
     const filterInvoicesForHeaderCustomer = useCallback(
         (source: unknown[]) => {
@@ -584,36 +577,35 @@ export function DashboardPage({
         [useServiceRequest, auth?.inn, runtimeActiveInn, activeCustomerName],
     );
 
-    const edoMonitorInvoices = useMemo(
-        () => filterInvoicesForHeaderCustomer(invoiceItems),
-        [invoiceItems, filterInvoicesForHeaderCustomer],
-    );
-
     const calendarYear = new Date().getFullYear();
     const calendarDateFrom = `${calendarYear - 1}-01-01`;
-    const calendarDateTo = `${calendarYear + 1}-12-31`;
+    const calendarDateTo = new Date().toISOString().slice(0, 10);
 
-    /** Неоплаченные счета × план прибытия: не зависят от фильтра «Дата» на дашборде. */
-    const unpaidPlanFetchEnabled = !loading && !error;
-    const { items: unpaidPlanInvoiceItems, loading: unpaidPlanInvoicesLoading } = useInvoices({
+    /** Счета для мониторов ЭДО и задолженности — широкий период, не зависят от фильтра «Дата». */
+    const monitorFetchEnabled = !!(auth?.login && auth?.password);
+    const { items: monitorInvoiceItems, loading: monitorInvoicesLoading } = useInvoices({
         auth,
         dateFrom: calendarDateFrom,
         dateTo: calendarDateTo,
         activeInn: auth?.inn || undefined,
         useServiceRequest,
-        enabled: unpaidPlanFetchEnabled,
+        enabled: monitorFetchEnabled,
     });
-    const unpaidPlanMonitorInvoices = useMemo(
-        () => filterInvoicesForHeaderCustomer(unpaidPlanInvoiceItems),
-        [unpaidPlanInvoiceItems, filterInvoicesForHeaderCustomer],
+    const monitorInvoicesFiltered = useMemo(
+        () => filterInvoicesForHeaderCustomer(monitorInvoiceItems),
+        [monitorInvoiceItems, filterInvoicesForHeaderCustomer],
     );
+
+    const edoMonitorInvoices = monitorInvoicesFiltered;
+
+    const unpaidPlanMonitorInvoices = monitorInvoicesFiltered;
     const { items: unpaidPlanCargoItems, loading: unpaidPlanCargoLoading } = usePerevozki({
         auth,
         dateFrom: calendarDateFrom,
         dateTo: calendarDateTo,
         useServiceRequest,
         inn: !useServiceRequest ? auth?.inn : undefined,
-        enabled: unpaidPlanFetchEnabled,
+        enabled: monitorFetchEnabled,
     });
     const unpaidPlanMonitorCargo = useMemo(() => {
         if (useServiceRequest) return unpaidPlanCargoItems;
@@ -2992,7 +2984,7 @@ export function DashboardPage({
             {!showOnlySla && (
                 <EdoHealthMonitor
                     invoices={edoMonitorInvoices}
-                    loading={invoicesLoading}
+                    loading={monitorInvoicesLoading}
                     onOpen={onOpenDocumentsEdo}
                 />
             )}
@@ -3001,7 +2993,8 @@ export function DashboardPage({
                 <UnpaidInvoicesPlanMonitor
                     invoices={unpaidPlanMonitorInvoices as Record<string, unknown>[]}
                     cargoItems={unpaidPlanMonitorCargo}
-                    loading={unpaidPlanInvoicesLoading || unpaidPlanCargoLoading}
+                    loading={monitorInvoicesLoading}
+                    cargoLoading={unpaidPlanCargoLoading}
                     showSums={showSums}
                     onOpen={onOpenDocumentsInvoices}
                     onOpenInvoice={onOpenInvoice}

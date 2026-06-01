@@ -1,10 +1,16 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import {
+  DEFAULT_EMAIL_PREFS,
+  EMAIL_NOTIFICATION_EVENTS,
+  normalizeNotificationPreferencesState,
+} from "../lib/notificationEmailPrefs.js";
 
 const DEFAULT_PREFS = {
   telegram: { daily_summary: true } as Record<string, boolean>,
   webpush: { daily_summary: false } as Record<string, boolean>,
+  email: { ...DEFAULT_EMAIL_PREFS } as Record<string, boolean>,
 };
 
 const EVENTS = ["accepted", "in_transit", "delivered", "bill_created", "bill_paid", "daily_summary"] as const;
@@ -28,26 +34,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const login = String(req.query?.login || "").trim().toLowerCase();
     if (!login) return res.status(400).json({ error: "login is required", request_id: ctx.requestId });
 
-    const prefs = { ...DEFAULT_PREFS };
+    const prefs = { ...DEFAULT_PREFS, email: { ...DEFAULT_EMAIL_PREFS } };
     try {
       try {
-        const stateRes = await pool.query<{ preferences: any }>(
+        const stateRes = await pool.query<{ preferences: unknown }>(
           "SELECT preferences FROM notification_preferences_state WHERE login = $1 LIMIT 1",
           [login]
         );
         if (stateRes.rows.length > 0) {
-          const raw = stateRes.rows[0]?.preferences || {};
-          const telegram = raw?.telegram && typeof raw.telegram === "object" ? raw.telegram : {};
-          const webpush = raw?.webpush && typeof raw.webpush === "object" ? raw.webpush : {};
+          const normalized = normalizeNotificationPreferencesState(stateRes.rows[0]?.preferences);
           return res.status(200).json({
-            telegram: { ...DEFAULT_PREFS.telegram, ...telegram },
-            webpush: { ...DEFAULT_PREFS.webpush, ...webpush },
+            telegram: { ...DEFAULT_PREFS.telegram, ...normalized.telegram },
+            webpush: { ...DEFAULT_PREFS.webpush, ...normalized.webpush },
+            email: { ...DEFAULT_EMAIL_PREFS, ...normalized.email },
             request_id: ctx.requestId,
           });
         }
-      } catch (e: any) {
-        // New state table missing or inaccessible; fallback to legacy rows below.
-        if (e?.code !== "42P01") {
+      } catch (e: unknown) {
+        const code = (e as { code?: string })?.code;
+        if (code !== "42P01") {
           logError(ctx, "webpush_preferences_get_state_failed", e);
         }
       }
@@ -56,14 +61,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         [login]
       );
       for (const r of rows) {
-        const ch = r.channel === "telegram" ? "telegram" : "webpush";
-        if (EVENTS.includes(r.event_id as any)) {
+        const ch = r.channel === "telegram" ? "telegram" : r.channel === "email" ? "email" : "webpush";
+        const eventIds =
+          ch === "email"
+            ? (EMAIL_NOTIFICATION_EVENTS as readonly string[])
+            : (EVENTS as readonly string[]);
+        if (eventIds.includes(r.event_id)) {
           prefs[ch][r.event_id] = r.enabled;
         }
       }
       return res.status(200).json({ ...prefs, request_id: ctx.requestId });
-    } catch (e: any) {
-      if (e?.code === "42P01") {
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code;
+      if (code === "42P01") {
         return res.status(200).json({ ...prefs, request_id: ctx.requestId });
       }
       logError(ctx, "webpush_preferences_get_failed", e);
@@ -71,7 +81,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  let body: any = req.body;
+  let body: unknown = req.body;
   if (typeof body === "string") {
     try {
       body = JSON.parse(body);
@@ -80,19 +90,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const login = String(body?.login || "").trim().toLowerCase();
-  const preferences = body?.preferences;
+  const bodyObj = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const login = String(bodyObj.login || "").trim().toLowerCase();
+  const preferences = bodyObj.preferences;
   if (!login) return res.status(400).json({ error: "login is required", request_id: ctx.requestId });
   if (!preferences || typeof preferences !== "object") {
     return res.status(400).json({ error: "preferences object is required", request_id: ctx.requestId });
   }
 
-  const telegram = preferences.telegram && typeof preferences.telegram === "object" ? preferences.telegram : {};
-  const webpush = preferences.webpush && typeof preferences.webpush === "object" ? preferences.webpush : {};
-  const current = {
+  const prefObj = preferences as Record<string, unknown>;
+  const telegram = prefObj.telegram && typeof prefObj.telegram === "object" ? (prefObj.telegram as Record<string, boolean>) : {};
+  const webpush = prefObj.webpush && typeof prefObj.webpush === "object" ? (prefObj.webpush as Record<string, boolean>) : {};
+  const email = prefObj.email && typeof prefObj.email === "object" ? (prefObj.email as Record<string, boolean>) : {};
+  const current = normalizeNotificationPreferencesState({
     telegram: { ...DEFAULT_PREFS.telegram, ...telegram },
     webpush: { ...DEFAULT_PREFS.webpush, ...webpush },
-  };
+    email: { ...DEFAULT_EMAIL_PREFS, ...email },
+  });
 
   try {
     try {
@@ -103,14 +117,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          DO UPDATE SET preferences = excluded.preferences, updated_at = now()`,
         [login, JSON.stringify(current)]
       );
-    } catch (e: any) {
-      // Continue with legacy sync if new table does not exist in DB yet.
-      if (e?.code !== "42P01") {
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code;
+      if (code !== "42P01") {
         logError(ctx, "webpush_preferences_post_state_failed", e);
       }
     }
 
-    // Legacy sync: keep old row-based table in sync if it exists.
     for (const eventId of EVENTS) {
       try {
         await pool.query(
@@ -125,14 +138,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
            ON CONFLICT (login, channel, event_id) DO UPDATE SET enabled = excluded.enabled, updated_at = now()`,
           [login, eventId, !!current.webpush[eventId]]
         );
-      } catch (e: any) {
-        // Old schema may reject new event_id values by CHECK constraint.
-        if (e?.code === "23514" || e?.code === "42P01") continue;
+      } catch (e: unknown) {
+        const code = (e as { code?: string })?.code;
+        if (code === "23514" || code === "42P01") continue;
         throw e;
       }
     }
+
+    for (const eventId of EMAIL_NOTIFICATION_EVENTS) {
+      try {
+        await pool.query(
+          `INSERT INTO notification_preferences (login, channel, event_id, enabled, updated_at)
+           VALUES ($1, 'email', $2, $3, now())
+           ON CONFLICT (login, channel, event_id) DO UPDATE SET enabled = excluded.enabled, updated_at = now()`,
+          [login, eventId, !!current.email[eventId]]
+        );
+      } catch (e: unknown) {
+        const code = (e as { code?: string })?.code;
+        if (code === "23514" || code === "42P01") continue;
+        throw e;
+      }
+    }
+
     return res.status(200).json({ ok: true, preferences: current, request_id: ctx.requestId });
-  } catch (e: any) {
+  } catch (e: unknown) {
     logError(ctx, "webpush_preferences_post_failed", e);
     return res.status(500).json({ error: "Failed to save preferences", request_id: ctx.requestId });
   }
