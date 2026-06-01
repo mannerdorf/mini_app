@@ -30,6 +30,7 @@ export function useSendingsRowRuntime(deps: BaseDeps): SendingsRowRuntime {
     deps.normalizeTransportDisplay,
     deps.cargoStateByNumber,
     deps.cargoStopDateByNumber,
+    deps.cargoDepartureByNumber,
     deps.cargoPlanDateByNumber,
     deps.sendingPlanDateBySendingId,
     vehicleFreightCargoNumbers,

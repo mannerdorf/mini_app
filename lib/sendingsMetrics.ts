@@ -1,3 +1,10 @@
+import {
+  buildCargoDepartureByNumber,
+  calcTransitHours,
+  parseDateTimeValue,
+  pickSendingDepartureStart,
+} from "./transitDateTime.js";
+
 type SendingMetricRow = {
   customerInn: string;
   sendingNumber: string;
@@ -113,49 +120,14 @@ function dateToIso(date: Date | null): string | null {
   return date ? date.toISOString() : null;
 }
 
-function parseDateTimeValue(raw: unknown): Date | null {
-  const source = String(raw ?? "").trim();
-  if (!source) return null;
-
-  const iso = source.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2})(?::(\d{2}))?(?::(\d{2}))?)?/);
-  if (iso) {
-    const year = Number(iso[1]);
-    const month = Number(iso[2]) - 1;
-    const day = Number(iso[3]);
-    const hours = Number(iso[4] ?? 0);
-    const minutes = Number(iso[5] ?? 0);
-    const seconds = Number(iso[6] ?? 0);
-    const date = new Date(year, month, day, hours, minutes, seconds);
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-
-  const ru = source.match(/^(\d{2})\.(\d{2})\.(\d{4})(?:[ ,T](\d{2})(?::(\d{2}))?(?::(\d{2}))?)?/);
-  if (ru) {
-    const day = Number(ru[1]);
-    const month = Number(ru[2]) - 1;
-    const year = Number(ru[3]);
-    const hours = Number(ru[4] ?? 0);
-    const minutes = Number(ru[5] ?? 0);
-    const seconds = Number(ru[6] ?? 0);
-    const date = new Date(year, month, day, hours, minutes, seconds);
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-
-  const fallback = new Date(source);
-  return Number.isNaN(fallback.getTime()) ? null : fallback;
-}
-
 function minDate(a: Date | null, b: Date | null): Date | null {
   if (!a) return b;
   if (!b) return a;
   return a.getTime() <= b.getTime() ? a : b;
 }
 
-function calcTransitHours(sendStartAt: Date | null, firstReadyAt: Date | null): number | null {
-  if (!sendStartAt || !firstReadyAt) return null;
-  const diffMs = firstReadyAt.getTime() - sendStartAt.getTime();
-  if (!Number.isFinite(diffMs) || diffMs < 0) return null;
-  return Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
+function normCargoKeyForMetrics(num: string | null | undefined): string {
+  return normalizeCargoNumber(num);
 }
 
 function pickSendingInn(item: any): string {
@@ -245,25 +217,6 @@ function pickSendingNumber(item: any): string {
     if (value.length >= 4) return value;
   }
   return "";
-}
-
-function pickSendingStartDate(item: any): Date | null {
-  return parseDateTimeValue(
-    item?.DateOtpr ??
-      item?.DateSend ??
-      item?.DateShipment ??
-      item?.ShipmentDate ??
-      item?.ДатаОтправки ??
-      item?.ДатаОтгрузки ??
-      item?.DateDoc ??
-      item?.Date ??
-      item?.date ??
-      item?.DateVr ??
-      item?.DatePrih ??
-      item?.ДатаПогрузки ??
-      item?.ДатаНачала ??
-      item?.Дата
-  );
 }
 
 function statusKey(raw: unknown): "ready" | "delivered" | "other" {
@@ -390,6 +343,7 @@ export function extractArrayFromAnyPayload(raw: unknown): unknown[] {
 
 export function buildSendingsMetrics(sendingsItems: any[], perevozkiItems: any[]): SendingMetricRow[] {
   const stopDateByCargo = buildCargoStopDateByNumber(perevozkiItems || []);
+  const cargoDepartureByNumber = buildCargoDepartureByNumber(perevozkiItems || [], normCargoKeyForMetrics);
   const cargoInnByNumber = buildCargoInnByNumber(perevozkiItems || []);
   const byKey = new Map<string, SendingMetricRow>();
 
@@ -413,7 +367,12 @@ export function buildSendingsMetrics(sendingsItems: any[], perevozkiItems: any[]
     }
     if (!customerInn || !sendingNumber) return;
 
-    const sendStartAt = pickSendingStartDate(row);
+    const sendStartAt = pickSendingDepartureStart(
+      row,
+      cargoNumbers,
+      cargoDepartureByNumber,
+      normCargoKeyForMetrics,
+    );
 
     let firstReadyAt: Date | null = null;
     cargoNumbers.forEach((cargoNumber) => {
@@ -445,7 +404,8 @@ export function buildSendingsMetrics(sendingsItems: any[], perevozkiItems: any[]
         cargoNumbers,
         sendStartAt,
         firstReadyAt,
-        inTransitHours: calcTransitHours(sendStartAt, firstReadyAt),
+        inTransitHours:
+          sendStartAt && firstReadyAt ? calcTransitHours(sendStartAt, firstReadyAt) : null,
       });
       return;
     }
@@ -459,7 +419,8 @@ export function buildSendingsMetrics(sendingsItems: any[], perevozkiItems: any[]
       cargoNumbers: mergedCargoNumbers,
       sendStartAt: mergedStart,
       firstReadyAt: mergedReady,
-      inTransitHours: calcTransitHours(mergedStart, mergedReady),
+      inTransitHours:
+        mergedStart && mergedReady ? calcTransitHours(mergedStart, mergedReady) : null,
     });
   });
 
@@ -627,7 +588,7 @@ export async function upsertSendingsMetrics(pool: { query: (sql: string, params?
       cargo_numbers: cargoNumbers,
       send_start_at: dateToIso(sendStartAt),
       first_ready_at: dateToIso(firstReadyAt),
-      in_transit_hours: calcTransitHours(sendStartAt, firstReadyAt),
+      in_transit_hours: sendStartAt && firstReadyAt ? calcTransitHours(sendStartAt, firstReadyAt) : null,
       now_at: new Date().toISOString(),
     };
   });

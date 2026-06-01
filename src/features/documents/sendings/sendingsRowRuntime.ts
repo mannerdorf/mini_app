@@ -1,6 +1,13 @@
 import { collectSendingFreightCargoNumbers } from "../lib/documentsPipeline";
 import { getFilterKeyByStatus } from "../../../lib/statusUtils";
 import type { StatusFilter } from "../../../types";
+import {
+  calcTransitHours,
+  pickSendingDepartureStart,
+  pickSendingExplicitEndDate,
+  pickSendingRowStopDate,
+  resolveMetricsTransitHours,
+} from "../../../lib/transitDateTime";
 import { getSendingCargoNumbers } from "./sendingsRowHelpers";
 
 export type SendingsRowRuntimeContext = {
@@ -9,6 +16,7 @@ export type SendingsRowRuntimeContext = {
   normalizeTransportDisplay: (value: string) => string;
   cargoStateByNumber: Map<string, string>;
   cargoStopDateByNumber: Map<string, Date>;
+  cargoDepartureByNumber: Map<string, Date>;
   cargoPlanDateByNumber: Map<string, Date>;
   sendingPlanDateBySendingId: Map<string, Date>;
   vehicleFreightCargoNumbers: Map<string, Set<string>>;
@@ -60,22 +68,6 @@ export function pickSendingTransitStopDate(
     return { frozen: true, end };
   }
   return { frozen: false, end: explicitEnd ?? new Date() };
-}
-
-function getSendingStartDate(row: unknown, parseDateTimeValue: (value: unknown) => Date | null): Date | null {
-  const r = row as Record<string, unknown>;
-  return parseDateTimeValue(
-    r?.DateOtpr ??
-      r?.DateSend ??
-      r?.DateShipment ??
-      r?.ShipmentDate ??
-      r?.ДатаОтправки ??
-      r?.ДатаОтгрузки ??
-      r?.DateDoc ??
-      r?.Date ??
-      r?.date ??
-      r?.Дата,
-  );
 }
 
 function getSendingRowStatusKey(row: unknown): StatusFilter {
@@ -213,65 +205,42 @@ export function resolveSendingPlannedArrivalDate(
   }
 }
 
-export function resolveSendingTransitHours(row: unknown, ctx: SendingsRowRuntimeContext): number | null {
-  const start = getSendingStartDate(row, ctx.parseDateTimeValue);
+function resolveClientSendingTransitHours(row: unknown, ctx: SendingsRowRuntimeContext): number | null {
+  const cargoNumbers = collectTransitCargoNumbers(row, ctx);
+  const start = pickSendingDepartureStart(row, cargoNumbers, ctx.cargoDepartureByNumber, ctx.normCargoKey);
   if (!start) return null;
-  const r = row as Record<string, unknown>;
   const rowStatusKey = getSendingRowStatusKey(row);
-  const rowStopDate = ctx.parseDateTimeValue(
-    r?.StatusDate ??
-      r?.DateStatus ??
-      r?.DateState ??
-      r?.UpdatedAt ??
-      r?.updated_at ??
-      r?.ДатаСтатуса ??
-      r?.ДатаИзменения,
-  );
-  const explicitEnd = ctx.parseDateTimeValue(
-    r?.DatePrih ??
-      r?.DateVr ??
-      r?.DateDelivery ??
-      r?.DeliveryDate ??
-      r?.ДатаДоставки ??
-      r?.ДатаПрибытия,
-  );
+  const rowStopDate = pickSendingRowStopDate(row);
+  const explicitEnd = pickSendingExplicitEndDate(row);
   const { end } = pickSendingTransitStopDate(
-    collectTransitCargoNumbers(row, ctx),
+    cargoNumbers,
     rowStatusKey,
     rowStopDate,
     explicitEnd,
     start,
     ctx,
   );
-  const diffMs = end.getTime() - start.getTime();
-  if (!Number.isFinite(diffMs) || diffMs < 0) return null;
-  return Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
+  return calcTransitHours(start, end);
+}
+
+export function resolveSendingTransitHours(row: unknown, ctx: SendingsRowRuntimeContext): number | null {
+  const fromMetrics = resolveMetricsTransitHours(row);
+  if (fromMetrics != null) return fromMetrics;
+  return resolveClientSendingTransitHours(row, ctx);
 }
 
 export function resolveSendingTransitIsFinal(row: unknown, ctx: SendingsRowRuntimeContext): boolean {
-  const start = getSendingStartDate(row, ctx.parseDateTimeValue);
-  if (!start) return false;
   const r = row as Record<string, unknown>;
+  if (r?.first_ready_at_metric) return true;
+
+  const cargoNumbers = collectTransitCargoNumbers(row, ctx);
+  const start = pickSendingDepartureStart(row, cargoNumbers, ctx.cargoDepartureByNumber, ctx.normCargoKey);
+  if (!start) return false;
   const rowStatusKey = getSendingRowStatusKey(row);
-  const rowStopDate = ctx.parseDateTimeValue(
-    r?.StatusDate ??
-      r?.DateStatus ??
-      r?.DateState ??
-      r?.UpdatedAt ??
-      r?.updated_at ??
-      r?.ДатаСтатуса ??
-      r?.ДатаИзменения,
-  );
-  const explicitEnd = ctx.parseDateTimeValue(
-    r?.DatePrih ??
-      r?.DateVr ??
-      r?.DateDelivery ??
-      r?.DeliveryDate ??
-      r?.ДатаДоставки ??
-      r?.ДатаПрибытия,
-  );
+  const rowStopDate = pickSendingRowStopDate(row);
+  const explicitEnd = pickSendingExplicitEndDate(row);
   return pickSendingTransitStopDate(
-    collectTransitCargoNumbers(row, ctx),
+    cargoNumbers,
     rowStatusKey,
     rowStopDate,
     explicitEnd,

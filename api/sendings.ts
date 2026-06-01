@@ -8,6 +8,7 @@ import {
 } from "../lib/cacheHistoryDays.js";
 import { respondCorsPreflight } from "./_lib/cors.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { liveInTransitHoursFromMetrics } from "../lib/transitDateTime.js";
 
 const BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
@@ -147,7 +148,11 @@ async function attachMetricsToSendings(
     if (!metric) return row;
     return {
       ...row,
-      in_transit_hours: metric.in_transit_hours,
+      in_transit_hours: liveInTransitHoursFromMetrics(
+        metric.send_start_at,
+        metric.first_ready_at,
+        metric.in_transit_hours,
+      ),
       send_start_at_metric: metric.send_start_at,
       first_ready_at_metric: metric.first_ready_at,
     };
