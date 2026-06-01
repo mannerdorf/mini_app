@@ -73,11 +73,10 @@ function MicroDocBar({
 
 export function EdoHealthMonitor({ invoices, loading, onOpen }: EdoHealthMonitorProps) {
   const summary = useMemo(() => computeEdoHealthSummary(invoices), [invoices]);
-
-  if (!loading && (invoices?.length ?? 0) === 0) return null;
+  const isEmpty = !loading && (invoices?.length ?? 0) === 0;
 
   const statusLabel = edoHealthStatusLabel(summary.percent, summary.issues);
-  const alert = summary.issues > 0 || (summary.percent != null && summary.percent < 50);
+  const alert = !isEmpty && (summary.issues > 0 || (summary.percent != null && summary.percent < 50));
 
   const body = (
     <>
@@ -88,6 +87,18 @@ export function EdoHealthMonitor({ invoices, loading, onOpen }: EdoHealthMonitor
             ЭДО…
           </Typography.Label>
         </Flex>
+      ) : isEmpty ? (
+        <>
+          <div className="edo-health-monitor__meta">
+            <Typography.Body className="edo-health-monitor__title">ЭДО</Typography.Body>
+            <Typography.Label className="edo-health-monitor__status" style={{ color: "var(--color-text-secondary)" }}>
+              Нет счетов
+            </Typography.Label>
+            <Typography.Label className="edo-health-monitor__hint">
+              Статус появится при наличии счетов
+            </Typography.Label>
+          </div>
+        </>
       ) : summary.percent != null ? (
         <>
           <HealthRing percent={summary.percent} alert={alert} />
@@ -113,7 +124,17 @@ export function EdoHealthMonitor({ invoices, loading, onOpen }: EdoHealthMonitor
             ))}
           </div>
         </>
-      ) : null}
+      ) : (
+        <div className="edo-health-monitor__meta">
+          <Typography.Body className="edo-health-monitor__title">ЭДО</Typography.Body>
+          <Typography.Label className="edo-health-monitor__status" style={{ color: "var(--color-text-secondary)" }}>
+            {statusLabel}
+          </Typography.Label>
+          <Typography.Label className="edo-health-monitor__hint">
+            {summary.invoiceCount} сч. без статуса ЭДО
+          </Typography.Label>
+        </div>
+      )}
       {onOpen && !loading && (
         <ChevronRight className="edo-health-monitor__chevron" aria-hidden />
       )}

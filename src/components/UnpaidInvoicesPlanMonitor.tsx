@@ -18,6 +18,8 @@ type Props = {
   invoices: Record<string, unknown>[];
   cargoItems: CargoItem[];
   loading?: boolean;
+  /** Перевозки для плановой даты — подгружаются отдельно, не блокируют список счетов. */
+  cargoLoading?: boolean;
   showSums?: boolean;
   onOpen?: () => void;
   onOpenInvoice?: (invoice: Record<string, unknown>) => void;
@@ -52,6 +54,7 @@ export function UnpaidInvoicesPlanMonitor({
   invoices,
   cargoItems,
   loading,
+  cargoLoading = false,
   showSums = true,
   onOpen,
   onOpenInvoice,
@@ -90,6 +93,8 @@ export function UnpaidInvoicesPlanMonitor({
               <Typography.Label className="unpaid-plan-monitor__subtitle">
                 {loading
                   ? "Загрузка счетов…"
+                  : cargoLoading
+                    ? "Счета загружены, уточняем плановые даты…"
                   : isEmpty
                     ? "Задолженностей нет — все счета оплачены"
                     : `${rows.length} к оплате${showSums ? ` · всего ${formatCurrency(totalBalance, true)}` : ""} · высокий приоритет: ${highCount} (до ${PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS} дн. до плана)`}
