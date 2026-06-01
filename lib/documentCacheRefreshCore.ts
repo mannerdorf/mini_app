@@ -275,11 +275,10 @@ export async function ensureDocumentCacheTables(pool: Pool): Promise<void> {
   );
   await pool.query(
     `insert into document_cache_backfill_state (id, range_start, range_end, next_from, step_days, done, updated_at)
-     select $1::date, $2::date, $3::date, $1::date, $4, false, now()
+     select 1, $1::date, $2::date, $1::date, $3, false, now()
      where not exists (select 1 from document_cache_backfill_state where id = 1)`,
     [
       isoDate(addDays(new Date(), -(CACHE_HISTORY_DAYS - 1))),
-      isoDate(new Date()),
       isoDate(new Date()),
       CACHE_BACKFILL_STEP_DAYS,
     ],
