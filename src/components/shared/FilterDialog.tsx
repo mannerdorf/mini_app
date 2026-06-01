@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Button, Input, Typography } from "@maxhub/max-ui";
+import { Button, Flex, Input, Typography } from "@maxhub/max-ui";
 import { X } from "lucide-react";
 import { getTodayDate } from "../../lib/dateUtils";
 
@@ -9,9 +9,12 @@ type FilterDialogProps = {
     dateFrom: string;
     dateTo: string;
     onApply: (from: string, to: string) => void;
+    title?: string;
+    onReset?: () => void;
+    resetLabel?: string;
 };
 
-export function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply }: FilterDialogProps) {
+export function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply, title = "Произвольный диапазон", onReset, resetLabel = "По умолчанию" }: FilterDialogProps) {
     const [tempFrom, setTempFrom] = useState(dateFrom);
     const [tempTo, setTempTo] = useState(dateTo);
     useEffect(() => { if (isOpen) { setTempFrom(dateFrom); setTempTo(dateTo); } }, [isOpen, dateFrom, dateTo]);
@@ -20,7 +23,7 @@ export function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply }: Fil
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-content" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                    <Typography.Headline>Произвольный диапазон</Typography.Headline>
+                    <Typography.Headline>{title}</Typography.Headline>
                     <Button className="modal-close-button" onClick={onClose} aria-label="Закрыть"><X size={20} /></Button>
                 </div>
                 <form onSubmit={e => { e.preventDefault(); onApply(tempFrom, tempTo); onClose(); }}>
@@ -40,7 +43,14 @@ export function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply }: Fil
                             Сегодня
                         </Button>
                     </div>
-                    <Button className="button-primary" type="submit">Применить</Button>
+                    <Flex gap="0.5rem" wrap="wrap">
+                        {onReset ? (
+                            <Button type="button" className="filter-button" onClick={() => { onReset(); onClose(); }}>
+                                {resetLabel}
+                            </Button>
+                        ) : null}
+                        <Button className="button-primary" type="submit">Применить</Button>
+                    </Flex>
                 </form>
             </div>
         </div>
