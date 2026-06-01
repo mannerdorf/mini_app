@@ -8113,6 +8113,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Кэш перевозок и документов (1С → PostgreSQL)</Typography.Body>
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
             Восстановление истории за последние 365 дней: последовательные запросы в 1С шагом 30 дней (перевозки, отправки, счета, УПД) с merge в cache_*.
+            Один клик «Следующий шаг» — один тип данных за текущий период (4 клика = полный шаг 30 дней).
             Крон recent — последние 30 дней каждые 5 мин; крон deep — последние 90 дней 4×/сутки (01:00, 07:00, 13:00, 19:00 UTC).
           </Typography.Body>
           <Flex align="center" gap="0.5rem" wrap="wrap" style={{ marginBottom: "0.65rem" }}>
