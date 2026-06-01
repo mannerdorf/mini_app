@@ -6,13 +6,9 @@ import {
   pgTableExists,
   resolveHaulzReturnsAccess,
 } from "../_haulzReturns.js";
-import { recalcWorkbookAfterItogChange, type HaulzWorkbook } from "../../lib/haulzReturns/buildWorkbook.js";
-import {
-  loadLatestWorkbook,
-  mergeWorkbookPatch,
-  saveWorkbook,
-} from "../../lib/haulzReturns/processJob.js";
-import { workbookForApi } from "../../lib/haulzReturns/workbookApi.js";
+import { recalcWorkbookAfterItogChange, type HaulzWorkbook } from "../../lib/haulzReturns/workbookRecalc.js";
+import { mergeWorkbookPatch, workbookForApi } from "../../lib/haulzReturns/workbookApi.js";
+import { loadLatestWorkbook, saveWorkbook } from "../../lib/haulzReturns/workbookStorage.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "haulz_returns_job_workbook");
@@ -73,6 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (e) {
     logError(ctx, "haulz_returns_job_workbook_failed", e);
-    return res.status(500).json({ error: "Ошибка сохранения", request_id: ctx.requestId });
+    const msg = (e as Error)?.message || "Ошибка сохранения";
+    return res.status(500).json({ error: msg, request_id: ctx.requestId });
   }
 }

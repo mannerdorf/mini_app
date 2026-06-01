@@ -7,3 +7,5 @@ export * from "./exportExcel";
 export * from "./stopWords";
 export * from "./processJob";
 export * from "./workbookApi";
+export * from "./workbookRecalc";
+export * from "./workbookStorage";

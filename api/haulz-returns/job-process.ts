@@ -6,7 +6,6 @@ import {
   pgTableExists,
   resolveHaulzReturnsAccess,
 } from "../_haulzReturns.js";
-import { processJobWorkbook } from "../../lib/haulzReturns/processJob.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "haulz_returns_job_process");
@@ -41,6 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `update haulz_returns_jobs set status = 'uploading', error_message = null, updated_at = now() where id = $1`,
       [jobId],
     );
+    const { processJobWorkbook } = await import("../../lib/haulzReturns/processJob.js");
     const { version } = await processJobWorkbook(pool, jobId, access.loginKey);
     return res.status(200).json({
       ok: true,

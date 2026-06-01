@@ -35,6 +35,37 @@ function parseJson(res: Response, data: unknown): string {
   return `HTTP ${res.status}`;
 }
 
+// #region agent log
+function hrDebugLog(step: string, hypothesisId: string, data: Record<string, unknown>) {
+  fetch("http://127.0.0.1:7764/ingest/18d9aceb-93ca-4e52-bbe7-c56dcb1cd38e", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e39252" },
+    body: JSON.stringify({
+      sessionId: "e39252",
+      location: "haulzReturns.ts",
+      message: step,
+      data,
+      hypothesisId,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+}
+// #endregion
+
+async function hrFetch(
+  step: string,
+  hypothesisId: string,
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  const res = await fetch(url, init);
+  const data = await res.clone().json().catch(() => ({}));
+  // #region agent log
+  hrDebugLog(step, hypothesisId, { url, status: res.status, ok: res.ok, error: (data as { error?: string }).error ?? null });
+  // #endregion
+  return res;
+}
+
 export async function listHaulzReturnsJobs(auth: AuthData, limit = 20): Promise<HaulzReturnsJobSummary[]> {
   const res = await fetch(`/api/haulz-returns/jobs?limit=${limit}`, { headers: authHeaders(auth) });
   const data = await res.json().catch(() => ({}));
@@ -43,7 +74,7 @@ export async function listHaulzReturnsJobs(auth: AuthData, limit = 20): Promise<
 }
 
 export async function createHaulzReturnsJob(auth: AuthData, title = ""): Promise<string> {
-  const res = await fetch("/api/haulz-returns/jobs", {
+  const res = await hrFetch("createJob", "B", "/api/haulz-returns/jobs", {
     method: "POST",
     headers: authHeaders(auth),
     body: JSON.stringify({ title }),
@@ -65,7 +96,7 @@ export async function uploadHaulzReturnsFile(
   fd.append("jobId", jobId);
   fd.append("fileRole", fileRole);
   fd.append("file", file);
-  const res = await fetch("/api/haulz-returns/job-file", {
+  const res = await hrFetch("uploadFile", "A", "/api/haulz-returns/job-file", {
     method: "POST",
     headers: { "x-login": auth.login, "x-password": auth.password },
     body: fd,
@@ -145,7 +176,7 @@ export async function getHaulzReturnsJob(
 }
 
 export async function saveHaulzReturnsWorkbook(auth: AuthData, jobId: string, workbook: HaulzWorkbook): Promise<HaulzWorkbook> {
-  const res = await fetch("/api/haulz-returns/job-workbook", {
+  const res = await hrFetch("saveWorkbook", "D", "/api/haulz-returns/job-workbook", {
     method: "PATCH",
     headers: authHeaders(auth),
     body: JSON.stringify({
