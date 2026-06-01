@@ -11,8 +11,8 @@ import { extractUlNumberFromFileName } from "../../lib/haulzReturns/excelUtils.j
 
 export const config = { api: { bodyParser: false } };
 
-/** На Vercel тело запроса обрезается ~4.5 МБ до вызова функции. */
-const MAX_FILE_BYTES = 4 * 1024 * 1024;
+/** Лимит одного файла (на Vercel тело запроса ~4.5 МБ). */
+const MAX_FILE_BYTES = 15 * 1024 * 1024;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "haulz_returns_job_file");
@@ -65,6 +65,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await pool.query(`delete from haulz_returns_files where job_id = $1 and file_role = 'otpravka'`, [jobId]);
     }
 
+    const fileData = Buffer.isBuffer(upload.buffer)
+      ? upload.buffer
+      : Buffer.from(upload.buffer);
+
     const { rows } = await pool.query<{ id: string }>(
       `insert into haulz_returns_files
          (job_id, file_role, original_filename, mime_type, file_size, ul_number, file_data)
@@ -75,9 +79,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         fileRole,
         upload.originalFilename,
         upload.mimetype || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        upload.buffer.length,
+        fileData.length,
         ulNumber,
-        upload.buffer,
+        fileData,
       ],
     );
 
@@ -101,7 +105,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       request_id: ctx.requestId,
     });
   } catch (e) {
+    const msg = (e as Error)?.message || "Ошибка загрузки файла";
     logError(ctx, "haulz_returns_job_file_failed", e);
-    return res.status(500).json({ error: "Ошибка загрузки файла", request_id: ctx.requestId });
+    return res.status(500).json({ error: msg, request_id: ctx.requestId });
   }
 }

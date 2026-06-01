@@ -7,6 +7,7 @@ import {
   deleteHaulzReturnsJob,
   getHaulzReturnsJob,
   listHaulzReturnsJobs,
+  processHaulzReturnsJob,
   saveHaulzReturnsWorkbook,
   uploadHaulzReturnsFile,
   type HaulzReturnsFileMeta,
@@ -15,17 +16,25 @@ import {
 import { HaulzReturnsWorkbookView } from "../features/haulzReturns/HaulzReturnsWorkbookView";
 import {
   buildFixSheetFromItog,
-  buildWorkbook,
   downloadBlob,
   exportSheetToExcel,
-  parseOtpravkaBuffer,
-  parseUlBuffer,
   recalcWorkbookAfterItogChange,
   type HaulzWorkbook,
 } from "../lib/haulzReturns";
 
-/** Vercel обрезает multipart-тело ~4.5 МБ — исходники больше не грузим на сервер. */
-const SERVER_UPLOAD_MAX_BYTES = 4 * 1024 * 1024;
+const UPLOAD_GAP_MS = 150;
+
+type UploadProgress = {
+  current: number;
+  total: number;
+  fileName: string;
+};
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
 
 type Props = {
   auth: AuthData | null;
@@ -73,6 +82,7 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("itog");
   const [processing, setProcessing] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -186,49 +196,37 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
     }
     setProcessing(true);
     setError(null);
+    setUploadProgress(null);
     try {
-      const otpravka = parseOtpravkaBuffer(await otpravkaFile.arrayBuffer(), otpravkaFile.name);
-      const ulPrio1Parsed = await Promise.all(
-        ulPrio1.map(async (slot) => parseUlBuffer(await slot.file.arrayBuffer(), slot.file.name)),
-      );
-      const ulPrio2Parsed = await Promise.all(
-        ulPrio2.map(async (slot) => parseUlBuffer(await slot.file.arrayBuffer(), slot.file.name)),
-      );
-      const built = buildWorkbook({ otpravka, ulPrio1: ulPrio1Parsed, ulPrio2: ulPrio2Parsed });
-
       const title = otpravkaFile.name.replace(/\.(xlsx|xls)$/i, "") || "Возвраты";
+      const uploadQueue: { role: "otpravka" | "ul_prio1" | "ul_prio2"; file: File }[] = [
+        { role: "otpravka", file: otpravkaFile },
+        ...ulPrio1.map((slot) => ({ role: "ul_prio1" as const, file: slot.file })),
+        ...ulPrio2.map((slot) => ({ role: "ul_prio2" as const, file: slot.file })),
+      ];
+
       const newJobId = await createHaulzReturnsJob(auth, title);
-      const wb = await saveHaulzReturnsWorkbook(auth, newJobId, built);
 
-      const uploadWarnings: string[] = [];
-      const tryUpload = async (role: "otpravka" | "ul_prio1" | "ul_prio2", file: File) => {
-        if (file.size > SERVER_UPLOAD_MAX_BYTES) {
-          uploadWarnings.push(`«${file.name}» не сохранён в БД (>${Math.round(SERVER_UPLOAD_MAX_BYTES / 1024 / 1024)} МБ)`);
-          return;
-        }
-        try {
-          await uploadHaulzReturnsFile(auth, newJobId, role, file);
-        } catch (e: unknown) {
-          uploadWarnings.push(`«${file.name}»: ${(e as Error)?.message || "ошибка загрузки"}`);
-        }
-      };
-      await tryUpload("otpravka", otpravkaFile);
-      for (const slot of ulPrio1) await tryUpload("ul_prio1", slot.file);
-      for (const slot of ulPrio2) await tryUpload("ul_prio2", slot.file);
+      for (let i = 0; i < uploadQueue.length; i++) {
+        const item = uploadQueue[i]!;
+        setUploadProgress({ current: i + 1, total: uploadQueue.length, fileName: item.file.name });
+        await uploadHaulzReturnsFile(auth, newJobId, item.role, item.file);
+        if (i + 1 < uploadQueue.length) await sleep(UPLOAD_GAP_MS);
+      }
+      setUploadProgress(null);
 
+      const { workbook: wb } = await processHaulzReturnsJob(auth, newJobId);
       setJobId(newJobId);
       setWorkbook(wb);
       setActiveTab("itog");
       const loaded = await getHaulzReturnsJob(auth, newJobId);
       setStoredFiles(loaded.files);
       await refreshJobs();
-      if (uploadWarnings.length > 0) {
-        setError(`Обработка завершена. Исходники частично не сохранены в БД:\n${uploadWarnings.join("\n")}`);
-      }
     } catch (e: unknown) {
       setError((e as Error)?.message || "Ошибка обработки");
     } finally {
       setProcessing(false);
+      setUploadProgress(null);
     }
   }, [auth, otpravkaFile, ulPrio1, ulPrio2, refreshJobs]);
 
@@ -441,6 +439,12 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
           {processing ? "Обработка…" : "Обработать и сохранить"}
         </Button>
       </Flex>
+
+      {uploadProgress ? (
+        <Typography.Body style={{ color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+          Загрузка {uploadProgress.current}/{uploadProgress.total}: {uploadProgress.fileName}
+        </Typography.Body>
+      ) : null}
 
       {error ? (
         <Typography.Body style={{ color: "var(--color-danger, #c0392b)", marginBottom: "0.75rem", whiteSpace: "pre-wrap" }}>
