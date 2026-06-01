@@ -11,6 +11,20 @@ const SUMMARY_CRON_API_PATHS = ["/api/admin-weekly-summary", "/api/invoices", "/
 
 const SUMMARY_FORM_STORAGE_PREFIX = "haulz.summarySandbox.lastSend";
 
+const EMAIL_PREVIEW_TYPES: Array<{ id: string; label: string; group: string }> = [
+  { id: "weekly_summary", label: "Еженедельная сводка", group: "Сводка" },
+  { id: "daily_summary", label: "Ежедневная сводка", group: "Сводка" },
+  { id: "accepted", label: "Перевозка принята", group: "Перевозки" },
+  { id: "in_transit", label: "Перевозка в пути", group: "Перевозки" },
+  { id: "delivered", label: "Перевозка доставлена", group: "Перевозки" },
+  { id: "bill_created", label: "Создан счёт", group: "Документы" },
+  { id: "bill_paid", label: "Счёт оплачен", group: "Документы" },
+];
+
+const EMAIL_PREVIEW_GROUPS = ["Сводка", "Перевозки", "Документы"] as const;
+
+type EmailPreviewTypeId = (typeof EMAIL_PREVIEW_TYPES)[number]["id"];
+
 type SavedSummaryForm = {
   targetLogin: string;
   inn: string;
@@ -254,6 +268,7 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
   const [companyName, setCompanyName] = useState(savedForm?.companyName ?? "");
   const [dateFrom, setDateFrom] = useState(savedForm?.dateFrom || defaultPeriod.dateFrom);
   const [dateTo, setDateTo] = useState(savedForm?.dateTo || defaultPeriod.dateTo);
+  const [emailType, setEmailType] = useState<EmailPreviewTypeId>("weekly_summary");
 
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewSubject, setPreviewSubject] = useState("");
@@ -754,6 +769,7 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
     const payload = {
       ...authBody,
       action,
+      emailType,
       targetLogin,
       inn,
       companyName,
@@ -819,8 +835,8 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
       </Flex>
 
       <Typography.Body style={{ fontSize: "0.88rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
-        Справочники: пользователи из БД, контрагенты из cache_customers (с учётом привязок и email). Период — тот же фильтр даты,
-        что в разделе «Грузы» (DatePrih и др.). По умолчанию — прошлая календарная неделя.
+        Справочники: пользователи из БД, контрагенты из cache_customers. Выберите тип email-уведомления и предпросмотр.
+        Для еженедельной сводки задайте период (DatePrih); остальные типы строятся по данным кэша или демо-примеру.
       </Typography.Body>
 
       {usersError && (
@@ -834,6 +850,28 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
 
       <Panel className="cargo-card haulz-summary-sandbox" style={{ padding: "var(--pad-card, 1rem)", marginBottom: "1rem" }}>
         <Flex direction="column" gap="0.75rem" className="form-row-same-height">
+          <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+            <Typography.Body style={LABEL_STYLE}>Тип email-уведомления</Typography.Body>
+            <select
+              className="admin-form-input"
+              value={emailType}
+              onChange={(e) => {
+                setEmailType(e.target.value as EmailPreviewTypeId);
+                setPreviewHtml(null);
+              }}
+            >
+              {EMAIL_PREVIEW_GROUPS.map((group) => (
+                <optgroup key={group} label={group}>
+                  {EMAIL_PREVIEW_TYPES.filter((t) => t.group === group).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+
           <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
             <Typography.Body style={LABEL_STYLE}>
               Пользователь (email входа) {users.length > 0 ? `· ${users.length}` : ""}
@@ -917,6 +955,7 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
             )}
           </label>
 
+          {emailType === "weekly_summary" ? (
           <Flex gap="0.5rem" wrap="wrap">
             <label style={{ flex: "1 1 140px", display: "flex", flexDirection: "column", gap: "0.35rem" }}>
               <Typography.Body style={LABEL_STYLE}>С</Typography.Body>
@@ -943,6 +982,11 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
               />
             </label>
           </Flex>
+          ) : (
+            <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+              Период не используется — в письме данные из кэша по выбранному ИНН (или демо-пример, если записей нет).
+            </Typography.Body>
+          )}
 
           <Flex gap="0.5rem" wrap="wrap">
             <Button

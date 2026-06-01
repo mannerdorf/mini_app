@@ -16,9 +16,7 @@ import {
 import { getDispatchLogById, listDispatchLogs } from "./haulzSummaryDispatchLog.js";
 import { loadHaulzSummaryDirectories } from "./haulzSummaryDirectories.js";
 import {
-  buildWeeklySummaryData,
   getPreviousCalendarWeekRange,
-  renderWeeklySummaryHtml,
   sendWeeklySummaryEmail,
 } from "./weeklySummary.js";
 
@@ -31,6 +29,7 @@ export type HaulzSummarySandboxBody = {
   companyName?: string;
   dateFrom?: string;
   dateTo?: string;
+  emailType?: string;
   cron?: Partial<SummaryCronConfig>;
 };
 
@@ -274,6 +273,11 @@ export async function handleHaulzSummarySandboxRequest(
     const targetLogin = normalizeLogin(body.targetLogin);
     const inn = String(body.inn ?? "").trim();
     const companyName = String(body.companyName ?? "").trim();
+    const emailTypeRaw = String(body.emailType ?? "weekly_summary").trim();
+    const { buildNotificationEmailPreview, isNotificationEmailPreviewKind } = await import(
+      "./notificationEmailPreview.js"
+    );
+    const emailType = isNotificationEmailPreviewKind(emailTypeRaw) ? emailTypeRaw : "weekly_summary";
     if (!targetLogin) {
       res.status(400).json({ error: "Укажите targetLogin", request_id: requestId });
       return true;
@@ -286,38 +290,50 @@ export async function handleHaulzSummarySandboxRequest(
     const defaultPeriod = getPreviousCalendarWeekRange();
     const dateFrom = ISO_DAY.test(String(body.dateFrom ?? "")) ? String(body.dateFrom) : defaultPeriod.dateFrom;
     const dateTo = ISO_DAY.test(String(body.dateTo ?? "")) ? String(body.dateTo) : defaultPeriod.dateTo;
-    if (dateFrom > dateTo) {
+    if (emailType === "weekly_summary" && dateFrom > dateTo) {
       res.status(400).json({ error: "dateFrom не может быть больше dateTo", request_id: requestId });
       return true;
     }
 
-    const data = await buildWeeklySummaryData(pool, {
+    const preview = await buildNotificationEmailPreview(pool, {
+      kind: emailType,
+      targetLogin,
       inn,
       companyName: companyName || inn,
-      targetLogin,
       dateFrom,
       dateTo,
     });
-    const html = renderWeeklySummaryHtml(data);
-    const subject = `HAULZ: сводка за ${data.periodLabel}`;
+    const { html, subject } = preview;
 
     if (action === "preview") {
-      res.status(200).json({ data, html, subject, request_id: requestId });
+      res.status(200).json({ html, subject, emailType, request_id: requestId });
       return true;
     }
 
     if (action === "send") {
       const { isSummaryEmailUnsubscribed } = await import("./haulzSummaryUnsubscribe.js");
-      if (await isSummaryEmailUnsubscribed(pool, targetLogin)) {
+      if (emailType === "weekly_summary" && (await isSummaryEmailUnsubscribed(pool, targetLogin))) {
         res.status(400).json({ error: "Получатель отписан от рассылки", request_id: requestId });
         return true;
       }
-      const sendResult = await sendWeeklySummaryEmail(pool, targetLogin, subject, html);
-      if (!sendResult.ok) {
-        res.status(500).json({ error: sendResult.error || "Ошибка отправки", request_id: requestId });
-        return true;
+      if (emailType === "weekly_summary") {
+        const sendResult = await sendWeeklySummaryEmail(pool, targetLogin, subject, html, {
+          targetLogin,
+          inn,
+        });
+        if (!sendResult.ok) {
+          res.status(500).json({ error: sendResult.error || "Ошибка отправки", request_id: requestId });
+          return true;
+        }
+      } else {
+        const { sendHaulzEmail } = await import("./sendRegistrationEmail.js");
+        const sendResult = await sendHaulzEmail(pool, { to: targetLogin, subject, html });
+        if (!sendResult.ok) {
+          res.status(500).json({ error: sendResult.error || "Ошибка отправки", request_id: requestId });
+          return true;
+        }
       }
-      res.status(200).json({ ok: true, sentTo: targetLogin, subject, request_id: requestId });
+      res.status(200).json({ ok: true, sentTo: targetLogin, subject, emailType, request_id: requestId });
       return true;
     }
 
