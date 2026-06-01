@@ -298,32 +298,102 @@ export function getRotatingDocumentKind(reference = new Date(), intervalMs: numb
 
 export type CacheCoverageStats = {
   perevozki: { count: number; minDate: string | null; maxDate: string | null; fetchedAt: string | null };
+  sendings: { count: number; minDate: string | null; maxDate: string | null; fetchedAt: string | null };
   invoices: { count: number; minDate: string | null; maxDate: string | null; fetchedAt: string | null };
+  acts: { count: number; minDate: string | null; maxDate: string | null; fetchedAt: string | null };
 };
 
-export async function readCacheCoverageStats(pool: Pool): Promise<CacheCoverageStats> {
-  const summarize = async (table: string, kind: DatedDocumentCacheKind) => {
-    const row = await pool.query<{ data: unknown; fetched_at: Date | null }>(
-      `select data, fetched_at from ${table} where id = 1 limit 1`,
-    );
-    const list = Array.isArray(row.rows[0]?.data) ? (row.rows[0].data as unknown[]) : [];
-    let minDate: string | null = null;
-    let maxDate: string | null = null;
-    for (const item of list) {
-      const d = itemDate(kind, item);
-      if (!d) continue;
-      if (!minDate || d < minDate) minDate = d;
-      if (!maxDate || d > maxDate) maxDate = d;
-    }
-    return {
-      count: list.length,
-      minDate,
-      maxDate,
-      fetchedAt: row.rows[0]?.fetched_at ? new Date(row.rows[0].fetched_at).toISOString() : null,
-    };
-  };
+export const CACHE_COVERAGE_KINDS: Array<{ kind: DatedDocumentCacheKind; table: string; label: string }> = [
+  { kind: "perevozki", table: "cache_perevozki", label: "Грузы" },
+  { kind: "sendings", table: "cache_sendings", label: "Отправки" },
+  { kind: "invoices", table: "cache_invoices", label: "Счета" },
+  { kind: "acts", table: "cache_acts", label: "УПД" },
+];
+
+export type CacheCoverageMonthRow = {
+  month: string;
+  monthLabel: string;
+  perevozki: number;
+  sendings: number;
+  invoices: number;
+  acts: number;
+};
+
+const MONTH_NAMES_RU = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+
+export function formatCoverageMonthLabel(month: string): string {
+  const [y, m] = month.split("-");
+  const mi = Number(m);
+  if (!y || mi < 1 || mi > 12) return month;
+  return `${MONTH_NAMES_RU[mi - 1]} ${y}`;
+}
+
+function monthKeyFromDate(isoDay: string): string {
+  return isoDay.slice(0, 7);
+}
+
+async function summarizeCacheKind(pool: Pool, table: string, kind: DatedDocumentCacheKind) {
+  const row = await pool.query<{ data: unknown; fetched_at: Date | null }>(
+    `select data, fetched_at from ${table} where id = 1 limit 1`,
+  );
+  const list = Array.isArray(row.rows[0]?.data) ? (row.rows[0].data as unknown[]) : [];
+  let minDate: string | null = null;
+  let maxDate: string | null = null;
+  const byMonth = new Map<string, number>();
+  for (const item of list) {
+    const d = itemDate(kind, item);
+    if (!d) continue;
+    if (!minDate || d < minDate) minDate = d;
+    if (!maxDate || d > maxDate) maxDate = d;
+    const mk = monthKeyFromDate(d);
+    byMonth.set(mk, (byMonth.get(mk) ?? 0) + 1);
+  }
   return {
-    perevozki: await summarize("cache_perevozki", "perevozki"),
-    invoices: await summarize("cache_invoices", "invoices"),
+    count: list.length,
+    minDate,
+    maxDate,
+    fetchedAt: row.rows[0]?.fetched_at ? new Date(row.rows[0].fetched_at).toISOString() : null,
+    byMonth,
   };
+}
+
+export async function readCacheCoverageStats(pool: Pool): Promise<CacheCoverageStats> {
+  const perevozki = await summarizeCacheKind(pool, "cache_perevozki", "perevozki");
+  const sendings = await summarizeCacheKind(pool, "cache_sendings", "sendings");
+  const invoices = await summarizeCacheKind(pool, "cache_invoices", "invoices");
+  const acts = await summarizeCacheKind(pool, "cache_acts", "acts");
+  return {
+    perevozki: { count: perevozki.count, minDate: perevozki.minDate, maxDate: perevozki.maxDate, fetchedAt: perevozki.fetchedAt },
+    sendings: { count: sendings.count, minDate: sendings.minDate, maxDate: sendings.maxDate, fetchedAt: sendings.fetchedAt },
+    invoices: { count: invoices.count, minDate: invoices.minDate, maxDate: invoices.maxDate, fetchedAt: invoices.fetchedAt },
+    acts: { count: acts.count, minDate: acts.minDate, maxDate: acts.maxDate, fetchedAt: acts.fetchedAt },
+  };
+}
+
+export async function readCacheCoverageByMonth(pool: Pool): Promise<CacheCoverageMonthRow[]> {
+  const summaries = await Promise.all(
+    CACHE_COVERAGE_KINDS.map(async ({ kind, table }) => ({
+      kind,
+      ...(await summarizeCacheKind(pool, table, kind)),
+    })),
+  );
+  const monthSet = new Set<string>();
+  for (const s of summaries) {
+    for (const mk of s.byMonth.keys()) monthSet.add(mk);
+  }
+  const months = Array.from(monthSet).sort();
+  return months.map((month) => {
+    const row: CacheCoverageMonthRow = {
+      month,
+      monthLabel: formatCoverageMonthLabel(month),
+      perevozki: 0,
+      sendings: 0,
+      invoices: 0,
+      acts: 0,
+    };
+    for (const s of summaries) {
+      row[s.kind] = s.byMonth.get(month) ?? 0;
+    }
+    return row;
+  });
 }

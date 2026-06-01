@@ -8210,12 +8210,74 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   Даты: {docCacheBackfill.coverage.invoices.minDate ?? "—"} … {docCacheBackfill.coverage.invoices.maxDate ?? "—"}
                 </Typography.Body>
               </Panel>
+              <Panel className="cargo-card" style={{ padding: "0.65rem", border: "1px solid var(--color-border)" }}>
+                <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.25rem" }}>cache_sendings</Typography.Body>
+                <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                  Записей: {docCacheBackfill.coverage.sendings?.count ?? 0}
+                </Typography.Body>
+                <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                  Даты: {docCacheBackfill.coverage.sendings?.minDate ?? "—"} … {docCacheBackfill.coverage.sendings?.maxDate ?? "—"}
+                </Typography.Body>
+              </Panel>
+              <Panel className="cargo-card" style={{ padding: "0.65rem", border: "1px solid var(--color-border)" }}>
+                <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.25rem" }}>cache_acts</Typography.Body>
+                <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                  Записей: {docCacheBackfill.coverage.acts?.count ?? 0}
+                </Typography.Body>
+                <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                  Даты: {docCacheBackfill.coverage.acts?.minDate ?? "—"} … {docCacheBackfill.coverage.acts?.maxDate ?? "—"}
+                </Typography.Body>
+              </Panel>
             </div>
           ) : docCacheBackfillLoading ? (
             <Flex align="center" gap="0.5rem">
               <Loader2 className="w-4 h-4 animate-spin" />
               <Typography.Body style={{ fontSize: "0.85rem" }}>Загрузка…</Typography.Body>
             </Flex>
+          ) : null}
+          {docCacheBackfill?.coverageByMonth && docCacheBackfill.coverageByMonth.length > 0 ? (
+            <div style={{ marginTop: "0.75rem", overflowX: "auto" }}>
+              <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.35rem" }}>
+                Покрытие по месяцам (записей в кэше)
+              </Typography.Body>
+              <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.45rem" }}>
+                «—» = нет данных за месяц. Число = сколько записей с датой в этом месяце. Последние ~30 дней дополняет крон recent.
+              </Typography.Body>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
+                    <th style={{ padding: "0.35rem 0.5rem" }}>Месяц</th>
+                    <th style={{ padding: "0.35rem 0.5rem", textAlign: "right" }}>Грузы</th>
+                    <th style={{ padding: "0.35rem 0.5rem", textAlign: "right" }}>Отправки</th>
+                    <th style={{ padding: "0.35rem 0.5rem", textAlign: "right" }}>Счета</th>
+                    <th style={{ padding: "0.35rem 0.5rem", textAlign: "right" }}>УПД</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {docCacheBackfill.coverageByMonth.map((row) => (
+                    <tr key={row.month} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                      <td style={{ padding: "0.35rem 0.5rem", whiteSpace: "nowrap" }}>{row.monthLabel}</td>
+                      {(["perevozki", "sendings", "invoices", "acts"] as const).map((kind) => {
+                        const n = row[kind];
+                        return (
+                          <td
+                            key={kind}
+                            style={{
+                              padding: "0.35rem 0.5rem",
+                              textAlign: "right",
+                              color: n > 0 ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+                              fontWeight: n > 0 ? 500 : 400,
+                            }}
+                          >
+                            {n > 0 ? n.toLocaleString("ru-RU") : "—"}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : null}
         </Panel>
       )}

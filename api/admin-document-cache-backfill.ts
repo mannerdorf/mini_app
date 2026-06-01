@@ -9,6 +9,7 @@ import {
   isoDate,
   minIso,
   readCacheCoverageStats,
+  readCacheCoverageByMonth,
   refreshDatedKindForWindow,
   type DatedDocumentCacheKind,
 } from "../lib/documentCacheRefreshCore.js";
@@ -108,12 +109,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "GET") {
       const state = await loadBackfillState(pool);
       const coverage = await readCacheCoverageStats(pool);
+      const coverageByMonth = await readCacheCoverageByMonth(pool);
       return res.status(200).json({
         ok: true,
         historyDays: CACHE_HISTORY_DAYS,
         stepDaysDefault: CACHE_BACKFILL_STEP_DAYS,
         state: serializeState(state),
         coverage,
+        coverageByMonth,
         request_id: ctx.requestId,
       });
     }
@@ -208,6 +211,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const coverage = await readCacheCoverageStats(pool);
+    const coverageByMonth = await readCacheCoverageByMonth(pool);
     logInfo(ctx, "document_cache_backfill_step", { steps: steps.length, done: state.done });
 
     return res.status(200).json({
@@ -216,6 +220,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       steps,
       state: serializeState(state),
       coverage,
+      coverageByMonth,
       request_id: ctx.requestId,
     });
   } catch (e: any) {

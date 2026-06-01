@@ -82,8 +82,18 @@ export type DocumentCacheBackfillStatus = {
   };
   coverage: {
     perevozki: { count: number; minDate: string | null; maxDate: string | null; fetchedAt: string | null };
+    sendings: { count: number; minDate: string | null; maxDate: string | null; fetchedAt: string | null };
     invoices: { count: number; minDate: string | null; maxDate: string | null; fetchedAt: string | null };
+    acts: { count: number; minDate: string | null; maxDate: string | null; fetchedAt: string | null };
   };
+  coverageByMonth?: Array<{
+    month: string;
+    monthLabel: string;
+    perevozki: number;
+    sendings: number;
+    invoices: number;
+    acts: number;
+  }>;
 };
 
 export async function fetchDocumentCacheBackfillStatus(adminToken: string): Promise<DocumentCacheBackfillStatus> {
