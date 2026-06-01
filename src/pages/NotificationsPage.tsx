@@ -566,8 +566,8 @@ export function NotificationsPage({
                             <Flex key={`email-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
                                 <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
                                 <TapSwitch
-                                    checked={prefs.email[ev.id] !== false}
-                                    onToggle={() => savePrefs("email", ev.id, prefs.email[ev.id] === false)}
+                                    checked={!!prefs.email[ev.id]}
+                                    onToggle={() => savePrefs("email", ev.id, !prefs.email[ev.id])}
                                     aria-label={`Email: ${ev.label}`}
                                 />
                             </Flex>
@@ -579,8 +579,8 @@ export function NotificationsPage({
                             <Flex key={`email-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
                                 <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
                                 <TapSwitch
-                                    checked={prefs.email[ev.id] !== false}
-                                    onToggle={() => savePrefs("email", ev.id, prefs.email[ev.id] === false)}
+                                    checked={!!prefs.email[ev.id]}
+                                    onToggle={() => savePrefs("email", ev.id, !prefs.email[ev.id])}
                                     aria-label={`Email: ${ev.label}`}
                                 />
                             </Flex>
@@ -592,8 +592,8 @@ export function NotificationsPage({
                             <Flex key={`email-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
                                 <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
                                 <TapSwitch
-                                    checked={prefs.email[ev.id] !== false}
-                                    onToggle={() => savePrefs("email", ev.id, prefs.email[ev.id] === false)}
+                                    checked={!!prefs.email[ev.id]}
+                                    onToggle={() => savePrefs("email", ev.id, !prefs.email[ev.id])}
                                     aria-label={`Email: ${ev.label}`}
                                 />
                             </Flex>

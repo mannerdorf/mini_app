@@ -12,14 +12,15 @@ export const EMAIL_NOTIFICATION_EVENTS = [
 
 export type EmailNotificationEventId = (typeof EMAIL_NOTIFICATION_EVENTS)[number];
 
+/** По умолчанию все email-уведомления выключены — клиент включает сам. */
 export const DEFAULT_EMAIL_PREFS: Record<string, boolean> = {
-  accepted: true,
-  in_transit: true,
-  delivered: true,
-  bill_created: true,
-  bill_paid: true,
-  daily_summary: true,
-  weekly_summary: true,
+  accepted: false,
+  in_transit: false,
+  delivered: false,
+  bill_created: false,
+  bill_paid: false,
+  daily_summary: false,
+  weekly_summary: false,
 };
 
 export type NotificationPreferencesState = {
@@ -32,11 +33,15 @@ export function normalizeNotificationPreferencesState(raw: unknown): Notificatio
   const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const telegram = obj.telegram && typeof obj.telegram === "object" ? (obj.telegram as Record<string, boolean>) : {};
   const webpush = obj.webpush && typeof obj.webpush === "object" ? (obj.webpush as Record<string, boolean>) : {};
-  const email = obj.email && typeof obj.email === "object" ? (obj.email as Record<string, boolean>) : {};
+  const emailRaw = obj.email && typeof obj.email === "object" ? (obj.email as Record<string, boolean>) : {};
+  const email: Record<string, boolean> = {};
+  for (const eventId of EMAIL_NOTIFICATION_EVENTS) {
+    if (typeof emailRaw[eventId] === "boolean") email[eventId] = emailRaw[eventId];
+  }
   return {
     telegram: { ...telegram },
     webpush: { ...webpush },
-    email: { ...DEFAULT_EMAIL_PREFS, ...email },
+    email,
   };
 }
 
@@ -46,7 +51,7 @@ export async function loadNotificationPreferencesState(
 ): Promise<NotificationPreferencesState> {
   const key = String(login || "").trim().toLowerCase();
   if (!key) {
-    return { telegram: {}, webpush: {}, email: { ...DEFAULT_EMAIL_PREFS } };
+    return { telegram: {}, webpush: {}, email: {} };
   }
   try {
     const { rows } = await pool.query<{ preferences: unknown }>(
@@ -57,16 +62,15 @@ export async function loadNotificationPreferencesState(
   } catch {
     /* ignore */
   }
-  return { telegram: {}, webpush: {}, email: { ...DEFAULT_EMAIL_PREFS } };
+  return { telegram: {}, webpush: {}, email: {} };
 }
 
-/** По умолчанию включено, если настройка не задана явно. */
+/** Отправляем только если клиент явно включил тип в профиле. */
 export async function isEmailNotificationEnabled(
   pool: Pool,
   login: string,
   eventId: EmailNotificationEventId,
 ): Promise<boolean> {
   const prefs = await loadNotificationPreferencesState(pool, login);
-  const value = prefs.email[eventId];
-  return value !== false;
+  return prefs.email[eventId] === true;
 }
