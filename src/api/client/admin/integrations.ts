@@ -93,7 +93,9 @@ export type DocumentCacheBackfillStatus = {
     sendings: number;
     invoices: number;
     acts: number;
+    backfillStatus?: "done" | "current" | "pending" | "before_range";
   }>;
+  cacheEarliestDate?: string;
 };
 
 export async function fetchDocumentCacheBackfillStatus(adminToken: string): Promise<DocumentCacheBackfillStatus> {

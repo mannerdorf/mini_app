@@ -310,6 +310,8 @@ export const CACHE_COVERAGE_KINDS: Array<{ kind: DatedDocumentCacheKind; table: 
   { kind: "acts", table: "cache_acts", label: "УПД" },
 ];
 
+export type CacheCoverageMonthBackfillStatus = "done" | "current" | "pending" | "before_range";
+
 export type CacheCoverageMonthRow = {
   month: string;
   monthLabel: string;
@@ -317,6 +319,15 @@ export type CacheCoverageMonthRow = {
   sendings: number;
   invoices: number;
   acts: number;
+  backfillStatus?: CacheCoverageMonthBackfillStatus;
+};
+
+export type CacheCoverageByMonthOptions = {
+  rangeStart?: string;
+  rangeEnd?: string;
+  nextFrom?: string;
+  done?: boolean;
+  earliestDate?: string;
 };
 
 const MONTH_NAMES_RU = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
@@ -330,6 +341,51 @@ export function formatCoverageMonthLabel(month: string): string {
 
 function monthKeyFromDate(isoDay: string): string {
   return isoDay.slice(0, 7);
+}
+
+function minMonthKey(...values: Array<string | null | undefined>): string | null {
+  const months = values.filter((v): v is string => !!v && /^\d{4}-\d{2}$/.test(v));
+  if (months.length === 0) return null;
+  return months.sort()[0];
+}
+
+function maxMonthKey(...values: Array<string | null | undefined>): string | null {
+  const months = values.filter((v): v is string => !!v && /^\d{4}-\d{2}$/.test(v));
+  if (months.length === 0) return null;
+  return months.sort().at(-1) ?? null;
+}
+
+export function listMonthsInclusive(fromMonth: string, toMonth: string): string[] {
+  if (!/^\d{4}-\d{2}$/.test(fromMonth) || !/^\d{4}-\d{2}$/.test(toMonth) || fromMonth > toMonth) return [];
+  const out: string[] = [];
+  let year = Number(fromMonth.slice(0, 4));
+  let month = Number(fromMonth.slice(5, 7));
+  const endYear = Number(toMonth.slice(0, 4));
+  const endMonth = Number(toMonth.slice(5, 7));
+  while (year < endYear || (year === endYear && month <= endMonth)) {
+    out.push(`${year}-${String(month).padStart(2, "0")}`);
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
+  return out;
+}
+
+export function monthBackfillStatus(
+  month: string,
+  rangeStart: string,
+  nextFrom: string,
+  done: boolean,
+): CacheCoverageMonthBackfillStatus {
+  const rangeStartMonth = monthKeyFromDate(rangeStart);
+  if (month < rangeStartMonth) return "before_range";
+  if (done) return "done";
+  const currentMonth = monthKeyFromDate(nextFrom);
+  if (month < currentMonth) return "done";
+  if (month === currentMonth) return "current";
+  return "pending";
 }
 
 async function summarizeCacheKind(pool: Pool, table: string, kind: DatedDocumentCacheKind) {
@@ -370,18 +426,39 @@ export async function readCacheCoverageStats(pool: Pool): Promise<CacheCoverageS
   };
 }
 
-export async function readCacheCoverageByMonth(pool: Pool): Promise<CacheCoverageMonthRow[]> {
+export async function readCacheCoverageByMonth(
+  pool: Pool,
+  options: CacheCoverageByMonthOptions = {},
+): Promise<CacheCoverageMonthRow[]> {
   const summaries = await Promise.all(
     CACHE_COVERAGE_KINDS.map(async ({ kind, table }) => ({
       kind,
       ...(await summarizeCacheKind(pool, table, kind)),
     })),
   );
-  const monthSet = new Set<string>();
+  const dataMonths = new Set<string>();
   for (const s of summaries) {
-    for (const mk of s.byMonth.keys()) monthSet.add(mk);
+    for (const mk of s.byMonth.keys()) dataMonths.add(mk);
   }
-  const months = Array.from(monthSet).sort();
+  const todayMonth = monthKeyFromDate(isoDate(new Date()));
+  const floorMonth =
+    minMonthKey(
+      options.earliestDate ? monthKeyFromDate(options.earliestDate) : null,
+      options.rangeStart ? monthKeyFromDate(options.rangeStart) : null,
+      ...summaries.map((s) => (s.minDate ? monthKeyFromDate(s.minDate) : null)),
+    ) ?? todayMonth;
+  const ceilingMonth =
+    maxMonthKey(
+      options.rangeEnd ? monthKeyFromDate(options.rangeEnd) : null,
+      todayMonth,
+      ...summaries.map((s) => (s.maxDate ? monthKeyFromDate(s.maxDate) : null)),
+      ...Array.from(dataMonths),
+    ) ?? todayMonth;
+  const months = listMonthsInclusive(floorMonth, ceilingMonth);
+  const rangeStart = options.rangeStart ?? floorMonth + "-01";
+  const nextFrom = options.nextFrom ?? rangeStart;
+  const backfillDone = options.done === true;
+
   return months.map((month) => {
     const row: CacheCoverageMonthRow = {
       month,
@@ -390,6 +467,7 @@ export async function readCacheCoverageByMonth(pool: Pool): Promise<CacheCoverag
       sendings: 0,
       invoices: 0,
       acts: 0,
+      backfillStatus: monthBackfillStatus(month, rangeStart, nextFrom, backfillDone),
     };
     for (const s of summaries) {
       row[s.kind] = s.byMonth.get(month) ?? 0;

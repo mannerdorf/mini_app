@@ -76,6 +76,16 @@ async function resetBackfillState(pool: ReturnType<typeof getPool>, historyDays:
   );
 }
 
+async function loadCoverageByMonth(pool: ReturnType<typeof getPool>, state?: BackfillStateRow) {
+  return readCacheCoverageByMonth(pool, {
+    rangeStart: state?.range_start,
+    rangeEnd: state?.range_end,
+    nextFrom: state?.next_from,
+    done: state?.done,
+    earliestDate: CACHE_EARLIEST_DATE,
+  });
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "admin-document-cache-backfill");
   if (req.method !== "GET" && req.method !== "POST") {
@@ -109,7 +119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "GET") {
       const state = await loadBackfillState(pool);
       const coverage = await readCacheCoverageStats(pool);
-      const coverageByMonth = await readCacheCoverageByMonth(pool);
+      const coverageByMonth = await loadCoverageByMonth(pool, state);
       return res.status(200).json({
         ok: true,
         historyDays: CACHE_HISTORY_DAYS,
@@ -212,7 +222,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const coverage = await readCacheCoverageStats(pool);
-    const coverageByMonth = await readCacheCoverageByMonth(pool);
+    const coverageByMonth = await loadCoverageByMonth(pool, state);
     logInfo(ctx, "document_cache_backfill_step", { steps: steps.length, done: state.done });
 
     return res.status(200).json({

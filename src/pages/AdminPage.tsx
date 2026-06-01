@@ -1025,6 +1025,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [docCacheBackfillHistoryDays, setDocCacheBackfillHistoryDays] = useState(365);
   const [docCacheBackfillStepDays, setDocCacheBackfillStepDays] = useState(30);
   const [docCacheBackfillMaxSteps, setDocCacheBackfillMaxSteps] = useState(3);
+  const docCacheBackfillCurrentMonthRef = useRef<HTMLTableRowElement | null>(null);
   const [permissionPresets, setPermissionPresets] = useState<PermissionPreset[]>([]);
   const [presetsLoading, setPresetsLoading] = useState(false);
   const [presetEditingId, setPresetEditingId] = useState<string | null>(null);
@@ -1809,6 +1810,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (tab !== "integrations" || !adminToken) return;
     void loadDocCacheBackfillStatus();
   }, [tab, adminToken, integrationFetchTrigger, loadDocCacheBackfillStatus]);
+  useEffect(() => {
+    if (tab !== "integrations" || !docCacheBackfill?.coverageByMonth?.length) return;
+    docCacheBackfillCurrentMonthRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [tab, docCacheBackfill?.state.nextFrom, docCacheBackfill?.coverageByMonth]);
   const runZvonobotAction = useCallback(async (
     action: "create" | "get" | "userInfo" | "getPhones" | "getAvailableLanguages",
     payload: Record<string, unknown> = {}
@@ -8184,7 +8189,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.25rem" }}>Backfill</Typography.Body>
                 <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
                   Диапазон: {docCacheBackfill.state.rangeStart} — {docCacheBackfill.state.rangeEnd}
+                  {docCacheBackfill.cacheEarliestDate ? ` · мин. ${docCacheBackfill.cacheEarliestDate}` : ""}
                 </Typography.Body>
+                {docCacheBackfill.cacheEarliestDate &&
+                docCacheBackfill.state.rangeStart > docCacheBackfill.cacheEarliestDate ? (
+                  <Typography.Body style={{ fontSize: "0.78rem", color: "#b45309", marginTop: "0.2rem" }}>
+                    Backfill начался позже {docCacheBackfill.cacheEarliestDate}. «Сброс + шаг» с 730 дней загрузит янв–апр 2025.
+                  </Typography.Body>
+                ) : null}
                 <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
                   След. шаг с: {docCacheBackfill.state.nextFrom}
                   {docCacheBackfill.state.nextKindLabel ? ` · ${docCacheBackfill.state.nextKindLabel}` : ""}
@@ -8242,7 +8254,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 Покрытие по месяцам (записей в кэше)
               </Typography.Body>
               <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.45rem" }}>
-                «—» = нет данных за месяц. Число = сколько записей с датой в этом месяце. Последние ~30 дней дополняет крон recent.
+                «—» = нет данных за месяц. Подсветка: зелёный — backfill прошёл, жёлтый — текущий месяц ({docCacheBackfill?.state.nextFrom?.slice(0, 7) ?? "—"}), серый — ещё в очереди.
               </Typography.Body>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
                 <thead>
@@ -8255,9 +8267,26 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {docCacheBackfill.coverageByMonth.map((row) => (
-                    <tr key={row.month} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                      <td style={{ padding: "0.35rem 0.5rem", whiteSpace: "nowrap" }}>{row.monthLabel}</td>
+                  {docCacheBackfill.coverageByMonth.map((row) => {
+                    const status = row.backfillStatus ?? "pending";
+                    const rowBg =
+                      status === "current"
+                        ? "color-mix(in srgb, #fbbf24 18%, transparent)"
+                        : status === "done"
+                          ? "color-mix(in srgb, #10b981 10%, transparent)"
+                          : status === "before_range"
+                            ? "color-mix(in srgb, var(--color-text-secondary) 6%, transparent)"
+                            : undefined;
+                    return (
+                    <tr
+                      key={row.month}
+                      ref={status === "current" ? docCacheBackfillCurrentMonthRef : undefined}
+                      style={{ borderBottom: "1px solid var(--color-border)", background: rowBg }}
+                    >
+                      <td style={{ padding: "0.35rem 0.5rem", whiteSpace: "nowrap" }}>
+                        {row.monthLabel}
+                        {status === "current" ? " · сейчас" : status === "before_range" ? " · до диапазона" : ""}
+                      </td>
                       {(["perevozki", "sendings", "invoices", "acts"] as const).map((kind) => {
                         const n = row[kind];
                         return (
@@ -8275,7 +8304,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         );
                       })}
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
