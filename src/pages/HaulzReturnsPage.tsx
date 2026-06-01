@@ -269,45 +269,19 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
       }
       const wbLocal = buildWorkbook({ otpravka, ulPrio1: ulPrio1Parsed, ulPrio2: ulPrio2Parsed });
 
-      // #region agent log
-      fetch("http://127.0.0.1:7764/ingest/18d9aceb-93ca-4e52-bbe7-c56dcb1cd38e", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e39252" },
-        body: JSON.stringify({
-          sessionId: "e39252",
-          location: "HaulzReturnsPage.tsx:handleProcess",
-          message: "localBuildDone",
-          hypothesisId: "E",
-          data: { sheetCount: wbLocal.sheets.length, itogRows: wbLocal.sheets.find((s) => s.id === "itog")?.rows.length ?? 0 },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
-
       await saveHaulzReturnsWorkbook(auth, newJobId, wbLocal);
       setJobId(newJobId);
       setWorkbook(wbLocal);
       setActiveTab("itog");
-      const loaded = await getHaulzReturnsJob(auth, newJobId);
-      setStoredFiles(loaded.files);
-      await refreshJobs();
+      try {
+        const loaded = await getHaulzReturnsJob(auth, newJobId);
+        setStoredFiles(loaded.files);
+        await refreshJobs();
+      } catch {
+        /* результат уже на экране; обновление списка необязательно */
+      }
     } catch (e: unknown) {
-      const msg = (e as Error)?.message || "Ошибка обработки";
-      // #region agent log
-      fetch("http://127.0.0.1:7764/ingest/18d9aceb-93ca-4e52-bbe7-c56dcb1cd38e", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e39252" },
-        body: JSON.stringify({
-          sessionId: "e39252",
-          location: "HaulzReturnsPage.tsx:handleProcess",
-          message: "processFailed",
-          hypothesisId: "ALL",
-          data: { error: msg },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
-      setError(msg);
+      setError((e as Error)?.message || "Ошибка обработки");
     } finally {
       setProcessing(false);
       setUploadProgress(null);

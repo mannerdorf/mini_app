@@ -35,54 +35,23 @@ function parseJson(res: Response, data: unknown): string {
   return `HTTP ${res.status}`;
 }
 
-// #region agent log
-function hrDebugLog(step: string, hypothesisId: string, data: Record<string, unknown>) {
-  fetch("http://127.0.0.1:7764/ingest/18d9aceb-93ca-4e52-bbe7-c56dcb1cd38e", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e39252" },
-    body: JSON.stringify({
-      sessionId: "e39252",
-      location: "haulzReturns.ts",
-      message: step,
-      data,
-      hypothesisId,
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-}
-// #endregion
-
-async function hrFetch(
-  step: string,
-  hypothesisId: string,
-  url: string,
-  init: RequestInit,
-): Promise<Response> {
-  const res = await fetch(url, init);
-  const data = await res.clone().json().catch(() => ({}));
-  // #region agent log
-  hrDebugLog(step, hypothesisId, { url, status: res.status, ok: res.ok, error: (data as { error?: string }).error ?? null });
-  // #endregion
-  return res;
-}
-
 export async function listHaulzReturnsJobs(auth: AuthData, limit = 20): Promise<HaulzReturnsJobSummary[]> {
   const res = await fetch(`/api/haulz-returns/jobs?limit=${limit}`, { headers: authHeaders(auth) });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(parseJson(res, data));
+  if (!res.ok) throw new Error(`[список сессий] ${parseJson(res, data)}`);
   return (data as { jobs?: HaulzReturnsJobSummary[] }).jobs ?? [];
 }
 
 export async function createHaulzReturnsJob(auth: AuthData, title = ""): Promise<string> {
-  const res = await hrFetch("createJob", "B", "/api/haulz-returns/jobs", {
+  const res = await fetch("/api/haulz-returns/jobs", {
     method: "POST",
     headers: authHeaders(auth),
     body: JSON.stringify({ title }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(parseJson(res, data));
+  if (!res.ok) throw new Error(`[создание сессии] ${parseJson(res, data)}`);
   const jobId = (data as { jobId?: string }).jobId;
-  if (!jobId) throw new Error("Не получен jobId");
+  if (!jobId) throw new Error("[создание сессии] Не получен jobId");
   return jobId;
 }
 
@@ -96,13 +65,13 @@ export async function uploadHaulzReturnsFile(
   fd.append("jobId", jobId);
   fd.append("fileRole", fileRole);
   fd.append("file", file);
-  const res = await hrFetch("uploadFile", "A", "/api/haulz-returns/job-file", {
+  const res = await fetch("/api/haulz-returns/job-file", {
     method: "POST",
     headers: { "x-login": auth.login, "x-password": auth.password },
     body: fd,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(parseJson(res, data));
+  if (!res.ok) throw new Error(`[загрузка «${file.name}»] ${parseJson(res, data)}`);
 }
 
 export type HaulzReturnsUploadItem = {
@@ -130,22 +99,6 @@ export async function uploadHaulzReturnsFilesSequentially(
   }
 }
 
-export async function processHaulzReturnsJob(
-  auth: AuthData,
-  jobId: string,
-): Promise<{ workbookVersion: number }> {
-  const res = await fetch(`/api/haulz-returns/job-process?jobId=${encodeURIComponent(jobId)}`, {
-    method: "POST",
-    headers: authHeaders(auth),
-    body: "{}",
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(parseJson(res, data));
-  return {
-    workbookVersion: Number((data as { workbookVersion?: number }).workbookVersion) || 1,
-  };
-}
-
 export async function getHaulzReturnsJob(
   auth: AuthData,
   jobId: string,
@@ -158,7 +111,7 @@ export async function getHaulzReturnsJob(
     headers: authHeaders(auth),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(parseJson(res, data));
+  if (!res.ok) throw new Error(`[загрузка сессии] ${parseJson(res, data)}`);
   const rawWb = (data as { workbook?: HaulzWorkbook | null }).workbook;
   const workbook = rawWb
     ? {
@@ -176,7 +129,7 @@ export async function getHaulzReturnsJob(
 }
 
 export async function saveHaulzReturnsWorkbook(auth: AuthData, jobId: string, workbook: HaulzWorkbook): Promise<HaulzWorkbook> {
-  const res = await hrFetch("saveWorkbook", "D", "/api/haulz-returns/job-workbook", {
+  const res = await fetch("/api/haulz-returns/job-workbook", {
     method: "PATCH",
     headers: authHeaders(auth),
     body: JSON.stringify({
@@ -185,7 +138,7 @@ export async function saveHaulzReturnsWorkbook(auth: AuthData, jobId: string, wo
     }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(parseJson(res, data));
+  if (!res.ok) throw new Error(`[сохранение результата] ${parseJson(res, data)}`);
   const wb = (data as { workbook?: HaulzWorkbook & { itogControlKeys?: string[] } }).workbook;
   const mergedSheets = wb?.sheets ?? workbook.sheets;
   const mergedKeys = Array.isArray(wb?.itogControlKeys) ? wb.itogControlKeys.map(String) : [...workbook.itogControlKeys];
@@ -208,5 +161,5 @@ export async function deleteHaulzReturnsJob(auth: AuthData, jobId: string): Prom
     },
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(parseJson(res, data));
+  if (!res.ok) throw new Error(`[удаление сессии] ${parseJson(res, data)}`);
 }
