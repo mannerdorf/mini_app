@@ -1,5 +1,6 @@
 import type { AuthData } from "../../types";
 import type { HaulzWorkbook } from "../../../lib/haulzReturns/types";
+import { compactWorkbookForPatch } from "../../../lib/haulzReturns/processJob";
 
 export type HaulzReturnsJobSummary = {
   id: string;
@@ -76,7 +77,7 @@ export async function uploadHaulzReturnsFile(
 export async function processHaulzReturnsJob(
   auth: AuthData,
   jobId: string,
-): Promise<{ workbook: HaulzWorkbook; workbookVersion: number }> {
+): Promise<{ workbookVersion: number }> {
   const res = await fetch(`/api/haulz-returns/job-process?jobId=${encodeURIComponent(jobId)}`, {
     method: "POST",
     headers: authHeaders(auth),
@@ -84,17 +85,7 @@ export async function processHaulzReturnsJob(
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(parseJson(res, data));
-  const wb = (data as { workbook?: HaulzWorkbook }).workbook;
-  if (!wb) throw new Error("Пустой ответ обработки");
   return {
-    workbook: {
-      sheets: wb.sheets,
-      itogControlKeys: new Set(
-        Array.isArray(wb.itogControlKeys)
-          ? wb.itogControlKeys.map(String)
-          : [],
-      ),
-    },
     workbookVersion: Number((data as { workbookVersion?: number }).workbookVersion) || 1,
   };
 }
@@ -134,20 +125,21 @@ export async function saveHaulzReturnsWorkbook(auth: AuthData, jobId: string, wo
     headers: authHeaders(auth),
     body: JSON.stringify({
       jobId,
-      workbook: {
-        sheets: workbook.sheets,
-        itogControlKeys: [...workbook.itogControlKeys],
-      },
+      workbook: compactWorkbookForPatch(workbook),
     }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(parseJson(res, data));
-  const wb = (data as { workbook?: HaulzWorkbook }).workbook;
+  const wb = (data as { workbook?: HaulzWorkbook & { itogControlKeys?: string[] } }).workbook;
+  const mergedSheets = wb?.sheets ?? workbook.sheets;
+  const mergedKeys = Array.isArray(wb?.itogControlKeys) ? wb.itogControlKeys.map(String) : [...workbook.itogControlKeys];
   return {
-    sheets: wb?.sheets ?? workbook.sheets,
-    itogControlKeys: new Set(
-      Array.isArray(wb?.itogControlKeys) ? wb!.itogControlKeys!.map(String) : [...workbook.itogControlKeys],
-    ),
+    sheets: mergedSheets.map((s) => {
+      const local = workbook.sheets.find((ls) => ls.id === s.id);
+      if (s.id.startsWith("ul-") && s.ulDeferred && local && local.rows.length > 0) return local;
+      return s;
+    }),
+    itogControlKeys: new Set(mergedKeys),
   };
 }
 

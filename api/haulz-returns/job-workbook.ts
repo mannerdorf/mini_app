@@ -7,7 +7,12 @@ import {
   resolveHaulzReturnsAccess,
 } from "../_haulzReturns.js";
 import { recalcWorkbookAfterItogChange, type HaulzWorkbook } from "../../lib/haulzReturns/index.js";
-import { saveWorkbook } from "../../lib/haulzReturns/processJob.js";
+import {
+  loadLatestWorkbook,
+  mergeWorkbookPatch,
+  saveWorkbook,
+  workbookForApi,
+} from "../../lib/haulzReturns/processJob.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "haulz_returns_job_workbook");
@@ -52,7 +57,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             : [],
       ),
     };
-    const recalced = recalcWorkbookAfterItogChange(wb);
+    const stored = await loadLatestWorkbook(pool, jobId);
+    const merged = mergeWorkbookPatch(stored, wb);
+    const recalced = recalcWorkbookAfterItogChange(merged);
     const version = await saveWorkbook(pool, jobId, access.loginKey, recalced);
     await pool.query(
       `update haulz_returns_jobs set status = 'ready', updated_at = now() where id = $1`,
@@ -61,10 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       ok: true,
       workbookVersion: version,
-      workbook: {
-        sheets: recalced.sheets,
-        itogControlKeys: [...recalced.itogControlKeys],
-      },
+      workbook: workbookForApi(recalced),
       request_id: ctx.requestId,
     });
   } catch (e) {

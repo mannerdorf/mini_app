@@ -225,7 +225,7 @@ function buildStopSheet(): HaulzSheet {
   };
 }
 
-function buildUlSheet(file: ParsedUlFile, controlKeys: Set<string>): HaulzSheet {
+export function buildUlSheetForParsedFile(file: ParsedUlFile, controlKeys: Set<string>): HaulzSheet {
   const rows: HaulzSheetRow[] = file.sheet.rows.map((row, i) => {
     const controlKey = `${file.ulNumber}${row.rowNum}${row.parcel}`;
     const inItog = controlKeys.has(controlKey) ? 1 : 0;
@@ -272,7 +272,7 @@ export function buildWorkbook(input: BuildInput): HaulzWorkbook {
     buildKgdSheet(otpravka, ulPrio1, ulPrio2),
     buildPlombySheet(otpravka),
     buildStopSheet(),
-    ...ulSheets.map((f) => buildUlSheet(f, controlKeys)),
+    ...ulSheets.map((f) => buildUlSheetForParsedFile(f, controlKeys)),
   ];
 
   return { sheets, itogControlKeys: controlKeys };

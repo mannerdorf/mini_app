@@ -28,6 +28,62 @@ export function deserializeWorkbook(sheets: unknown, keys: unknown): HaulzWorkbo
   };
 }
 
+/** Убирает строки УЛ из JSON-ответа API (лимит Vercel ~4.5 МБ). */
+export function workbookForApi(wb: HaulzWorkbook) {
+  return {
+    sheets: wb.sheets.map((s) =>
+      s.id.startsWith("ul-") ? { ...s, rows: [], ulDeferred: true } : s,
+    ),
+    itogControlKeys: [...wb.itogControlKeys],
+  };
+}
+
+/** Для PATCH: клиент шлёт без строк УЛ, сервер подставляет из сохранённой версии. */
+export function compactWorkbookForPatch(wb: HaulzWorkbook) {
+  return {
+    sheets: wb.sheets.map((s) => (s.id.startsWith("ul-") ? { ...s, rows: [] } : s)),
+    itogControlKeys: [...wb.itogControlKeys],
+  };
+}
+
+export function mergeWorkbookPatch(stored: HaulzWorkbook | null, incoming: HaulzWorkbook): HaulzWorkbook {
+  if (!stored) return incoming;
+  const storedUl = new Map(
+    stored.sheets.filter((s) => s.id.startsWith("ul-")).map((s) => [s.id, s]),
+  );
+  const mergedSheets = incoming.sheets.map((s) => {
+    if (s.id.startsWith("ul-") && s.rows.length === 0) {
+      const prev = storedUl.get(s.id);
+      if (prev) return prev;
+    }
+    return s;
+  });
+  for (const [id, sheet] of storedUl) {
+    if (!mergedSheets.some((s) => s.id === id)) mergedSheets.push(sheet);
+  }
+  return {
+    sheets: mergedSheets,
+    itogControlKeys: incoming.itogControlKeys.size > 0 ? incoming.itogControlKeys : stored.itogControlKeys,
+  };
+}
+
+export async function loadLatestWorkbook(
+  pool: Pool | PoolClient,
+  jobId: number,
+): Promise<HaulzWorkbook | null> {
+  const { rows } = await pool.query<{ sheets: unknown; itog_control_keys: unknown }>(
+    `select sheets, itog_control_keys
+     from haulz_returns_workbooks
+     where job_id = $1
+     order by version desc
+     limit 1`,
+    [jobId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return deserializeWorkbook(row.sheets, row.itog_control_keys);
+}
+
 export async function loadJobFiles(pool: Pool | PoolClient, jobId: number): Promise<JobFileRow[]> {
   const { rows } = await pool.query<JobFileRow>(
     `select id, file_role, original_filename, file_data

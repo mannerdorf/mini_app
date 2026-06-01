@@ -41,12 +41,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `update haulz_returns_jobs set status = 'uploading', error_message = null, updated_at = now() where id = $1`,
       [jobId],
     );
-    const { workbook, version } = await processJobWorkbook(pool, jobId, access.loginKey);
+    const { version } = await processJobWorkbook(pool, jobId, access.loginKey);
     return res.status(200).json({
       ok: true,
       jobId: String(jobId),
       workbookVersion: version,
-      workbook,
       request_id: ctx.requestId,
     });
   } catch (e) {

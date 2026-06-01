@@ -6,7 +6,7 @@ import {
   pgTableExists,
   resolveHaulzReturnsAccess,
 } from "../_haulzReturns.js";
-import { deserializeWorkbook } from "../../lib/haulzReturns/processJob.js";
+import { deserializeWorkbook, workbookForApi } from "../../lib/haulzReturns/processJob.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "haulz_returns_job");
@@ -78,7 +78,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       const wbRow = wbRows[0];
       const workbook = wbRow
-        ? deserializeWorkbook(wbRow.sheets, wbRow.itog_control_keys)
+        ? workbookForApi(deserializeWorkbook(wbRow.sheets, wbRow.itog_control_keys))
         : null;
 
       return res.status(200).json({

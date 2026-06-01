@@ -16,8 +16,12 @@ import {
 import { HaulzReturnsWorkbookView } from "../features/haulzReturns/HaulzReturnsWorkbookView";
 import {
   buildFixSheetFromItog,
+  buildUlSheetForParsedFile,
+  buildWorkbook,
   downloadBlob,
   exportSheetToExcel,
+  parseOtpravkaBuffer,
+  parseUlBuffer,
   recalcWorkbookAfterItogChange,
   type HaulzWorkbook,
 } from "../lib/haulzReturns";
@@ -86,6 +90,7 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadingUlTab, setLoadingUlTab] = useState<string | null>(null);
 
   const tabs = useMemo(
     () => workbook?.sheets.map((s) => ({ id: s.id, label: s.name })) ?? [],
@@ -93,6 +98,55 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
   );
 
   const activeSheet = workbook?.sheets.find((s) => s.id === activeTab) ?? workbook?.sheets[0];
+
+  const ensureUlSheetLoaded = useCallback(
+    async (tabId: string, currentWorkbook: HaulzWorkbook, currentJobId: string, files: HaulzReturnsFileMeta[]) => {
+      if (!auth || !tabId.startsWith("ul-")) return currentWorkbook;
+      const sheet = currentWorkbook.sheets.find((s) => s.id === tabId);
+      if (!sheet || (sheet.rows.length > 0 && !sheet.ulDeferred)) return currentWorkbook;
+
+      const ulNumber = tabId.slice(3);
+      const fileMeta = files.find(
+        (f) =>
+          (f.file_role === "ul_prio1" || f.file_role === "ul_prio2") &&
+          (f.ul_number === ulNumber || f.original_filename.includes(ulNumber)),
+      );
+      if (!fileMeta) return currentWorkbook;
+
+      setLoadingUlTab(tabId);
+      try {
+        const res = await fetch(
+          `/api/haulz-returns/job-file-download?jobId=${encodeURIComponent(currentJobId)}&fileId=${encodeURIComponent(fileMeta.id)}`,
+          { headers: { "x-login": auth.login, "x-password": auth.password } },
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const parsed = parseUlBuffer(await res.arrayBuffer(), fileMeta.original_filename);
+        const ulSheet = buildUlSheetForParsedFile(parsed, currentWorkbook.itogControlKeys);
+        return {
+          ...currentWorkbook,
+          sheets: currentWorkbook.sheets.map((s) => (s.id === tabId ? ulSheet : s)),
+        };
+      } catch (e: unknown) {
+        setError((e as Error)?.message || `Не удалось загрузить УЛ ${ulNumber}`);
+        return currentWorkbook;
+      } finally {
+        setLoadingUlTab(null);
+      }
+    },
+    [auth],
+  );
+
+  const handleTabSelect = useCallback(
+    (tabId: string) => {
+      setActiveTab(tabId);
+      if (!workbook || !jobId) return;
+      void (async () => {
+        const next = await ensureUlSheetLoaded(tabId, workbook, jobId, storedFiles);
+        if (next !== workbook) setWorkbook(next);
+      })();
+    },
+    [workbook, jobId, storedFiles, ensureUlSheetLoaded],
+  );
 
   const refreshJobs = useCallback(async () => {
     if (!auth) return;
@@ -215,9 +269,18 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
       }
       setUploadProgress(null);
 
-      const { workbook: wb } = await processHaulzReturnsJob(auth, newJobId);
+      const otpravka = parseOtpravkaBuffer(await otpravkaFile.arrayBuffer(), otpravkaFile.name);
+      const ulPrio1Parsed = await Promise.all(
+        ulPrio1.map(async (slot) => parseUlBuffer(await slot.file.arrayBuffer(), slot.file.name)),
+      );
+      const ulPrio2Parsed = await Promise.all(
+        ulPrio2.map(async (slot) => parseUlBuffer(await slot.file.arrayBuffer(), slot.file.name)),
+      );
+      const wbLocal = buildWorkbook({ otpravka, ulPrio1: ulPrio1Parsed, ulPrio2: ulPrio2Parsed });
+
+      await processHaulzReturnsJob(auth, newJobId);
       setJobId(newJobId);
-      setWorkbook(wb);
+      setWorkbook(wbLocal);
       setActiveTab("itog");
       const loaded = await getHaulzReturnsJob(auth, newJobId);
       setStoredFiles(loaded.files);
@@ -460,7 +523,7 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
                 key={tab.id}
                 type="button"
                 className={`hr-tab-btn ${activeTab === tab.id ? "active" : ""}`}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabSelect(tab.id)}
               >
                 {tab.label}
               </button>
@@ -478,7 +541,9 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
               </Button>
             ) : null}
             <Typography.Body style={{ color: "var(--color-text-secondary)", alignSelf: "center" }}>
-              {activeSheet.rows.length} строк
+              {loadingUlTab === activeSheet.id
+                ? "Загрузка листа…"
+                : `${activeSheet.rows.length} строк`}
             </Typography.Body>
           </Flex>
 

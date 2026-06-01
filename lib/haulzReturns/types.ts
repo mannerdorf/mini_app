@@ -14,6 +14,8 @@ export type HaulzSheet = {
   name: string;
   columns: HaulzColumn[];
   rows: HaulzSheetRow[];
+  /** Строки УЛ не переданы в API — подгрузить из файла в БД */
+  ulDeferred?: boolean;
 };
 
 export type HaulzWorkbook = {
