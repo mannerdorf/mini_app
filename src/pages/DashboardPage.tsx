@@ -233,6 +233,30 @@ function DashboardChartBarPixelHeight({
     );
 }
 
+type StripDynamics = { percent: number; delta: number };
+
+function calcStripDynamics(cur: number, prev: number, hasPrev: boolean): StripDynamics | null {
+    if (!hasPrev) return null;
+    const delta = cur - prev;
+    if (prev === 0) return cur > 0 ? { percent: 100, delta } : null;
+    return { percent: Math.round((delta / prev) * 100), delta };
+}
+
+function StripDynamicsBadge({ dynamics, formatDelta }: { dynamics: StripDynamics; formatDelta: (delta: number) => string }) {
+    const { percent, delta } = dynamics;
+    const color = percent > 0 ? 'var(--color-success-status)' : percent < 0 ? '#ef4444' : 'var(--color-text-secondary)';
+    return (
+        <Flex align="center" gap="0.2rem" style={{ flexShrink: 0 }}>
+            {percent > 0 && <TrendingUp className="w-4 h-4" style={{ color: 'var(--color-success-status)' }} />}
+            {percent < 0 && <TrendingDown className="w-4 h-4" style={{ color: '#ef4444' }} />}
+            {percent === 0 && <Minus className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />}
+            <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, color, whiteSpace: 'nowrap' }}>
+                {percent > 0 ? '+' : ''}{percent}% ({formatDelta(delta)})
+            </Typography.Body>
+        </Flex>
+    );
+}
+
 export type DashboardPageProps = {
     auth: AuthData;
     onClose: () => void;
@@ -1395,14 +1419,9 @@ export function DashboardPage({
             });
         }
         const total = autoVal + ferryVal || 1;
-        const dynamics = (cur: number, prev: number): number | null => {
-            if (!hasPrev) return null;
-            if (prev === 0) return cur > 0 ? 100 : null;
-            return Math.round(((cur - prev) / prev) * 100);
-        };
         return [
-            { label: 'Авто', value: autoVal, percent: Math.round((autoVal / total) * 100), color: DIAGRAM_COLORS[0], dynamics: dynamics(autoVal, autoPrev) },
-            { label: 'Паром', value: ferryVal, percent: Math.round((ferryVal / total) * 100), color: DIAGRAM_COLORS[1], dynamics: dynamics(ferryVal, ferryPrev) },
+            { label: 'Авто', value: autoVal, percent: Math.round((autoVal / total) * 100), color: DIAGRAM_COLORS[0], dynamics: calcStripDynamics(autoVal, autoPrev, hasPrev) },
+            { label: 'Паром', value: ferryVal, percent: Math.round((ferryVal / total) * 100), color: DIAGRAM_COLORS[1], dynamics: calcStripDynamics(ferryVal, ferryPrev, hasPrev) },
         ];
     }, [dashboardTotalItems, dashboardTotalPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
     const slaStats = useMemo(() => {
@@ -1483,8 +1502,7 @@ export function DashboardPage({
         return [...map.entries()]
             .map(([name, value], i) => {
                 const prevVal = prevMap.get(name) ?? 0;
-                const dynamics = hasPrev ? (prevVal === 0 ? (value > 0 ? 100 : null) : Math.round(((value - prevVal) / prevVal) * 100)) : null;
-                return { name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length], dynamics };
+                return { name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length], dynamics: calcStripDynamics(value, prevVal, hasPrev) };
             })
             .sort((a, b) => b.value - a.value);
     }, [dashboardTotalItems, dashboardTotalPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
@@ -1506,8 +1524,7 @@ export function DashboardPage({
         return [...map.entries()]
             .map(([name, value], i) => {
                 const prevVal = prevMap.get(name) ?? 0;
-                const dynamics = hasPrev ? (prevVal === 0 ? (value > 0 ? 100 : null) : Math.round(((value - prevVal) / prevVal) * 100)) : null;
-                return { name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length], dynamics };
+                return { name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length], dynamics: calcStripDynamics(value, prevVal, hasPrev) };
             })
             .sort((a, b) => b.value - a.value);
     }, [dashboardTotalItems, dashboardTotalPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
@@ -1529,8 +1546,7 @@ export function DashboardPage({
         return [...map.entries()]
             .map(([name, value], i) => {
                 const prevVal = prevMap.get(name) ?? 0;
-                const dynamics = hasPrev ? (prevVal === 0 ? (value > 0 ? 100 : null) : Math.round(((value - prevVal) / prevVal) * 100)) : null;
-                return { name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length], dynamics };
+                return { name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length], dynamics: calcStripDynamics(value, prevVal, hasPrev) };
             })
             .sort((a, b) => b.value - a.value);
     }, [dashboardTotalItems, dashboardTotalPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
@@ -1833,6 +1849,24 @@ export function DashboardPage({
         return `${(isNaN(vol) ? 0 : vol).toFixed(2).replace('.', ',')} м³`;
     };
 
+    const formatStripDelta = (delta: number): string => {
+        if (chartType === 'money') {
+            const formatted = formatCurrency(delta, true);
+            return delta > 0 && !formatted.startsWith('+') ? `+${formatted}` : formatted;
+        }
+        if (chartType === 'paidWeight' || chartType === 'weight') {
+            const n = Math.round(delta);
+            return `${n >= 0 ? '+' : ''}${n.toLocaleString('ru-RU')} кг`;
+        }
+        if (chartType === 'pieces') {
+            const n = Math.round(delta);
+            return `${n >= 0 ? '+' : ''}${n.toLocaleString('ru-RU')} шт`;
+        }
+        const vol = Number(delta);
+        const abs = isNaN(vol) ? 0 : Math.abs(vol);
+        return `${delta >= 0 ? '+' : '−'}${abs.toFixed(2).replace('.', ',')} м³`;
+    };
+
     /** Тренд период к периоду: текущий период vs предыдущий период (только в служебном режиме) */
     const periodToPeriodTrend = useMemo(() => {
         if (!useServiceRequest || dashboardTotalPrevPeriodItems.length === 0) return null;
@@ -1847,13 +1881,15 @@ export function DashboardPage({
         
         const currentVal = dashboardTotalItems.reduce((acc, item) => acc + getVal(item), 0);
         const prevVal = dashboardTotalPrevPeriodItems.reduce((acc, item) => acc + getVal(item), 0);
+        const delta = currentVal - prevVal;
         
-        if (prevVal === 0) return currentVal > 0 ? { direction: 'up', percent: 100 } : null;
+        if (prevVal === 0) return currentVal > 0 ? { direction: 'up' as const, percent: 100, delta } : null;
         
-        const percent = Math.round(((currentVal - prevVal) / prevVal) * 100);
+        const percent = Math.round((delta / prevVal) * 100);
         return {
-            direction: currentVal > prevVal ? 'up' : currentVal < prevVal ? 'down' : null,
+            direction: currentVal > prevVal ? 'up' as const : currentVal < prevVal ? 'down' as const : null,
             percent: Math.abs(percent),
+            delta,
         };
     }, [useServiceRequest, dashboardTotalItems, dashboardTotalPrevPeriodItems, chartType]);
 
@@ -2735,24 +2771,24 @@ export function DashboardPage({
                                     {periodToPeriodTrend.direction === 'up' && (
                                         <Flex align="center" gap="0.25rem" style={{ flexShrink: 0 }}>
                                             <TrendingUp className="w-5 h-5" style={{ color: 'var(--color-success-status)' }} />
-                                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-success-status)', fontWeight: 600 }}>
-                                                +{periodToPeriodTrend.percent}%
+                                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-success-status)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                                +{periodToPeriodTrend.percent}% ({formatStripDelta(periodToPeriodTrend.delta)})
                                             </Typography.Body>
                                         </Flex>
                                     )}
                                     {periodToPeriodTrend.direction === 'down' && (
                                         <Flex align="center" gap="0.25rem" style={{ flexShrink: 0 }}>
                                             <TrendingDown className="w-5 h-5" style={{ color: '#ef4444' }} />
-                                            <Typography.Body style={{ fontSize: '0.85rem', color: '#ef4444', fontWeight: 600 }}>
-                                                -{periodToPeriodTrend.percent}%
+                                            <Typography.Body style={{ fontSize: '0.85rem', color: '#ef4444', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                                -{periodToPeriodTrend.percent}% ({formatStripDelta(periodToPeriodTrend.delta)})
                                             </Typography.Body>
                                         </Flex>
                                     )}
                                     {periodToPeriodTrend.direction === null && periodToPeriodTrend.percent === 0 && (
                                         <Flex align="center" gap="0.25rem" style={{ flexShrink: 0 }}>
                                             <Minus className="w-5 h-5" style={{ color: 'var(--color-text-secondary)' }} />
-                                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                                0%
+                                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
+                                                0% ({formatStripDelta(periodToPeriodTrend.delta)})
                                             </Typography.Body>
                                         </Flex>
                                     )}
@@ -2797,14 +2833,7 @@ export function DashboardPage({
                                         </div>
                                     </div>
                                     {row.dynamics != null && (
-                                        <Flex align="center" gap="0.2rem" style={{ flexShrink: 0, minWidth: 48 }}>
-                                            {row.dynamics > 0 && <TrendingUp className="w-4 h-4" style={{ color: 'var(--color-success-status)' }} />}
-                                            {row.dynamics < 0 && <TrendingDown className="w-4 h-4" style={{ color: '#ef4444' }} />}
-                                            {row.dynamics === 0 && <Minus className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />}
-                                            <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, color: row.dynamics > 0 ? 'var(--color-success-status)' : row.dynamics < 0 ? '#ef4444' : 'var(--color-text-secondary)' }}>
-                                                {row.dynamics > 0 ? '+' : ''}{row.dynamics}%
-                                            </Typography.Body>
-                                        </Flex>
+                                        <StripDynamicsBadge dynamics={row.dynamics} formatDelta={formatStripDelta} />
                                     )}
                                     <Typography.Body
                                         component="span"
@@ -2826,14 +2855,7 @@ export function DashboardPage({
                                         </div>
                                     </div>
                                     {row.dynamics != null && (
-                                        <Flex align="center" gap="0.2rem" style={{ flexShrink: 0, minWidth: 48 }}>
-                                            {row.dynamics > 0 && <TrendingUp className="w-4 h-4" style={{ color: 'var(--color-success-status)' }} />}
-                                            {row.dynamics < 0 && <TrendingDown className="w-4 h-4" style={{ color: '#ef4444' }} />}
-                                            {row.dynamics === 0 && <Minus className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />}
-                                            <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, color: row.dynamics > 0 ? 'var(--color-success-status)' : row.dynamics < 0 ? '#ef4444' : 'var(--color-text-secondary)' }}>
-                                                {row.dynamics > 0 ? '+' : ''}{row.dynamics}%
-                                            </Typography.Body>
-                                        </Flex>
+                                        <StripDynamicsBadge dynamics={row.dynamics} formatDelta={formatStripDelta} />
                                     )}
                                     <Typography.Body
                                         component="span"
@@ -2855,14 +2877,7 @@ export function DashboardPage({
                                         </div>
                                     </div>
                                     {row.dynamics != null && (
-                                        <Flex align="center" gap="0.2rem" style={{ flexShrink: 0, minWidth: 48 }}>
-                                            {row.dynamics > 0 && <TrendingUp className="w-4 h-4" style={{ color: 'var(--color-success-status)' }} />}
-                                            {row.dynamics < 0 && <TrendingDown className="w-4 h-4" style={{ color: '#ef4444' }} />}
-                                            {row.dynamics === 0 && <Minus className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />}
-                                            <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, color: row.dynamics > 0 ? 'var(--color-success-status)' : row.dynamics < 0 ? '#ef4444' : 'var(--color-text-secondary)' }}>
-                                                {row.dynamics > 0 ? '+' : ''}{row.dynamics}%
-                                            </Typography.Body>
-                                        </Flex>
+                                        <StripDynamicsBadge dynamics={row.dynamics} formatDelta={formatStripDelta} />
                                     )}
                                     <Typography.Body
                                         component="span"
@@ -2884,14 +2899,7 @@ export function DashboardPage({
                                         </div>
                                     </div>
                                     {row.dynamics != null && (
-                                        <Flex align="center" gap="0.2rem" style={{ flexShrink: 0, minWidth: 48 }}>
-                                            {row.dynamics > 0 && <TrendingUp className="w-4 h-4" style={{ color: 'var(--color-success-status)' }} />}
-                                            {row.dynamics < 0 && <TrendingDown className="w-4 h-4" style={{ color: '#ef4444' }} />}
-                                            {row.dynamics === 0 && <Minus className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />}
-                                            <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, color: row.dynamics > 0 ? 'var(--color-success-status)' : row.dynamics < 0 ? '#ef4444' : 'var(--color-text-secondary)' }}>
-                                                {row.dynamics > 0 ? '+' : ''}{row.dynamics}%
-                                            </Typography.Body>
-                                        </Flex>
+                                        <StripDynamicsBadge dynamics={row.dynamics} formatDelta={formatStripDelta} />
                                     )}
                                     <Typography.Body
                                         component="span"
