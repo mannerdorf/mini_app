@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { CACHE_HISTORY_DAYS } from "./cacheHistoryDays.js";
+import { CACHE_EARLIEST_DATE, CACHE_HISTORY_DAYS, cacheBackfillRangeStart } from "./cacheHistoryDays.js";
 import {
   buildCargoSendingAssignments,
   buildSendingsMetrics,
@@ -281,7 +281,7 @@ export async function ensureDocumentCacheTables(pool: Pool): Promise<void> {
      select 1, $1::date, $2::date, $1::date, $3, false, now()
      where not exists (select 1 from document_cache_backfill_state where id = 1)`,
     [
-      isoDate(addDays(new Date(), -(CACHE_HISTORY_DAYS - 1))),
+      cacheBackfillRangeStart(new Date(), CACHE_HISTORY_DAYS),
       isoDate(new Date()),
       CACHE_BACKFILL_STEP_DAYS,
     ],

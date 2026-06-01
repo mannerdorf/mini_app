@@ -1,13 +1,33 @@
-/** Глубина снимка в cache_* (крон refresh-cache). Старше — прямой запрос в 1С. */
+/** Глубина «скользящего» окна крона (recent/deep). Старше earliest — только если есть в cache_* после backfill. */
 export const CACHE_HISTORY_DAYS = Math.max(
   1,
   Number(process.env.CACHE_HISTORY_DAYS) || 365,
 );
 
+/** Нижняя граница истории в cache_* (backfill и отдача из кэша на Vercel). */
+export const CACHE_EARLIEST_DATE = (() => {
+  const raw = String(process.env.CACHE_EARLIEST_DATE ?? "2025-01-01").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "2025-01-01";
+})();
+
+function minIsoDate(a: string, b: string): string {
+  return a <= b ? a : b;
+}
+
 export function cacheHistoryDateFrom(reference = new Date()): string {
   const from = new Date(reference);
   from.setDate(from.getDate() - CACHE_HISTORY_DAYS);
-  return from.toISOString().split("T")[0];
+  const rolling = from.toISOString().split("T")[0];
+  return minIsoDate(CACHE_EARLIEST_DATE, rolling);
+}
+
+/** Начало диапазона backfill: не раньше CACHE_EARLIEST_DATE. */
+export function cacheBackfillRangeStart(reference = new Date(), historyDays = CACHE_HISTORY_DAYS): string {
+  const span = Math.max(1, Math.trunc(historyDays));
+  const from = new Date(reference);
+  from.setDate(from.getDate() - (span - 1));
+  const rolling = from.toISOString().split("T")[0];
+  return minIsoDate(CACHE_EARLIEST_DATE, rolling);
 }
 
 /** true, если dateFrom раньше окна, которое покрывает кэш крона. */

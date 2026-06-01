@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { getAdminTokenFromRequest, verifyAdminToken } from "../lib/adminAuth.js";
-import { CACHE_HISTORY_DAYS } from "../lib/cacheHistoryDays.js";
+import { CACHE_EARLIEST_DATE, CACHE_HISTORY_DAYS, cacheBackfillRangeStart } from "../lib/cacheHistoryDays.js";
 import {
   addDaysIso,
   CACHE_BACKFILL_STEP_DAYS,
@@ -66,7 +66,7 @@ function serializeState(state: BackfillStateRow) {
 
 async function resetBackfillState(pool: ReturnType<typeof getPool>, historyDays: number, stepDays: number) {
   const today = isoDate(new Date());
-  const rangeStart = addDaysIso(today, -(Math.max(1, historyDays) - 1));
+  const rangeStart = cacheBackfillRangeStart(new Date(), historyDays);
   await pool.query(
     `update document_cache_backfill_state
      set range_start = $1::date, range_end = $2::date, next_from = $1::date, step_days = $3,
@@ -113,6 +113,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({
         ok: true,
         historyDays: CACHE_HISTORY_DAYS,
+        cacheEarliestDate: CACHE_EARLIEST_DATE,
         stepDaysDefault: CACHE_BACKFILL_STEP_DAYS,
         state: serializeState(state),
         coverage,

@@ -8112,8 +8112,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)", marginBottom: "0.75rem" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Кэш перевозок и документов (1С → PostgreSQL)</Typography.Body>
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
-            Восстановление истории за последние 365 дней: последовательные запросы в 1С шагом 30 дней (перевозки, отправки, счета, УПД) с merge в cache_*.
-            Один клик «Следующий шаг» — один тип данных за текущий период (4 клика = полный шаг 30 дней).
+            Восстановление истории с 01.01.2025: последовательные запросы в 1С шагом 30 дней (перевозки, отправки, счета, УПД) с merge в cache_*.
+            После деплоя нажмите «Сброс + шаг» — backfill начнётся с 01.01.2025. Один клик «Следующий шаг» — один тип данных (4 клика = 30 дней).
             Крон recent — последние 30 дней каждые 5 мин; крон deep — последние 90 дней 4×/сутки (01:00, 07:00, 13:00, 19:00 UTC).
           </Typography.Body>
           <Flex align="center" gap="0.5rem" wrap="wrap" style={{ marginBottom: "0.65rem" }}>
@@ -8126,6 +8126,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             >
               <option value="180">180 дней</option>
               <option value="365">365 дней</option>
+              <option value="730">730 дней (с 01.01.2025)</option>
             </select>
             <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>Шаг:</Typography.Body>
             <select
