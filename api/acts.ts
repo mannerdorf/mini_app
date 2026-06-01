@@ -156,7 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .json({ error: "Invalid date format (YYYY-MM-DD required)", request_id: ctx.requestId });
   }
 
-  const useDocumentCache = shouldServeFromDocumentCache(dateFrom);
+  const useDocumentCache = shouldServeFromDocumentCache(dateFrom, dateTo);
   let registeredVerified: VerifiedRegisteredUser | null = null;
 
   if (isRegisteredUser) {

@@ -17,9 +17,22 @@ export function isDateRangeOlderThanCache(dateFrom: string, reference = new Date
   return from < cacheHistoryDateFrom(reference);
 }
 
-/** Отдавать из cache_* (иначе — прямой запрос в 1С). */
-export function shouldServeFromDocumentCache(dateFrom: string, reference = new Date()): boolean {
-  return !isDateRangeOlderThanCache(dateFrom, reference);
+/**
+ * Отдавать из cache_* (иначе — прямой запрос в 1С).
+ * Учитывает пересечение периода с окном кэша: «год 2025» (01.01–31.12) при кэше с июня
+ * всё равно читается из Postgres, а не уходит в 1С с Vercel.
+ */
+export function shouldServeFromDocumentCache(
+  dateFrom: string,
+  dateTo?: string,
+  reference = new Date(),
+): boolean {
+  const cacheFrom = cacheHistoryDateFrom(reference);
+  const from = String(dateFrom ?? "").trim();
+  const to = String(dateTo ?? from).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) return true;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(to) && to >= cacheFrom) return true;
+  return from >= cacheFrom;
 }
 
 export function getPerevozkiServiceCredentials(): { login: string; password: string } | null {
