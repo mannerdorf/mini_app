@@ -144,60 +144,69 @@ export const getDateRange = (filter: DateFilter) => {
     return { dateFrom, dateTo };
 };
 
+const formatIsoLocal = (d: Date): string => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+};
+
+const shiftIsoDate = (iso: string, days: number): string => {
+    const d = parseDateOnly(iso);
+    if (!d) return iso;
+    d.setDate(d.getDate() + days);
+    return formatIsoLocal(d);
+};
+
+const shiftIsoYear = (iso: string, years: number): string => {
+    const d = parseDateOnly(iso);
+    if (!d) return iso;
+    d.setFullYear(d.getFullYear() + years);
+    return formatIsoLocal(d);
+};
+
 export const getPreviousPeriodRange = (filter: DateFilter, currentFrom: string, currentTo: string): { dateFrom: string; dateTo: string } | null => {
-    const today = new Date();
     let dateTo: string;
     let dateFrom: string;
 
     switch (filter) {
-        case 'неделя': {
-            const currentFromDate = new Date(currentFrom + 'T00:00:00');
-            const prevWeekEnd = new Date(currentFromDate);
-            prevWeekEnd.setDate(prevWeekEnd.getDate() - 1);
-            const prevWeekStart = new Date(prevWeekEnd);
-            prevWeekStart.setDate(prevWeekStart.getDate() - 6);
-            dateFrom = prevWeekStart.toISOString().split('T')[0];
-            dateTo = prevWeekEnd.toISOString().split('T')[0];
+        case "сегодня": {
+            const yesterday = shiftIsoDate(currentFrom, -1);
+            dateFrom = yesterday;
+            dateTo = yesterday;
             break;
         }
-        case 'месяц': {
-            const currentFromDate = new Date(currentFrom + 'T00:00:00');
-            const prevMonthEnd = new Date(currentFromDate);
-            prevMonthEnd.setDate(0);
+        case "вчера": {
+            const dayBefore = shiftIsoDate(currentFrom, -1);
+            dateFrom = dayBefore;
+            dateTo = dayBefore;
+            break;
+        }
+        case "неделя": {
+            dateTo = shiftIsoDate(currentFrom, -1);
+            dateFrom = shiftIsoDate(dateTo, -6);
+            break;
+        }
+        case "месяц": {
+            const currentFromDate = parseDateOnly(currentFrom);
+            if (!currentFromDate) return null;
+            const prevMonthEnd = new Date(currentFromDate.getFullYear(), currentFromDate.getMonth(), 0);
             const prevMonthStart = new Date(prevMonthEnd.getFullYear(), prevMonthEnd.getMonth(), 1);
-            dateFrom = prevMonthStart.toISOString().split('T')[0];
-            dateTo = prevMonthEnd.toISOString().split('T')[0];
+            dateFrom = formatIsoLocal(prevMonthStart);
+            dateTo = formatIsoLocal(prevMonthEnd);
             break;
         }
-        case 'год': {
-            const currentFromDate = new Date(currentFrom + 'T00:00:00');
-            const currentToDate = new Date(currentTo + 'T00:00:00');
-            const daysDiff = Math.ceil((currentToDate.getTime() - currentFromDate.getTime()) / (1000 * 60 * 60 * 24));
-            if (daysDiff >= 350 && daysDiff <= 366) {
-                const prevPeriodEnd = new Date(currentFromDate);
-                prevPeriodEnd.setDate(prevPeriodEnd.getDate() - 1);
-                const prevPeriodStart = new Date(prevPeriodEnd);
-                prevPeriodStart.setDate(prevPeriodStart.getDate() - daysDiff);
-                dateFrom = prevPeriodStart.toISOString().split('T')[0];
-                dateTo = prevPeriodEnd.toISOString().split('T')[0];
-            } else {
-                const currentYear = currentFromDate.getFullYear();
-                const prevYear = currentYear - 1;
-                dateFrom = `${prevYear}-01-01`;
-                dateTo = `${prevYear}-12-31`;
-            }
+        case "год": {
+            const currentFromDate = parseDateOnly(currentFrom);
+            if (!currentFromDate) return null;
+            const prevYear = currentFromDate.getFullYear() - 1;
+            dateFrom = `${prevYear}-01-01`;
+            dateTo = `${prevYear}-12-31`;
             break;
         }
-        case 'период': {
-            const currentFromDate = new Date(currentFrom + 'T00:00:00');
-            const currentToDate = new Date(currentTo + 'T00:00:00');
-            const daysDiff = Math.ceil((currentToDate.getTime() - currentFromDate.getTime()) / (1000 * 60 * 60 * 24));
-            const prevPeriodEnd = new Date(currentFromDate);
-            prevPeriodEnd.setDate(prevPeriodEnd.getDate() - 1);
-            const prevPeriodStart = new Date(prevPeriodEnd);
-            prevPeriodStart.setDate(prevPeriodStart.getDate() - daysDiff);
-            dateFrom = prevPeriodStart.toISOString().split('T')[0];
-            dateTo = prevPeriodEnd.toISOString().split('T')[0];
+        case "период": {
+            dateFrom = shiftIsoYear(currentFrom, -1);
+            dateTo = shiftIsoYear(currentTo, -1);
             break;
         }
         default:
