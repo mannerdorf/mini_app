@@ -22,8 +22,11 @@ import {
 } from "../api/client/admin/journal";
 import {
   fetchAdminZvonobotConfig,
+  fetchDocumentCacheBackfillStatus,
   postAdminSendlkSync,
   postAdminZvonobotSandbox,
+  postDocumentCacheBackfill,
+  type DocumentCacheBackfillStatus,
 } from "../api/client/admin/integrations";
 import {
   deleteAdminPreset,
@@ -1015,6 +1018,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [zvonobotApiCallIds, setZvonobotApiCallIds] = useState("");
   const [partnerApiHealthJson, setPartnerApiHealthJson] = useState<string>("");
   const [integrationHealth, setIntegrationHealth] = useState<AdminIntegrationHealth | null>(null);
+  const [docCacheBackfill, setDocCacheBackfill] = useState<DocumentCacheBackfillStatus | null>(null);
+  const [docCacheBackfillLoading, setDocCacheBackfillLoading] = useState(false);
+  const [docCacheBackfillRunning, setDocCacheBackfillRunning] = useState(false);
+  const [docCacheBackfillError, setDocCacheBackfillError] = useState<string | null>(null);
+  const [docCacheBackfillHistoryDays, setDocCacheBackfillHistoryDays] = useState(365);
+  const [docCacheBackfillStepDays, setDocCacheBackfillStepDays] = useState(30);
+  const [docCacheBackfillMaxSteps, setDocCacheBackfillMaxSteps] = useState(3);
   const [permissionPresets, setPermissionPresets] = useState<PermissionPreset[]>([]);
   const [presetsLoading, setPresetsLoading] = useState(false);
   const [presetEditingId, setPresetEditingId] = useState<string | null>(null);
@@ -1763,6 +1773,42 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       setIntegrationSendLkSyncLoading(false);
     }
   }, [adminToken]);
+  const loadDocCacheBackfillStatus = useCallback(async () => {
+    if (!adminToken) return;
+    setDocCacheBackfillLoading(true);
+    setDocCacheBackfillError(null);
+    try {
+      const data = await fetchDocumentCacheBackfillStatus(adminToken);
+      setDocCacheBackfill(data);
+    } catch (e: unknown) {
+      setDocCacheBackfillError((e as Error)?.message || "Ошибка загрузки статуса кэша");
+      setDocCacheBackfill(null);
+    } finally {
+      setDocCacheBackfillLoading(false);
+    }
+  }, [adminToken]);
+  const runDocCacheBackfill = useCallback(async (action: "reset" | "step" | "reset_and_run") => {
+    if (!adminToken) return;
+    setDocCacheBackfillRunning(true);
+    setDocCacheBackfillError(null);
+    try {
+      const data = await postDocumentCacheBackfill(adminToken, {
+        action,
+        historyDays: docCacheBackfillHistoryDays,
+        stepDays: docCacheBackfillStepDays,
+        maxSteps: docCacheBackfillMaxSteps,
+      });
+      setDocCacheBackfill(data);
+    } catch (e: unknown) {
+      setDocCacheBackfillError((e as Error)?.message || "Ошибка backfill кэша");
+    } finally {
+      setDocCacheBackfillRunning(false);
+    }
+  }, [adminToken, docCacheBackfillHistoryDays, docCacheBackfillStepDays, docCacheBackfillMaxSteps]);
+  useEffect(() => {
+    if (tab !== "integrations" || !adminToken) return;
+    void loadDocCacheBackfillStatus();
+  }, [tab, adminToken, integrationFetchTrigger, loadDocCacheBackfillStatus]);
   const runZvonobotAction = useCallback(async (
     action: "create" | "get" | "userInfo" | "getPhones" | "getAvailableLanguages",
     payload: Record<string, unknown> = {}
@@ -8059,6 +8105,116 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               </table>
             </div>
           )}
+        </Panel>
+      )}
+
+      {tab === "integrations" && (
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)", marginBottom: "0.75rem" }}>
+          <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Кэш перевозок и документов (1С → PostgreSQL)</Typography.Body>
+          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+            Восстановление истории за последние 365 дней: последовательные запросы в 1С шагом 30 дней (перевозки, отправки, счета, УПД) с merge в cache_*.
+            Крон recent — последние 30 дней каждые 5 мин; крон deep — последние 90 дней 4×/сутки (01:00, 07:00, 13:00, 19:00 UTC).
+          </Typography.Body>
+          <Flex align="center" gap="0.5rem" wrap="wrap" style={{ marginBottom: "0.65rem" }}>
+            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>Глубина:</Typography.Body>
+            <select
+              className="admin-form-input"
+              value={String(docCacheBackfillHistoryDays)}
+              onChange={(e) => setDocCacheBackfillHistoryDays(Math.max(30, Math.min(730, parseInt(e.target.value, 10) || 365)))}
+              style={{ padding: "0 0.5rem", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-bg)", fontSize: "0.9rem" }}
+            >
+              <option value="180">180 дней</option>
+              <option value="365">365 дней</option>
+            </select>
+            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>Шаг:</Typography.Body>
+            <select
+              className="admin-form-input"
+              value={String(docCacheBackfillStepDays)}
+              onChange={(e) => setDocCacheBackfillStepDays(Math.max(7, Math.min(90, parseInt(e.target.value, 10) || 30)))}
+              style={{ padding: "0 0.5rem", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-bg)", fontSize: "0.9rem" }}
+            >
+              <option value="30">30 дней</option>
+              <option value="60">60 дней</option>
+              <option value="90">90 дней</option>
+            </select>
+            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>Шагов за клик:</Typography.Body>
+            <select
+              className="admin-form-input"
+              value={String(docCacheBackfillMaxSteps)}
+              onChange={(e) => setDocCacheBackfillMaxSteps(Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 1)))}
+              style={{ padding: "0 0.5rem", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-bg)", fontSize: "0.9rem" }}
+            >
+              <option value="1">1</option>
+              <option value="3">3</option>
+              <option value="5">5</option>
+              <option value="13">13 (весь год)</option>
+            </select>
+            <Button type="button" className="filter-button" disabled={docCacheBackfillLoading || docCacheBackfillRunning} onClick={() => void loadDocCacheBackfillStatus()}>
+              {docCacheBackfillLoading ? "…" : "Обновить статус"}
+            </Button>
+            <Button type="button" className="filter-button" disabled={docCacheBackfillRunning} onClick={() => void runDocCacheBackfill("reset")}>
+              Сбросить прогресс
+            </Button>
+            <Button
+              type="button"
+              className="filter-button"
+              style={{ background: "var(--color-primary-blue)", color: "white" }}
+              disabled={docCacheBackfillRunning}
+              onClick={() => void runDocCacheBackfill("step")}
+            >
+              {docCacheBackfillRunning ? "Загрузка…" : "Следующий шаг"}
+            </Button>
+            <Button
+              type="button"
+              className="filter-button"
+              disabled={docCacheBackfillRunning}
+              onClick={() => void runDocCacheBackfill("reset_and_run")}
+            >
+              Сброс + шаг
+            </Button>
+          </Flex>
+          {docCacheBackfillError ? (
+            <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-error, #dc2626)", marginBottom: "0.5rem" }}>{docCacheBackfillError}</Typography.Body>
+          ) : null}
+          {docCacheBackfill ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(14rem, 1fr))", gap: "0.55rem" }}>
+              <Panel className="cargo-card" style={{ padding: "0.65rem", border: "1px solid var(--color-border)" }}>
+                <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.25rem" }}>Backfill</Typography.Body>
+                <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                  Диапазон: {docCacheBackfill.state.rangeStart} — {docCacheBackfill.state.rangeEnd}
+                </Typography.Body>
+                <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                  След. шаг с: {docCacheBackfill.state.nextFrom}
+                </Typography.Body>
+                <Typography.Body style={{ fontSize: "0.8rem", color: docCacheBackfill.state.done ? "#10b981" : "var(--color-text-secondary)" }}>
+                  {docCacheBackfill.state.done ? "Завершено" : "В процессе"}
+                </Typography.Body>
+              </Panel>
+              <Panel className="cargo-card" style={{ padding: "0.65rem", border: "1px solid var(--color-border)" }}>
+                <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.25rem" }}>cache_perevozki</Typography.Body>
+                <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                  Записей: {docCacheBackfill.coverage.perevozki.count}
+                </Typography.Body>
+                <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                  Даты: {docCacheBackfill.coverage.perevozki.minDate ?? "—"} … {docCacheBackfill.coverage.perevozki.maxDate ?? "—"}
+                </Typography.Body>
+              </Panel>
+              <Panel className="cargo-card" style={{ padding: "0.65rem", border: "1px solid var(--color-border)" }}>
+                <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.25rem" }}>cache_invoices</Typography.Body>
+                <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                  Записей: {docCacheBackfill.coverage.invoices.count}
+                </Typography.Body>
+                <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                  Даты: {docCacheBackfill.coverage.invoices.minDate ?? "—"} … {docCacheBackfill.coverage.invoices.maxDate ?? "—"}
+                </Typography.Body>
+              </Panel>
+            </div>
+          ) : docCacheBackfillLoading ? (
+            <Flex align="center" gap="0.5rem">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <Typography.Body style={{ fontSize: "0.85rem" }}>Загрузка…</Typography.Body>
+            </Flex>
+          ) : null}
         </Panel>
       )}
 

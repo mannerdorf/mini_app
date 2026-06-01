@@ -17,6 +17,10 @@ const NOTIF_DOCS: { id: string; label: string }[] = [
 const NOTIF_SUMMARY: { id: string; label: string }[] = [
     { id: "daily_summary", label: "Ежедневная сводка в 10:00" },
 ];
+const NOTIF_EMAIL_SUMMARY: { id: string; label: string }[] = [
+    { id: "daily_summary", label: "Ежедневная сводка" },
+    { id: "weekly_summary", label: "Еженедельная сводка (понедельник)" },
+];
 
 export function NotificationsPage({
     activeAccount,
@@ -46,9 +50,10 @@ export function NotificationsPage({
         }
     };
 
-    const [prefs, setPrefs] = useState<{ telegram: Record<string, boolean>; webpush: Record<string, boolean> }>({
+    const [prefs, setPrefs] = useState<{ telegram: Record<string, boolean>; webpush: Record<string, boolean>; email: Record<string, boolean> }>({
         telegram: {},
         webpush: {},
+        email: {},
     });
     const [prefsLoading, setPrefsLoading] = useState(true);
     const [prefsSaving, setPrefsSaving] = useState(false);
@@ -112,12 +117,16 @@ export function NotificationsPage({
                 if (cancelled) return;
                 if (prefsRes?.ok) {
                     const data = await prefsRes.json();
-                    if (!cancelled) setPrefs({ telegram: data.telegram || {}, webpush: data.webpush || {} });
+                    if (!cancelled) setPrefs({
+                        telegram: data.telegram || {},
+                        webpush: data.webpush || {},
+                        email: data.email || {},
+                    });
                 } else {
-                    if (!cancelled) setPrefs({ telegram: {}, webpush: {} });
+                    if (!cancelled) setPrefs({ telegram: {}, webpush: {}, email: {} });
                 }
             } catch {
-                if (!cancelled) setPrefs({ telegram: {}, webpush: {} });
+                if (!cancelled) setPrefs({ telegram: {}, webpush: {}, email: {} });
             } finally {
                 if (!cancelled) setPrefsLoading(false);
             }
@@ -158,7 +167,7 @@ export function NotificationsPage({
     }, [prefs]);
 
     const persistPrefs = useCallback(async (
-        nextPrefs: { telegram: Record<string, boolean>; webpush: Record<string, boolean> }
+        nextPrefs: { telegram: Record<string, boolean>; webpush: Record<string, boolean>; email: Record<string, boolean> }
     ) => {
         if (!login) return false;
         const res = await fetch("/api/webpush-preferences", {
@@ -171,8 +180,8 @@ export function NotificationsPage({
     }, [login]);
 
     const savePrefs = useCallback(
-        async (channel: "telegram" | "webpush", eventId: string, value: boolean) => {
-            let nextPrefs: { telegram: Record<string, boolean>; webpush: Record<string, boolean> } | null = null;
+        async (channel: "telegram" | "webpush" | "email", eventId: string, value: boolean) => {
+            let nextPrefs: { telegram: Record<string, boolean>; webpush: Record<string, boolean>; email: Record<string, boolean> } | null = null;
             setPrefs((prev) => {
                 const next = {
                     ...prev,
@@ -540,6 +549,59 @@ export function NotificationsPage({
                                     </Flex>
                                 ))}
                             </>
+                        )}
+                    </Panel>
+
+                    <Typography.Body style={{ marginTop: "1.25rem", marginBottom: "0.5rem", fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+                        Email
+                    </Typography.Body>
+                    <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                        <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                            Письма на адрес, указанный в профиле. Отключённые типы не отправляются, включая автоматическую еженедельную сводку.
+                        </Typography.Body>
+                        <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.25rem" }}>
+                            Раздел «Перевозки»
+                        </Typography.Body>
+                        {NOTIF_PEREVOZKI.map((ev) => (
+                            <Flex key={`email-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                                <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
+                                <TapSwitch
+                                    checked={prefs.email[ev.id] !== false}
+                                    onToggle={() => savePrefs("email", ev.id, prefs.email[ev.id] === false)}
+                                    aria-label={`Email: ${ev.label}`}
+                                />
+                            </Flex>
+                        ))}
+                        <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.5rem", marginBottom: "0.25rem" }}>
+                            Раздел «Документы»
+                        </Typography.Body>
+                        {NOTIF_DOCS.map((ev) => (
+                            <Flex key={`email-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                                <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
+                                <TapSwitch
+                                    checked={prefs.email[ev.id] !== false}
+                                    onToggle={() => savePrefs("email", ev.id, prefs.email[ev.id] === false)}
+                                    aria-label={`Email: ${ev.label}`}
+                                />
+                            </Flex>
+                        ))}
+                        <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.5rem", marginBottom: "0.25rem" }}>
+                            Сводка
+                        </Typography.Body>
+                        {NOTIF_EMAIL_SUMMARY.map((ev) => (
+                            <Flex key={`email-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                                <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
+                                <TapSwitch
+                                    checked={prefs.email[ev.id] !== false}
+                                    onToggle={() => savePrefs("email", ev.id, prefs.email[ev.id] === false)}
+                                    aria-label={`Email: ${ev.label}`}
+                                />
+                            </Flex>
+                        ))}
+                        {prefsSaving && (
+                            <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                                Сохранение…
+                            </Typography.Body>
                         )}
                     </Panel>
 

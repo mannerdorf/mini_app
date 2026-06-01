@@ -1,6 +1,7 @@
 {
   "crons": [
     {"path": "/api/cron/refresh-cache", "schedule": "*/5 * * * *"},
+    {"path": "/api/cron/refresh-cache-deep", "schedule": "0 1,7,13,19 * * *"},
     {"path": "/api/cron/backfill-sendings-metrics", "schedule": "*/5 * * * *"},
     {"path": "/api/cron/refresh-orders-cache", "schedule": "*/15 * * * *"},
     {"path": "/api/cron/refresh-suppliers-cache", "schedule": "*/15 * * * *"},
@@ -17,6 +18,7 @@
     "api/ais-stream.ts": {"maxDuration": 60},
     "api/tg-webhook.ts": {"maxDuration": 60},
     "api/cron/refresh-cache.ts": {"maxDuration": 300},
+    "api/cron/refresh-cache-deep.ts": {"maxDuration": 300},
     "api/cron/backfill-sendings-metrics.ts": {"maxDuration": 300},
     "api/cron/refresh-orders-cache.ts": {"maxDuration": 300},
     "api/cron/refresh-suppliers-cache.ts": {"maxDuration": 300},

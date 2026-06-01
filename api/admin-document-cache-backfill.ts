@@ -1,0 +1,212 @@
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { getPool } from "./_db.js";
+import { getAdminTokenFromRequest, verifyAdminToken } from "../lib/adminAuth.js";
+import { CACHE_HISTORY_DAYS } from "../lib/cacheHistoryDays.js";
+import {
+  addDaysIso,
+  CACHE_BACKFILL_STEP_DAYS,
+  ensureDocumentCacheTables,
+  isoDate,
+  minIso,
+  readCacheCoverageStats,
+  refreshDatedKindForWindow,
+  type DatedDocumentCacheKind,
+} from "../lib/documentCacheRefreshCore.js";
+import { initRequestContext, logError, logInfo } from "./_lib/observability.js";
+
+const BACKFILL_KINDS: DatedDocumentCacheKind[] = ["perevozki", "sendings", "invoices", "acts"];
+
+type BackfillStateRow = {
+  range_start: string;
+  range_end: string;
+  next_from: string;
+  step_days: number;
+  done: boolean;
+  last_step: unknown;
+  updated_at: Date;
+};
+
+async function loadBackfillState(pool: ReturnType<typeof getPool>): Promise<BackfillStateRow> {
+  await ensureDocumentCacheTables(pool);
+  const { rows } = await pool.query<BackfillStateRow>(
+    `select range_start::text, range_end::text, next_from::text, step_days, done, last_step, updated_at
+     from document_cache_backfill_state where id = 1`,
+  );
+  if (!rows[0]) throw new Error("document_cache_backfill_state missing");
+  return rows[0];
+}
+
+async function resetBackfillState(pool: ReturnType<typeof getPool>, historyDays: number, stepDays: number) {
+  const today = isoDate(new Date());
+  const rangeStart = addDaysIso(today, -(Math.max(1, historyDays) - 1));
+  await pool.query(
+    `update document_cache_backfill_state
+     set range_start = $1::date, range_end = $2::date, next_from = $1::date, step_days = $3, done = false, last_step = null, updated_at = now()
+     where id = 1`,
+    [rangeStart, today, stepDays],
+  );
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-document-cache-backfill");
+  if (req.method !== "GET" && req.method !== "POST") {
+    res.setHeader("Allow", "GET, POST");
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
+  }
+
+  if (!verifyAdminToken(getAdminTokenFromRequest(req))) {
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
+  }
+
+  const login = String(process.env.PEREVOZKI_SERVICE_LOGIN ?? "").trim();
+  const password = String(process.env.PEREVOZKI_SERVICE_PASSWORD ?? "").trim();
+  if (!login || !password) {
+    return res.status(503).json({ error: "Не заданы PEREVOZKI_SERVICE_LOGIN / PEREVOZKI_SERVICE_PASSWORD", request_id: ctx.requestId });
+  }
+
+  let body: any = req.body;
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      body = {};
+    }
+  }
+
+  try {
+    const pool = getPool();
+    await ensureDocumentCacheTables(pool);
+
+    if (req.method === "GET") {
+      const state = await loadBackfillState(pool);
+      const coverage = await readCacheCoverageStats(pool);
+      return res.status(200).json({
+        ok: true,
+        historyDays: CACHE_HISTORY_DAYS,
+        stepDaysDefault: CACHE_BACKFILL_STEP_DAYS,
+        state: {
+          rangeStart: state.range_start,
+          rangeEnd: state.range_end,
+          nextFrom: state.next_from,
+          stepDays: state.step_days,
+          done: state.done,
+          lastStep: state.last_step ?? null,
+          updatedAt: state.updated_at?.toISOString?.() ?? null,
+        },
+        coverage,
+        request_id: ctx.requestId,
+      });
+    }
+
+    const action = String(body?.action ?? "step").trim();
+    const historyDays = Math.max(30, Math.min(730, Number(body?.historyDays) || CACHE_HISTORY_DAYS));
+    const stepDays = Math.max(7, Math.min(90, Number(body?.stepDays) || CACHE_BACKFILL_STEP_DAYS));
+    const maxSteps = Math.max(1, Math.min(20, Number(body?.maxSteps) || 1));
+
+    if (action === "reset") {
+      await resetBackfillState(pool, historyDays, stepDays);
+      const state = await loadBackfillState(pool);
+      logInfo(ctx, "document_cache_backfill_reset", { historyDays, stepDays });
+      return res.status(200).json({
+        ok: true,
+        action: "reset",
+        state: {
+          rangeStart: state.range_start,
+          rangeEnd: state.range_end,
+          nextFrom: state.next_from,
+          stepDays: state.step_days,
+          done: state.done,
+        },
+        request_id: ctx.requestId,
+      });
+    }
+
+    let state = await loadBackfillState(pool);
+    if (action === "reset_and_run") {
+      await resetBackfillState(pool, historyDays, stepDays);
+      state = await loadBackfillState(pool);
+    }
+
+    if (state.done) {
+      const coverage = await readCacheCoverageStats(pool);
+      return res.status(200).json({
+        ok: true,
+        done: true,
+        message: "Backfill уже завершён. Для повторного прогона вызовите action=reset.",
+        state: {
+          rangeStart: state.range_start,
+          rangeEnd: state.range_end,
+          nextFrom: state.next_from,
+          stepDays: state.step_days,
+          done: true,
+          lastStep: state.last_step ?? null,
+        },
+        coverage,
+        request_id: ctx.requestId,
+      });
+    }
+
+    const steps: Array<{
+      dateFrom: string;
+      dateTo: string;
+      kinds: Array<{ kind: string; fetched: number; cacheTotal: number; error?: string }>;
+    }> = [];
+
+    for (let i = 0; i < maxSteps && !state.done; i += 1) {
+      if (state.next_from > state.range_end) {
+        await pool.query(`update document_cache_backfill_state set done = true, updated_at = now() where id = 1`);
+        state.done = true;
+        break;
+      }
+
+      const dateFrom = state.next_from;
+      const dateTo = minIso(addDaysIso(dateFrom, stepDays - 1), state.range_end);
+      const kindResults: Array<{ kind: string; fetched: number; cacheTotal: number; error?: string }> = [];
+
+      for (const kind of BACKFILL_KINDS) {
+        try {
+          const r = await refreshDatedKindForWindow(pool, login, password, kind, dateFrom, dateTo, "backfill", { webPush: false });
+          kindResults.push({ kind, fetched: r.chunkCountRows, cacheTotal: r.cacheCount });
+        } catch (e: any) {
+          kindResults.push({ kind, fetched: 0, cacheTotal: 0, error: e?.message || String(e) });
+        }
+      }
+
+      const nextFrom = addDaysIso(dateTo, 1);
+      const done = nextFrom > state.range_end;
+      const stepPayload = { dateFrom, dateTo, kinds: kindResults, done };
+      await pool.query(
+        `update document_cache_backfill_state
+         set next_from = $1::date, done = $2, last_step = $3::jsonb, updated_at = now()
+         where id = 1`,
+        [nextFrom, done, JSON.stringify(stepPayload)],
+      );
+
+      steps.push({ dateFrom, dateTo, kinds: kindResults });
+      state = await loadBackfillState(pool);
+      if (done) break;
+    }
+
+    const coverage = await readCacheCoverageStats(pool);
+    logInfo(ctx, "document_cache_backfill_step", { steps: steps.length, done: state.done });
+
+    return res.status(200).json({
+      ok: true,
+      action,
+      steps,
+      state: {
+        rangeStart: state.range_start,
+        rangeEnd: state.range_end,
+        nextFrom: state.next_from,
+        stepDays: state.step_days,
+        done: state.done,
+        lastStep: state.last_step ?? null,
+      },
+      coverage,
+      request_id: ctx.requestId,
+    });
+  } catch (e: any) {
+    logError(ctx, "admin_document_cache_backfill_failed", e);
+    return res.status(500).json({ error: e?.message || "Ошибка backfill кэша", request_id: ctx.requestId });
+  }
+}

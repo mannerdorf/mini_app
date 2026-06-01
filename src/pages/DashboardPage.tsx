@@ -594,7 +594,7 @@ export function DashboardPage({
     const calendarDateTo = `${calendarYear + 1}-12-31`;
 
     /** Неоплаченные счета × план прибытия: не зависят от фильтра «Дата» на дашборде. */
-    const unpaidPlanFetchEnabled = !loading && !error;
+    const unpaidPlanFetchEnabled = !loading;
     const { items: unpaidPlanInvoiceItems, loading: unpaidPlanInvoicesLoading } = useInvoices({
         auth,
         dateFrom: calendarDateFrom,
@@ -3001,7 +3001,7 @@ export function DashboardPage({
                 <UnpaidInvoicesPlanMonitor
                     invoices={unpaidPlanMonitorInvoices as Record<string, unknown>[]}
                     cargoItems={unpaidPlanMonitorCargo}
-                    loading={unpaidPlanInvoicesLoading || unpaidPlanCargoLoading}
+                    loading={!unpaidPlanFetchEnabled || unpaidPlanInvoicesLoading || unpaidPlanCargoLoading}
                     showSums={showSums}
                     onOpen={onOpenDocumentsInvoices}
                     onOpenInvoice={onOpenInvoice}

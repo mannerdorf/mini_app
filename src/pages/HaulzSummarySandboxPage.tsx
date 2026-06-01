@@ -3,6 +3,7 @@ import { ArrowLeft, Loader2, Mail, Eye, Play, Users, Save, RefreshCw, ScrollText
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import type { Account } from "../types";
 import { getPreviousCalendarWeekRangeClient } from "../lib/weeklySummaryClient";
+import { TapSwitch } from "../components/TapSwitch";
 
 const SUMMARY_API_PATHS = ["/api/invoices", "/api/admin-weekly-summary", "/api/perevozki"] as const;
 /** Cron/рассылка — сначала лёгкий endpoint, чтобы не упираться в таймаут invoices. */
@@ -623,24 +624,41 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
     },
   });
 
-  const saveCronRules = async () => {
+  const saveCronRules = async (overrideEnabled?: boolean) => {
     if (!authBody) return;
     setCronBusy("save");
     setCronMessage(null);
     try {
+      const payload = {
+        ...authBody,
+        cron: {
+          enabled: overrideEnabled ?? cronEnabled,
+          schedule: cronSchedule,
+          periodMode: cronPeriodMode,
+          periodDays: cronPeriodDays,
+          criteria: cronCriteria,
+        },
+        action: "cron_save" as const,
+      };
       const data = await postSummaryApi<{ cronConfig: SummaryCronConfig }>(
         SUMMARY_API_PATHS,
-        { ...cronPayload(), action: "cron_save" },
+        payload,
         authBody.login,
         authBody.password,
       );
       if (data.cronConfig) applyCronConfig(data.cronConfig);
-      setCronMessage("Правила сохранены");
+      setCronMessage(overrideEnabled === false ? "Автоотправка выключена" : overrideEnabled === true ? "Автоотправка включена" : "Правила сохранены");
     } catch (e: unknown) {
       setCronMessage((e as Error)?.message || "Ошибка");
     } finally {
       setCronBusy(null);
     }
+  };
+
+  const toggleCronEnabled = () => {
+    const next = !cronEnabled;
+    setCronEnabled(next);
+    void saveCronRules(next);
   };
 
   const loadCronRecipients = async () => {
@@ -969,15 +987,21 @@ export function HaulzSummarySandboxPage({ activeAccount, onBack }: Props) {
       <Panel className="cargo-card haulz-summary-sandbox" style={{ padding: "var(--pad-card, 1rem)", marginBottom: "1rem" }}>
         <Typography.Body style={{ ...LABEL_STYLE, marginBottom: "0.5rem" }}>Автоотправка (cron)</Typography.Body>
         <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
-          Vercel: понедельник 09:00 МСК (если включено). В выборку попадают пары логин + контрагент (ИНН): не более одного письма
-          на пару за рассылку и не более одного получателя на ИНН. Служебные аккаунты (access_all_inns, service_mode) исключены.
-          Критерии: приёмки, доставки или неоплаченные счета за период.
+          Vercel: понедельник 09:00 МСК (если включено). Не более одного письма на получателя (логин) за рассылку и не более одного
+          письма на адрес за календарные сутки (МСК). Служебные аккаунты (access_all_inns, service_mode) исключены. Критерии: приёмки,
+          доставки или неоплаченные счета за период. Получатель может отключить еженедельную сводку в профиле → Уведомления → Email.
         </Typography.Body>
         <Flex direction="column" gap="0.65rem" className="form-row-same-height">
-          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--color-text-primary)" }}>
-            <input type="checkbox" checked={cronEnabled} onChange={(e) => setCronEnabled(e.target.checked)} />
-            <span style={{ fontSize: "0.88rem" }}>Автоотправка включена</span>
-          </label>
+          <Flex align="center" justify="space-between" style={{ gap: "0.75rem" }}>
+            <Typography.Body style={{ fontSize: "0.88rem", color: "var(--color-text-primary)" }}>
+              Автоотправка включена
+            </Typography.Body>
+            <TapSwitch
+              checked={cronEnabled}
+              onToggle={toggleCronEnabled}
+              aria-label="Автоотправка включена"
+            />
+          </Flex>
           <Flex gap="0.5rem" wrap="wrap">
             <label style={{ flex: "1 1 160px", display: "flex", flexDirection: "column", gap: "0.35rem" }}>
               <Typography.Body style={LABEL_STYLE}>Как часто</Typography.Body>

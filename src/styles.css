@@ -4403,6 +4403,26 @@ button.edo-health-monitor {
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+.unpaid-plan-monitor--ok {
+    border-color: rgba(16, 185, 129, 0.35) !important;
+    background: rgba(16, 185, 129, 0.06) !important;
+}
+
+.unpaid-plan-monitor__empty-title {
+    font-size: 0.92rem !important;
+    font-weight: 600 !important;
+    color: #10b981 !important;
+    margin: 0.15rem 0 0.25rem !important;
+}
+
+.unpaid-plan-monitor__empty-hint {
+    display: block;
+    font-size: 0.78rem !important;
+    color: var(--color-text-secondary) !important;
+    line-height: 1.4;
+    margin-bottom: 0.35rem;
+}
+
 .unpaid-plan-monitor__head-btn {
     display: block;
     width: 100%;
