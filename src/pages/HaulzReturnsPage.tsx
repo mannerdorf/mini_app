@@ -7,6 +7,7 @@ import {
   deleteHaulzReturnsJob,
   getHaulzReturnsJob,
   listHaulzReturnsJobs,
+  processHaulzReturnsJob,
   saveHaulzReturnsWorkbook,
   uploadHaulzReturnsFilesSequentially,
   type HaulzReturnsUploadItem,
@@ -269,7 +270,26 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
       }
       const wbLocal = buildWorkbook({ otpravka, ulPrio1: ulPrio1Parsed, ulPrio2: ulPrio2Parsed });
 
-      await saveHaulzReturnsWorkbook(auth, newJobId, wbLocal);
+      // #region agent log
+      fetch("http://127.0.0.1:7764/ingest/18d9aceb-93ca-4e52-bbe7-c56dcb1cd38e", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e39252" },
+        body: JSON.stringify({
+          sessionId: "e39252",
+          location: "HaulzReturnsPage.tsx:handleProcess",
+          message: "before_server_process",
+          hypothesisId: "G",
+          data: {
+            jobId: newJobId,
+            itogRows: wbLocal.sheets.find((s) => s.id === "itog")?.rows.length ?? 0,
+            sheetCount: wbLocal.sheets.length,
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+
+      await processHaulzReturnsJob(auth, newJobId);
       setJobId(newJobId);
       setWorkbook(wbLocal);
       setActiveTab("itog");

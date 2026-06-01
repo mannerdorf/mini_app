@@ -7,7 +7,7 @@ import {
   resolveHaulzReturnsAccess,
 } from "../_haulzReturns.js";
 import type { HaulzWorkbook } from "../../lib/haulzReturns/types.js";
-import { deserializeWorkbook, mergeWorkbookPatch, workbookForApi } from "../../lib/haulzReturns/workbookApi.js";
+import { deserializeWorkbook, mergeWorkbookPatch } from "../../lib/haulzReturns/workbookApi.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "haulz_returns_job_workbook");
@@ -38,6 +38,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    const bodyBytes = JSON.stringify(req.body ?? {}).length;
+    // #region agent log
+    console.log(
+      JSON.stringify({
+        sessionId: "e39252",
+        location: "job-workbook.ts:handler",
+        message: "patch_received",
+        hypothesisId: "F",
+        data: { jobId, bodyBytes },
+        timestamp: Date.now(),
+      }),
+    );
+    // #endregion
+    if (bodyBytes > 4_000_000) {
+      return res.status(413).json({
+        error: `Тело запроса слишком большое (${Math.round(bodyBytes / 1024)} КБ). Используйте «Обработать» — сервер соберёт результат из файлов в БД.`,
+        request_id: ctx.requestId,
+      });
+    }
+
     const raw = req.body?.workbook as HaulzWorkbook | undefined;
     if (!raw?.sheets || !Array.isArray(raw.sheets)) {
       return res.status(400).json({ error: "Передайте workbook.sheets", request_id: ctx.requestId });
@@ -84,7 +104,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       ok: true,
       workbookVersion: version,
-      workbook: workbookForApi(merged),
       request_id: ctx.requestId,
     });
   } catch (e) {

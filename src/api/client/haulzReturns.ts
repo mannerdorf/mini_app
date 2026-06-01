@@ -128,28 +128,49 @@ export async function getHaulzReturnsJob(
   };
 }
 
+export async function processHaulzReturnsJob(
+  auth: AuthData,
+  jobId: string,
+): Promise<{ workbookVersion: number }> {
+  const res = await fetch(`/api/haulz-returns/job-process?jobId=${encodeURIComponent(jobId)}`, {
+    method: "POST",
+    headers: authHeaders(auth),
+    body: "{}",
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`[обработка на сервере] ${parseJson(res, data)}`);
+  return {
+    workbookVersion: Number((data as { workbookVersion?: number }).workbookVersion) || 1,
+  };
+}
+
 export async function saveHaulzReturnsWorkbook(auth: AuthData, jobId: string, workbook: HaulzWorkbook): Promise<HaulzWorkbook> {
+  const patchBody = JSON.stringify({
+    jobId,
+    workbook: compactWorkbookForPatch(workbook),
+  });
+  // #region agent log
+  fetch("http://127.0.0.1:7764/ingest/18d9aceb-93ca-4e52-bbe7-c56dcb1cd38e", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e39252" },
+    body: JSON.stringify({
+      sessionId: "e39252",
+      location: "haulzReturns.ts:saveHaulzReturnsWorkbook",
+      message: "patch_workbook",
+      hypothesisId: "F",
+      data: { jobId, bodyBytes: patchBody.length, sheetCount: workbook.sheets.length },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
   const res = await fetch("/api/haulz-returns/job-workbook", {
     method: "PATCH",
     headers: authHeaders(auth),
-    body: JSON.stringify({
-      jobId,
-      workbook: compactWorkbookForPatch(workbook),
-    }),
+    body: patchBody,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`[сохранение результата] ${parseJson(res, data)}`);
-  const wb = (data as { workbook?: HaulzWorkbook & { itogControlKeys?: string[] } }).workbook;
-  const mergedSheets = wb?.sheets ?? workbook.sheets;
-  const mergedKeys = Array.isArray(wb?.itogControlKeys) ? wb.itogControlKeys.map(String) : [...workbook.itogControlKeys];
-  return {
-    sheets: mergedSheets.map((s) => {
-      const local = workbook.sheets.find((ls) => ls.id === s.id);
-      if (s.id.startsWith("ul-") && s.ulDeferred && local && local.rows.length > 0) return local;
-      return s;
-    }),
-    itogControlKeys: new Set(mergedKeys),
-  };
+  if (!res.ok) throw new Error(`[сохранение правок] ${parseJson(res, data)}`);
+  return workbook;
 }
 
 export async function deleteHaulzReturnsJob(auth: AuthData, jobId: string): Promise<void> {

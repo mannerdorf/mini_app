@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import type { HaulzWorkbook } from "./types.js";
-import { deserializeWorkbook } from "./workbookApi.js";
+import { compactWorkbookForPatch, deserializeWorkbook } from "./workbookApi.js";
 
 export async function loadLatestWorkbook(
   pool: Pool | PoolClient,
@@ -30,10 +30,11 @@ export async function saveWorkbook(
     [jobId],
   );
   const version = verRows[0]?.v ?? 1;
+  const compact = compactWorkbookForPatch(wb);
   await pool.query(
     `insert into haulz_returns_workbooks (job_id, version, sheets, itog_control_keys, built_by_login)
      values ($1, $2, $3::jsonb, $4::jsonb, $5)`,
-    [jobId, version, JSON.stringify(wb.sheets), JSON.stringify([...wb.itogControlKeys]), loginKey],
+    [jobId, version, JSON.stringify(compact.sheets), JSON.stringify([...wb.itogControlKeys]), loginKey],
   );
   return version;
 }

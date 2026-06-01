@@ -40,6 +40,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `update haulz_returns_jobs set status = 'uploading', error_message = null, updated_at = now() where id = $1`,
       [jobId],
     );
+    const { rows: fileCountRows } = await pool.query<{ c: string }>(
+      `select count(*)::text as c from haulz_returns_files where job_id = $1`,
+      [jobId],
+    );
+    // #region agent log
+    console.log(
+      JSON.stringify({
+        sessionId: "e39252",
+        location: "job-process.ts:handler",
+        message: "process_start",
+        hypothesisId: "G",
+        data: { jobId, fileCount: fileCountRows[0]?.c ?? "0" },
+        timestamp: Date.now(),
+      }),
+    );
+    // #endregion
     const { processJobWorkbook } = await import("../../lib/haulzReturns/processJob.js");
     const { version } = await processJobWorkbook(pool, jobId, access.loginKey);
     return res.status(200).json({
