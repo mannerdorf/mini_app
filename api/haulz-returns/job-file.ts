@@ -7,33 +7,33 @@ import {
   pgTableExists,
   resolveHaulzReturnsAccess,
 } from "../_haulzReturns.js";
-import { parseUlBuffer } from "../../lib/haulzReturns/parseUl.js";
+import { extractUlNumberFromFileName } from "../../lib/haulzReturns/excelUtils.js";
 
 export const config = { api: { bodyParser: false } };
 
-const MAX_FILE_BYTES = 15 * 1024 * 1024;
+/** На Vercel тело запроса обрезается ~4.5 МБ до вызова функции. */
+const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "haulz_returns_job_file");
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
-  }
-
-  const pool = getPool();
-  const access = await resolveHaulzReturnsAccess(req);
-  if (!access) {
-    return res.status(401).json({ error: "Нет доступа", request_id: ctx.requestId });
-  }
-
-  if (!(await pgTableExists(pool, "haulz_returns_files"))) {
-    return res.status(503).json({
-      error: "Выполните миграцию migrations/080_haulz_returns.sql",
-      request_id: ctx.requestId,
-    });
-  }
-
   try {
+    if (req.method !== "POST") {
+      res.setHeader("Allow", "POST");
+      return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
+    }
+
+    const pool = getPool();
+    const access = await resolveHaulzReturnsAccess(req);
+    if (!access) {
+      return res.status(401).json({ error: "Нет доступа", request_id: ctx.requestId });
+    }
+
+    if (!(await pgTableExists(pool, "haulz_returns_files"))) {
+      return res.status(503).json({
+        error: "Выполните миграцию migrations/080_haulz_returns.sql",
+        request_id: ctx.requestId,
+      });
+    }
     const { fields, files } = await parseMultipart(req);
     const jobId = Number(fields.jobId);
     const fileRole = String(fields.fileRole ?? "").trim() as "otpravka" | "ul_prio1" | "ul_prio2";
@@ -53,26 +53,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     if (upload.buffer.length > MAX_FILE_BYTES) {
       return res.status(413).json({
-        error: `Файл слишком большой (макс. ${MAX_FILE_BYTES / 1024 / 1024} МБ)`,
+        error: `Файл «${upload.originalFilename}» слишком большой (макс. ${MAX_FILE_BYTES / 1024 / 1024} МБ на Vercel)`,
         request_id: ctx.requestId,
       });
     }
 
-    let ulNumber: string | null = null;
-    if (fileRole.startsWith("ul_")) {
-      try {
-        const parsed = parseUlBuffer(
-          upload.buffer.buffer.slice(
-            upload.buffer.byteOffset,
-            upload.buffer.byteOffset + upload.buffer.byteLength,
-          ),
-          upload.originalFilename,
-        );
-        ulNumber = parsed.ulNumber;
-      } catch {
-        /* сохраним файл даже если парсинг не удался — ошибка на process */
-      }
-    }
+    const ulNumber =
+      fileRole.startsWith("ul_") ? extractUlNumberFromFileName(upload.originalFilename) : null;
 
     if (fileRole === "otpravka") {
       await pool.query(`delete from haulz_returns_files where job_id = $1 and file_role = 'otpravka'`, [jobId]);

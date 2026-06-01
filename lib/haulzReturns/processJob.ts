@@ -1,7 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import {
   buildWorkbook,
-  mergeUlFiles,
   parseOtpravkaBuffer,
   parseUlBuffer,
   type HaulzWorkbook,
@@ -69,7 +68,7 @@ export function buildWorkbookFromFiles(files: JobFileRow[]): HaulzWorkbook {
     throw new Error("Не загружен ни один упаковочный лист");
   }
 
-  return buildWorkbook({ otpravka, ulFiles: mergeUlFiles(ulPrio1, ulPrio2) });
+  return buildWorkbook({ otpravka, ulPrio1, ulPrio2 });
 }
 
 export async function saveWorkbook(

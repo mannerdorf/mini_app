@@ -9,6 +9,7 @@ import type {
 } from "./types";
 import { FIX_COLUMNS, ITog_HEADERS, UL_HEADERS } from "./types";
 import { STOP_WORDS } from "./stopWords";
+import { mergeUlFiles } from "./parseUl.js";
 import {
   countUlPlaces,
   stopColumnValue,
@@ -18,7 +19,8 @@ import type { ParsedUlFile as UlFile } from "./types";
 
 export type BuildInput = {
   otpravka: OtpravkaRow[];
-  ulFiles: ParsedUlFile[];
+  ulPrio1: ParsedUlFile[];
+  ulPrio2: ParsedUlFile[];
 };
 
 type UlMatch = {
@@ -26,8 +28,19 @@ type UlMatch = {
   row: UlDataRow;
 };
 
-function findParcelInUl(ulFiles: ParsedUlFile[], parcel: string): UlMatch | null {
-  for (const file of ulFiles) {
+function findParcelInUl(
+  ulPrio1: ParsedUlFile[],
+  ulPrio2: ParsedUlFile[],
+  parcel: string,
+): UlMatch | null {
+  for (const file of ulPrio1) {
+    for (const row of file.sheet.rows) {
+      if (row.parcel === parcel) {
+        return { ulNumber: file.ulNumber, row };
+      }
+    }
+  }
+  for (const file of ulPrio2) {
     for (const row of file.sheet.rows) {
       if (row.parcel === parcel) {
         return { ulNumber: file.ulNumber, row };
@@ -78,7 +91,8 @@ export type ItogRowInternal = {
 
 function buildItogRows(
   otpravka: OtpravkaRow[],
-  ulFiles: ParsedUlFile[],
+  ulPrio1: ParsedUlFile[],
+  ulPrio2: ParsedUlFile[],
   sealMap: Map<string, string>,
 ): ItogRowInternal[] {
   const rows: ItogRowInternal[] = [];
@@ -86,7 +100,7 @@ function buildItogRows(
 
   for (const o of otpravka) {
     num++;
-    const match = findParcelInUl(ulFiles, o.parcel);
+    const match = findParcelInUl(ulPrio1, ulPrio2, o.parcel);
     const ul = match?.ulNumber ?? "";
     const line = match?.row.rowNum ?? "";
     const id = match?.row.cargoPlace ?? "";
@@ -154,10 +168,10 @@ function itogToSheetRows(rows: ItogRowInternal[]): HaulzSheetRow[] {
   }));
 }
 
-function buildKgdSheet(otpravka: OtpravkaRow[], ulFiles: ParsedUlFile[]): HaulzSheet {
+function buildKgdSheet(otpravka: OtpravkaRow[], ulPrio1: ParsedUlFile[], ulPrio2: ParsedUlFile[]): HaulzSheet {
   const dupCounts = countParcelDuplicates(otpravka.map((o) => o.parcel));
   const rows: HaulzSheetRow[] = otpravka.map((o, i) => {
-    const match = findParcelInUl(ulFiles, o.parcel);
+    const match = findParcelInUl(ulPrio1, ulPrio2, o.parcel);
     return {
       _rowId: `kgd-${i}`,
       ul: match?.ulNumber ?? "",
@@ -242,8 +256,10 @@ function buildUlSheet(file: ParsedUlFile, controlKeys: Set<string>): HaulzSheet 
 }
 
 export function buildWorkbook(input: BuildInput): HaulzWorkbook {
-  const sealMap = plombyLookup(input.otpravka);
-  const itogInternal = buildItogRows(input.otpravka, input.ulFiles, sealMap);
+  const { otpravka, ulPrio1, ulPrio2 } = input;
+  const ulSheets = mergeUlFiles(ulPrio1, ulPrio2);
+  const sealMap = plombyLookup(otpravka);
+  const itogInternal = buildItogRows(otpravka, ulPrio1, ulPrio2, sealMap);
   const controlKeys = new Set(itogInternal.map((r) => r.control));
 
   const sheets: HaulzSheet[] = [
@@ -253,10 +269,10 @@ export function buildWorkbook(input: BuildInput): HaulzWorkbook {
       columns: ITog_HEADERS,
       rows: itogToSheetRows(itogInternal),
     },
-    buildKgdSheet(input.otpravka, input.ulFiles),
-    buildPlombySheet(input.otpravka),
+    buildKgdSheet(otpravka, ulPrio1, ulPrio2),
+    buildPlombySheet(otpravka),
     buildStopSheet(),
-    ...input.ulFiles.map((f) => buildUlSheet(f, controlKeys)),
+    ...ulSheets.map((f) => buildUlSheet(f, controlKeys)),
   ];
 
   return { sheets, itogControlKeys: controlKeys };

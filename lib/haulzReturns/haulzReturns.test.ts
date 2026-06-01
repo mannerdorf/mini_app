@@ -62,7 +62,7 @@ describe("buildWorkbook", () => {
   it("builds итог with matched UL data", () => {
     const otpravka = parseOtpravkaMatrix(OTPRAVKA_SAMPLE);
     const ul = parseUlMatrix(UL_SAMPLE, "02630423.xlsx");
-    const wb = buildWorkbook({ otpravka, ulFiles: [ul] });
+    const wb = buildWorkbook({ otpravka, ulPrio1: [ul], ulPrio2: [] });
     const itog = wb.sheets.find((s) => s.id === "itog")!;
     expect(itog.rows).toHaveLength(2);
     expect(itog.rows[0].ul).toBe("02630423");
@@ -70,5 +70,32 @@ describe("buildWorkbook", () => {
     expect(itog.rows[0].seal).toBe("10000211381829");
     const ulSheet = wb.sheets.find((s) => s.id === "ul-02630423")!;
     expect(ulSheet.rows[0].inItog).toBe(1);
+  });
+
+  it("searches priority 1 first, then priority 2 for unfound parcels", () => {
+    const otpravka = parseOtpravkaMatrix(OTPRAVKA_SAMPLE);
+    const ulPrio1 = parseUlMatrix(
+      [
+        ["", "Упаковочный лист № 111"],
+        ["Номер п/п", "Грузовое место", "Номер посылки", "Аэропорт", "Вес", "Объем", "Категория", "Наименование", "кол-во", "Стоимость", "отметка"],
+        ["1", "P1", "10000211381829", "KGD", "1", "0.1", "<>", "From prio 1", "1", "10", ""],
+      ],
+      "111.xlsx",
+    );
+    const ulPrio2 = parseUlMatrix(
+      [
+        ["", "Упаковочный лист № 222"],
+        ["Номер п/п", "Грузовое место", "Номер посылки", "Аэропорт", "Вес", "Объем", "Категория", "Наименование", "кол-во", "Стоимость", "отметка"],
+        ["1", "P1", "10000211381829", "KGD", "1", "0.1", "<>", "From prio 2 dup", "1", "10", ""],
+        ["2", "P2", "10000208095697", "KGD", "1", "0.1", "<>", "From prio 2 only", "1", "20", ""],
+      ],
+      "222.xlsx",
+    );
+    const wb = buildWorkbook({ otpravka, ulPrio1: [ulPrio1], ulPrio2: [ulPrio2] });
+    const itog = wb.sheets.find((s) => s.id === "itog")!;
+    expect(itog.rows[0].ulData).toBe("From prio 1");
+    expect(itog.rows[0].ul).toBe("111");
+    expect(itog.rows[1].ulData).toBe("From prio 2 only");
+    expect(itog.rows[1].ul).toBe("222");
   });
 });
