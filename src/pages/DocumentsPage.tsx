@@ -67,6 +67,7 @@ import {
     type SanctionCheckResult,
 } from "../lib/sanctions";
 import { normalizeStatus, STATUS_MAP, getFilterKeyByStatus, BILL_STATUS_MAP, getSumColorByPaymentStatus } from "../lib/statusUtils";
+import { buildCargoDepartureByNumber } from "../lib/transitDateTime";
 import {
     buildCargoSumPaidByNumber,
     invoiceBalance,
@@ -1053,6 +1054,10 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         });
         return m;
     }, [perevozkiItems, parseDateTimeValue, normCargoKey]);
+    const cargoDepartureByNumber = useMemo(
+        () => buildCargoDepartureByNumber(perevozkiItems || [], normCargoKey),
+        [perevozkiItems, normCargoKey],
+    );
     const cargoPlanDateByNumber = useMemo(() => {
         const m = new Map<string, Date>();
         const plannedKeys = [
@@ -1425,6 +1430,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         normalizeTransportDisplay,
         cargoStateByNumber,
         cargoStopDateByNumber,
+        cargoDepartureByNumber,
         cargoPlanDateByNumber,
         sendingPlanDateBySendingId,
     });
