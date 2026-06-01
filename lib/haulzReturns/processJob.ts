@@ -1,11 +1,8 @@
 import type { Pool, PoolClient } from "pg";
-import {
-  buildWorkbook,
-  parseOtpravkaBuffer,
-  parseUlBuffer,
-  type HaulzWorkbook,
-  type ParsedUlFile,
-} from "./index.js";
+import { buildWorkbook } from "./buildWorkbook.js";
+import { parseOtpravkaBuffer } from "./parseOtpravka.js";
+import { parseUlBuffer } from "./parseUl.js";
+import type { HaulzWorkbook, ParsedUlFile } from "./types.js";
 
 export type JobFileRow = {
   id: number;
@@ -95,15 +92,16 @@ export async function loadJobFiles(pool: Pool | PoolClient, jobId: number): Prom
   return rows;
 }
 
+function fileDataToArrayBuffer(data: Buffer): ArrayBuffer {
+  return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+}
+
 export function buildWorkbookFromFiles(files: JobFileRow[]): HaulzWorkbook {
   const otpravkaFile = files.find((f) => f.file_role === "otpravka");
   if (!otpravkaFile) throw new Error("Не загружен файл отправки");
 
   const otpravka = parseOtpravkaBuffer(
-    otpravkaFile.file_data.buffer.slice(
-      otpravkaFile.file_data.byteOffset,
-      otpravkaFile.file_data.byteOffset + otpravkaFile.file_data.byteLength,
-    ),
+    fileDataToArrayBuffer(otpravkaFile.file_data),
     otpravkaFile.original_filename,
   );
 
@@ -111,11 +109,7 @@ export function buildWorkbookFromFiles(files: JobFileRow[]): HaulzWorkbook {
   const ulPrio2: ParsedUlFile[] = [];
   for (const f of files) {
     if (f.file_role === "ul_prio1" || f.file_role === "ul_prio2") {
-      const buf = f.file_data.buffer.slice(
-        f.file_data.byteOffset,
-        f.file_data.byteOffset + f.file_data.byteLength,
-      );
-      const parsed = parseUlBuffer(buf, f.original_filename);
+      const parsed = parseUlBuffer(fileDataToArrayBuffer(f.file_data), f.original_filename);
       if (f.file_role === "ul_prio1") ulPrio1.push(parsed);
       else ulPrio2.push(parsed);
     }

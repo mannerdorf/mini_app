@@ -6,7 +6,7 @@ import {
   pgTableExists,
   resolveHaulzReturnsAccess,
 } from "../_haulzReturns.js";
-import { recalcWorkbookAfterItogChange, type HaulzWorkbook } from "../../lib/haulzReturns/index.js";
+import { recalcWorkbookAfterItogChange, type HaulzWorkbook } from "../../lib/haulzReturns/buildWorkbook.js";
 import {
   loadLatestWorkbook,
   mergeWorkbookPatch,
