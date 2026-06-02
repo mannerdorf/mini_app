@@ -7,9 +7,13 @@ import {
   serializeItogControlKeysMeta,
 } from "./workbookApi.js";
 
-function isWorkbookVersionConflict(error: unknown): boolean {
-  const e = error as { code?: string; constraint?: string };
-  return e.code === "23505" && String(e.constraint ?? "").includes("haulz_returns_workbooks_job_version");
+export function isWorkbookVersionConflict(error: unknown): boolean {
+  const e = error as { code?: string; constraint?: string; message?: string };
+  if (e.code === "23505" && String(e.constraint ?? "").includes("haulz_returns_workbooks_job_version")) {
+    return true;
+  }
+  const msg = String(e.message ?? error ?? "");
+  return msg.includes("haulz_returns_workbooks_job_version_uq") || msg.includes("workbook_version_conflict");
 }
 
 /** INSERT новой версии workbook с повтором при гонке max(version)+1. */
@@ -20,7 +24,7 @@ export async function insertWorkbookVersion(
   wb: HaulzWorkbook,
   opts?: { stored?: HaulzWorkbook | null; maxAttempts?: number },
 ): Promise<number> {
-  const maxAttempts = opts?.maxAttempts ?? 5;
+  const maxAttempts = opts?.maxAttempts ?? 8;
   let stored = opts?.stored ?? null;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {

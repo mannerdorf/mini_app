@@ -68,6 +68,7 @@ export function buildFixSheetFromItog(itogSheet: HaulzSheet): HaulzSheet {
         au585: r.au585,
         digitsOnly: r.digitsOnly,
         pinkList: r.pinkList,
+        markColor: r.markColor,
       };
       for (const col of FIX_COLUMNS) {
         out[col.key] = r[col.key] ?? "";

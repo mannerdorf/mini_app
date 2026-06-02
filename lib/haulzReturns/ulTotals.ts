@@ -231,16 +231,52 @@ export function removeUlRow(sheet: HaulzSheet, rowId: string): HaulzSheet {
 }
 
 export function removeItogRow(sheet: HaulzSheet, rowId: string): HaulzSheet {
+  return removeItogRows(sheet, [rowId]);
+}
+
+function itogRowMatchesDeleteTarget(row: HaulzSheetRow, targets: Set<string>): boolean {
+  const id = String(row._rowId ?? "").trim();
+  if (id && targets.has(id)) return true;
+  const control = itogControlKey(row);
+  return Boolean(control && (targets.has(control) || targets.has(`itog:${control}`)));
+}
+
+export function removeItogRows(sheet: HaulzSheet, rowIds: string[]): HaulzSheet {
   if (sheet.id !== "itog") return sheet;
-  const target = rowId.trim();
-  const dataRows = stripSummaryRows(sheet.rows).filter((r) => {
-    const id = String(r._rowId ?? "").trim();
-    if (id === target) return false;
-    const control = itogControlKey(r);
-    if (control && (control === target || `itog:${control}` === target)) return false;
-    return true;
-  });
+  const targets = new Set(rowIds.map((id) => id.trim()).filter(Boolean));
+  if (targets.size === 0) return sheet;
+  const dataRows = stripSummaryRows(sheet.rows).filter((r) => !itogRowMatchesDeleteTarget(r, targets));
   return { ...sheet, rows: appendItogSummaryRow(dataRows) };
+}
+
+export function setSheetRowsMarkColor(
+  sheet: HaulzSheet,
+  rowIds: string[],
+  color: string | null,
+): HaulzSheet {
+  const targets = new Set(rowIds.map((id) => id.trim()).filter(Boolean));
+  if (targets.size === 0) return sheet;
+
+  const mapRow = (row: HaulzSheetRow): HaulzSheetRow => {
+    if (isSummaryRow(row) || !row._rowId || !targets.has(row._rowId)) return row;
+    if (!color) {
+      const { markColor: _removed, ...rest } = row;
+      return rest;
+    }
+    return { ...row, markColor: color };
+  };
+
+  if (sheet.id === "itog") {
+    return { ...sheet, rows: appendItogSummaryRow(stripSummaryRows(sheet.rows).map(mapRow)) };
+  }
+  if (sheet.id.startsWith("ul-")) {
+    return {
+      ...sheet,
+      rows: appendUlSummaryRow(stripSummaryRows(sheet.rows).map(mapRow)),
+      ulLocallyEdited: true,
+    };
+  }
+  return { ...sheet, rows: stripSummaryRows(sheet.rows).map(mapRow) };
 }
 
 export function isItogStopRow(row: HaulzSheetRow, stopRows: HaulzSheetRow[] = []): boolean {

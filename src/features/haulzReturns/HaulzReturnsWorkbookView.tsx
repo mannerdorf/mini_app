@@ -24,6 +24,12 @@ import {
   sortDirectionForColumn,
   type ColumnSortState,
 } from "./columnSortUtils";
+import { HR_ROW_MARK_COLORS } from "./rowMarkColors";
+
+function rowMarkColor(row: HaulzSheetRow): string | null {
+  const c = String(row.markColor ?? "").trim();
+  return c || null;
+}
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
   try {
@@ -55,6 +61,8 @@ type Props = {
   onDeleteRow?: (rowId: string) => void;
   canDelete?: boolean;
   onStopMatchModeChange?: (rowId: string, matchMode: StopMatchMode) => void;
+  onBulkDelete?: (rowIds: string[]) => void;
+  onBulkMarkColor?: (rowIds: string[], color: string | null) => void;
 };
 
 function formatStopMatchModeLabel(raw: unknown): string {
@@ -73,6 +81,8 @@ function formatUlCellDisplay(sheet: HaulzSheet, row: HaulzSheetRow, col: HaulzCo
 
 function cellStyle(sheet: HaulzSheet, row: HaulzSheetRow, col: HaulzColumn): React.CSSProperties | undefined {
   if (isSummaryRow(row)) return undefined;
+  const manual = rowMarkColor(row);
+  if (manual) return { backgroundColor: manual };
   if (sheet.id === "itog" || sheet.id === "fix") {
     const validation = itogValidationFromRow(row);
     if (col.key === "ulData") {
@@ -91,18 +101,31 @@ function cellStyle(sheet: HaulzSheet, row: HaulzSheetRow, col: HaulzColumn): Rea
   return undefined;
 }
 
-export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete, onStopMatchModeChange }: Props) {
+export function HaulzReturnsWorkbookView({
+  sheet,
+  onDeleteRow,
+  canDelete,
+  onStopMatchModeChange,
+  onBulkDelete,
+  onBulkMarkColor,
+}: Props) {
+  const canBulkSelect = Boolean(onBulkDelete && onBulkMarkColor);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportH, setViewportH] = useState(480);
   const [columnFilters, setColumnFilters] = useState<Record<string, Set<string> | null>>({});
   const [columnSort, setColumnSort] = useState<ColumnSortState>(null);
   const [copyHint, setCopyHint] = useState<string | null>(null);
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(() => new Set());
+  const [markMenuOpen, setMarkMenuOpen] = useState(false);
+  const markMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setColumnFilters({});
     setColumnSort(null);
     setScrollTop(0);
+    setSelectedRowIds(new Set());
+    setMarkMenuOpen(false);
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [sheet.id]);
 
@@ -206,18 +229,123 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete, onStop
   const padTop = start * ROW_HEIGHT;
   const padBottom = Math.max(0, (dataRows.length - end) * ROW_HEIGHT);
 
+  const selectableRowIds = useMemo(
+    () => dataRows.map((r) => r._rowId).filter((id): id is string => Boolean(id)),
+    [dataRows],
+  );
+
+  const selectedCount = selectedRowIds.size;
+  const allSelected = selectableRowIds.length > 0 && selectableRowIds.every((id) => selectedRowIds.has(id));
+  const someSelected = selectableRowIds.some((id) => selectedRowIds.has(id));
+
+  const leadColCount = (canBulkSelect ? 1 : 0) + (canDelete && onDeleteRow ? 1 : 0);
+
+  const toggleRowSelection = useCallback((rowId: string, checked: boolean) => {
+    setSelectedRowIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(rowId);
+      else next.delete(rowId);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(
+    (checked: boolean) => {
+      if (!checked) {
+        setSelectedRowIds(new Set());
+        return;
+      }
+      setSelectedRowIds(new Set(selectableRowIds));
+    },
+    [selectableRowIds],
+  );
+
+  const selectedIdsArray = useMemo(() => [...selectedRowIds], [selectedRowIds]);
+
+  const handleBulkDeleteClick = useCallback(() => {
+    if (selectedIdsArray.length === 0 || !onBulkDelete) return;
+    onBulkDelete(selectedIdsArray);
+    setSelectedRowIds(new Set());
+  }, [onBulkDelete, selectedIdsArray]);
+
+  const handleBulkMarkClick = useCallback(
+    (color: string | null) => {
+      if (selectedIdsArray.length === 0 || !onBulkMarkColor) return;
+      onBulkMarkColor(selectedIdsArray, color);
+      setMarkMenuOpen(false);
+    },
+    [onBulkMarkColor, selectedIdsArray],
+  );
+
+  useEffect(() => {
+    if (!markMenuOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (markMenuRef.current && !markMenuRef.current.contains(e.target as Node)) {
+        setMarkMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [markMenuOpen]);
+
   return (
     <div className="hr-table-view">
-      {sheet.id === "kgd" || activeFilterCount > 0 || sortHint ? (
+      {canBulkSelect || sheet.id === "kgd" || activeFilterCount > 0 || sortHint ? (
         <div className="hr-table-view__filter-bar">
           <span>
-            {activeFilterCount > 0
-              ? `Фильтры: ${activeFilterCount} · показано ${dataRows.length} из ${dataRowCount}`
-              : sheet.id === "kgd"
-                ? `${dataRows.length} посылок`
-                : sortHint}
+            {canBulkSelect && selectedCount > 0
+              ? `Выбрано ${selectedCount}`
+              : activeFilterCount > 0
+                ? `Фильтры: ${activeFilterCount} · показано ${dataRows.length} из ${dataRowCount}`
+                : sheet.id === "kgd"
+                  ? `${dataRows.length} посылок`
+                  : sortHint}
           </span>
           <div className="hr-table-view__filter-actions">
+            {canBulkSelect ? (
+              <div className="hr-table-bulk-actions">
+                <button
+                  type="button"
+                  className="hr-table-view__filter-clear hr-table-bulk-actions__btn"
+                  disabled={selectedCount === 0}
+                  onClick={handleBulkDeleteClick}
+                >
+                  Удалить
+                </button>
+                <div className="hr-table-bulk-actions__mark" ref={markMenuRef}>
+                  <button
+                    type="button"
+                    className="hr-table-view__filter-clear hr-table-bulk-actions__btn"
+                    disabled={selectedCount === 0}
+                    onClick={() => setMarkMenuOpen((v) => !v)}
+                  >
+                    Выделить цветом ▾
+                  </button>
+                  {markMenuOpen ? (
+                    <div className="hr-table-bulk-actions__menu">
+                      {HR_ROW_MARK_COLORS.map((item) => (
+                        <button
+                          key={item.color}
+                          type="button"
+                          className="hr-table-bulk-actions__menu-item"
+                          onClick={() => handleBulkMarkClick(item.color)}
+                        >
+                          <span className="hr-table-bulk-actions__swatch" style={{ backgroundColor: item.color }} />
+                          {item.label}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className="hr-table-bulk-actions__menu-item hr-table-bulk-actions__menu-item--clear"
+                        onClick={() => handleBulkMarkClick(null)}
+                      >
+                        Снять выделение
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
             {copyHint ? <span className="hr-table-view__copy-hint">{copyHint}</span> : null}
             {columnSort ? (
               <button type="button" className="hr-table-view__filter-clear" onClick={clearColumnSort}>
@@ -244,10 +372,11 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete, onStop
         onScroll={onScroll}
         style={{ maxHeight: "min(70vh, 640px)", overflow: "auto" }}
       >
-        <table className={`hr-table${summaryRow ? " hr-table--with-summary" : ""}`}>
+        <table className={`hr-table${summaryRow ? " hr-table--with-summary" : ""}${canBulkSelect ? " hr-table--with-select" : ""}`}>
           <thead>
             {summaryRow ? (
               <tr className="hr-table__summary-row">
+                {canBulkSelect ? <td className="hr-table__select" /> : null}
                 {canDelete && onDeleteRow ? <td className="hr-table__actions" /> : null}
                 {sheet.columns.map((col) => (
                   <td key={col.key} title={formatCellDisplay(summaryRow[col.key])}>
@@ -257,6 +386,20 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete, onStop
               </tr>
             ) : null}
             <tr className="hr-table__header-row">
+              {canBulkSelect ? (
+                <th className="hr-table__select" title="Выбрать все строки на экране">
+                  <input
+                    type="checkbox"
+                    className="hr-table__checkbox"
+                    checked={allSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = someSelected && !allSelected;
+                    }}
+                    onChange={(e) => toggleSelectAll(e.target.checked)}
+                    aria-label="Выбрать все"
+                  />
+                </th>
+              ) : null}
               {canDelete && onDeleteRow ? <th className="hr-table__actions" /> : null}
               {sheet.columns.map((col) => (
                 <th key={col.key}>
@@ -275,7 +418,7 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete, onStop
           <tbody>
             {dataRows.length === 0 && !summaryRow ? (
               <tr>
-                <td colSpan={sheet.columns.length + (canDelete ? 1 : 0)} className="hr-table__empty">
+                <td colSpan={sheet.columns.length + leadColCount} className="hr-table__empty">
                   Нет строк по выбранным фильтрам
                 </td>
               </tr>
@@ -283,14 +426,33 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete, onStop
               <>
                 {padTop > 0 ? (
                   <tr aria-hidden="true">
-                    <td colSpan={sheet.columns.length + (canDelete ? 1 : 0)} style={{ height: padTop, padding: 0, border: 0 }} />
+                    <td colSpan={sheet.columns.length + leadColCount} style={{ height: padTop, padding: 0, border: 0 }} />
                   </tr>
                 ) : null}
-                {visibleRows.map((row) => (
+                {visibleRows.map((row) => {
+                  const rowId = row._rowId ?? "";
+                  const isSelected = Boolean(rowId && selectedRowIds.has(rowId));
+                  return (
                   <tr
                     key={row._rowId ?? String(row.num ?? Math.random())}
-                    className={sheet.id.startsWith("ul-") && isUlRowInItog(row) ? "hr-table__row--in-itog" : undefined}
+                    className={[
+                      sheet.id.startsWith("ul-") && isUlRowInItog(row) ? "hr-table__row--in-itog" : "",
+                      isSelected ? "hr-table__row--selected" : "",
+                    ].filter(Boolean).join(" ") || undefined}
                   >
+                    {canBulkSelect ? (
+                      <td className="hr-table__select">
+                        {rowId ? (
+                          <input
+                            type="checkbox"
+                            className="hr-table__checkbox"
+                            checked={isSelected}
+                            onChange={(e) => toggleRowSelection(rowId, e.target.checked)}
+                            aria-label="Выбрать строку"
+                          />
+                        ) : null}
+                      </td>
+                    ) : null}
                     {canDelete && onDeleteRow ? (
                       <td className="hr-table__actions">
                         <button
@@ -332,10 +494,11 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete, onStop
                       </td>
                     ))}
                   </tr>
-                ))}
+                  );
+                })}
                 {padBottom > 0 ? (
                   <tr aria-hidden="true">
-                    <td colSpan={sheet.columns.length + (canDelete ? 1 : 0)} style={{ height: padBottom, padding: 0, border: 0 }} />
+                    <td colSpan={sheet.columns.length + leadColCount} style={{ height: padBottom, padding: 0, border: 0 }} />
                   </tr>
                 ) : null}
               </>

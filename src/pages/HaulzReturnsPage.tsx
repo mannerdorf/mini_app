@@ -36,8 +36,10 @@ import {
   isUlTabInItog,
   itogRowsNeedingTranslation,
   itogRowsForTranslation,
-  removeItogRow,
+  removeItogRowsFromWorkbook,
   removeItogStopRowsFromWorkbook,
+  setItogRowsMarkColorInWorkbook,
+  setSheetRowsMarkColor,
   normalizeWorkbookColumns,
   parseOtpravkaBuffer,
   parseUlBuffer,
@@ -290,7 +292,14 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
         setWorkbook(saved);
         return saved;
       } catch (e: unknown) {
-        setError((e as Error)?.message || "Ошибка сохранения в БД");
+        const msg = (e as Error)?.message || "";
+        const versionConflict =
+          msg.includes("workbook_version_conflict") ||
+          msg.includes("haulz_returns_workbooks_job_version") ||
+          msg.includes("параллельных сохранений");
+        if (!versionConflict) {
+          setError(msg || "Ошибка сохранения в БД");
+        }
         return next;
       } finally {
         setSaving(false);
@@ -645,22 +654,78 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
       void (async () => {
         const current = workbookRef.current;
         if (!current) return;
-        const sheets = current.sheets.map((sheet) =>
-          sheet.id === "itog" ? removeItogRow(sheet, rowId) : sheet,
-        );
-        let next = recalcWorkbookAfterItogChange({ ...current, sheets });
-        const fixIdx = next.sheets.findIndex((s) => s.id === "fix");
-        if (fixIdx >= 0) {
-          const itog = next.sheets.find((s) => s.id === "itog")!;
-          const fix = buildFixSheetFromItog(itog);
-          const updated = [...next.sheets];
-          updated[fixIdx] = fix;
-          next = { ...next, sheets: updated };
-        }
+        const { workbook: next, removed } = removeItogRowsFromWorkbook(current, [rowId]);
+        if (removed === 0) return;
         await commitWorkbook(next);
       })();
     },
     [commitWorkbook],
+  );
+
+  const handleBulkDeleteRows = useCallback(
+    (rowIds: string[]) => {
+      if (rowIds.length === 0) return;
+      void (async () => {
+        const current = workbookRef.current;
+        if (!current || !activeSheet) return;
+        let next = current;
+
+        if (activeSheet.id === "itog" || activeSheet.id === "fix") {
+          const result = removeItogRowsFromWorkbook(current, rowIds);
+          if (result.removed === 0) return;
+          next = result.workbook;
+        } else if (activeSheet.id === "stop") {
+          next = rowIds.reduce((wb, rowId) => removeStopWord(wb, rowId), current);
+        } else if (activeSheet.id.startsWith("ul-")) {
+          const sheetId = activeSheet.id;
+          let sheet = current.sheets.find((s) => s.id === sheetId);
+          if (!sheet) return;
+          for (const rowId of rowIds) {
+            sheet = removeUlRow(sheet, rowId);
+          }
+          next = recalcWorkbookAfterItogChange({
+            ...current,
+            sheets: current.sheets.map((s) => (s.id === sheetId ? sheet! : s)),
+          });
+        } else {
+          return;
+        }
+
+        await commitWorkbook(next);
+      })();
+    },
+    [activeSheet, commitWorkbook],
+  );
+
+  const handleBulkMarkRows = useCallback(
+    (rowIds: string[], color: string | null) => {
+      if (rowIds.length === 0) return;
+      void (async () => {
+        const current = workbookRef.current;
+        if (!current || !activeSheet) return;
+        let next = current;
+
+        if (activeSheet.id === "itog" || activeSheet.id === "fix") {
+          next = setItogRowsMarkColorInWorkbook(current, rowIds, color);
+        } else {
+          const sheetId = activeSheet.id;
+          const sheet = current.sheets.find((s) => s.id === sheetId);
+          if (!sheet) return;
+          next = {
+            ...current,
+            sheets: current.sheets.map((s) =>
+              s.id === sheetId ? setSheetRowsMarkColor(sheet, rowIds, color) : s,
+            ),
+          };
+          if (sheetId.startsWith("ul-")) {
+            next = recalcWorkbookAfterItogChange(next);
+          }
+        }
+
+        await commitWorkbook(next);
+      })();
+    },
+    [activeSheet, commitWorkbook],
   );
 
   const handleTranslateItog = useCallback(() => {
@@ -1160,11 +1225,6 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
             {processing ? "Обработка…" : previewing ? "Сборка…" : "Обработать и сохранить"}
           </Button>
         ) : null}
-        {jobId && !canAddUlToSession && !canProcess ? (
-          <Typography.Body style={{ color: "var(--color-text-secondary)" }}>
-            Сессия «{activeJobTitle}» открыта — прикрепите УЛ выше и нажмите «Добавить УЛ в сессию»
-          </Typography.Body>
-        ) : null}
       </Flex>
 
       {uploadProgress ? (
@@ -1374,6 +1434,8 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
               onStopMatchModeChange={
                 activeSheet.id === "stop" ? handleStopMatchModeChange : undefined
               }
+              onBulkDelete={handleBulkDeleteRows}
+              onBulkMarkColor={handleBulkMarkRows}
             />
             </>
           )}

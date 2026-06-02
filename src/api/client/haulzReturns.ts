@@ -40,6 +40,20 @@ function parseJson(res: Response, data: unknown): string {
   return `HTTP ${res.status}`;
 }
 
+function isWorkbookVersionConflictResponse(res: Response, data: unknown): boolean {
+  if (res.status === 409) return true;
+  const msg = parseJson(res, data);
+  return (
+    msg.includes("workbook_version_conflict") ||
+    msg.includes("haulz_returns_workbooks_job_version") ||
+    msg.includes("параллельных сохранений")
+  );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function listHaulzReturnsJobs(auth: AuthData, limit = 20): Promise<HaulzReturnsJobSummary[]> {
   const res = await fetch(`/api/haulz-returns/jobs?limit=${limit}`, { headers: authHeaders(auth) });
   const data = await res.json().catch(() => ({}));
@@ -191,13 +205,22 @@ export async function saveHaulzReturnsWorkbook(auth: AuthData, jobId: string, wo
     jobId,
     workbook: compactWorkbookForPatch(workbook),
   });
-  const res = await fetch("/api/haulz-returns/job-workbook", {
-    method: "PATCH",
-    headers: authHeaders(auth),
-    body: patchBody,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`[сохранение правок] ${parseJson(res, data)}`);
+  const maxAttempts = 6;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const res = await fetch("/api/haulz-returns/job-workbook", {
+      method: "PATCH",
+      headers: authHeaders(auth),
+      body: patchBody,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) return workbook;
+    if (isWorkbookVersionConflictResponse(res, data) && attempt < maxAttempts - 1) {
+      await sleep(80 * (attempt + 1) + Math.random() * 60);
+      continue;
+    }
+    if (isWorkbookVersionConflictResponse(res, data)) return workbook;
+    throw new Error(`[сохранение правок] ${parseJson(res, data)}`);
+  }
   return workbook;
 }
 

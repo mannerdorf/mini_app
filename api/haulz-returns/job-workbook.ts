@@ -7,6 +7,7 @@ import {
   resolveHaulzReturnsAccess,
 } from "../_haulzReturns.js";
 import type { HaulzWorkbook } from "../../lib/haulzReturns/types.js";
+import { isWorkbookVersionConflict } from "../../lib/haulzReturns/workbookStorage.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "haulz_returns_job_workbook");
@@ -106,8 +107,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       request_id: ctx.requestId,
     });
   } catch (e) {
+    const msg = (e as Error)?.message || "";
+    if (isWorkbookVersionConflict(e) || msg.includes("параллельных сохранений")) {
+      return res.status(409).json({ error: "workbook_version_conflict", request_id: ctx.requestId });
+    }
     logError(ctx, "haulz_returns_job_workbook_failed", e);
-    const msg = (e as Error)?.message || "Ошибка сохранения";
-    return res.status(500).json({ error: msg, request_id: ctx.requestId });
+    return res.status(500).json({ error: msg || "Ошибка сохранения", request_id: ctx.requestId });
   }
 }
