@@ -105,6 +105,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
             doc_acts_settlement: false,
             doc_tariffs: false,
             haulz: false,
+            red_returns: false,
             eor: false,
             wb: false,
             wb_admin: false,

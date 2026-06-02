@@ -10,16 +10,15 @@ import {
   processHaulzReturnsJob,
   renameHaulzReturnsJob,
   saveHaulzReturnsWorkbook,
-  translateHaulzItogBatch,
   uploadHaulzReturnsFilesSequentially,
   type HaulzReturnsUploadItem,
   type HaulzReturnsFileMeta,
   type HaulzReturnsJobSummary,
 } from "../api/client/haulzReturns";
+import { translateAndPersistItogWorkbook } from "../api/client/haulzReturnsTranslate";
 import { HaulzReturnsWorkbookView } from "../features/haulzReturns/HaulzReturnsWorkbookView";
 import {
   addStopWord,
-  applyItogTranslationsToWorkbook,
   buildFixSheetFromItog,
   buildUlSheetForParsedFile,
   buildWorkbook,
@@ -27,7 +26,6 @@ import {
   exportSheetToExcel,
   countSheetDataRows,
   collectUlNumbersInItog,
-  countItogTranslatedRows,
   isUlTabInItog,
   itogRowsNeedingTranslation,
   removeItogRow,
@@ -57,7 +55,8 @@ type FileSlot = {
 
 type Props = {
   auth: AuthData | null;
-  onBack: () => void;
+  onBack?: () => void;
+  pageTitle?: string;
 };
 
 function uid() {
@@ -89,7 +88,7 @@ async function downloadStoredFile(auth: AuthData, jobId: string, fileId: string,
   downloadBlob(blob, fileName);
 }
 
-export function HaulzReturnsPage({ auth, onBack }: Props) {
+export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" }: Props) {
   const [otpravkaFile, setOtpravkaFile] = useState<File | null>(null);
   const [ulPrio1, setUlPrio1] = useState<FileSlot[]>([]);
   const [ulPrio2, setUlPrio2] = useState<FileSlot[]>([]);
@@ -107,6 +106,7 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
   const [loadingUlTab, setLoadingUlTab] = useState<string | null>(null);
   const [newStopWord, setNewStopWord] = useState("");
   const [workbookTableCollapsed, setWorkbookTableCollapsed] = useState(false);
+  const [storedFilesCollapsed, setStoredFilesCollapsed] = useState(false);
   const [translating, setTranslating] = useState(false);
   const [translateProgress, setTranslateProgress] = useState<{ done: number; total: number } | null>(null);
   const [renamingJobId, setRenamingJobId] = useState<string | null>(null);
@@ -203,6 +203,31 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
     [auth],
   );
 
+  const runItogTranslation = useCallback(
+    async (currentWorkbook: HaulzWorkbook, currentJobId: string): Promise<HaulzWorkbook> => {
+      if (!auth) return currentWorkbook;
+      const itog = currentWorkbook.sheets.find((s) => s.id === "itog");
+      const pendingCount = itog ? itogRowsNeedingTranslation(itog.rows).length : 0;
+      if (pendingCount === 0) return currentWorkbook;
+
+      setTranslating(true);
+      setTranslateProgress({ done: 0, total: pendingCount });
+      try {
+        const { workbook: next } = await translateAndPersistItogWorkbook(
+          auth,
+          currentJobId,
+          currentWorkbook,
+          (done, total) => setTranslateProgress({ done, total }),
+        );
+        return next;
+      } finally {
+        setTranslating(false);
+        setTranslateProgress(null);
+      }
+    },
+    [auth],
+  );
+
   const loadJob = useCallback(
     async (id: string) => {
       if (!auth) return;
@@ -216,12 +241,20 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
         setUlPrio1([]);
         setUlPrio2([]);
         if (data.workbook) {
-          setWorkbook(normalizeWorkbookColumns(data.workbook));
+          let wb = normalizeWorkbookColumns(data.workbook);
           setActiveTab("itog");
           setWorkbookTableCollapsed(true);
+          setStoredFilesCollapsed(true);
+          try {
+            wb = await runItogTranslation(wb, id);
+          } catch (e: unknown) {
+            setError((e as Error)?.message || "Ошибка перевода");
+          }
+          setWorkbook(wb);
         } else {
           setWorkbook(null);
           setWorkbookTableCollapsed(false);
+          setStoredFilesCollapsed(false);
         }
         if (data.job.error_message) setError(data.job.error_message);
       } catch (e: unknown) {
@@ -230,7 +263,7 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
         setProcessing(false);
       }
     },
-    [auth],
+    [auth, runItogTranslation],
   );
 
   const handleOtpravkaChange = useCallback((list: FileList | null) => {
@@ -239,6 +272,7 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
     setJobId(null);
     setStoredFiles([]);
     setWorkbookTableCollapsed(false);
+    setStoredFilesCollapsed(false);
     setError(null);
   }, []);
 
@@ -250,6 +284,7 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
     setWorkbook(null);
     setJobId(null);
     setWorkbookTableCollapsed(false);
+    setStoredFilesCollapsed(false);
     setError(null);
   }, []);
 
@@ -259,6 +294,7 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
     setWorkbook(null);
     setJobId(null);
     setWorkbookTableCollapsed(false);
+    setStoredFilesCollapsed(false);
   }, []);
 
   const handleProcess = useCallback(async () => {
@@ -309,14 +345,17 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
       setJobId(newJobId);
       setActiveTab("itog");
       setWorkbookTableCollapsed(true);
+      setStoredFilesCollapsed(true);
       try {
         const loaded = await getHaulzReturnsJob(auth, newJobId);
         setStoredFiles(loaded.files);
-        if (loaded.workbook) {
-          setWorkbook(normalizeWorkbookColumns(loaded.workbook));
-        } else {
-          setWorkbook(wbLocal);
+        let wb = loaded.workbook ? normalizeWorkbookColumns(loaded.workbook) : wbLocal;
+        try {
+          wb = await runItogTranslation(wb, newJobId);
+        } catch (e: unknown) {
+          setError((e as Error)?.message || "Ошибка перевода");
         }
+        setWorkbook(wb);
         await refreshJobs();
       } catch {
         setWorkbook(wbLocal);
@@ -327,7 +366,7 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
       setProcessing(false);
       setUploadProgress(null);
     }
-  }, [auth, otpravkaFile, ulPrio1, ulPrio2, refreshJobs]);
+  }, [auth, otpravkaFile, ulPrio1, ulPrio2, refreshJobs, runItogTranslation]);
 
   const handleDeleteItogRow = useCallback(
     (rowId: string) => {
@@ -359,45 +398,20 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
     }
     const itog = workbook.sheets.find((s) => s.id === "itog");
     if (!itog) return;
-    const pending = itogRowsNeedingTranslation(itog.rows);
-    if (pending.length === 0) {
+    if (itogRowsNeedingTranslation(itog.rows).length === 0) {
       setError("Все строки с наименованием уже переведены");
       return;
     }
     void (async () => {
-      setTranslating(true);
-      setTranslateProgress({ done: 0, total: pending.length });
       setError(null);
       try {
-        let current = workbook;
-        const before = countItogTranslatedRows(itog.rows);
-        const batchSize = 40;
-        for (let i = 0; i < pending.length; i += batchSize) {
-          const batch = pending.slice(i, i + batchSize);
-          const results = await translateHaulzItogBatch(auth, batch);
-          const batchMap = new Map(
-            results.filter((row) => row.translation.trim()).map((row) => [row.rowKey, row.translation]),
-          );
-          if (batchMap.size === 0 && batch.length > 0) {
-            throw new Error("Переводчик не вернул результат — проверьте OPENAI_API_KEY на сервере");
-          }
-          current = applyItogTranslationsToWorkbook(current, batchMap);
-          setWorkbook(current);
-          setTranslateProgress({ done: Math.min(i + batch.length, pending.length), total: pending.length });
-        }
-        const after = countItogTranslatedRows(current.sheets.find((s) => s.id === "itog")?.rows ?? []);
-        if (after <= before) {
-          throw new Error("Перевод не применился к строкам — попробуйте ещё раз");
-        }
-        await persistWorkbook(current, jobId);
+        const next = await runItogTranslation(workbook, jobId);
+        setWorkbook(next);
       } catch (e: unknown) {
         setError((e as Error)?.message || "Ошибка перевода");
-      } finally {
-        setTranslating(false);
-        setTranslateProgress(null);
       }
     })();
-  }, [auth, workbook, jobId, persistWorkbook]);
+  }, [auth, workbook, jobId, runItogTranslation]);
 
   const handleRemoveItogStopRows = useCallback(() => {
     if (!workbook || !jobId) return;
@@ -537,6 +551,7 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
           setWorkbook(null);
           setStoredFiles([]);
           setWorkbookTableCollapsed(false);
+          setStoredFilesCollapsed(false);
         }
         if (renamingJobId === id) {
           setRenamingJobId(null);
@@ -614,10 +629,12 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
   return (
     <div className="w-full hr-page">
       <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem", flexWrap: "wrap" }}>
-        <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }} aria-label="Назад">
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <Typography.Headline className="text-page-title">Возвраты</Typography.Headline>
+        {onBack ? (
+          <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }} aria-label="Назад">
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+        ) : null}
+        <Typography.Headline className="text-page-title">{pageTitle}</Typography.Headline>
         {jobId ? (
           <Typography.Body style={{ color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>
             {activeJobTitle ?? `Сессия ${jobId}`}
@@ -760,26 +777,45 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
       )}
 
       {storedFiles.length > 0 && jobId ? (
-        <div className="hr-stored-files">
-          <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Файлы в БД (исходники)</Typography.Body>
-          <ul className="hr-file-list">
-            {storedFiles.map((f) => (
-              <li key={f.id}>
-                <span>
-                  [{f.file_role}] {f.original_filename}
-                  {f.ul_number ? ` · УЛ ${f.ul_number}` : ""}
-                </span>
-                <button
-                  type="button"
-                  className="hr-file-download"
-                  onClick={() => void downloadStoredFile(auth, jobId, f.id, f.original_filename)}
-                >
-                  <Download size={14} />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
+        storedFilesCollapsed ? (
+          <button
+            type="button"
+            className="hr-table-collapsed hr-stored-files-collapsed"
+            onClick={() => setStoredFilesCollapsed(false)}
+          >
+            <span className="hr-table-collapsed__title">Файлы в БД (исходники)</span>
+            <span className="hr-table-collapsed__meta">
+              {storedFiles.length} файлов · нажмите, чтобы развернуть
+            </span>
+          </button>
+        ) : (
+          <div className="hr-stored-files">
+            <Flex align="center" justify="space-between" style={{ marginBottom: "0.35rem", gap: "0.5rem", flexWrap: "wrap" }}>
+              <Typography.Body style={{ fontWeight: 600 }}>Файлы в БД (исходники)</Typography.Body>
+              <Button type="button" className="filter-button" onClick={() => setStoredFilesCollapsed(true)}>
+                <ChevronUp className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+                Свернуть
+              </Button>
+            </Flex>
+            <ul className="hr-file-list">
+              {storedFiles.map((f) => (
+                <li key={f.id}>
+                  <span>
+                    [{f.file_role}] {f.original_filename}
+                    {f.ul_number ? ` · УЛ ${f.ul_number}` : ""}
+                  </span>
+                  <button
+                    type="button"
+                    className="hr-file-download"
+                    onClick={() => void downloadStoredFile(auth, jobId, f.id, f.original_filename)}
+                  >
+                    <Download size={14} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
       ) : null}
 
       <Flex gap="0.5rem" wrap="wrap" style={{ marginTop: "1rem", marginBottom: "1rem" }}>

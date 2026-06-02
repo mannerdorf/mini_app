@@ -37,7 +37,8 @@ export async function resolveHaulzReturnsAccess(
     `select permissions from registered_users where lower(trim(login)) = $1 and active = true`,
     [loginKey],
   );
-  if (rows[0]?.permissions?.haulz !== true) return null;
+  const perms = rows[0]?.permissions;
+  if (perms?.haulz !== true && perms?.red_returns !== true) return null;
   return { login, loginKey };
 }
 

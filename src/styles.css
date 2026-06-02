@@ -8669,6 +8669,18 @@ button.unpaid-plan-monitor:hover {
     cursor: pointer;
     font-size: 0.75rem;
     padding: 0.15rem 0.35rem;
+    display: inline-flex;
+    align-items: center;
+}
+.hr-table-view__filter-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.hr-table-view__copy-hint {
+    color: var(--color-text-secondary, #666);
+    font-size: 0.72rem;
 }
 .hr-table-view__filter-clear:hover {
     text-decoration: underline;
@@ -8929,6 +8941,9 @@ button.unpaid-plan-monitor:hover {
     color: var(--color-text-primary);
 }
 .hr-stored-files {
+    margin-top: 0.75rem;
+}
+.hr-stored-files-collapsed {
     margin-top: 0.75rem;
 }
 .hr-file-download {

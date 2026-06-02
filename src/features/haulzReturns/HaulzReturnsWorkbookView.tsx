@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Copy } from "lucide-react";
 import type { HaulzColumn, HaulzSheet, HaulzSheetRow } from "../../lib/haulzReturns";
 import {
   isSummaryRow,
@@ -9,10 +10,32 @@ import {
 import { HaulzColumnFilterHeader } from "./HaulzColumnFilterHeader";
 import {
   applyColumnFilters,
+  columnValuesFromRows,
   formatCellDisplay,
-  formatCellValue,
   uniqueColumnValues,
 } from "./columnFilterUtils";
+
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
 
 const ROW_HEIGHT = 32;
 const OVERSCAN = 8;
@@ -60,6 +83,7 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete }: Prop
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportH, setViewportH] = useState(480);
   const [columnFilters, setColumnFilters] = useState<Record<string, Set<string> | null>>({});
+  const [copyHint, setCopyHint] = useState<string | null>(null);
 
   useEffect(() => {
     setColumnFilters({});
@@ -120,6 +144,18 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete }: Prop
 
   const clearAllFilters = useCallback(() => setColumnFilters({}), []);
 
+  const copyKgdParcels = useCallback(async () => {
+    const parcels = columnValuesFromRows(dataRows, "parcel");
+    if (parcels.length === 0) {
+      setCopyHint("Нет посылок для копирования");
+      window.setTimeout(() => setCopyHint(null), 2500);
+      return;
+    }
+    const ok = await copyTextToClipboard(parcels.join("\n"));
+    setCopyHint(ok ? `Скопировано ${parcels.length} посылок` : "Не удалось скопировать");
+    window.setTimeout(() => setCopyHint(null), 2500);
+  }, [dataRows]);
+
   const onScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -141,14 +177,29 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete }: Prop
 
   return (
     <div className="hr-table-view">
-      {activeFilterCount > 0 ? (
+      {sheet.id === "kgd" || activeFilterCount > 0 ? (
         <div className="hr-table-view__filter-bar">
           <span>
-            Фильтры: {activeFilterCount} · показано {dataRows.length} из {dataRowCount}
+            {activeFilterCount > 0
+              ? `Фильтры: ${activeFilterCount} · показано ${dataRows.length} из ${dataRowCount}`
+              : sheet.id === "kgd"
+                ? `${dataRows.length} посылок`
+                : null}
           </span>
-          <button type="button" className="hr-table-view__filter-clear" onClick={clearAllFilters}>
-            Сбросить все
-          </button>
+          <div className="hr-table-view__filter-actions">
+            {copyHint ? <span className="hr-table-view__copy-hint">{copyHint}</span> : null}
+            {sheet.id === "kgd" ? (
+              <button type="button" className="hr-table-view__filter-clear" onClick={() => void copyKgdParcels()}>
+                <Copy className="w-3.5 h-3.5" style={{ marginRight: "0.25rem", verticalAlign: "middle" }} />
+                Копировать посылки
+              </button>
+            ) : null}
+            {activeFilterCount > 0 ? (
+              <button type="button" className="hr-table-view__filter-clear" onClick={clearAllFilters}>
+                Сбросить все
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
       <div

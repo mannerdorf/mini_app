@@ -15,6 +15,17 @@ export function formatCellDisplay(v: unknown): string {
   return String(v);
 }
 
+/** Значения столбца из строк (без суммирующей), пустые пропускаются. */
+export function columnValuesFromRows(rows: HaulzSheetRow[], colKey: string): string[] {
+  const out: string[] = [];
+  for (const row of rows) {
+    if (isSummaryRow(row)) continue;
+    const v = formatCellDisplay(row[colKey]).trim();
+    if (v) out.push(v);
+  }
+  return out;
+}
+
 export function uniqueColumnValues(rows: HaulzSheetRow[], col: HaulzColumn): string[] {
   const set = new Set<string>();
   for (const row of rows) {

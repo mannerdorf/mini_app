@@ -7,7 +7,12 @@ import { parseUlMatrix } from "./parseUl";
 import { removeItogStopRowsFromWorkbook } from "./itogOperations";
 import { appendItogSummaryRow, appendKgdSummaryRow, appendUlSummaryRow, collectUlNumbersInItog, computeItogTotals, computeUlTotals, countUlDataRows, isItogDataRowFilled, isItogStopRow, isSummaryRow, isUlDataRowFilled, isUlRowInItog, isUlTabInItog, removeItogStopRows, removeUlRow, syncUlSheetFromControlKeys } from "./ulTotals";
 import { removeUlSheetFromWorkbook } from "./ulSheetOperations";
-import { applyItogTranslations, applyItogTranslationsToWorkbook, countItogTranslatedRows, itogRowsNeedingTranslation } from "./translateOperations";
+import { parseTranslationsJson } from "./openaiTranslate";
+import {
+  applyItogTranslationsToWorkbook,
+  countItogTranslatedRows,
+  itogRowsNeedingTranslation,
+} from "./translateOperations";
 import {
   isEnglishOnly,
   isPinkListMatch,
@@ -369,6 +374,11 @@ describe("buildWorkbook", () => {
     expect(isSummaryRow(nextItog.rows[nextItog.rows.length - 1])).toBe(true);
     const fix = next.sheets.find((s) => s.id === "fix")!;
     expect(fix.rows.length).toBeGreaterThan(0);
+  });
+
+  it("parseTranslationsJson accepts array and fenced json", () => {
+    expect(parseTranslationsJson('{"translations":["Рубашка","Штаны"]}', 2)).toEqual(["Рубашка", "Штаны"]);
+    expect(parseTranslationsJson('```json\n["A","B"]\n```', 2)).toEqual(["A", "B"]);
   });
 
   it("removeUlSheetFromWorkbook drops sheet, itog rows and kgd ul ref", () => {

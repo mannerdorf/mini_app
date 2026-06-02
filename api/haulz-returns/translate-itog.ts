@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { initRequestContext, logError } from "../_lib/observability.js";
 import { resolveHaulzReturnsAccess } from "../_haulzReturns.js";
 import { translateProductNamesEnToRu } from "../../lib/haulzReturns/openaiTranslate.js";
+import { resolveOpenaiApiKey } from "../../lib/haulzReturns/openaiEnv.js";
 
 const MAX_ITEMS = 50;
 
@@ -15,6 +16,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const access = await resolveHaulzReturnsAccess(req, req.body);
   if (!access) {
     return res.status(401).json({ error: "Нет доступа", request_id: ctx.requestId });
+  }
+
+  if (!resolveOpenaiApiKey()) {
+    return res.status(503).json({
+      error: "OPENAI_API_KEY не настроен на сервере API (Vercel → Environment Variables)",
+      request_id: ctx.requestId,
+    });
   }
 
   const body = req.body && typeof req.body === "object" ? (req.body as Record<string, unknown>) : {};

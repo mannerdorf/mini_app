@@ -19,6 +19,8 @@ export type AccountPermissions = {
     supervisor?: boolean;
     chat?: boolean;
     haulz?: boolean;
+    /** Доступ только к разделу «Красный возврат» (HAULZ Возвраты) */
+    red_returns?: boolean;
     /** Доступ к модулю WB: просмотр, экспорт, поиск */
     wb?: boolean;
     /** Загрузка/изменение данных WB (импорт, ручной ввод); без этого флага — только просмотр и скачивание */

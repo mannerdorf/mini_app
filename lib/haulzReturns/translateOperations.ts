@@ -3,6 +3,7 @@ import { ensureItogRowIds, itogRowTranslateKey } from "./itogRowKeys.js";
 import { appendItogSummaryRow, isSummaryRow, stripSummaryRows } from "./ulTotals.js";
 import { buildFixSheetFromItog } from "./workbookRecalc.js";
 import { translateProductNamesEnToRu } from "./openaiTranslate.js";
+import { resolveOpenaiApiKey } from "./openaiEnv.js";
 
 export type ItogTranslateItem = {
   rowKey: string;
@@ -64,7 +65,7 @@ const TRANSLATE_BATCH_SIZE = 40;
 
 /** Переводит пустые ячейки «Перевод» на листе итог (сервер, OPENAI_API_KEY). */
 export async function translateItogWorkbook(wb: HaulzWorkbook): Promise<HaulzWorkbook> {
-  if (!process.env.OPENAI_API_KEY?.trim()) return wb;
+  if (!resolveOpenaiApiKey()) return wb;
 
   const itog = wb.sheets.find((s) => s.id === "itog");
   if (!itog) return wb;
