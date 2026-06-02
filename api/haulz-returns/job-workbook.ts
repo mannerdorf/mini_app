@@ -72,7 +72,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const keysMeta = parseItogControlKeysMeta(raw.itogControlKeys);
     const metaSheet = raw.sheets.find((s) => String(s?.id ?? "") === WORKBOOK_META_SHEET_ID) as
-      | { tdDraft?: HaulzWorkbook["tdDraft"] }
+      | { tdDraft?: HaulzWorkbook["tdDraft"]; tdPrepared?: HaulzWorkbook["tdPrepared"] }
       | undefined;
     const wb: HaulzWorkbook = {
       sheets: raw.sheets.filter((s) => String(s?.id ?? "") !== WORKBOOK_META_SHEET_ID),
@@ -82,6 +82,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ...(Array.isArray(raw.excludedUlNumbers) ? raw.excludedUlNumbers.map(String) : []),
       ]),
       tdDraft: metaSheet?.tdDraft ?? raw.tdDraft,
+      tdPrepared: metaSheet?.tdPrepared ?? raw.tdPrepared,
     };
 
     const { rows: storedRows } = await pool.query<{ sheets: unknown; itog_control_keys: unknown }>(

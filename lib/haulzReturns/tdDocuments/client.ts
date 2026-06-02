@@ -1,5 +1,6 @@
-export type { TdDraft, TdDocType, SpecificationDraft, ProformaDraft } from "./types.js";
+export type { TdDraft, TdDocType, TdPrepared, SpecificationDraft, ProformaDraft } from "./types.js";
 export { collectFixRows, validateTdPrep, type FixTdRow, type UlWriteoffRow } from "./collectTdRows.js";
+export { buildTdPrepared } from "./prepareTd.js";
 export {
   buildWriteoffInputs,
   poruchenieInputs,

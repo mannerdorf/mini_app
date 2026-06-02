@@ -10,6 +10,21 @@ export type TdDraft = {
   writeoff?: Record<string, { title?: string; tdLine?: string }>;
 };
 
+export type TdPreparedWriteoff = {
+  ulNumber: string;
+  tdNumber: string;
+  sheetNumber: number;
+  rows: UlWriteoffRow[];
+};
+
+/** Снимок собранных ТД — хранится в БД до следующей «Подготовить ТД». */
+export type TdPrepared = {
+  preparedAt: string;
+  fixRows: import("./collectTdRows.js").FixTdRow[];
+  writeoffs: TdPreparedWriteoff[];
+  draft: TdDraft;
+};
+
 export type TdDocType = "specification" | "proforma" | "writeoff" | "poruchenie" | "all";
 
 export type WriteoffSheetInput = {

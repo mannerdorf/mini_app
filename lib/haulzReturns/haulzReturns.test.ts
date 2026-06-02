@@ -13,7 +13,7 @@ import { ensureItogRowIds, stableItogRowId } from "./itogRowKeys";
 import { mergeWorkbookOnReprocess } from "./mergeWorkbookOnReprocess";
 import { itogValidationFromRow } from "./validators";
 import { parseCarrierInput, formatCarrierCard } from "./carriers";
-import { collectFixRows, isHolzCarrier, validateTdPrep } from "./tdDocuments/index.js";
+import { collectFixRows, isHolzCarrier, validateTdPrep, buildTdPrepared } from "./tdDocuments/index.js";
 import { workbookForApi, workbookForApiWithinBudget } from "./workbookApi";
 import { parseTranslationsJson } from "./openaiTranslate";
 import {
@@ -726,6 +726,50 @@ describe("tdDocuments", () => {
     expect(rows.map((r) => `${r.ul}/${r.line}`)).toEqual(["232/1", "232/2", "233/2"]);
     expect(rows[0]!.tdNumber).toBe("TD-232");
     expect(rows[2]!.tdNumber).toBe("TD-233");
+  });
+
+  it("collectFixRows maps tdNumber when ul differs by leading zeros", () => {
+    const wb = {
+      sheets: [
+        {
+          id: "fix",
+          name: "FIX",
+          columns: [],
+          rows: [{ ul: "2606521", line: "1", id: "a", parcel: "p", translate: "n", qty: 1, weight: 1, cost: 1 }],
+        },
+        { id: "ul-02606521", name: "02606521", columns: [], rows: [], tdNumber: "TD-001" },
+      ],
+      itogControlKeys: new Set<string>(),
+      excludedUlNumbers: new Set<string>(),
+    };
+    expect(collectFixRows(wb)[0]!.tdNumber).toBe("TD-001");
+  });
+
+  it("buildTdPrepared stores fix rows and draft", () => {
+    const wb = {
+      sheets: [
+        {
+          id: "fix",
+          name: "FIX",
+          columns: [],
+          rows: [{ ul: "232", line: "1", id: "a", parcel: "p", translate: "n", qty: 1, weight: 1, cost: 1 }],
+        },
+        {
+          id: "ul-232",
+          name: "232",
+          columns: [],
+          rows: [{ rowNum: "1", inItog: 1, cargoPlace: "id", parcel: "p", name: "x", qty: 1, weight: 1, cost: 1 }],
+          tdNumber: "TD-232",
+        },
+      ],
+      itogControlKeys: new Set<string>(),
+      excludedUlNumbers: new Set<string>(),
+    };
+    const prepared = buildTdPrepared(wb, new Map());
+    expect(prepared.fixRows).toHaveLength(1);
+    expect(prepared.fixRows[0]!.tdNumber).toBe("TD-232");
+    expect(prepared.draft.specification?.headerTd).toBe("TD-232");
+    expect(prepared.writeoffs).toHaveLength(1);
   });
 
   it("isHolzCarrier detects Холз", () => {

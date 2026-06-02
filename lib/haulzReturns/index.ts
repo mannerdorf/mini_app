@@ -21,5 +21,5 @@ export * from "./carriers";
 export * from "./rowSort";
 export * from "./tdDocuments/client.js";
 
-export type { TdDraft } from "./tdDocuments/types.js";
+export type { TdDraft, TdPrepared } from "./tdDocuments/types.js";
 export type { PreviewColumn } from "./tdDocuments/templateMaps.js";

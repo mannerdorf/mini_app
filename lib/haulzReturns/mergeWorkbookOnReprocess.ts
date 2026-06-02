@@ -101,5 +101,5 @@ export function mergeWorkbookOnReprocess(previous: HaulzWorkbook | null, rebuilt
     }
   }
 
-  return { ...merged, tdDraft: previous.tdDraft ?? filteredRebuilt.tdDraft };
+  return { ...merged, tdDraft: previous.tdDraft ?? filteredRebuilt.tdDraft, tdPrepared: previous.tdPrepared ?? filteredRebuilt.tdPrepared };
 }

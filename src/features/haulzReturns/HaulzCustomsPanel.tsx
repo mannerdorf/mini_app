@@ -1,13 +1,10 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Download, FileText } from "lucide-react";
+import { Download } from "lucide-react";
 import { Button, Typography } from "@maxhub/max-ui";
 import type { AuthData } from "../../types";
 import type { HaulzCarrier, HaulzWorkbook, PreviewColumn, TdDraft } from "../../lib/haulzReturns";
 import {
   buildWriteoffInputs,
-  collectFixRows,
-  defaultProformaDraft,
-  defaultSpecificationDraft,
   isHolzCarrier,
   poruchenieInputs,
   proformaPreviewRows,
@@ -15,7 +12,6 @@ import {
   specificationPreviewRows,
   SPEC_EDITABLE_KEYS,
   SPEC_PREVIEW_COLUMNS,
-  validateTdPrep,
   WRITEOFF_PREVIEW_COLUMNS,
 } from "../../lib/haulzReturns";
 import { downloadTdBlob, exportTdDocument } from "../../api/client/haulzReturnsTd";
@@ -27,6 +23,7 @@ type Props = {
   jobId: string;
   workbook: HaulzWorkbook;
   carriers: HaulzCarrier[];
+  open: boolean;
   onDraftChange: (draft: TdDraft) => void | Promise<void>;
   onError?: (msg: string) => void;
 };
@@ -47,33 +44,39 @@ const SPEC_LABELS: Record<string, string> = {
   headerTd: "Номер ТД в шапке",
 };
 
-export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, onDraftChange, onError }: Props) {
-  const [open, setOpen] = useState(false);
+export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDraftChange, onError }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>("specification");
   const [exporting, setExporting] = useState(false);
   const [activeWriteoffUl, setActiveWriteoffUl] = useState<string>("");
 
-  const validationErrors = useMemo(() => validateTdPrep(workbook), [workbook]);
-  const fixRows = useMemo(() => collectFixRows(workbook), [workbook]);
-  const specDraft = useMemo(
-    () => workbook.tdDraft?.specification ?? defaultSpecificationDraft(),
-    [workbook.tdDraft?.specification],
-  );
-  const proformaDraft = useMemo(
-    () => workbook.tdDraft?.proforma ?? defaultProformaDraft(),
-    [workbook.tdDraft?.proforma],
-  );
-
+  const prepared = workbook.tdPrepared;
   const carriersById = useMemo(() => new Map(carriers.map((c) => [c.id, c])), [carriers]);
 
+  const specDraft = useMemo(
+    () => prepared?.draft?.specification ?? workbook.tdDraft?.specification ?? {},
+    [prepared?.draft?.specification, workbook.tdDraft?.specification],
+  );
+  const proformaDraft = useMemo(
+    () => prepared?.draft?.proforma ?? workbook.tdDraft?.proforma ?? {},
+    [prepared?.draft?.proforma, workbook.tdDraft?.proforma],
+  );
+
+  const fixRows = useMemo(() => prepared?.fixRows ?? [], [prepared?.fixRows]);
+
   const writeoffSheets = useMemo(
-    () => buildWriteoffInputs({ workbook, carriersById, draft: workbook.tdDraft }),
-    [workbook, carriersById],
+    () =>
+      prepared
+        ? buildWriteoffInputs({ workbook: { ...workbook, tdPrepared: prepared }, carriersById, draft: prepared.draft })
+        : [],
+    [workbook, carriersById, prepared],
   );
 
   const poruchenieList = useMemo(
-    () => poruchenieInputs({ workbook, carriersById, draft: workbook.tdDraft }),
-    [workbook, carriersById],
+    () =>
+      prepared
+        ? poruchenieInputs({ workbook: { ...workbook, tdPrepared: prepared }, carriersById, draft: prepared.draft })
+        : [],
+    [workbook, carriersById, prepared],
   );
 
   const specPreview = useMemo(() => specificationPreviewRows(fixRows), [fixRows]);
@@ -84,36 +87,34 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, onDraftChan
   const updateSpecField = useCallback(
     (key: string, value: string) => {
       void onDraftChange({
+        ...prepared?.draft,
         ...workbook.tdDraft,
         specification: { ...specDraft, [key]: value },
       });
     },
-    [onDraftChange, specDraft, workbook.tdDraft],
+    [onDraftChange, prepared?.draft, specDraft, workbook.tdDraft],
   );
 
   const updateProformaField = useCallback(
     (key: string, value: string) => {
       void onDraftChange({
+        ...prepared?.draft,
         ...workbook.tdDraft,
         proforma: { ...proformaDraft, [key]: value },
       });
     },
-    [onDraftChange, proformaDraft, workbook.tdDraft],
+    [onDraftChange, prepared?.draft, proformaDraft, workbook.tdDraft],
   );
 
-  const handlePrepare = () => {
-    if (validationErrors.length) {
-      onError?.(validationErrors.join("\n"));
+  const handleExport = async (docType: TabId | "all") => {
+    if (!prepared) {
+      onError?.("Сначала нажмите «Подготовить ТД» на вкладке итог.");
       return;
     }
-    setOpen(true);
-    if (writeoffSheets[0] && !activeWriteoffUl) setActiveWriteoffUl(writeoffSheets[0].ulNumber);
-  };
-
-  const handleExport = async (docType: TabId | "all") => {
     setExporting(true);
     try {
-      const { blob, fileName } = await exportTdDocument(auth, jobId, docType, workbook.tdDraft);
+      const draft = { ...prepared.draft, ...workbook.tdDraft };
+      const { blob, fileName } = await exportTdDocument(auth, jobId, docType, draft);
       downloadTdBlob(blob, fileName);
     } catch (e: unknown) {
       onError?.((e as Error)?.message || "Ошибка выгрузки");
@@ -127,16 +128,19 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, onDraftChan
   return (
     <div className="hr-customs-panel">
       <div className="hr-customs-panel__head">
-        <Typography.Body style={{ fontWeight: 700, fontSize: "1rem" }}>
-          <FileText className="w-4 h-4" style={{ display: "inline", verticalAlign: "middle", marginRight: "0.35rem" }} />
-          Таможенное оформление
-        </Typography.Body>
-        <Button type="button" className="button-primary" disabled={exporting} onClick={handlePrepare}>
-          Подготовить ТД
-        </Button>
+        <Typography.Body style={{ fontWeight: 700, fontSize: "1rem" }}>Таможенное оформление</Typography.Body>
+        {prepared ? (
+          <Typography.Body style={{ color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>
+            Собрано {new Date(prepared.preparedAt).toLocaleString("ru-RU")}
+          </Typography.Body>
+        ) : (
+          <Typography.Body style={{ color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>
+            Нажмите «Подготовить ТД» на вкладке итог
+          </Typography.Body>
+        )}
       </div>
 
-      {open ? (
+      {open && prepared ? (
         <>
           <div className="hr-tabs hr-customs-panel__tabs">
             {(Object.keys(TAB_LABELS) as TabId[]).map((tab) => (

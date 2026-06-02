@@ -152,6 +152,8 @@ export async function getHaulzReturnsJob(
               ? (rawWb.itogControlKeys as { excludedUl: string[] }).excludedUl.map(String)
               : [],
         ),
+        tdDraft: rawWb.tdDraft,
+        tdPrepared: rawWb.tdPrepared,
       }
     : null;
   return {

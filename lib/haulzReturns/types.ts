@@ -41,6 +41,8 @@ export type HaulzWorkbook = {
   excludedUlNumbers: Set<string>;
   /** Черновик полей таможенного оформления */
   tdDraft?: import("./tdDocuments/types.js").TdDraft;
+  /** Снимок собранных ТД (строки + черновик) до следующей пересборки */
+  tdPrepared?: import("./tdDocuments/types.js").TdPrepared;
 };
 
 export type OtpravkaRow = {

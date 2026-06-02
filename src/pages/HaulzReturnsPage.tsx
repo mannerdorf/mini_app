@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ChevronDown, ChevronUp, Download, FileSpreadsheet, FolderOpen, Languages, Pencil, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Download, FileSpreadsheet, FileText, FolderOpen, Languages, Pencil, Trash2, Upload } from "lucide-react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import type { AuthData } from "../types";
 import {
@@ -25,6 +25,7 @@ import { listHaulzCarriers } from "../api/client/haulzReturnsCarriers";
 import {
   addStopWord,
   buildFixSheetFromItog,
+  buildTdPrepared,
   buildUlSheetForParsedFile,
   buildWorkbook,
   downloadBlob,
@@ -48,6 +49,7 @@ import {
   type HaulzWorkbook,
   type HaulzCarrier,
   type TdDraft,
+  validateTdPrep,
 } from "../lib/haulzReturns";
 
 type UploadProgress = {
@@ -126,6 +128,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
   workbookRef.current = workbook ?? null;
 
   const [carriers, setCarriers] = useState<HaulzCarrier[]>([]);
+  const [tdPanelOpen, setTdPanelOpen] = useState(false);
 
   const tabs = useMemo(
     () =>
@@ -406,10 +409,35 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
   const handleTdDraftChange = useCallback(
     async (draft: TdDraft) => {
       if (!workbook) return;
-      await commitWorkbook({ ...workbook, tdDraft: draft });
+      const tdPrepared = workbook.tdPrepared
+        ? { ...workbook.tdPrepared, draft: { ...workbook.tdPrepared.draft, ...draft } }
+        : undefined;
+      await commitWorkbook({ ...workbook, tdDraft: draft, tdPrepared });
     },
     [workbook, commitWorkbook],
   );
+
+  const handlePrepareTd = useCallback(async () => {
+    if (!workbook) return;
+    setError(null);
+    const errors = validateTdPrep(workbook);
+    if (errors.length) {
+      setError(errors.join("\n"));
+      return;
+    }
+    try {
+      const carriersById = new Map(carriers.map((c) => [c.id, c]));
+      const prepared = buildTdPrepared(workbook, carriersById);
+      await commitWorkbook({ ...workbook, tdDraft: prepared.draft, tdPrepared: prepared });
+      setTdPanelOpen(true);
+    } catch (e: unknown) {
+      setError((e as Error)?.message || "Ошибка подготовки ТД");
+    }
+  }, [workbook, carriers, commitWorkbook]);
+
+  useEffect(() => {
+    if (workbook?.tdPrepared) setTdPanelOpen(true);
+  }, [workbook?.tdPrepared?.preparedAt]);
 
   useEffect(() => {
     if (!auth) return;
@@ -1082,6 +1110,12 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
                 <Button type="button" className="filter-button" onClick={handleCreateFix}>
                   Создать FIX
                 </Button>
+                {workbook.sheets.some((s) => s.id === "fix") ? (
+                  <Button type="button" className="filter-button" disabled={saving} onClick={() => void handlePrepareTd()}>
+                    <FileText className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+                    Подготовить ТД
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   className="filter-button"
@@ -1234,6 +1268,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
               jobId={jobId}
               workbook={workbook}
               carriers={carriers}
+              open={tdPanelOpen}
               onDraftChange={handleTdDraftChange}
               onError={setError}
             />

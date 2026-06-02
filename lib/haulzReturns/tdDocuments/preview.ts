@@ -46,6 +46,18 @@ export function proformaPreviewRows(rows: FixTdRow[]) {
 }
 
 export function buildWriteoffInputs(ctx: TdExportContext): WriteoffSheetInput[] {
+  const prepared = ctx.workbook.tdPrepared;
+  if (prepared?.writeoffs?.length) {
+    const draft = { ...prepared.draft, ...ctx.draft };
+    return prepared.writeoffs.map((w) => ({
+      ulNumber: w.ulNumber,
+      tdNumber: w.tdNumber,
+      sheetNumber: w.sheetNumber,
+      rows: w.rows,
+      titleOverride: draft.writeoff?.[w.ulNumber]?.title,
+      tdLineOverride: draft.writeoff?.[w.ulNumber]?.tdLine,
+    }));
+  }
   return ulSheetsWithInItog(ctx.workbook).map(({ sheet, ulNumber }, idx) => ({
     ulNumber,
     tdNumber: String(sheet.tdNumber ?? "").trim(),

@@ -37,6 +37,14 @@ function cellStr(v: unknown): string {
   return String(v).trim();
 }
 
+/** Ключ УЛ для сопоставления «02606521» и «2606521». */
+export function normalizeUlKey(ul: unknown): string {
+  const s = cellStr(ul);
+  if (!s) return "";
+  const stripped = s.replace(/^0+/, "");
+  return stripped || "0";
+}
+
 function parseUlNumber(sheetId: string): string | null {
   if (!sheetId.startsWith("ul-")) return null;
   const n = sheetId.slice(3).trim();
@@ -48,7 +56,9 @@ export function ulTdNumberMap(workbook: HaulzWorkbook): Map<string, string> {
   for (const sheet of workbook.sheets) {
     const ul = parseUlNumber(sheet.id);
     if (!ul) continue;
-    map.set(ul, cellStr(sheet.tdNumber));
+    const td = cellStr(sheet.tdNumber);
+    map.set(normalizeUlKey(ul), td);
+    map.set(ul, td);
   }
   return map;
 }
@@ -68,7 +78,10 @@ export function collectFixRows(workbook: HaulzWorkbook): FixTdRow[] {
     qty: r.qty ?? "",
     weight: r.weight ?? "",
     cost: r.cost ?? "",
-    tdNumber: tdByUl.get(cellStr(r.ul)) ?? cellStr(r.tdNumber),
+    tdNumber:
+      tdByUl.get(normalizeUlKey(r.ul)) ??
+      tdByUl.get(cellStr(r.ul)) ??
+      cellStr(r.tdNumber),
     seal: cellStr(r.seal),
   }));
 }

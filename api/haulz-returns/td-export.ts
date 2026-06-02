@@ -69,19 +69,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const ctxExport = {
-      workbook: { ...workbook, tdDraft: draft ?? workbook.tdDraft },
+      workbook: { ...workbook, tdDraft: draft ?? workbook.tdDraft, tdPrepared: workbook.tdPrepared },
       carriersById,
-      draft: draft ?? workbook.tdDraft,
+      draft: draft ?? workbook.tdDraft ?? workbook.tdPrepared?.draft,
     };
 
     if (docType === "all") {
-      const zip = await exportTdZip(ctxExport);
+      const zip = await exportTdZip(ctxExport, workbook.tdPrepared);
       res.setHeader("Content-Type", "application/zip");
       res.setHeader("Content-Disposition", 'attachment; filename="ТД-документы.zip"');
       return res.status(200).send(zip);
     }
 
-    const files = await exportTdDocuments(ctxExport, docType);
+    const files = await exportTdDocuments(ctxExport, docType, workbook.tdPrepared);
     if (files.length === 0) {
       return res.status(404).json({ error: "Нет документов для выгрузки", request_id: ctx.requestId });
     }

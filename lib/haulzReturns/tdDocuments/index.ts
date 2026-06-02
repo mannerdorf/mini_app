@@ -2,7 +2,6 @@ import type { HaulzCarrier } from "../carriers.js";
 import type { HaulzWorkbook } from "../types.js";
 import {
   collectFixRows,
-  ulSheetsWithInItog,
   validateTdPrep,
 } from "./collectTdRows.js";
 import { buildPoruchenieBuffer, poruchenieFileName } from "./buildPoruchenie.js";
@@ -14,13 +13,15 @@ import {
   buildWriteoffInputs,
   poruchenieInputs,
 } from "./preview.js";
-import type { TdDocType, TdDraft, TdExportContext, TdExportFile } from "./types.js";
+import { firstHeaderTd } from "./prepareTd.js";
+import type { TdDocType, TdDraft, TdExportContext, TdExportFile, TdPrepared, WriteoffSheetInput } from "./types.js";
 
 export type {
   TdDraft,
   TdDocType,
   TdExportFile,
   TdExportContext,
+  TdPrepared,
   SpecificationDraft,
   ProformaDraft,
 } from "./types.js";
@@ -40,25 +41,34 @@ export {
   specificationPreviewRows,
   proformaPreviewRows,
 } from "./preview.js";
+export { buildTdPrepared, firstHeaderTd } from "./prepareTd.js";
 
-function firstHeaderTd(workbook: HaulzWorkbook): string {
-  for (const { sheet } of ulSheetsWithInItog(workbook)) {
-    const td = String(sheet.tdNumber ?? "").trim();
-    if (td) return td;
-  }
-  return "";
+function writeoffSheetsFromPrepared(prepared: TdPrepared, draft?: TdDraft) {
+  const mergedDraft = { ...prepared.draft, ...draft };
+  return prepared.writeoffs.map((w) => ({
+    ulNumber: w.ulNumber,
+    tdNumber: w.tdNumber,
+    sheetNumber: w.sheetNumber,
+    rows: w.rows,
+    titleOverride: mergedDraft.writeoff?.[w.ulNumber]?.title,
+    tdLineOverride: mergedDraft.writeoff?.[w.ulNumber]?.tdLine,
+  }));
 }
 
 export async function exportTdDocuments(
   ctx: TdExportContext,
   docType: TdDocType,
+  prepared?: TdPrepared,
 ): Promise<TdExportFile[]> {
-  const errors = validateTdPrep(ctx.workbook);
-  if (errors.length) throw new Error(errors.join("\n"));
+  const snapshot = prepared ?? ctx.workbook.tdPrepared;
+  if (!snapshot) {
+    throw new Error("Сначала нажмите «Подготовить ТД» на вкладке итог.");
+  }
 
-  const fixRows = collectFixRows(ctx.workbook);
-  const specDraft = ctx.draft?.specification ?? defaultSpecificationDraft(firstHeaderTd(ctx.workbook));
-  const proformaDraft = ctx.draft?.proforma ?? defaultProformaDraft();
+  const draft: TdDraft = { ...snapshot.draft, ...ctx.draft };
+  const fixRows = snapshot.fixRows;
+  const specDraft = draft.specification ?? defaultSpecificationDraft(firstHeaderTd(ctx.workbook));
+  const proformaDraft = draft.proforma ?? defaultProformaDraft();
   const files: TdExportFile[] = [];
   const want = (t: TdDocType) => docType === "all" || docType === t;
 
@@ -77,7 +87,7 @@ export async function exportTdDocuments(
     });
   }
   if (want("writeoff")) {
-    const sheets = buildWriteoffInputs(ctx);
+    const sheets = writeoffSheetsFromPrepared(snapshot, ctx.draft);
     if (sheets.length) {
       files.push({
         name: "Листы списания.xlsx",
@@ -87,7 +97,12 @@ export async function exportTdDocuments(
     }
   }
   if (want("poruchenie")) {
-    for (const input of poruchenieInputs(ctx)) {
+    const exportCtx = {
+      ...ctx,
+      draft,
+      workbook: { ...ctx.workbook, tdPrepared: snapshot },
+    };
+    for (const input of poruchenieInputs(exportCtx)) {
       files.push({
         name: poruchenieFileName(input.ulNumber),
         buffer: await buildPoruchenieBuffer(input),
@@ -98,10 +113,10 @@ export async function exportTdDocuments(
   return files;
 }
 
-export async function exportTdZip(ctx: TdExportContext): Promise<Buffer> {
+export async function exportTdZip(ctx: TdExportContext, prepared?: TdPrepared): Promise<Buffer> {
   const JSZip = (await import("jszip")).default;
   const zip = new JSZip();
-  const files = await exportTdDocuments(ctx, "all");
+  const files = await exportTdDocuments(ctx, "all", prepared);
   for (const f of files) zip.file(f.name, f.buffer);
   return zip.generateAsync({ type: "nodebuffer" });
 }
