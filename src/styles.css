@@ -9124,26 +9124,52 @@ button.unpaid-plan-monitor:hover {
     border-radius: 12px;
     background: var(--color-bg-secondary, #f8f9fa);
 }
+.hr-td-field__grid {
+    display: grid;
+    grid-template-columns: minmax(7rem, 0.75fr) minmax(10rem, 1.5fr) minmax(8rem, 0.85fr);
+    gap: 0.65rem;
+    align-items: end;
+}
+@media (max-width: 640px) {
+    .hr-td-field__grid {
+        grid-template-columns: 1fr;
+    }
+}
+.hr-td-field__cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+}
+.hr-td-field__cell-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-text-secondary, #666);
+}
 .hr-td-field__label {
     display: flex;
     flex-direction: column;
 }
 .hr-td-field__input {
     width: 100%;
-    max-width: 420px;
+    max-width: 100%;
     padding: 0.45rem 0.6rem;
     border: 1px solid var(--color-border, #ddd);
     border-radius: 8px;
     font-size: 0.9rem;
     background: var(--color-bg, #fff);
     color: var(--color-text-primary, #111);
+    box-sizing: border-box;
+}
+.hr-td-field__input--date {
+    min-height: 2.15rem;
 }
 .hr-customs-panel {
     margin-top: 1.25rem;
     padding: 1rem;
-    border: 1px solid var(--color-border, #ddd);
+    border: 1px solid #e8a4bc;
     border-radius: 12px;
-    background: var(--color-bg-secondary, #f8f9fa);
+    background: #fdf5f8;
 }
 .hr-customs-panel__head {
     display: flex;
@@ -9177,6 +9203,82 @@ button.unpaid-plan-monitor:hover {
 }
 .hr-customs-panel__body {
     margin-top: 0.35rem;
+}
+/* ТД: розовые вкладки документов (как в шаблонах Excel) */
+.hr-tab-btn--td-pink:not(.active) {
+    background: #f6dce6;
+    color: #8b2252;
+    font-weight: 600;
+}
+.hr-tab-btn--td-pink.active {
+    background: #db5a8a;
+    color: #fff;
+    font-weight: 600;
+}
+.hr-tab-btn--td-neutral:not(.active) {
+    background: var(--color-bg-hover, #f0f1f3);
+    color: var(--color-text-secondary, #666);
+}
+.hr-tab-btn--td-neutral.active {
+    background: var(--color-primary-blue, #0071e3);
+    color: #fff;
+}
+.hr-btn-prepare-td,
+.hr-btn-td-pink {
+    background: #f6dce6 !important;
+    border-color: #db5a8a !important;
+    color: #8b2252 !important;
+    font-weight: 600;
+}
+.hr-btn-prepare-td:not(:disabled):hover,
+.hr-btn-td-pink:not(:disabled):hover {
+    background: #db5a8a !important;
+    border-color: #c43d72 !important;
+    color: #fff !important;
+}
+.hr-btn-prepare-td:disabled,
+.hr-btn-td-pink:disabled {
+    opacity: 0.55;
+}
+.dark-mode .hr-customs-panel {
+    background: #2a1f24;
+    border-color: #6b3a4f;
+}
+.dark-mode .hr-tab-btn--td-pink:not(.active) {
+    background: #4a2a38;
+    color: #f6dce6;
+}
+.dark-mode .hr-tab-btn--td-pink.active {
+    background: #db5a8a;
+    color: #fff;
+}
+.dark-mode .hr-btn-prepare-td,
+.dark-mode .hr-btn-td-pink {
+    background: #4a2a38 !important;
+    border-color: #db5a8a !important;
+    color: #f6dce6 !important;
+}
+.dark-mode .hr-btn-prepare-td:not(:disabled):hover,
+.dark-mode .hr-btn-td-pink:not(:disabled):hover {
+    background: #db5a8a !important;
+    color: #fff !important;
+}
+/* Редактируемые поля шапки ТД — красным, как в шаблоне */
+.hr-customs-panel .hr-td-inline-field,
+.hr-customs-panel .hr-customs-form__field input,
+.hr-customs-panel .hr-td-date-field--boxed,
+.hr-customs-panel .hr-td-date-field--fts {
+    border-color: #e57373;
+}
+.hr-customs-panel .hr-td-inline-field__input,
+.hr-customs-panel .hr-td-inline-field__date,
+.hr-customs-panel .hr-customs-form__field input,
+.hr-customs-panel .hr-td-date-field__picker {
+    color: #c0392b;
+}
+.hr-customs-panel .hr-td-inline-field__label,
+.hr-customs-panel .hr-customs-form__field--compact > span:first-child {
+    color: #a93226;
 }
 .hr-customs-form-card {
     padding: 0.45rem 0.55rem;

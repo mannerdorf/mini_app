@@ -66,3 +66,10 @@ export function writeoffExportFileName(specificationTitle: string): string {
   const { number, date } = parseSpecificationTitleMeta(specificationTitle);
   return tdExportFileNameFromTitle(`Листы списания к спецификации №${number} от ${date}`, ".xlsx");
 }
+
+/** «ТД к {номер ТД в шапке}.zip» в транслите — архив «Скачать все документы». */
+export function tdAllDocumentsZipFileName(headerTd: string): string {
+  const td = String(headerTd ?? "").trim();
+  if (!td) return tdExportFileNameFromTitle("TD dokumenty", ".zip");
+  return tdExportFileNameFromTitle(`ТД к ${td}`, ".zip");
+}

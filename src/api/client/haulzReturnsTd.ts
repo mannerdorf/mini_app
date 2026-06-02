@@ -1,6 +1,7 @@
 import type { AuthData } from "../../types";
 import type { TdDocType, TdDraft, TdPrepared } from "../../../lib/haulzReturns/tdDocuments/index";
-import { proformaExportFileName, specificationExportFileName, writeoffExportFileName, poruchenieExportFileName } from "../../../lib/haulzReturns/tdDocuments/fileNames";
+import { proformaExportFileName, specificationExportFileName, writeoffExportFileName, poruchenieExportFileName, tdAllDocumentsZipFileName } from "../../../lib/haulzReturns/tdDocuments/fileNames";
+import { resolveHeaderTdFromDraft } from "../../../lib/haulzReturns/tdDocuments/resolveTdDraft";
 import { PORUCHENIE_MERGED_DRAFT_KEY, defaultPoruchenieDate } from "../../../lib/haulzReturns/tdDocuments/formatPoruchenieDraft";
 import { triggerBlobDownload } from "../../lib/triggerBlobDownload";
 
@@ -21,8 +22,16 @@ function authHeaders(auth: AuthData): Record<string, string> {
   };
 }
 
-function defaultFileName(docType: TdDocType, draft?: TdDraft): string {
-  if (docType === "all") return "ТД-документы.zip";
+function resolveAllZipFileName(draft?: TdDraft, tdPrepared?: TdPrepared): string {
+  const specification = {
+    ...(tdPrepared?.draft?.specification ?? {}),
+    ...(draft?.specification ?? {}),
+  };
+  return tdAllDocumentsZipFileName(resolveHeaderTdFromDraft(specification));
+}
+
+function defaultFileName(docType: TdDocType, draft?: TdDraft, tdPrepared?: TdPrepared): string {
+  if (docType === "all") return resolveAllZipFileName(draft, tdPrepared);
   if (docType === "proforma") {
     const title = draft?.proforma?.title?.trim();
     return title ? proformaExportFileName(title) : "Schet-proforma.xlsx";
@@ -108,7 +117,7 @@ export async function exportTdDocument(
 
   const fileName = parseContentDisposition(
     res.headers.get("Content-Disposition") ?? "",
-    defaultFileName(docType, draft),
+    defaultFileName(docType, draft, tdPrepared),
   );
   return { blob, fileName };
 }
@@ -171,7 +180,7 @@ export async function exportTdAllZip(
     compression: "DEFLATE",
     compressionOptions: { level: 6 },
   });
-  return { blob, fileName: "ТД-документы.zip" };
+  return { blob, fileName: resolveAllZipFileName(draft, tdPrepared) };
 }
 
 export function downloadTdBlob(blob: Blob, fileName: string) {

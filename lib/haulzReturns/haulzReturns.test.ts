@@ -848,6 +848,14 @@ describe("tdDocuments", () => {
     );
   });
 
+  it("tdAllDocumentsZipFileName transliterates header TD number", async () => {
+    const { tdAllDocumentsZipFileName } = await import("./tdDocuments/fileNames.js");
+    expect(tdAllDocumentsZipFileName("10229010/280426/0113288")).toBe(
+      "TD k 10229010-280426-0113288.zip",
+    );
+    expect(tdAllDocumentsZipFileName("")).toBe("TD dokumenty.zip");
+  });
+
   it("writeoffExportFileName transliterates specification number and date", async () => {
     const { writeoffExportFileName } = await import("./tdDocuments/fileNames.js");
     expect(writeoffExportFileName("Спецификация №1 от 28.04.2026 к CMR б/н от 19.03.2026")).toBe(
@@ -870,6 +878,20 @@ describe("tdDocuments", () => {
     expect(title).toBe(
       "Дополнительный лист списания №1 от 28.04.2026 к упаковочному листу № 02612691 в Калининград (KGD) от 19.03.2026",
     );
+    const titleFromUl = formatWriteoffTitle({
+      sheetNumber: 1,
+      ulNumber: "02606521",
+      ulDate: "02.06.2026",
+      tdNumber: "10229010/280426/0113288",
+      rows: [{ airport: "Калининград (KGD)" } as import("./tdDocuments/collectTdRows.js").UlWriteoffRow],
+      specification: {
+        exportPermit: "ВЫВОЗ РАЗРЕШЕН      28.04.2026",
+        title: "Спецификация №1 от 28.04.2026 к CMR б/н от 19.03.2026",
+      },
+    });
+    expect(titleFromUl).toContain("к упаковочному листу № 02606521");
+    expect(titleFromUl).toContain("от 02.06.2026");
+    expect(titleFromUl).not.toContain("от 19.03.2026");
     expect(formatWriteoffTdLine("10229010/280426/0113288")).toBe(
       "Вывезено по ТД 10229010/280426/0113288/ /",
     );
@@ -954,6 +976,10 @@ describe("tdDocuments", () => {
     await wb.xlsx.load(buf);
     const sheet = wb.worksheets[0]!;
     expect(sheet.columnCount).toBe(7);
+    expect(sheet.getColumn(4).width).toBe(58);
+    expect(sheet.getColumn(1).width).toBe(4);
+    expect(sheet.getColumn(2).width).toBe(11);
+    expect(sheet.getColumn(5).width).toBe(5);
     expect(sheet.model.merges).toContain("A7:G7");
     expect(sheet.model.merges).toContain("A8:G8");
     expect(sheet.model.merges).toContain("A5:D5");
@@ -1059,6 +1085,51 @@ describe("tdDocuments", () => {
     const totals = computeProformaTotals(rows);
     expect(totals.weight).toBe(2682.15);
     expect(totals.cost).toBe(9019377.57);
+  });
+
+  it("parseUlTdNumber splits date segment and composeUlTdNumber rebuilds", async () => {
+    const {
+      parseUlTdNumber,
+      composeUlTdNumber,
+      formatUlTdNumberWithoutDate,
+      resolveUlTdDateRu,
+      tdDateSegmentToRu,
+    } = await import("./tdDocuments/parseUlTdNumber.js");
+    expect(tdDateSegmentToRu("280426")).toBe("28.04.2026");
+    const parsed = parseUlTdNumber("10229010/280426/0113288");
+    expect(parsed).toEqual({
+      head: "10229010",
+      dateRu: "28.04.2026",
+      tail: "0113288",
+    });
+    expect(formatUlTdNumberWithoutDate(parsed.head, parsed.tail)).toBe("10229010/0113288");
+    expect(composeUlTdNumber("10229010", "28.04.2026", "0113288")).toBe("10229010/280426/0113288");
+    expect(resolveUlTdDateRu("10229010/280426/0113288", null)).toBe("28.04.2026");
+    expect(resolveUlTdDateRu("10229010/0113288", "15.03.2026")).toBe("15.03.2026");
+  });
+
+  it("normalizeWorkbookUlTdDates backfills tdDate from tdNumber on UL sheets", async () => {
+    const { normalizeWorkbookUlTdDates, workbookNeedsUlTdDateBackfill } = await import(
+      "./tdDocuments/parseUlTdNumber.js"
+    );
+    const wb = {
+      sheets: [
+        {
+          id: "ul-02606521",
+          name: "02606521",
+          columns: [],
+          rows: [],
+          tdNumber: "10229010/280426/0113288",
+          tdDate: null,
+        },
+      ],
+      itogControlKeys: new Set<string>(),
+      excludedUlNumbers: new Set<string>(),
+    };
+    expect(workbookNeedsUlTdDateBackfill(wb)).toBe(true);
+    const normalized = normalizeWorkbookUlTdDates(wb);
+    expect(normalized.sheets[0]!.tdDate).toBe("28.04.2026");
+    expect(workbookNeedsUlTdDateBackfill(normalized)).toBe(false);
   });
 
   it("mergeWorkbookPatch keeps carrierId and tdNumber on deferred UL patch", () => {
@@ -1241,6 +1312,8 @@ describe("tdDocuments", () => {
     expect(inputs).toHaveLength(1);
     expect(inputs[0]!.rows).toHaveLength(2);
     expect(inputs[0]!.tdNumber).toBe("10229010/280426/0113288");
+    expect(inputs[0]!.titleOverride).toContain("к упаковочному листу № 02606521");
+    expect(inputs[0]!.titleOverride).toContain("от 28.04.2026");
   });
 
   it("mergePoruchenieWriteoffRows concatenates writeoff sheets with sequential num", async () => {

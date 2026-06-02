@@ -5,6 +5,8 @@ import { extractDraftRuDate } from "./draftDateFields.js";
 export type WriteoffHeaderInput = {
   sheetNumber?: number;
   ulNumber: string;
+  /** Дата упаковочного листа (DD.MM.YYYY) — с вкладки УЛ. */
+  ulDate?: string;
   tdNumber: string;
   rows: UlWriteoffRow[];
   specification?: Record<string, string>;
@@ -42,7 +44,8 @@ export function formatWriteoffTitle(input: WriteoffHeaderInput): string {
   const spec = input.specification ?? {};
   const sheetNo = input.sheetNumber ?? 1;
   const writeoffDate = writeoffDateFromSpecification(spec);
-  const ulDate = packingListDateFromSpecification(spec);
+  const ulDate =
+    String(input.ulDate ?? "").trim() || packingListDateFromSpecification(spec);
   const destination = writeoffDestinationFromRows(input.rows);
   const ulNumber = String(input.ulNumber ?? "").trim();
   return (

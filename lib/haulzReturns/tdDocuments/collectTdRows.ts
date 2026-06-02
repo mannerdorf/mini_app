@@ -191,8 +191,9 @@ export function ulSheetsWithInItog(workbook: HaulzWorkbook): Array<{ sheet: Haul
   for (const sheet of workbook.sheets) {
     const ul = parseUlNumber(sheet.id);
     if (!ul) continue;
+    const ulNumber = cellStr(sheet.name) || ul;
     const hasInItog = stripSummaryRows(sheet.rows).some(isUlRowInItog);
-    if (hasInItog) out.push({ sheet, ulNumber: ul });
+    if (hasInItog) out.push({ sheet, ulNumber });
   }
   return out.sort((a, b) => a.ulNumber.localeCompare(b.ulNumber, "ru", { numeric: true }));
 }

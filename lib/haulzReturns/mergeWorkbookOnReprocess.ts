@@ -3,6 +3,7 @@ import { itogControlKey } from "./itogRowKeys.js";
 import { appendItogSummaryRow, stripSummaryRows } from "./ulTotals.js";
 import { applyExcludedUlNumbers, parseUlSheetId } from "./ulSheetOperations.js";
 import { buildFixSheetFromItog, recalcWorkbookAfterItogChange } from "./workbookRecalc.js";
+import { normalizeUlSheetTdMeta } from "./tdDocuments/parseUlTdNumber.js";
 
 const PRESERVE_SHEET_IDS = new Set(["stop"]);
 
@@ -58,12 +59,13 @@ export function mergeWorkbookOnReprocess(previous: HaulzWorkbook | null, rebuilt
     }
     if (sheet.id.startsWith("ul-")) {
       const prev = previous.sheets.find((s) => s.id === sheet.id);
-      if (prev?.carrierId || prev?.tdNumber) {
-        return {
+      if (prev?.carrierId || prev?.tdNumber || prev?.tdDate) {
+        return normalizeUlSheetTdMeta({
           ...sheet,
           carrierId: prev.carrierId ?? sheet.carrierId,
           tdNumber: prev.tdNumber ?? sheet.tdNumber,
-        };
+          tdDate: prev.tdDate ?? sheet.tdDate,
+        });
       }
     }
     return sheet;

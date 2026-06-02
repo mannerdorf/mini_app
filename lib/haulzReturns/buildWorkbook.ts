@@ -18,6 +18,7 @@ import {
 import { recalcKgdDupCounts } from "./kgdOperations.js";
 import { stableItogRowId } from "./itogRowKeys.js";
 import { appendItogSummaryRow, appendKgdSummaryRow, appendUlSummaryRow } from "./ulTotals.js";
+import { normalizeUlSheetTdMeta } from "./tdDocuments/parseUlTdNumber.js";
 import type { ParsedUlFile as UlFile } from "./types";
 
 export type BuildInput = {
@@ -248,12 +249,13 @@ export function hydrateUlSheetFromParsed(
   controlKeys: Set<string>,
 ): HaulzSheet {
   const loaded = buildUlSheetForParsedFile(parsed, controlKeys);
-  return {
+  return normalizeUlSheetTdMeta({
     ...loaded,
     carrierId: existing?.carrierId ?? null,
     tdNumber: existing?.tdNumber ?? null,
+    tdDate: existing?.tdDate ?? null,
     ulDeferred: false,
-  };
+  });
 }
 
 export function buildWorkbook(input: BuildInput): HaulzWorkbook {

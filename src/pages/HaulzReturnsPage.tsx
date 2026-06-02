@@ -19,7 +19,7 @@ import {
 import { translateAndPersistItogWorkbook } from "../api/client/haulzReturnsTranslate";
 import { HaulzReturnsWorkbookView } from "../features/haulzReturns/HaulzReturnsWorkbookView";
 import { HaulzUlCarrierPanel } from "../features/haulzReturns/HaulzUlCarrierPanel";
-import { HaulzUlTdField } from "../features/haulzReturns/HaulzUlTdField";
+import { HaulzUlTdField, type UlTdMetaPatch } from "../features/haulzReturns/HaulzUlTdField";
 import { HaulzCustomsPanel } from "../features/haulzReturns/HaulzCustomsPanel";
 import { listHaulzCarriers } from "../api/client/haulzReturnsCarriers";
 import {
@@ -352,6 +352,9 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
           }
           wb = applyWorkbookTdMeta(savedTdMeta, wb);
           setWorkbook(wb);
+          if (data.needsUlTdDatePersist) {
+            await saveHaulzReturnsWorkbook(auth, id, wb);
+          }
           if (wb.tdPrepared) setTdPanelOpen(true);
         } else {
           setWorkbook(null);
@@ -406,12 +409,21 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
     [workbook, commitWorkbook],
   );
 
-  const handleUlTdChange = useCallback(
-    async (tabId: string, tdNumber: string) => {
+  const handleUlTdMetaChange = useCallback(
+    async (tabId: string, patch: UlTdMetaPatch) => {
       if (!workbook) return;
       const next: HaulzWorkbook = {
         ...workbook,
-        sheets: workbook.sheets.map((s) => (s.id === tabId ? { ...s, tdNumber: tdNumber.trim() || null } : s)),
+        sheets: workbook.sheets.map((s) => {
+          if (s.id !== tabId) return s;
+          const ulNumber = patch.ulNumber.trim();
+          return {
+            ...s,
+            name: ulNumber || s.name,
+            tdNumber: patch.tdNumber.trim() || null,
+            tdDate: patch.tdDate?.trim() || null,
+          };
+        }),
       };
       await commitWorkbook(next);
     },
@@ -1125,7 +1137,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
                   Создать FIX
                 </Button>
                 {workbook.sheets.some((s) => s.id === "fix") ? (
-                  <Button type="button" className="filter-button" disabled={saving} onClick={() => void handlePrepareTd()}>
+                  <Button type="button" className="filter-button hr-btn-prepare-td" disabled={saving} onClick={() => void handlePrepareTd()}>
                     <FileText className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
                     Подготовить ТД
                   </Button>
@@ -1249,8 +1261,10 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
                   />
                   <HaulzUlTdField
                     sheetId={activeSheet.id}
+                    ulNumber={activeSheet.name || activeSheet.id.slice(3)}
                     tdNumber={activeSheet.tdNumber}
-                    onTdChange={(tdNumber) => handleUlTdChange(activeSheet.id, tdNumber)}
+                    tdDate={activeSheet.tdDate}
+                    onChange={(patch) => handleUlTdMetaChange(activeSheet.id, patch)}
                     disabled={saving}
                   />
                 </div>

@@ -50,6 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const { exportTdDocuments, exportTdZip } = await import("../../lib/haulzReturns/tdDocuments/index.js");
+    const { resolveTdExportDraft } = await import("../../lib/haulzReturns/tdDocuments/resolveTdDraft.js");
 
     const carriersById = new Map<string, import("../../lib/haulzReturns/carriers.js").HaulzCarrier>();
     if (await pgTableExists(pool, "haulz_carriers")) {
@@ -79,11 +80,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     if (docType === "all") {
+      const draftMerged = draft ?? workbook.tdDraft ?? tdPrepared?.draft;
+      const { headerTd } = resolveTdExportDraft(
+        { specification: draftMerged?.specification, proforma: draftMerged?.proforma },
+        workbook,
+      );
+      const { tdAllDocumentsZipFileName } = await import("../../lib/haulzReturns/tdDocuments/fileNames.js");
+      const zipName = tdAllDocumentsZipFileName(headerTd);
+      const asciiName = zipName.replace(/[^\x20-\x7E]/g, "_").replace(/_+/g, "_") || "TD-documents.zip";
       const zip = await exportTdZip(ctxExport, tdPrepared);
       res.setHeader("Content-Type", "application/zip");
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename="TD-documents.zip"; filename*=UTF-8''${encodeURIComponent("ТД-документы.zip")}`,
+        `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(zipName)}`,
       );
       return res.status(200).send(zip);
     }

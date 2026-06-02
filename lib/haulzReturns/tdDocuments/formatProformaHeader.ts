@@ -10,6 +10,23 @@ import { PROFORMA_TEMPLATE } from "./templateMaps.js";
 export const PROFORMA_TABLE_COLS = 7;
 const HEADER_LAST_ROW = 9;
 
+/** Ширины колонок таблицы (символы Excel): наименование шире, остальные — минимум для печати. */
+export const PROFORMA_COLUMN_WIDTHS: Record<number, number> = {
+  1: 4, // № п/п
+  2: 11, // ID посылки (11 цифр)
+  3: 11, // Номер посылки
+  4: 58, // Наименование
+  5: 5, // Кол-во
+  6: 6, // Вес
+  7: 9, // Стоимость
+};
+
+export function applyProformaColumnWidths(sheet: import("exceljs").Worksheet) {
+  for (const [col, width] of Object.entries(PROFORMA_COLUMN_WIDTHS)) {
+    sheet.getColumn(Number(col)).width = width;
+  }
+}
+
 const RED_HEADER_ROWS = [1, 2, 3, 4] as const;
 const BODY_HEADER_ROWS = [7, 8] as const;
 const SPACER_ROWS = [6, 9] as const;

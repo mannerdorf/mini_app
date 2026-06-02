@@ -1,6 +1,6 @@
 import type { FixTdRow } from "./collectTdRows.js";
 import { computeProformaTotals, normalizeProformaDraft } from "./draftDateFields.js";
-import { formatProformaHeader, PROFORMA_TABLE_COLS } from "./formatProformaHeader.js";
+import { formatProformaHeader, PROFORMA_TABLE_COLS, applyProformaColumnWidths } from "./formatProformaHeader.js";
 import { applySpecCellStyle, applySpecTableRangeBorders } from "./specSheetStyles.js";
 import { PROFORMA_TEMPLATE } from "./templateMaps.js";
 import type { ProformaDraft } from "./types.js";
@@ -130,6 +130,7 @@ export async function buildProformaBuffer(
   const { tableHeaderRow, dataStartRow } = PROFORMA_TEMPLATE;
 
   trimExtraColumns(sheet);
+  applyProformaColumnWidths(sheet);
   formatProformaHeader(sheet, normalized, headerTd);
   styleTableHeaderRow(sheet, tableHeaderRow);
 

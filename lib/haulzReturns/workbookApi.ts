@@ -1,6 +1,7 @@
 import type { HaulzSheet, HaulzWorkbook } from "./types.js";
 import type { TdDraft } from "./tdDocuments/index.js";
 import { mergeWorkbookTdMeta } from "./tdMetaMerge.js";
+import { normalizeUlSheetTdMeta, normalizeWorkbookUlTdDates } from "./tdDocuments/parseUlTdNumber.js";
 
 /** Запас под job, files и прочие поля ответа (лимит Vercel ~4.5 МБ). */
 export const HAULZ_RETURNS_API_JSON_BUDGET = 3800000;
@@ -53,12 +54,12 @@ export function deserializeWorkbook(sheets: unknown, keys: unknown): HaulzWorkbo
     | { tdDraft?: TdDraft; tdPrepared?: import("./tdDocuments/types.js").TdPrepared }
     | undefined;
   const filteredSheets = list.filter((s) => normalizeSheetId(s) !== WORKBOOK_META_SHEET_ID);
-  return {
+  return normalizeWorkbookUlTdDates({
     sheets: filteredSheets,
     ...keysMeta,
     tdDraft: metaSheet?.tdDraft,
     tdPrepared: metaSheet?.tdPrepared,
-  };
+  });
 }
 
 /** Убирает строки УЛ из JSON-ответа API (лимит Vercel ~4.5 МБ). */
@@ -180,20 +181,22 @@ export function mergeWorkbookPatch(stored: HaulzWorkbook | null, incoming: Haulz
       if (s.rows.length === 0 && !s.ulLocallyEdited) {
         const prev = storedUl.get(id);
         if (prev) {
-          return [{
+          return [normalizeUlSheetTdMeta({
             ...prev,
             carrierId: s.carrierId ?? prev.carrierId ?? null,
             tdNumber: s.tdNumber ?? prev.tdNumber ?? null,
-          }];
+            tdDate: s.tdDate ?? prev.tdDate ?? null,
+          })];
         }
       }
     }
-    return [{
+    return [normalizeUlSheetTdMeta({
       ...s,
       id,
       carrierId: s.carrierId ?? storedUl.get(id)?.carrierId ?? null,
       tdNumber: s.tdNumber ?? storedUl.get(id)?.tdNumber ?? null,
-    }];
+      tdDate: s.tdDate ?? storedUl.get(id)?.tdDate ?? null,
+    })];
   });
 
   for (const [id, sheet] of storedUl) {
@@ -204,11 +207,11 @@ export function mergeWorkbookPatch(stored: HaulzWorkbook | null, incoming: Haulz
 
   const tdMeta = mergeWorkbookTdMeta(stored, incoming);
 
-  return {
+  return normalizeWorkbookUlTdDates({
     sheets: mergedSheets,
     itogControlKeys:
       (incoming.itogControlKeys?.size ?? 0) > 0 ? incoming.itogControlKeys : stored.itogControlKeys,
     excludedUlNumbers,
     ...tdMeta,
-  };
+  });
 }

@@ -12,6 +12,7 @@ import {
 } from "./collectTdRows.js";
 import { isHolzCarrier } from "./isHolzCarrier.js";
 import { formatWriteoffTitle, formatWriteoffTdLineFromSpecification } from "./formatWriteoffHeader.js";
+import { ulSheetWriteoffMeta } from "./parseUlTdNumber.js";
 import { normalizeSpecificationDraft } from "./draftDateFields.js";
 import { resolvePoruchenieUlDraft, mergePoruchenieWriteoffRows, resolveStoredPoruchenieDraft } from "./formatPoruchenieDraft.js";
 import type { PoruchenieInput, TdDraft, WriteoffSheetInput } from "./types.js";
@@ -76,7 +77,7 @@ export function buildWriteoffInputs(ctx: TdExportContext): WriteoffSheetInput[] 
   const specDraft = normalizeSpecificationDraft({ ...(mergedDraft.specification ?? {}) });
 
   const withHeader = (
-    w: { ulNumber: string; tdNumber: string; sheetNumber?: number; rows: UlWriteoffRow[] },
+    w: { ulNumber: string; ulDate?: string; tdNumber: string; sheetNumber?: number; rows: UlWriteoffRow[] },
   ): WriteoffSheetInput => {
     const rows = refreshWriteoffNames(w.rows);
     return {
@@ -89,6 +90,7 @@ export function buildWriteoffInputs(ctx: TdExportContext): WriteoffSheetInput[] 
         formatWriteoffTitle({
           sheetNumber: w.sheetNumber,
           ulNumber: w.ulNumber,
+          ulDate: w.ulDate,
           tdNumber: w.tdNumber,
           rows,
           specification: specDraft,
@@ -104,22 +106,26 @@ export function buildWriteoffInputs(ctx: TdExportContext): WriteoffSheetInput[] 
     return prepared.writeoffs.map((w) => {
       const sheet = findUlSheet(ctx.workbook, w.ulNumber);
       const liveRows = sheet ? collectWriteoffRowsForUl(ctx.workbook, sheet, w.ulNumber) : w.rows;
+      const meta = sheet ? ulSheetWriteoffMeta(sheet) : { ulNumber: w.ulNumber, ulDate: "" };
       return withHeader({
-        ulNumber: w.ulNumber,
+        ulNumber: meta.ulNumber,
+        ulDate: meta.ulDate,
         tdNumber: String(sheet?.tdNumber ?? w.tdNumber ?? "").trim(),
         sheetNumber: w.sheetNumber,
         rows: liveRows.length > 0 ? liveRows : w.rows,
       });
     });
   }
-  return ulSheetsWithInItog(ctx.workbook).map(({ sheet, ulNumber }, idx) =>
-    withHeader({
-      ulNumber,
+  return ulSheetsWithInItog(ctx.workbook).map(({ sheet }, idx) => {
+    const meta = ulSheetWriteoffMeta(sheet);
+    return withHeader({
+      ulNumber: meta.ulNumber,
+      ulDate: meta.ulDate,
       tdNumber: String(sheet.tdNumber ?? "").trim(),
       sheetNumber: idx + 1,
-      rows: collectWriteoffRowsForUl(ctx.workbook, sheet, ulNumber),
-    }),
-  );
+      rows: collectWriteoffRowsForUl(ctx.workbook, sheet, meta.ulNumber),
+    });
+  });
 }
 
 export function poruchenieInputs(ctx: TdExportContext): PoruchenieInput[] {

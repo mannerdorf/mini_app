@@ -1,5 +1,6 @@
 import type { AuthData } from "../../types";
 import type { HaulzWorkbook } from "../../../lib/haulzReturns/types";
+import { normalizeWorkbookUlTdDates, workbookNeedsUlTdDateBackfill } from "../../../lib/haulzReturns/tdDocuments/parseUlTdNumber";
 import { compactWorkbookForPatch } from "../../../lib/haulzReturns/workbookApi";
 
 export type HaulzReturnsJobSummary = {
@@ -123,6 +124,7 @@ export async function getHaulzReturnsJob(
   job: { id: string; title: string; status: string; otpravka_filename: string | null; error_message: string | null };
   files: HaulzReturnsFileMeta[];
   workbook: HaulzWorkbook | null;
+  needsUlTdDatePersist?: boolean;
 }> {
   const res = await fetch(`/api/haulz-returns/job?jobId=${encodeURIComponent(jobId)}`, {
     headers: authHeaders(auth),
@@ -130,8 +132,9 @@ export async function getHaulzReturnsJob(
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`[загрузка сессии] ${parseJson(res, data)}`);
   const rawWb = (data as { workbook?: HaulzWorkbook | null }).workbook;
+  const needsUlTdDatePersist = rawWb ? workbookNeedsUlTdDateBackfill(rawWb) : false;
   const workbook = rawWb
-    ? {
+    ? normalizeWorkbookUlTdDates({
         sheets: rawWb.sheets,
         itogControlKeys: new Set(
           Array.isArray(rawWb.itogControlKeys)
@@ -154,12 +157,13 @@ export async function getHaulzReturnsJob(
         ),
         tdDraft: rawWb.tdDraft,
         tdPrepared: rawWb.tdPrepared,
-      }
+      })
     : null;
   return {
     job: (data as { job: { id: string; title: string; status: string; otpravka_filename: string | null; error_message: string | null } }).job,
     files: (data as { files?: HaulzReturnsFileMeta[] }).files ?? [],
     workbook,
+    needsUlTdDatePersist,
   };
 }
 
