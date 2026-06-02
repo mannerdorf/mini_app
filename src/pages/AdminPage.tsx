@@ -96,7 +96,7 @@ const PERMISSION_KEYS = [
   { key: "doc_acts_settlement", label: "Акты сверок" },
   { key: "doc_tariffs", label: "Тарифы" },
   { key: "haulz", label: "HAULZ" },
-  { key: "red_returns", label: "Красный возврат" },
+  { key: "red_returns", label: "Возврат из КГД" },
   { key: "service_mode", label: "Служебный режим" },
   { key: "analytics", label: "Аналитика" },
   { key: "supervisor", label: "Руководитель" },
@@ -111,7 +111,7 @@ const PERMISSION_ROW1_SUPERADMIN = [
   { key: "service_mode", label: "Служебный режим" },
   { key: "analytics", label: "Аналитика" as const },
   { key: "haulz", label: "HAULZ" as const },
-  { key: "red_returns", label: "Красный возврат" as const },
+  { key: "red_returns", label: "Возврат из КГД" as const },
   { key: "eor", label: "EOR" as const },
   { key: "accounting", label: "Бухгалтерия" as const },
   { key: "wb", label: "WB" as const },
@@ -4300,7 +4300,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               className={`permission-button ${activeClass}`}
                               onClick={onClick}
                               disabled={locked}
-                              title={locked ? "Отключите «Красный возврат», чтобы изменить другие разделы" : undefined}
+                              title={locked ? "Отключите «Возврат из КГД», чтобы изменить другие разделы" : undefined}
                             >
                               {label}
                             </button>
@@ -4326,7 +4326,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             className={`permission-button ${isActive ? "active active-warning" : ""}`}
                             onClick={onClick}
                             disabled={locked}
-                            title={locked ? "Отключите «Красный возврат», чтобы изменить другие разделы" : undefined}
+                            title={locked ? "Отключите «Возврат из КГД», чтобы изменить другие разделы" : undefined}
                           >
                             {label}
                           </button>
@@ -4347,7 +4347,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             disabled={dis}
                             title={
                               isPermissionLockedByRedReturns(key, editorPermissions)
-                                ? "Отключите «Красный возврат», чтобы изменить другие разделы"
+                                ? "Отключите «Возврат из КГД», чтобы изменить другие разделы"
                                 : dis
                                   ? "Сначала включите «Аналитика»"
                                   : undefined

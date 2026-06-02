@@ -1,6 +1,6 @@
 import type { HaulzSheet, HaulzSheetRow, HaulzWorkbook } from "./types";
 import { FIX_COLUMNS, ITog_HEADERS } from "./types";
-import { isSummaryRow, isUlRowInItog } from "./ulTotals.js";
+import { isSummaryRow, isUlRowInItog, stripSummaryRows } from "./ulTotals.js";
 import {
   itogRowHighlight,
   itogUlDataHighlight,
@@ -61,26 +61,42 @@ function writeSheet(
       ? FIX_COLUMNS
       : haulzSheet.columns;
 
+  const summaryRow = haulzSheet.rows.find(isSummaryRow) ?? null;
+  const dataRows = stripSummaryRows(haulzSheet.rows);
+  let excelRow = 1;
+
+  if (summaryRow) {
+    ws.addRow(
+      columns.map((c) => {
+        const v = summaryRow[c.key];
+        if (typeof v === "boolean") return v ? "TRUE" : "FALSE";
+        return v ?? "";
+      }),
+    );
+    for (let c = 1; c <= columns.length; c++) {
+      const cell = ws.getCell(excelRow, c);
+      cell.font = { bold: true };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb("#fff8e6") } };
+    }
+    excelRow++;
+  }
+
   ws.addRow(columns.map((c) => c.label));
-  haulzSheet.rows.forEach((row, idx) => {
+  excelRow++;
+
+  dataRows.forEach((row) => {
     const values = columns.map((c) => {
       const v = row[c.key];
       if (typeof v === "boolean") return v ? "TRUE" : "FALSE";
       return v ?? "";
     });
     ws.addRow(values);
-    const excelRow = idx + 2;
-    if (isSummaryRow(row)) {
-      for (let c = 1; c <= columns.length; c++) {
-        const cell = ws.getCell(excelRow, c);
-        cell.font = { bold: true };
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb("#fff8e6") } };
-      }
-    } else if (haulzSheet.id === "itog") {
+    if (haulzSheet.id === "itog") {
       applyItogRowStyle(ws, excelRow, row);
     } else if (haulzSheet.id.startsWith("ul-")) {
       applyUlRowStyle(ws, excelRow, row);
     }
+    excelRow++;
   });
 }
 

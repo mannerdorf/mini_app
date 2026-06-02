@@ -196,17 +196,17 @@ export function formatKgdSummaryRow(totals: KgdTotals): HaulzSheetRow {
 
 export function appendUlSummaryRow(rows: HaulzSheetRow[]): HaulzSheetRow[] {
   const dataRows = stripSummaryRows(rows);
-  return [...dataRows, formatUlSummaryRow(computeUlTotals(dataRows))];
+  return [formatUlSummaryRow(computeUlTotals(dataRows)), ...dataRows];
 }
 
 export function appendItogSummaryRow(rows: HaulzSheetRow[]): HaulzSheetRow[] {
   const dataRows = stripSummaryRows(rows);
-  return [...dataRows, formatItogSummaryRow(computeItogTotals(dataRows))];
+  return [formatItogSummaryRow(computeItogTotals(dataRows)), ...dataRows];
 }
 
 export function appendKgdSummaryRow(rows: HaulzSheetRow[]): HaulzSheetRow[] {
   const dataRows = stripSummaryRows(rows);
-  return [...dataRows, formatKgdSummaryRow(computeKgdTotals(dataRows))];
+  return [formatKgdSummaryRow(computeKgdTotals(dataRows)), ...dataRows];
 }
 
 export function appendSheetSummaryRow(sheet: HaulzSheet): HaulzSheet {
@@ -221,7 +221,12 @@ export function appendSheetSummaryRow(sheet: HaulzSheet): HaulzSheet {
 export function removeUlRow(sheet: HaulzSheet, rowId: string): HaulzSheet {
   if (!sheet.id.startsWith("ul-")) return sheet;
   const dataRows = stripSummaryRows(sheet.rows).filter((r) => r._rowId !== rowId);
-  return { ...sheet, rows: appendUlSummaryRow(dataRows) };
+  return {
+    ...sheet,
+    rows: appendUlSummaryRow(dataRows),
+    ulLocallyEdited: true,
+    ulDeferred: false,
+  };
 }
 
 export function removeItogRow(sheet: HaulzSheet, rowId: string): HaulzSheet {

@@ -21,12 +21,16 @@ export type HaulzSheet = {
   rows: HaulzSheetRow[];
   /** Строки УЛ не переданы в API — подгрузить из файла в БД */
   ulDeferred?: boolean;
+  /** Строки УЛ изменены вручную — не перезаписывать из файла при reprocess */
+  ulLocallyEdited?: boolean;
 };
 
 export type HaulzWorkbook = {
   sheets: HaulzSheet[];
   /** Контрольные числа итог (кол. O) для подсветки UL */
   itogControlKeys: Set<string>;
+  /** Номера УЛ, удалённые пользователем — не восстанавливать из файлов в БД */
+  excludedUlNumbers: Set<string>;
 };
 
 export type OtpravkaRow = {

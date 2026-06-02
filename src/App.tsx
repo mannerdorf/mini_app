@@ -12,7 +12,7 @@ import { AppShellProvider, useAppShell } from "./contexts/AppShellContext";
 import { AppNavigationProvider } from "./contexts/AppNavigationContext";
 import { shouldShowNotFound } from "./lib/notFoundRoute";
 import { isWbOnlyAccount, WbOnlyAppLayout } from "./wb/appWb";
-import { isRedReturnsOnlyAccount, syncRedReturnsUrl } from "./features/redReturns/appRedReturns";
+import { isRedReturnsOnlyAccount, RED_RETURNS_LABEL, syncRedReturnsUrl } from "./features/redReturns/appRedReturns";
 import { HaulzReturnsPage } from "./pages/HaulzReturnsPage";
 import { useLegalCompliance } from "./hooks/useLegalCompliance";
 import { useShowCustomerColumn } from "./hooks/useShowCustomerColumn";
@@ -139,7 +139,7 @@ function AppRoot() {
                 onLogout={handleLogout}
                 saasShellClassName={profileSaasShellActive ? "profile-saas-shell" : ""}
             >
-                <HaulzReturnsPage auth={redReturnsAuth} pageTitle="Красный возврат" />
+                <HaulzReturnsPage auth={redReturnsAuth} pageTitle={RED_RETURNS_LABEL} />
             </WbOnlyAppLayout>
         );
     }

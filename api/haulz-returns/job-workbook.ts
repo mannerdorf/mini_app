@@ -7,7 +7,7 @@ import {
   resolveHaulzReturnsAccess,
 } from "../_haulzReturns.js";
 import type { HaulzWorkbook } from "../../lib/haulzReturns/types.js";
-import { deserializeWorkbook, mergeWorkbookPatch } from "../../lib/haulzReturns/workbookApi.js";
+import { deserializeWorkbook, mergeWorkbookPatch, parseItogControlKeysMeta, serializeItogControlKeysMeta } from "../../lib/haulzReturns/workbookApi.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "haulz_returns_job_workbook");
@@ -62,15 +62,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!raw?.sheets || !Array.isArray(raw.sheets)) {
       return res.status(400).json({ error: "Передайте workbook.sheets", request_id: ctx.requestId });
     }
+    const keysMeta = parseItogControlKeysMeta(raw.itogControlKeys);
     const wb: HaulzWorkbook = {
       sheets: raw.sheets,
-      itogControlKeys: new Set(
-        Array.isArray(raw.itogControlKeys)
-          ? raw.itogControlKeys.map(String)
-          : raw.itogControlKeys && typeof raw.itogControlKeys === "object"
-            ? Object.values(raw.itogControlKeys as Record<string, string>).map(String)
-            : [],
-      ),
+      itogControlKeys: keysMeta.itogControlKeys,
+      excludedUlNumbers: new Set([
+        ...keysMeta.excludedUlNumbers,
+        ...(Array.isArray(raw.excludedUlNumbers) ? raw.excludedUlNumbers.map(String) : []),
+      ]),
     };
 
     const { rows: storedRows } = await pool.query<{ sheets: unknown; itog_control_keys: unknown }>(
@@ -94,7 +93,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await pool.query(
       `insert into haulz_returns_workbooks (job_id, version, sheets, itog_control_keys, built_by_login)
        values ($1, $2, $3::jsonb, $4::jsonb, $5)`,
-      [jobId, version, JSON.stringify(merged.sheets), JSON.stringify([...merged.itogControlKeys]), access.loginKey],
+      [jobId, version, JSON.stringify(merged.sheets), JSON.stringify(serializeItogControlKeysMeta(merged)), access.loginKey],
     );
     await pool.query(
       `update haulz_returns_jobs set status = 'ready', updated_at = now() where id = $1`,

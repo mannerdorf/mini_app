@@ -55,7 +55,7 @@ export function applyColumnFilters(
       return allowed.has(formatCellValue(row[col.key]));
     }),
   );
-  return [...filtered, ...summaryRows];
+  return [...summaryRows, ...filtered];
 }
 
 export function isColumnFilterActive(

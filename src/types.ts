@@ -19,7 +19,7 @@ export type AccountPermissions = {
     supervisor?: boolean;
     chat?: boolean;
     haulz?: boolean;
-    /** Доступ только к разделу «Красный возврат» (HAULZ Возвраты) */
+    /** Доступ только к разделу «Возврат из КГД» (HAULZ Возвраты) */
     red_returns?: boolean;
     /** Доступ к модулю WB: просмотр, экспорт, поиск */
     wb?: boolean;

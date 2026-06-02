@@ -1,9 +1,10 @@
 /**
- * Режим «Красный возврат»: зарегистрированный пользователь с red_returns
+ * Режим «Возврат из КГД»: зарегистрированный пользователь с red_returns
  * сразу попадает на экран возвратов, остальные разделы недоступны (как WB).
  */
 import type { Account } from "../../types";
 
+export const RED_RETURNS_LABEL = "Возврат из КГД";
 export const RED_RETURNS_PATH = "/red-returns";
 
 export function isRedReturnsPathname(pathname: string): boolean {
