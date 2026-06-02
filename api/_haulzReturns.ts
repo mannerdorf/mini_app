@@ -42,12 +42,17 @@ export async function resolveHaulzReturnsAccess(
   return { login, loginKey };
 }
 
-export async function assertJobOwner(pool: Pool, jobId: number, loginKey: string): Promise<boolean> {
+export async function assertReturnsJobAccess(pool: Pool, jobId: number): Promise<boolean> {
   const { rows } = await pool.query<{ id: string }>(
-    `select id::text from haulz_returns_jobs where id = $1 and owner_login = $2`,
-    [jobId, loginKey],
+    `select id::text from haulz_returns_jobs where id = $1`,
+    [jobId],
   );
   return rows.length > 0;
+}
+
+/** @deprecated Используйте assertReturnsJobAccess — сессии общие для всех с доступом к возвратам. */
+export async function assertJobOwner(pool: Pool, jobId: number, _loginKey: string): Promise<boolean> {
+  return assertReturnsJobAccess(pool, jobId);
 }
 
 export function workbookFromDb(row: {

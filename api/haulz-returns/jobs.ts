@@ -26,6 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         title: string;
         status: string;
         otpravka_filename: string | null;
+        owner_login: string;
         created_at: string;
         updated_at: string;
         file_count: string;
@@ -36,15 +37,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
            j.title,
            j.status,
            j.otpravka_filename,
+           j.owner_login,
            j.created_at,
            j.updated_at,
            (select count(*)::text from haulz_returns_files f where f.job_id = j.id) as file_count,
            exists(select 1 from haulz_returns_workbooks w where w.job_id = j.id) as has_workbook
          from haulz_returns_jobs j
-         where j.owner_login = $1
          order by j.created_at desc
-         limit $2`,
-        [access.loginKey, limit],
+         limit $1`,
+        [limit],
       );
       return res.status(200).json({ jobs: rows, request_id: ctx.requestId });
     }

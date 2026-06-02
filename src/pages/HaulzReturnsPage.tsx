@@ -779,6 +779,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
                     <span className="hr-sessions-list__meta">
                       {formatJobDate(j.created_at)} · {j.status} · файлов: {j.file_count}
                       {j.has_workbook ? " · результат" : ""}
+                      {j.owner_login ? ` · ${j.owner_login}` : ""}
                     </span>
                   </button>
                 )}
