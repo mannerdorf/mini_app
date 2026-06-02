@@ -64,7 +64,13 @@ export function buildFixSheetFromItog(itogSheet: HaulzSheet): HaulzSheet {
     name: "FIX",
     columns: FIX_COLUMNS,
     rows: stripSummaryRows(itogSheet.rows).map((r) => {
-      const out: HaulzSheetRow = { _rowId: r._rowId };
+      const out: HaulzSheetRow = {
+        _rowId: r._rowId,
+        englishOnly: r.englishOnly,
+        au585: r.au585,
+        digitsOnly: r.digitsOnly,
+        pinkList: r.pinkList,
+      };
       for (const col of FIX_COLUMNS) {
         out[col.key] = r[col.key] ?? "";
       }

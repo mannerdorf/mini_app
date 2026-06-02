@@ -1,9 +1,10 @@
 import type { HaulzSheet, HaulzSheetRow, HaulzWorkbook } from "./types";
-import { FIX_COLUMNS, ITog_HEADERS } from "./types";
+import { FIX_COLUMNS } from "./types";
 import { isSummaryRow, isUlRowInItog, stripSummaryRows } from "./ulTotals.js";
 import {
   itogRowHighlight,
   itogUlDataHighlight,
+  itogValidationFromRow,
   UL_HIGHLIGHT,
 } from "./validators";
 
@@ -15,26 +16,22 @@ function argb(hex: string): string {
 function applyItogRowStyle(
   sheet: import("exceljs").Worksheet,
   rowIndex: number,
-  row: Record<string, unknown>,
+  row: HaulzSheetRow,
+  dataColCount = 15,
+  ulDataColIndex = 6,
 ) {
-  const validation = {
-    englishOnly: Boolean(row.englishOnly),
-    au585: Boolean(row.au585),
-    digitsOnly: Boolean(row.digitsOnly),
-    pinkList: Boolean(row.pinkList),
-  };
+  const validation = itogValidationFromRow(row);
   const rowColor = itogRowHighlight(validation);
   const fColor = itogUlDataHighlight(validation);
 
-  const cols = ITog_HEADERS.length;
-  for (let c = 1; c <= cols; c++) {
+  for (let c = 1; c <= dataColCount; c++) {
     const cell = sheet.getCell(rowIndex, c);
-    if (rowColor && c <= 15) {
+    if (rowColor) {
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(rowColor) } };
     }
   }
   if (fColor) {
-    const fCell = sheet.getCell(rowIndex, 6);
+    const fCell = sheet.getCell(rowIndex, ulDataColIndex);
     fCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb(fColor) } };
   }
 }
@@ -91,8 +88,9 @@ function writeSheet(
       return v ?? "";
     });
     ws.addRow(values);
-    if (haulzSheet.id === "itog") {
-      applyItogRowStyle(ws, excelRow, row);
+    if (haulzSheet.id === "itog" || haulzSheet.id === "fix") {
+      const ulDataIdx = columns.findIndex((c) => c.key === "ulData") + 1;
+      applyItogRowStyle(ws, excelRow, row, columns.length, ulDataIdx > 0 ? ulDataIdx : 6);
     } else if (haulzSheet.id.startsWith("ul-")) {
       applyUlRowStyle(ws, excelRow, row);
     }

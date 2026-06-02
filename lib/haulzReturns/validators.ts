@@ -61,6 +61,24 @@ export function validateItogRow(ulData: string): ItogValidation {
   };
 }
 
+/** Флаги подсветки из строки итог/FIX (или пересчёт по ulData). */
+export function itogValidationFromRow(row: HaulzSheetRow): ItogValidation {
+  const hasFlags =
+    row.englishOnly !== undefined ||
+    row.au585 !== undefined ||
+    row.digitsOnly !== undefined ||
+    row.pinkList !== undefined;
+  if (hasFlags) {
+    return {
+      englishOnly: Boolean(row.englishOnly),
+      au585: Boolean(row.au585),
+      digitsOnly: Boolean(row.digitsOnly),
+      pinkList: Boolean(row.pinkList),
+    };
+  }
+  return validateItogRow(String(row.ulData ?? ""));
+}
+
 /** Цвета условного форматирования итог */
 export function itogRowHighlight(v: ItogValidation): string | null {
   if (v.au585) return "#D9EAD2";
