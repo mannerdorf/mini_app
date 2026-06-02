@@ -44,7 +44,10 @@ export {
 } from "./preview.js";
 export { buildTdPrepared, firstHeaderTd } from "./prepareTd.js";
 
-export type TdExportOptions = Record<string, never>;
+export type TdExportOptions = {
+  /** Скачать поручение только для выбранного УЛ. */
+  ulNumber?: string;
+};
 
 export async function exportTdDocuments(
   ctx: TdExportContext,
@@ -101,7 +104,9 @@ export async function exportTdDocuments(
       draft,
       workbook: { ...ctx.workbook, tdPrepared: snapshot },
     };
+    const ulFilter = options?.ulNumber?.trim();
     for (const input of poruchenieInputs(exportCtx)) {
+      if (ulFilter && input.ulNumber !== ulFilter) continue;
       files.push({
         name: poruchenieFileName(input),
         buffer: await buildPoruchenieBuffer(input),

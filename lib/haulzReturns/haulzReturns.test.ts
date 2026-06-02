@@ -1032,9 +1032,9 @@ describe("tdDocuments", () => {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(buf);
     const sheet = wb.getWorksheet("проформа") ?? wb.worksheets[0]!;
-    expect(String(sheet.getCell(2, 5).value ?? sheet.getCell("E2").value ?? "")).toContain("15.03.2026");
-    expect(String(sheet.getCell(4, 5).value ?? "")).toContain("15.03.2026");
-    expect(String(sheet.getCell(5, 5).value ?? "")).toBe("10229010/280426/0113288");
+    expect(String(sheet.getCell(2, 4).value ?? sheet.getCell("D2").value ?? "")).toContain("15.03.2026");
+    expect(String(sheet.getCell(4, 4).value ?? "")).toContain("15.03.2026");
+    expect(String(sheet.getCell(5, 4).value ?? "")).toBe("10229010/280426/0113288");
   });
 
   it("buildProformaBuffer merges header within 7 columns and clears borders", async () => {
@@ -1061,10 +1061,9 @@ describe("tdDocuments", () => {
     expect(sheet.getColumn(5).width).toBe(5);
     expect(sheet.model.merges).toContain("A7:G7");
     expect(sheet.model.merges).toContain("A8:G8");
-    expect(sheet.model.merges).toContain("A5:D5");
-    expect(sheet.model.merges).toContain("E5:G5");
-    expect(sheet.model.merges).toContain("E1:G1");
-    expect(sheet.getCell(7, 2).value).toBeNull();
+    expect(sheet.model.merges).toContain("A5:C5");
+    expect(sheet.model.merges).toContain("D5:G5");
+    expect(sheet.model.merges).toContain("D1:G1");
     expect(sheet.getCell(1, 1).border?.top?.style).toBeFalsy();
     expect(sheet.getCell(10, 1).border?.top?.style).toBe("thin");
     expect(sheet.getCell(11, 7).border?.right?.style).toBe("thin");
@@ -1076,6 +1075,12 @@ describe("tdDocuments", () => {
     expect(sheet.getCell(12, 6).numFmt).toBe("0.00");
     expect(sheet.getCell(12, 7).numFmt).toBe("#,##0.00");
     expect(sheet.getCell(12, 7).border?.bottom?.style).toBe("thin");
+    expect(String(sheet.getCell(7, 1).value ?? "")).toContain("ГРУЗООТПРАВИТЕЛЬ:");
+    expect(String(sheet.getCell(7, 1).value ?? "")).toContain("Калининград");
+    expect(String(sheet.getCell(8, 1).value ?? "")).toMatch(/^ГРУЗОПОЛУЧАТЕЛЬ: /);
+    expect(String(sheet.getCell(8, 1).value ?? "")).toContain("Вавилова");
+    expect(sheet.rowCount).toBe(12);
+    expect(sheet.dimensions?.model?.bottom).toBe(12);
   });
 
   it("buildSpecificationBuffer merges header and clears borders", async () => {
@@ -1098,7 +1103,6 @@ describe("tdDocuments", () => {
     expect(sheet.model.merges).toContain("A7:H7");
     expect(sheet.model.merges).toContain("A8:H8");
     expect(sheet.model.merges).toContain("A5:D5");
-    expect(sheet.getCell(7, 2).value).toBeNull();
     expect(sheet.getCell(1, 1).border?.top?.style).toBeFalsy();
     expect(sheet.getCell(12, 1).border?.top?.style).toBe("thin");
     expect(sheet.getCell(13, 8).border?.right?.style).toBe("thin");
@@ -1107,6 +1111,11 @@ describe("tdDocuments", () => {
     expect(sheet.getCell(14, 8).border?.bottom?.style).toBe("thin");
     expect(sheet.getCell(12, 1).font?.size).toBe(10);
     expect(sheet.getCell(13, 1).font?.size).toBe(10);
+    expect(String(sheet.getCell(7, 1).value ?? "")).toContain("ГРУЗООТПРАВИТЕЛЬ:");
+    expect(String(sheet.getCell(7, 1).value ?? "")).toContain("Муниципальный");
+    expect(String(sheet.getCell(9, 1).value ?? "")).toMatch(/^ГРУЗОПОЛУЧАТЕЛЬ: /);
+    expect(String(sheet.getCell(8, 1).value ?? "")).toContain("Железнодорожная 12 склад 23");
+    expect(String(sheet.getCell(10, 1).value ?? "")).toContain("Вавилова, д. 19");
   });
 
   it("splitDraftDateField parses and replaces embedded ru dates", () => {
@@ -1451,6 +1460,88 @@ describe("tdDocuments", () => {
     expect(inputs[0]!.titleOverride).toContain("от 28.04.2026");
   });
 
+  it("buildWriteoffInputs drops prepared writeoffs for removed UL sheets", async () => {
+    const { buildWriteoffInputs } = await import("./tdDocuments/preview.js");
+    const wb = {
+      sheets: [{ id: "fix", name: "FIX", columns: [], rows: [] }],
+      itogControlKeys: new Set<string>(),
+      excludedUlNumbers: new Set(["02606521"]),
+      tdPrepared: {
+        preparedAt: "2026-01-01T00:00:00.000Z",
+        fixRows: [],
+        writeoffs: [
+          {
+            ulNumber: "02606521",
+            tdNumber: "10229010/280426/0113288",
+            sheetNumber: 1,
+            rows: [
+              {
+                num: 1,
+                ulNumber: "02606521",
+                rowNum: "989",
+                line: "989",
+                id: "id1",
+                parcel: "p1",
+                airport: "",
+                weight: 1,
+                volume: 0,
+                category: "",
+                name: "old",
+                qty: 1,
+                cost: 1,
+              },
+            ],
+          },
+        ],
+        draft: {},
+      },
+    };
+    const inputs = buildWriteoffInputs({ workbook: wb, carriersById: new Map(), draft: {} });
+    expect(inputs).toHaveLength(0);
+  });
+
+  it("buildWriteoffBuffer exports only preview rows without template sample data", async () => {
+    const ExcelJS = await import("exceljs");
+    const { buildWriteoffBuffer } = await import("./tdDocuments/buildWriteoff.js");
+
+    const row = (
+      num: number,
+      rowNum: string,
+    ): import("./tdDocuments/collectTdRows.js").UlWriteoffRow => ({
+      num,
+      ulNumber: "02612691",
+      rowNum,
+      line: rowNum,
+      id: `id-${num}`,
+      parcel: `parcel-${num}`,
+      airport: "Калининград (KGD)",
+      weight: "1",
+      volume: "0.01",
+      category: "<>",
+      name: `item ${num}`,
+      qty: "1",
+      cost: "100",
+    });
+
+    const buffer = await buildWriteoffBuffer([
+      {
+        ulNumber: "02612691",
+        tdNumber: "10229010/280426/0113288",
+        sheetNumber: 1,
+        rows: [row(1, "5"), row(2, "7")],
+      },
+    ]);
+
+    const wb = new ExcelJS.default.Workbook();
+    await wb.xlsx.load(buffer);
+    const sheet = wb.getWorksheet("02612691");
+    expect(sheet).toBeTruthy();
+    expect(sheet!.rowCount).toBe(8);
+    expect(String(sheet!.getCell(7, 9).value ?? "")).toBe("item 1");
+    expect(String(sheet!.getCell(8, 9).value ?? "")).toBe("item 2");
+    expect(sheet!.getCell(9, 1).value).toBeNull();
+  });
+
   it("mergePoruchenieWriteoffRows concatenates writeoff sheets with sequential num", async () => {
     const { mergePoruchenieWriteoffRows } = await import("./tdDocuments/formatPoruchenieDraft.js");
     const row = (num: number, ul: string) =>
@@ -1477,6 +1568,66 @@ describe("tdDocuments", () => {
     expect(merged).toHaveLength(3);
     expect(merged.map((r) => r.num)).toEqual([1, 2, 3]);
     expect(merged[2]?.ulNumber).toBe("222");
+  });
+
+  it("poruchenieInputs creates one poruchenie per writeoff sheet with sequential numbers", async () => {
+    const { poruchenieInputs } = await import("./tdDocuments/preview.js");
+    const carrier = {
+      id: "geo",
+      name: "ООО «Геологистика»",
+      legalAddress: "",
+      inn: "",
+      kpp: "",
+      loadingAddress: "",
+      unloadingAddress: "",
+      createdAt: "",
+      updatedAt: "",
+    };
+    const wb = {
+      sheets: [
+        {
+          id: "ul-02606521",
+          name: "02606521",
+          columns: [],
+          carrierId: "geo",
+          tdNumber: "10229010/280426/0113288",
+          rows: [{ rowNum: "1", inItog: 1, cargoPlace: "id1", parcel: "p1", name: "a", qty: 1, weight: 1, cost: 1 }],
+        },
+        {
+          id: "ul-02611106",
+          name: "02611106",
+          columns: [],
+          carrierId: "geo",
+          tdNumber: "10229010/280426/0113288",
+          rows: [{ rowNum: "2", inItog: 1, cargoPlace: "id2", parcel: "p2", name: "b", qty: 1, weight: 1, cost: 1 }],
+        },
+      ],
+      itogControlKeys: new Set<string>(),
+      excludedUlNumbers: new Set<string>(),
+      tdPrepared: {
+        preparedAt: "2026-01-01T00:00:00.000Z",
+        fixRows: [],
+        writeoffs: [],
+        draft: {
+          poruchenie: {
+            "02606521": { number: "9" },
+          },
+        },
+      },
+    };
+
+    const inputs = poruchenieInputs({
+      workbook: wb,
+      carriersById: new Map([["geo", carrier]]),
+      draft: {},
+    });
+
+    expect(inputs).toHaveLength(2);
+    expect(inputs.map((p) => p.ulNumber)).toEqual(["02606521", "02611106"]);
+    expect(inputs.map((p) => p.assignmentNumber)).toEqual(["9", "10"]);
+    expect(inputs[0]!.rows).toHaveLength(1);
+    expect(inputs[1]!.rows).toHaveLength(1);
+    expect(inputs[0]!.writeoffSheetCount).toBe(1);
   });
 
   it("poruchenieExportFileName transliterates header", async () => {
@@ -1553,7 +1704,11 @@ describe("tdDocuments", () => {
     expect(String(sheet.getCell(3, 1).value)).toContain("«ТестПеревозчик»");
     expect(String(sheet.getCell(3, 1).value)).toContain("02/27 от 15.05.2026");
     expect(String(sheet.getCell(7, 6).value)).toBe("Test item");
-    expect(String(sheet.getCell(9, 1).value)).toContain("Мандров А.А");
+    expect(String(sheet.getCell(9, 1).value)).toContain("двух экземплярах");
+    expect(String(sheet.getCell(10, 1).value)).toContain("Слободчиков А.В");
+    expect(String(sheet.getCell(12, 1).value)).toContain("Мандров А.А");
+    expect(sheet.getRow(11).height).toBeGreaterThanOrEqual(40);
+    expect(sheet.getRow(13).height).toBeGreaterThanOrEqual(40);
   });
 
   it("buildPoruchenieBuffer fills template table rows", async () => {

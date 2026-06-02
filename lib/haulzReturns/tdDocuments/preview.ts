@@ -14,7 +14,13 @@ import { isHolzCarrier } from "./isHolzCarrier.js";
 import { formatWriteoffTitle, formatWriteoffTdLineFromSpecification } from "./formatWriteoffHeader.js";
 import { ulSheetWriteoffMeta } from "./parseUlTdNumber.js";
 import { normalizeSpecificationDraft } from "./draftDateFields.js";
-import { resolvePoruchenieUlDraft, mergePoruchenieWriteoffRows, resolveStoredPoruchenieDraft } from "./formatPoruchenieDraft.js";
+import {
+  renumberPoruchenieRows,
+  resolvePoruchenieAssignmentNumber,
+  resolvePoruchenieBaseAssignmentNumber,
+  resolvePoruchenieSharedHeaderDraft,
+  resolvePoruchenieUlDraft,
+} from "./formatPoruchenieDraft.js";
 import type { PoruchenieInput, TdDraft, WriteoffSheetInput } from "./types.js";
 
 export type TdExportContext = {
@@ -101,29 +107,21 @@ export function buildWriteoffInputs(ctx: TdExportContext): WriteoffSheetInput[] 
     };
   };
 
-  const prepared = ctx.workbook.tdPrepared;
-  if (prepared?.writeoffs?.length) {
-    return prepared.writeoffs.map((w) => {
-      const sheet = findUlSheet(ctx.workbook, w.ulNumber);
-      const liveRows = sheet ? collectWriteoffRowsForUl(ctx.workbook, sheet, w.ulNumber) : w.rows;
-      const meta = sheet ? ulSheetWriteoffMeta(sheet) : { ulNumber: w.ulNumber, ulDate: "" };
-      return withHeader({
-        ulNumber: meta.ulNumber,
-        ulDate: meta.ulDate,
-        tdNumber: String(sheet?.tdNumber ?? w.tdNumber ?? "").trim(),
-        sheetNumber: w.sheetNumber,
-        rows: liveRows.length > 0 ? liveRows : w.rows,
-      });
-    });
-  }
-  return ulSheetsWithInItog(ctx.workbook).map(({ sheet }, idx) => {
+  const activeUlSheets = ulSheetsWithInItog(ctx.workbook);
+  const preparedByUl = new Map(
+    (ctx.workbook.tdPrepared?.writeoffs ?? []).map((w) => [w.ulNumber, w]),
+  );
+
+  return activeUlSheets.map(({ sheet, ulNumber }, idx) => {
+    const prev = preparedByUl.get(ulNumber);
     const meta = ulSheetWriteoffMeta(sheet);
+    const liveRows = collectWriteoffRowsForUl(ctx.workbook, sheet, meta.ulNumber);
     return withHeader({
       ulNumber: meta.ulNumber,
       ulDate: meta.ulDate,
-      tdNumber: String(sheet.tdNumber ?? "").trim(),
+      tdNumber: String(sheet.tdNumber ?? prev?.tdNumber ?? "").trim(),
       sheetNumber: idx + 1,
-      rows: collectWriteoffRowsForUl(ctx.workbook, sheet, meta.ulNumber),
+      rows: liveRows,
     });
   });
 }
@@ -132,44 +130,45 @@ export function poruchenieInputs(ctx: TdExportContext): PoruchenieInput[] {
   const writeoffs = buildWriteoffInputs(ctx);
   const mergedDraft = { ...ctx.workbook.tdPrepared?.draft, ...ctx.draft };
   const specDraft = normalizeSpecificationDraft({ ...(mergedDraft.specification ?? {}) });
+  const poruchenieDraft = mergedDraft.poruchenie ?? {};
 
-  const byCarrier = new Map<
-    string,
-    { carrier: HaulzCarrier; writeoffs: ReturnType<typeof buildWriteoffInputs> }
-  >();
-
+  const eligible: Array<{ wo: WriteoffSheetInput; carrier: HaulzCarrier }> = [];
   for (const wo of writeoffs) {
     const sheet = findUlSheet(ctx.workbook, wo.ulNumber);
     const carrier = sheet?.carrierId ? ctx.carriersById.get(sheet.carrierId) : undefined;
     if (!carrier || isHolzCarrier(carrier)) continue;
     if (wo.rows.length === 0) continue;
-    const group = byCarrier.get(carrier.id) ?? { carrier, writeoffs: [] };
-    group.writeoffs.push(wo);
-    byCarrier.set(carrier.id, group);
+    eligible.push({ wo, carrier });
   }
 
-  const out: PoruchenieInput[] = [];
-  for (const { carrier, writeoffs: groupWriteoffs } of byCarrier.values()) {
-    const rows = mergePoruchenieWriteoffRows(groupWriteoffs);
-    const first = groupWriteoffs[0]!;
-    const ulNumbers = groupWriteoffs.map((w) => w.ulNumber);
-    const stored = resolveStoredPoruchenieDraft(mergedDraft.poruchenie, carrier.id, ulNumbers);
-    const header = resolvePoruchenieUlDraft(specDraft, first.sheetNumber ?? 1, stored);
-    out.push({
-      ulNumber: first.ulNumber,
+  if (eligible.length === 0) return [];
+
+  const firstUlNumber = eligible[0]!.wo.ulNumber;
+  const baseNumber = resolvePoruchenieBaseAssignmentNumber(
+    poruchenieDraft,
+    firstUlNumber,
+    eligible[0]!.wo.sheetNumber ?? 1,
+  );
+  const sharedHeader = resolvePoruchenieSharedHeaderDraft(poruchenieDraft, firstUlNumber);
+
+  return eligible.map(({ wo, carrier }, index) => {
+    const header = resolvePoruchenieUlDraft(specDraft, wo.sheetNumber ?? index + 1, {
+      ...sharedHeader,
+      number: resolvePoruchenieAssignmentNumber(baseNumber, index),
+    });
+    return {
+      ulNumber: wo.ulNumber,
       assignmentNumber: header.number,
-      writeoffNumber: first.sheetNumber ?? 1,
-      tdNumber: first.tdNumber,
+      writeoffNumber: wo.sheetNumber ?? index + 1,
+      tdNumber: wo.tdNumber,
       carrier,
-      rows,
-      writeoffSheetCount: groupWriteoffs.length,
+      rows: renumberPoruchenieRows(wo.rows),
+      writeoffSheetCount: 1,
       date: header.date,
       contractNumber: header.contractNumber,
       contractDate: header.contractDate,
-    });
-  }
-
-  return out.sort((a, b) => a.carrier.name.localeCompare(b.carrier.name, "ru"));
+    };
+  });
 }
 
 export { collectFixRows, ulSheetsWithInItog, type FixTdRow, type UlWriteoffRow };

@@ -27,12 +27,12 @@ export const SPEC_TEMPLATE = {
 export const PROFORMA_TEMPLATE = {
   sheetName: "проформа",
   header: {
-    row1Col5: { row: 1, col: 5, key: "productEaeu" },
-    row2Col5: { row: 2, col: 5, key: "exportPermit" },
-    row3Col5: { row: 3, col: 5, key: "zpu" },
-    row4Col5: { row: 4, col: 5, key: "fts" },
+    row1Col5: { row: 1, col: 4, key: "productEaeu" },
+    row2Col5: { row: 2, col: 4, key: "exportPermit" },
+    row3Col5: { row: 3, col: 4, key: "zpu" },
+    row4Col5: { row: 4, col: 4, key: "fts" },
     row5Title: { row: 5, col: 1, key: "title" },
-    row5Td: { row: 5, col: 5, key: "headerTd" },
+    row5Td: { row: 5, col: 4, key: "headerTd" },
   },
   tableHeaderRow: 10,
   dataStartRow: 11,

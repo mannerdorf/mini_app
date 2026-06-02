@@ -106,16 +106,69 @@ export function formatPorucheniePreamble(input: {
   );
 }
 
-export function formatPoruchenieFooter(): string {
+export function formatPoruchenieFooterIntro(): string {
   return (
-    "Настоящее поручение вступает с момента его подписания Сторонами и составлено в двух экземплярах: по одному для каждой из сторон.\n\n" +
-    "Генеральный директор «ХОЛЗ»                          ______________________/Слободчиков А.В./\n" +
-    "Генеральный директор ООО «Геологистика»              _____________________/Мандров А.А./"
+    "Настоящее поручение вступает с момента его подписания Сторонами и составлено в двух экземплярах: по одному для каждой из сторон."
   );
 }
 
-/** Ключ черновика шапки поручения (одно на все листы списания). */
+export function formatPoruchenieFooterSignatoryHolz(): string {
+  return "Генеральный директор «ХОЛЗ»                          ______________________/Слободчиков А.В./";
+}
+
+export function formatPoruchenieFooterSignatoryCarrier(carrierName: string): string {
+  const principal = carrierQuotedName(carrierName);
+  return `Генеральный директор ООО «${principal}»              _____________________/Мандров А.А./`;
+}
+
+/** @deprecated Используйте отдельные строки footer в buildPoruchenie. */
+export function formatPoruchenieFooter(): string {
+  return (
+    `${formatPoruchenieFooterIntro()}\n\n` +
+    `${formatPoruchenieFooterSignatoryHolz()}\n` +
+    formatPoruchenieFooterSignatoryCarrier("Геологистика")
+  );
+}
+
+/** Ключ черновика шапки поручения (общие дата и договор для всех листов). */
 export const PORUCHENIE_MERGED_DRAFT_KEY = "__merged__";
+
+function parseAssignmentNumber(value: string | undefined): number | null {
+  const n = Number.parseInt(String(value ?? "").trim(), 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Базовый номер поручения — с первой вкладки (или общего черновика). */
+export function resolvePoruchenieBaseAssignmentNumber(
+  poruchenie: Record<string, PoruchenieUlDraft> | undefined,
+  firstUlNumber: string,
+  defaultWriteoffNumber: number,
+): number {
+  if (!poruchenie) return defaultWriteoffNumber;
+  const first = poruchenie[firstUlNumber];
+  const merged = poruchenie[PORUCHENIE_MERGED_DRAFT_KEY];
+  return (
+    parseAssignmentNumber(first?.number) ??
+    parseAssignmentNumber(merged?.number) ??
+    defaultWriteoffNumber
+  );
+}
+
+/** Сквозная нумерация: первая вкладка = base, следующая = base + 1, … */
+export function resolvePoruchenieAssignmentNumber(base: number, index: number): string {
+  return String(base + index);
+}
+
+export function resolvePoruchenieSharedHeaderDraft(
+  poruchenie: Record<string, PoruchenieUlDraft> | undefined,
+  firstUlNumber: string,
+): PoruchenieUlDraft | undefined {
+  if (!poruchenie) return undefined;
+  const merged = poruchenie[PORUCHENIE_MERGED_DRAFT_KEY];
+  const first = poruchenie[firstUlNumber];
+  if (!merged && !first) return undefined;
+  return { ...merged, ...first, number: undefined };
+}
 
 export function renumberPoruchenieRows(rows: UlWriteoffRow[]): UlWriteoffRow[] {
   return rows.map((row, index) => ({ ...row, num: index + 1 }));

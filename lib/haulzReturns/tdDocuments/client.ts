@@ -29,6 +29,9 @@ export {
 } from "./preview.js";
 export {
   resolvePoruchenieUlDraft,
+  resolvePoruchenieBaseAssignmentNumber,
+  resolvePoruchenieAssignmentNumber,
+  resolvePoruchenieSharedHeaderDraft,
   defaultPoruchenieDate,
   defaultPoruchenieContractNumber,
   defaultPoruchenieContractDate,

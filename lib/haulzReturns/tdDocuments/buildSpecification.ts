@@ -8,6 +8,7 @@ import {
   clearRowsFrom,
   loadTemplateWorkbook,
   setCellValue,
+  trimWorksheetColumns,
   workbookToBuffer,
 } from "./excelUtils.js";
 import { normalizeSpecificationDraft } from "./draftDateFields.js";
@@ -16,11 +17,6 @@ export type { SpecificationDraft } from "./types.js";
 export { defaultSpecificationDraft } from "./defaults.js";
 
 const TABLE_COLS = 8;
-
-function trimExtraColumns(sheet: import("exceljs").Worksheet) {
-  const extra = sheet.columnCount - TABLE_COLS;
-  if (extra > 0) sheet.spliceColumns(9, extra);
-}
 
 function styleTableHeaderRow(sheet: import("exceljs").Worksheet, row: number) {
   for (let c = 1; c <= TABLE_COLS; c++) {
@@ -81,7 +77,7 @@ export async function buildSpecificationBuffer(
 
   const { tableHeaderRow, dataStartRow } = SPEC_TEMPLATE;
 
-  trimExtraColumns(sheet);
+  trimWorksheetColumns(sheet, TABLE_COLS);
   formatSpecificationHeader(sheet, normalized);
   styleTableHeaderRow(sheet, tableHeaderRow);
 

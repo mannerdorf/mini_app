@@ -89,6 +89,28 @@ export function clearRowsFrom(sheet: import("exceljs").Worksheet, startRow: numb
   }
 }
 
+const EXCEL_MAX_COL = 16384;
+
+/** Удаляет столбцы и их ширины справа от таблицы (в т.ч. «фантомные» из шаблона). */
+export function trimWorksheetColumns(sheet: import("exceljs").Worksheet, maxCol: number) {
+  const extra = sheet.columnCount - maxCol;
+  if (extra > 0) {
+    sheet.spliceColumns(maxCol + 1, extra);
+  }
+  if (sheet.columnCount <= maxCol) {
+    sheet.spliceColumns(maxCol + 1, EXCEL_MAX_COL - maxCol);
+  }
+}
+
+/** Удаляет пустые строки ниже lastRow (шаблон проформы содержит тысячи пустых строк). */
+export function trimWorksheetRowsAfter(sheet: import("exceljs").Worksheet, lastRow: number) {
+  if (lastRow < 1) return;
+  while (sheet.rowCount > lastRow) {
+    const chunk = Math.min(500, sheet.rowCount - lastRow);
+    sheet.spliceRows(lastRow + 1, chunk);
+  }
+}
+
 export async function workbookToBuffer(wb: import("exceljs").Workbook): Promise<Buffer> {
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);

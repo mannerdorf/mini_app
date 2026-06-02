@@ -4,13 +4,16 @@ import { formatRuDate } from "./defaults.js";
 import {
   carrierQuotedName,
   formatPoruchenieCityLineExcel,
-  formatPoruchenieFooter,
+  formatPoruchenieFooterIntro,
+  formatPoruchenieFooterSignatoryCarrier,
+  formatPoruchenieFooterSignatoryHolz,
   formatPorucheniePreamble,
   formatPoruchenieTitleLine,
 } from "./formatPoruchenieDraft.js";
 import { poruchenieExportFileName } from "./fileNames.js";
 import { applySpecCellStyle } from "./specSheetStyles.js";
 import {
+  clearRowsFrom,
   loadTemplateWorkbook,
   setCellValue,
   tryMergeCells,
@@ -36,6 +39,46 @@ function formatDocMoney(v: string | number): string {
   const s = String(v ?? "").trim();
   if (!s) return "";
   return s.replace(".", ",");
+}
+
+const PORUCHENIE_FOOTER_INTRO_HEIGHT = 32;
+const PORUCHENIE_SIGNATURE_LINE_HEIGHT = 42;
+const PORUCHENIE_SIGNATURE_GAP_HEIGHT = 48;
+
+function clearMergedRow(sheet: import("exceljs").Worksheet, row: number) {
+  const { headerCols } = PORUCHENIE_TEMPLATE;
+  for (let c = 1; c <= headerCols; c++) {
+    sheet.getCell(row, c).value = null;
+  }
+}
+
+function fillPoruchenieFooter(
+  sheet: import("exceljs").Worksheet,
+  startRow: number,
+  carrierName: string,
+): number {
+  let row = startRow;
+
+  applyMergedRow(sheet, row, formatPoruchenieFooterIntro());
+  sheet.getRow(row).height = PORUCHENIE_FOOTER_INTRO_HEIGHT;
+  row++;
+
+  applyMergedRow(sheet, row, formatPoruchenieFooterSignatoryHolz());
+  sheet.getRow(row).height = PORUCHENIE_SIGNATURE_LINE_HEIGHT;
+  row++;
+
+  clearMergedRow(sheet, row);
+  sheet.getRow(row).height = PORUCHENIE_SIGNATURE_GAP_HEIGHT;
+  row++;
+
+  applyMergedRow(sheet, row, formatPoruchenieFooterSignatoryCarrier(carrierName));
+  sheet.getRow(row).height = PORUCHENIE_SIGNATURE_LINE_HEIGHT;
+  row++;
+
+  clearMergedRow(sheet, row);
+  sheet.getRow(row).height = PORUCHENIE_SIGNATURE_GAP_HEIGHT;
+
+  return row;
 }
 
 function applyMergedRow(sheet: import("exceljs").Worksheet, row: number, text: string) {
@@ -79,6 +122,7 @@ function fillPoruchenieSheet(sheet: import("exceljs").Worksheet, input: Poruchen
 
   const { dataStartRow, dataCols, tableHeaderRow, headerCols } = PORUCHENIE_TEMPLATE;
   styleTableRow(sheet, tableHeaderRow, headerCols);
+  clearRowsFrom(sheet, dataStartRow, headerCols);
   for (let i = 0; i < input.rows.length; i++) {
     const row = input.rows[i]!;
     const r = dataStartRow + i;
@@ -94,8 +138,7 @@ function fillPoruchenieSheet(sheet: import("exceljs").Worksheet, input: Poruchen
   }
 
   const footerRow = dataStartRow + input.rows.length + 1;
-  applyMergedRow(sheet, footerRow, formatPoruchenieFooter());
-  sheet.getRow(footerRow).height = 72;
+  fillPoruchenieFooter(sheet, footerRow, input.carrier.name);
 }
 
 export async function buildPoruchenieBuffer(input: PoruchenieInput): Promise<Buffer> {

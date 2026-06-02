@@ -8,6 +8,7 @@ import {
   clearRowsFrom,
   loadTemplateWorkbook,
   setCellValue,
+  trimWorksheetRowsAfter,
   workbookToBuffer,
 } from "./excelUtils.js";
 
@@ -142,6 +143,7 @@ export async function buildProformaBuffer(
 
   const tableEndRow = rows.length > 0 ? summaryRow : tableHeaderRow;
   applySpecTableRangeBorders(sheet, tableHeaderRow, tableEndRow, 1, PROFORMA_TABLE_COLS);
+  trimWorksheetRowsAfter(sheet, tableEndRow);
 
   return workbookToBuffer(wb);
 }

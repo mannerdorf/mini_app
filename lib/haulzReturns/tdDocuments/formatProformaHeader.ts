@@ -1,14 +1,17 @@
 import type { ProformaDraft } from "./types.js";
 import {
-  consolidateRowText,
   setCellValue,
   tryMergeCells,
 } from "./excelUtils.js";
 import { applySpecCellStyle } from "./specSheetStyles.js";
+import { formatProformaPartyRows } from "./specPartyDefaults.js";
 import { PROFORMA_TEMPLATE } from "./templateMaps.js";
 
 export const PROFORMA_TABLE_COLS = 7;
 const HEADER_LAST_ROW = 9;
+/** Красный блок шапки — с середины листа (A–C слева, D–G справа). */
+const PROFORMA_HEADER_RIGHT_START = 4;
+const PROFORMA_HEADER_LEFT_END = PROFORMA_HEADER_RIGHT_START - 1;
 
 /** Ширины колонок таблицы (символы Excel): наименование шире, остальные — минимум для печати. */
 export const PROFORMA_COLUMN_WIDTHS: Record<number, number> = {
@@ -31,10 +34,16 @@ const RED_HEADER_ROWS = [1, 2, 3, 4] as const;
 const BODY_HEADER_ROWS = [7, 8] as const;
 const SPACER_ROWS = [6, 9] as const;
 
+function applyPartyHeaderRows(sheet: import("exceljs").Worksheet) {
+  const rows = formatProformaPartyRows();
+  setCellValue(sheet, 7, 1, rows.shipper);
+  setCellValue(sheet, 8, 1, rows.consignee);
+}
+
 function applyHeaderValues(sheet: import("exceljs").Worksheet, draft: ProformaDraft, headerTd = "") {
   const h = PROFORMA_TEMPLATE.header;
   for (const row of RED_HEADER_ROWS) {
-    for (let c = 5; c <= PROFORMA_TABLE_COLS; c++) {
+    for (let c = PROFORMA_HEADER_RIGHT_START; c <= PROFORMA_TABLE_COLS; c++) {
       sheet.getCell(row, c).value = null;
     }
   }
@@ -56,15 +65,15 @@ function clearMergedRowSlaves(sheet: import("exceljs").Worksheet, row: number, m
 }
 
 function mergeHeaderBlocks(sheet: import("exceljs").Worksheet) {
-  tryMergeCells(sheet, 1, 1, 4, 4);
+  tryMergeCells(sheet, 1, 1, 4, PROFORMA_HEADER_LEFT_END);
   for (const row of RED_HEADER_ROWS) {
-    tryMergeCells(sheet, row, 5, row, PROFORMA_TABLE_COLS);
-    clearMergedRowSlaves(sheet, row, 5, PROFORMA_TABLE_COLS);
+    tryMergeCells(sheet, row, PROFORMA_HEADER_RIGHT_START, row, PROFORMA_TABLE_COLS);
+    clearMergedRowSlaves(sheet, row, PROFORMA_HEADER_RIGHT_START, PROFORMA_TABLE_COLS);
   }
-  tryMergeCells(sheet, 5, 1, 5, 4);
-  clearMergedRowSlaves(sheet, 5, 1, 4);
-  tryMergeCells(sheet, 5, 5, 5, PROFORMA_TABLE_COLS);
-  clearMergedRowSlaves(sheet, 5, 5, PROFORMA_TABLE_COLS);
+  tryMergeCells(sheet, 5, 1, 5, PROFORMA_HEADER_LEFT_END);
+  clearMergedRowSlaves(sheet, 5, 1, PROFORMA_HEADER_LEFT_END);
+  tryMergeCells(sheet, 5, PROFORMA_HEADER_RIGHT_START, 5, PROFORMA_TABLE_COLS);
+  clearMergedRowSlaves(sheet, 5, PROFORMA_HEADER_RIGHT_START, PROFORMA_TABLE_COLS);
   for (const row of SPACER_ROWS) {
     tryMergeCells(sheet, row, 1, row, PROFORMA_TABLE_COLS);
   }
@@ -76,10 +85,10 @@ function mergeHeaderBlocks(sheet: import("exceljs").Worksheet) {
 
 function styleHeaderCells(sheet: import("exceljs").Worksheet) {
   for (const row of RED_HEADER_ROWS) {
-    applySpecCellStyle(sheet.getCell(row, 5), { red: true, borders: false });
+    applySpecCellStyle(sheet.getCell(row, PROFORMA_HEADER_RIGHT_START), { red: true, borders: false });
   }
   applySpecCellStyle(sheet.getCell(5, 1), { red: true, borders: false });
-  applySpecCellStyle(sheet.getCell(5, 5), { red: true, borders: false });
+  applySpecCellStyle(sheet.getCell(5, PROFORMA_HEADER_RIGHT_START), { red: true, borders: false });
   for (const row of BODY_HEADER_ROWS) {
     applySpecCellStyle(sheet.getCell(row, 1), { borders: false });
   }
@@ -96,12 +105,9 @@ export function formatProformaHeader(
   draft: ProformaDraft,
   headerTd = "",
 ) {
-  for (const row of BODY_HEADER_ROWS) {
-    consolidateRowText(sheet, row, PROFORMA_TABLE_COLS);
-  }
-
   mergeHeaderBlocks(sheet);
   applyHeaderValues(sheet, draft, headerTd);
+  applyPartyHeaderRows(sheet);
   styleHeaderCells(sheet);
 
   for (const row of SPACER_ROWS) {

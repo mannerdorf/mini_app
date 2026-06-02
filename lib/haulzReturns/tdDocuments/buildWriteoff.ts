@@ -3,8 +3,10 @@ import type { WriteoffSheetInput } from "./types.js";
 import { formatRuDate } from "./defaults.js";
 import { applySpecCellStyle } from "./specSheetStyles.js";
 import {
+  clearRowsFrom,
   loadTemplateWorkbook,
   setCellValue,
+  trimWorksheetRowsAfter,
   tryMergeCells,
   workbookToBuffer,
 } from "./excelUtils.js";
@@ -71,6 +73,8 @@ function fillWriteoffSheet(
   styleTableRow(sheet, WRITEOFF_TEMPLATE.tableHeaderRow, WRITEOFF_HEADER_COLS);
 
   const { dataStartRow, dataCols } = WRITEOFF_TEMPLATE;
+  clearRowsFrom(sheet, dataStartRow, WRITEOFF_HEADER_COLS);
+
   for (let i = 0; i < input.rows.length; i++) {
     const row = input.rows[i]!;
     const r = dataStartRow + i;
@@ -87,6 +91,9 @@ function fillWriteoffSheet(
     setCellValue(sheet, r, dataCols.qty, row.qty);
     setCellValue(sheet, r, dataCols.cost, row.cost);
   }
+
+  const lastRow = input.rows.length > 0 ? dataStartRow + input.rows.length - 1 : WRITEOFF_TEMPLATE.tableHeaderRow;
+  trimWorksheetRowsAfter(sheet, lastRow);
 }
 
 export async function buildWriteoffBuffer(sheets: WriteoffSheetInput[]): Promise<Buffer> {

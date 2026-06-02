@@ -1,10 +1,10 @@
 import type { SpecificationDraft } from "./types.js";
 import {
-  consolidateRowText,
   setCellValue,
   tryMergeCells,
 } from "./excelUtils.js";
 import { applySpecCellStyle } from "./specSheetStyles.js";
+import { formatSpecificationPartyRows } from "./specPartyDefaults.js";
 import { SPEC_TEMPLATE } from "./templateMaps.js";
 
 const HEADER_LAST_ROW = 11;
@@ -12,6 +12,14 @@ const COLS = 8;
 
 const RED_HEADER_ROWS = [1, 2, 3, 4] as const;
 const BODY_HEADER_ROWS = [7, 8, 9, 10] as const;
+
+function applyPartyHeaderRows(sheet: import("exceljs").Worksheet) {
+  const rows = formatSpecificationPartyRows();
+  const values = [rows.shipper, rows.loading, rows.consignee, rows.unloading];
+  for (let i = 0; i < BODY_HEADER_ROWS.length; i++) {
+    setCellValue(sheet, BODY_HEADER_ROWS[i]!, 1, values[i] ?? "");
+  }
+}
 
 function applyHeaderValues(sheet: import("exceljs").Worksheet, draft: SpecificationDraft) {
   const h = SPEC_TEMPLATE.header;
@@ -58,12 +66,9 @@ function styleHeaderCells(sheet: import("exceljs").Worksheet) {
 
 /** Объединение ячеек и единая типографика шапки спецификации. */
 export function formatSpecificationHeader(sheet: import("exceljs").Worksheet, draft: SpecificationDraft) {
-  for (const row of BODY_HEADER_ROWS) {
-    consolidateRowText(sheet, row, COLS);
-  }
-
   mergeHeaderBlocks(sheet);
   applyHeaderValues(sheet, draft);
+  applyPartyHeaderRows(sheet);
   styleHeaderCells(sheet);
 
   for (const row of [6, 11]) {
