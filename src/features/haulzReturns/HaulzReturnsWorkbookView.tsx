@@ -7,12 +7,10 @@ import {
   itogRowHighlight,
   itogUlDataHighlight,
   itogValidationFromRow,
-} from "../../lib/haulzReturns";
-import {
   normalizeStopMatchMode,
   STOP_MATCH_MODE_LABELS,
   type StopMatchMode,
-} from "../../lib/haulzReturns/stopWords";
+} from "../../lib/haulzReturns";
 import { HaulzColumnFilterHeader } from "./HaulzColumnFilterHeader";
 import {
   applyColumnFilters,

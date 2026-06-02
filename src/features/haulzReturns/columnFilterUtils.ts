@@ -1,10 +1,10 @@
 import type { HaulzColumn, HaulzSheetRow } from "../../lib/haulzReturns";
-import { isSummaryRow } from "../../lib/haulzReturns";
 import {
+  isSummaryRow,
   normalizeStopMatchMode,
   STOP_MATCH_MODE_LABELS,
   type StopMatchMode,
-} from "../../lib/haulzReturns/stopWords";
+} from "../../lib/haulzReturns";
 
 export const EMPTY_CELL_LABEL = "(Пусто)";
 
