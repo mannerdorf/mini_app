@@ -1113,8 +1113,11 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
         <label className="hr-upload-card">
           <FileSpreadsheet className="hr-upload-icon" />
           <span className="hr-upload-title">Документ отправка</span>
-          <span className="hr-upload-hint">Один файл .xlsx</span>
-          {otpravkaFile ? <span className="hr-upload-file">{otpravkaFile.name}</span> : null}
+          {otpravkaFile ? (
+            <span className="hr-upload-file">{otpravkaFile.name}</span>
+          ) : (
+            <span className="hr-upload-hint">Один файл .xlsx</span>
+          )}
           <input type="file" accept=".xlsx,.xls" hidden onChange={(e) => handleOtpravkaChange(e.target.files)} />
         </label>
 
