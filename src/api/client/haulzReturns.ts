@@ -149,20 +149,6 @@ export async function saveHaulzReturnsWorkbook(auth: AuthData, jobId: string, wo
     jobId,
     workbook: compactWorkbookForPatch(workbook),
   });
-  // #region agent log
-  fetch("http://127.0.0.1:7764/ingest/18d9aceb-93ca-4e52-bbe7-c56dcb1cd38e", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "e39252" },
-    body: JSON.stringify({
-      sessionId: "e39252",
-      location: "haulzReturns.ts:saveHaulzReturnsWorkbook",
-      message: "patch_workbook",
-      hypothesisId: "F",
-      data: { jobId, bodyBytes: patchBody.length, sheetCount: workbook.sheets.length },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
   const res = await fetch("/api/haulz-returns/job-workbook", {
     method: "PATCH",
     headers: authHeaders(auth),
@@ -171,6 +157,45 @@ export async function saveHaulzReturnsWorkbook(auth: AuthData, jobId: string, wo
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`[сохранение правок] ${parseJson(res, data)}`);
   return workbook;
+}
+
+export type ItogTranslateResult = {
+  rowId: string;
+  translation: string;
+};
+
+const TRANSLATE_BATCH_SIZE = 40;
+
+export async function translateHaulzItogBatch(
+  auth: AuthData,
+  items: { rowId: string; text: string }[],
+): Promise<ItogTranslateResult[]> {
+  const res = await fetch("/api/haulz-returns/translate-itog", {
+    method: "POST",
+    headers: authHeaders(auth),
+    body: JSON.stringify({ items }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`[перевод] ${parseJson(res, data)}`);
+  return (data as { items?: ItogTranslateResult[] }).items ?? [];
+}
+
+/** Пакетный перевод ulData → translate на листе «итог» (EN→RU через OpenAI). */
+export async function translateHaulzItogAll(
+  auth: AuthData,
+  items: { rowId: string; text: string }[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  for (let i = 0; i < items.length; i += TRANSLATE_BATCH_SIZE) {
+    const batch = items.slice(i, i + TRANSLATE_BATCH_SIZE);
+    const results = await translateHaulzItogBatch(auth, batch);
+    for (const row of results) {
+      if (row.translation) map.set(row.rowId, row.translation);
+    }
+    onProgress?.(Math.min(i + batch.length, items.length), items.length);
+  }
+  return map;
 }
 
 export async function deleteHaulzReturnsJob(auth: AuthData, jobId: string): Promise<void> {
@@ -183,4 +208,16 @@ export async function deleteHaulzReturnsJob(auth: AuthData, jobId: string): Prom
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`[удаление сессии] ${parseJson(res, data)}`);
+}
+
+export async function renameHaulzReturnsJob(auth: AuthData, jobId: string, title: string): Promise<string> {
+  const trimmed = title.trim();
+  const res = await fetch("/api/haulz-returns/job", {
+    method: "PATCH",
+    headers: authHeaders(auth),
+    body: JSON.stringify({ jobId, title: trimmed }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`[переименование сессии] ${parseJson(res, data)}`);
+  return String((data as { title?: string }).title ?? trimmed);
 }

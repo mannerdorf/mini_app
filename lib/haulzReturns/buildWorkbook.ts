@@ -7,7 +7,7 @@ import type {
   ParsedUlFile,
   UlDataRow,
 } from "./types";
-import { FIX_COLUMNS, ITog_HEADERS, UL_HEADERS } from "./types";
+import { FIX_COLUMNS, ITog_HEADERS, KGD_COLUMNS, PLOMBY_HEADERS, STOP_HEADERS, UL_HEADERS } from "./types";
 import { STOP_WORDS } from "./stopWords";
 import { mergeUlFiles } from "./parseUl.js";
 import {
@@ -15,6 +15,8 @@ import {
   stopColumnValue,
   validateItogRow,
 } from "./validators";
+import { recalcKgdDupCounts } from "./kgdOperations.js";
+import { appendItogSummaryRow, appendKgdSummaryRow, appendUlSummaryRow } from "./ulTotals.js";
 import type { ParsedUlFile as UlFile } from "./types";
 
 export type BuildInput = {
@@ -56,14 +58,6 @@ function plombyLookup(otpravka: OtpravkaRow[]): Map<string, string> {
     if (!map.has(r.parcel)) map.set(r.parcel, r.cargoPlace);
   }
   return map;
-}
-
-function countParcelDuplicates(parcels: string[]): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const p of parcels) {
-    counts.set(p, (counts.get(p) ?? 0) + 1);
-  }
-  return counts;
 }
 
 export type ItogRowInternal = {
@@ -169,27 +163,23 @@ function itogToSheetRows(rows: ItogRowInternal[]): HaulzSheetRow[] {
 }
 
 function buildKgdSheet(otpravka: OtpravkaRow[], ulPrio1: ParsedUlFile[], ulPrio2: ParsedUlFile[]): HaulzSheet {
-  const dupCounts = countParcelDuplicates(otpravka.map((o) => o.parcel));
   const rows: HaulzSheetRow[] = otpravka.map((o, i) => {
     const match = findParcelInUl(ulPrio1, ulPrio2, o.parcel);
     return {
       _rowId: `kgd-${i}`,
+      num: i + 1,
       ul: match?.ulNumber ?? "",
       line: match?.row.rowNum ?? "",
       parcel: o.parcel,
-      dupCount: dupCounts.get(o.parcel) ?? 0,
+      dupCount: 0,
     };
   });
+  const withDup = recalcKgdDupCounts(rows);
   return {
     id: "kgd",
     name: "KGD!",
-    columns: [
-      { key: "ul", label: "" },
-      { key: "line", label: "Строка" },
-      { key: "parcel", label: "посылка" },
-      { key: "dupCount", label: "" },
-    ],
-    rows,
+    columns: [...KGD_COLUMNS],
+    rows: appendKgdSummaryRow(withDup),
   };
 }
 
@@ -197,10 +187,7 @@ function buildPlombySheet(otpravka: OtpravkaRow[]): HaulzSheet {
   return {
     id: "plomby",
     name: "пломбы",
-    columns: [
-      { key: "parcel", label: "" },
-      { key: "cargoPlace", label: "" },
-    ],
+    columns: PLOMBY_HEADERS,
     rows: otpravka.map((o, i) => ({
       _rowId: `plomby-${i}`,
       parcel: o.parcel,
@@ -213,10 +200,7 @@ function buildStopSheet(): HaulzSheet {
   return {
     id: "stop",
     name: "STOP",
-    columns: [
-      { key: "word", label: "" },
-      { key: "result", label: "" },
-    ],
+    columns: STOP_HEADERS,
     rows: STOP_WORDS.map((w, i) => ({
       _rowId: `stop-${i}`,
       word: w.word,
@@ -251,7 +235,7 @@ export function buildUlSheetForParsedFile(file: ParsedUlFile, controlKeys: Set<s
     id: `ul-${file.ulNumber}`,
     name: file.ulNumber,
     columns: UL_HEADERS,
-    rows,
+    rows: appendUlSummaryRow(rows),
   };
 }
 
@@ -267,7 +251,7 @@ export function buildWorkbook(input: BuildInput): HaulzWorkbook {
       id: "itog",
       name: "итог",
       columns: ITog_HEADERS,
-      rows: itogToSheetRows(itogInternal),
+      rows: appendItogSummaryRow(itogToSheetRows(itogInternal)),
     },
     buildKgdSheet(otpravka, ulPrio1, ulPrio2),
     buildPlombySheet(otpravka),

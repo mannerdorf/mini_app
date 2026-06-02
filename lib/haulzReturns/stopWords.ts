@@ -54,6 +54,20 @@ export const STOP_WORDS: { word: string; result: string }[] = [
 
 const STOP_MAP = new Map(STOP_WORDS.map((e) => [e.word, e.result]));
 
+export function lookupStopFromRows(
+  text: string,
+  rows: { word?: unknown; result?: unknown }[],
+): string {
+  const t = text.trim();
+  if (!t) return "OK";
+  for (const row of rows) {
+    if (String(row.word ?? "").trim() === t) {
+      return String(row.result ?? "STOP");
+    }
+  }
+  return "OK";
+}
+
 export function lookupStopExact(text: string): string {
   const t = text.trim();
   if (!t) return "OK";

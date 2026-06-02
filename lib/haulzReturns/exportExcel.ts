@@ -1,5 +1,6 @@
-import type { HaulzSheet, HaulzWorkbook } from "./types";
+import type { HaulzSheet, HaulzSheetRow, HaulzWorkbook } from "./types";
 import { FIX_COLUMNS, ITog_HEADERS } from "./types";
+import { isSummaryRow, isUlRowInItog } from "./ulTotals.js";
 import {
   itogRowHighlight,
   itogUlDataHighlight,
@@ -38,8 +39,8 @@ function applyItogRowStyle(
   }
 }
 
-function applyUlRowStyle(sheet: import("exceljs").Worksheet, rowIndex: number, inItog: unknown) {
-  if (Number(inItog) <= 0) return;
+function applyUlRowStyle(sheet: import("exceljs").Worksheet, rowIndex: number, row: HaulzSheetRow) {
+  if (!isUlRowInItog(row)) return;
   for (let c = 1; c <= 14; c++) {
     sheet.getCell(rowIndex, c).fill = {
       type: "pattern",
@@ -69,10 +70,16 @@ function writeSheet(
     });
     ws.addRow(values);
     const excelRow = idx + 2;
-    if (haulzSheet.id === "itog") {
+    if (isSummaryRow(row)) {
+      for (let c = 1; c <= columns.length; c++) {
+        const cell = ws.getCell(excelRow, c);
+        cell.font = { bold: true };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: argb("#fff8e6") } };
+      }
+    } else if (haulzSheet.id === "itog") {
       applyItogRowStyle(ws, excelRow, row);
     } else if (haulzSheet.id.startsWith("ul-")) {
-      applyUlRowStyle(ws, excelRow, row.inItog);
+      applyUlRowStyle(ws, excelRow, row);
     }
   });
 }

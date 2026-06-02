@@ -1,4 +1,5 @@
-import { lookupStopExact } from "./stopWords";
+import { lookupStopExact, lookupStopFromRows } from "./stopWords";
+import type { HaulzSheetRow } from "./types";
 
 const PINK_LIST_REGEX =
   /личн.*вещ|докум|пуст.*бутыл|бутыл|пакет|конверт|товар.*интернет.*магазин|товар.*подмен|прилож.*опис|опис|карт|вино|игрист|брют|розе|рислинг|зект|нипоццано|ле гран нуар|ханс баер|document|товар.*народ.*потребл|одежд|sim[- ]*карт|не *указан|other|device|tools|橡皮绑带|case|друг|ruler|clothes|connector|pendants|stickers|fittings|bangles|bracelets|lockparts|renault|printers/i;
@@ -27,7 +28,8 @@ export function isPinkListMatch(text: string): boolean {
   return PINK_LIST_REGEX.test(t);
 }
 
-export function stopColumnValue(ulData: string): string {
+export function stopColumnValue(ulData: string, stopRows?: HaulzSheetRow[]): string {
+  if (stopRows?.length) return lookupStopFromRows(ulData, stopRows);
   return lookupStopExact(ulData);
 }
 

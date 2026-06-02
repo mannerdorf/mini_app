@@ -95,7 +95,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ ok: true, request_id: ctx.requestId });
     }
 
-    res.setHeader("Allow", "GET, DELETE");
+    if (req.method === "PATCH") {
+      const body = req.body && typeof req.body === "object" ? (req.body as Record<string, unknown>) : {};
+      const title = String(body.title ?? "").trim();
+      if (!title) {
+        return res.status(400).json({ error: "Укажите название", request_id: ctx.requestId });
+      }
+      if (title.length > 200) {
+        return res.status(400).json({ error: "Название не длиннее 200 символов", request_id: ctx.requestId });
+      }
+      await pool.query(
+        `update haulz_returns_jobs set title = $2, updated_at = now() where id = $1`,
+        [jobId, title],
+      );
+      return res.status(200).json({ ok: true, title, request_id: ctx.requestId });
+    }
+
+    res.setHeader("Allow", "GET, PATCH, DELETE");
     return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   } catch (e) {
     logError(ctx, "haulz_returns_job_failed", e);
