@@ -11,6 +11,14 @@ export function isEnglishOnly(text: string): boolean {
   return !/[А-Яа-яЁё]/.test(t);
 }
 
+/** Только кириллица (и цифры/знаки), без латиницы — перевод не нужен. */
+export function isRussianOnlyText(text: string): boolean {
+  const t = text.trim();
+  if (!t) return false;
+  if (!/[А-Яа-яЁё]/.test(t)) return false;
+  return !/[A-Za-z]/.test(t);
+}
+
 export function hasAu585OrAg925(text: string): boolean {
   const u = text.toUpperCase();
   return /AU\s*585/.test(u) || /AG\s*925/.test(u);

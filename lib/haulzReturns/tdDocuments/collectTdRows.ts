@@ -1,4 +1,5 @@
 import type { HaulzSheet, HaulzSheetRow, HaulzWorkbook } from "../types.js";
+import { itogControlKey } from "../itogRowKeys.js";
 import { FIX_DEFAULT_SORT, sortDataRows } from "../rowSort.js";
 import { isSummaryRow, isUlRowInItog, stripSummaryRows } from "../ulTotals.js";
 
@@ -37,6 +38,63 @@ function cellStr(v: unknown): string {
   return String(v).trim();
 }
 
+/** Наименование для таможенных документов: «Перевод», иначе «Данные УЛ». */
+export function itogProductNameForTd(row: HaulzSheetRow): string {
+  return cellStr(row.translate) || cellStr(row.ulData);
+}
+
+/** Поиск наименования по листам итог/FIX (перевод → данные УЛ). */
+export function buildItogProductNameLookup(workbook: HaulzWorkbook): Map<string, string> {
+  const map = new Map<string, string>();
+  const addRows = (rows: HaulzSheetRow[]) => {
+    for (const r of stripSummaryRows(rows)) {
+      const productName = itogProductNameForTd(r);
+      if (!productName) continue;
+      const ul = cellStr(r.ul);
+      const line = cellStr(r.line);
+      const parcel = cellStr(r.parcel);
+      const control = itogControlKey(r);
+      if (control) map.set(`ctrl:${control}`, productName);
+      if (parcel) map.set(`parcel:${parcel}`, productName);
+      for (const ulKey of new Set([ul, normalizeUlKey(ul)].filter(Boolean))) {
+        if (line) map.set(`ul:${ulKey}:${line}`, productName);
+        if (line && parcel) map.set(`ulpc:${ulKey}:${line}:${parcel}`, productName);
+      }
+    }
+  };
+  const fix = workbook.sheets.find((s) => s.id === "fix");
+  const itog = workbook.sheets.find((s) => s.id === "itog");
+  if (fix) addRows(fix.rows);
+  if (itog) addRows(itog.rows);
+  return map;
+}
+
+export function lookupItogProductName(
+  lookup: Map<string, string>,
+  ulNumber: string,
+  rowNum: string,
+  parcel: string,
+): string {
+  const line = cellStr(rowNum);
+  const p = cellStr(parcel);
+  for (const ulKey of new Set([ulNumber, normalizeUlKey(ulNumber)].filter(Boolean))) {
+    if (line && p) {
+      const hit = lookup.get(`ulpc:${ulKey}:${line}:${p}`);
+      if (hit) return hit;
+    }
+    if (line) {
+      const hit = lookup.get(`ul:${ulKey}:${line}`);
+      if (hit) return hit;
+    }
+    if (p) {
+      const hit = lookup.get(`ctrl:${ulKey}${line}${p}`);
+      if (hit) return hit;
+    }
+  }
+  if (p) return lookup.get(`parcel:${p}`) ?? "";
+  return "";
+}
+
 /** Ключ УЛ для сопоставления «02606521» и «2606521». */
 export function normalizeUlKey(ul: unknown): string {
   const s = cellStr(ul);
@@ -63,6 +121,15 @@ export function ulTdNumberMap(workbook: HaulzWorkbook): Map<string, string> {
   return map;
 }
 
+export function findUlSheet(workbook: HaulzWorkbook, ulNumber: string): HaulzSheet | undefined {
+  const target = normalizeUlKey(ulNumber);
+  return workbook.sheets.find((s) => {
+    if (!s.id.startsWith("ul-")) return false;
+    const idUl = s.id.slice(3);
+    return idUl === ulNumber || normalizeUlKey(idUl) === target;
+  });
+}
+
 export function collectFixRows(workbook: HaulzWorkbook): FixTdRow[] {
   const fix = workbook.sheets.find((s) => s.id === "fix");
   if (!fix) return [];
@@ -74,7 +141,7 @@ export function collectFixRows(workbook: HaulzWorkbook): FixTdRow[] {
     line: cellStr(r.line),
     id: cellStr(r.id),
     parcel: cellStr(r.parcel),
-    name: cellStr(r.translate) || cellStr(r.ulData),
+    name: itogProductNameForTd(r),
     qty: r.qty ?? "",
     weight: r.weight ?? "",
     cost: r.cost ?? "",
@@ -86,24 +153,37 @@ export function collectFixRows(workbook: HaulzWorkbook): FixTdRow[] {
   }));
 }
 
-export function collectWriteoffRowsForUl(sheet: HaulzSheet, ulNumber: string): UlWriteoffRow[] {
+export function collectWriteoffRowsForUl(
+  workbook: HaulzWorkbook,
+  sheet: HaulzSheet,
+  ulNumber: string,
+): UlWriteoffRow[] {
+  const lookup = buildItogProductNameLookup(workbook);
   const dataRows = stripSummaryRows(sheet.rows).filter(isUlRowInItog);
   const sorted = sortDataRows(dataRows, [{ key: "rowNum", dir: "asc" }]);
-  return sorted.map((r, idx) => ({
-    num: idx + 1,
-    ulNumber,
-    rowNum: cellStr(r.rowNum),
-    line: cellStr(r.rowNum),
-    id: cellStr(r.cargoPlace),
-    parcel: cellStr(r.parcel),
-    airport: cellStr(r.airport),
-    weight: r.weight ?? "",
-    volume: r.volume ?? "",
-    category: cellStr(r.category) || "<>",
-    name: cellStr(r.name),
-    qty: r.qty ?? "",
-    cost: r.cost ?? "",
-  }));
+  return sorted.map((r, idx) => {
+    const rowNum = cellStr(r.rowNum);
+    const parcel = cellStr(r.parcel);
+    const name =
+      lookupItogProductName(lookup, ulNumber, rowNum, parcel) ||
+      itogProductNameForTd(r) ||
+      cellStr(r.name);
+    return {
+      num: idx + 1,
+      ulNumber,
+      rowNum,
+      line: rowNum,
+      id: cellStr(r.cargoPlace),
+      parcel,
+      airport: cellStr(r.airport),
+      weight: r.weight ?? "",
+      volume: r.volume ?? "",
+      category: cellStr(r.category) || "<>",
+      name,
+      qty: r.qty ?? "",
+      cost: r.cost ?? "",
+    };
+  });
 }
 
 export function ulSheetsWithInItog(workbook: HaulzWorkbook): Array<{ sheet: HaulzSheet; ulNumber: string }> {

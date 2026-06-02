@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildWorkbook } from "./buildWorkbook";
+import { buildWorkbook, hydrateUlSheetFromParsed } from "./buildWorkbook";
 import { rebuildItogFromKgd, removeKgdDuplicates } from "./kgdOperations";
 import { addStopWord, removeStopWord } from "./stopOperations";
 import { parseOtpravkaMatrix } from "./parseOtpravka";
@@ -13,15 +13,19 @@ import { ensureItogRowIds, stableItogRowId } from "./itogRowKeys";
 import { mergeWorkbookOnReprocess } from "./mergeWorkbookOnReprocess";
 import { itogValidationFromRow } from "./validators";
 import { parseCarrierInput, formatCarrierCard } from "./carriers";
-import { collectFixRows, isHolzCarrier, validateTdPrep, buildTdPrepared } from "./tdDocuments/index.js";
-import { replaceDraftRuDate, splitDraftDateField, syncTitleDateFromFts, computeProformaTotals } from "./tdDocuments/draftDateFields.js";
+import { proformaExportFileName, specificationExportFileName } from "./tdDocuments/fileNames.js";
+import { isHolzCarrier, validateTdPrep, buildTdPrepared } from "./tdDocuments/index.js";
+import { replaceDraftRuDate, splitDraftDateField, syncTitleDateFromFts, computeProformaTotals, normalizeSpecificationDraft } from "./tdDocuments/draftDateFields.js";
 import { workbookForApi, workbookForApiWithinBudget, mergeWorkbookPatch } from "./workbookApi";
+import { mergeTdDraft, mergeWorkbookTdMeta } from "./tdMetaMerge";
 import { parseTranslationsJson } from "./openaiTranslate";
 import {
   applyItogTranslationsToWorkbook,
   countItogTranslatedRows,
   itogRowsNeedingTranslation,
   itogRowsForTranslation,
+  acceptItogTranslation,
+  syncRussianOnlyItogTranslations,
 } from "./translateOperations";
 import {
   isEnglishOnly,
@@ -357,6 +361,7 @@ describe("buildWorkbook", () => {
       { _rowId: "a", control: "k1", ulData: "Shirt", translate: "" },
       { _rowId: "b", control: "k2", ulData: "Pants", translate: "Штаны" },
       { _rowId: "c", control: "k3", ulData: "", translate: "" },
+      { _rowId: "d", control: "k4", ulData: "Крючки", translate: "" },
     ]);
     expect(itogRowsNeedingTranslation(rows)).toEqual([{ rowKey: "a", text: "Shirt" }]);
     expect(itogRowsForTranslation(rows, { includeFilled: true })).toEqual([
@@ -364,6 +369,31 @@ describe("buildWorkbook", () => {
       { rowKey: "b", text: "Pants" },
     ]);
     expect(countItogTranslatedRows(rows)).toBe(1);
+  });
+
+  it("acceptItogTranslation rejects Russian to English", () => {
+    expect(acceptItogTranslation("Крючки", "Hooks")).toBe(false);
+    expect(acceptItogTranslation("Крючки", "Крючки")).toBe(true);
+    expect(acceptItogTranslation("Shirt", "Рубашка")).toBe(true);
+  });
+
+  it("syncRussianOnlyItogTranslations copies ulData and fixes wrong translate", () => {
+    const wb: import("./types").HaulzWorkbook = {
+      itogControlKeys: new Set(),
+      excludedUlNumbers: new Set(),
+      sheets: [{
+        id: "itog",
+        name: "итог",
+        rows: appendItogSummaryRow([
+          { _rowId: "a", control: "k1", ulData: "Крючки", translate: "Hooks" },
+          { _rowId: "b", control: "k2", ulData: "Shirt", translate: "" },
+        ]),
+      }],
+    };
+    const { workbook: next, changed } = syncRussianOnlyItogTranslations(wb);
+    expect(changed).toBe(true);
+    expect(next.sheets[0]!.rows[1]!.translate).toBe("Крючки");
+    expect(next.sheets[0]!.rows[2]!.translate).toBe("");
   });
 
   it("applyItogTranslationsToWorkbook fills translate and rebuilds fix", () => {
@@ -746,6 +776,217 @@ describe("tdDocuments", () => {
     expect(collectFixRows(wb)[0]!.tdNumber).toBe("TD-001");
   });
 
+  it("collectFixRows and writeoff use translate column not ulData", () => {
+    const wb = {
+      sheets: [
+        {
+          id: "fix",
+          name: "FIX",
+          columns: [],
+          rows: [{
+            ul: "232",
+            line: "1",
+            id: "cp1",
+            parcel: "P100",
+            ulData: "English product",
+            translate: "Английский товар",
+            qty: 1,
+            weight: 1,
+            cost: 1,
+          }],
+        },
+        {
+          id: "itog",
+          name: "итог",
+          columns: [],
+          rows: [{
+            ul: "232",
+            line: "1",
+            id: "cp1",
+            parcel: "P100",
+            ulData: "English product",
+            translate: "Английский товар",
+            qty: 1,
+            weight: 1,
+            cost: 1,
+          }],
+        },
+        {
+          id: "ul-232",
+          name: "232",
+          columns: [],
+          tdNumber: "TD-1",
+          rows: [{
+            rowNum: "1",
+            cargoPlace: "cp1",
+            parcel: "P100",
+            name: "English product",
+            inItog: 1,
+            qty: 1,
+            weight: 1,
+            cost: 1,
+          }],
+        },
+      ],
+      itogControlKeys: new Set<string>(),
+      excludedUlNumbers: new Set<string>(),
+    };
+    expect(collectFixRows(wb)[0]!.name).toBe("Английский товар");
+    const ulSheet = wb.sheets.find((s) => s.id === "ul-232")!;
+    expect(collectWriteoffRowsForUl(wb, ulSheet, "232")[0]!.name).toBe("Английский товар");
+  });
+
+  it("specificationExportFileName transliterates document title", () => {
+    expect(specificationExportFileName("Спецификация №1 от 02.06.2026 к CMR б/н от 02.06.2026")).toBe(
+      "Spetsifikatsiya No1 ot 02.06.2026 k CMR b-n ot 02.06.2026.xlsx",
+    );
+  });
+
+  it("proformaExportFileName transliterates document title", () => {
+    expect(proformaExportFileName("Счет-проформа №1 от 02.06.2026")).toBe(
+      "Schet-proforma No1 ot 02.06.2026.xlsx",
+    );
+  });
+
+  it("formatWriteoffTitle builds header from specification draft", async () => {
+    const { formatWriteoffTitle, formatWriteoffTdLine } = await import("./tdDocuments/formatWriteoffHeader.js");
+    const title = formatWriteoffTitle({
+      sheetNumber: 1,
+      ulNumber: "02612691",
+      tdNumber: "10229010/280426/0113288",
+      rows: [{ airport: "Калининград (KGD)" } as import("./tdDocuments/collectTdRows.js").UlWriteoffRow],
+      specification: {
+        exportPermit: "ВЫВОЗ РАЗРЕШЕН      28.04.2026",
+        title: "Спецификация №1 от 28.04.2026 к CMR б/н от 19.03.2026",
+      },
+    });
+    expect(title).toBe(
+      "Дополнительный лист списания №1 от 28.04.2026 к упаковочному листу № 02612691 в Калининград (KGD) от 19.03.2026",
+    );
+    expect(formatWriteoffTdLine("10229010/280426/0113288")).toBe(
+      "Вывезено по ТД 10229010/280426/0113288/ /",
+    );
+  });
+
+  it("normalizeSpecificationDraft syncs exportPermit date from fts", () => {
+    expect(
+      normalizeSpecificationDraft({
+        fts: "02 ФТС № от 15.03.2026",
+        exportPermit: "ВЫВОЗ РАЗРЕШЕН      02.06.2026",
+        title: "Спецификация №1 от 02.06.2026 к CMR б/н от 02.06.2026",
+      }).exportPermit,
+    ).toContain("15.03.2026");
+    expect(
+      normalizeSpecificationDraft({
+        fts: "02 ФТС № от 15.03.2026",
+        exportPermit: "ВЫВОЗ РАЗРЕШЕН      02.06.2026",
+        title: "Спецификация №1 от 02.06.2026 к CMR б/н от 02.06.2026",
+      }).title,
+    ).toContain("15.03.2026");
+  });
+
+  it("syncProformaHeaderFromSpecification copies spec headerTd and dates to proforma export", async () => {
+    const { syncProformaHeaderFromSpecification, resolveTdExportDraft } = await import(
+      "./tdDocuments/resolveTdDraft.js"
+    );
+    const { buildProformaBuffer } = await import("./tdDocuments/buildProforma.js");
+    const ExcelJS = await import("exceljs");
+
+    const specification = {
+      productEaeu: "ТОВАР ЕАЭС",
+      exportPermit: "ВЫВОЗ РАЗРЕШЕН      15.03.2026",
+      zpu: "01 ЗПУ №",
+      fts: "02 ФТС № от 15.03.2026",
+      title: "Спецификация №1 от 15.03.2026 к CMR б/н от 15.03.2026",
+      headerTd: "10229010/280426/0113288",
+    };
+    const proforma = syncProformaHeaderFromSpecification(specification, {
+      title: "Счет-проформа №1 от 02.06.2026",
+    });
+    expect(proforma.fts).toBe("02 ФТС № от 15.03.2026");
+    expect(proforma.exportPermit).toContain("15.03.2026");
+    expect(proforma.title).toContain("15.03.2026");
+
+    const { proforma: exportProforma, headerTd } = resolveTdExportDraft({ specification, proforma: {} });
+    expect(exportProforma.exportPermit).toContain("15.03.2026");
+    expect(headerTd).toBe("10229010/280426/0113288");
+    const buf = await buildProformaBuffer([], exportProforma, headerTd);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buf);
+    const sheet = wb.getWorksheet("проформа") ?? wb.worksheets[0]!;
+    expect(String(sheet.getCell(2, 5).value ?? sheet.getCell("E2").value ?? "")).toContain("15.03.2026");
+    expect(String(sheet.getCell(4, 5).value ?? "")).toContain("15.03.2026");
+    expect(String(sheet.getCell(5, 5).value ?? "")).toBe("10229010/280426/0113288");
+  });
+
+  it("buildProformaBuffer merges header within 7 columns and clears borders", async () => {
+    const { buildProformaBuffer } = await import("./tdDocuments/buildProforma.js");
+    const ExcelJS = await import("exceljs");
+    const buf = await buildProformaBuffer(
+      [{ num: 1, ul: "1", line: "1", id: "ID1", parcel: "P1", name: "Test", qty: 1, weight: 1, cost: 1, tdNumber: "TD", seal: "" }],
+      {
+        productEaeu: "ТОВАР ЕАЭС",
+        exportPermit: "ВЫВОЗ РАЗРЕШЕН 02.06.2026",
+        zpu: "01 ЗПУ №",
+        fts: "02 ФТС № от 02.06.2026",
+        title: "Счет-проформа №1 от 02.06.2026",
+      },
+      "10229010/280426/0113288",
+    );
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buf);
+    const sheet = wb.worksheets[0]!;
+    expect(sheet.columnCount).toBe(7);
+    expect(sheet.model.merges).toContain("A7:G7");
+    expect(sheet.model.merges).toContain("A8:G8");
+    expect(sheet.model.merges).toContain("A5:D5");
+    expect(sheet.model.merges).toContain("E5:G5");
+    expect(sheet.model.merges).toContain("E1:G1");
+    expect(sheet.getCell(7, 2).value).toBeNull();
+    expect(sheet.getCell(1, 1).border?.top?.style).toBeFalsy();
+    expect(sheet.getCell(10, 1).border?.top?.style).toBe("thin");
+    expect(sheet.getCell(11, 7).border?.right?.style).toBe("thin");
+    expect(String(sheet.getCell(12, 4).value ?? "")).toContain("Итого");
+    expect(sheet.getCell(12, 5).value).toBe(1);
+    expect(sheet.getCell(12, 6).value).toBe(1);
+    expect(sheet.getCell(12, 7).value).toBe(1);
+    expect(sheet.getCell(12, 4).font?.bold).toBe(true);
+    expect(sheet.getCell(12, 6).numFmt).toBe("0.00");
+    expect(sheet.getCell(12, 7).numFmt).toBe("#,##0.00");
+    expect(sheet.getCell(12, 7).border?.bottom?.style).toBe("thin");
+  });
+
+  it("buildSpecificationBuffer merges header and clears borders", async () => {
+    const { buildSpecificationBuffer } = await import("./tdDocuments/buildSpecification.js");
+    const ExcelJS = await import("exceljs");
+    const buf = await buildSpecificationBuffer(
+      [{ num: 1, ul: "1", line: "1", id: "ID1", parcel: "P1", name: "Test", qty: 1, weight: 1, cost: 1, tdNumber: "TD", seal: "" }],
+      {
+        productEaeu: "ТОВАР ЕАЭС",
+        exportPermit: "ВЫВОЗ РАЗРЕШЕН 02.06.2026",
+        zpu: "01 ЗПУ №",
+        fts: "02 ФТС № от 02.06.2026",
+        title: "Спецификация №1 от 02.06.2026 к CMR б/н от 02.06.2026",
+        headerTd: "10229010/260526/0113288",
+      },
+    );
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buf);
+    const sheet = wb.worksheets[0]!;
+    expect(sheet.model.merges).toContain("A7:H7");
+    expect(sheet.model.merges).toContain("A8:H8");
+    expect(sheet.model.merges).toContain("A5:D5");
+    expect(sheet.getCell(7, 2).value).toBeNull();
+    expect(sheet.getCell(1, 1).border?.top?.style).toBeFalsy();
+    expect(sheet.getCell(12, 1).border?.top?.style).toBe("thin");
+    expect(sheet.getCell(13, 8).border?.right?.style).toBe("thin");
+    expect(String(sheet.getCell(14, 4).value ?? "")).toContain("Итого");
+    expect(sheet.getCell(14, 5).value).toBe(1);
+    expect(sheet.getCell(14, 8).border?.bottom?.style).toBe("thin");
+    expect(sheet.getCell(12, 1).font?.size).toBe(10);
+    expect(sheet.getCell(13, 1).font?.size).toBe(10);
+  });
+
   it("splitDraftDateField parses and replaces embedded ru dates", () => {
     const exportPermit = "ВЫВОЗ РАЗРЕШЕН      02.06.2026";
     expect(splitDraftDateField("exportPermit", exportPermit).date).toBe("02.06.2026");
@@ -755,15 +996,22 @@ describe("tdDocuments", () => {
     expect(splitDraftDateField("fts", fts).date).toBe("02.06.2026");
     expect(replaceDraftRuDate("fts", fts, "15.03.2026")).toBe("02 ФТС № от 15.03.2026");
 
-    const title = "Спецификация №1 от 02.06.2026 к CMR";
+    const title = "Спецификация №1 от 02.06.2026 к CMR б/н от 02.06.2026";
     expect(splitDraftDateField("title", title).date).toBe("02.06.2026");
-    expect(replaceDraftRuDate("title", title, "15.03.2026")).toBe("Спецификация №1 от 15.03.2026 к CMR");
+    expect(replaceDraftRuDate("title", title, "15.03.2026")).toBe(
+      "Спецификация №1 от 15.03.2026 к CMR б/н от 02.06.2026",
+    );
   });
 
-  it("syncTitleDateFromFts copies fts date into title", () => {
+  it("syncTitleDateFromFts copies fts date into both title dates", () => {
     const fts = "02 ФТС № от 15.03.2026";
-    const title = "Спецификация №1 от 02.06.2026 к CMR";
-    expect(syncTitleDateFromFts(title, fts)).toBe("Спецификация №1 от 15.03.2026 к CMR");
+    const title = "Спецификация №1 от 02.06.2026 к CMR б/н от 02.06.2026";
+    expect(syncTitleDateFromFts(title, fts)).toBe(
+      "Спецификация №1 от 15.03.2026 к CMR б/н от 15.03.2026",
+    );
+    expect(syncTitleDateFromFts("Спецификация №1 от 02.06.2026 к CMR", fts)).toBe(
+      "Спецификация №1 от 15.03.2026 к CMR б/н от 15.03.2026",
+    );
   });
 
   it("computeProformaTotals sums qty/weight/cost and counts unique UL as places", () => {
@@ -775,9 +1023,20 @@ describe("tdDocuments", () => {
     expect(computeProformaTotals(rows)).toEqual({
       places: 2,
       qty: 4,
-      weight: 2.023,
+      weight: 2.02,
       cost: 10135,
     });
+  });
+
+  it("computeProformaTotals rounds summed decimals to 2 places", () => {
+    const rows = [
+      { ul: "1", qty: 1, weight: 0.1, cost: 0.1 },
+      { ul: "2", qty: 1, weight: 0.2, cost: 0.2 },
+      { ul: "3", qty: 1, weight: 2681.85, cost: 9019377.27 },
+    ] as import("./tdDocuments/collectTdRows.js").FixTdRow[];
+    const totals = computeProformaTotals(rows);
+    expect(totals.weight).toBe(2682.15);
+    expect(totals.cost).toBe(9019377.57);
   });
 
   it("mergeWorkbookPatch keeps carrierId and tdNumber on deferred UL patch", () => {
@@ -810,6 +1069,68 @@ describe("tdDocuments", () => {
     expect(ul?.carrierId).toBe("42");
     expect(ul?.tdNumber).toBe("10229010/260526/0113288");
     expect(ul?.rows).toHaveLength(1);
+  });
+
+  it("mergeWorkbookTdMeta keeps tdDraft edits over stale tdPrepared.draft", () => {
+    const stored = {
+      tdDraft: { specification: { headerTd: "NEW-TD", fts: "updated fts" } },
+      tdPrepared: {
+        preparedAt: "2026-01-01T00:00:00.000Z",
+        fixRows: [{ ul: "1", line: "1", tdNumber: "OLD" } as import("./tdDocuments/collectTdRows.js").FixTdRow],
+        writeoffs: [],
+        draft: { specification: { headerTd: "OLD-TD", fts: "old fts" } },
+      },
+    };
+    const incoming = { tdDraft: undefined, tdPrepared: undefined };
+    const merged = mergeWorkbookPatch(
+      {
+        sheets: [],
+        itogControlKeys: new Set<string>(),
+        excludedUlNumbers: new Set<string>(),
+        ...stored,
+      },
+      {
+        sheets: [{ id: "itog", name: "итог", columns: [], rows: [{ ul: "1" }] }],
+        itogControlKeys: new Set<string>(),
+        excludedUlNumbers: new Set<string>(),
+        ...incoming,
+      },
+    );
+    expect(merged.tdDraft?.specification?.headerTd).toBe("NEW-TD");
+    expect(merged.tdPrepared?.draft?.specification?.headerTd).toBe("NEW-TD");
+    expect(merged.tdPrepared?.fixRows).toHaveLength(1);
+  });
+
+  it("mergeTdDraft combines specification and proforma fields", () => {
+    const merged = mergeTdDraft(
+      { specification: { headerTd: "A" } },
+      { proforma: { title: "Proforma 1" }, specification: { fts: "fts text" } },
+    );
+    expect(merged?.specification).toEqual({ headerTd: "A", fts: "fts text" });
+    expect(merged?.proforma).toEqual({ title: "Proforma 1" });
+  });
+
+  it("hydrateUlSheetFromParsed keeps carrierId and tdNumber from stored sheet", () => {
+    const existing = {
+      id: "ul-02611106",
+      name: "02611106",
+      columns: [],
+      rows: [],
+      carrierId: "42",
+      tdNumber: "10229010/260526/0113288",
+      ulDeferred: true,
+    };
+    const parsed = {
+      ulNumber: "02611106",
+      sheet: {
+        rows: [{ rowNum: "1", cargoPlace: "cp", parcel: "p", airport: "", weight: 1, volume: 1, category: "", name: "n", qty: 1, cost: 1 }],
+      },
+    } as import("./types.js").ParsedUlFile;
+    const hydrated = hydrateUlSheetFromParsed(existing, parsed, new Set(["026111061p"]));
+    expect(hydrated.carrierId).toBe("42");
+    expect(hydrated.tdNumber).toBe("10229010/260526/0113288");
+    expect(hydrated.ulDeferred).toBe(false);
+    expect(hydrated.rows.length).toBeGreaterThan(0);
   });
 
   it("buildTdPrepared stores fix rows and draft", () => {
@@ -864,16 +1185,115 @@ describe("tdDocuments", () => {
     expect(validateTdPrep(wb).some((e) => e.includes("ТД"))).toBe(true);
   });
 
+  it("buildWriteoffInputs uses live UL rows and tdNumber from workbook", async () => {
+    const { buildWriteoffInputs } = await import("./tdDocuments/preview.js");
+    const wb = {
+      sheets: [
+        {
+          id: "ul-02606521",
+          name: "02606521",
+          columns: [],
+          carrierId: "c1",
+          tdNumber: "10229010/280426/0113288",
+          rows: [
+            { rowNum: "989", inItog: 1, cargoPlace: "id1", parcel: "p1", name: "item 1", qty: 1, weight: 1, cost: 1, airport: "Калининград (KGD)" },
+            { rowNum: "990", inItog: 1, cargoPlace: "id2", parcel: "p2", name: "item 2", qty: 1, weight: 2, cost: 2, airport: "Калининград (KGD)" },
+          ],
+        },
+      ],
+      itogControlKeys: new Set<string>(),
+      excludedUlNumbers: new Set<string>(),
+      tdPrepared: {
+        preparedAt: "2026-01-01T00:00:00.000Z",
+        fixRows: [],
+        writeoffs: [{
+          ulNumber: "02606521",
+          tdNumber: "",
+          sheetNumber: 1,
+          rows: [{ num: 1, ulNumber: "02606521", rowNum: "989", line: "989", id: "id1", parcel: "p1", airport: "", weight: 1, volume: 0, category: "", name: "old", qty: 1, cost: 1 }],
+        }],
+        draft: {},
+      },
+    };
+    const inputs = buildWriteoffInputs({ workbook: wb, carriersById: new Map(), draft: {} });
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]!.rows).toHaveLength(2);
+    expect(inputs[0]!.tdNumber).toBe("10229010/280426/0113288");
+  });
+
   it("poruchenieFileName matches template naming", async () => {
     const { poruchenieFileName, carrierShortLabel } = await import("./tdDocuments/buildPoruchenie.js");
     expect(carrierShortLabel('ООО «Геологистика»')).toBe("Гео");
     expect(
       poruchenieFileName({
         ulNumber: "02612691",
-        writeoffNumber: 6,
+        assignmentNumber: "6",
         carrier: { id: "1", name: 'ООО «Геологистика»', legalAddress: "", inn: "", kpp: "", loadingAddress: "", unloadingAddress: "", createdAt: "", updatedAt: "" },
       }),
     ).toBe("02612691_Поручение_Агенту_Холз_Гео_6.docx");
+  });
+
+  it("resolvePoruchenieUlDraft defaults date from specification fts", async () => {
+    const { resolvePoruchenieUlDraft } = await import("./tdDocuments/formatPoruchenieDraft.js");
+    const resolved = resolvePoruchenieUlDraft(
+      { fts: "02 ФТС № от 28.04.2026" },
+      3,
+    );
+    expect(resolved.number).toBe("3");
+    expect(resolved.date).toBe("28.04.2026");
+    expect(resolved.contractNumber).toBe("01/26");
+    expect(resolved.contractDate).toBe("01.01.2026");
+  });
+
+  it("buildPoruchenieBuffer replaces header number, dates and contract", async () => {
+    const { buildPoruchenieBuffer } = await import("./tdDocuments/buildPoruchenie.js");
+    const PizZip = (await import("pizzip")).default;
+    const buf = await buildPoruchenieBuffer({
+      ulNumber: "02612691",
+      assignmentNumber: "9",
+      writeoffNumber: 6,
+      tdNumber: "10229010/280426/0113288",
+      date: "27.04.2026",
+      contractNumber: "02/27",
+      contractDate: "15.05.2026",
+      carrier: {
+        id: "1",
+        name: "ООО «ТестПеревозчик»",
+        legalAddress: "Москва",
+        inn: "123",
+        kpp: "456",
+        loadingAddress: "",
+        unloadingAddress: "",
+        createdAt: "",
+        updatedAt: "",
+      },
+      rows: [
+        {
+          num: 1,
+          ulNumber: "02612691",
+          rowNum: "5",
+          line: "5",
+          id: "GEOMR00-6947001",
+          parcel: "10000195020905",
+          airport: "KGD",
+          weight: "0,658",
+          volume: "0.1",
+          category: "<>",
+          name: "Test item",
+          qty: "1",
+          cost: "7996",
+        },
+      ],
+    });
+    const xml = new PizZip(buf).file("word/document.xml")?.asText() ?? "";
+    const plain = [...xml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((m) => m[1]).join("");
+    expect(plain).toContain("ПОРУЧЕНИЕ № 9 от 27.04.2026");
+    expect(plain).toContain("27 апреля 2026 г.");
+    expect(plain).toContain("«ТестПеревозчик»");
+    expect(plain).toContain("02/27 от 15.05.2026");
+    expect(plain).toContain("агентского договора № 02/27 от 15.05.2026");
+    expect(plain).toContain("ООО «Геологистика»");
+    expect(plain).toContain("Мандров А.А");
   });
 
   it("buildPoruchenieBuffer fills template table rows", async () => {
@@ -881,6 +1301,7 @@ describe("tdDocuments", () => {
     const PizZip = (await import("pizzip")).default;
     const buf = await buildPoruchenieBuffer({
       ulNumber: "02612691",
+      assignmentNumber: "6",
       writeoffNumber: 6,
       tdNumber: "10229010/280426/0113288",
       date: "31.05.2026",

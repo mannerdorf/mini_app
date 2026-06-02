@@ -66,12 +66,13 @@ export async function translateProductNamesEnToRu(texts: string[], model = DEFAU
         {
           role: "system",
           content: [
-            "You translate product/item descriptions from English to Russian for Russian customs shipping documents.",
+            "You translate product/item descriptions from English to Russian ONLY (never Russian to English).",
             "Rules:",
-            "1) Output MUST be in Russian (Cyrillic) when the input contains Latin/English words.",
-            "2) Keep brand names, model numbers, article codes, and size markers (O/S, 104, 25W) in Latin when they are not common English words.",
-            "3) If the input is already fully in Russian with no English words, return it unchanged.",
-            "4) Do not leave English product words untranslated — translate them to proper Russian nouns/adjectives.",
+            "1) Direction is English → Russian only. NEVER translate Russian/Cyrillic text into English.",
+            "2) If the input is entirely in Russian (Cyrillic only, no English words), return it unchanged.",
+            "3) For mixed Russian+English text, translate only the English words/phrases to Russian; keep existing Russian text as-is.",
+            "4) Keep brand names, model numbers, article codes, and size markers (O/S, 104, 25W) in Latin when they are not common English words.",
+            "5) Do not leave English product words untranslated — translate them to proper Russian nouns/adjectives.",
             'Return JSON only: {"translations": string[]} — same length and order as the input array, no extra keys.',
           ].join("\n"),
         },

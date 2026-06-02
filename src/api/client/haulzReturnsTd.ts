@@ -1,5 +1,16 @@
 import type { AuthData } from "../../types";
-import type { TdDocType, TdDraft } from "../../../lib/haulzReturns/tdDocuments/index";
+import type { TdDocType, TdDraft, TdPrepared } from "../../../lib/haulzReturns/tdDocuments/index";
+import { proformaExportFileName, specificationExportFileName } from "../../../lib/haulzReturns/tdDocuments/fileNames";
+import { triggerBlobDownload } from "../../lib/triggerBlobDownload";
+
+export type TdExportRequest = {
+  jobId: string;
+  docType: TdDocType;
+  draft?: TdDraft;
+  tdPrepared?: TdPrepared;
+  /** Для поручения — скачать только выбранный УЛ. */
+  ulNumber?: string;
+};
 
 function authHeaders(auth: AuthData): Record<string, string> {
   return {
@@ -9,11 +20,17 @@ function authHeaders(auth: AuthData): Record<string, string> {
   };
 }
 
-function defaultFileName(docType: TdDocType): string {
+function defaultFileName(docType: TdDocType, draft?: TdDraft): string {
   if (docType === "all") return "ТД-документы.zip";
-  if (docType === "proforma") return "Проформа.xlsx";
-  if (docType === "specification") return "Спецификация.xlsx";
-  if (docType === "poruchenie") return "Поручение.docx";
+  if (docType === "proforma") {
+    const title = draft?.proforma?.title?.trim();
+    return title ? proformaExportFileName(title) : "Schet-proforma.xlsx";
+  }
+  if (docType === "specification") {
+    const title = draft?.specification?.title?.trim();
+    return title ? specificationExportFileName(title) : "Spetsifikatsiya.xlsx";
+  }
+  if (docType === "poruchenie") return "Поручения.zip";
   if (docType === "writeoff") return "Листы списания.xlsx";
   return `${docType}.xlsx`;
 }
@@ -43,14 +60,19 @@ function isOptionalExportError(docType: TdDocType, message: string): boolean {
 
 export async function exportTdDocument(
   auth: AuthData,
-  jobId: string,
-  docType: TdDocType,
-  draft?: TdDraft,
+  request: TdExportRequest,
 ): Promise<{ blob: Blob; fileName: string }> {
+  const { jobId, docType, draft, tdPrepared, ulNumber } = request;
   const res = await fetch("/api/haulz-returns/td-export", {
     method: "POST",
     headers: authHeaders(auth),
-    body: JSON.stringify({ jobId: Number(jobId), docType, draft }),
+    body: JSON.stringify({
+      jobId: Number(jobId),
+      docType,
+      draft,
+      tdPrepared,
+      ulNumber,
+    }),
   });
 
   const contentType = res.headers.get("Content-Type") ?? "";
@@ -74,7 +96,10 @@ export async function exportTdDocument(
     throw new Error("Пустой файл — повторите «Подготовить ТД»");
   }
 
-  const fileName = parseContentDisposition(res.headers.get("Content-Disposition") ?? "", defaultFileName(docType));
+  const fileName = parseContentDisposition(
+    res.headers.get("Content-Disposition") ?? "",
+    defaultFileName(docType, draft),
+  );
   return { blob, fileName };
 }
 
@@ -98,20 +123,26 @@ async function addBlobToZip(
   return 1;
 }
 
-/** Собирает ZIP на клиенте — обходит лимит ответа Vercel (~4.5 МБ) для docType=all. */
+/**
+ * Собирает ZIP на клиенте по спецификации:
+ * спецификация, проформа, лист списания на каждый УЛ (имя = номер УЛ), поручения.
+ */
 export async function exportTdAllZip(
   auth: AuthData,
   jobId: string,
   draft?: TdDraft,
+  tdPrepared?: TdPrepared,
 ): Promise<{ blob: Blob; fileName: string }> {
   const JSZip = (await import("jszip")).default;
   const zip = new JSZip();
   let fileCount = 0;
+  const base = { jobId, draft, tdPrepared };
 
   const parts: TdDocType[] = ["specification", "proforma", "writeoff", "poruchenie"];
+
   for (const docType of parts) {
     try {
-      const { blob, fileName } = await exportTdDocument(auth, jobId, docType, draft);
+      const { blob, fileName } = await exportTdDocument(auth, { ...base, docType });
       fileCount += await addBlobToZip(zip, blob, fileName);
     } catch (e: unknown) {
       const msg = (e as Error)?.message || "";
@@ -133,15 +164,5 @@ export async function exportTdAllZip(
 }
 
 export function downloadTdBlob(blob: Blob, fileName: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  a.style.display = "none";
-  document.body.appendChild(a);
-  a.click();
-  window.setTimeout(() => {
-    a.remove();
-    URL.revokeObjectURL(url);
-  }, 200);
+  triggerBlobDownload(blob, fileName);
 }

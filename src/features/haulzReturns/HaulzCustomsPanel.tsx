@@ -8,17 +8,21 @@ import {
   poruchenieInputs,
   porucheniePreviewRows,
   proformaPreviewRows,
+  collectFixRows,
   PROFORMA_PREVIEW_COLUMNS,
   PORUCHENIE_PREVIEW_COLUMNS,
   specificationPreviewRows,
-  SPEC_EDITABLE_KEYS,
   SPEC_PREVIEW_COLUMNS,
   computeProformaTotals,
-  syncTitleDateFromFts,
+  applyProformaFieldChange,
+  applySpecificationFieldChange,
+  syncProformaHeaderFromSpecification,
+  mergeTdDraft,
   WRITEOFF_PREVIEW_COLUMNS,
 } from "../../lib/haulzReturns";
 import { downloadTdBlob, exportTdAllZip, exportTdDocument } from "../../api/client/haulzReturnsTd";
-import { HaulzTdDraftField } from "./HaulzTdDraftField";
+import { HaulzPoruchenieDraftForm } from "./HaulzPoruchenieDraftForm";
+import { HaulzTdDraftForm } from "./HaulzTdDraftForm";
 import { HaulzTdPreviewTable } from "./HaulzTdPreviewTable";
 
 type TabId = "specification" | "proforma" | "writeoff" | "poruchenie";
@@ -40,39 +44,47 @@ const TAB_LABELS: Record<TabId, string> = {
   poruchenie: "Поручение",
 };
 
-const SPEC_LABELS: Record<string, string> = {
-  productEaeu: "ТОВАР ЕАЭС",
-  exportPermit: "ВЫВОЗ РАЗРЕШЕН",
-  zpu: "01 ЗПУ №",
-  fts: "02 ФТС №",
-  title: "Заголовок документа",
-  headerTd: "Номер ТД в шапке",
-};
+const PROFORMA_FIELD_ORDER = ["productEaeu", "exportPermit", "zpu", "fts", "title"] as const;
+const SPEC_FIELD_ORDER = [...PROFORMA_FIELD_ORDER, "headerTd"] as const;
+
+function formatTdTotalNumber(value: number): string {
+  return value.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDraftChange, onError }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>("specification");
-  const [exporting, setExporting] = useState(false);
+  const [pendingExport, setPendingExport] = useState<TabId | "all" | null>(null);
   const [activeWriteoffUl, setActiveWriteoffUl] = useState<string>("");
   const [activePoruchenieUl, setActivePoruchenieUl] = useState<string>("");
 
   const prepared = workbook.tdPrepared;
   const carriersById = useMemo(() => new Map(carriers.map((c) => [c.id, c])), [carriers]);
 
-  const specDraft = useMemo(
-    () => prepared?.draft?.specification ?? workbook.tdDraft?.specification ?? {},
-    [prepared?.draft?.specification, workbook.tdDraft?.specification],
-  );
-  const proformaDraft = useMemo(
-    () => prepared?.draft?.proforma ?? workbook.tdDraft?.proforma ?? {},
-    [prepared?.draft?.proforma, workbook.tdDraft?.proforma],
+  const mergedTdDraft = useMemo(
+    () => mergeTdDraft(prepared?.draft, workbook.tdDraft),
+    [prepared?.draft, workbook.tdDraft],
   );
 
-  const fixRows = useMemo(() => prepared?.fixRows ?? [], [prepared?.fixRows]);
+  const specDraft = useMemo(() => mergedTdDraft?.specification ?? {}, [mergedTdDraft?.specification]);
+  const proformaDraft = useMemo(() => mergedTdDraft?.proforma ?? {}, [mergedTdDraft?.proforma]);
+  const effectiveProformaDraft = useMemo(
+    () => syncProformaHeaderFromSpecification(specDraft, proformaDraft),
+    [specDraft, proformaDraft],
+  );
+
+  const fixRows = useMemo(
+    () => (prepared?.fixRows?.length ? prepared.fixRows : prepared ? collectFixRows(workbook) : []),
+    [workbook, prepared],
+  );
 
   const writeoffSheets = useMemo(
     () =>
       prepared
-        ? buildWriteoffInputs({ workbook: { ...workbook, tdPrepared: prepared }, carriersById, draft: prepared.draft })
+        ? buildWriteoffInputs({
+            workbook: { ...workbook, tdPrepared: prepared },
+            carriersById,
+            draft: mergeTdDraft(prepared.draft, workbook.tdDraft),
+          })
         : [],
     [workbook, carriersById, prepared],
   );
@@ -80,14 +92,17 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
   const poruchenieList = useMemo(
     () =>
       prepared
-        ? poruchenieInputs({ workbook: { ...workbook, tdPrepared: prepared }, carriersById, draft: prepared.draft })
+        ? poruchenieInputs({
+            workbook: { ...workbook, tdPrepared: prepared },
+            carriersById,
+            draft: mergeTdDraft(prepared.draft, workbook.tdDraft),
+          })
         : [],
     [workbook, carriersById, prepared],
   );
 
   const specPreview = useMemo(() => specificationPreviewRows(fixRows), [fixRows]);
-  const proformaPreview = useMemo(() => proformaPreviewRows(fixRows), [fixRows]);
-  const proformaSummary = useMemo(() => {
+  const specSummary = useMemo(() => {
     if (fixRows.length === 0) return undefined;
     const totals = computeProformaTotals(fixRows);
     return {
@@ -98,6 +113,21 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
       qty: totals.qty,
       weight: totals.weight,
       cost: totals.cost,
+      tdNumber: "",
+    };
+  }, [fixRows]);
+  const proformaPreview = useMemo(() => proformaPreviewRows(fixRows), [fixRows]);
+  const proformaSummary = useMemo(() => {
+    if (fixRows.length === 0) return undefined;
+    const totals = computeProformaTotals(fixRows);
+    return {
+      num: "",
+      id: "",
+      parcel: "",
+      name: `Итого: грузовых мест ${totals.places}`,
+      qty: totals.qty,
+      weight: formatTdTotalNumber(totals.weight),
+      cost: formatTdTotalNumber(totals.cost),
     };
   }, [fixRows]);
 
@@ -106,61 +136,85 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
 
   const updateSpecField = useCallback(
     (key: string, value: string) => {
-      let specification = { ...specDraft, [key]: value };
-      if (key === "fts") {
-        specification = {
-          ...specification,
-          title: syncTitleDateFromFts(specDraft.title ?? "", value),
-        };
-      }
+      const specification = applySpecificationFieldChange(specDraft, key, value);
+      const proforma = syncProformaHeaderFromSpecification(specification, proformaDraft);
       void onDraftChange({
-        ...prepared?.draft,
-        ...workbook.tdDraft,
+        ...mergedTdDraft,
         specification,
+        proforma,
       });
     },
-    [onDraftChange, prepared?.draft, specDraft, workbook.tdDraft],
+    [mergedTdDraft, onDraftChange, proformaDraft, specDraft],
   );
 
   const updateProformaField = useCallback(
     (key: string, value: string) => {
-      let proforma = { ...proformaDraft, [key]: value };
-      if (key === "fts") {
-        proforma = {
-          ...proforma,
-          title: syncTitleDateFromFts(proformaDraft.title ?? "", value),
-        };
-      }
+      const proforma = applyProformaFieldChange(proformaDraft, key, value);
+      const sharedKeys = new Set(["productEaeu", "exportPermit", "zpu", "fts"]);
+      const specification = sharedKeys.has(key)
+        ? applySpecificationFieldChange(specDraft, key, key === "fts" ? proforma.fts ?? value : value)
+        : specDraft;
       void onDraftChange({
-        ...prepared?.draft,
-        ...workbook.tdDraft,
+        ...mergedTdDraft,
+        specification,
         proforma,
       });
     },
-    [onDraftChange, prepared?.draft, proformaDraft, workbook.tdDraft],
+    [mergedTdDraft, onDraftChange, proformaDraft, specDraft],
   );
 
-  const handleExport = async (docType: TabId | "all") => {
-    if (!prepared) {
-      onError?.("Сначала нажмите «Подготовить ТД» на вкладке итог.");
-      return;
-    }
-    setExporting(true);
-    try {
-      const draft = { ...prepared.draft, ...workbook.tdDraft };
-      if (docType === "all") {
-        const { blob, fileName } = await exportTdAllZip(auth, jobId, draft);
-        downloadTdBlob(blob, fileName);
-      } else {
-        const { blob, fileName } = await exportTdDocument(auth, jobId, docType, draft);
-        downloadTdBlob(blob, fileName);
+  const updatePoruchenieField = useCallback(
+    (ulNumber: string, patch: { number?: string; date?: string; contractNumber?: string; contractDate?: string }) => {
+      void onDraftChange({
+        ...mergedTdDraft,
+        poruchenie: {
+          ...mergedTdDraft?.poruchenie,
+          [ulNumber]: {
+            ...mergedTdDraft?.poruchenie?.[ulNumber],
+            ...patch,
+          },
+        },
+      });
+    },
+    [mergedTdDraft, onDraftChange],
+  );
+
+  const handleExport = useCallback(
+    (docType: TabId | "all") => {
+      if (!prepared) {
+        onError?.("Сначала нажмите «Подготовить ТД» на вкладке итог.");
+        return;
       }
-    } catch (e: unknown) {
-      onError?.((e as Error)?.message || "Ошибка выгрузки");
-    } finally {
-      setExporting(false);
-    }
-  };
+      if (pendingExport === docType) return;
+
+      setPendingExport(docType);
+      void (async () => {
+        try {
+          const draft = mergeTdDraft(prepared.draft, workbook.tdDraft) ?? prepared.draft;
+          const poruchenieUl =
+            docType === "poruchenie"
+              ? (poruchenieList.find((p) => p.ulNumber === activePoruchenieUl) ?? poruchenieList[0])?.ulNumber
+              : undefined;
+          const { blob, fileName } =
+            docType === "all"
+              ? await exportTdAllZip(auth, jobId, draft, prepared)
+              : await exportTdDocument(auth, {
+                  jobId,
+                  docType,
+                  draft,
+                  tdPrepared: prepared,
+                  ulNumber: poruchenieUl,
+                });
+          downloadTdBlob(blob, fileName);
+        } catch (e: unknown) {
+          onError?.((e as Error)?.message || "Ошибка выгрузки");
+        } finally {
+          setPendingExport((current) => (current === docType ? null : current));
+        }
+      })();
+    },
+    [auth, jobId, onError, pendingExport, prepared, workbook.tdDraft, poruchenieList, activePoruchenieUl],
+  );
 
   if (!workbook.sheets.some((s) => s.id === "fix")) return null;
 
@@ -181,67 +235,67 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
 
       {open && prepared ? (
         <>
-          <div className="hr-tabs hr-customs-panel__tabs">
-            {(Object.keys(TAB_LABELS) as TabId[]).map((tab) => (
-              <button
-                key={tab}
+          <div className="hr-customs-panel__toolbar">
+            <div className="hr-tabs hr-customs-panel__tabs">
+              {(Object.keys(TAB_LABELS) as TabId[]).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  className={`hr-tab-btn ${activeTab === tab ? "active" : ""}`}
+                  onClick={() => setActiveTab(tab)}
+                >
+                  {TAB_LABELS[tab]}
+                </button>
+              ))}
+            </div>
+            <div className="hr-customs-panel__actions">
+              <Button
                 type="button"
-                className={`hr-tab-btn ${activeTab === tab ? "active" : ""}`}
-                onClick={() => setActiveTab(tab)}
+                className="filter-button filter-button--sm"
+                disabled={pendingExport === activeTab}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleExport(activeTab);
+                }}
               >
-                {TAB_LABELS[tab]}
-              </button>
-            ))}
-          </div>
-
-          <div className="hr-customs-panel__actions">
-            <Button type="button" className="filter-button" disabled={exporting} onClick={() => void handleExport(activeTab)}>
-              <Download className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-              Скачать
-            </Button>
-            <Button type="button" className="filter-button" disabled={exporting} onClick={() => void handleExport("all")}>
-              Скачать всё (ZIP)
-            </Button>
+                <Download className="w-4 h-4" style={{ marginRight: "0.25rem" }} />
+                {pendingExport === activeTab ? "…" : "Скачать"}
+              </Button>
+              <Button
+                type="button"
+                className="filter-button filter-button--sm"
+                disabled={pendingExport === "all"}
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleExport("all");
+                }}
+              >
+                <Download className="w-4 h-4" style={{ marginRight: "0.25rem" }} />
+                {pendingExport === "all" ? "…" : "Скачать все документы"}
+              </Button>
+            </div>
           </div>
 
           {activeTab === "specification" ? (
             <div className="hr-customs-panel__body">
-              <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
-                Редактируемые поля (красные в шаблоне)
-              </Typography.Body>
-              <div className="hr-customs-form">
-                {SPEC_EDITABLE_KEYS.map((key) => (
-                  <HaulzTdDraftField
-                    key={key}
-                    fieldKey={key}
-                    label={SPEC_LABELS[key] ?? key}
-                    value={specDraft[key] ?? ""}
-                    ftsValue={key === "title" ? specDraft.fts : undefined}
-                    onChange={(v) => updateSpecField(key, v)}
-                  />
-                ))}
-              </div>
-              <HaulzTdPreviewTable tableId="td-spec" columns={SPEC_PREVIEW_COLUMNS} rows={specPreview} />
+              <HaulzTdDraftForm
+                variant="specification"
+                fieldOrder={SPEC_FIELD_ORDER}
+                draft={specDraft}
+                onFieldChange={updateSpecField}
+              />
+              <HaulzTdPreviewTable tableId="td-spec" columns={SPEC_PREVIEW_COLUMNS} rows={specPreview} summaryRow={specSummary} />
             </div>
           ) : null}
 
           {activeTab === "proforma" ? (
             <div className="hr-customs-panel__body">
-              <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
-                Все поля доступны для редактирования
-              </Typography.Body>
-              <div className="hr-customs-form">
-                {Object.keys(proformaDraft).map((key) => (
-                  <HaulzTdDraftField
-                    key={key}
-                    fieldKey={key}
-                    label={SPEC_LABELS[key] ?? key}
-                    value={proformaDraft[key] ?? ""}
-                    ftsValue={key === "title" ? proformaDraft.fts : undefined}
-                    onChange={(v) => updateProformaField(key, v)}
-                  />
-                ))}
-              </div>
+              <HaulzTdDraftForm
+                variant="proforma"
+                fieldOrder={PROFORMA_FIELD_ORDER}
+                draft={effectiveProformaDraft}
+                onFieldChange={updateProformaField}
+              />
               <HaulzTdPreviewTable
                 tableId="td-proforma"
                 columns={PROFORMA_PREVIEW_COLUMNS}
@@ -306,6 +360,20 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
                       <Typography.Body style={{ margin: "0.5rem 0", color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>
                         {activePoruchenie.carrier.name} · лист списания №{activePoruchenie.writeoffNumber} · ТД {activePoruchenie.tdNumber || "—"}
                       </Typography.Body>
+                      <HaulzPoruchenieDraftForm
+                        number={activePoruchenie.assignmentNumber}
+                        date={activePoruchenie.date ?? ""}
+                        contractNumber={activePoruchenie.contractNumber ?? "01/26"}
+                        contractDate={activePoruchenie.contractDate ?? ""}
+                        onNumberChange={(number) => updatePoruchenieField(activePoruchenie.ulNumber, { number })}
+                        onDateChange={(date) => updatePoruchenieField(activePoruchenie.ulNumber, { date })}
+                        onContractNumberChange={(contractNumber) =>
+                          updatePoruchenieField(activePoruchenie.ulNumber, { contractNumber })
+                        }
+                        onContractDateChange={(contractDate) =>
+                          updatePoruchenieField(activePoruchenie.ulNumber, { contractDate })
+                        }
+                      />
                       <HaulzTdPreviewTable
                         tableId={`td-poruchenie-${activePoruchenie.ulNumber}`}
                         columns={PORUCHENIE_PREVIEW_COLUMNS}

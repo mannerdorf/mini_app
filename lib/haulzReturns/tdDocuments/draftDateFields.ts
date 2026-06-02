@@ -77,29 +77,48 @@ export function replaceDraftRuDate(fieldKey: string, value: string, newRuDate: s
 
 export function syncTitleDateFromFts(title: string, fts: string): string {
   const ftsDate = extractDraftRuDate("fts", fts) ?? formatRuDate();
-  if (/\sот\s+\d{2}\.\d{2}\.\d{4}/i.test(title)) {
-    return replaceDraftRuDate("title", title, ftsDate);
+  let t = title.trim();
+  if (/к\s*CMR/i.test(t) && !/б\/н\s*от/i.test(t)) {
+    t = `${t.replace(/\s+$/, "")} б/н от ${ftsDate}`;
   }
-  if (/\sот\s/i.test(title)) {
-    return title.replace(/(\sот\s+)/i, `$1${ftsDate}`);
+  if (/\d{2}\.\d{2}\.\d{4}/.test(t)) {
+    return t.replace(/\d{2}\.\d{2}\.\d{4}/g, ftsDate);
   }
-  return title;
+  if (/\sот\s/i.test(t)) {
+    return t.replace(/(\sот\s+)/gi, `$1${ftsDate}`);
+  }
+  return t;
+}
+
+function specificationTitleFromFts(title: string, ftsDate: string, ftsNorm: string): string {
+  const base = title.trim() || `Спецификация №1 от ${ftsDate} к CMR б/н от ${ftsDate}`;
+  return syncTitleDateFromFts(base, ftsNorm);
 }
 
 export function normalizeSpecificationDraft<T extends Record<string, string>>(draft: T): T {
   const fts = draft.fts ?? `02 ФТС № от ${formatRuDate()}`;
   const ftsDate = extractDraftRuDate("fts", fts) ?? formatRuDate();
   const ftsNorm = joinDraftDateField("fts", { before: "02 ФТС № от ", date: ftsDate, after: "" });
-  const title = syncTitleDateFromFts(draft.title ?? "", ftsNorm);
-  return { ...draft, fts: ftsNorm, title };
+  const exportPermit = replaceDraftRuDate(
+    "exportPermit",
+    draft.exportPermit ?? `ВЫВОЗ РАЗРЕШЕН      ${ftsDate}`,
+    ftsDate,
+  );
+  const title = specificationTitleFromFts(draft.title ?? "", ftsDate, ftsNorm);
+  return { ...draft, fts: ftsNorm, exportPermit, title };
 }
 
 export function normalizeProformaDraft<T extends Record<string, string>>(draft: T): T {
   const fts = draft.fts ?? `02 ФТС № от ${formatRuDate()}`;
   const ftsDate = extractDraftRuDate("fts", fts) ?? formatRuDate();
   const ftsNorm = joinDraftDateField("fts", { before: "02 ФТС № от ", date: ftsDate, after: "" });
-  const title = syncTitleDateFromFts(draft.title ?? "", ftsNorm);
-  return { ...draft, fts: ftsNorm, title };
+  const exportPermit = replaceDraftRuDate(
+    "exportPermit",
+    draft.exportPermit ?? `ВЫВОЗ РАЗРЕШЕН      ${ftsDate}`,
+    ftsDate,
+  );
+  const title = syncTitleDateFromFts(draft.title ?? `Счет-проформа №1 от ${ftsDate}`, ftsNorm);
+  return { ...draft, fts: ftsNorm, exportPermit, title };
 }
 
 export type ProformaTotals = {
@@ -123,10 +142,14 @@ export function computeProformaTotals(rows: import("./collectTdRows.js").FixTdRo
   }
   return {
     places: ulSet.size || rows.length,
-    qty,
-    weight,
-    cost,
+    qty: round2(qty),
+    weight: round2(weight),
+    cost: round2(cost),
   };
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
 }
 
 function parseNum(v: unknown): number {

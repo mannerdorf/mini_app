@@ -241,6 +241,21 @@ export function buildUlSheetForParsedFile(file: ParsedUlFile, controlKeys: Set<s
   };
 }
 
+/** Подставляет строки из файла УЛ, сохраняя перевозчика и номер ТД из сохранённого листа. */
+export function hydrateUlSheetFromParsed(
+  existing: HaulzSheet | undefined,
+  parsed: ParsedUlFile,
+  controlKeys: Set<string>,
+): HaulzSheet {
+  const loaded = buildUlSheetForParsedFile(parsed, controlKeys);
+  return {
+    ...loaded,
+    carrierId: existing?.carrierId ?? null,
+    tdNumber: existing?.tdNumber ?? null,
+    ulDeferred: false,
+  };
+}
+
 export function buildWorkbook(input: BuildInput): HaulzWorkbook {
   const { otpravka, ulPrio1, ulPrio2 } = input;
   const ulSheets = mergeUlFiles(ulPrio1, ulPrio2);

@@ -26,7 +26,7 @@ import {
   addStopWord,
   buildFixSheetFromItog,
   buildTdPrepared,
-  buildUlSheetForParsedFile,
+  hydrateUlSheetFromParsed,
   buildWorkbook,
   downloadBlob,
   exportSheetToExcel,
@@ -49,6 +49,8 @@ import {
   type HaulzWorkbook,
   type HaulzCarrier,
   type TdDraft,
+  applyWorkbookTdMeta,
+  mergeTdDraft,
   validateTdPrep,
 } from "../lib/haulzReturns";
 
@@ -142,18 +144,18 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
 
   const ensureUlSheetLoaded = useCallback(
     async (tabId: string, currentWorkbook: HaulzWorkbook, currentJobId: string, files: HaulzReturnsFileMeta[]) => {
-      if (!auth || !tabId.startsWith("ul-")) return currentWorkbook;
+      if (!auth || !tabId.startsWith("ul-")) return null;
       const ulNumber = tabId.slice(3);
-      if (currentWorkbook.excludedUlNumbers?.has(ulNumber)) return currentWorkbook;
+      if (currentWorkbook.excludedUlNumbers?.has(ulNumber)) return null;
       const sheet = currentWorkbook.sheets.find((s) => s.id === tabId);
-      if (!sheet || sheet.ulLocallyEdited || (sheet.rows.length > 0 && !sheet.ulDeferred)) return currentWorkbook;
+      if (!sheet || sheet.ulLocallyEdited || (sheet.rows.length > 0 && !sheet.ulDeferred)) return null;
 
       const fileMeta = files.find(
         (f) =>
           (f.file_role === "ul_prio1" || f.file_role === "ul_prio2") &&
           (f.ul_number === ulNumber || f.original_filename.includes(ulNumber)),
       );
-      if (!fileMeta) return currentWorkbook;
+      if (!fileMeta) return null;
 
       setLoadingUlTab(tabId);
       try {
@@ -163,14 +165,17 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const parsed = parseUlBuffer(await res.arrayBuffer(), fileMeta.original_filename);
-        const ulSheet = buildUlSheetForParsedFile(parsed, currentWorkbook.itogControlKeys);
-        return {
-          ...currentWorkbook,
-          sheets: currentWorkbook.sheets.map((s) => (s.id === tabId ? ulSheet : s)),
+        return (latestWorkbook: HaulzWorkbook) => {
+          const prev = latestWorkbook.sheets.find((s) => s.id === tabId);
+          const ulSheet = hydrateUlSheetFromParsed(prev, parsed, latestWorkbook.itogControlKeys);
+          return {
+            ...latestWorkbook,
+            sheets: latestWorkbook.sheets.map((s) => (s.id === tabId ? ulSheet : s)),
+          };
         };
       } catch (e: unknown) {
         setError((e as Error)?.message || `Не удалось загрузить УЛ ${ulNumber}`);
-        return currentWorkbook;
+        return null;
       } finally {
         setLoadingUlTab(null);
       }
@@ -197,8 +202,8 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
       setActiveTab(tabId);
       if (!workbook || !jobId) return;
       void (async () => {
-        const next = await ensureUlSheetLoaded(tabId, workbook, jobId, storedFiles);
-        if (next !== workbook) setWorkbook(next);
+        const applyLoaded = await ensureUlSheetLoaded(tabId, workbook, jobId, storedFiles);
+        if (applyLoaded) setWorkbook(applyLoaded);
       })();
     },
     [workbook, jobId, storedFiles, ensureUlSheetLoaded],
@@ -332,6 +337,10 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
         }
 
         if (data.workbook) {
+          const savedTdMeta = {
+            tdDraft: data.workbook.tdDraft,
+            tdPrepared: data.workbook.tdPrepared,
+          };
           let wb = await hydrateDeferredItogSheet(data.workbook, id);
           wb = normalizeWorkbookColumns(wb);
           setActiveTab("itog");
@@ -341,7 +350,9 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
           } catch (e: unknown) {
             setError((e as Error)?.message || "Ошибка перевода");
           }
+          wb = applyWorkbookTdMeta(savedTdMeta, wb);
           setWorkbook(wb);
+          if (wb.tdPrepared) setTdPanelOpen(true);
         } else {
           setWorkbook(null);
           setWorkbookTableCollapsed(false);
@@ -373,11 +384,12 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
 
   const commitWorkbook = useCallback(
     async (next: HaulzWorkbook) => {
-      setWorkbook(next);
+      const merged = applyWorkbookTdMeta(workbookRef.current, next);
+      setWorkbook(merged);
       if (jobId && auth) {
-        return persistWorkbook(next, jobId);
+        return persistWorkbook(merged, jobId);
       }
-      return next;
+      return merged;
     },
     [auth, jobId, persistWorkbook],
   );
@@ -408,13 +420,15 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
 
   const handleTdDraftChange = useCallback(
     async (draft: TdDraft) => {
-      if (!workbook) return;
-      const tdPrepared = workbook.tdPrepared
-        ? { ...workbook.tdPrepared, draft: { ...workbook.tdPrepared.draft, ...draft } }
+      const current = workbookRef.current;
+      if (!current) return;
+      const mergedDraft = mergeTdDraft(current.tdDraft, current.tdPrepared?.draft, draft) ?? draft;
+      const tdPrepared = current.tdPrepared
+        ? { ...current.tdPrepared, draft: mergedDraft }
         : undefined;
-      await commitWorkbook({ ...workbook, tdDraft: draft, tdPrepared });
+      await commitWorkbook({ ...current, tdDraft: mergedDraft, tdPrepared });
     },
-    [workbook, commitWorkbook],
+    [commitWorkbook],
   );
 
   const handlePrepareTd = useCallback(async () => {

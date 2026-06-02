@@ -3,11 +3,17 @@ import type { HaulzWorkbook } from "../types.js";
 import {
   collectFixRows,
   collectWriteoffRowsForUl,
+  findUlSheet,
+  lookupItogProductName,
+  buildItogProductNameLookup,
   ulSheetsWithInItog,
   type FixTdRow,
   type UlWriteoffRow,
 } from "./collectTdRows.js";
 import { isHolzCarrier } from "./isHolzCarrier.js";
+import { formatWriteoffTitle, formatWriteoffTdLine } from "./formatWriteoffHeader.js";
+import { normalizeSpecificationDraft } from "./draftDateFields.js";
+import { resolvePoruchenieUlDraft } from "./formatPoruchenieDraft.js";
 import type { PoruchenieInput, TdDraft, WriteoffSheetInput } from "./types.js";
 
 export type TdExportContext = {
@@ -57,41 +63,89 @@ export function porucheniePreviewRows(rows: UlWriteoffRow[]) {
 }
 
 export function buildWriteoffInputs(ctx: TdExportContext): WriteoffSheetInput[] {
-  const prepared = ctx.workbook.tdPrepared;
-  if (prepared?.writeoffs?.length) {
-    const draft = { ...prepared.draft, ...ctx.draft };
-    return prepared.writeoffs.map((w) => ({
+  const lookup = buildItogProductNameLookup(ctx.workbook);
+  const refreshWriteoffNames = (rows: UlWriteoffRow[]): UlWriteoffRow[] =>
+    rows.map((r) => {
+      const fromItog =
+        lookupItogProductName(lookup, r.ulNumber, r.rowNum, r.parcel) ||
+        lookup.get(`parcel:${r.parcel}`);
+      return fromItog ? { ...r, name: fromItog } : r;
+    });
+
+  const mergedDraft = { ...ctx.workbook.tdPrepared?.draft, ...ctx.draft };
+  const specDraft = normalizeSpecificationDraft({ ...(mergedDraft.specification ?? {}) });
+
+  const withHeader = (
+    w: { ulNumber: string; tdNumber: string; sheetNumber?: number; rows: UlWriteoffRow[] },
+  ): WriteoffSheetInput => {
+    const rows = refreshWriteoffNames(w.rows);
+    return {
       ulNumber: w.ulNumber,
       tdNumber: w.tdNumber,
       sheetNumber: w.sheetNumber,
-      rows: w.rows,
-      titleOverride: draft.writeoff?.[w.ulNumber]?.title,
-      tdLineOverride: draft.writeoff?.[w.ulNumber]?.tdLine,
-    }));
+      rows,
+      titleOverride:
+        mergedDraft.writeoff?.[w.ulNumber]?.title ??
+        formatWriteoffTitle({
+          sheetNumber: w.sheetNumber,
+          ulNumber: w.ulNumber,
+          tdNumber: w.tdNumber,
+          rows,
+          specification: specDraft,
+        }),
+      tdLineOverride:
+        mergedDraft.writeoff?.[w.ulNumber]?.tdLine ?? formatWriteoffTdLine(w.tdNumber),
+    };
+  };
+
+  const prepared = ctx.workbook.tdPrepared;
+  if (prepared?.writeoffs?.length) {
+    return prepared.writeoffs.map((w) => {
+      const sheet = findUlSheet(ctx.workbook, w.ulNumber);
+      const liveRows = sheet ? collectWriteoffRowsForUl(ctx.workbook, sheet, w.ulNumber) : w.rows;
+      return withHeader({
+        ulNumber: w.ulNumber,
+        tdNumber: String(sheet?.tdNumber ?? w.tdNumber ?? "").trim(),
+        sheetNumber: w.sheetNumber,
+        rows: liveRows.length > 0 ? liveRows : w.rows,
+      });
+    });
   }
-  return ulSheetsWithInItog(ctx.workbook).map(({ sheet, ulNumber }, idx) => ({
-    ulNumber,
-    tdNumber: String(sheet.tdNumber ?? "").trim(),
-    sheetNumber: idx + 1,
-    rows: collectWriteoffRowsForUl(sheet, ulNumber),
-    titleOverride: ctx.draft?.writeoff?.[ulNumber]?.title,
-    tdLineOverride: ctx.draft?.writeoff?.[ulNumber]?.tdLine,
-  }));
+  return ulSheetsWithInItog(ctx.workbook).map(({ sheet, ulNumber }, idx) =>
+    withHeader({
+      ulNumber,
+      tdNumber: String(sheet.tdNumber ?? "").trim(),
+      sheetNumber: idx + 1,
+      rows: collectWriteoffRowsForUl(ctx.workbook, sheet, ulNumber),
+    }),
+  );
 }
 
 export function poruchenieInputs(ctx: TdExportContext): PoruchenieInput[] {
   const writeoffs = buildWriteoffInputs(ctx);
+  const mergedDraft = { ...ctx.workbook.tdPrepared?.draft, ...ctx.draft };
+  const specDraft = normalizeSpecificationDraft({ ...(mergedDraft.specification ?? {}) });
   const out: PoruchenieInput[] = [];
   for (const wo of writeoffs) {
-    const sheet = ctx.workbook.sheets.find((s) => s.id === `ul-${wo.ulNumber}`);
+    const sheet = findUlSheet(ctx.workbook, wo.ulNumber);
     const carrier = sheet?.carrierId ? ctx.carriersById.get(sheet.carrierId) : undefined;
     if (!carrier || isHolzCarrier(carrier)) continue;
+    if (wo.rows.length === 0) continue;
+    const header = resolvePoruchenieUlDraft(
+      specDraft,
+      wo.sheetNumber ?? 1,
+      mergedDraft.poruchenie?.[wo.ulNumber],
+    );
     out.push({
       ulNumber: wo.ulNumber,
+      assignmentNumber: header.number,
       writeoffNumber: wo.sheetNumber ?? 1,
       tdNumber: wo.tdNumber,
       carrier,
       rows: wo.rows,
+      date: header.date,
+      contractNumber: header.contractNumber,
+      contractDate: header.contractDate,
     });
   }
   return out;

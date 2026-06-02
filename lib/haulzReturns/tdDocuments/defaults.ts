@@ -10,7 +10,7 @@ export function defaultSpecHeader(date = formatRuDate()): Record<string, string>
     exportPermit: `ВЫВОЗ РАЗРЕШЕН      ${date}`,
     zpu: "01 ЗПУ №",
     fts: `02 ФТС № от ${date}`,
-    title: `Спецификация №1 от ${date} к CMR`,
+    title: `Спецификация №1 от ${date} к CMR б/н от ${date}`,
     headerTd: "",
   };
 }

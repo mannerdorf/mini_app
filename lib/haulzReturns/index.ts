@@ -17,6 +17,7 @@ export * from "./itogRowKeys";
 export * from "./ulSheetOperations";
 export * from "./mergeWorkbookOnReprocess";
 export * from "./translateOperations";
+export * from "./tdMetaMerge";
 export * from "./carriers";
 export * from "./rowSort";
 export * from "./tdDocuments/client.js";

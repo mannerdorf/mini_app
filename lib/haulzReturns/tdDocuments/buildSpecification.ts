@@ -1,4 +1,7 @@
 import type { FixTdRow } from "./collectTdRows.js";
+import { computeProformaTotals } from "./draftDateFields.js";
+import { formatSpecificationHeader } from "./formatSpecificationHeader.js";
+import { applySpecCellStyle, applySpecTableRangeBorders } from "./specSheetStyles.js";
 import { SPEC_TEMPLATE } from "./templateMaps.js";
 import type { SpecificationDraft } from "./types.js";
 import {
@@ -12,21 +15,32 @@ import { normalizeSpecificationDraft } from "./draftDateFields.js";
 export type { SpecificationDraft } from "./types.js";
 export { defaultSpecificationDraft } from "./defaults.js";
 
-function applyHeader(sheet: import("exceljs").Worksheet, draft: SpecificationDraft) {
-  const h = SPEC_TEMPLATE.header;
-  setCellValue(sheet, h.row1Col5.row, h.row1Col5.col, draft.productEaeu ?? "");
-  setCellValue(sheet, h.row2Col5.row, h.row2Col5.col, draft.exportPermit ?? "");
-  setCellValue(sheet, h.row3Col5.row, h.row3Col5.col, draft.zpu ?? "");
-  setCellValue(sheet, h.row4Col5.row, h.row4Col5.col, draft.fts ?? "");
-  setCellValue(sheet, h.row5Title.row, h.row5Title.col, draft.title ?? "");
-  setCellValue(sheet, h.row5Td.row, h.row5Td.col, draft.headerTd ?? "");
+const TABLE_COLS = 8;
+
+function trimExtraColumns(sheet: import("exceljs").Worksheet) {
+  const extra = sheet.columnCount - TABLE_COLS;
+  if (extra > 0) sheet.spliceColumns(9, extra);
 }
 
-function fillDataRows(sheet: import("exceljs").Worksheet, rows: FixTdRow[]) {
-  const { dataStartRow, dataCols } = SPEC_TEMPLATE;
-  clearRowsFrom(sheet, dataStartRow, 8);
+function styleTableHeaderRow(sheet: import("exceljs").Worksheet, row: number) {
+  for (let c = 1; c <= TABLE_COLS; c++) {
+    applySpecCellStyle(sheet.getCell(row, c), { bold: true });
+  }
+}
+
+function fillDataRows(
+  sheet: import("exceljs").Worksheet,
+  rows: FixTdRow[],
+  dataStartRow: number,
+): number {
+  clearRowsFrom(sheet, dataStartRow, TABLE_COLS);
+
   rows.forEach((row, i) => {
     const r = dataStartRow + i;
+    for (let c = 1; c <= TABLE_COLS; c++) {
+      applySpecCellStyle(sheet.getCell(r, c));
+    }
+    const { dataCols } = SPEC_TEMPLATE;
     setCellValue(sheet, r, dataCols.num, row.num);
     setCellValue(sheet, r, dataCols.id, row.id);
     setCellValue(sheet, r, dataCols.parcel, row.parcel);
@@ -36,6 +50,24 @@ function fillDataRows(sheet: import("exceljs").Worksheet, rows: FixTdRow[]) {
     setCellValue(sheet, r, dataCols.cost, row.cost);
     setCellValue(sheet, r, dataCols.tdNumber, row.tdNumber);
   });
+
+  return dataStartRow + rows.length;
+}
+
+function fillSummaryRow(
+  sheet: import("exceljs").Worksheet,
+  row: number,
+  rows: FixTdRow[],
+) {
+  const totals = computeProformaTotals(rows);
+  for (let c = 1; c <= TABLE_COLS; c++) {
+    applySpecCellStyle(sheet.getCell(row, c), { bold: c >= 4 && c <= 7 });
+  }
+  setCellValue(sheet, row, 4, `Итого: грузовых мест ${totals.places}`);
+  setCellValue(sheet, row, 5, totals.qty);
+  setCellValue(sheet, row, 6, totals.weight);
+  setCellValue(sheet, row, 7, totals.cost);
+  setCellValue(sheet, row, 8, "");
 }
 
 export async function buildSpecificationBuffer(
@@ -46,7 +78,20 @@ export async function buildSpecificationBuffer(
   const wb = await loadTemplateWorkbook("specification.xlsx");
   const sheet = wb.worksheets[0];
   if (!sheet) throw new Error("Шаблон спецификации пуст");
-  applyHeader(sheet, normalized);
-  fillDataRows(sheet, rows);
+
+  const { tableHeaderRow, dataStartRow } = SPEC_TEMPLATE;
+
+  trimExtraColumns(sheet);
+  formatSpecificationHeader(sheet, normalized);
+  styleTableHeaderRow(sheet, tableHeaderRow);
+
+  const summaryRow = fillDataRows(sheet, rows, dataStartRow);
+  if (rows.length > 0) {
+    fillSummaryRow(sheet, summaryRow, rows);
+  }
+
+  const tableEndRow = rows.length > 0 ? summaryRow : tableHeaderRow;
+  applySpecTableRangeBorders(sheet, tableHeaderRow, tableEndRow, 1, TABLE_COLS);
+
   return workbookToBuffer(wb);
 }

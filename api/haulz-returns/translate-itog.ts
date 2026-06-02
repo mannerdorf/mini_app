@@ -3,6 +3,8 @@ import { initRequestContext, logError } from "../_lib/observability.js";
 import { resolveHaulzReturnsAccess } from "../_haulzReturns.js";
 import { translateProductNamesEnToRu } from "../../lib/haulzReturns/openaiTranslate.js";
 import { resolveOpenaiApiKey } from "../../lib/haulzReturns/openaiEnv.js";
+import { itogTextNeedsTranslation } from "../../lib/haulzReturns/translateOperations.js";
+import { isRussianOnlyText } from "../../lib/haulzReturns/validators.js";
 
 const MAX_ITEMS = 50;
 
@@ -52,12 +54,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const translations = await translateProductNamesEnToRu(items.map((i) => i.text));
-    const result = items.map((item, idx) => ({
+    const toTranslate: { rowKey: string; text: string; index: number }[] = [];
+    const result: { rowKey: string; rowId: string; translation: string }[] = items.map((item) => ({
       rowKey: item.rowKey,
       rowId: item.rowKey,
-      translation: translations[idx] ?? "",
+      translation: isRussianOnlyText(item.text) ? item.text : "",
     }));
+
+    items.forEach((item, index) => {
+      if (itogTextNeedsTranslation(item.text)) {
+        toTranslate.push({ ...item, index });
+      } else if (isRussianOnlyText(item.text)) {
+        result[index]!.translation = item.text;
+      }
+    });
+
+    if (toTranslate.length > 0) {
+      const translations = await translateProductNamesEnToRu(toTranslate.map((i) => i.text));
+      toTranslate.forEach((item, idx) => {
+        result[item.index]!.translation = translations[idx] ?? "";
+      });
+    }
+
     return res.status(200).json({ items: result, request_id: ctx.requestId });
   } catch (error: unknown) {
     logError(ctx, "haulz_returns_translate_itog_failed", error);

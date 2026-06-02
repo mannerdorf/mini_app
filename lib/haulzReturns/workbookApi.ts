@@ -1,5 +1,6 @@
 import type { HaulzSheet, HaulzWorkbook } from "./types.js";
 import type { TdDraft } from "./tdDocuments/index.js";
+import { mergeWorkbookTdMeta } from "./tdMetaMerge.js";
 
 /** Запас под job, files и прочие поля ответа (лимит Vercel ~4.5 МБ). */
 export const HAULZ_RETURNS_API_JSON_BUDGET = 3800000;
@@ -201,12 +202,13 @@ export function mergeWorkbookPatch(stored: HaulzWorkbook | null, incoming: Haulz
     }
   }
 
+  const tdMeta = mergeWorkbookTdMeta(stored, incoming);
+
   return {
     sheets: mergedSheets,
     itogControlKeys:
       (incoming.itogControlKeys?.size ?? 0) > 0 ? incoming.itogControlKeys : stored.itogControlKeys,
     excludedUlNumbers,
-    tdDraft: incoming.tdDraft ?? stored.tdDraft,
-    tdPrepared: incoming.tdPrepared ?? stored.tdPrepared,
+    ...tdMeta,
   };
 }

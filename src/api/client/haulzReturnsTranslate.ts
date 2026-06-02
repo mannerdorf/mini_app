@@ -3,9 +3,9 @@ import type { HaulzWorkbook } from "../../../lib/haulzReturns/types";
 import {
   applyItogTranslationsToWorkbook,
   countItogTranslatedRows,
-  itogRowsNeedingTranslation,
   itogRowsForTranslation,
   acceptItogTranslation,
+  syncRussianOnlyItogTranslations,
 } from "../../../lib/haulzReturns/translateOperations";
 import { saveHaulzReturnsWorkbook, translateHaulzItogBatch } from "./haulzReturns";
 
@@ -21,12 +21,13 @@ export async function translateAndPersistItogWorkbook(
   const itog = workbook.sheets.find((s) => s.id === "itog");
   if (!itog) return { workbook, translated: 0 };
 
-  const includeFilled = options?.includeFilled === true;
-  const pending = itogRowsForTranslation(itog.rows, { includeFilled });
-  if (pending.length === 0) return { workbook, translated: 0 };
+  const { workbook: synced, changed: syncedChanged } = syncRussianOnlyItogTranslations(workbook);
+  let current = synced;
 
-  let current = workbook;
-  const before = countItogTranslatedRows(itog.rows);
+  const includeFilled = options?.includeFilled === true;
+  const pending = itogRowsForTranslation(current.sheets.find((s) => s.id === "itog")!.rows, { includeFilled });
+  const before = countItogTranslatedRows(current.sheets.find((s) => s.id === "itog")!.rows);
+  if (pending.length === 0 && !syncedChanged) return { workbook: current, translated: 0 };
   let totalApplied = 0;
 
   for (let i = 0; i < pending.length; i += TRANSLATE_BATCH_SIZE) {
@@ -52,14 +53,17 @@ export async function translateAndPersistItogWorkbook(
     options?.onProgress?.(Math.min(i + batch.length, pending.length), pending.length);
   }
 
+  const resync = syncRussianOnlyItogTranslations(current);
+  current = resync.workbook;
+
   const after = countItogTranslatedRows(current.sheets.find((s) => s.id === "itog")?.rows ?? []);
-  if (!includeFilled && after <= before) {
+  if (!includeFilled && pending.length > 0 && after <= before && !syncedChanged && !resync.changed) {
     throw new Error("Перевод не записался в таблицу");
   }
-  if (totalApplied === 0) {
+  if (pending.length > 0 && totalApplied === 0 && !syncedChanged && !resync.changed) {
     throw new Error("Перевод не записался в таблицу");
   }
 
   const saved = await saveHaulzReturnsWorkbook(auth, jobId, current);
-  return { workbook: saved, translated: includeFilled ? totalApplied : after - before };
+  return { workbook: saved, translated: includeFilled ? totalApplied : Math.max(after - before, syncedChanged || resync.changed ? 1 : 0) };
 }

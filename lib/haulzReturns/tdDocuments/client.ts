@@ -14,12 +14,29 @@ export {
   computeProformaTotals,
 } from "./draftDateFields.js";
 export {
+  applyProformaFieldChange,
+  applySpecificationFieldChange,
+  resolveHeaderTdFromDraft,
+  resolveTdExportDraft,
+  syncProformaHeaderFromSpecification,
+} from "./resolveTdDraft.js";
+export {
   buildWriteoffInputs,
   poruchenieInputs,
   specificationPreviewRows,
   proformaPreviewRows,
   porucheniePreviewRows,
 } from "./preview.js";
+export {
+  resolvePoruchenieUlDraft,
+  defaultPoruchenieDate,
+  defaultPoruchenieContractNumber,
+  defaultPoruchenieContractDate,
+  formatPoruchenieProseDate,
+  formatPoruchenieTitleLine,
+  formatPoruchenieCityLine,
+  formatPoruchenieContractLine,
+} from "./formatPoruchenieDraft.js";
 export { isHolzCarrier } from "./isHolzCarrier.js";
 export {
   defaultSpecificationDraft,

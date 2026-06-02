@@ -38,10 +38,8 @@ function fillWriteoffSheet(
   date = formatRuDate(),
 ) {
   const sheetNo = input.sheetNumber ?? 1;
-  const title =
-    input.titleOverride ??
-    `Дополнительный лист списания №${sheetNo} от ${date} к упаковочному листу ${input.ulNumber}`;
-  const tdLine = input.tdLineOverride ?? `Вывезено по ТД ${input.tdNumber}                /`;
+  const title = input.titleOverride ?? `Дополнительный лист списания №${sheetNo} от ${date} к упаковочному листу № ${input.ulNumber}`;
+  const tdLine = input.tdLineOverride ?? `Вывезено по ТД ${input.tdNumber}/ /`;
 
   setCellValue(sheet, WRITEOFF_TEMPLATE.titleRow, 1, title);
   setCellValue(sheet, WRITEOFF_TEMPLATE.tdRow, 1, tdLine);

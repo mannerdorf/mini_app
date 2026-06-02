@@ -26,6 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const docType = String(req.body?.docType ?? "all") as TdDocType;
   const draft = req.body?.draft as TdDraft | undefined;
   const bodyPrepared = req.body?.tdPrepared as TdPrepared | undefined;
+  const ulNumber = String(req.body?.ulNumber ?? "").trim() || undefined;
 
   if (!Number.isFinite(jobId) || jobId <= 0) {
     return res.status(400).json({ error: "Укажите jobId", request_id: ctx.requestId });
@@ -87,7 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).send(zip);
     }
 
-    const files = await exportTdDocuments(ctxExport, docType, tdPrepared);
+    const files = await exportTdDocuments(ctxExport, docType, tdPrepared, { ulNumber });
     if (files.length === 0) {
       const emptyMsg =
         docType === "poruchenie"
@@ -110,7 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const file = files[0]!;
-    const asciiName = file.name.replace(/[^\x20-\x7E]/g, "_") || "document.xlsx";
+    const asciiName = file.name.replace(/[^\x20-\x7E]/g, "_").replace(/_+/g, "_") || "document.xlsx";
     res.setHeader("Content-Type", file.mime);
     res.setHeader(
       "Content-Disposition",
