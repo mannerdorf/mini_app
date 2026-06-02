@@ -11,6 +11,13 @@ function adminRewrite() {
         const p = req.url?.split("?")[0] || "";
         if (p === "/admin" || p === "/cms" || p.startsWith("/admin/") || p.startsWith("/cms/")) {
           req.url = "/";
+        } else if (
+          p === "/wildberries" ||
+          p.startsWith("/wildberries/") ||
+          p === "/red-returns" ||
+          p.startsWith("/red-returns/")
+        ) {
+          req.url = "/";
         }
         next();
       });

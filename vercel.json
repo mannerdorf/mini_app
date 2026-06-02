@@ -52,6 +52,9 @@
     {"source": "/cms/:path*", "destination": "/"},
     {"source": "/wildberries", "destination": "/"},
     {"source": "/wildberries/", "destination": "/"},
-    {"source": "/wildberries/:path*", "destination": "/"}
+    {"source": "/wildberries/:path*", "destination": "/"},
+    {"source": "/red-returns", "destination": "/"},
+    {"source": "/red-returns/", "destination": "/"},
+    {"source": "/red-returns/:path*", "destination": "/"}
   ]
 }

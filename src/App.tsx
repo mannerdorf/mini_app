@@ -12,7 +12,7 @@ import { AppShellProvider, useAppShell } from "./contexts/AppShellContext";
 import { AppNavigationProvider } from "./contexts/AppNavigationContext";
 import { shouldShowNotFound } from "./lib/notFoundRoute";
 import { isWbOnlyAccount, WbOnlyAppLayout } from "./wb/appWb";
-import { isRedReturnsOnlyAccount } from "./features/redReturns/appRedReturns";
+import { isRedReturnsOnlyAccount, syncRedReturnsUrl } from "./features/redReturns/appRedReturns";
 import { HaulzReturnsPage } from "./pages/HaulzReturnsPage";
 import { useLegalCompliance } from "./hooks/useLegalCompliance";
 import { useShowCustomerColumn } from "./hooks/useShowCustomerColumn";
@@ -92,6 +92,10 @@ function AppRoot() {
     const [isChatOpen, setIsChatOpen] = useState(false);
     useRegisteredAccountSync(isWbOnlyUser, isRedReturnsOnlyUser);
 
+    useEffect(() => {
+        if (isRedReturnsOnlyUser) syncRedReturnsUrl();
+    }, [isRedReturnsOnlyUser]);
+
     const handleLogout = useAppLogout(setSearchText);
     
     // 404 для неизвестного path (не "/", "/admin", "/cms")
@@ -118,6 +122,26 @@ function AppRoot() {
 
     if (!auth) {
         return <LoginScreen />;
+    }
+
+    if (isRedReturnsOnlyUser) {
+        const redReturnsAuth = auth
+            ? {
+                login: auth.login,
+                password: auth.password,
+                ...(auth.inn ? { inn: auth.inn } : {}),
+                ...(auth.isRegisteredUser ? { isRegisteredUser: true as const } : {}),
+            }
+            : null;
+        return (
+            <WbOnlyAppLayout
+                desktopExpanded={desktopExpanded}
+                onLogout={handleLogout}
+                saasShellClassName={profileSaasShellActive ? "profile-saas-shell" : ""}
+            >
+                <HaulzReturnsPage auth={redReturnsAuth} pageTitle="Красный возврат" />
+            </WbOnlyAppLayout>
+        );
     }
 
     if (isWbOnlyUser) {
@@ -148,26 +172,6 @@ function AppRoot() {
                 </AppRuntimeProvider>
             </WbOnlyAppLayout>
             </AppNavigationProvider>
-        );
-    }
-
-    if (isRedReturnsOnlyUser) {
-        const redReturnsAuth = auth
-            ? {
-                login: auth.login,
-                password: auth.password,
-                ...(auth.inn ? { inn: auth.inn } : {}),
-                ...(auth.isRegisteredUser ? { isRegisteredUser: true as const } : {}),
-            }
-            : null;
-        return (
-            <WbOnlyAppLayout
-                desktopExpanded={desktopExpanded}
-                onLogout={handleLogout}
-                saasShellClassName={profileSaasShellActive ? "profile-saas-shell" : ""}
-            >
-                <HaulzReturnsPage auth={redReturnsAuth} pageTitle="Красный возврат" />
-            </WbOnlyAppLayout>
         );
     }
 
