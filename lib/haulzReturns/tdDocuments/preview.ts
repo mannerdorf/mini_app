@@ -112,23 +112,73 @@ export function buildWriteoffInputs(ctx: TdExportContext): WriteoffSheetInput[] 
     (ctx.workbook.tdPrepared?.writeoffs ?? []).map((w) => [w.ulNumber, w]),
   );
 
-  return activeUlSheets.map(({ sheet, ulNumber }, idx) => {
-    const prev = preparedByUl.get(ulNumber);
-    const meta = ulSheetWriteoffMeta(sheet);
-    const liveRows = collectWriteoffRowsForUl(ctx.workbook, sheet, meta.ulNumber);
-    const rows = liveRows.length > 0 ? liveRows : (prev?.rows ?? []);
-    return withHeader({
-      ulNumber: meta.ulNumber,
-      ulDate: meta.ulDate,
-      tdNumber: String(sheet.tdNumber ?? prev?.tdNumber ?? "").trim(),
-      sheetNumber: idx + 1,
-      rows,
+  return activeUlSheets
+    .map(({ sheet, ulNumber }, idx) => {
+      const prev = preparedByUl.get(ulNumber);
+      const meta = ulSheetWriteoffMeta(sheet);
+      const liveRows = collectWriteoffRowsForUl(ctx.workbook, sheet, meta.ulNumber);
+      const rows = liveRows.length > 0 ? liveRows : (prev?.rows ?? []);
+      return withHeader({
+        ulNumber: meta.ulNumber,
+        ulDate: meta.ulDate,
+        tdNumber: String(sheet.tdNumber ?? prev?.tdNumber ?? "").trim(),
+        sheetNumber: idx + 1,
+        rows,
+      });
+    })
+    .filter((sheet) => sheet.rows.length > 0);
+}
+
+function buildWriteoffInputsFromPrepared(ctx: TdExportContext): WriteoffSheetInput[] {
+  const prepared = ctx.workbook.tdPrepared?.writeoffs ?? [];
+  if (!prepared.length) return [];
+
+  const lookup = buildItogProductNameLookup(ctx.workbook);
+  const refreshWriteoffNames = (rows: UlWriteoffRow[]): UlWriteoffRow[] =>
+    rows.map((r) => {
+      const fromItog =
+        lookupItogProductName(lookup, r.ulNumber, r.rowNum, r.parcel) ||
+        lookup.get(`parcel:${r.parcel}`);
+      return fromItog ? { ...r, name: fromItog } : r;
     });
-  });
+
+  const mergedDraft = { ...ctx.workbook.tdPrepared?.draft, ...ctx.draft };
+  const specDraft = normalizeSpecificationDraft({ ...(mergedDraft.specification ?? {}) });
+
+  return prepared
+    .map((w, idx) => {
+      const rows = refreshWriteoffNames(w.rows);
+      const sheetNumber = w.sheetNumber ?? idx + 1;
+      return {
+        ulNumber: w.ulNumber,
+        tdNumber: w.tdNumber,
+        sheetNumber,
+        rows,
+        titleOverride:
+          mergedDraft.writeoff?.[w.ulNumber]?.title ??
+          formatWriteoffTitle({
+            sheetNumber,
+            ulNumber: w.ulNumber,
+            tdNumber: w.tdNumber,
+            rows,
+            specification: specDraft,
+          }),
+        tdLineOverride:
+          mergedDraft.writeoff?.[w.ulNumber]?.tdLine ??
+          formatWriteoffTdLineFromSpecification(specDraft, w.tdNumber),
+      };
+    })
+    .filter((sheet) => sheet.rows.length > 0);
+}
+
+export function resolveWriteoffInputs(ctx: TdExportContext): WriteoffSheetInput[] {
+  const live = buildWriteoffInputs(ctx);
+  if (live.length > 0) return live;
+  return buildWriteoffInputsFromPrepared(ctx);
 }
 
 export function poruchenieInputs(ctx: TdExportContext): PoruchenieInput[] {
-  const writeoffs = buildWriteoffInputs(ctx);
+  const writeoffs = resolveWriteoffInputs(ctx);
   const mergedDraft = { ...ctx.workbook.tdPrepared?.draft, ...ctx.draft };
   const specDraft = normalizeSpecificationDraft({ ...(mergedDraft.specification ?? {}) });
   const poruchenieDraft = mergedDraft.poruchenie ?? {};
@@ -153,9 +203,13 @@ export function poruchenieInputs(ctx: TdExportContext): PoruchenieInput[] {
   const sharedHeader = resolvePoruchenieSharedHeaderDraft(poruchenieDraft, firstUlNumber);
 
   return eligible.map(({ wo, carrier }, index) => {
+    const ulStored = poruchenieDraft[wo.ulNumber];
     const header = resolvePoruchenieUlDraft(specDraft, wo.sheetNumber ?? index + 1, {
       ...sharedHeader,
+      date: ulStored?.date,
       number: resolvePoruchenieAssignmentNumber(baseNumber, index),
+      contractNumber: ulStored?.contractNumber ?? sharedHeader?.contractNumber,
+      contractDate: ulStored?.contractDate ?? sharedHeader?.contractDate,
     });
     return {
       ulNumber: wo.ulNumber,

@@ -1559,6 +1559,55 @@ describe("tdDocuments", () => {
     expect(inputs[0]!.rows[0]!.name).toBe("from prepared");
   });
 
+  it("resolveWriteoffInputs falls back to tdPrepared when no UL sheets in itog", async () => {
+    const { resolveWriteoffInputs } = await import("./tdDocuments/preview.js");
+    const preparedRow = {
+      num: 1,
+      ulNumber: "02606521",
+      rowNum: "989",
+      line: "989",
+      id: "id1",
+      parcel: "p1",
+      airport: "KGD",
+      weight: 1,
+      volume: 0,
+      category: "<>",
+      name: "from prepared only",
+      qty: 1,
+      cost: 1,
+    };
+    const wb = {
+      sheets: [
+        {
+          id: "ul-02606521",
+          name: "02606521",
+          columns: [],
+          rows: [],
+          ulDeferred: true,
+          tdNumber: "10229010/280426/0113288",
+        },
+      ],
+      itogControlKeys: new Set<string>(),
+      excludedUlNumbers: new Set<string>(),
+      tdPrepared: {
+        preparedAt: "2026-01-01T00:00:00.000Z",
+        fixRows: [],
+        writeoffs: [
+          {
+            ulNumber: "02606521",
+            tdNumber: "10229010/280426/0113288",
+            sheetNumber: 1,
+            rows: [preparedRow],
+          },
+        ],
+        draft: {},
+      },
+    };
+    const inputs = resolveWriteoffInputs({ workbook: wb, carriersById: new Map(), draft: {} });
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]!.rows[0]!.name).toBe("from prepared only");
+  });
+
   it("buildWriteoffBuffer exports only preview rows without template sample data", async () => {
     const ExcelJS = await import("exceljs");
     const { buildWriteoffBuffer } = await import("./tdDocuments/buildWriteoff.js");
@@ -1687,6 +1736,66 @@ describe("tdDocuments", () => {
     expect(inputs[0]!.rows).toHaveLength(1);
     expect(inputs[1]!.rows).toHaveLength(1);
     expect(inputs[0]!.writeoffSheetCount).toBe(1);
+  });
+
+  it("poruchenieInputs uses independent date per writeoff sheet", async () => {
+    const { poruchenieInputs } = await import("./tdDocuments/preview.js");
+    const carrier = {
+      id: "geo",
+      name: "ООО «Геологистика»",
+      legalAddress: "",
+      inn: "",
+      kpp: "",
+      loadingAddress: "",
+      unloadingAddress: "",
+      createdAt: "",
+      updatedAt: "",
+    };
+    const row = { rowNum: "1", inItog: 1, cargoPlace: "id1", parcel: "p1", name: "a", qty: 1, weight: 1, cost: 1 };
+    const wb = {
+      sheets: [
+        {
+          id: "ul-02606521",
+          name: "02606521",
+          columns: [],
+          carrierId: "geo",
+          tdNumber: "10229010/280426/0113288",
+          rows: [row],
+        },
+        {
+          id: "ul-02611106",
+          name: "02611106",
+          columns: [],
+          carrierId: "geo",
+          tdNumber: "10229010/280426/0113288",
+          rows: [{ ...row, rowNum: "2", cargoPlace: "id2", parcel: "p2", name: "b" }],
+        },
+      ],
+      itogControlKeys: new Set<string>(),
+      excludedUlNumbers: new Set<string>(),
+      tdPrepared: {
+        preparedAt: "2026-01-01T00:00:00.000Z",
+        fixRows: [],
+        writeoffs: [],
+        draft: {
+          specification: { fts: "от 11.06.2026" },
+          poruchenie: {
+            "02606521": { date: "10.06.2026" },
+            "02611106": { date: "15.06.2026" },
+          },
+        },
+      },
+    };
+
+    const inputs = poruchenieInputs({
+      workbook: wb,
+      carriersById: new Map([["geo", carrier]]),
+      draft: {},
+    });
+
+    expect(inputs).toHaveLength(2);
+    expect(inputs[0]!.date).toBe("10.06.2026");
+    expect(inputs[1]!.date).toBe("15.06.2026");
   });
 
   it("poruchenieExportFileName transliterates header", async () => {

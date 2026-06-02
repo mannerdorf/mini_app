@@ -130,7 +130,7 @@ export function formatPoruchenieFooter(): string {
   );
 }
 
-/** Ключ черновика шапки поручения (общие дата и договор для всех листов). */
+/** Ключ черновика общих реквизитов договора для всех листов поручения. */
 export const PORUCHENIE_MERGED_DRAFT_KEY = "__merged__";
 
 function parseAssignmentNumber(value: string | undefined): number | null {
@@ -167,7 +167,10 @@ export function resolvePoruchenieSharedHeaderDraft(
   const merged = poruchenie[PORUCHENIE_MERGED_DRAFT_KEY];
   const first = poruchenie[firstUlNumber];
   if (!merged && !first) return undefined;
-  return { ...merged, ...first, number: undefined };
+  return {
+    contractNumber: first?.contractNumber ?? merged?.contractNumber,
+    contractDate: first?.contractDate ?? merged?.contractDate,
+  };
 }
 
 export function renumberPoruchenieRows(rows: UlWriteoffRow[]): UlWriteoffRow[] {

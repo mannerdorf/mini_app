@@ -12,6 +12,7 @@ import { proformaExportFileName, specificationExportFileName, writeoffExportFile
 import {
   buildWriteoffInputs,
   poruchenieInputs,
+  resolveWriteoffInputs,
 } from "./preview.js";
 import { firstHeaderTd } from "./prepareTd.js";
 import { resolveTdExportDraft } from "./resolveTdDraft.js";
@@ -38,6 +39,7 @@ export {
 } from "./defaults.js";
 export {
   buildWriteoffInputs,
+  resolveWriteoffInputs,
   poruchenieInputs,
   specificationPreviewRows,
   proformaPreviewRows,
@@ -89,7 +91,7 @@ export async function exportTdDocuments(
       draft,
       workbook: { ...ctx.workbook, tdPrepared: snapshot },
     };
-    const sheets = buildWriteoffInputs(exportCtx);
+    const sheets = resolveWriteoffInputs(exportCtx);
     if (sheets.length) {
       files.push({
         name: writeoffExportFileName(specDraft.title ?? ""),

@@ -179,16 +179,21 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
         if (Number.isFinite(parsed)) {
           poruchenie[firstUl] = {
             ...poruchenie[firstUl],
-            ...poruchenie[PORUCHENIE_MERGED_DRAFT_KEY],
             number: String(parsed - idx),
           };
         }
       }
 
-      if (patch.date !== undefined || patch.contractNumber !== undefined || patch.contractDate !== undefined) {
+      if (patch.date !== undefined) {
+        poruchenie[ulNumber] = {
+          ...poruchenie[ulNumber],
+          date: patch.date,
+        };
+      }
+
+      if (patch.contractNumber !== undefined || patch.contractDate !== undefined) {
         poruchenie[PORUCHENIE_MERGED_DRAFT_KEY] = {
           ...poruchenie[PORUCHENIE_MERGED_DRAFT_KEY],
-          ...(patch.date !== undefined ? { date: patch.date } : {}),
           ...(patch.contractNumber !== undefined ? { contractNumber: patch.contractNumber } : {}),
           ...(patch.contractDate !== undefined ? { contractDate: patch.contractDate } : {}),
         };
