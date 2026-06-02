@@ -1,7 +1,10 @@
 import type { HaulzSheet, HaulzWorkbook } from "./types.js";
+import type { TdDraft } from "./tdDocuments/index.js";
 
 /** Запас под job, files и прочие поля ответа (лимит Vercel ~4.5 МБ). */
 export const HAULZ_RETURNS_API_JSON_BUDGET = 3800000;
+
+export const WORKBOOK_META_SHEET_ID = "__workbook_meta__";
 
 export type ItogControlKeysStorage = string[] | { keys: string[]; excludedUl?: string[] };
 
@@ -44,9 +47,14 @@ export function serializeItogControlKeysMeta(wb: HaulzWorkbook): ItogControlKeys
 
 export function deserializeWorkbook(sheets: unknown, keys: unknown): HaulzWorkbook {
   const meta = parseItogControlKeysMeta(keys);
+  const list = Array.isArray(sheets) ? (sheets as HaulzWorkbook["sheets"]) : [];
+  const metaSheet = list.find((s) => normalizeSheetId(s) === WORKBOOK_META_SHEET_ID);
+  const tdDraft = (metaSheet as { tdDraft?: TdDraft } | undefined)?.tdDraft;
+  const filteredSheets = list.filter((s) => normalizeSheetId(s) !== WORKBOOK_META_SHEET_ID);
   return {
-    sheets: Array.isArray(sheets) ? (sheets as HaulzWorkbook["sheets"]) : [],
+    sheets: filteredSheets,
     ...meta,
+    tdDraft,
   };
 }
 
@@ -55,6 +63,7 @@ export function workbookForApi(wb: HaulzWorkbook, opts?: { deferItog?: boolean }
   return {
     sheets: wb.sheets
       .filter((s): s is HaulzSheet => Boolean(s) && typeof s === "object")
+      .filter((s) => normalizeSheetId(s) !== WORKBOOK_META_SHEET_ID)
       .map((s) => {
         const id = normalizeSheetId(s);
         if (id.startsWith("ul-")) {
@@ -107,11 +116,21 @@ export function sheetFromWorkbook(wb: HaulzWorkbook, sheetId: string): HaulzShee
 
 /** Для PATCH: клиент шлёт без строк УЛ, сервер подставляет из сохранённой версии. */
 export function compactWorkbookForPatch(wb: HaulzWorkbook) {
+  const sheets = wb.sheets.map((s) => {
+    const id = normalizeSheetId(s);
+    return id.startsWith("ul-") ? { ...s, id, rows: [] } : { ...s, id };
+  });
+  if (wb.tdDraft && Object.keys(wb.tdDraft).length > 0) {
+    sheets.push({
+      id: WORKBOOK_META_SHEET_ID,
+      name: WORKBOOK_META_SHEET_ID,
+      columns: [],
+      rows: [],
+      tdDraft: wb.tdDraft,
+    } as HaulzSheet & { tdDraft?: TdDraft });
+  }
   return {
-    sheets: wb.sheets.map((s) => {
-      const id = normalizeSheetId(s);
-      return id.startsWith("ul-") ? { ...s, id, rows: [] } : { ...s, id };
-    }),
+    sheets,
     itogControlKeys: serializeItogControlKeysMeta(wb),
   };
 }
@@ -151,7 +170,12 @@ export function mergeWorkbookPatch(stored: HaulzWorkbook | null, incoming: Haulz
         if (prev) return [prev];
       }
     }
-    return [{ ...s, id, carrierId: s.carrierId ?? storedUl.get(id)?.carrierId ?? null }];
+    return [{
+      ...s,
+      id,
+      carrierId: s.carrierId ?? storedUl.get(id)?.carrierId ?? null,
+      tdNumber: s.tdNumber ?? storedUl.get(id)?.tdNumber ?? null,
+    }];
   });
 
   for (const [id, sheet] of storedUl) {
@@ -165,5 +189,6 @@ export function mergeWorkbookPatch(stored: HaulzWorkbook | null, incoming: Haulz
     itogControlKeys:
       (incoming.itogControlKeys?.size ?? 0) > 0 ? incoming.itogControlKeys : stored.itogControlKeys,
     excludedUlNumbers,
+    tdDraft: incoming.tdDraft ?? stored.tdDraft,
   };
 }

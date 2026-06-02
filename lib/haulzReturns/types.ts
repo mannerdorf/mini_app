@@ -29,6 +29,8 @@ export type HaulzSheet = {
   ulLocallyEdited?: boolean;
   /** ID перевозчика из справочника haulz_carriers */
   carrierId?: string | null;
+  /** Номер таможенной декларации (ТД) для документов */
+  tdNumber?: string | null;
 };
 
 export type HaulzWorkbook = {
@@ -37,6 +39,8 @@ export type HaulzWorkbook = {
   itogControlKeys: Set<string>;
   /** Номера УЛ, удалённые пользователем — не восстанавливать из файлов в БД */
   excludedUlNumbers: Set<string>;
+  /** Черновик полей таможенного оформления */
+  tdDraft?: import("./tdDocuments/types.js").TdDraft;
 };
 
 export type OtpravkaRow = {

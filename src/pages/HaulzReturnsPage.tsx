@@ -19,6 +19,9 @@ import {
 import { translateAndPersistItogWorkbook } from "../api/client/haulzReturnsTranslate";
 import { HaulzReturnsWorkbookView } from "../features/haulzReturns/HaulzReturnsWorkbookView";
 import { HaulzUlCarrierPanel } from "../features/haulzReturns/HaulzUlCarrierPanel";
+import { HaulzUlTdField } from "../features/haulzReturns/HaulzUlTdField";
+import { HaulzCustomsPanel } from "../features/haulzReturns/HaulzCustomsPanel";
+import { listHaulzCarriers } from "../api/client/haulzReturnsCarriers";
 import {
   addStopWord,
   buildFixSheetFromItog,
@@ -43,6 +46,8 @@ import {
   removeUlRow,
   removeUlSheetFromWorkbook,
   type HaulzWorkbook,
+  type HaulzCarrier,
+  type TdDraft,
 } from "../lib/haulzReturns";
 
 type UploadProgress = {
@@ -120,12 +125,17 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
   const workbookRef = useRef<HaulzWorkbook | null>(null);
   workbookRef.current = workbook ?? null;
 
+  const [carriers, setCarriers] = useState<HaulzCarrier[]>([]);
+
   const tabs = useMemo(
-    () => workbook?.sheets.map((s) => ({ id: s.id, label: s.name })) ?? [],
+    () =>
+      workbook?.sheets
+        .filter((s) => s.id !== "__workbook_meta__")
+        .map((s) => ({ id: s.id, label: s.name })) ?? [],
     [workbook],
   );
 
-  const activeSheet = workbook?.sheets.find((s) => s.id === activeTab) ?? workbook?.sheets[0];
+  const activeSheet = workbook?.sheets.find((s) => s.id === activeTab && s.id !== "__workbook_meta__") ?? workbook?.sheets.find((s) => s.id !== "__workbook_meta__");
 
   const ensureUlSheetLoaded = useCallback(
     async (tabId: string, currentWorkbook: HaulzWorkbook, currentJobId: string, files: HaulzReturnsFileMeta[]) => {
@@ -380,6 +390,33 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
     },
     [workbook, commitWorkbook],
   );
+
+  const handleUlTdChange = useCallback(
+    async (tabId: string, tdNumber: string) => {
+      if (!workbook) return;
+      const next: HaulzWorkbook = {
+        ...workbook,
+        sheets: workbook.sheets.map((s) => (s.id === tabId ? { ...s, tdNumber: tdNumber.trim() || null } : s)),
+      };
+      await commitWorkbook(next);
+    },
+    [workbook, commitWorkbook],
+  );
+
+  const handleTdDraftChange = useCallback(
+    async (draft: TdDraft) => {
+      if (!workbook) return;
+      await commitWorkbook({ ...workbook, tdDraft: draft });
+    },
+    [workbook, commitWorkbook],
+  );
+
+  useEffect(() => {
+    if (!auth) return;
+    void listHaulzCarriers(auth)
+      .then(setCarriers)
+      .catch(() => setCarriers([]));
+  }, [auth]);
 
   const handleOtpravkaChange = useCallback((list: FileList | null) => {
     const file = list?.[0] ?? null;
@@ -1154,13 +1191,21 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
           ) : (
             <>
               {activeSheet.id.startsWith("ul-") && auth ? (
-                <HaulzUlCarrierPanel
-                  auth={auth}
-                  sheetId={activeSheet.id}
-                  carrierId={activeSheet.carrierId}
-                  onCarrierChange={(carrierId) => handleUlCarrierChange(activeSheet.id, carrierId)}
-                  onError={setError}
-                />
+                <div className="hr-ul-meta-panels">
+                  <HaulzUlCarrierPanel
+                    auth={auth}
+                    sheetId={activeSheet.id}
+                    carrierId={activeSheet.carrierId}
+                    onCarrierChange={(carrierId) => handleUlCarrierChange(activeSheet.id, carrierId)}
+                    onError={setError}
+                  />
+                  <HaulzUlTdField
+                    sheetId={activeSheet.id}
+                    tdNumber={activeSheet.tdNumber}
+                    onTdChange={(tdNumber) => handleUlTdChange(activeSheet.id, tdNumber)}
+                    disabled={saving}
+                  />
+                </div>
               ) : null}
               <HaulzReturnsWorkbookView
               sheet={activeSheet}
@@ -1182,6 +1227,17 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
             />
             </>
           )}
+
+          {workbook && jobId && auth ? (
+            <HaulzCustomsPanel
+              auth={auth}
+              jobId={jobId}
+              workbook={workbook}
+              carriers={carriers}
+              onDraftChange={handleTdDraftChange}
+              onError={setError}
+            />
+          ) : null}
         </>
       ) : null}
     </div>

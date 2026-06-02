@@ -19,3 +19,6 @@ export * from "./mergeWorkbookOnReprocess";
 export * from "./translateOperations";
 export * from "./carriers";
 export * from "./rowSort";
+export * from "./tdDocuments/client.js";
+
+export type { TdDraft } from "./tdDocuments/types.js";

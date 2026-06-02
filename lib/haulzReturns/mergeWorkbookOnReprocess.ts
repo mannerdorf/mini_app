@@ -58,7 +58,13 @@ export function mergeWorkbookOnReprocess(previous: HaulzWorkbook | null, rebuilt
     }
     if (sheet.id.startsWith("ul-")) {
       const prev = previous.sheets.find((s) => s.id === sheet.id);
-      if (prev?.carrierId) return { ...sheet, carrierId: prev.carrierId };
+      if (prev?.carrierId || prev?.tdNumber) {
+        return {
+          ...sheet,
+          carrierId: prev.carrierId ?? sheet.carrierId,
+          tdNumber: prev.tdNumber ?? sheet.tdNumber,
+        };
+      }
     }
     return sheet;
   });
@@ -95,5 +101,5 @@ export function mergeWorkbookOnReprocess(previous: HaulzWorkbook | null, rebuilt
     }
   }
 
-  return merged;
+  return { ...merged, tdDraft: previous.tdDraft ?? filteredRebuilt.tdDraft };
 }

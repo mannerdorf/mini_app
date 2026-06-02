@@ -58,10 +58,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const {
+      compactWorkbookForPatch,
       deserializeWorkbook,
       mergeWorkbookPatch,
       parseItogControlKeysMeta,
       serializeItogControlKeysMeta,
+      WORKBOOK_META_SHEET_ID,
     } = await import("../../lib/haulzReturns/workbookApi.js");
 
     const raw = req.body?.workbook as HaulzWorkbook | undefined;
@@ -69,13 +71,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Передайте workbook.sheets", request_id: ctx.requestId });
     }
     const keysMeta = parseItogControlKeysMeta(raw.itogControlKeys);
+    const metaSheet = raw.sheets.find((s) => String(s?.id ?? "") === WORKBOOK_META_SHEET_ID) as
+      | { tdDraft?: HaulzWorkbook["tdDraft"] }
+      | undefined;
     const wb: HaulzWorkbook = {
-      sheets: raw.sheets,
+      sheets: raw.sheets.filter((s) => String(s?.id ?? "") !== WORKBOOK_META_SHEET_ID),
       itogControlKeys: keysMeta.itogControlKeys,
       excludedUlNumbers: new Set([
         ...keysMeta.excludedUlNumbers,
         ...(Array.isArray(raw.excludedUlNumbers) ? raw.excludedUlNumbers.map(String) : []),
       ]),
+      tdDraft: metaSheet?.tdDraft ?? raw.tdDraft,
     };
 
     const { rows: storedRows } = await pool.query<{ sheets: unknown; itog_control_keys: unknown }>(
@@ -90,6 +96,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? deserializeWorkbook(storedRows[0].sheets, storedRows[0].itog_control_keys)
       : null;
     const merged = mergeWorkbookPatch(stored, wb);
+    const toStore = compactWorkbookForPatch(merged);
 
     const { rows: verRows } = await pool.query<{ v: number }>(
       `select coalesce(max(version), 0) + 1 as v from haulz_returns_workbooks where job_id = $1`,
@@ -99,7 +106,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await pool.query(
       `insert into haulz_returns_workbooks (job_id, version, sheets, itog_control_keys, built_by_login)
        values ($1, $2, $3::jsonb, $4::jsonb, $5)`,
-      [jobId, version, JSON.stringify(merged.sheets), JSON.stringify(serializeItogControlKeysMeta(merged)), access.loginKey],
+      [jobId, version, JSON.stringify(toStore.sheets), JSON.stringify(serializeItogControlKeysMeta(merged)), access.loginKey],
     );
     await pool.query(
       `update haulz_returns_jobs set status = 'ready', updated_at = now() where id = $1`,

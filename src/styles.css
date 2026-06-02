@@ -9101,3 +9101,82 @@ button.unpaid-plan-monitor:hover {
         grid-template-columns: 1fr;
     }
 }
+
+.hr-ul-meta-panels {
+    display: grid;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+.hr-td-field {
+    margin-bottom: 0.75rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 12px;
+    background: var(--color-bg-secondary, #f8f9fa);
+}
+.hr-td-field__label {
+    display: flex;
+    flex-direction: column;
+}
+.hr-td-field__input {
+    width: 100%;
+    max-width: 420px;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    background: var(--color-bg, #fff);
+    color: var(--color-text-primary, #111);
+}
+.hr-customs-panel {
+    margin-top: 1.25rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 12px;
+    background: var(--color-bg-secondary, #f8f9fa);
+}
+.hr-customs-panel__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+.hr-customs-panel__tabs {
+    margin-bottom: 0.75rem;
+}
+.hr-customs-panel__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+.hr-customs-panel__body {
+    margin-top: 0.5rem;
+}
+.hr-customs-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0.65rem;
+    margin-bottom: 0.75rem;
+}
+.hr-customs-form__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+}
+.hr-customs-form__field input {
+    padding: 0.4rem 0.55rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    background: var(--color-bg, #fff);
+}
+.hr-customs-list {
+    margin: 0;
+    padding-left: 1.1rem;
+    line-height: 1.5;
+    font-size: 0.9rem;
+}

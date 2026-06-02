@@ -13,6 +13,7 @@ import { ensureItogRowIds, stableItogRowId } from "./itogRowKeys";
 import { mergeWorkbookOnReprocess } from "./mergeWorkbookOnReprocess";
 import { itogValidationFromRow } from "./validators";
 import { parseCarrierInput, formatCarrierCard } from "./carriers";
+import { collectFixRows, isHolzCarrier, validateTdPrep } from "./tdDocuments/index.js";
 import { workbookForApi, workbookForApiWithinBudget } from "./workbookApi";
 import { parseTranslationsJson } from "./openaiTranslate";
 import {
@@ -698,5 +699,55 @@ describe("workbookForApi", () => {
     expect(apiItog?.itogDeferred).toBe(true);
     expect(apiItog?.rows).toHaveLength(0);
     expect(() => JSON.stringify(api)).not.toThrow();
+  });
+});
+
+describe("tdDocuments", () => {
+  it("collectFixRows sorts by ul then line and maps tdNumber", () => {
+    const wb = {
+      sheets: [
+        {
+          id: "fix",
+          name: "FIX",
+          columns: [],
+          rows: [
+            { ul: "233", line: "2", id: "a", parcel: "p", translate: "n", qty: 1, weight: 1, cost: 1 },
+            { ul: "232", line: "2", id: "b", parcel: "p", translate: "n", qty: 1, weight: 1, cost: 1 },
+            { ul: "232", line: "1", id: "c", parcel: "p", translate: "n", qty: 1, weight: 1, cost: 1 },
+          ],
+        },
+        { id: "ul-232", name: "232", columns: [], rows: [], tdNumber: "TD-232" },
+        { id: "ul-233", name: "233", columns: [], rows: [], tdNumber: "TD-233" },
+      ],
+      itogControlKeys: new Set<string>(),
+      excludedUlNumbers: new Set<string>(),
+    };
+    const rows = collectFixRows(wb);
+    expect(rows.map((r) => `${r.ul}/${r.line}`)).toEqual(["232/1", "232/2", "233/2"]);
+    expect(rows[0]!.tdNumber).toBe("TD-232");
+    expect(rows[2]!.tdNumber).toBe("TD-233");
+  });
+
+  it("isHolzCarrier detects Холз", () => {
+    expect(isHolzCarrier({ id: "1", name: 'ООО «ХОЛЗ»', legalAddress: "", inn: "9706037094", kpp: "", loadingAddress: "", unloadingAddress: "", createdAt: "", updatedAt: "" })).toBe(true);
+    expect(isHolzCarrier({ id: "2", name: "ООО Гео", legalAddress: "", inn: "123", kpp: "", loadingAddress: "", unloadingAddress: "", createdAt: "", updatedAt: "" })).toBe(false);
+  });
+
+  it("validateTdPrep requires FIX and tdNumber on UL with inItog rows", () => {
+    const wb = {
+      sheets: [
+        {
+          id: "ul-02612691",
+          name: "02612691",
+          columns: [],
+          rows: [{ rowNum: "1", inItog: 1, cargoPlace: "id", parcel: "p", name: "x", qty: 1, weight: 1, cost: 1 }],
+        },
+      ],
+      itogControlKeys: new Set<string>(),
+      excludedUlNumbers: new Set<string>(),
+    };
+    expect(validateTdPrep(wb).some((e) => e.includes("FIX"))).toBe(true);
+    wb.sheets.push({ id: "fix", name: "FIX", columns: [], rows: [{ ul: "02612691", line: "1" }] });
+    expect(validateTdPrep(wb).some((e) => e.includes("ТД"))).toBe(true);
   });
 });
