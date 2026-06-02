@@ -4,6 +4,7 @@ import {
   applyItogTranslationsToWorkbook,
   countItogTranslatedRows,
   itogRowsNeedingTranslation,
+  acceptItogTranslation,
 } from "../../../lib/haulzReturns/translateOperations";
 import { saveHaulzReturnsWorkbook, translateHaulzItogBatch } from "./haulzReturns";
 
@@ -28,14 +29,19 @@ export async function translateAndPersistItogWorkbook(
   for (let i = 0; i < pending.length; i += TRANSLATE_BATCH_SIZE) {
     const batch = pending.slice(i, i + TRANSLATE_BATCH_SIZE);
     const results = await translateHaulzItogBatch(auth, batch);
-    const batchMap = new Map(
-      results.filter((row) => row.translation.trim()).map((row) => [row.rowKey, row.translation]),
-    );
+    const byKey = new Map(results.map((row) => [row.rowKey, row.translation]));
+    const batchMap = new Map<string, string>();
+    for (const item of batch) {
+      const raw = String(byKey.get(item.rowKey) ?? "").trim();
+      if (raw && acceptItogTranslation(item.text, raw)) {
+        batchMap.set(item.rowKey, raw);
+      }
+    }
     if (batchMap.size === 0) {
       throw new Error(
         results.length === 0
           ? "Сервер не ответил на запрос перевода — проверьте OPENAI_API_KEY на Vercel"
-          : "OpenAI вернул пустой перевод",
+          : "OpenAI не вернул русский перевод (проверьте «Данные УЛ» и ключ API)",
       );
     }
     current = applyItogTranslationsToWorkbook(current, batchMap);

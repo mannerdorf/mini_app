@@ -12,12 +12,29 @@ export type ItogTranslateItem = {
 
 export { ensureItogRowIds, itogRowTranslateKey } from "./itogRowKeys.js";
 
+/** Строка нуждается в EN→RU переводе: есть латиница в «Данные УЛ», «Перевод» пуст. */
+export function itogTextNeedsTranslation(text: string): boolean {
+  const t = text.trim();
+  if (!t) return false;
+  return /[A-Za-z]/.test(t);
+}
+
+/** Принимаем перевод: для латиницы в источнике нужна кириллица в результате. */
+export function acceptItogTranslation(source: string, translation: string): boolean {
+  const src = source.trim();
+  const tr = translation.trim();
+  if (!tr) return false;
+  if (!/[A-Za-z]/.test(src)) return true;
+  if (/[А-Яа-яЁё]/.test(tr)) return true;
+  return tr.toLowerCase() !== src.toLowerCase();
+}
+
 export function itogRowsNeedingTranslation(rows: HaulzSheetRow[]): ItogTranslateItem[] {
   return ensureItogRowIds(rows)
     .filter((row) => {
       const text = String(row.ulData ?? "").trim();
       const translate = String(row.translate ?? "").trim();
-      return text.length > 0 && translate.length === 0;
+      return text.length > 0 && translate.length === 0 && itogTextNeedsTranslation(text);
     })
     .map((row) => ({
       rowKey: itogRowTranslateKey(row),
@@ -26,13 +43,27 @@ export function itogRowsNeedingTranslation(rows: HaulzSheetRow[]): ItogTranslate
     .filter((item) => item.rowKey.length > 0);
 }
 
+function lookupTranslation(translations: Map<string, string>, row: HaulzSheetRow): string | undefined {
+  const keys = [
+    itogRowTranslateKey(row),
+    String(row._rowId ?? "").trim(),
+    String(row.control ?? "").trim(),
+    String(row.parcel ?? "").trim(),
+  ].filter(Boolean);
+  for (const key of keys) {
+    const hit = translations.get(key);
+    if (hit?.trim()) return hit.trim();
+  }
+  return undefined;
+}
+
 export function applyItogTranslations(sheet: HaulzSheet, translations: Map<string, string>): HaulzSheet {
   if (sheet.id !== "itog" || translations.size === 0) return sheet;
 
   const dataRows = ensureItogRowIds(stripSummaryRows(sheet.rows)).map((row) => {
-    const key = itogRowTranslateKey(row);
-    const translation = translations.get(key);
-    if (translation == null) return row;
+    const source = String(row.ulData ?? "").trim();
+    const translation = lookupTranslation(translations, row);
+    if (translation == null || !acceptItogTranslation(source, translation)) return row;
     return { ...row, translate: translation };
   });
 
@@ -80,7 +111,7 @@ export async function translateItogWorkbook(wb: HaulzWorkbook): Promise<HaulzWor
     const map = new Map<string, string>();
     batch.forEach((item, idx) => {
       const text = String(translations[idx] ?? "").trim();
-      if (text) map.set(item.rowKey, text);
+      if (text && acceptItogTranslation(item.text, text)) map.set(item.rowKey, text);
     });
     current = applyItogTranslationsToWorkbook(current, map);
   }
@@ -97,5 +128,5 @@ export function isItogTranslatePendingRow(row: HaulzSheetRow): boolean {
   if (isSummaryRow(row)) return false;
   const text = String(row.ulData ?? "").trim();
   const translate = String(row.translate ?? "").trim();
-  return text.length > 0 && translate.length === 0;
+  return text.length > 0 && translate.length === 0 && itogTextNeedsTranslation(text);
 }

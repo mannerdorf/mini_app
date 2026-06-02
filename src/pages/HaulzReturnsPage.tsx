@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ChevronDown, ChevronUp, Download, FileSpreadsheet, FolderOpen, Languages, Pencil, Trash2, Upload } from "lucide-react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import type { AuthData } from "../types";
@@ -112,6 +112,8 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
   const [renamingJobId, setRenamingJobId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [renaming, setRenaming] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const autoLoadedSessionRef = useRef(false);
 
   const tabs = useMemo(
     () => workbook?.sheets.map((s) => ({ id: s.id, label: s.name })) ?? [],
@@ -185,6 +187,52 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
     void refreshJobs();
   }, [refreshJobs]);
 
+  const buildLocalWorkbookPreview = useCallback(async (): Promise<HaulzWorkbook | null> => {
+    if (!otpravkaFile || (ulPrio1.length === 0 && ulPrio2.length === 0)) return null;
+    const otpravka = parseOtpravkaBuffer(await otpravkaFile.arrayBuffer(), otpravkaFile.name);
+    const ulPrio1Parsed = [];
+    for (const slot of ulPrio1) {
+      ulPrio1Parsed.push(await parseUlBuffer(await slot.file.arrayBuffer(), slot.file.name));
+    }
+    const ulPrio2Parsed = [];
+    for (const slot of ulPrio2) {
+      ulPrio2Parsed.push(await parseUlBuffer(await slot.file.arrayBuffer(), slot.file.name));
+    }
+    return normalizeWorkbookColumns(
+      buildWorkbook({ otpravka, ulPrio1: ulPrio1Parsed, ulPrio2: ulPrio2Parsed }),
+    );
+  }, [otpravkaFile, ulPrio1, ulPrio2]);
+
+  /** Без сохранённой сессии — сразу показываем собранную таблицу из прикреплённых файлов. */
+  useEffect(() => {
+    if (jobId || processing) return;
+    if (!otpravkaFile || (ulPrio1.length === 0 && ulPrio2.length === 0)) {
+      setWorkbook(null);
+      return;
+    }
+    let cancelled = false;
+    setPreviewing(true);
+    void (async () => {
+      try {
+        const wb = await buildLocalWorkbookPreview();
+        if (cancelled || !wb) return;
+        setWorkbook(wb);
+        setActiveTab("itog");
+        setWorkbookTableCollapsed(false);
+        setError(null);
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setError((e as Error)?.message || "Не удалось собрать таблицу из файлов");
+        }
+      } finally {
+        if (!cancelled) setPreviewing(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId, processing, otpravkaFile, ulPrio1, ulPrio2, buildLocalWorkbookPreview]);
+
   const persistWorkbook = useCallback(
     async (next: HaulzWorkbook, currentJobId: string) => {
       if (!auth) return next;
@@ -234,17 +282,24 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
       setError(null);
       setProcessing(true);
       try {
-        const data = await getHaulzReturnsJob(auth, id);
+        let data = await getHaulzReturnsJob(auth, id);
         setJobId(id);
         setStoredFiles(data.files);
         setOtpravkaFile(null);
         setUlPrio1([]);
         setUlPrio2([]);
+
+        if (!data.workbook && data.files.length > 0) {
+          await processHaulzReturnsJob(auth, id);
+          data = await getHaulzReturnsJob(auth, id);
+          setStoredFiles(data.files);
+        }
+
         if (data.workbook) {
           let wb = normalizeWorkbookColumns(data.workbook);
           setActiveTab("itog");
-          setWorkbookTableCollapsed(true);
-          setStoredFilesCollapsed(true);
+          setWorkbookTableCollapsed(false);
+          setStoredFilesCollapsed(false);
           try {
             wb = await runItogTranslation(wb, id);
           } catch (e: unknown) {
@@ -266,11 +321,38 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
     [auth, runItogTranslation],
   );
 
+  /** При открытии страницы — загрузить последнюю сессию, если пользователь не начал новую загрузку. */
+  useEffect(() => {
+    if (autoLoadedSessionRef.current || loadingJobs || !auth) return;
+    if (jobId || workbook || otpravkaFile) {
+      autoLoadedSessionRef.current = true;
+      return;
+    }
+    if (jobs.length > 0) {
+      autoLoadedSessionRef.current = true;
+      void loadJob(jobs[0]!.id);
+      return;
+    }
+    autoLoadedSessionRef.current = true;
+  }, [loadingJobs, jobs, auth, jobId, workbook, otpravkaFile, loadJob]);
+
+  const commitWorkbook = useCallback(
+    async (next: HaulzWorkbook) => {
+      setWorkbook(next);
+      if (jobId && auth) {
+        return persistWorkbook(next, jobId);
+      }
+      return next;
+    },
+    [auth, jobId, persistWorkbook],
+  );
+
   const handleOtpravkaChange = useCallback((list: FileList | null) => {
-    setOtpravkaFile(list?.[0] ?? null);
-    setWorkbook(null);
+    const file = list?.[0] ?? null;
+    setOtpravkaFile(file);
     setJobId(null);
     setStoredFiles([]);
+    if (!file) setWorkbook(null);
     setWorkbookTableCollapsed(false);
     setStoredFilesCollapsed(false);
     setError(null);
@@ -281,7 +363,6 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
     const slots = Array.from(list).map((file) => ({ id: uid(), file }));
     if (prio === 1) setUlPrio1((prev) => [...prev, ...slots]);
     else setUlPrio2((prev) => [...prev, ...slots]);
-    setWorkbook(null);
     setJobId(null);
     setWorkbookTableCollapsed(false);
     setStoredFilesCollapsed(false);
@@ -291,7 +372,6 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
   const removeUl = useCallback((id: string, prio: 1 | 2) => {
     if (prio === 1) setUlPrio1((prev) => prev.filter((s) => s.id !== id));
     else setUlPrio2((prev) => prev.filter((s) => s.id !== id));
-    setWorkbook(null);
     setJobId(null);
     setWorkbookTableCollapsed(false);
     setStoredFilesCollapsed(false);
@@ -344,12 +424,12 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
       await processHaulzReturnsJob(auth, newJobId);
       setJobId(newJobId);
       setActiveTab("itog");
-      setWorkbookTableCollapsed(true);
-      setStoredFilesCollapsed(true);
+      setWorkbookTableCollapsed(false);
+      setStoredFilesCollapsed(false);
       try {
         const loaded = await getHaulzReturnsJob(auth, newJobId);
         setStoredFiles(loaded.files);
-        let wb = loaded.workbook ? normalizeWorkbookColumns(loaded.workbook) : wbLocal;
+        let wb = loaded.workbook ? normalizeWorkbookColumns(loaded.workbook) : (await buildLocalWorkbookPreview()) ?? wbLocal;
         try {
           wb = await runItogTranslation(wb, newJobId);
         } catch (e: unknown) {
@@ -366,11 +446,11 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
       setProcessing(false);
       setUploadProgress(null);
     }
-  }, [auth, otpravkaFile, ulPrio1, ulPrio2, refreshJobs, runItogTranslation]);
+  }, [auth, otpravkaFile, ulPrio1, ulPrio2, refreshJobs, runItogTranslation, buildLocalWorkbookPreview]);
 
   const handleDeleteItogRow = useCallback(
     (rowId: string) => {
-      if (!workbook || !jobId) return;
+      if (!workbook) return;
       void (async () => {
         const sheets = workbook.sheets.map((sheet) =>
           sheet.id === "itog" ? removeItogRow(sheet, rowId) : sheet,
@@ -384,10 +464,10 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
           updated[fixIdx] = fix;
           next = { ...next, sheets: updated };
         }
-        await persistWorkbook(next, jobId);
+        await commitWorkbook(next);
       })();
     },
-    [workbook, jobId, persistWorkbook],
+    [workbook, commitWorkbook],
   );
 
   const handleTranslateItog = useCallback(() => {
@@ -414,7 +494,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
   }, [auth, workbook, jobId, runItogTranslation]);
 
   const handleRemoveItogStopRows = useCallback(() => {
-    if (!workbook || !jobId) return;
+    if (!workbook) return;
     void (async () => {
       const { workbook: next, removed } = removeItogStopRowsFromWorkbook(workbook);
       if (removed === 0) {
@@ -422,12 +502,12 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
         return;
       }
       setError(null);
-      await persistWorkbook(next, jobId);
+      await commitWorkbook(next);
     })();
-  }, [workbook, jobId, persistWorkbook]);
+  }, [workbook, commitWorkbook]);
 
   const handleRemoveKgdDuplicates = useCallback(() => {
-    if (!workbook || !jobId) return;
+    if (!workbook) return;
     void (async () => {
       const kgdBefore = workbook.sheets.find((s) => s.id === "kgd")?.rows.length ?? 0;
       const next = removeKgdDuplicates(workbook);
@@ -437,22 +517,22 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
         return;
       }
       setError(null);
-      await persistWorkbook(next, jobId);
+      await commitWorkbook(next);
     })();
-  }, [workbook, jobId, persistWorkbook]);
+  }, [workbook, commitWorkbook]);
 
   const handleRecalcItogFromKgd = useCallback(() => {
-    if (!workbook || !jobId) return;
+    if (!workbook) return;
     void (async () => {
       setError(null);
       const next = rebuildItogFromKgd(workbook);
-      await persistWorkbook(next, jobId);
+      await commitWorkbook(next);
       setActiveTab("itog");
     })();
-  }, [workbook, jobId, persistWorkbook]);
+  }, [workbook, commitWorkbook]);
 
   const handleAddStopWord = useCallback(() => {
-    if (!workbook || !jobId) return;
+    if (!workbook) return;
     const word = newStopWord.trim();
     if (!word) {
       setError("Введите наименование для STOP");
@@ -466,24 +546,24 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
       }
       setNewStopWord("");
       setError(null);
-      await persistWorkbook(next, jobId);
+      await commitWorkbook(next);
     })();
-  }, [workbook, jobId, newStopWord, persistWorkbook]);
+  }, [workbook, newStopWord, commitWorkbook]);
 
   const handleDeleteStopRow = useCallback(
     (rowId: string) => {
-      if (!workbook || !jobId) return;
+      if (!workbook) return;
       void (async () => {
         setError(null);
         const next = removeStopWord(workbook, rowId);
-        await persistWorkbook(next, jobId);
+        await commitWorkbook(next);
       })();
     },
-    [workbook, jobId, persistWorkbook],
+    [workbook, commitWorkbook],
   );
 
   const handleDeleteUlSheet = useCallback(() => {
-    if (!workbook || !jobId || !activeSheet?.id.startsWith("ul-")) return;
+    if (!workbook || !activeSheet?.id.startsWith("ul-")) return;
     const ulLabel = activeSheet.name || activeSheet.id.slice(3);
     if (!window.confirm(`Удалить упаковочный лист «${ulLabel}» и строки итога по этому УЛ?`)) return;
     void (async () => {
@@ -493,14 +573,14 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
         setError("Лист УЛ не найден");
         return;
       }
-      await persistWorkbook(next, jobId);
+      await commitWorkbook(next);
       setActiveTab("itog");
     })();
-  }, [workbook, jobId, activeSheet, persistWorkbook]);
+  }, [workbook, activeSheet, commitWorkbook]);
 
   const handleDeleteUlRow = useCallback(
     (rowId: string) => {
-      if (!workbook || !jobId || !activeSheet?.id.startsWith("ul-")) return;
+      if (!workbook || !activeSheet?.id.startsWith("ul-")) return;
       void (async () => {
         setError(null);
         const next = {
@@ -509,14 +589,14 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
             sheet.id === activeSheet.id ? removeUlRow(sheet, rowId) : sheet,
           ),
         };
-        await persistWorkbook(next, jobId);
+        await commitWorkbook(next);
       })();
     },
-    [workbook, jobId, activeSheet, persistWorkbook],
+    [workbook, activeSheet, commitWorkbook],
   );
 
   const handleCreateFix = useCallback(() => {
-    if (!workbook || !jobId) return;
+    if (!workbook) return;
     void (async () => {
       const itog = workbook.sheets.find((s) => s.id === "itog");
       if (!itog) return;
@@ -524,9 +604,9 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
       const withoutFix = workbook.sheets.filter((s) => s.id !== "fix");
       const next = { ...workbook, sheets: [...withoutFix, fix] };
       setActiveTab("fix");
-      await persistWorkbook(next, jobId);
+      await commitWorkbook(next);
     })();
-  }, [workbook, jobId, persistWorkbook]);
+  }, [workbook, commitWorkbook]);
 
   const handleExport = useCallback(async () => {
     if (!activeSheet) return;
@@ -639,6 +719,10 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
           <Typography.Body style={{ color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>
             {activeJobTitle ?? `Сессия ${jobId}`}
             {saving ? " · сохранение…" : " · в БД"}
+          </Typography.Body>
+        ) : workbook ? (
+          <Typography.Body style={{ color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>
+            {previewing ? "Сборка таблицы…" : "Предпросмотр · нажмите «Обработать и сохранить» для записи в БД"}
           </Typography.Body>
         ) : null}
       </Flex>
@@ -820,7 +904,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
 
       <Flex gap="0.5rem" wrap="wrap" style={{ marginTop: "1rem", marginBottom: "1rem" }}>
         <Button type="button" className="button-primary" disabled={!canProcess} onClick={() => void handleProcess()}>
-          {processing ? "Обработка…" : "Обработать и сохранить"}
+          {processing ? "Обработка…" : previewing ? "Сборка…" : "Обработать и сохранить"}
         </Button>
       </Flex>
 
