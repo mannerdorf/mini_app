@@ -15,7 +15,7 @@ import { itogValidationFromRow } from "./validators";
 import { parseCarrierInput, formatCarrierCard } from "./carriers";
 import { collectFixRows, isHolzCarrier, validateTdPrep, buildTdPrepared } from "./tdDocuments/index.js";
 import { replaceDraftRuDate, splitDraftDateField, syncTitleDateFromFts, computeProformaTotals } from "./tdDocuments/draftDateFields.js";
-import { workbookForApi, workbookForApiWithinBudget } from "./workbookApi";
+import { workbookForApi, workbookForApiWithinBudget, mergeWorkbookPatch } from "./workbookApi";
 import { parseTranslationsJson } from "./openaiTranslate";
 import {
   applyItogTranslationsToWorkbook,
@@ -778,6 +778,38 @@ describe("tdDocuments", () => {
       weight: 2.023,
       cost: 10135,
     });
+  });
+
+  it("mergeWorkbookPatch keeps carrierId and tdNumber on deferred UL patch", () => {
+    const stored = {
+      sheets: [{
+        id: "ul-02606521",
+        name: "02606521",
+        columns: [],
+        rows: [{ rowNum: "1", parcel: "p", inItog: 1 }],
+        carrierId: null,
+        tdNumber: null,
+      }],
+      itogControlKeys: new Set<string>(),
+      excludedUlNumbers: new Set<string>(),
+    };
+    const incoming = {
+      sheets: [{
+        id: "ul-02606521",
+        name: "02606521",
+        columns: [],
+        rows: [],
+        carrierId: "42",
+        tdNumber: "10229010/260526/0113288",
+      }],
+      itogControlKeys: new Set<string>(),
+      excludedUlNumbers: new Set<string>(),
+    };
+    const merged = mergeWorkbookPatch(stored, incoming);
+    const ul = merged.sheets.find((s) => s.id === "ul-02606521");
+    expect(ul?.carrierId).toBe("42");
+    expect(ul?.tdNumber).toBe("10229010/260526/0113288");
+    expect(ul?.rows).toHaveLength(1);
   });
 
   it("buildTdPrepared stores fix rows and draft", () => {

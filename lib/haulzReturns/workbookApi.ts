@@ -178,7 +178,13 @@ export function mergeWorkbookPatch(stored: HaulzWorkbook | null, incoming: Haulz
       if (ul && excludedUlNumbers.has(ul)) return [];
       if (s.rows.length === 0 && !s.ulLocallyEdited) {
         const prev = storedUl.get(id);
-        if (prev) return [prev];
+        if (prev) {
+          return [{
+            ...prev,
+            carrierId: s.carrierId ?? prev.carrierId ?? null,
+            tdNumber: s.tdNumber ?? prev.tdNumber ?? null,
+          }];
+        }
       }
     }
     return [{
