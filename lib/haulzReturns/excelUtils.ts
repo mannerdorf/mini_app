@@ -21,6 +21,16 @@ export function extractUlNumberFromTitle(text: string): string | null {
   return m?.[1] ?? null;
 }
 
+/** Дата из шапки УЛ: «… от 22.05.2026». */
+export function extractUlDateFromTitle(text: string): string | null {
+  const t = cellText(text);
+  if (!t) return null;
+  const fromOt = t.match(/\bот\s+(\d{2}\.\d{2}\.\d{4})\b/i);
+  if (fromOt?.[1]) return fromOt[1];
+  const all = [...t.matchAll(/\b(\d{2}\.\d{2}\.\d{4})\b/g)];
+  return all.length > 0 ? (all[all.length - 1]![1] ?? null) : null;
+}
+
 export function findHeaderRowIndex(data: unknown[][], required: ((n: string) => boolean)[]): number {
   for (let i = 0; i < Math.min(20, data.length); i++) {
     const row = data[i] ?? [];

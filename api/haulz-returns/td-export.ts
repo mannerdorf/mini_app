@@ -9,7 +9,6 @@ import {
 import { carrierFromDbRow } from "../../lib/haulzReturns/carriers.js";
 import type { TdDocType, TdDraft, TdPrepared } from "../../lib/haulzReturns/tdDocuments/index.js";
 import { mergeTdPrepared } from "../../lib/haulzReturns/tdMetaMerge.js";
-import { hydrateWorkbookForTdExport } from "../../lib/haulzReturns/tdDocuments/hydrateWorkbookForExport.js";
 import { loadLatestWorkbook } from "../../lib/haulzReturns/workbookStorage.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -51,10 +50,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(404).json({ error: "Workbook не найден", request_id: ctx.requestId });
     }
 
-    const tdPrepared =
-      mergeTdPrepared(workbook.tdPrepared, bodyPrepared) ?? bodyPrepared ?? workbook.tdPrepared;
-    const hydratedWorkbook = await hydrateWorkbookForTdExport(pool, jobId, workbook);
-
     const { exportTdDocuments, exportTdZip } = await import("../../lib/haulzReturns/tdDocuments/index.js");
     const { resolveTdExportDraft } = await import("../../lib/haulzReturns/tdDocuments/resolveTdDraft.js");
 
@@ -77,17 +72,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       for (const row of rows) carriersById.set(row.id, carrierFromDbRow(row));
     }
 
+    const hasBodySnapshot =
+      (bodyPrepared?.fixRows?.length ?? 0) > 0 || (bodyPrepared?.writeoffs?.length ?? 0) > 0;
+    const tdPrepared =
+      mergeTdPrepared(workbook.tdPrepared, hasBodySnapshot ? bodyPrepared : undefined, draft) ??
+      workbook.tdPrepared;
+
+    if (!tdPrepared) {
+      return res.status(400).json({
+        error: "Сначала нажмите «Подготовить ТД» на вкладке итог.",
+        request_id: ctx.requestId,
+      });
+    }
+
     const ctxExport = {
-      workbook: { ...hydratedWorkbook, tdDraft: draft ?? hydratedWorkbook.tdDraft, tdPrepared },
+      workbook: { ...workbook, tdDraft: draft ?? workbook.tdDraft, tdPrepared },
       carriersById,
-      draft: draft ?? hydratedWorkbook.tdDraft ?? tdPrepared?.draft,
+      draft: draft ?? workbook.tdDraft ?? tdPrepared?.draft,
     };
 
     if (docType === "all") {
-      const draftMerged = draft ?? hydratedWorkbook.tdDraft ?? tdPrepared?.draft;
+      const draftMerged = draft ?? workbook.tdDraft ?? tdPrepared?.draft;
       const { headerTd } = resolveTdExportDraft(
         { specification: draftMerged?.specification, proforma: draftMerged?.proforma },
-        hydratedWorkbook,
+        workbook,
       );
       const { tdAllDocumentsZipFileName } = await import("../../lib/haulzReturns/tdDocuments/fileNames.js");
       const zipName = tdAllDocumentsZipFileName(headerTd);

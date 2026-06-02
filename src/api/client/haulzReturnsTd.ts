@@ -88,7 +88,6 @@ export async function exportTdDocument(
       jobId: Number(jobId),
       docType,
       draft,
-      tdPrepared,
       ulNumber,
     }),
   });

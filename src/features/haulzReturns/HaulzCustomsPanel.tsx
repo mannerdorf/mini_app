@@ -21,7 +21,7 @@ import {
   WRITEOFF_PREVIEW_COLUMNS,
   PORUCHENIE_MERGED_DRAFT_KEY,
 } from "../../lib/haulzReturns";
-import { downloadTdBlob, exportTdAllZip, exportTdDocument } from "../../api/client/haulzReturnsTd";
+import { downloadTdBlob, exportTdDocument } from "../../api/client/haulzReturnsTd";
 import { HaulzPoruchenieDraftForm } from "./HaulzPoruchenieDraftForm";
 import { HaulzTdDraftForm } from "./HaulzTdDraftForm";
 import { HaulzTdPreviewTable } from "./HaulzTdPreviewTable";
@@ -219,17 +219,13 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
       void (async () => {
         try {
           const draft = mergeTdDraft(prepared.draft, workbook.tdDraft) ?? prepared.draft;
-          const { blob, fileName } =
-            docType === "all"
-              ? await exportTdAllZip(auth, jobId, draft, prepared)
-              : await exportTdDocument(auth, {
-                  jobId,
-                  docType,
-                  draft,
-                  tdPrepared: prepared,
-                  ulNumber:
-                    docType === "poruchenie" ? activePoruchenie?.ulNumber : undefined,
-                });
+          const { blob, fileName } = await exportTdDocument(auth, {
+            jobId,
+            docType: docType === "all" ? "all" : docType,
+            draft,
+            tdPrepared: prepared,
+            ulNumber: docType === "poruchenie" ? activePoruchenie?.ulNumber : undefined,
+          });
           downloadTdBlob(blob, fileName);
         } catch (e: unknown) {
           onError?.((e as Error)?.message || "Ошибка выгрузки");

@@ -235,12 +235,13 @@ export function buildUlSheetForParsedFile(file: ParsedUlFile, controlKeys: Set<s
       inItog,
     };
   });
-  return {
+  return normalizeUlSheetTdMeta({
     id: `ul-${file.ulNumber}`,
     name: file.ulNumber,
     columns: UL_HEADERS,
     rows: appendUlSummaryRow(rows),
-  };
+    tdDate: file.ulDate ?? null,
+  });
 }
 
 /** Подставляет строки из файла УЛ, сохраняя перевозчика и номер ТД из сохранённого листа. */
@@ -254,7 +255,7 @@ export function hydrateUlSheetFromParsed(
     ...loaded,
     carrierId: existing?.carrierId ?? null,
     tdNumber: existing?.tdNumber ?? null,
-    tdDate: existing?.tdDate ?? null,
+    tdDate: existing?.tdDate ?? parsed.ulDate ?? null,
     ulDeferred: false,
   });
 }

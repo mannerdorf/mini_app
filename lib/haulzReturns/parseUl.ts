@@ -2,6 +2,7 @@ import type { ParsedUlFile, UlDataRow } from "./types";
 import {
   cellText,
   colIndexByHeader,
+  extractUlDateFromTitle,
   extractUlNumberFromFileName,
   extractUlNumberFromTitle,
   findHeaderRowIndex,
@@ -34,16 +35,18 @@ function parseUlMatrix(matrix: unknown[][], fileName: string): ParsedUlFile {
   };
 
   let ulNumber = extractUlNumberFromFileName(fileName);
-  if (!ulNumber) {
-    for (let r = 0; r < headerIdx; r++) {
-      for (const cell of matrix[r] ?? []) {
-        const fromTitle = extractUlNumberFromTitle(cellText(cell));
-        if (fromTitle) {
-          ulNumber = fromTitle;
-          break;
-        }
+  let ulDate: string | null = null;
+  for (let r = 0; r < headerIdx; r++) {
+    for (const cell of matrix[r] ?? []) {
+      const text = cellText(cell);
+      if (!ulNumber) {
+        const fromTitle = extractUlNumberFromTitle(text);
+        if (fromTitle) ulNumber = fromTitle;
       }
-      if (ulNumber) break;
+      if (!ulDate) {
+        const fromTitle = extractUlDateFromTitle(text);
+        if (fromTitle) ulDate = fromTitle;
+      }
     }
   }
   if (!ulNumber) {
@@ -81,6 +84,7 @@ function parseUlMatrix(matrix: unknown[][], fileName: string): ParsedUlFile {
   return {
     fileName,
     ulNumber,
+    ulDate,
     sheet: { ulNumber, rows },
   };
 }

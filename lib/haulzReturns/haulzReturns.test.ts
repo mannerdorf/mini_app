@@ -64,6 +64,33 @@ describe("parseUlMatrix", () => {
     expect(parsed.sheet.rows).toHaveLength(2);
     expect(parsed.sheet.rows[0].name).toBe("Test item");
   });
+
+  it("extracts UL date from packing list title", () => {
+    const matrix = [
+      ["", "Упаковочный лист к отправке номер № 02638550 в Калининград (KGD) от 22.05.2026"],
+      ["Номер п/п", "Грузовое место", "Номер посылки", "Аэропорт", "Вес", "Объем", "Категория", "Наименование", "кол-во", "Стоимость"],
+      ["1", "PLACE1", "10000211381829", "KGD", "1", "0.1", "<>", "Test item", "2", "100"],
+    ];
+    const parsed = parseUlMatrix(matrix, "02638550.xlsx");
+    expect(parsed.ulNumber).toBe("02638550");
+    expect(parsed.ulDate).toBe("22.05.2026");
+  });
+
+  it("sets tdDate on UL sheet when title contains date", () => {
+    const matrix = [
+      ["", "Упаковочный лист к отправке номер № 02634274 в Калининград (KGD) от 19.05.2026"],
+      ["Номер п/п", "Грузовое место", "Номер посылки", "Аэропорт", "Вес", "Объем", "Категория", "Наименование", "кол-во", "Стоимость"],
+      ["1", "PLACE1", "10000211381829", "KGD", "1", "0.1", "<>", "Test item", "2", "100"],
+    ];
+    const ul = parseUlMatrix(matrix, "02634274.xlsx");
+    const wb = buildWorkbook({
+      otpravka: [{ cargoPlace: "PLACE1", parcel: "10000211381829" }],
+      ulPrio1: [ul],
+      ulPrio2: [],
+    });
+    const sheet = wb.sheets.find((s) => s.id === "ul-02634274");
+    expect(sheet?.tdDate).toBe("19.05.2026");
+  });
 });
 
 describe("validators", () => {
@@ -1606,6 +1633,32 @@ describe("tdDocuments", () => {
     const inputs = resolveWriteoffInputs({ workbook: wb, carriersById: new Map(), draft: {} });
     expect(inputs).toHaveLength(1);
     expect(inputs[0]!.rows[0]!.name).toBe("from prepared only");
+  });
+
+  it("tdExportNeedsUlHydration skips when tdPrepared snapshot exists", async () => {
+    const { tdExportNeedsUlHydration } = await import("./tdDocuments/hydrateWorkbookForExport.js");
+    const wb = {
+      sheets: [
+        {
+          id: "ul-02606521",
+          name: "02606521",
+          columns: [],
+          rows: [],
+          ulDeferred: true,
+        },
+      ],
+      itogControlKeys: new Set(["026065211p"]),
+      excludedUlNumbers: new Set<string>(),
+    };
+    expect(
+      tdExportNeedsUlHydration(wb, {
+        preparedAt: "2026-01-01T00:00:00.000Z",
+        fixRows: [{ ul: "1", line: "1", id: "a", parcel: "p", translate: "n", qty: 1, weight: 1, cost: 1 }],
+        writeoffs: [],
+        draft: {},
+      }),
+    ).toBe(false);
+    expect(tdExportNeedsUlHydration(wb, null)).toBe(true);
   });
 
   it("buildWriteoffBuffer exports only preview rows without template sample data", async () => {
