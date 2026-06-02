@@ -1,5 +1,6 @@
 import type { HaulzSheet, HaulzSheetRow, HaulzWorkbook } from "./types.js";
 import { FIX_COLUMNS } from "./types.js";
+import { ensureItogRowIds, itogControlKey } from "./itogRowKeys.js";
 import { appendItogSummaryRow, isSummaryRow, stripSummaryRows, syncUlSheetFromControlKeys } from "./ulTotals.js";
 import { countUlPlaces, stopColumnValue, validateItogRow } from "./validators.js";
 
@@ -10,28 +11,37 @@ export function recalcWorkbookAfterItogChange(workbook: HaulzWorkbook): HaulzWor
   const stopRows = workbook.sheets.find((s) => s.id === "stop")?.rows ?? [];
 
   const dataRows = stripSummaryRows(itogSheet.rows);
+  const translateByControl = new Map(
+    dataRows.map((r) => [itogControlKey(r), String(r.translate ?? "")]),
+  );
 
   const idUlPairs = dataRows.map((r) => ({
     ul: String(r.ul ?? ""),
     id: String(r.id ?? ""),
   }));
 
-  const updatedDataRows = dataRows.map((r, idx) => {
-    const ulData = String(r.ulData ?? "");
-    const validation = validateItogRow(ulData);
-    const ul = String(r.ul ?? "");
-    return {
-      ...r,
-      num: idx + 1,
-      ulPlaces: countUlPlaces(idUlPairs, ul),
-      stop: stopColumnValue(ulData, stopRows),
-      chars: ulData.length,
-      englishOnly: validation.englishOnly,
-      au585: validation.au585,
-      digitsOnly: validation.digitsOnly,
-      pinkList: validation.pinkList,
-    };
-  });
+  const updatedDataRows = ensureItogRowIds(
+    dataRows.map((r, idx) => {
+      const ulData = String(r.ulData ?? "");
+      const validation = validateItogRow(ulData);
+      const ul = String(r.ul ?? "");
+      const control = itogControlKey(r) || String(r.control ?? "");
+      const translate = String(r.translate ?? "") || translateByControl.get(control) || "";
+      return {
+        ...r,
+        num: idx + 1,
+        control,
+        translate,
+        ulPlaces: countUlPlaces(idUlPairs, ul),
+        stop: stopColumnValue(ulData, stopRows),
+        chars: ulData.length,
+        englishOnly: validation.englishOnly,
+        au585: validation.au585,
+        digitsOnly: validation.digitsOnly,
+        pinkList: validation.pinkList,
+      };
+    }),
+  );
 
   const controlKeys = new Set(updatedDataRows.map((r) => String(r.control ?? "")));
 

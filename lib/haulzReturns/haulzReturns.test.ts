@@ -5,13 +5,17 @@ import { addStopWord, removeStopWord } from "./stopOperations";
 import { parseOtpravkaMatrix } from "./parseOtpravka";
 import { parseUlMatrix } from "./parseUl";
 import { removeItogStopRowsFromWorkbook } from "./itogOperations";
-import { appendItogSummaryRow, appendKgdSummaryRow, appendUlSummaryRow, collectUlNumbersInItog, computeItogTotals, computeUlTotals, countUlDataRows, isItogDataRowFilled, isItogStopRow, isSummaryRow, isUlDataRowFilled, isUlRowInItog, isUlTabInItog, removeItogStopRows, removeUlRow, syncUlSheetFromControlKeys } from "./ulTotals";
+import { appendItogSummaryRow, appendKgdSummaryRow, appendUlSummaryRow, collectUlNumbersInItog, computeItogTotals, computeUlTotals, countUlDataRows, isItogDataRowFilled, isItogStopRow, isSummaryRow, isUlDataRowFilled, isUlRowInItog, isUlTabInItog, removeItogStopRows, removeUlRow, stripSummaryRows, syncUlSheetFromControlKeys } from "./ulTotals";
 import { removeUlSheetFromWorkbook } from "./ulSheetOperations";
+import { removeItogRow } from "./ulTotals";
+import { recalcWorkbookAfterItogChange } from "./workbookRecalc";
+import { ensureItogRowIds, stableItogRowId } from "./itogRowKeys";
 import { parseTranslationsJson } from "./openaiTranslate";
 import {
   applyItogTranslationsToWorkbook,
   countItogTranslatedRows,
   itogRowsNeedingTranslation,
+  itogRowsForTranslation,
 } from "./translateOperations";
 import {
   isEnglishOnly,
@@ -345,7 +349,11 @@ describe("buildWorkbook", () => {
       { _rowId: "b", control: "k2", ulData: "Pants", translate: "Штаны" },
       { _rowId: "c", control: "k3", ulData: "", translate: "" },
     ]);
-    expect(itogRowsNeedingTranslation(rows)).toEqual([{ rowKey: "k1", text: "Shirt" }]);
+    expect(itogRowsNeedingTranslation(rows)).toEqual([{ rowKey: "a", text: "Shirt" }]);
+    expect(itogRowsForTranslation(rows, { includeFilled: true })).toEqual([
+      { rowKey: "a", text: "Shirt" },
+      { rowKey: "b", text: "Pants" },
+    ]);
     expect(countItogTranslatedRows(rows)).toBe(1);
   });
 
@@ -397,5 +405,69 @@ describe("buildWorkbook", () => {
     expect(itog.rows.filter((r) => !isSummaryRow(r)).every((r) => String(r.ul ?? "") !== "02630423")).toBe(true);
     const kgd = next.sheets.find((s) => s.id === "kgd")!;
     expect(kgd.rows.filter((r) => !isSummaryRow(r)).every((r) => String(r.ul ?? "") !== "02630423")).toBe(true);
+  });
+
+  it("removeItogRow keeps translate aligned with ulData after recalc", () => {
+    const rows = appendItogSummaryRow([
+      {
+        _rowId: "itog-1-P1",
+        control: "1111P1",
+        parcel: "P1",
+        ulData: "Product ONE",
+        translate: "Товар ОДИН",
+      },
+      {
+        _rowId: "itog-2-P2",
+        control: "1112P2",
+        parcel: "P2",
+        ulData: "Product TWO",
+        translate: "Товар ДВА",
+      },
+      {
+        _rowId: "itog-3-P3",
+        control: "1113P3",
+        parcel: "P3",
+        ulData: "Product THREE",
+        translate: "Товар ТРИ",
+      },
+    ]);
+    const wb: import("./types").HaulzWorkbook = {
+      itogControlKeys: new Set(["1111P1", "1112P2", "1113P3"]),
+      sheets: [{ id: "itog", name: "итог", columns: [], rows }],
+    };
+    const itogSheet = wb.sheets.find((s) => s.id === "itog")!;
+    const removed = removeItogRow(itogSheet, "itog-2-P2");
+    const next = recalcWorkbookAfterItogChange({
+      ...wb,
+      sheets: wb.sheets.map((s) => (s.id === "itog" ? removed : s)),
+    });
+    const data = stripSummaryRows(next.sheets.find((s) => s.id === "itog")!.rows);
+    expect(data).toHaveLength(2);
+    expect(data[0]).toMatchObject({ parcel: "P1", ulData: "Product ONE", translate: "Товар ОДИН", num: 1 });
+    expect(data[1]).toMatchObject({ parcel: "P3", ulData: "Product THREE", translate: "Товар ТРИ", num: 2 });
+    expect(stableItogRowId(data[0]!)).toBe(String(data[0]!._rowId));
+  });
+
+  it("applyItogTranslations does not steal translation via bare parcel key", () => {
+    const itog = appendItogSummaryRow([
+      { _rowId: "itog:1111P1", control: "1111P1", parcel: "P1", ulData: "Shirt", translate: "Рубашка A" },
+      { _rowId: "itog:1112P2", control: "1112P2", parcel: "P2", ulData: "Pants", translate: "Штаны B" },
+    ]);
+    const wb: import("./types").HaulzWorkbook = {
+      itogControlKeys: new Set(),
+      sheets: [{ id: "itog", name: "итог", rows: itog }],
+    };
+    const next = applyItogTranslationsToWorkbook(wb, new Map([["P1", "Чужой перевод"]]));
+    const data = stripSummaryRows(next.sheets.find((s) => s.id === "itog")!.rows);
+    expect(data[0]!.translate).toBe("Рубашка A");
+    expect(data[1]!.translate).toBe("Штаны B");
+  });
+
+  it("ensureItogRowIds migrates legacy num-based ids to stable control ids", () => {
+    const [row] = ensureItogRowIds([
+      { _rowId: "itog-99-P1", control: "1111P1", parcel: "P1", ulData: "Item", translate: "Товар" },
+    ]);
+    expect(row!._rowId).toBe("itog:1111P1");
+    expect(row!.translate).toBe("Товар");
   });
 });

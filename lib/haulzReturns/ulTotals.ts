@@ -1,4 +1,5 @@
 import type { HaulzSheet, HaulzSheetRow } from "./types.js";
+import { itogControlKey } from "./itogRowKeys.js";
 
 export type UlTotals = {
   weight: number;
@@ -225,7 +226,14 @@ export function removeUlRow(sheet: HaulzSheet, rowId: string): HaulzSheet {
 
 export function removeItogRow(sheet: HaulzSheet, rowId: string): HaulzSheet {
   if (sheet.id !== "itog") return sheet;
-  const dataRows = stripSummaryRows(sheet.rows).filter((r) => r._rowId !== rowId);
+  const target = rowId.trim();
+  const dataRows = stripSummaryRows(sheet.rows).filter((r) => {
+    const id = String(r._rowId ?? "").trim();
+    if (id === target) return false;
+    const control = itogControlKey(r);
+    if (control && (control === target || `itog:${control}` === target)) return false;
+    return true;
+  });
   return { ...sheet, rows: appendItogSummaryRow(dataRows) };
 }
 

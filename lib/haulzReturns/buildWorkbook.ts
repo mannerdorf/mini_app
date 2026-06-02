@@ -16,6 +16,7 @@ import {
   validateItogRow,
 } from "./validators";
 import { recalcKgdDupCounts } from "./kgdOperations.js";
+import { stableItogRowId } from "./itogRowKeys.js";
 import { appendItogSummaryRow, appendKgdSummaryRow, appendUlSummaryRow } from "./ulTotals.js";
 import type { ParsedUlFile as UlFile } from "./types";
 
@@ -105,6 +106,7 @@ function buildItogRows(
     const seal = sealMap.get(o.parcel) ?? "";
     const validation = validateItogRow(ulData);
 
+    const control = `${ul}${line}${o.parcel}`;
     rows.push({
       num,
       ul,
@@ -120,12 +122,12 @@ function buildItogRows(
       ulPlaces: 0,
       stop: stopColumnValue(ulData),
       chars: ulData.length,
-      control: `${ul}${line}${o.parcel}`,
+      control,
       englishOnly: validation.englishOnly,
       au585: validation.au585,
       digitsOnly: validation.digitsOnly,
       pinkList: validation.pinkList,
-      _rowId: `itog-${num}-${o.parcel}`,
+      _rowId: stableItogRowId({ control, parcel: o.parcel }),
     });
   }
 
