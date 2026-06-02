@@ -392,6 +392,22 @@ describe("buildWorkbook", () => {
     expect(fix.rows.length).toBeGreaterThan(0);
   });
 
+  it("buildFixSheetFromItog sorts by ul then line ascending", () => {
+    const itog = {
+      id: "itog",
+      name: "итог",
+      columns: [],
+      rows: [
+        { _rowId: "r1", ul: "233", line: "2", num: 1 },
+        { _rowId: "r2", ul: "232", line: "2", num: 2 },
+        { _rowId: "r3", ul: "232", line: "1", num: 3 },
+        { _rowId: "r4", ul: "233", line: "1", num: 4 },
+      ],
+    };
+    const fix = buildFixSheetFromItog(itog);
+    expect(fix.rows.map((r) => `${r.ul}/${r.line}`)).toEqual(["232/1", "232/2", "233/1", "233/2"]);
+  });
+
   it("buildFixSheetFromItog copies validation flags from itog", () => {
     const itog = {
       id: "itog",

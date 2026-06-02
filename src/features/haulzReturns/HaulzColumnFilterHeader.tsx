@@ -1,17 +1,27 @@
 import React, { useMemo, useRef, useState } from "react";
-import { Filter } from "lucide-react";
+import { ArrowDown, ArrowUp, Filter } from "lucide-react";
 import type { HaulzColumn } from "../../lib/haulzReturns";
 import { FilterDropdownPortal } from "../../components/ui/FilterDropdownPortal";
 import { isColumnFilterActive } from "./columnFilterUtils";
+import type { SortDirection } from "./columnSortUtils";
 
 type Props = {
   col: HaulzColumn;
   uniqueValues: string[];
   selectedValues: Set<string> | null;
   onChange: (selected: Set<string> | null) => void;
+  sortDirection?: SortDirection | null;
+  onSortClick?: () => void;
 };
 
-export function HaulzColumnFilterHeader({ col, uniqueValues, selectedValues, onChange }: Props) {
+export function HaulzColumnFilterHeader({
+  col,
+  uniqueValues,
+  selectedValues,
+  onChange,
+  sortDirection = null,
+  onSortClick,
+}: Props) {
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -54,17 +64,32 @@ export function HaulzColumnFilterHeader({ col, uniqueValues, selectedValues, onC
   };
 
   return (
-    <>
+    <div className="hr-col-header">
       <button
-        ref={triggerRef}
         type="button"
-        className={`hr-col-filter${filterActive ? " hr-col-filter--active" : ""}`}
-        aria-label={`Фильтр: ${col.label || col.key}`}
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        className={`hr-col-sort${sortDirection ? " hr-col-sort--active" : ""}`}
+        aria-label={
+          sortDirection === "asc"
+            ? `Сортировка по ${col.label}: по возрастанию`
+            : sortDirection === "desc"
+              ? `Сортировка по ${col.label}: по убыванию`
+              : `Сортировать по ${col.label}`
+        }
+        onClick={(e) => {
+          e.stopPropagation();
+          onSortClick?.();
+        }}
       >
-        <span className="hr-col-filter__label">{col.label || col.key}</span>
-        <Filter className="hr-col-filter__icon" aria-hidden="true" />
+        <span className="hr-col-sort__label">{col.label || col.key}</span>
+        {sortDirection === "asc" ? (
+          <ArrowUp className="hr-col-sort__icon" aria-hidden="true" />
+        ) : sortDirection === "desc" ? (
+          <ArrowDown className="hr-col-sort__icon" aria-hidden="true" />
+        ) : (
+          <span className="hr-col-sort__icon hr-col-sort__icon--idle" aria-hidden="true">
+            ↕
+          </span>
+        )}
       </button>
       <FilterDropdownPortal triggerRef={triggerRef} isOpen={open} onClose={() => { setOpen(false); setSearch(""); }}>
         <div className="hr-col-filter-menu">
@@ -109,6 +134,16 @@ export function HaulzColumnFilterHeader({ col, uniqueValues, selectedValues, onC
           ) : null}
         </div>
       </FilterDropdownPortal>
-    </>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={`hr-col-filter${filterActive ? " hr-col-filter--active" : ""}`}
+        aria-label={`Фильтр: ${col.label || col.key}`}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Filter className="hr-col-filter__icon" aria-hidden="true" />
+      </button>
+    </div>
   );
 }

@@ -18,3 +18,4 @@ export * from "./ulSheetOperations";
 export * from "./mergeWorkbookOnReprocess";
 export * from "./translateOperations";
 export * from "./carriers";
+export * from "./rowSort";

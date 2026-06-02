@@ -1,6 +1,7 @@
 import type { HaulzSheet, HaulzSheetRow, HaulzWorkbook } from "./types.js";
 import { FIX_COLUMNS } from "./types.js";
 import { ensureItogRowIds, itogControlKey } from "./itogRowKeys.js";
+import { FIX_DEFAULT_SORT, sortDataRows } from "./rowSort.js";
 import { appendItogSummaryRow, isSummaryRow, stripSummaryRows, syncUlSheetFromControlKeys } from "./ulTotals.js";
 import { countUlPlaces, stopColumnValue, validateItogRow } from "./validators.js";
 
@@ -59,11 +60,8 @@ export function recalcWorkbookAfterItogChange(workbook: HaulzWorkbook): HaulzWor
 }
 
 export function buildFixSheetFromItog(itogSheet: HaulzSheet): HaulzSheet {
-  return {
-    id: "fix",
-    name: "FIX",
-    columns: FIX_COLUMNS,
-    rows: stripSummaryRows(itogSheet.rows).map((r) => {
+  const rows = sortDataRows(
+    stripSummaryRows(itogSheet.rows).map((r) => {
       const out: HaulzSheetRow = {
         _rowId: r._rowId,
         englishOnly: r.englishOnly,
@@ -76,5 +74,13 @@ export function buildFixSheetFromItog(itogSheet: HaulzSheet): HaulzSheet {
       }
       return out;
     }),
+    FIX_DEFAULT_SORT,
+  );
+
+  return {
+    id: "fix",
+    name: "FIX",
+    columns: FIX_COLUMNS,
+    rows,
   };
 }
