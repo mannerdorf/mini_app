@@ -6,7 +6,6 @@ import {
   pgTableExists,
   resolveHaulzReturnsAccess,
 } from "../_haulzReturns.js";
-import { deserializeWorkbook, sheetFromWorkbook } from "../../lib/haulzReturns/workbookApi.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "haulz_returns_job_sheet");
@@ -51,6 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(404).json({ error: "Workbook не найден", request_id: ctx.requestId });
     }
 
+    const { deserializeWorkbook, sheetFromWorkbook } = await import("../../lib/haulzReturns/workbookApi.js");
     const wb = deserializeWorkbook(row.sheets, row.itog_control_keys);
     const sheet = sheetFromWorkbook(wb, sheetId);
     if (!sheet) {
@@ -64,15 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    try {
-      return res.status(200).json({ sheet, request_id: ctx.requestId });
-    } catch (e) {
-      logError(ctx, "haulz_returns_job_sheet_payload", e);
-      return res.status(413).json({
-        error: "Лист слишком большой для ответа API. Сохраните результат через «Экспорт».",
-        request_id: ctx.requestId,
-      });
-    }
+    return res.status(200).json({ sheet, request_id: ctx.requestId });
   } catch (e) {
     logError(ctx, "haulz_returns_job_sheet_failed", e);
     const msg = (e as Error)?.message || "Ошибка сервера";

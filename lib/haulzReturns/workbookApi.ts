@@ -1,13 +1,18 @@
 import type { HaulzSheet, HaulzWorkbook } from "./types.js";
-import { parseUlSheetId } from "./ulSheetOperations.js";
 
 /** Запас под job, files и прочие поля ответа (лимит Vercel ~4.5 МБ). */
-export const HAULZ_RETURNS_API_JSON_BUDGET = 3_800_000;
+export const HAULZ_RETURNS_API_JSON_BUDGET = 3800000;
 
 export type ItogControlKeysStorage = string[] | { keys: string[]; excludedUl?: string[] };
 
 function normalizeSheetId(s: HaulzSheet): string {
   return String(s?.id ?? "");
+}
+
+function parseUlSheetId(sheetId: string): string | null {
+  if (!sheetId.startsWith("ul-")) return null;
+  const ulNumber = sheetId.slice(3).trim();
+  return ulNumber.length > 0 ? ulNumber : null;
 }
 
 export function parseItogControlKeysMeta(keys: unknown): {

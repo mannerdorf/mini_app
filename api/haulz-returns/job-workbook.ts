@@ -7,7 +7,6 @@ import {
   resolveHaulzReturnsAccess,
 } from "../_haulzReturns.js";
 import type { HaulzWorkbook } from "../../lib/haulzReturns/types.js";
-import { deserializeWorkbook, mergeWorkbookPatch, parseItogControlKeysMeta, serializeItogControlKeysMeta } from "../../lib/haulzReturns/workbookApi.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "haulz_returns_job_workbook");
@@ -57,6 +56,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         request_id: ctx.requestId,
       });
     }
+
+    const {
+      deserializeWorkbook,
+      mergeWorkbookPatch,
+      parseItogControlKeysMeta,
+      serializeItogControlKeysMeta,
+    } = await import("../../lib/haulzReturns/workbookApi.js");
 
     const raw = req.body?.workbook as HaulzWorkbook | undefined;
     if (!raw?.sheets || !Array.isArray(raw.sheets)) {

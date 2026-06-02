@@ -6,7 +6,6 @@ import {
   pgTableExists,
   resolveHaulzReturnsAccess,
 } from "../_haulzReturns.js";
-import { deserializeWorkbook, workbookForApi, workbookForApiWithinBudget } from "../../lib/haulzReturns/workbookApi.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "haulz_returns_job");
@@ -22,13 +21,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const pool = getPool();
   if (!(await pgTableExists(pool, "haulz_returns_jobs"))) {
-    return res.status(503).json({
-      error: "Выполните миграцию migrations/080_haulz_returns.sql",
-      request_id: ctx.requestId,
-    });
-  }
-
-  if (!(await pgTableExists(pool, "haulz_returns_workbooks"))) {
     return res.status(503).json({
       error: "Выполните миграцию migrations/080_haulz_returns.sql",
       request_id: ctx.requestId,
@@ -87,6 +79,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let workbook = null;
       if (wbRow) {
         try {
+          const { deserializeWorkbook, workbookForApiWithinBudget } = await import(
+            "../../lib/haulzReturns/workbookApi.js"
+          );
           const deserialized = deserializeWorkbook(wbRow.sheets, wbRow.itog_control_keys);
           const overhead =
             JSON.stringify({
@@ -102,26 +97,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
 
-      const responseBody = {
+      return res.status(200).json({
         job,
         files,
         workbook,
         workbookVersion: wbRow?.version ?? null,
         request_id: ctx.requestId,
-      };
-      try {
-        return res.status(200).json(responseBody);
-      } catch (e) {
-        if (wbRow) {
-          const deserialized = deserializeWorkbook(wbRow.sheets, wbRow.itog_control_keys);
-          return res.status(200).json({
-            ...responseBody,
-            workbook: workbookForApi(deserialized, { deferItog: true }),
-          });
-        }
-        logError(ctx, "haulz_returns_job_response_payload", e);
-        throw e;
-      }
+      });
     }
 
     if (req.method === "DELETE") {
