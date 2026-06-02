@@ -28,6 +28,7 @@ import {
   collectUlNumbersInItog,
   isUlTabInItog,
   itogRowsNeedingTranslation,
+  itogRowsForTranslation,
   removeItogRow,
   removeItogStopRowsFromWorkbook,
   normalizeWorkbookColumns,
@@ -114,6 +115,8 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
   const [renaming, setRenaming] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const autoLoadedSessionRef = useRef(false);
+  const workbookRef = useRef<HaulzWorkbook | null>(null);
+  workbookRef.current = workbook ?? null;
 
   const tabs = useMemo(
     () => workbook?.sheets.map((s) => ({ id: s.id, label: s.name })) ?? [],
@@ -252,10 +255,10 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
   );
 
   const runItogTranslation = useCallback(
-    async (currentWorkbook: HaulzWorkbook, currentJobId: string): Promise<HaulzWorkbook> => {
+    async (currentWorkbook: HaulzWorkbook, currentJobId: string, includeFilled = false): Promise<HaulzWorkbook> => {
       if (!auth) return currentWorkbook;
       const itog = currentWorkbook.sheets.find((s) => s.id === "itog");
-      const pendingCount = itog ? itogRowsNeedingTranslation(itog.rows).length : 0;
+      const pendingCount = itog ? itogRowsForTranslation(itog.rows, { includeFilled }).length : 0;
       if (pendingCount === 0) return currentWorkbook;
 
       setTranslating(true);
@@ -265,7 +268,10 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
           auth,
           currentJobId,
           currentWorkbook,
-          (done, total) => setTranslateProgress({ done, total }),
+          {
+            includeFilled,
+            onProgress: (done, total) => setTranslateProgress({ done, total }),
+          },
         );
         return next;
       } finally {
@@ -450,12 +456,13 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
 
   const handleDeleteItogRow = useCallback(
     (rowId: string) => {
-      if (!workbook) return;
       void (async () => {
-        const sheets = workbook.sheets.map((sheet) =>
+        const current = workbookRef.current;
+        if (!current) return;
+        const sheets = current.sheets.map((sheet) =>
           sheet.id === "itog" ? removeItogRow(sheet, rowId) : sheet,
         );
-        let next = recalcWorkbookAfterItogChange({ ...workbook, sheets });
+        let next = recalcWorkbookAfterItogChange({ ...current, sheets });
         const fixIdx = next.sheets.findIndex((s) => s.id === "fix");
         if (fixIdx >= 0) {
           const itog = next.sheets.find((s) => s.id === "itog")!;
@@ -467,7 +474,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
         await commitWorkbook(next);
       })();
     },
-    [workbook, commitWorkbook],
+    [commitWorkbook],
   );
 
   const handleTranslateItog = useCallback(() => {
@@ -478,14 +485,14 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
     }
     const itog = workbook.sheets.find((s) => s.id === "itog");
     if (!itog) return;
-    if (itogRowsNeedingTranslation(itog.rows).length === 0) {
-      setError("Все строки с наименованием уже переведены");
+    if (itogRowsForTranslation(itog.rows, { includeFilled: true }).length === 0) {
+      setError("Нет строк с английским текстом для перевода");
       return;
     }
     void (async () => {
       setError(null);
       try {
-        const next = await runItogTranslation(workbook, jobId);
+        const next = await runItogTranslation(workbook, jobId, true);
         setWorkbook(next);
       } catch (e: unknown) {
         setError((e as Error)?.message || "Ошибка перевода");
@@ -684,7 +691,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
   const itogPendingTranslateCount = useMemo(() => {
     if (!workbook) return 0;
     const itog = workbook.sheets.find((s) => s.id === "itog");
-    return itog ? itogRowsNeedingTranslation(itog.rows).length : 0;
+    return itog ? itogRowsForTranslation(itog.rows, { includeFilled: true }).length : 0;
   }, [workbook]);
 
   const activeJobTitle = useMemo(() => {

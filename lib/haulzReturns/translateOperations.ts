@@ -1,5 +1,5 @@
 import type { HaulzSheet, HaulzSheetRow, HaulzWorkbook } from "./types.js";
-import { ensureItogRowIds, itogRowTranslateKey } from "./itogRowKeys.js";
+import { ensureItogRowIds, itogRowTranslateKey, itogRowTranslationLookupKeys } from "./itogRowKeys.js";
 import { appendItogSummaryRow, isSummaryRow, stripSummaryRows } from "./ulTotals.js";
 import { buildFixSheetFromItog } from "./workbookRecalc.js";
 import { translateProductNamesEnToRu } from "./openaiTranslate.js";
@@ -29,12 +29,18 @@ export function acceptItogTranslation(source: string, translation: string): bool
   return tr.toLowerCase() !== src.toLowerCase();
 }
 
-export function itogRowsNeedingTranslation(rows: HaulzSheetRow[]): ItogTranslateItem[] {
+export function itogRowsForTranslation(
+  rows: HaulzSheetRow[],
+  opts?: { includeFilled?: boolean },
+): ItogTranslateItem[] {
+  const includeFilled = opts?.includeFilled === true;
   return ensureItogRowIds(rows)
     .filter((row) => {
       const text = String(row.ulData ?? "").trim();
       const translate = String(row.translate ?? "").trim();
-      return text.length > 0 && translate.length === 0 && itogTextNeedsTranslation(text);
+      if (!text || !itogTextNeedsTranslation(text)) return false;
+      if (includeFilled) return true;
+      return translate.length === 0;
     })
     .map((row) => ({
       rowKey: itogRowTranslateKey(row),
@@ -43,14 +49,13 @@ export function itogRowsNeedingTranslation(rows: HaulzSheetRow[]): ItogTranslate
     .filter((item) => item.rowKey.length > 0);
 }
 
+/** Строки с пустым «Перевод» (автоперевод при загрузке). */
+export function itogRowsNeedingTranslation(rows: HaulzSheetRow[]): ItogTranslateItem[] {
+  return itogRowsForTranslation(rows);
+}
+
 function lookupTranslation(translations: Map<string, string>, row: HaulzSheetRow): string | undefined {
-  const keys = [
-    itogRowTranslateKey(row),
-    String(row._rowId ?? "").trim(),
-    String(row.control ?? "").trim(),
-    String(row.parcel ?? "").trim(),
-  ].filter(Boolean);
-  for (const key of keys) {
+  for (const key of itogRowTranslationLookupKeys(row)) {
     const hit = translations.get(key);
     if (hit?.trim()) return hit.trim();
   }

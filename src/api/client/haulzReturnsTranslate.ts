@@ -4,27 +4,30 @@ import {
   applyItogTranslationsToWorkbook,
   countItogTranslatedRows,
   itogRowsNeedingTranslation,
+  itogRowsForTranslation,
   acceptItogTranslation,
 } from "../../../lib/haulzReturns/translateOperations";
 import { saveHaulzReturnsWorkbook, translateHaulzItogBatch } from "./haulzReturns";
 
 const TRANSLATE_BATCH_SIZE = 40;
 
-/** Переводит пустые «Перевод» на листе итог и сохраняет в БД. */
+/** Переводит «Перевод» на листе итог и сохраняет в БД. includeFilled — повторный перевод уже заполненных строк. */
 export async function translateAndPersistItogWorkbook(
   auth: AuthData,
   jobId: string,
   workbook: HaulzWorkbook,
-  onProgress?: (done: number, total: number) => void,
+  options?: { includeFilled?: boolean; onProgress?: (done: number, total: number) => void },
 ): Promise<{ workbook: HaulzWorkbook; translated: number }> {
   const itog = workbook.sheets.find((s) => s.id === "itog");
   if (!itog) return { workbook, translated: 0 };
 
-  const pending = itogRowsNeedingTranslation(itog.rows);
+  const includeFilled = options?.includeFilled === true;
+  const pending = itogRowsForTranslation(itog.rows, { includeFilled });
   if (pending.length === 0) return { workbook, translated: 0 };
 
   let current = workbook;
   const before = countItogTranslatedRows(itog.rows);
+  let totalApplied = 0;
 
   for (let i = 0; i < pending.length; i += TRANSLATE_BATCH_SIZE) {
     const batch = pending.slice(i, i + TRANSLATE_BATCH_SIZE);
@@ -44,15 +47,19 @@ export async function translateAndPersistItogWorkbook(
           : "OpenAI не вернул русский перевод (проверьте «Данные УЛ» и ключ API)",
       );
     }
+    totalApplied += batchMap.size;
     current = applyItogTranslationsToWorkbook(current, batchMap);
-    onProgress?.(Math.min(i + batch.length, pending.length), pending.length);
+    options?.onProgress?.(Math.min(i + batch.length, pending.length), pending.length);
   }
 
   const after = countItogTranslatedRows(current.sheets.find((s) => s.id === "itog")?.rows ?? []);
-  if (after <= before) {
+  if (!includeFilled && after <= before) {
+    throw new Error("Перевод не записался в таблицу");
+  }
+  if (totalApplied === 0) {
     throw new Error("Перевод не записался в таблицу");
   }
 
   const saved = await saveHaulzReturnsWorkbook(auth, jobId, current);
-  return { workbook: saved, translated: after - before };
+  return { workbook: saved, translated: includeFilled ? totalApplied : after - before };
 }

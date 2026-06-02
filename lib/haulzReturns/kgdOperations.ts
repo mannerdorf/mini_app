@@ -1,4 +1,5 @@
 import type { CellValue, HaulzSheetRow, HaulzWorkbook } from "./types.js";
+import { itogControlKey, stableItogRowId } from "./itogRowKeys.js";
 import { appendItogSummaryRow, appendKgdSummaryRow, isSummaryRow, stripSummaryRows } from "./ulTotals.js";
 import { buildFixSheetFromItog, recalcWorkbookAfterItogChange } from "./workbookRecalc.js";
 import { countUlPlaces, stopColumnValue, validateItogRow } from "./validators.js";
@@ -91,9 +92,12 @@ export function rebuildItogFromKgd(workbook: HaulzWorkbook): HaulzWorkbook {
     if (parcel) sealMap.set(parcel, String(row.cargoPlace ?? ""));
   }
 
+  const oldItogByControl = new Map<string, HaulzSheetRow>();
   const oldItogByParcel = new Map<string, HaulzSheetRow>();
   for (const row of workbook.sheets.find((s) => s.id === "itog")?.rows ?? []) {
+    const control = itogControlKey(row);
     const parcel = String(row.parcel ?? "").trim();
+    if (control && !oldItogByControl.has(control)) oldItogByControl.set(control, row);
     if (parcel && !oldItogByParcel.has(parcel)) oldItogByParcel.set(parcel, row);
   }
 
@@ -109,16 +113,18 @@ export function rebuildItogFromKgd(workbook: HaulzWorkbook): HaulzWorkbook {
 
     const ulHint = String(kgdRow.ul ?? "");
     const ulMatch = findUlRowInWorkbook(workbook, parcel, ulHint);
-    const old = oldItogByParcel.get(parcel);
+    const oldByParcel = oldItogByParcel.get(parcel);
 
-    const ul = ulHint || ulMatch?.ulNumber || String(old?.ul ?? "");
-    const line = String(kgdRow.line ?? "") || ulMatch?.rowNum || String(old?.line ?? "");
+    const ul = ulHint || ulMatch?.ulNumber || String(oldByParcel?.ul ?? "");
+    const line = String(kgdRow.line ?? "") || ulMatch?.rowNum || String(oldByParcel?.line ?? "");
+    const control = `${ul}${line}${parcel}`;
+    const old = oldItogByControl.get(control) ?? oldByParcel;
     const id = ulMatch?.cargoPlace || String(old?.id ?? "");
     const ulData = ulMatch?.name || String(old?.ulData ?? "");
     const validation = validateItogRow(ulData);
 
     itogRows.push({
-      _rowId: `itog-${num}-${parcel}`,
+      _rowId: stableItogRowId({ control, parcel }),
       num,
       ul,
       line,
@@ -133,7 +139,7 @@ export function rebuildItogFromKgd(workbook: HaulzWorkbook): HaulzWorkbook {
       ulPlaces: 0,
       stop: stopColumnValue(ulData, stopRows),
       chars: ulData.length,
-      control: `${ul}${line}${parcel}`,
+      control,
       englishOnly: validation.englishOnly,
       au585: validation.au585,
       digitsOnly: validation.digitsOnly,
