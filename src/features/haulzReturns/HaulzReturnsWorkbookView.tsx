@@ -15,6 +15,12 @@ import {
   formatCellDisplay,
   uniqueColumnValues,
 } from "./columnFilterUtils";
+import {
+  applySheetSort,
+  nextSortState,
+  sortDirectionForColumn,
+  type ColumnSortState,
+} from "./columnSortUtils";
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
   try {
@@ -79,10 +85,12 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete }: Prop
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportH, setViewportH] = useState(480);
   const [columnFilters, setColumnFilters] = useState<Record<string, Set<string> | null>>({});
+  const [columnSort, setColumnSort] = useState<ColumnSortState>(null);
   const [copyHint, setCopyHint] = useState<string | null>(null);
 
   useEffect(() => {
     setColumnFilters({});
+    setColumnSort(null);
     setScrollTop(0);
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [sheet.id]);
@@ -107,10 +115,10 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete }: Prop
     [sheet.rows, hasSummaryHeader],
   );
 
-  const dataRows = useMemo(
-    () => (summaryRow ? filteredRows.filter((r) => !isSummaryRow(r)) : filteredRows),
-    [filteredRows, summaryRow],
-  );
+  const dataRows = useMemo(() => {
+    const base = summaryRow ? filteredRows.filter((r) => !isSummaryRow(r)) : filteredRows;
+    return applySheetSort(base, sheet.id, columnSort);
+  }, [filteredRows, summaryRow, sheet.id, columnSort]);
 
   const dataRowCount = useMemo(
     () => sheet.rows.filter((r) => !isSummaryRow(r)).length,
@@ -139,6 +147,22 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete }: Prop
   }, []);
 
   const clearAllFilters = useCallback(() => setColumnFilters({}), []);
+
+  const handleColumnSort = useCallback((colKey: string) => {
+    setColumnSort((prev) => nextSortState(prev, colKey));
+  }, []);
+
+  const clearColumnSort = useCallback(() => setColumnSort(null), []);
+
+  const sortHint = useMemo(() => {
+    if (columnSort) {
+      const col = sheet.columns.find((c) => c.key === columnSort.key);
+      const label = col?.label || columnSort.key;
+      return `Сортировка: ${label} ${columnSort.dir === "asc" ? "↑" : "↓"}`;
+    }
+    if (sheet.id === "fix") return "Сортировка: УЛ ↑, строка ↑";
+    return null;
+  }, [columnSort, sheet.columns, sheet.id]);
 
   const copyKgdParcels = useCallback(async () => {
     const parcels = columnValuesFromRows(dataRows, "parcel");
@@ -173,17 +197,22 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete }: Prop
 
   return (
     <div className="hr-table-view">
-      {sheet.id === "kgd" || activeFilterCount > 0 ? (
+      {sheet.id === "kgd" || activeFilterCount > 0 || sortHint ? (
         <div className="hr-table-view__filter-bar">
           <span>
             {activeFilterCount > 0
               ? `Фильтры: ${activeFilterCount} · показано ${dataRows.length} из ${dataRowCount}`
               : sheet.id === "kgd"
                 ? `${dataRows.length} посылок`
-                : null}
+                : sortHint}
           </span>
           <div className="hr-table-view__filter-actions">
             {copyHint ? <span className="hr-table-view__copy-hint">{copyHint}</span> : null}
+            {columnSort ? (
+              <button type="button" className="hr-table-view__filter-clear" onClick={clearColumnSort}>
+                Сбросить сортировку
+              </button>
+            ) : null}
             {sheet.id === "kgd" ? (
               <button type="button" className="hr-table-view__filter-clear" onClick={() => void copyKgdParcels()}>
                 <Copy className="w-3.5 h-3.5" style={{ marginRight: "0.25rem", verticalAlign: "middle" }} />
@@ -225,6 +254,8 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete }: Prop
                     uniqueValues={uniqueByColumn[col.key] ?? []}
                     selectedValues={columnFilters[col.key] ?? null}
                     onChange={(selected) => setColumnFilter(col.key, selected)}
+                    sortDirection={sortDirectionForColumn(columnSort, col.key)}
+                    onSortClick={() => handleColumnSort(col.key)}
                   />
                 </th>
               ))}

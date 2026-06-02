@@ -56,6 +56,10 @@ export function mergeWorkbookOnReprocess(previous: HaulzWorkbook | null, rebuilt
     if (sheet.id === "itog") {
       return { ...sheet, rows: appendItogSummaryRow(mergedItogRows) };
     }
+    if (sheet.id.startsWith("ul-")) {
+      const prev = previous.sheets.find((s) => s.id === sheet.id);
+      if (prev?.carrierId) return { ...sheet, carrierId: prev.carrierId };
+    }
     return sheet;
   });
 

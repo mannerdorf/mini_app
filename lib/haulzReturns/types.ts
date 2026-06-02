@@ -27,6 +27,8 @@ export type HaulzSheet = {
   itogRowCount?: number;
   /** Строки УЛ изменены вручную — не перезаписывать из файла при reprocess */
   ulLocallyEdited?: boolean;
+  /** ID перевозчика из справочника haulz_carriers */
+  carrierId?: string | null;
 };
 
 export type HaulzWorkbook = {
