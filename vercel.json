@@ -38,7 +38,7 @@
     "api/haulz-returns/job-workbook.ts": {"maxDuration": 60},
     "api/haulz-returns/job-sheet.ts": {"maxDuration": 60},
     "api/haulz-returns/carriers.ts": {"maxDuration": 30},
-    "api/haulz-returns/td-export.ts": {"maxDuration": 60},
+    "api/haulz-returns/td-export.ts": {"maxDuration": 120},
     "api/haulz-returns/translate-itog.ts": {"maxDuration": 60},
     "api/cron/weekly-partner-summary.ts": {"maxDuration": 300},
     "api/admin-weekly-summary.ts": {"maxDuration": 300},

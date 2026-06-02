@@ -16,7 +16,7 @@ import {
   syncTitleDateFromFts,
   WRITEOFF_PREVIEW_COLUMNS,
 } from "../../lib/haulzReturns";
-import { downloadTdBlob, exportTdDocument } from "../../api/client/haulzReturnsTd";
+import { downloadTdBlob, exportTdAllZip, exportTdDocument } from "../../api/client/haulzReturnsTd";
 import { HaulzTdDraftField } from "./HaulzTdDraftField";
 import { HaulzTdPreviewTable } from "./HaulzTdPreviewTable";
 
@@ -145,8 +145,13 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
     setExporting(true);
     try {
       const draft = { ...prepared.draft, ...workbook.tdDraft };
-      const { blob, fileName } = await exportTdDocument(auth, jobId, docType, draft, prepared);
-      downloadTdBlob(blob, fileName);
+      if (docType === "all") {
+        const { blob, fileName } = await exportTdAllZip(auth, jobId, draft);
+        downloadTdBlob(blob, fileName);
+      } else {
+        const { blob, fileName } = await exportTdDocument(auth, jobId, docType, draft);
+        downloadTdBlob(blob, fileName);
+      }
     } catch (e: unknown) {
       onError?.((e as Error)?.message || "Ошибка выгрузки");
     } finally {
