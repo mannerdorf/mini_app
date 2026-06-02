@@ -151,7 +151,7 @@ export function mergeWorkbookPatch(stored: HaulzWorkbook | null, incoming: Haulz
         if (prev) return [prev];
       }
     }
-    return [{ ...s, id }];
+    return [{ ...s, id, carrierId: s.carrierId ?? storedUl.get(id)?.carrierId ?? null }];
   });
 
   for (const [id, sheet] of storedUl) {

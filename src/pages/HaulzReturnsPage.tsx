@@ -18,6 +18,7 @@ import {
 } from "../api/client/haulzReturns";
 import { translateAndPersistItogWorkbook } from "../api/client/haulzReturnsTranslate";
 import { HaulzReturnsWorkbookView } from "../features/haulzReturns/HaulzReturnsWorkbookView";
+import { HaulzUlCarrierPanel } from "../features/haulzReturns/HaulzUlCarrierPanel";
 import {
   addStopWord,
   buildFixSheetFromItog,
@@ -366,6 +367,18 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
       return next;
     },
     [auth, jobId, persistWorkbook],
+  );
+
+  const handleUlCarrierChange = useCallback(
+    async (tabId: string, carrierId: string | null) => {
+      if (!workbook) return;
+      const next: HaulzWorkbook = {
+        ...workbook,
+        sheets: workbook.sheets.map((s) => (s.id === tabId ? { ...s, carrierId } : s)),
+      };
+      await commitWorkbook(next);
+    },
+    [workbook, commitWorkbook],
   );
 
   const handleOtpravkaChange = useCallback((list: FileList | null) => {
@@ -1139,7 +1152,17 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
               </span>
             </button>
           ) : (
-            <HaulzReturnsWorkbookView
+            <>
+              {activeSheet.id.startsWith("ul-") && auth ? (
+                <HaulzUlCarrierPanel
+                  auth={auth}
+                  sheetId={activeSheet.id}
+                  carrierId={activeSheet.carrierId}
+                  onCarrierChange={(carrierId) => handleUlCarrierChange(activeSheet.id, carrierId)}
+                  onError={setError}
+                />
+              ) : null}
+              <HaulzReturnsWorkbookView
               sheet={activeSheet}
               canDelete={
                 activeSheet.id === "itog" ||
@@ -1157,6 +1180,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
                       : undefined
               }
             />
+            </>
           )}
         </>
       ) : null}

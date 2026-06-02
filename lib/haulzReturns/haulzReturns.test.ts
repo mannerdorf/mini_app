@@ -12,10 +12,8 @@ import { buildFixSheetFromItog, recalcWorkbookAfterItogChange } from "./workbook
 import { ensureItogRowIds, stableItogRowId } from "./itogRowKeys";
 import { mergeWorkbookOnReprocess } from "./mergeWorkbookOnReprocess";
 import { itogValidationFromRow } from "./validators";
-import {
-  workbookForApi,
-  workbookForApiWithinBudget,
-} from "./workbookApi";
+import { parseCarrierInput, formatCarrierCard } from "./carriers";
+import { workbookForApi, workbookForApiWithinBudget } from "./workbookApi";
 import { parseTranslationsJson } from "./openaiTranslate";
 import {
   applyItogTranslationsToWorkbook,
@@ -612,6 +610,34 @@ describe("buildWorkbook", () => {
     expect(itog.find((r) => r.parcel === "P2")?.ulData).toBe("Pants");
     expect(itog.some((r) => r.parcel === "P3")).toBe(false);
     expect(merged.sheets.find((s) => s.id === "stop")?.rows[0]?.word).toBe("X");
+  });
+});
+
+describe("carriers", () => {
+  it("parseCarrierInput requires name", () => {
+    expect(parseCarrierInput({ name: " ООО Тест " })).toEqual({
+      name: "ООО Тест",
+      legalAddress: "",
+      inn: "",
+      kpp: "",
+      loadingAddress: "",
+      unloadingAddress: "",
+    });
+    expect(parseCarrierInput({})).toBeNull();
+  });
+
+  it("formatCarrierCard builds readable block", () => {
+    const text = formatCarrierCard({
+      name: "ООО «ХОЛЗ»",
+      legalAddress: "Москва",
+      inn: "9706037094",
+      kpp: "770601001",
+      loadingAddress: "Калининград",
+      unloadingAddress: "Москва",
+    });
+    expect(text).toContain("ООО «ХОЛЗ»");
+    expect(text).toContain("ИНН / КПП: 9706037094 / 770601001");
+    expect(text).toContain("Факт. адрес загрузки: Калининград");
   });
 });
 
