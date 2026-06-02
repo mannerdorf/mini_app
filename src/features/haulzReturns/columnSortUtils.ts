@@ -4,7 +4,7 @@ import {
   sortDataRows,
   type SortDirection,
   type SortSpec,
-} from "../../lib/haulzReturns/rowSort";
+} from "../../lib/haulzReturns";
 
 export type ColumnSortState = {
   key: string;
