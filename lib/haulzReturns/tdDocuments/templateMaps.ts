@@ -115,3 +115,15 @@ export const WRITEOFF_PREVIEW_COLUMNS: PreviewColumn[] = [
   { key: "qty", label: "кол-во" },
   { key: "cost", label: "Стоимость" },
 ];
+
+/** Столбцы preview поручения — как в DOCX-шаблоне. */
+export const PORUCHENIE_PREVIEW_COLUMNS: PreviewColumn[] = [
+  { key: "num", label: "№" },
+  { key: "rowNum", label: "Номер п/п по УЛ" },
+  { key: "id", label: "ID Посылки" },
+  { key: "parcel", label: "Номер посылки" },
+  { key: "weight", label: "Вес факт." },
+  { key: "name", label: "Наименование" },
+  { key: "qty", label: "кол-во" },
+  { key: "cost", label: "Стоимость" },
+];

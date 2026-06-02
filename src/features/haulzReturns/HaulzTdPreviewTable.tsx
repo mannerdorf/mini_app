@@ -135,9 +135,23 @@ export function HaulzTdPreviewTable({ tableId, columns, rows, summaryRow }: Prop
           </div>
         </div>
       ) : null}
-      <div ref={scrollRef} className="hr-table-wrap" style={{ maxHeight: "320px" }} onScroll={onScroll}>
-        <table className="hr-table">
+      <div
+        ref={scrollRef}
+        className="hr-table-wrap"
+        style={{ maxHeight: "min(70vh, 640px)", overflow: "auto" }}
+        onScroll={onScroll}
+      >
+        <table className={`hr-table${summaryRow ? " hr-table--with-summary" : ""}`}>
           <thead>
+            {summaryRow ? (
+              <tr className="hr-table__summary-row">
+                {haulzColumns.map((col) => (
+                  <td key={col.key} title={formatCellDisplay(summaryRow[col.key])}>
+                    {formatCellDisplay(summaryRow[col.key])}
+                  </td>
+                ))}
+              </tr>
+            ) : null}
             <tr className="hr-table__header-row">
               {haulzColumns.map((col) => (
                 <th key={col.key}>
@@ -154,32 +168,35 @@ export function HaulzTdPreviewTable({ tableId, columns, rows, summaryRow }: Prop
             </tr>
           </thead>
           <tbody>
-            {padTop > 0 ? (
-              <tr aria-hidden style={{ height: padTop }}>
-                <td colSpan={haulzColumns.length} style={{ padding: 0, border: "none" }} />
+            {dataRows.length === 0 ? (
+              <tr>
+                <td colSpan={haulzColumns.length} className="hr-table__empty">
+                  Нет строк по выбранным фильтрам
+                </td>
               </tr>
-            ) : null}
-            {visibleRows.map((row) => (
-              <tr key={row._rowId}>
-                {haulzColumns.map((col) => (
-                  <td key={col.key}>{formatCellDisplay(row[col.key])}</td>
+            ) : (
+              <>
+                {padTop > 0 ? (
+                  <tr aria-hidden style={{ height: padTop }}>
+                    <td colSpan={haulzColumns.length} style={{ padding: 0, border: "none" }} />
+                  </tr>
+                ) : null}
+                {visibleRows.map((row) => (
+                  <tr key={row._rowId}>
+                    {haulzColumns.map((col) => (
+                      <td key={col.key} title={formatCellDisplay(row[col.key])}>
+                        {formatCellDisplay(row[col.key])}
+                      </td>
+                    ))}
+                  </tr>
                 ))}
-              </tr>
-            ))}
-            {padBottom > 0 ? (
-              <tr aria-hidden style={{ height: padBottom }}>
-                <td colSpan={haulzColumns.length} style={{ padding: 0, border: "none" }} />
-              </tr>
-            ) : null}
-            {summaryRow ? (
-              <tr className="hr-table__summary-row">
-                {haulzColumns.map((col) => (
-                  <td key={col.key} style={{ fontWeight: 700 }}>
-                    {formatCellDisplay(summaryRow[col.key])}
-                  </td>
-                ))}
-              </tr>
-            ) : null}
+                {padBottom > 0 ? (
+                  <tr aria-hidden style={{ height: padBottom }}>
+                    <td colSpan={haulzColumns.length} style={{ padding: 0, border: "none" }} />
+                  </tr>
+                ) : null}
+              </>
+            )}
           </tbody>
         </table>
       </div>

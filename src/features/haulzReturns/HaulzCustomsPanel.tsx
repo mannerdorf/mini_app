@@ -5,10 +5,11 @@ import type { AuthData } from "../../types";
 import type { HaulzCarrier, HaulzWorkbook, TdDraft } from "../../lib/haulzReturns";
 import {
   buildWriteoffInputs,
-  isHolzCarrier,
   poruchenieInputs,
+  porucheniePreviewRows,
   proformaPreviewRows,
   PROFORMA_PREVIEW_COLUMNS,
+  PORUCHENIE_PREVIEW_COLUMNS,
   specificationPreviewRows,
   SPEC_EDITABLE_KEYS,
   SPEC_PREVIEW_COLUMNS,
@@ -52,6 +53,7 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
   const [activeTab, setActiveTab] = useState<TabId>("specification");
   const [exporting, setExporting] = useState(false);
   const [activeWriteoffUl, setActiveWriteoffUl] = useState<string>("");
+  const [activePoruchenieUl, setActivePoruchenieUl] = useState<string>("");
 
   const prepared = workbook.tdPrepared;
   const carriersById = useMemo(() => new Map(carriers.map((c) => [c.id, c])), [carriers]);
@@ -100,6 +102,7 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
   }, [fixRows]);
 
   const activeWriteoff = writeoffSheets.find((s) => s.ulNumber === activeWriteoffUl) ?? writeoffSheets[0];
+  const activePoruchenie = poruchenieList.find((p) => p.ulNumber === activePoruchenieUl) ?? poruchenieList[0];
 
   const updateSpecField = useCallback(
     (key: string, value: string) => {
@@ -285,14 +288,32 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
                   Не требуется — все УЛ с перевозчиком Холз или без строк «В итоге».
                 </Typography.Body>
               ) : (
-                <ul className="hr-customs-list">
-                  {poruchenieList.map((p) => (
-                    <li key={p.ulNumber}>
-                      УЛ {p.ulNumber} · {p.carrier.name} · лист списания №{p.writeoffNumber} · {p.rows.length} строк
-                      {!isHolzCarrier(p.carrier) ? "" : " (Холз)"}
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <div className="hr-tabs">
+                    {poruchenieList.map((p) => (
+                      <button
+                        key={p.ulNumber}
+                        type="button"
+                        className={`hr-tab-btn ${activePoruchenie?.ulNumber === p.ulNumber ? "active" : ""}`}
+                        onClick={() => setActivePoruchenieUl(p.ulNumber)}
+                      >
+                        {p.ulNumber}
+                      </button>
+                    ))}
+                  </div>
+                  {activePoruchenie ? (
+                    <>
+                      <Typography.Body style={{ margin: "0.5rem 0", color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>
+                        {activePoruchenie.carrier.name} · лист списания №{activePoruchenie.writeoffNumber} · ТД {activePoruchenie.tdNumber || "—"}
+                      </Typography.Body>
+                      <HaulzTdPreviewTable
+                        tableId={`td-poruchenie-${activePoruchenie.ulNumber}`}
+                        columns={PORUCHENIE_PREVIEW_COLUMNS}
+                        rows={porucheniePreviewRows(activePoruchenie.rows)}
+                      />
+                    </>
+                  ) : null}
+                </>
               )}
             </div>
           ) : null}

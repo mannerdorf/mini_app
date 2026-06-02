@@ -18,6 +18,7 @@ export {
   poruchenieInputs,
   specificationPreviewRows,
   proformaPreviewRows,
+  porucheniePreviewRows,
 } from "./preview.js";
 export { isHolzCarrier } from "./isHolzCarrier.js";
 export {
@@ -30,5 +31,6 @@ export {
   SPEC_PREVIEW_COLUMNS,
   PROFORMA_PREVIEW_COLUMNS,
   WRITEOFF_PREVIEW_COLUMNS,
+  PORUCHENIE_PREVIEW_COLUMNS,
   type PreviewColumn,
 } from "./templateMaps.js";

@@ -43,6 +43,19 @@ export function proformaPreviewRows(rows: FixTdRow[]) {
   }));
 }
 
+export function porucheniePreviewRows(rows: UlWriteoffRow[]) {
+  return rows.map((r) => ({
+    num: r.num,
+    rowNum: r.rowNum,
+    id: r.id,
+    parcel: r.parcel,
+    weight: r.weight,
+    name: r.name,
+    qty: r.qty,
+    cost: r.cost,
+  }));
+}
+
 export function buildWriteoffInputs(ctx: TdExportContext): WriteoffSheetInput[] {
   const prepared = ctx.workbook.tdPrepared;
   if (prepared?.writeoffs?.length) {
@@ -84,4 +97,5 @@ export function poruchenieInputs(ctx: TdExportContext): PoruchenieInput[] {
   return out;
 }
 
-export { collectFixRows, validateTdPrep, ulSheetsWithInItog, type FixTdRow, type UlWriteoffRow };
+export { collectFixRows, ulSheetsWithInItog, type FixTdRow, type UlWriteoffRow };
+export { validateTdPrep } from "./collectTdRows.js";
