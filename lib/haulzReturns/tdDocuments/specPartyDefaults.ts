@@ -25,10 +25,6 @@ export function formatSpecificationPartyRows(party: SpecPartyDefaults = HOLZ_SPE
   };
 }
 
-/** Строки 7–8 шапки проформы: грузоотправитель и грузополучатель с адресами загрузки/выгрузки. */
 export function formatProformaPartyRows(party: SpecPartyDefaults = HOLZ_SPEC_PARTY_DEFAULTS) {
-  return {
-    shipper: `ГРУЗООТПРАВИТЕЛЬ: ${party.name}  ${party.loadingAddress}`,
-    consignee: `ГРУЗОПОЛУЧАТЕЛЬ: ${party.name} ${party.unloadingAddress}`,
-  };
+  return formatSpecificationPartyRows(party);
 }

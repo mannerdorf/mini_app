@@ -34,6 +34,9 @@ import {
   countItogStopRowsInWorkbook,
   collectUlNumbersInItog,
   isUlTabInItog,
+  syncAllUlSheetsFromControlKeys,
+  ulNumbersWithInItog,
+  ulSheetNeedsHydration,
   itogRowsNeedingTranslation,
   itogRowsForTranslation,
   removeItogRowsFromWorkbook,
@@ -489,7 +492,18 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
       tdDraftPersistTimerRef.current = null;
     }
     await flushTdDraftPersist();
-    const current = workbookRef.current ?? workbook;
+    let current = syncAllUlSheetsFromControlKeys(workbookRef.current ?? workbook);
+    const ulInItog = ulNumbersWithInItog(current);
+
+    if (jobId && auth) {
+      for (const sheet of current.sheets) {
+        if (!ulSheetNeedsHydration(sheet, ulInItog)) continue;
+        const applyLoaded = await ensureUlSheetLoaded(sheet.id, current, jobId, storedFiles);
+        if (applyLoaded) current = applyLoaded(current);
+      }
+    }
+    current = syncAllUlSheetsFromControlKeys(current);
+
     const errors = validateTdPrep(current);
     if (errors.length) {
       setError(errors.join("\n"));
@@ -503,7 +517,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
     } catch (e: unknown) {
       setError((e as Error)?.message || "Ошибка подготовки ТД");
     }
-  }, [workbook, carriers, commitWorkbook, flushTdDraftPersist]);
+  }, [workbook, carriers, commitWorkbook, flushTdDraftPersist, jobId, auth, storedFiles, ensureUlSheetLoaded]);
 
   useEffect(() => {
     if (workbook?.tdPrepared) setTdPanelOpen(true);

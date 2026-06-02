@@ -1,7 +1,7 @@
 import type { HaulzSheet, HaulzSheetRow, HaulzWorkbook } from "../types.js";
 import { itogControlKey } from "../itogRowKeys.js";
 import { FIX_DEFAULT_SORT, sortDataRows } from "../rowSort.js";
-import { isSummaryRow, isUlRowInItog, stripSummaryRows } from "../ulTotals.js";
+import { isSummaryRow, isUlRowInItog, isUlRowInItogForWorkbook, stripSummaryRows, ulNumbersWithInItog } from "../ulTotals.js";
 
 export type FixTdRow = {
   num: number;
@@ -159,7 +159,10 @@ export function collectWriteoffRowsForUl(
   ulNumber: string,
 ): UlWriteoffRow[] {
   const lookup = buildItogProductNameLookup(workbook);
-  const dataRows = stripSummaryRows(sheet.rows).filter(isUlRowInItog);
+  const controlKeys = workbook.itogControlKeys ?? new Set<string>();
+  const dataRows = stripSummaryRows(sheet.rows).filter((r) =>
+    isUlRowInItogForWorkbook(r, ulNumber, controlKeys),
+  );
   const sorted = sortDataRows(dataRows, [{ key: "rowNum", dir: "asc" }]);
   return sorted.map((r, idx) => {
     const rowNum = cellStr(r.rowNum);
@@ -187,13 +190,19 @@ export function collectWriteoffRowsForUl(
 }
 
 export function ulSheetsWithInItog(workbook: HaulzWorkbook): Array<{ sheet: HaulzSheet; ulNumber: string }> {
+  const ulNumbersInItog = ulNumbersWithInItog(workbook);
   const out: Array<{ sheet: HaulzSheet; ulNumber: string }> = [];
   for (const sheet of workbook.sheets) {
     const ul = parseUlNumber(sheet.id);
     if (!ul) continue;
     const ulNumber = cellStr(sheet.name) || ul;
-    const hasInItog = stripSummaryRows(sheet.rows).some(isUlRowInItog);
-    if (hasInItog) out.push({ sheet, ulNumber });
+    if (workbook.excludedUlNumbers?.has(ulNumber)) continue;
+    const inItogSet =
+      ulNumbersInItog.has(ulNumber) ||
+      ulNumbersInItog.has(normalizeUlKey(ulNumber)) ||
+      stripSummaryRows(sheet.rows).some((r) => isUlRowInItogForWorkbook(r, ulNumber, workbook.itogControlKeys ?? new Set()));
+    if (!inItogSet) continue;
+    out.push({ sheet, ulNumber });
   }
   return out.sort((a, b) => a.ulNumber.localeCompare(b.ulNumber, "ru", { numeric: true }));
 }

@@ -116,12 +116,13 @@ export function buildWriteoffInputs(ctx: TdExportContext): WriteoffSheetInput[] 
     const prev = preparedByUl.get(ulNumber);
     const meta = ulSheetWriteoffMeta(sheet);
     const liveRows = collectWriteoffRowsForUl(ctx.workbook, sheet, meta.ulNumber);
+    const rows = liveRows.length > 0 ? liveRows : (prev?.rows ?? []);
     return withHeader({
       ulNumber: meta.ulNumber,
       ulDate: meta.ulDate,
       tdNumber: String(sheet.tdNumber ?? prev?.tdNumber ?? "").trim(),
       sheetNumber: idx + 1,
-      rows: liveRows,
+      rows,
     });
   });
 }

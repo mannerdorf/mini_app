@@ -1,4 +1,4 @@
-import type { HaulzSheet, HaulzSheetRow } from "./types.js";
+import type { HaulzSheet, HaulzSheetRow, HaulzWorkbook } from "./types.js";
 import { itogControlKey } from "./itogRowKeys.js";
 import { stopColumnValue } from "./validators.js";
 
@@ -101,6 +101,65 @@ export function syncUlSheetFromControlKeys(sheet: HaulzSheet, controlKeys: Set<s
     return { ...row, mark: row.mark ?? ulNumber, inItog: controlKeys.has(key) ? 1 : 0 };
   });
   return { ...sheet, rows: dataRows.length ? appendUlSummaryRow(dataRows) : sheet.rows };
+}
+
+/** Проставляет «В итоге» на всех уже загруженных листах УЛ. */
+export function syncAllUlSheetsFromControlKeys(workbook: {
+  sheets: HaulzSheet[];
+  itogControlKeys: Set<string>;
+}): HaulzWorkbook {
+  return {
+    ...workbook,
+    sheets: workbook.sheets.map((sheet) =>
+      sheet.id.startsWith("ul-") ? syncUlSheetFromControlKeys(sheet, workbook.itogControlKeys) : sheet,
+    ),
+  };
+}
+
+/** УЛ с строками в итоге — по листу «итог» или по itogControlKeys (если УЛ ещё не загружен). */
+export function ulNumbersWithInItog(workbook: {
+  sheets: { id: string; rows: HaulzSheetRow[] }[];
+  itogControlKeys?: Set<string>;
+  excludedUlNumbers?: Set<string>;
+}): Set<string> {
+  const fromItog = collectUlNumbersInItog(workbook);
+  if (fromItog.size > 0) return fromItog;
+
+  const out = new Set<string>();
+  const keys = workbook.itogControlKeys ?? new Set<string>();
+  for (const sheet of workbook.sheets) {
+    if (!sheet.id.startsWith("ul-")) continue;
+    const ulNumber = sheet.id.slice(3);
+    if (workbook.excludedUlNumbers?.has(ulNumber)) continue;
+    for (const key of keys) {
+      if (key.startsWith(ulNumber)) {
+        out.add(ulNumber);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+export function isUlRowInItogForWorkbook(
+  row: HaulzSheetRow,
+  ulNumber: string,
+  controlKeys: Set<string>,
+): boolean {
+  if (isUlRowInItog(row)) return true;
+  if (isSummaryRow(row) || controlKeys.size === 0) return false;
+  return controlKeys.has(ulControlKey(row, ulNumber));
+}
+
+export function ulSheetNeedsHydration(
+  sheet: HaulzSheet,
+  ulNumbersInItog: Set<string>,
+): boolean {
+  if (!sheet.id.startsWith("ul-")) return false;
+  const ulNumber = sheet.id.slice(3);
+  if (!ulNumbersInItog.has(ulNumber)) return false;
+  if (sheet.ulDeferred) return true;
+  return stripSummaryRows(sheet.rows).length === 0;
 }
 
 export function parseUlNumeric(v: unknown): number {
