@@ -6,7 +6,7 @@ import {
   pgTableExists,
   resolveHaulzReturnsAccess,
 } from "../_haulzReturns.js";
-import { deserializeWorkbook, workbookForApi } from "../../lib/haulzReturns/workbookApi.js";
+import { deserializeWorkbook, workbookForApi, workbookForApiWithinBudget } from "../../lib/haulzReturns/workbookApi.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "haulz_returns_job");
@@ -22,6 +22,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const pool = getPool();
   if (!(await pgTableExists(pool, "haulz_returns_jobs"))) {
+    return res.status(503).json({
+      error: "Выполните миграцию migrations/080_haulz_returns.sql",
+      request_id: ctx.requestId,
+    });
+  }
+
+  if (!(await pgTableExists(pool, "haulz_returns_workbooks"))) {
     return res.status(503).json({
       error: "Выполните миграцию migrations/080_haulz_returns.sql",
       request_id: ctx.requestId,
@@ -77,17 +84,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         [jobId],
       );
       const wbRow = wbRows[0];
-      const workbook = wbRow
-        ? workbookForApi(deserializeWorkbook(wbRow.sheets, wbRow.itog_control_keys))
-        : null;
+      let workbook = null;
+      if (wbRow) {
+        try {
+          const deserialized = deserializeWorkbook(wbRow.sheets, wbRow.itog_control_keys);
+          const overhead =
+            JSON.stringify({
+              job,
+              files,
+              workbookVersion: wbRow.version,
+              request_id: ctx.requestId,
+            }).length + 64;
+          workbook = workbookForApiWithinBudget(deserialized, overhead);
+        } catch (e) {
+          logError(ctx, "haulz_returns_job_workbook_deserialize", e);
+          workbook = null;
+        }
+      }
 
-      return res.status(200).json({
+      const responseBody = {
         job,
         files,
         workbook,
         workbookVersion: wbRow?.version ?? null,
         request_id: ctx.requestId,
-      });
+      };
+      try {
+        return res.status(200).json(responseBody);
+      } catch (e) {
+        if (wbRow) {
+          const deserialized = deserializeWorkbook(wbRow.sheets, wbRow.itog_control_keys);
+          return res.status(200).json({
+            ...responseBody,
+            workbook: workbookForApi(deserialized, { deferItog: true }),
+          });
+        }
+        logError(ctx, "haulz_returns_job_response_payload", e);
+        throw e;
+      }
     }
 
     if (req.method === "DELETE") {
@@ -115,6 +149,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   } catch (e) {
     logError(ctx, "haulz_returns_job_failed", e);
-    return res.status(500).json({ error: "Ошибка сервера", request_id: ctx.requestId });
+    const msg = (e as Error)?.message || "Ошибка сервера";
+    return res.status(500).json({ error: msg, request_id: ctx.requestId });
   }
 }

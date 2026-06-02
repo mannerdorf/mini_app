@@ -11,6 +11,10 @@ import { removeItogRow } from "./ulTotals";
 import { recalcWorkbookAfterItogChange } from "./workbookRecalc";
 import { ensureItogRowIds, stableItogRowId } from "./itogRowKeys";
 import { mergeWorkbookOnReprocess } from "./mergeWorkbookOnReprocess";
+import {
+  workbookForApi,
+  workbookForApiWithinBudget,
+} from "./workbookApi";
 import { parseTranslationsJson } from "./openaiTranslate";
 import {
   applyItogTranslationsToWorkbook,
@@ -569,5 +573,49 @@ describe("buildWorkbook", () => {
     expect(itog.find((r) => r.parcel === "P2")?.ulData).toBe("Pants");
     expect(itog.some((r) => r.parcel === "P3")).toBe(false);
     expect(merged.sheets.find((s) => s.id === "stop")?.rows[0]?.word).toBe("X");
+  });
+});
+
+describe("workbookForApi", () => {
+  it("defers UL rows and keeps itog rows", () => {
+    const wb = buildWorkbook({
+      otpravka: [{ cargoPlace: "A", parcel: "111" }],
+      ulPrio1: [parseUlMatrix(UL_SAMPLE, "02630423.xlsx")],
+      ulPrio2: [],
+    });
+    const api = workbookForApi(wb);
+    const ul = api.sheets.find((s) => s.id.startsWith("ul-"));
+    const itog = api.sheets.find((s) => s.id === "itog");
+    expect(ul?.ulDeferred).toBe(true);
+    expect(ul?.rows).toHaveLength(0);
+    expect(itog?.rows.length).toBeGreaterThan(0);
+    expect(itog?.itogDeferred).toBeFalsy();
+  });
+
+  it("does not throw on sheet without id", () => {
+    const wb = buildWorkbook({
+      otpravka: [{ cargoPlace: "A", parcel: "111" }],
+      ulPrio1: [parseUlMatrix(UL_SAMPLE, "02630423.xlsx")],
+      ulPrio2: [],
+    });
+    (wb.sheets[0] as { id?: string }).id = undefined;
+    expect(() => workbookForApi(wb)).not.toThrow();
+  });
+
+  it("defers itog when payload exceeds budget", () => {
+    const wb = buildWorkbook({
+      otpravka: [{ cargoPlace: "A", parcel: "111" }],
+      ulPrio1: [],
+      ulPrio2: [],
+    });
+    const itog = wb.sheets.find((s) => s.id === "itog")!;
+    const bigRow: Record<string, string> = { parcel: "x" };
+    for (let i = 0; i < 200; i++) bigRow[`c${i}`] = "x".repeat(500);
+    itog.rows = Array.from({ length: 9000 }, (_, n) => ({ ...bigRow, num: n })) as typeof itog.rows;
+    const api = workbookForApiWithinBudget(wb, 0);
+    const apiItog = api.sheets.find((s) => s.id === "itog");
+    expect(apiItog?.itogDeferred).toBe(true);
+    expect(apiItog?.rows).toHaveLength(0);
+    expect(() => JSON.stringify(api)).not.toThrow();
   });
 });

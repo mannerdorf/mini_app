@@ -100,6 +100,22 @@ export async function uploadHaulzReturnsFilesSequentially(
   }
 }
 
+export async function getHaulzReturnsJobSheet(
+  auth: AuthData,
+  jobId: string,
+  sheetId: string,
+): Promise<HaulzWorkbook["sheets"][number]> {
+  const res = await fetch(
+    `/api/haulz-returns/job-sheet?jobId=${encodeURIComponent(jobId)}&sheetId=${encodeURIComponent(sheetId)}`,
+    { headers: authHeaders(auth) },
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`[загрузка листа «${sheetId}»] ${parseJson(res, data)}`);
+  const sheet = (data as { sheet?: HaulzWorkbook["sheets"][number] }).sheet;
+  if (!sheet) throw new Error(`[загрузка листа «${sheetId}»] Пустой ответ`);
+  return sheet;
+}
+
 export async function getHaulzReturnsJob(
   auth: AuthData,
   jobId: string,

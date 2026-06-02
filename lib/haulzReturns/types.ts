@@ -21,6 +21,10 @@ export type HaulzSheet = {
   rows: HaulzSheetRow[];
   /** Строки УЛ не переданы в API — подгрузить из файла в БД */
   ulDeferred?: boolean;
+  /** Строки итог не переданы в первом ответе — подгрузить отдельным запросом */
+  itogDeferred?: boolean;
+  /** Число строк итог (если itogDeferred) */
+  itogRowCount?: number;
   /** Строки УЛ изменены вручную — не перезаписывать из файла при reprocess */
   ulLocallyEdited?: boolean;
 };

@@ -6,6 +6,7 @@ import {
   createHaulzReturnsJob,
   deleteHaulzReturnsJob,
   getHaulzReturnsJob,
+  getHaulzReturnsJobSheet,
   listHaulzReturnsJobs,
   processHaulzReturnsJob,
   renameHaulzReturnsJob,
@@ -163,6 +164,20 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
     [auth],
   );
 
+  const hydrateDeferredItogSheet = useCallback(
+    async (currentWorkbook: HaulzWorkbook, currentJobId: string): Promise<HaulzWorkbook> => {
+      if (!auth) return currentWorkbook;
+      const itog = currentWorkbook.sheets.find((s) => s.id === "itog");
+      if (!itog?.itogDeferred) return currentWorkbook;
+      const sheet = await getHaulzReturnsJobSheet(auth, currentJobId, "itog");
+      return {
+        ...currentWorkbook,
+        sheets: currentWorkbook.sheets.map((s) => (s.id === "itog" ? sheet : s)),
+      };
+    },
+    [auth],
+  );
+
   const handleTabSelect = useCallback(
     (tabId: string) => {
       setActiveTab(tabId);
@@ -303,7 +318,8 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
         }
 
         if (data.workbook) {
-          let wb = normalizeWorkbookColumns(data.workbook);
+          let wb = await hydrateDeferredItogSheet(data.workbook, id);
+          wb = normalizeWorkbookColumns(wb);
           setActiveTab("itog");
           setWorkbookTableCollapsed(false);
           try {
@@ -323,7 +339,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
         setProcessing(false);
       }
     },
-    [auth, runItogTranslation],
+    [auth, runItogTranslation, hydrateDeferredItogSheet],
   );
 
   /** При открытии страницы — загрузить последнюю сессию, если пользователь не начал новую загрузку. */
@@ -431,7 +447,9 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
       try {
         const loaded = await getHaulzReturnsJob(auth, newJobId);
         setStoredFiles(loaded.files);
-        let wb = loaded.workbook ? normalizeWorkbookColumns(loaded.workbook) : (await buildLocalWorkbookPreview()) ?? wbLocal;
+        let wb = loaded.workbook
+          ? normalizeWorkbookColumns(await hydrateDeferredItogSheet(loaded.workbook, newJobId))
+          : (await buildLocalWorkbookPreview()) ?? wbLocal;
         try {
           wb = await runItogTranslation(wb, newJobId);
         } catch (e: unknown) {
@@ -448,7 +466,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
       setProcessing(false);
       setUploadProgress(null);
     }
-  }, [auth, otpravkaFile, ulPrio1, ulPrio2, refreshJobs, runItogTranslation, buildLocalWorkbookPreview]);
+  }, [auth, otpravkaFile, ulPrio1, ulPrio2, refreshJobs, runItogTranslation, buildLocalWorkbookPreview, hydrateDeferredItogSheet]);
 
   const handleAddUlToSession = useCallback(async () => {
     if (!auth || !jobId) return;
@@ -472,7 +490,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
       const data = await getHaulzReturnsJob(auth, jobId);
       setStoredFiles(data.files);
       if (data.workbook) {
-        let wb = normalizeWorkbookColumns(data.workbook);
+        let wb = normalizeWorkbookColumns(await hydrateDeferredItogSheet(data.workbook, jobId));
         try {
           wb = await runItogTranslation(wb, jobId);
         } catch (e: unknown) {
@@ -491,7 +509,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
       setProcessing(false);
       setUploadProgress(null);
     }
-  }, [auth, jobId, ulPrio1, ulPrio2, runItogTranslation, refreshJobs]);
+  }, [auth, jobId, ulPrio1, ulPrio2, runItogTranslation, refreshJobs, hydrateDeferredItogSheet]);
 
   const handleDeleteItogRow = useCallback(
     (rowId: string) => {
