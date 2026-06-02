@@ -1,8 +1,10 @@
 import type { Pool, PoolClient } from "pg";
 import { buildWorkbook } from "./buildWorkbook.js";
+import { mergeWorkbookOnReprocess } from "./mergeWorkbookOnReprocess.js";
 import { parseOtpravkaBuffer } from "./parseOtpravka.js";
 import { parseUlBuffer } from "./parseUl.js";
 import type { HaulzWorkbook, ParsedUlFile } from "./types.js";
+import { serializeItogControlKeysMeta } from "./workbookApi.js";
 
 export type JobFileRow = {
   id: number;
@@ -14,7 +16,7 @@ export type JobFileRow = {
 export function serializeWorkbook(wb: HaulzWorkbook) {
   return {
     sheets: wb.sheets,
-    itog_control_keys: [...wb.itogControlKeys],
+    itog_control_keys: serializeItogControlKeysMeta(wb),
   };
 }
 
@@ -72,9 +74,11 @@ export async function processJobWorkbook(
   jobId: number,
   loginKey: string,
 ): Promise<{ workbook: HaulzWorkbook; version: number }> {
-  const { saveWorkbook: save } = await import("./workbookStorage.js");
+  const { saveWorkbook: save, loadLatestWorkbook } = await import("./workbookStorage.js");
   const files = await loadJobFiles(pool, jobId);
-  const workbook = buildWorkbookFromFiles(files);
+  const rebuilt = buildWorkbookFromFiles(files);
+  const existing = await loadLatestWorkbook(pool, jobId);
+  const workbook = mergeWorkbookOnReprocess(existing, rebuilt);
   const version = await save(pool, jobId, loginKey, workbook);
   await pool.query(
     `update haulz_returns_jobs set status = 'ready', error_message = null, updated_at = now() where id = $1`,

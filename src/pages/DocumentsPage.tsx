@@ -576,9 +576,9 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     }, [docSection, allowedDocSections]);
 
     const openDraftEditor = useCallback((claimId: number) => {
-        setClaimsEditingId(claimId);
+            setClaimsEditingId(claimId);
         setClaimsCreatePrefill('');
-        setClaimsCreateOpen(true);
+            setClaimsCreateOpen(true);
     }, []);
     const openClaimDetailModal = useCallback(async (claimId: number) => {
         if (!auth?.login || !auth?.password) return;
@@ -4759,9 +4759,9 @@ useEffect(() => {
                 editingId={claimsEditingId}
                 prefillCargoNumber={claimsCreatePrefill}
                 onClose={() => {
-                    setClaimsCreateOpen(false);
-                    setClaimsEditingId(null);
-                }}
+                        setClaimsCreateOpen(false);
+                        setClaimsEditingId(null);
+                    }}
                 onSaved={reloadClaims}
                 onBusyChange={setClaimsModalBusy}
                 auth={auth!}

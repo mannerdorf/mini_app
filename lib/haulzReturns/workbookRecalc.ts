@@ -55,7 +55,7 @@ export function recalcWorkbookAfterItogChange(workbook: HaulzWorkbook): HaulzWor
     return sheet;
   });
 
-  return { sheets, itogControlKeys: controlKeys };
+  return { ...workbook, sheets, itogControlKeys: controlKeys };
 }
 
 export function buildFixSheetFromItog(itogSheet: HaulzSheet): HaulzSheet {

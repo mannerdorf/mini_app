@@ -8640,14 +8640,22 @@ button.unpaid-plan-monitor:hover {
     white-space: nowrap;
     vertical-align: top;
 }
-.hr-table th {
+.hr-table thead tr.hr-table__header-row th {
     position: sticky;
     top: 0;
-    z-index: 1;
+    z-index: 2;
     background: var(--color-bg-secondary, #f3f4f6);
     font-weight: 600;
     padding: 0;
     vertical-align: middle;
+}
+.hr-table--with-summary thead tr.hr-table__header-row th {
+    top: 2.1rem;
+}
+.hr-table thead tr.hr-table__summary-row td {
+    position: sticky;
+    top: 0;
+    z-index: 3;
 }
 .hr-table-view__filter-bar {
     display: flex;
@@ -8807,15 +8815,10 @@ button.unpaid-plan-monitor:hover {
     line-height: 1;
     padding: 0 0.25rem;
 }
-.hr-table tfoot {
-    position: sticky;
-    bottom: 0;
-    z-index: 1;
-}
 .hr-table__summary-row td {
     background: #fff8e6;
     font-weight: 600;
-    border-top: 2px solid var(--color-border, #ccc);
+    border-bottom: 2px solid var(--color-border, #ccc);
 }
 .hr-table__row--in-itog td {
     background: #b7e1cd;

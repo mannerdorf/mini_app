@@ -104,11 +104,11 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete }: Prop
     [sheet.rows, sheet.columns, columnFilters],
   );
 
-  const hasSummaryFooter = sheet.id === "itog" || sheet.id === "kgd" || sheet.id.startsWith("ul-");
+  const hasSummaryHeader = sheet.id === "itog" || sheet.id === "kgd" || sheet.id.startsWith("ul-");
 
   const summaryRow = useMemo(
-    () => (hasSummaryFooter ? filteredRows.find(isSummaryRow) ?? null : null),
-    [filteredRows, hasSummaryFooter],
+    () => (hasSummaryHeader ? sheet.rows.find(isSummaryRow) ?? null : null),
+    [sheet.rows, hasSummaryHeader],
   );
 
   const dataRows = useMemo(
@@ -208,9 +208,19 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete }: Prop
         onScroll={onScroll}
         style={{ maxHeight: "min(70vh, 640px)", overflow: "auto" }}
       >
-        <table className="hr-table">
+        <table className={`hr-table${summaryRow ? " hr-table--with-summary" : ""}`}>
           <thead>
-            <tr>
+            {summaryRow ? (
+              <tr className="hr-table__summary-row">
+                {canDelete && onDeleteRow ? <td className="hr-table__actions" /> : null}
+                {sheet.columns.map((col) => (
+                  <td key={col.key} title={formatCellDisplay(summaryRow[col.key])}>
+                    {formatCellDisplay(summaryRow[col.key])}
+                  </td>
+                ))}
+              </tr>
+            ) : null}
+            <tr className="hr-table__header-row">
               {canDelete && onDeleteRow ? <th className="hr-table__actions" /> : null}
               {sheet.columns.map((col) => (
                 <th key={col.key}>
@@ -275,18 +285,6 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete }: Prop
               </>
             )}
           </tbody>
-          {summaryRow ? (
-            <tfoot>
-              <tr className="hr-table__summary-row">
-                {canDelete && onDeleteRow ? <td className="hr-table__actions" /> : null}
-                {sheet.columns.map((col) => (
-                  <td key={col.key} title={formatCellDisplay(summaryRow[col.key])}>
-                    {formatCellDisplay(summaryRow[col.key])}
-                  </td>
-                ))}
-              </tr>
-            </tfoot>
-          ) : null}
         </table>
       </div>
     </div>

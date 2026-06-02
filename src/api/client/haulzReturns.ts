@@ -118,7 +118,23 @@ export async function getHaulzReturnsJob(
     ? {
         sheets: rawWb.sheets,
         itogControlKeys: new Set(
-          Array.isArray(rawWb.itogControlKeys) ? rawWb.itogControlKeys.map(String) : [],
+          Array.isArray(rawWb.itogControlKeys)
+            ? rawWb.itogControlKeys.map(String)
+            : rawWb.itogControlKeys &&
+                typeof rawWb.itogControlKeys === "object" &&
+                Array.isArray((rawWb.itogControlKeys as { keys?: string[] }).keys)
+              ? (rawWb.itogControlKeys as { keys: string[] }).keys.map(String)
+              : [],
+        ),
+        excludedUlNumbers: new Set(
+          Array.isArray(rawWb.excludedUlNumbers)
+            ? rawWb.excludedUlNumbers.map(String)
+            : rawWb.itogControlKeys &&
+                typeof rawWb.itogControlKeys === "object" &&
+                !Array.isArray(rawWb.itogControlKeys) &&
+                Array.isArray((rawWb.itogControlKeys as { excludedUl?: string[] }).excludedUl)
+              ? (rawWb.itogControlKeys as { excludedUl: string[] }).excludedUl.map(String)
+              : [],
         ),
       }
     : null;

@@ -261,7 +261,7 @@ export function buildWorkbook(input: BuildInput): HaulzWorkbook {
     ...ulSheets.map((f) => buildUlSheetForParsedFile(f, controlKeys)),
   ];
 
-  return { sheets, itogControlKeys: controlKeys };
+  return { sheets, itogControlKeys: controlKeys, excludedUlNumbers: new Set() };
 }
 
 export {

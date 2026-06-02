@@ -89,7 +89,7 @@ async function downloadStoredFile(auth: AuthData, jobId: string, fileId: string,
   downloadBlob(blob, fileName);
 }
 
-export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" }: Props) {
+export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат из КГД" }: Props) {
   const [otpravkaFile, setOtpravkaFile] = useState<File | null>(null);
   const [ulPrio1, setUlPrio1] = useState<FileSlot[]>([]);
   const [ulPrio2, setUlPrio2] = useState<FileSlot[]>([]);
@@ -107,7 +107,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
   const [loadingUlTab, setLoadingUlTab] = useState<string | null>(null);
   const [newStopWord, setNewStopWord] = useState("");
   const [workbookTableCollapsed, setWorkbookTableCollapsed] = useState(false);
-  const [storedFilesCollapsed, setStoredFilesCollapsed] = useState(false);
+  const [storedFilesCollapsed, setStoredFilesCollapsed] = useState(true);
   const [translating, setTranslating] = useState(false);
   const [translateProgress, setTranslateProgress] = useState<{ done: number; total: number } | null>(null);
   const [renamingJobId, setRenamingJobId] = useState<string | null>(null);
@@ -128,10 +128,11 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
   const ensureUlSheetLoaded = useCallback(
     async (tabId: string, currentWorkbook: HaulzWorkbook, currentJobId: string, files: HaulzReturnsFileMeta[]) => {
       if (!auth || !tabId.startsWith("ul-")) return currentWorkbook;
-      const sheet = currentWorkbook.sheets.find((s) => s.id === tabId);
-      if (!sheet || (sheet.rows.length > 0 && !sheet.ulDeferred)) return currentWorkbook;
-
       const ulNumber = tabId.slice(3);
+      if (currentWorkbook.excludedUlNumbers?.has(ulNumber)) return currentWorkbook;
+      const sheet = currentWorkbook.sheets.find((s) => s.id === tabId);
+      if (!sheet || sheet.ulLocallyEdited || (sheet.rows.length > 0 && !sheet.ulDeferred)) return currentWorkbook;
+
       const fileMeta = files.find(
         (f) =>
           (f.file_role === "ul_prio1" || f.file_role === "ul_prio2") &&
@@ -305,7 +306,6 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
           let wb = normalizeWorkbookColumns(data.workbook);
           setActiveTab("itog");
           setWorkbookTableCollapsed(false);
-          setStoredFilesCollapsed(false);
           try {
             wb = await runItogTranslation(wb, id);
           } catch (e: unknown) {
@@ -315,7 +315,6 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
         } else {
           setWorkbook(null);
           setWorkbookTableCollapsed(false);
-          setStoredFilesCollapsed(false);
         }
         if (data.job.error_message) setError(data.job.error_message);
       } catch (e: unknown) {
@@ -360,7 +359,6 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
     setStoredFiles([]);
     if (!file) setWorkbook(null);
     setWorkbookTableCollapsed(false);
-    setStoredFilesCollapsed(false);
     setError(null);
   }, []);
 
@@ -369,18 +367,17 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
     const slots = Array.from(list).map((file) => ({ id: uid(), file }));
     if (prio === 1) setUlPrio1((prev) => [...prev, ...slots]);
     else setUlPrio2((prev) => [...prev, ...slots]);
-    setJobId(null);
-    setWorkbookTableCollapsed(false);
-    setStoredFilesCollapsed(false);
+    if (!jobId) {
+      setWorkbookTableCollapsed(false);
+    }
     setError(null);
-  }, []);
+  }, [jobId]);
 
   const removeUl = useCallback((id: string, prio: 1 | 2) => {
     if (prio === 1) setUlPrio1((prev) => prev.filter((s) => s.id !== id));
     else setUlPrio2((prev) => prev.filter((s) => s.id !== id));
     setJobId(null);
     setWorkbookTableCollapsed(false);
-    setStoredFilesCollapsed(false);
   }, []);
 
   const handleProcess = useCallback(async () => {
@@ -400,7 +397,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
     setError(null);
     setUploadProgress(null);
     try {
-      const title = otpravkaFile.name.replace(/\.(xlsx|xls)$/i, "") || "Возвраты";
+      const title = otpravkaFile.name.replace(/\.(xlsx|xls)$/i, "") || "Возврат из КГД";
       const uploadQueue: HaulzReturnsUploadItem[] = [
         { role: "otpravka", file: otpravkaFile },
         ...ulPrio1.map((slot) => ({ role: "ul_prio1" as const, file: slot.file })),
@@ -431,7 +428,6 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
       setJobId(newJobId);
       setActiveTab("itog");
       setWorkbookTableCollapsed(false);
-      setStoredFilesCollapsed(false);
       try {
         const loaded = await getHaulzReturnsJob(auth, newJobId);
         setStoredFiles(loaded.files);
@@ -453,6 +449,49 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
       setUploadProgress(null);
     }
   }, [auth, otpravkaFile, ulPrio1, ulPrio2, refreshJobs, runItogTranslation, buildLocalWorkbookPreview]);
+
+  const handleAddUlToSession = useCallback(async () => {
+    if (!auth || !jobId) return;
+    if (ulPrio1.length === 0 && ulPrio2.length === 0) {
+      setError("Выберите УЛ для добавления в сессию");
+      return;
+    }
+    setProcessing(true);
+    setError(null);
+    setUploadProgress(null);
+    try {
+      const uploadQueue: HaulzReturnsUploadItem[] = [
+        ...ulPrio1.map((slot) => ({ role: "ul_prio1" as const, file: slot.file })),
+        ...ulPrio2.map((slot) => ({ role: "ul_prio2" as const, file: slot.file })),
+      ];
+      await uploadHaulzReturnsFilesSequentially(auth, jobId, uploadQueue, (current, total, fileName) => {
+        setUploadProgress({ current, total, fileName });
+      });
+      setUploadProgress(null);
+      await processHaulzReturnsJob(auth, jobId);
+      const data = await getHaulzReturnsJob(auth, jobId);
+      setStoredFiles(data.files);
+      if (data.workbook) {
+        let wb = normalizeWorkbookColumns(data.workbook);
+        try {
+          wb = await runItogTranslation(wb, jobId);
+        } catch (e: unknown) {
+          setError((e as Error)?.message || "Ошибка перевода");
+        }
+        setWorkbook(wb);
+        setActiveTab("kgd");
+        setWorkbookTableCollapsed(false);
+      }
+      setUlPrio1([]);
+      setUlPrio2([]);
+      await refreshJobs();
+    } catch (e: unknown) {
+      setError((e as Error)?.message || "Ошибка добавления УЛ");
+    } finally {
+      setProcessing(false);
+      setUploadProgress(null);
+    }
+  }, [auth, jobId, ulPrio1, ulPrio2, runItogTranslation, refreshJobs]);
 
   const handleDeleteItogRow = useCallback(
     (rowId: string) => {
@@ -638,7 +677,6 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
           setWorkbook(null);
           setStoredFiles([]);
           setWorkbookTableCollapsed(false);
-          setStoredFilesCollapsed(false);
         }
         if (renamingJobId === id) {
           setRenamingJobId(null);
@@ -684,7 +722,10 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
   }, [auth, renamingJobId, renameDraft, cancelRenameJob]);
 
   const canProcess =
-    Boolean(auth) && Boolean(otpravkaFile) && (ulPrio1.length > 0 || ulPrio2.length > 0) && !processing;
+    Boolean(auth) && !jobId && Boolean(otpravkaFile) && (ulPrio1.length > 0 || ulPrio2.length > 0) && !processing;
+
+  const canAddUlToSession =
+    Boolean(auth) && Boolean(jobId) && (ulPrio1.length > 0 || ulPrio2.length > 0) && !processing;
 
   const activeDataRowCount = activeSheet ? countSheetDataRows(activeSheet) : 0;
 
@@ -821,14 +862,18 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
         <label className="hr-upload-card">
           <Upload className="hr-upload-icon" />
           <span className="hr-upload-title">УЛ — приоритет 1</span>
-          <span className="hr-upload-hint">Можно несколько файлов</span>
+          <span className="hr-upload-hint">
+            {jobId ? "Добавить в текущую сессию" : "Можно несколько файлов"}
+          </span>
           <input type="file" accept=".xlsx,.xls" multiple hidden onChange={(e) => addUlFiles(e.target.files, 1)} />
         </label>
 
         <label className="hr-upload-card">
           <Upload className="hr-upload-icon" />
           <span className="hr-upload-title">УЛ — приоритет 2</span>
-          <span className="hr-upload-hint">Можно несколько файлов</span>
+          <span className="hr-upload-hint">
+            {jobId ? "Недостающие позиции → сюда" : "Можно несколько файлов"}
+          </span>
           <input type="file" accept=".xlsx,.xls" multiple hidden onChange={(e) => addUlFiles(e.target.files, 2)} />
         </label>
       </div>
@@ -911,9 +956,21 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
       ) : null}
 
       <Flex gap="0.5rem" wrap="wrap" style={{ marginTop: "1rem", marginBottom: "1rem" }}>
-        <Button type="button" className="button-primary" disabled={!canProcess} onClick={() => void handleProcess()}>
-          {processing ? "Обработка…" : previewing ? "Сборка…" : "Обработать и сохранить"}
-        </Button>
+        {canAddUlToSession ? (
+          <Button type="button" className="button-primary" disabled={processing} onClick={() => void handleAddUlToSession()}>
+            {processing ? "Добавление…" : "Добавить УЛ в сессию и пересобрать"}
+          </Button>
+        ) : null}
+        {canProcess ? (
+          <Button type="button" className="button-primary" disabled={processing} onClick={() => void handleProcess()}>
+            {processing ? "Обработка…" : previewing ? "Сборка…" : "Обработать и сохранить"}
+          </Button>
+        ) : null}
+        {jobId && !canAddUlToSession && !canProcess ? (
+          <Typography.Body style={{ color: "var(--color-text-secondary)" }}>
+            Сессия «{activeJobTitle}» открыта — прикрепите УЛ выше и нажмите «Добавить УЛ в сессию»
+          </Typography.Body>
+        ) : null}
       </Flex>
 
       {uploadProgress ? (
@@ -1066,9 +1123,14 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возвраты" 
           ) : (
             <HaulzReturnsWorkbookView
               sheet={activeSheet}
-              canDelete={activeSheet.id === "itog" || activeSheet.id === "stop" || activeSheet.id.startsWith("ul-")}
+              canDelete={
+                activeSheet.id === "itog" ||
+                activeSheet.id === "stop" ||
+                activeSheet.id === "fix" ||
+                activeSheet.id.startsWith("ul-")
+              }
               onDeleteRow={
-                activeSheet.id === "itog"
+                activeSheet.id === "itog" || activeSheet.id === "fix"
                   ? handleDeleteItogRow
                   : activeSheet.id === "stop"
                     ? handleDeleteStopRow

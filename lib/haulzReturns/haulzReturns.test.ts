@@ -10,6 +10,7 @@ import { removeUlSheetFromWorkbook } from "./ulSheetOperations";
 import { removeItogRow } from "./ulTotals";
 import { recalcWorkbookAfterItogChange } from "./workbookRecalc";
 import { ensureItogRowIds, stableItogRowId } from "./itogRowKeys";
+import { mergeWorkbookOnReprocess } from "./mergeWorkbookOnReprocess";
 import { parseTranslationsJson } from "./openaiTranslate";
 import {
   applyItogTranslationsToWorkbook,
@@ -98,9 +99,9 @@ describe("kgdOperations", () => {
     expect(dataRows).toHaveLength(2);
     expect(dataRows.map((r) => r.parcel)).toEqual(["111", "222"]);
     expect(dataRows.every((r) => Number(r.dupCount) <= 1)).toBe(true);
-    expect(isSummaryRow(kgd.rows[kgd.rows.length - 1])).toBe(true);
-    expect(kgd.rows[0].num).toBe(1);
-    expect(kgd.rows[1].num).toBe(2);
+    expect(isSummaryRow(kgd.rows[0]!)).toBe(true);
+    expect(kgd.rows[1]!.num).toBe(1);
+    expect(kgd.rows[2]!.num).toBe(2);
   });
 
   it("rebuilds итог from KGD rows", () => {
@@ -111,8 +112,10 @@ describe("kgdOperations", () => {
     const next = rebuildItogFromKgd(trimmed);
     const itog = next.sheets.find((s) => s.id === "itog")!;
     const kgd = trimmed.sheets.find((s) => s.id === "kgd")!;
-    expect(itog.rows).toHaveLength(kgd.rows.length);
-    expect(itog.rows[0].parcel).toBe(kgd.rows[0].parcel);
+    expect(itog.rows.filter((r) => !isSummaryRow(r)).length).toBe(
+      kgd.rows.filter((r) => !isSummaryRow(r)).length,
+    );
+    expect(itog.rows[1]!.parcel).toBe(kgd.rows[1]!.parcel);
   });
 });
 
@@ -172,17 +175,17 @@ describe("ulTotals", () => {
     expect(isUlDataRowFilled({ rowNum: "1", parcel: "111" })).toBe(true);
   });
 
-  it("appends summary row at the bottom", () => {
+  it("prepends summary row at the top", () => {
     const rows = [
       { rowNum: "1", cargoPlace: "A", parcel: "111", weight: 2, volume: 1, cost: 10 },
     ];
     const withSummary = appendUlSummaryRow(rows);
     expect(withSummary).toHaveLength(2);
-    expect(isSummaryRow(withSummary[1])).toBe(true);
-    expect(String(withSummary[1].weight)).toMatch(/Вес брутто/);
-    expect(String(withSummary[1].volume)).toMatch(/Объём/);
-    expect(String(withSummary[1].name)).toMatch(/Количество мест 1/);
-    expect(String(withSummary[1].cost)).toMatch(/Сумма/);
+    expect(isSummaryRow(withSummary[0]!)).toBe(true);
+    expect(String(withSummary[0]!.weight)).toMatch(/Вес брутто/);
+    expect(String(withSummary[0]!.volume)).toMatch(/Объём/);
+    expect(String(withSummary[0]!.name)).toMatch(/Количество мест 1/);
+    expect(String(withSummary[0]!.cost)).toMatch(/Сумма/);
   });
 
   it("syncs inItog flags from control keys", () => {
@@ -197,9 +200,9 @@ describe("ulTotals", () => {
     };
     const keys = new Set(["026304231111"]);
     const synced = syncUlSheetFromControlKeys(sheet, keys);
-    expect(isUlRowInItog(synced.rows[0])).toBe(true);
-    expect(isUlRowInItog(synced.rows[1])).toBe(false);
-    expect(isSummaryRow(synced.rows[synced.rows.length - 1])).toBe(true);
+    expect(isUlRowInItog(synced.rows[1]!)).toBe(true);
+    expect(isUlRowInItog(synced.rows[2]!)).toBe(false);
+    expect(isSummaryRow(synced.rows[0]!)).toBe(true);
   });
 
   it("collectUlNumbersInItog returns UL numbers from itog rows", () => {
@@ -228,7 +231,7 @@ describe("ulTotals", () => {
     const next = removeUlRow(sheet, "a");
     expect(next.rows.filter((r) => !isSummaryRow(r))).toHaveLength(1);
     expect(next.rows.find((r) => r._rowId === "a")).toBeUndefined();
-    expect(String(next.rows[next.rows.length - 1].name)).toContain("Количество мест 1");
+    expect(String(next.rows[0]!.name)).toContain("Количество мест 1");
   });
   it("appends itog summary with place count, weight and cost", () => {
     const rows = [
@@ -236,8 +239,8 @@ describe("ulTotals", () => {
       { parcel: "222", weight: 0.5, cost: 50 },
     ];
     const withSummary = appendItogSummaryRow(rows);
+    const summary = withSummary[0]!;
     expect(withSummary).toHaveLength(3);
-    const summary = withSummary[2];
     expect(String(summary.line)).toContain("Количество мест 2");
     expect(String(summary.weight)).toMatch(/Вес брутто/);
     expect(String(summary.cost)).toMatch(/Сумма/);
@@ -247,8 +250,8 @@ describe("ulTotals", () => {
   it("appends kgd summary with place count", () => {
     const rows = [{ parcel: "111" }, { parcel: "222" }];
     const withSummary = appendKgdSummaryRow(rows);
-    expect(withSummary).toHaveLength(3);
-    expect(String(withSummary[2].parcel)).toContain("Количество мест 2");
+    expect(isSummaryRow(withSummary[0]!)).toBe(true);
+    expect(String(withSummary[0]!.parcel)).toContain("Количество мест 2");
   });
 
   it("removes itog rows marked STOP", () => {
@@ -272,6 +275,7 @@ describe("itogOperations", () => {
     const ul = parseUlMatrix(UL_SAMPLE, "02630423.xlsx");
     let wb = buildWorkbook({ otpravka, ulPrio1: [ul], ulPrio2: [] });
     const itog = wb.sheets.find((s) => s.id === "itog")!;
+    const dataRows = stripSummaryRows(itog.rows);
     const withStop = {
       ...wb,
       sheets: wb.sheets.map((s) =>
@@ -279,8 +283,8 @@ describe("itogOperations", () => {
           ? {
               ...s,
               rows: appendItogSummaryRow([
-                { ...itog.rows[0], stop: "STOP", _rowId: "a" },
-                { ...itog.rows[1], stop: "OK", _rowId: "b", parcel: "999" },
+                { ...dataRows[0]!, stop: "STOP", _rowId: "a" },
+                { ...dataRows[1]!, stop: "OK", _rowId: "b", parcel: "999" },
               ]),
             }
           : s,
@@ -300,16 +304,16 @@ describe("buildWorkbook", () => {
     const ul = parseUlMatrix(UL_SAMPLE, "02630423.xlsx");
     const wb = buildWorkbook({ otpravka, ulPrio1: [ul], ulPrio2: [] });
     const itog = wb.sheets.find((s) => s.id === "itog")!;
-    expect(itog.rows).toHaveLength(3);
-    expect(isSummaryRow(itog.rows[itog.rows.length - 1])).toBe(true);
     const kgd = wb.sheets.find((s) => s.id === "kgd")!;
-    expect(isSummaryRow(kgd.rows[kgd.rows.length - 1])).toBe(true);
-    expect(itog.rows[0].ul).toBe("02630423");
-    expect(itog.rows[0].ulData).toBe("Test item");
-    expect(itog.rows[0].seal).toBe("10000211381829");
+    expect(itog.rows).toHaveLength(3);
+    expect(isSummaryRow(itog.rows[0]!)).toBe(true);
+    expect(isSummaryRow(kgd.rows[0]!)).toBe(true);
+    expect(itog.rows[1]!.ul).toBe("02630423");
+    expect(itog.rows[1]!.ulData).toBe("Test item");
+    expect(itog.rows[1]!.seal).toBe("10000211381829");
     const ulSheet = wb.sheets.find((s) => s.id === "ul-02630423")!;
-    expect(ulSheet.rows[0].inItog).toBe(1);
-    const summary = ulSheet.rows[ulSheet.rows.length - 1];
+    expect(ulSheet.rows[1]!.inItog).toBe(1);
+    const summary = ulSheet.rows[0]!;
     expect(isSummaryRow(summary)).toBe(true);
     expect(String(summary.weight)).toContain("Вес брутто");
     expect(String(summary.name)).toContain("Количество мест 2");
@@ -337,10 +341,10 @@ describe("buildWorkbook", () => {
     );
     const wb = buildWorkbook({ otpravka, ulPrio1: [ulPrio1], ulPrio2: [ulPrio2] });
     const itog = wb.sheets.find((s) => s.id === "itog")!;
-    expect(itog.rows[0].ulData).toBe("From prio 1");
-    expect(itog.rows[0].ul).toBe("111");
-    expect(itog.rows[1].ulData).toBe("From prio 2 only");
-    expect(itog.rows[1].ul).toBe("222");
+    expect(itog.rows[1]!.ulData).toBe("From prio 1");
+    expect(itog.rows[1]!.ul).toBe("111");
+    expect(itog.rows[2]!.ulData).toBe("From prio 2 only");
+    expect(itog.rows[2]!.ul).toBe("222");
   });
 
   it("itogRowsNeedingTranslation skips filled translate and summary row", () => {
@@ -364,6 +368,7 @@ describe("buildWorkbook", () => {
     ]);
     const wb: import("./types").HaulzWorkbook = {
       itogControlKeys: new Set(),
+      excludedUlNumbers: new Set(),
       sheets: [
         { id: "itog", name: "итог", rows: itog },
         { id: "fix", name: "FIX", rows: [] },
@@ -377,9 +382,9 @@ describe("buildWorkbook", () => {
       ]),
     );
     const nextItog = next.sheets.find((s) => s.id === "itog")!;
-    expect(nextItog.rows[0].translate).toBe("Рубашка");
-    expect(nextItog.rows[1].translate).toBe("Штаны");
-    expect(isSummaryRow(nextItog.rows[nextItog.rows.length - 1])).toBe(true);
+    expect(nextItog.rows[1]!.translate).toBe("Рубашка");
+    expect(nextItog.rows[2]!.translate).toBe("Штаны");
+    expect(isSummaryRow(nextItog.rows[0]!)).toBe(true);
     const fix = next.sheets.find((s) => s.id === "fix")!;
     expect(fix.rows.length).toBeGreaterThan(0);
   });
@@ -400,11 +405,31 @@ describe("buildWorkbook", () => {
     expect(wb.sheets.some((s) => s.id === "ul-02630423")).toBe(true);
 
     const next = removeUlSheetFromWorkbook(wb, "ul-02630423");
+    expect(next.excludedUlNumbers.has("02630423")).toBe(true);
     expect(next.sheets.some((s) => s.id === "ul-02630423")).toBe(false);
     const itog = next.sheets.find((s) => s.id === "itog")!;
     expect(itog.rows.filter((r) => !isSummaryRow(r)).every((r) => String(r.ul ?? "") !== "02630423")).toBe(true);
     const kgd = next.sheets.find((s) => s.id === "kgd")!;
     expect(kgd.rows.filter((r) => !isSummaryRow(r)).every((r) => String(r.ul ?? "") !== "02630423")).toBe(true);
+  });
+
+  it("mergeWorkbookOnReprocess does not restore excluded UL sheets", () => {
+    const wb = buildWorkbook({
+      otpravka: parseOtpravkaMatrix(OTPRAVKA_SAMPLE),
+      ulPrio1: [parseUlMatrix(UL_SAMPLE, "02630423.xlsx")],
+      ulPrio2: [],
+    });
+    const deleted = removeUlSheetFromWorkbook(wb, "ul-02630423");
+    const rebuilt = buildWorkbook({
+      otpravka: parseOtpravkaMatrix(OTPRAVKA_SAMPLE),
+      ulPrio1: [parseUlMatrix(UL_SAMPLE, "02630423.xlsx")],
+      ulPrio2: [],
+    });
+    const merged = mergeWorkbookOnReprocess(deleted, rebuilt);
+    expect(merged.excludedUlNumbers.has("02630423")).toBe(true);
+    expect(merged.sheets.some((s) => s.id === "ul-02630423")).toBe(false);
+    const itog = merged.sheets.find((s) => s.id === "itog")!;
+    expect(itog.rows.filter((r) => !isSummaryRow(r)).every((r) => String(r.ul ?? "") !== "02630423")).toBe(true);
   });
 
   it("removeItogRow keeps translate aligned with ulData after recalc", () => {
@@ -431,8 +456,9 @@ describe("buildWorkbook", () => {
         translate: "Товар ТРИ",
       },
     ]);
-    const wb: import("./types").HaulzWorkbook = {
+    const wb: HaulzWorkbook = {
       itogControlKeys: new Set(["1111P1", "1112P2", "1113P3"]),
+      excludedUlNumbers: new Set(),
       sheets: [{ id: "itog", name: "итог", columns: [], rows }],
     };
     const itogSheet = wb.sheets.find((s) => s.id === "itog")!;
@@ -455,6 +481,7 @@ describe("buildWorkbook", () => {
     ]);
     const wb: import("./types").HaulzWorkbook = {
       itogControlKeys: new Set(),
+      excludedUlNumbers: new Set(),
       sheets: [{ id: "itog", name: "итог", rows: itog }],
     };
     const next = applyItogTranslationsToWorkbook(wb, new Map([["P1", "Чужой перевод"]]));
@@ -469,5 +496,78 @@ describe("buildWorkbook", () => {
     ]);
     expect(row!._rowId).toBe("itog:1111P1");
     expect(row!.translate).toBe("Товар");
+  });
+
+  it("mergeWorkbookOnReprocess fills empty ulData and keeps translate", () => {
+    const previous: import("./types").HaulzWorkbook = {
+      itogControlKeys: new Set(["1111P1", "1112P2"]),
+      excludedUlNumbers: new Set(),
+      sheets: [
+        {
+          id: "itog",
+          name: "итог",
+          columns: [],
+          rows: appendItogSummaryRow([
+            {
+              _rowId: "itog:1111P1",
+              control: "1111P1",
+              parcel: "P1",
+              ulData: "Shirt",
+              translate: "Рубашка",
+            },
+            {
+              _rowId: "itog:1112P2",
+              control: "1112P2",
+              parcel: "P2",
+              ulData: "",
+              translate: "",
+            },
+          ]),
+        },
+        { id: "stop", name: "STOP", columns: [], rows: [{ _rowId: "stop-custom", word: "X", result: "STOP" }] },
+      ],
+    };
+    const rebuilt: import("./types").HaulzWorkbook = {
+      itogControlKeys: new Set(["1111P1", "1112P2", "1113P3"]),
+      excludedUlNumbers: new Set(),
+      sheets: [
+        {
+          id: "itog",
+          name: "итог",
+          columns: [],
+          rows: appendItogSummaryRow([
+            {
+              _rowId: "itog:1111P1",
+              control: "1111P1",
+              parcel: "P1",
+              ulData: "Shirt",
+              translate: "",
+            },
+            {
+              _rowId: "itog:1112P2",
+              control: "1112P2",
+              parcel: "P2",
+              ulData: "Pants",
+              translate: "",
+            },
+            {
+              _rowId: "itog:1113P3",
+              control: "1113P3",
+              parcel: "P3",
+              ulData: "Hat",
+              translate: "",
+            },
+          ]),
+        },
+        { id: "stop", name: "STOP", columns: [], rows: [] },
+      ],
+    };
+    const merged = mergeWorkbookOnReprocess(previous, rebuilt);
+    const itog = stripSummaryRows(merged.sheets.find((s) => s.id === "itog")!.rows);
+    expect(itog).toHaveLength(2);
+    expect(itog.find((r) => r.parcel === "P1")?.translate).toBe("Рубашка");
+    expect(itog.find((r) => r.parcel === "P2")?.ulData).toBe("Pants");
+    expect(itog.some((r) => r.parcel === "P3")).toBe(false);
+    expect(merged.sheets.find((s) => s.id === "stop")?.rows[0]?.word).toBe("X");
   });
 });

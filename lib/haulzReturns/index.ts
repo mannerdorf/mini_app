@@ -15,4 +15,5 @@ export * from "./itogOperations";
 export * from "./ulTotals";
 export * from "./itogRowKeys";
 export * from "./ulSheetOperations";
+export * from "./mergeWorkbookOnReprocess";
 export * from "./translateOperations";

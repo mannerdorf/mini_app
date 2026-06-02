@@ -24,7 +24,7 @@ export const REGISTERED_PERMISSION_KEYS = [
   "accounting",
 ] as const;
 
-/** Только «Красный возврат»: остальные разделы выключены. */
+/** Только «Возврат из КГД»: остальные разделы выключены. */
 export function exclusiveRedReturnsPermissions(): Record<string, boolean> {
   const out = REGISTERED_PERMISSION_KEYS.reduce<Record<string, boolean>>((acc, key) => {
     acc[key] = false;

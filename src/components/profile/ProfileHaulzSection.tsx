@@ -2,6 +2,7 @@ import React from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import type { Account, ProfileView } from "../../types";
+import { RED_RETURNS_LABEL } from "../../features/redReturns/appRedReturns";
 
 type Props = {
     activeAccount: Account | null;
@@ -64,7 +65,7 @@ export function ProfileHaulzSection({
                 )}
                 {activeAccount?.permissions?.haulz === true && (
                     <Button type="button" className="button-primary" onClick={() => navigateTo("haulzReturns")}>
-                        Возвраты
+                        {RED_RETURNS_LABEL}
                     </Button>
                 )}
                 {activeAccount?.permissions?.haulz === true && activeAccount?.permissions?.service_mode === true && (
