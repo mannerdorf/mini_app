@@ -7,6 +7,9 @@ import {
   ruDateToIso,
   splitDraftDateField,
   syncTitleDateFromFts,
+  TD_NUMBER_MASK_PLACEHOLDER,
+  formatTdNumberMaskInput,
+  formatTdNumberMaskFromParsed,
 } from "../../lib/haulzReturns";
 
 type Props = {
@@ -31,12 +34,16 @@ function CompactInlineInput({
   value,
   onChange,
   wide,
+  placeholder,
+  inputMode,
 }: {
   label: string;
   ariaLabel: string;
   value: string;
   onChange: (value: string) => void;
   wide?: boolean;
+  placeholder?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
 }) {
   return (
     <div className={`hr-td-inline-field${wide ? " hr-td-inline-field--wide" : ""}`}>
@@ -46,6 +53,8 @@ function CompactInlineInput({
         className="hr-td-inline-field__input"
         value={value}
         aria-label={ariaLabel}
+        placeholder={placeholder}
+        inputMode={inputMode}
         onChange={(e) => onChange(e.target.value)}
       />
     </div>
@@ -103,6 +112,36 @@ export function HaulzTdDraftField({ fieldKey, label, value, ftsValue, compact, o
             }}
           />
         </div>
+      </label>
+    );
+  }
+
+  if (fieldKey === "headerTd") {
+    const display = formatTdNumberMaskFromParsed(value) || value;
+    if (compact) {
+      return (
+        <label className={fieldClass(fieldKey, compact)}>
+          <CompactInlineInput
+            label={label}
+            ariaLabel={label}
+            value={display}
+            placeholder={TD_NUMBER_MASK_PLACEHOLDER}
+            inputMode="numeric"
+            onChange={(next) => onChange(formatTdNumberMaskInput(next))}
+          />
+        </label>
+      );
+    }
+    return (
+      <label className={fieldClass(fieldKey, compact)}>
+        <span>{label}</span>
+        <input
+          type="text"
+          value={display}
+          placeholder={TD_NUMBER_MASK_PLACEHOLDER}
+          inputMode="numeric"
+          onChange={(e) => onChange(formatTdNumberMaskInput(e.target.value))}
+        />
       </label>
     );
   }

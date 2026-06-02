@@ -6,6 +6,12 @@ import {
   parseUlTdNumber,
   resolveUlTdDateRu,
 } from "../../../lib/haulzReturns/tdDocuments/parseUlTdNumber";
+import {
+  applyTdDateToTdNumberMask,
+  formatTdNumberMaskFromParsed,
+  formatTdNumberMaskInput,
+  TD_NUMBER_MASK_PLACEHOLDER,
+} from "../../../lib/haulzReturns/tdDocuments/tdNumberMask";
 import { isoDateToRu, ruDateToIso } from "../../lib/haulzReturns";
 
 export type UlTdMetaPatch = {
@@ -31,10 +37,15 @@ type LocalState = {
 
 function toLocal(ulNumber: string, tdNumber: string | null | undefined, tdDate: string | null | undefined): LocalState {
   const parsed = parseUlTdNumber(String(tdNumber ?? ""));
+  const dateRu = resolveUlTdDateRu(tdNumber, tdDate);
+  const composed = composeUlTdNumber(parsed.head, dateRu, parsed.tail);
+  const number = composed
+    ? formatTdNumberMaskFromParsed(composed)
+    : formatTdNumberMaskFromParsed(formatUlTdNumberWithoutDate(parsed.head, parsed.tail));
   return {
     ul: ulNumber,
-    number: formatUlTdNumberWithoutDate(parsed.head, parsed.tail),
-    dateRu: resolveUlTdDateRu(tdNumber, tdDate),
+    number,
+    dateRu,
   };
 }
 
@@ -68,15 +79,15 @@ export function HaulzUlTdField({ sheetId, ulNumber, tdNumber, tdDate, onChange, 
   const commit = useCallback(() => {
     const current = localRef.current;
     const parsed = parseUlTdNumber(current.number);
-    if (parsed.dateRu) {
-      const normalized: LocalState = {
-        ...current,
-        number: formatUlTdNumberWithoutDate(parsed.head, parsed.tail),
-        dateRu: current.dateRu.trim() || parsed.dateRu,
-      };
-      localRef.current = normalized;
-      setLocal(normalized);
-    }
+    const normalized: LocalState = {
+      ...current,
+      number: formatTdNumberMaskFromParsed(
+        composeUlTdNumber(parsed.head, current.dateRu.trim() || parsed.dateRu, parsed.tail),
+      ) || current.number,
+      dateRu: current.dateRu.trim() || parsed.dateRu,
+    };
+    localRef.current = normalized;
+    setLocal(normalized);
     const patch = toPatch(localRef.current);
     const key = JSON.stringify(patch);
     if (key === committedRef.current) return;
@@ -117,10 +128,19 @@ export function HaulzUlTdField({ sheetId, ulNumber, tdNumber, tdDate, onChange, 
           <input
             type="text"
             className="hr-td-field__input"
-            placeholder="10229010/0113288"
+            placeholder={TD_NUMBER_MASK_PLACEHOLDER}
+            inputMode="numeric"
             value={local.number}
             disabled={disabled}
-            onChange={(e) => setLocal((s) => ({ ...s, number: e.target.value }))}
+            onChange={(e) => {
+              const masked = formatTdNumberMaskInput(e.target.value);
+              const parsed = parseUlTdNumber(masked);
+              setLocal((s) => ({
+                ...s,
+                number: masked,
+                dateRu: parsed.dateRu || s.dateRu,
+              }));
+            }}
             onBlur={commit}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -139,15 +159,16 @@ export function HaulzUlTdField({ sheetId, ulNumber, tdNumber, tdDate, onChange, 
             disabled={disabled}
             onChange={(e) => {
               const ru = isoDateToRu(e.target.value);
-              setLocal((s) => ({ ...s, dateRu: ru ?? "" }));
+              setLocal((s) => ({
+                ...s,
+                dateRu: ru ?? "",
+                number: ru ? applyTdDateToTdNumberMask(s.number, ru) : s.number,
+              }));
             }}
             onBlur={commit}
           />
         </label>
       </div>
-      <Typography.Body style={{ color: "var(--color-text-secondary)", fontSize: "0.8rem", marginTop: "0.35rem" }}>
-        Дата УЛ подставляется из номера ТД (сегмент DDMMYY). Для спецификации и листа списания сохраняется полный номер.
-      </Typography.Body>
     </div>
   );
 }

@@ -1187,6 +1187,18 @@ describe("tdDocuments", () => {
     expect(resolveUlTdDateRu("10229010/0113288", "15.03.2026")).toBe("15.03.2026");
   });
 
+  it("formatTdNumberMaskInput applies 8/6/7 mask", async () => {
+    const {
+      formatTdNumberMaskInput,
+      formatTdNumberMaskFromParsed,
+      TD_NUMBER_MASK_PLACEHOLDER,
+    } = await import("./tdDocuments/tdNumberMask.js");
+    expect(TD_NUMBER_MASK_PLACEHOLDER).toBe("00000000/000000/0000000");
+    expect(formatTdNumberMaskInput("112164071604260113288")).toBe("11216407/160426/0113288");
+    expect(formatTdNumberMaskInput("11216407/160426/0113288")).toBe("11216407/160426/0113288");
+    expect(formatTdNumberMaskFromParsed("10229010/280426/0113288")).toBe("10229010/280426/0113288");
+  });
+
   it("normalizeWorkbookUlTdDates backfills tdDate from tdNumber on UL sheets", async () => {
     const { normalizeWorkbookUlTdDates, workbookNeedsUlTdDateBackfill } = await import(
       "./tdDocuments/parseUlTdNumber.js"

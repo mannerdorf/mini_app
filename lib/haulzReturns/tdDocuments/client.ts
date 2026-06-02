@@ -51,6 +51,12 @@ export {
   defaultProformaDraft,
   formatRuDate,
 } from "./defaults.js";
+export {
+  TD_NUMBER_MASK_PLACEHOLDER,
+  formatTdNumberMaskInput,
+  formatTdNumberMaskFromParsed,
+  applyTdDateToTdNumberMask,
+} from "./tdNumberMask.js";
 export { SPEC_EDITABLE_KEYS } from "./templateMaps.js";
 export {
   SPEC_PREVIEW_COLUMNS,
