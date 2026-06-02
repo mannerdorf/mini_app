@@ -7,6 +7,7 @@ export type HaulzReturnsJobSummary = {
   title: string;
   status: string;
   otpravka_filename: string | null;
+  owner_login?: string;
   created_at: string;
   updated_at: string;
   file_count: string;
