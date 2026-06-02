@@ -33,6 +33,10 @@
     "api/wb/postb-getapi.ts": {"maxDuration": 60},
     "api/wb/summary/filter-options.ts": {"maxDuration": 30},
     "api/wb/summary/refresh.ts": {"maxDuration": 120},
+    "api/haulz-returns/job-file.ts": {"maxDuration": 120},
+    "api/haulz-returns/job-process.ts": {"maxDuration": 120},
+    "api/haulz-returns/job-workbook.ts": {"maxDuration": 60},
+    "api/haulz-returns/translate-itog.ts": {"maxDuration": 60},
     "api/cron/weekly-partner-summary.ts": {"maxDuration": 300},
     "api/admin-weekly-summary.ts": {"maxDuration": 300},
     "api/invoices.ts": {"maxDuration": 300},
@@ -48,6 +52,9 @@
     {"source": "/cms/:path*", "destination": "/"},
     {"source": "/wildberries", "destination": "/"},
     {"source": "/wildberries/", "destination": "/"},
-    {"source": "/wildberries/:path*", "destination": "/"}
+    {"source": "/wildberries/:path*", "destination": "/"},
+    {"source": "/red-returns", "destination": "/"},
+    {"source": "/red-returns/", "destination": "/"},
+    {"source": "/red-returns/:path*", "destination": "/"}
   ]
 }

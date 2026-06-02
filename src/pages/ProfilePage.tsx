@@ -26,6 +26,7 @@ import { ProfileFaqSection } from "../components/profile/ProfileFaqSection";
 import { ProfileRolesSection } from "../components/profile/ProfileRolesSection";
 import { ProfileHaulzSection } from "../components/profile/ProfileHaulzSection";
 import { HaulzSummarySandboxPage } from "./HaulzSummarySandboxPage";
+import { HaulzReturnsPage } from "./HaulzReturnsPage";
 import { ProfileParcelScannerSection } from "../components/profile/ProfileParcelScannerSection";
 import { ProfileExpenseRequestsSection } from "../components/profile/ProfileExpenseRequestsSection";
 import { ProfileApiKeysSection } from "../components/profile/ProfileApiKeysSection";
@@ -1180,6 +1181,18 @@ export function ProfilePage({
                 activeAccount={activeAccount}
                 onBack={() => setCurrentView("haulz")}
             />
+        );
+    }
+
+    if (currentView === 'haulzReturns') {
+        const auth: AuthData | null = activeAccount ? {
+            login: activeAccount.login,
+            password: activeAccount.password,
+            inn: activeAccount.activeCustomerInn ?? activeAccount.customers?.[0]?.inn,
+            ...(activeAccount.isRegisteredUser === true ? { isRegisteredUser: true } : {}),
+        } : null;
+        return (
+            <HaulzReturnsPage auth={auth} onBack={() => setCurrentView("haulz")} />
         );
     }
 

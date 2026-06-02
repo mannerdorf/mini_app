@@ -1,7 +1,7 @@
 /** Допустимые пути SPA без 404 */
 export function isAppPathKnown(path: string): boolean {
   const p = (path || "/").replace(/\/$/, "") || "/";
-  return p === "/" || p === "" || p === "/index.html" || /^\/(admin|cms|wildberries)$/i.test(p);
+  return p === "/" || p === "" || p === "/index.html" || /^\/(admin|cms|wildberries|red-returns)$/i.test(p);
 }
 
 /** Показывать ли 404 по текущему pathname */

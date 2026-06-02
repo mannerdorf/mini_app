@@ -96,6 +96,7 @@ const PERMISSION_KEYS = [
   { key: "doc_acts_settlement", label: "Акты сверок" },
   { key: "doc_tariffs", label: "Тарифы" },
   { key: "haulz", label: "HAULZ" },
+  { key: "red_returns", label: "Красный возврат" },
   { key: "service_mode", label: "Служебный режим" },
   { key: "analytics", label: "Аналитика" },
   { key: "supervisor", label: "Руководитель" },
@@ -110,6 +111,7 @@ const PERMISSION_ROW1_SUPERADMIN = [
   { key: "service_mode", label: "Служебный режим" },
   { key: "analytics", label: "Аналитика" as const },
   { key: "haulz", label: "HAULZ" as const },
+  { key: "red_returns", label: "Красный возврат" as const },
   { key: "eor", label: "EOR" as const },
   { key: "accounting", label: "Бухгалтерия" as const },
   { key: "wb", label: "WB" as const },
@@ -182,10 +184,25 @@ function normalizeAnalyticsDashboardPermissions(perms: Record<string, boolean>):
 
 function applyPermissionsToggle(prev: Record<string, boolean>, key: string): Record<string, boolean> {
   const nextVal = !prev[key];
+
+  if (key === "red_returns" && nextVal) {
+    const next = PERMISSION_KEYS.reduce<Record<string, boolean>>((acc, { key: k }) => {
+      acc[k] = false;
+      return acc;
+    }, {});
+    next.red_returns = true;
+    return normalizeAnalyticsDashboardPermissions(next);
+  }
+
   const next = { ...prev, [key]: nextVal };
   if (key === "analytics" && !nextVal) next.dashboard = false;
   if (key === "dashboard" && nextVal && !prev.analytics) next.analytics = true;
+  if (key !== "red_returns" && nextVal && prev.red_returns) next.red_returns = false;
   return next;
+}
+
+function isPermissionLockedByRedReturns(key: string, perms: Record<string, boolean>): boolean {
+  return perms.red_returns === true && key !== "red_returns";
 }
 
 function isDashboardPermissionDisabled(key: string, perms: Record<string, boolean>): boolean {
@@ -3185,8 +3202,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
   const handlePermissionsToggle = (key: string) => {
     if (!isSuperAdmin && isSuperadminOnlyPermissionKey(key)) return;
+    if (isPermissionLockedByRedReturns(key, editorPermissions)) return;
     setEditorSelectedPresetId("");
+    const enablingRedReturns = key === "red_returns" && !editorPermissions.red_returns;
     setEditorPermissions((prev) => applyPermissionsToggle(prev, key));
+    if (enablingRedReturns) {
+      setEditorFinancial(false);
+      setEditorAccessAllInns(false);
+    }
   };
 
   const selectedSet = useMemo(() => new Set(selectedUserIds), [selectedUserIds]);
@@ -4257,11 +4280,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <div className="admin-permissions-toolbar">
                         {PERMISSION_ROW1_SUPERADMIN.map(({ key, label }) => {
                           const isActive = key === "service_mode" ? (!!editorPermissions.service_mode || editorAccessAllInns) : !!editorPermissions[key];
+                          const locked = isPermissionLockedByRedReturns(key, editorPermissions);
                           const onClick = () => {
+                            if (locked) return;
                             setEditorSelectedPresetId("");
                             if (key === "service_mode") {
                               const v = !(!!editorPermissions.service_mode || editorAccessAllInns);
-                              setEditorPermissions((p) => ({ ...p, service_mode: v }));
+                              setEditorPermissions((p) => (v ? applyPermissionsToggle(p, "service_mode") : { ...p, service_mode: false }));
                               setEditorAccessAllInns(v);
                               return;
                             }
@@ -4269,7 +4294,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           };
                           const activeClass = superadminRowPermissionActiveClass(key, isActive);
                           return (
-                            <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>
+                            <button
+                              key={key}
+                              type="button"
+                              className={`permission-button ${activeClass}`}
+                              onClick={onClick}
+                              disabled={locked}
+                              title={locked ? "Отключите «Красный возврат», чтобы изменить другие разделы" : undefined}
+                            >
+                              {label}
+                            </button>
                           );
                         })}
                       </div>
@@ -4277,18 +4311,33 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <div className="admin-permissions-toolbar" style={{ marginTop: isSuperAdmin ? "0.5rem" : 0 }}>
                       {PERMISSION_ROW2_ORANGE.map(({ key, label }) => {
                         const isActive = key === "__financial__" ? editorFinancial : !!editorPermissions[key];
+                        const locked = editorPermissions.red_returns === true;
                         const onClick = key === "__financial__"
-                          ? () => { setEditorSelectedPresetId(""); setEditorFinancial(!editorFinancial); }
+                          ? () => {
+                              if (locked) return;
+                              setEditorSelectedPresetId("");
+                              setEditorFinancial(!editorFinancial);
+                            }
                           : () => handlePermissionsToggle(key);
                         return (
-                          <button key={key} type="button" className={`permission-button ${isActive ? "active active-warning" : ""}`} onClick={onClick}>{label}</button>
+                          <button
+                            key={key}
+                            type="button"
+                            className={`permission-button ${isActive ? "active active-warning" : ""}`}
+                            onClick={onClick}
+                            disabled={locked}
+                            title={locked ? "Отключите «Красный возврат», чтобы изменить другие разделы" : undefined}
+                          >
+                            {label}
+                          </button>
                         );
                       })}
                     </div>
                     <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
                       {PERMISSION_ROW3_BLUE.map(({ key, label }) => {
                         const isActive = !!editorPermissions[key];
-                        const dis = isDashboardPermissionDisabled(key, editorPermissions);
+                        const dis = isDashboardPermissionDisabled(key, editorPermissions)
+                          || isPermissionLockedByRedReturns(key, editorPermissions);
                         return (
                           <button
                             key={key}
@@ -4296,7 +4345,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             className={`permission-button ${isActive ? "active" : ""}`}
                             onClick={() => { if (!dis) handlePermissionsToggle(key); }}
                             disabled={dis}
-                            title={dis ? "Сначала включите «Аналитика»" : undefined}
+                            title={
+                              isPermissionLockedByRedReturns(key, editorPermissions)
+                                ? "Отключите «Красный возврат», чтобы изменить другие разделы"
+                                : dis
+                                  ? "Сначала включите «Аналитика»"
+                                  : undefined
+                            }
                           >
                             {label}
                           </button>

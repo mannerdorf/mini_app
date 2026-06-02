@@ -12,6 +12,8 @@ import { AppShellProvider, useAppShell } from "./contexts/AppShellContext";
 import { AppNavigationProvider } from "./contexts/AppNavigationContext";
 import { shouldShowNotFound } from "./lib/notFoundRoute";
 import { isWbOnlyAccount, WbOnlyAppLayout } from "./wb/appWb";
+import { isRedReturnsOnlyAccount, syncRedReturnsUrl } from "./features/redReturns/appRedReturns";
+import { HaulzReturnsPage } from "./pages/HaulzReturnsPage";
 import { useLegalCompliance } from "./hooks/useLegalCompliance";
 import { useShowCustomerColumn } from "./hooks/useShowCustomerColumn";
 import { useRegisteredAccountSync } from "./hooks/useRegisteredAccountSync";
@@ -50,6 +52,7 @@ function AppRoot() {
         return !!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true;
     }, [activeAccount?.isRegisteredUser, activeAccount?.permissions?.service_mode]);
     const isWbOnlyUser = useMemo(() => isWbOnlyAccount(activeAccount), [activeAccount]);
+    const isRedReturnsOnlyUser = useMemo(() => isRedReturnsOnlyAccount(activeAccount), [activeAccount]);
     useEffect(() => {
         if (!serviceModeUnlocked && useServiceRequest) {
             setUseServiceRequest(false);
@@ -87,7 +90,11 @@ function AppRoot() {
     const [isOfferOpen, setIsOfferOpen] = useState(false);
     const [isPersonalConsentOpen, setIsPersonalConsentOpen] = useState(false);
     const [isChatOpen, setIsChatOpen] = useState(false);
-    useRegisteredAccountSync(isWbOnlyUser);
+    useRegisteredAccountSync(isWbOnlyUser, isRedReturnsOnlyUser);
+
+    useEffect(() => {
+        if (isRedReturnsOnlyUser) syncRedReturnsUrl();
+    }, [isRedReturnsOnlyUser]);
 
     const handleLogout = useAppLogout(setSearchText);
     
@@ -115,6 +122,26 @@ function AppRoot() {
 
     if (!auth) {
         return <LoginScreen />;
+    }
+
+    if (isRedReturnsOnlyUser) {
+        const redReturnsAuth = auth
+            ? {
+                login: auth.login,
+                password: auth.password,
+                ...(auth.inn ? { inn: auth.inn } : {}),
+                ...(auth.isRegisteredUser ? { isRegisteredUser: true as const } : {}),
+            }
+            : null;
+        return (
+            <WbOnlyAppLayout
+                desktopExpanded={desktopExpanded}
+                onLogout={handleLogout}
+                saasShellClassName={profileSaasShellActive ? "profile-saas-shell" : ""}
+            >
+                <HaulzReturnsPage auth={redReturnsAuth} pageTitle="Красный возврат" />
+            </WbOnlyAppLayout>
+        );
     }
 
     if (isWbOnlyUser) {

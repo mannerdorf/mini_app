@@ -27,6 +27,7 @@
     "clsx": "^2.1.0",
     "date-fns": "^3.6.0",
     "dotenv": "^16.4.7",
+    "exceljs": "^4.4.0",
     "firebase": "^12.12.1",
     "formidable": "^3.5.4",
     "html2pdf.js": "^0.14.0",

@@ -7,6 +7,7 @@ import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
 import { writeAuditLog } from "../lib/adminAuditLog.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { exclusiveRedReturnsPermissions } from "../lib/registeredPermissions.js";
 
 async function ensureEmployeeDirectoryVisibilityForHaulz(pool: ReturnType<typeof getPool>, userId: number) {
   const { rows } = await pool.query<{ column_name: string }>(
@@ -134,6 +135,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       sanitizedPermissions = { ...(body.permissions as Record<string, boolean>) };
       if (sanitizedPermissions.dashboard === true) sanitizedPermissions.analytics = true;
       if (sanitizedPermissions.analytics !== true) sanitizedPermissions.dashboard = false;
+      if (sanitizedPermissions.red_returns === true) {
+        sanitizedPermissions = exclusiveRedReturnsPermissions();
+      }
       if (getAdminTokenPayload(getAdminTokenFromRequest(req))?.superAdmin !== true) {
         const stored = existing[0]!.permissions;
         const prev = stored && typeof stored === "object" ? (stored as Record<string, boolean>) : {};
