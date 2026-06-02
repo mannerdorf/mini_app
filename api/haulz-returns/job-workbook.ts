@@ -58,13 +58,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const {
-      compactWorkbookForPatch,
       deserializeWorkbook,
-      mergeWorkbookPatch,
       parseItogControlKeysMeta,
-      serializeItogControlKeysMeta,
       WORKBOOK_META_SHEET_ID,
     } = await import("../../lib/haulzReturns/workbookApi.js");
+    const { insertWorkbookVersion } = await import("../../lib/haulzReturns/workbookStorage.js");
 
     const raw = req.body?.workbook as HaulzWorkbook | undefined;
     if (!raw?.sheets || !Array.isArray(raw.sheets)) {
@@ -96,19 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const stored = storedRows[0]
       ? deserializeWorkbook(storedRows[0].sheets, storedRows[0].itog_control_keys)
       : null;
-    const merged = mergeWorkbookPatch(stored, wb);
-    const toStore = compactWorkbookForPatch(merged);
-
-    const { rows: verRows } = await pool.query<{ v: number }>(
-      `select coalesce(max(version), 0) + 1 as v from haulz_returns_workbooks where job_id = $1`,
-      [jobId],
-    );
-    const version = verRows[0]?.v ?? 1;
-    await pool.query(
-      `insert into haulz_returns_workbooks (job_id, version, sheets, itog_control_keys, built_by_login)
-       values ($1, $2, $3::jsonb, $4::jsonb, $5)`,
-      [jobId, version, JSON.stringify(toStore.sheets), JSON.stringify(serializeItogControlKeysMeta(merged)), access.loginKey],
-    );
+    const version = await insertWorkbookVersion(pool, jobId, access.loginKey, wb, { stored });
     await pool.query(
       `update haulz_returns_jobs set status = 'ready', updated_at = now() where id = $1`,
       [jobId],

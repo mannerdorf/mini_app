@@ -34,6 +34,9 @@ function authHeaders(auth: AuthData): Record<string, string> {
 
 function parseJson(res: Response, data: unknown): string {
   if (typeof (data as { error?: string })?.error === "string") return (data as { error: string }).error;
+  if (typeof data === "string" && data.includes("FUNCTION_INVOCATION_FAILED")) {
+    return "сервер перевода не запустился (нужен деплой API или проверка логов Vercel)";
+  }
   return `HTTP ${res.status}`;
 }
 
@@ -214,7 +217,13 @@ export async function translateHaulzItogBatch(
     headers: authHeaders(auth),
     body: JSON.stringify({ items }),
   });
-  const data = await res.json().catch(() => ({}));
+  const rawText = await res.text();
+  let data: unknown = {};
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    data = rawText;
+  }
   if (!res.ok) throw new Error(`[перевод] ${parseJson(res, data)}`);
   const raw = (data as { items?: Array<{ rowKey?: string; rowId?: string; translation?: string }> }).items ?? [];
   return raw.map((row) => ({

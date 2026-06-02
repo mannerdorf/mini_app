@@ -21,7 +21,11 @@ export function buildTdPrepared(
   const errors = validateTdPrep(workbook);
   if (errors.length) throw new Error(errors.join("\n"));
 
-  const headerTd = firstHeaderTd(workbook);
+  const autoHeaderTd = firstHeaderTd(workbook);
+  const manualHeaderTd = String(
+    workbook.tdDraft?.specification?.headerTd ?? workbook.tdPrepared?.draft?.specification?.headerTd ?? "",
+  ).trim();
+  const headerTd = manualHeaderTd || autoHeaderTd;
   const draft: TdDraft = {
     specification: normalizeSpecificationDraft(defaultSpecificationDraft(headerTd)),
     proforma: normalizeProformaDraft(defaultProformaDraft()),

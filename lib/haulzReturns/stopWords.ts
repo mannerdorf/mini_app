@@ -1,12 +1,25 @@
 /** Справочник STOP из эталонной таблицы (лист STOP). */
-export const STOP_WORDS: { word: string; result: string }[] = [
+export type StopMatchMode = "exact" | "partial";
+
+export const STOP_MATCH_MODE_LABELS: Record<StopMatchMode, string> = {
+  exact: "Точное совпадение",
+  partial: "Частичное совпадение",
+};
+
+export type StopWordEntry = {
+  word: string;
+  result: string;
+  matchMode?: StopMatchMode;
+};
+
+export const STOP_WORDS: StopWordEntry[] = [
   { word: "Личные вещи", result: "STOP" },
   { word: "Документы", result: "STOP" },
   { word: "Пустаябутылка", result: "STOP" },
   { word: "Пустая бутылка", result: "STOP" },
-  { word: "бутылка", result: "STOP" },
+  { word: "бутылка", result: "STOP", matchMode: "partial" },
   { word: "Личныевещи", result: "STOP" },
-  { word: "пакет", result: "STOP" },
+  { word: "пакет", result: "STOP", matchMode: "partial" },
   { word: "Конверт", result: "STOP" },
   { word: "Докуметы", result: "STOP" },
   { word: "документы УПД", result: "STOP" },
@@ -17,9 +30,9 @@ export const STOP_WORDS: { word: string; result: string }[] = [
   { word: "товары интернет-магазина; товары интернет-магазина", result: "STOP" },
   { word: "Товар-подмена", result: "STOP" },
   { word: "приложена опись", result: "STOP" },
-  { word: "опись", result: "STOP" },
-  { word: "вещи", result: "STOP" },
-  { word: "карта", result: "STOP" },
+  { word: "опись", result: "STOP", matchMode: "partial" },
+  { word: "вещи", result: "STOP", matchMode: "partial" },
+  { word: "карта", result: "STOP", matchMode: "partial" },
   {
     word: "Вино игристое Ле Гран Нуар Брют Резерв, Ле Гран Нуар Розе, Ханс Баер Рислинг Зект, Нипоццано Ризеррва",
     result: "STOP",
@@ -33,35 +46,53 @@ export const STOP_WORDS: { word: string; result: string }[] = [
   { word: "Одежда", result: "STOP" },
   { word: "SIM-карта", result: "STOP" },
   { word: "Не указано", result: "STOP" },
-  { word: "other", result: "STOP" },
-  { word: "device", result: "STOP" },
-  { word: "tools", result: "STOP" },
+  { word: "other", result: "STOP", matchMode: "partial" },
+  { word: "device", result: "STOP", matchMode: "partial" },
+  { word: "tools", result: "STOP", matchMode: "partial" },
   { word: "橡皮绑带", result: "STOP" },
-  { word: "case", result: "STOP" },
+  { word: "case", result: "STOP", matchMode: "partial" },
   { word: "Другое", result: "STOP" },
-  { word: "ruler", result: "STOP" },
-  { word: "clothes", result: "STOP" },
-  { word: "connector", result: "STOP" },
-  { word: "pendants", result: "STOP" },
-  { word: "Stickers", result: "STOP" },
-  { word: "Fittings", result: "STOP" },
-  { word: "Bangles", result: "STOP" },
-  { word: "Bracelets", result: "STOP" },
-  { word: "lockparts", result: "STOP" },
-  { word: "Renault", result: "STOP" },
-  { word: "Printers", result: "STOP" },
+  { word: "ruler", result: "STOP", matchMode: "partial" },
+  { word: "clothes", result: "STOP", matchMode: "partial" },
+  { word: "connector", result: "STOP", matchMode: "partial" },
+  { word: "pendants", result: "STOP", matchMode: "partial" },
+  { word: "Stickers", result: "STOP", matchMode: "partial" },
+  { word: "Fittings", result: "STOP", matchMode: "partial" },
+  { word: "Bangles", result: "STOP", matchMode: "partial" },
+  { word: "Bracelets", result: "STOP", matchMode: "partial" },
+  { word: "lockparts", result: "STOP", matchMode: "partial" },
+  { word: "Renault", result: "STOP", matchMode: "partial" },
+  { word: "Printers", result: "STOP", matchMode: "partial" },
 ];
 
 const STOP_MAP = new Map(STOP_WORDS.map((e) => [e.word, e.result]));
 
+export function normalizeStopMatchMode(raw: unknown): StopMatchMode {
+  const v = String(raw ?? "").trim().toLowerCase();
+  return v === "partial" ? "partial" : "exact";
+}
+
+function stopRowMatches(text: string, word: string, mode: StopMatchMode): boolean {
+  const t = text.trim();
+  const w = word.trim();
+  if (!t || !w) return false;
+  if (mode === "partial") {
+    return t.toLocaleLowerCase("ru").includes(w.toLocaleLowerCase("ru"));
+  }
+  return t === w;
+}
+
 export function lookupStopFromRows(
   text: string,
-  rows: { word?: unknown; result?: unknown }[],
+  rows: { word?: unknown; result?: unknown; matchMode?: unknown }[],
 ): string {
   const t = text.trim();
   if (!t) return "OK";
   for (const row of rows) {
-    if (String(row.word ?? "").trim() === t) {
+    const word = String(row.word ?? "").trim();
+    if (!word) continue;
+    const mode = normalizeStopMatchMode(row.matchMode);
+    if (stopRowMatches(t, word, mode)) {
       return String(row.result ?? "STOP");
     }
   }

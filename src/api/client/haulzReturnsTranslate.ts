@@ -1,5 +1,6 @@
 import type { AuthData } from "../../types";
 import type { HaulzWorkbook } from "../../../lib/haulzReturns/types";
+import { applyWorkbookTdMeta } from "../../../lib/haulzReturns/tdMetaMerge";
 import {
   applyItogTranslationsToWorkbook,
   countItogTranslatedRows,
@@ -64,6 +65,6 @@ export async function translateAndPersistItogWorkbook(
     throw new Error("Перевод не записался в таблицу");
   }
 
-  const saved = await saveHaulzReturnsWorkbook(auth, jobId, current);
+  const saved = await saveHaulzReturnsWorkbook(auth, jobId, applyWorkbookTdMeta(workbook, current));
   return { workbook: saved, translated: includeFilled ? totalApplied : Math.max(after - before, syncedChanged || resync.changed ? 1 : 0) };
 }

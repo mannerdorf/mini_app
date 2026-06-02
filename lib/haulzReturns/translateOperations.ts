@@ -4,7 +4,7 @@ import { appendItogSummaryRow, isSummaryRow, stripSummaryRows } from "./ulTotals
 import { buildFixSheetFromItog } from "./workbookRecalc.js";
 import { translateProductNamesEnToRu } from "./openaiTranslate.js";
 import { resolveOpenaiApiKey } from "./openaiEnv.js";
-import { isRussianOnlyText } from "./validators.js";
+import { isRussianOnlyText, itogTextNeedsTranslation } from "./textLanguage.js";
 
 export type ItogTranslateItem = {
   rowKey: string;
@@ -12,13 +12,7 @@ export type ItogTranslateItem = {
 };
 
 export { ensureItogRowIds, itogRowTranslateKey } from "./itogRowKeys.js";
-
-/** Строка нуждается в EN→RU переводе: есть латиница, текст не целиком на русском. */
-export function itogTextNeedsTranslation(text: string): boolean {
-  const t = text.trim();
-  if (!t || isRussianOnlyText(t)) return false;
-  return /[A-Za-z]/.test(t);
-}
+export { itogTextNeedsTranslation } from "./textLanguage.js";
 
 /** Принимаем перевод: EN→RU; для чисто русского источника — только кириллица или копия источника. */
 export function acceptItogTranslation(source: string, translation: string): boolean {

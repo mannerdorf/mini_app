@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildWorkbook, hydrateUlSheetFromParsed } from "./buildWorkbook";
-import { rebuildItogFromKgd, removeKgdDuplicates } from "./kgdOperations";
-import { addStopWord, removeStopWord } from "./stopOperations";
+import { rebuildItogFromKgd, refreshKgdFromUlSheets, removeKgdDuplicates } from "./kgdOperations";
+import { addStopWord, removeStopWord, updateStopWordMatchMode } from "./stopOperations";
 import { parseOtpravkaMatrix } from "./parseOtpravka";
 import { parseUlMatrix } from "./parseUl";
 import { removeItogStopRowsFromWorkbook } from "./itogOperations";
@@ -86,8 +86,17 @@ describe("validators", () => {
   it("stop lookup from workbook rows", () => {
     const rows = [{ word: "Моё слово", result: "STOP" }];
     expect(lookupStopFromRows("Моё слово", rows)).toBe("STOP");
+    expect(lookupStopFromRows("не Моё слово", rows)).toBe("OK");
     expect(stopColumnValue("Моё слово", rows)).toBe("STOP");
     expect(stopColumnValue("ВАКЦИНА", rows)).toBe("OK");
+  });
+
+  it("stop partial lookup from workbook rows", () => {
+    const rows = [{ word: "бутылка", result: "STOP", matchMode: "partial" }];
+    expect(lookupStopFromRows("Пустая бутылка", rows)).toBe("STOP");
+    expect(lookupStopFromRows("БУТЫЛКА", rows)).toBe("STOP");
+    expect(lookupStopFromRows("стекло", rows)).toBe("OK");
+    expect(stopColumnValue("Пустая бутылка", rows)).toBe("STOP");
   });
 });
 
@@ -156,6 +165,36 @@ describe("stopOperations", () => {
     const itog = withStop.sheets.find((s) => s.id === "itog")!;
     const row = itog.rows.find((r) => String(r.ulData) === customName);
     expect(row?.stop).toBe("STOP");
+  });
+
+  it("updates match mode and recalculates итог for partial match", () => {
+    const otpravka = parseOtpravkaMatrix(OTPRAVKA_SAMPLE);
+    const ul = parseUlMatrix(UL_SAMPLE, "02630423.xlsx");
+    const wb = buildWorkbook({ otpravka, ulPrio1: [ul], ulPrio2: [] });
+    const phrase = "товар с флаконом внутри";
+    const wbWithData = {
+      ...wb,
+      sheets: wb.sheets.map((s) =>
+        s.id === "itog"
+          ? {
+              ...s,
+              rows: s.rows.map((r) =>
+                r.parcel === "10000211381829" ? { ...r, ulData: phrase } : r,
+              ),
+            }
+          : s,
+      ),
+    };
+
+    const { workbook: withStop, added } = addStopWord(wbWithData, "флакон", "STOP", "exact");
+    expect(added).toBe(true);
+    const itogExact = withStop.sheets.find((s) => s.id === "itog")!;
+    expect(itogExact.rows.find((r) => String(r.ulData) === phrase)?.stop).toBe("OK");
+
+    const stopRow = withStop.sheets.find((s) => s.id === "stop")!.rows.find((r) => r.word === "флакон")!;
+    const withPartial = updateStopWordMatchMode(withStop, stopRow._rowId!, "partial");
+    const itogPartial = withPartial.sheets.find((s) => s.id === "itog")!;
+    expect(itogPartial.rows.find((r) => String(r.ulData) === phrase)?.stop).toBe("STOP");
   });
 });
 
@@ -500,6 +539,37 @@ describe("buildWorkbook", () => {
     expect(itog.rows.filter((r) => !isSummaryRow(r)).every((r) => String(r.ul ?? "") !== "02630423")).toBe(true);
     const kgd = next.sheets.find((s) => s.id === "kgd")!;
     expect(kgd.rows.filter((r) => !isSummaryRow(r)).every((r) => String(r.ul ?? "") !== "02630423")).toBe(true);
+  });
+
+  it("refreshKgdFromUlSheets refills cleared KGD ul/line from loaded UL sheets", () => {
+    const wb = buildWorkbook({
+      otpravka: parseOtpravkaMatrix(OTPRAVKA_SAMPLE),
+      ulPrio1: [parseUlMatrix(UL_SAMPLE, "02630423.xlsx")],
+      ulPrio2: [],
+    });
+    const parcel = String(wb.sheets.find((s) => s.id === "kgd")!.rows.find((r) => !isSummaryRow(r))!.parcel);
+    const kgdCleared = {
+      ...wb,
+      sheets: wb.sheets.map((s) =>
+        s.id === "kgd"
+          ? {
+              ...s,
+              rows: s.rows.map((r) => (isSummaryRow(r) ? r : { ...r, ul: "", line: "" })),
+            }
+          : s,
+      ),
+    };
+    const next = refreshKgdFromUlSheets(kgdCleared);
+    const row = next.sheets.find((s) => s.id === "kgd")!.rows.find((r) => String(r.parcel) === parcel)!;
+    expect(String(row.ul ?? "")).toBe("02630423");
+    expect(String(row.line ?? "")).not.toBe("");
+
+    const rebuilt = rebuildItogFromKgd(kgdCleared);
+    const itogRow = rebuilt.sheets.find((s) => s.id === "itog")!.rows.find((r) => String(r.parcel) === parcel);
+    expect(String(itogRow?.ul ?? "")).toBe("02630423");
+    expect(String(rebuilt.sheets.find((s) => s.id === "kgd")!.rows.find((r) => String(r.parcel) === parcel)?.ul ?? "")).toBe(
+      "02630423",
+    );
   });
 
   it("mergeWorkbookOnReprocess does not restore excluded UL sheets", () => {
@@ -993,7 +1063,7 @@ describe("tdDocuments", () => {
     expect(sheet.getCell(12, 5).value).toBe(1);
     expect(sheet.getCell(12, 6).value).toBe(1);
     expect(sheet.getCell(12, 7).value).toBe(1);
-    expect(sheet.getCell(12, 4).font?.bold).toBe(true);
+    expect(sheet.getCell(12, 4).font?.bold).not.toBe(true);
     expect(sheet.getCell(12, 6).numFmt).toBe("0.00");
     expect(sheet.getCell(12, 7).numFmt).toBe("#,##0.00");
     expect(sheet.getCell(12, 7).border?.bottom?.style).toBe("thin");
@@ -1253,6 +1323,50 @@ describe("tdDocuments", () => {
     expect(prepared.draft.specification?.fts).toContain("от");
     expect(prepared.draft.specification?.title).toContain("от");
     expect(prepared.writeoffs).toHaveLength(1);
+  });
+
+  it("buildTdPrepared keeps manual headerTd over UL auto-fill", () => {
+    const wb = {
+      sheets: [
+        {
+          id: "fix",
+          name: "FIX",
+          columns: [],
+          rows: [{ ul: "232", line: "1", id: "a", parcel: "p", translate: "n", qty: 1, weight: 1, cost: 1 }],
+        },
+        {
+          id: "ul-232",
+          name: "232",
+          columns: [],
+          rows: [{ rowNum: "1", inItog: 1, cargoPlace: "id", parcel: "p", name: "x", qty: 1, weight: 1, cost: 1 }],
+          tdNumber: "TD-232",
+        },
+      ],
+      itogControlKeys: new Set<string>(),
+      excludedUlNumbers: new Set<string>(),
+      tdDraft: { specification: { headerTd: "1111223" } },
+    };
+    const prepared = buildTdPrepared(wb, new Map());
+    expect(prepared.draft.specification?.headerTd).toBe("1111223");
+  });
+
+  it("compactWorkbookForPatch keeps headerTd in tdDraft and tdPrepared.draft", async () => {
+    const { compactWorkbookForPatch, deserializeWorkbook } = await import("./workbookApi.js");
+    const wb = {
+      sheets: [{ id: "fix", name: "FIX", columns: [], rows: [] }],
+      itogControlKeys: new Set<string>(),
+      excludedUlNumbers: new Set<string>(),
+      tdPrepared: {
+        preparedAt: "2026-06-02T00:00:00.000Z",
+        fixRows: [],
+        writeoffs: [],
+        draft: { specification: { headerTd: "1111223", fts: "02 ФТС № от 02.06.2026" } },
+      },
+    };
+    const compact = compactWorkbookForPatch(wb);
+    const restored = deserializeWorkbook(compact.sheets, []);
+    expect(restored.tdDraft?.specification?.headerTd).toBe("1111223");
+    expect(restored.tdPrepared?.draft?.specification?.headerTd).toBe("1111223");
   });
 
   it("isHolzCarrier detects Холз", () => {

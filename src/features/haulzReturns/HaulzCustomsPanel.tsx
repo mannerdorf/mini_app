@@ -45,19 +45,6 @@ const TAB_LABELS: Record<TabId, string> = {
   poruchenie: "Поручение",
 };
 
-const PINK_TD_TABS = new Set<TabId>(["specification", "proforma", "writeoff"]);
-
-function tdDocTabClass(tab: TabId, active: boolean): string {
-  const pink = PINK_TD_TABS.has(tab);
-  return [
-    "hr-tab-btn",
-    pink ? "hr-tab-btn--td-pink" : "hr-tab-btn--td-neutral",
-    active ? "active" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-}
-
 const PROFORMA_FIELD_ORDER = ["productEaeu", "exportPermit", "zpu", "fts", "title"] as const;
 const SPEC_FIELD_ORDER = [...PROFORMA_FIELD_ORDER, "headerTd"] as const;
 
@@ -251,7 +238,7 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
                 <button
                   key={tab}
                   type="button"
-                  className={tdDocTabClass(tab, activeTab === tab)}
+                  className={`hr-tab-btn ${activeTab === tab ? "active" : ""}`}
                   onClick={() => setActiveTab(tab)}
                 >
                   {TAB_LABELS[tab]}
@@ -261,7 +248,7 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
             <div className="hr-customs-panel__actions">
               <Button
                 type="button"
-                className="filter-button filter-button--sm hr-btn-td-pink"
+                className="filter-button filter-button--sm"
                 disabled={pendingExport === activeTab}
                 onClick={(e) => {
                   e.preventDefault();
@@ -273,7 +260,7 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
               </Button>
               <Button
                 type="button"
-                className="filter-button filter-button--sm hr-btn-td-pink"
+                className="filter-button filter-button--sm"
                 disabled={pendingExport === "all"}
                 onClick={(e) => {
                   e.preventDefault();
@@ -326,7 +313,7 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
                       <button
                         key={s.ulNumber}
                         type="button"
-                        className={`hr-tab-btn hr-tab-btn--td-pink ${activeWriteoff?.ulNumber === s.ulNumber ? "active" : ""}`}
+                        className={`hr-tab-btn ${activeWriteoff?.ulNumber === s.ulNumber ? "active" : ""}`}
                         onClick={() => setActiveWriteoffUl(s.ulNumber)}
                       >
                         {s.ulNumber}
@@ -359,7 +346,7 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
                         <button
                           key={p.carrier.id}
                           type="button"
-                          className={`hr-tab-btn hr-tab-btn--td-neutral ${activePoruchenie?.carrier.id === p.carrier.id ? "active" : ""}`}
+                          className={`hr-tab-btn ${activePoruchenie?.carrier.id === p.carrier.id ? "active" : ""}`}
                           onClick={() => setActivePoruchenieCarrierId(p.carrier.id)}
                         >
                           {p.carrier.name}

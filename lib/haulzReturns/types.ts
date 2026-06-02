@@ -115,6 +115,7 @@ export const PLOMBY_HEADERS: HaulzColumn[] = [
 
 export const STOP_HEADERS: HaulzColumn[] = [
   { key: "word", label: "Наименование" },
+  { key: "matchMode", label: "Совпадение" },
   { key: "result", label: "Результат" },
 ];
 

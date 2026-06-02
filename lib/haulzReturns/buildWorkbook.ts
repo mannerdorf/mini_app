@@ -208,6 +208,7 @@ function buildStopSheet(): HaulzSheet {
       _rowId: `stop-${i}`,
       word: w.word,
       result: w.result,
+      matchMode: w.matchMode ?? "exact",
     })),
   };
 }

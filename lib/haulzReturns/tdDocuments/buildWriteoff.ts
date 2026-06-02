@@ -1,6 +1,7 @@
 import { WRITEOFF_TEMPLATE } from "./templateMaps.js";
 import type { WriteoffSheetInput } from "./types.js";
 import { formatRuDate } from "./defaults.js";
+import { applySpecCellStyle } from "./specSheetStyles.js";
 import {
   loadTemplateWorkbook,
   setCellValue,
@@ -11,6 +12,12 @@ import {
 export type { WriteoffSheetInput } from "./types.js";
 
 const WRITEOFF_HEADER_COLS = 11;
+
+function styleTableRow(sheet: import("exceljs").Worksheet, row: number, colCount: number) {
+  for (let c = 1; c <= colCount; c++) {
+    applySpecCellStyle(sheet.getCell(row, c));
+  }
+}
 
 function applyWriteoffHeaderRow(sheet: import("exceljs").Worksheet, row: number, text: string) {
   for (let c = 1; c <= WRITEOFF_HEADER_COLS; c++) {
@@ -61,11 +68,13 @@ function fillWriteoffSheet(
 
   applyWriteoffHeaderRow(sheet, WRITEOFF_TEMPLATE.titleRow, title);
   applyWriteoffHeaderRow(sheet, WRITEOFF_TEMPLATE.tdRow, tdLine);
+  styleTableRow(sheet, WRITEOFF_TEMPLATE.tableHeaderRow, WRITEOFF_HEADER_COLS);
 
   const { dataStartRow, dataCols } = WRITEOFF_TEMPLATE;
   for (let i = 0; i < input.rows.length; i++) {
     const row = input.rows[i]!;
     const r = dataStartRow + i;
+    styleTableRow(sheet, r, WRITEOFF_HEADER_COLS);
     setCellValue(sheet, r, dataCols.num, row.num);
     setCellValue(sheet, r, dataCols.ulLine, row.rowNum);
     setCellValue(sheet, r, dataCols.id, row.id);

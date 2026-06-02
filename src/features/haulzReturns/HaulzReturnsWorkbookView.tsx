@@ -8,6 +8,11 @@ import {
   itogUlDataHighlight,
   itogValidationFromRow,
 } from "../../lib/haulzReturns";
+import {
+  normalizeStopMatchMode,
+  STOP_MATCH_MODE_LABELS,
+  type StopMatchMode,
+} from "../../lib/haulzReturns/stopWords";
 import { HaulzColumnFilterHeader } from "./HaulzColumnFilterHeader";
 import {
   applyColumnFilters,
@@ -51,9 +56,17 @@ type Props = {
   sheet: HaulzSheet;
   onDeleteRow?: (rowId: string) => void;
   canDelete?: boolean;
+  onStopMatchModeChange?: (rowId: string, matchMode: StopMatchMode) => void;
 };
 
+function formatStopMatchModeLabel(raw: unknown): string {
+  return STOP_MATCH_MODE_LABELS[normalizeStopMatchMode(raw)];
+}
+
 function formatUlCellDisplay(sheet: HaulzSheet, row: HaulzSheetRow, col: HaulzColumn): string {
+  if (sheet.id === "stop" && col.key === "matchMode") {
+    return formatStopMatchModeLabel(row.matchMode);
+  }
   if (sheet.id.startsWith("ul-") && col.key === "inItog") {
     return isUlRowInItog(row) ? "✓" : "";
   }
@@ -80,7 +93,7 @@ function cellStyle(sheet: HaulzSheet, row: HaulzSheetRow, col: HaulzColumn): Rea
   return undefined;
 }
 
-export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete }: Props) {
+export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete, onStopMatchModeChange }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportH, setViewportH] = useState(480);
@@ -98,14 +111,14 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete }: Prop
   const uniqueByColumn = useMemo(() => {
     const map: Record<string, string[]> = {};
     for (const col of sheet.columns) {
-      map[col.key] = uniqueColumnValues(sheet.rows, col);
+      map[col.key] = uniqueColumnValues(sheet.rows, col, sheet.id);
     }
     return map;
-  }, [sheet.columns, sheet.rows]);
+  }, [sheet.columns, sheet.rows, sheet.id]);
 
   const filteredRows = useMemo(
-    () => applyColumnFilters(sheet.rows, sheet.columns, columnFilters),
-    [sheet.rows, sheet.columns, columnFilters],
+    () => applyColumnFilters(sheet.rows, sheet.columns, columnFilters, sheet.id),
+    [sheet.rows, sheet.columns, columnFilters, sheet.id],
   );
 
   const hasSummaryHeader = sheet.id === "itog" || sheet.id === "kgd" || sheet.id.startsWith("ul-");
@@ -299,7 +312,25 @@ export function HaulzReturnsWorkbookView({ sheet, onDeleteRow, canDelete }: Prop
                         style={cellStyle(sheet, row, col)}
                         title={formatUlCellDisplay(sheet, row, col)}
                       >
-                        {formatUlCellDisplay(sheet, row, col)}
+                        {sheet.id === "stop" && col.key === "matchMode" && onStopMatchModeChange && row._rowId ? (
+                          <select
+                            className="hr-stop-match-select"
+                            value={normalizeStopMatchMode(row.matchMode)}
+                            onChange={(e) =>
+                              onStopMatchModeChange(row._rowId!, e.target.value as StopMatchMode)
+                            }
+                          >
+                            {(Object.entries(STOP_MATCH_MODE_LABELS) as [StopMatchMode, string][]).map(
+                              ([value, label]) => (
+                                <option key={value} value={value}>
+                                  {label}
+                                </option>
+                              ),
+                            )}
+                          </select>
+                        ) : (
+                          formatUlCellDisplay(sheet, row, col)
+                        )}
                       </td>
                     ))}
                   </tr>

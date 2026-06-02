@@ -1,6 +1,6 @@
 import type { HaulzSheet, HaulzWorkbook } from "./types.js";
 import type { TdDraft } from "./tdDocuments/index.js";
-import { mergeWorkbookTdMeta } from "./tdMetaMerge.js";
+import { mergeTdDraft, mergeWorkbookTdMeta } from "./tdMetaMerge.js";
 import { normalizeUlSheetTdMeta, normalizeWorkbookUlTdDates } from "./tdDocuments/parseUlTdNumber.js";
 
 /** Запас под job, files и прочие поля ответа (лимит Vercel ~4.5 МБ). */
@@ -126,20 +126,29 @@ export function sheetFromWorkbook(wb: HaulzWorkbook, sheetId: string): HaulzShee
   return wb.sheets.find((s) => normalizeSheetId(s) === id) ?? null;
 }
 
+function syncedTdMetaForStorage(wb: HaulzWorkbook): Pick<HaulzWorkbook, "tdDraft" | "tdPrepared"> {
+  const tdDraft = mergeTdDraft(wb.tdPrepared?.draft, wb.tdDraft) ?? wb.tdDraft ?? wb.tdPrepared?.draft;
+  const tdPrepared = wb.tdPrepared
+    ? { ...wb.tdPrepared, draft: tdDraft ?? wb.tdPrepared.draft ?? {} }
+    : undefined;
+  return { tdDraft, tdPrepared };
+}
+
 /** Для PATCH: клиент шлёт без строк УЛ, сервер подставляет из сохранённой версии. */
 export function compactWorkbookForPatch(wb: HaulzWorkbook) {
   const sheets = wb.sheets.map((s) => {
     const id = normalizeSheetId(s);
     return id.startsWith("ul-") ? { ...s, id, rows: [] } : { ...s, id };
   });
-  if ((wb.tdDraft && Object.keys(wb.tdDraft).length > 0) || wb.tdPrepared) {
+  const { tdDraft, tdPrepared } = syncedTdMetaForStorage(wb);
+  if ((tdDraft && Object.keys(tdDraft).length > 0) || tdPrepared) {
     sheets.push({
       id: WORKBOOK_META_SHEET_ID,
       name: WORKBOOK_META_SHEET_ID,
       columns: [],
       rows: [],
-      tdDraft: wb.tdDraft,
-      tdPrepared: wb.tdPrepared,
+      tdDraft,
+      tdPrepared,
     } as HaulzSheet & { tdDraft?: TdDraft; tdPrepared?: import("./tdDocuments/types.js").TdPrepared });
   }
   return {

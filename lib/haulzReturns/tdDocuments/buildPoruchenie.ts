@@ -9,6 +9,7 @@ import {
   formatPoruchenieTitleLine,
 } from "./formatPoruchenieDraft.js";
 import { poruchenieExportFileName } from "./fileNames.js";
+import { applySpecCellStyle } from "./specSheetStyles.js";
 import {
   loadTemplateWorkbook,
   setCellValue,
@@ -46,6 +47,12 @@ function applyMergedRow(sheet: import("exceljs").Worksheet, row: number, text: s
   setCellValue(sheet, row, 1, text);
 }
 
+function styleTableRow(sheet: import("exceljs").Worksheet, row: number, colCount: number) {
+  for (let c = 1; c <= colCount; c++) {
+    applySpecCellStyle(sheet.getCell(row, c));
+  }
+}
+
 function fillPoruchenieSheet(sheet: import("exceljs").Worksheet, input: PoruchenieInput) {
   const date = input.date ?? formatRuDate();
   const contractNumber = input.contractNumber?.trim() || "01/26";
@@ -70,10 +77,12 @@ function fillPoruchenieSheet(sheet: import("exceljs").Worksheet, input: Poruchen
     }),
   );
 
-  const { dataStartRow, dataCols } = PORUCHENIE_TEMPLATE;
+  const { dataStartRow, dataCols, tableHeaderRow, headerCols } = PORUCHENIE_TEMPLATE;
+  styleTableRow(sheet, tableHeaderRow, headerCols);
   for (let i = 0; i < input.rows.length; i++) {
     const row = input.rows[i]!;
     const r = dataStartRow + i;
+    styleTableRow(sheet, r, headerCols);
     setCellValue(sheet, r, dataCols.num, row.num);
     setCellValue(sheet, r, dataCols.ulLine, row.rowNum);
     setCellValue(sheet, r, dataCols.id, row.id);

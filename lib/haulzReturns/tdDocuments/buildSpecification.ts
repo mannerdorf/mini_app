@@ -24,7 +24,7 @@ function trimExtraColumns(sheet: import("exceljs").Worksheet) {
 
 function styleTableHeaderRow(sheet: import("exceljs").Worksheet, row: number) {
   for (let c = 1; c <= TABLE_COLS; c++) {
-    applySpecCellStyle(sheet.getCell(row, c), { bold: true });
+    applySpecCellStyle(sheet.getCell(row, c));
   }
 }
 
@@ -61,7 +61,7 @@ function fillSummaryRow(
 ) {
   const totals = computeProformaTotals(rows);
   for (let c = 1; c <= TABLE_COLS; c++) {
-    applySpecCellStyle(sheet.getCell(row, c), { bold: c >= 4 && c <= 7 });
+    applySpecCellStyle(sheet.getCell(row, c));
   }
   setCellValue(sheet, row, 4, `Итого: грузовых мест ${totals.places}`);
   setCellValue(sheet, row, 5, totals.qty);

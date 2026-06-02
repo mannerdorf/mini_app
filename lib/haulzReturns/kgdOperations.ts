@@ -15,7 +15,7 @@ type UlRowMatch = {
 };
 
 function findUlRowInWorkbook(workbook: HaulzWorkbook, parcel: string, ulHint = ""): UlRowMatch | null {
-  const ulSheets = workbook.sheets.filter((s) => s.id.startsWith("ul-"));
+  const ulSheets = workbook.sheets.filter((s) => s.id.startsWith("ul-") && !s.ulDeferred);
   const preferred = ulHint ? ulSheets.filter((s) => s.id === `ul-${ulHint}`) : [];
   const rest = ulSheets.filter((s) => !preferred.includes(s));
   for (const sheet of [...preferred, ...rest]) {
@@ -55,6 +55,29 @@ export function renumberKgdRows(rows: HaulzSheetRow[]): HaulzSheetRow[] {
   return rows.map((row, i) => ({ ...row, num: i + 1, _rowId: `kgd-${i}` }));
 }
 
+/** Заполняет в KGD столбцы УЛ и «Строка» по текущим листам УЛ (после удаления/добавления УЛ). */
+export function refreshKgdFromUlSheets(workbook: HaulzWorkbook): HaulzWorkbook {
+  const kgdSheet = workbook.sheets.find((s) => s.id === "kgd");
+  if (!kgdSheet) return workbook;
+
+  const dataRows = stripSummaryRows(kgdSheet.rows).map((row) => {
+    const parcel = String(row.parcel ?? "").trim();
+    if (!parcel) return row;
+    const ulHint = String(row.ul ?? "");
+    const match = findUlRowInWorkbook(workbook, parcel, ulHint);
+    if (match) {
+      return { ...row, ul: match.ulNumber, line: match.rowNum };
+    }
+    return { ...row, ul: "", line: "" };
+  });
+
+  const rows = appendKgdSummaryRow(recalcKgdDupCounts(dataRows));
+  return {
+    ...workbook,
+    sheets: workbook.sheets.map((s) => (s.id === "kgd" ? { ...s, rows } : s)),
+  };
+}
+
 /** Оставляет первое вхождение каждой посылки, остальные дубли удаляет. */
 export function removeKgdDuplicates(workbook: HaulzWorkbook): HaulzWorkbook {
   const kgdSheet = workbook.sheets.find((s) => s.id === "kgd");
@@ -80,12 +103,13 @@ export function removeKgdDuplicates(workbook: HaulzWorkbook): HaulzWorkbook {
   };
 }
 
-/** Пересобирает лист «итог» по текущим строкам KGD. */
+/** Пересобирает лист «итог» по текущим строкам KGD (предварительно обновляет KGD из УЛ). */
 export function rebuildItogFromKgd(workbook: HaulzWorkbook): HaulzWorkbook {
-  const kgdSheet = workbook.sheets.find((s) => s.id === "kgd");
-  if (!kgdSheet) return workbook;
+  const synced = refreshKgdFromUlSheets(workbook);
+  const kgdSheet = synced.sheets.find((s) => s.id === "kgd");
+  if (!kgdSheet) return synced;
 
-  const plombySheet = workbook.sheets.find((s) => s.id === "plomby");
+  const plombySheet = synced.sheets.find((s) => s.id === "plomby");
   const sealMap = new Map<string, string>();
   for (const row of plombySheet?.rows ?? []) {
     const parcel = String(row.parcel ?? "").trim();
@@ -94,14 +118,14 @@ export function rebuildItogFromKgd(workbook: HaulzWorkbook): HaulzWorkbook {
 
   const oldItogByControl = new Map<string, HaulzSheetRow>();
   const oldItogByParcel = new Map<string, HaulzSheetRow>();
-  for (const row of workbook.sheets.find((s) => s.id === "itog")?.rows ?? []) {
+  for (const row of synced.sheets.find((s) => s.id === "itog")?.rows ?? []) {
     const control = itogControlKey(row);
     const parcel = String(row.parcel ?? "").trim();
     if (control && !oldItogByControl.has(control)) oldItogByControl.set(control, row);
     if (parcel && !oldItogByParcel.has(parcel)) oldItogByParcel.set(parcel, row);
   }
 
-  const stopRows = workbook.sheets.find((s) => s.id === "stop")?.rows ?? [];
+  const stopRows = synced.sheets.find((s) => s.id === "stop")?.rows ?? [];
 
   const itogRows: HaulzSheetRow[] = [];
   let num = 0;
@@ -112,11 +136,11 @@ export function rebuildItogFromKgd(workbook: HaulzWorkbook): HaulzWorkbook {
     num++;
 
     const ulHint = String(kgdRow.ul ?? "");
-    const ulMatch = findUlRowInWorkbook(workbook, parcel, ulHint);
+    const ulMatch = findUlRowInWorkbook(synced, parcel, ulHint);
     const oldByParcel = oldItogByParcel.get(parcel);
 
-    const ul = ulHint || ulMatch?.ulNumber || String(oldByParcel?.ul ?? "");
-    const line = String(kgdRow.line ?? "") || ulMatch?.rowNum || String(oldByParcel?.line ?? "");
+    const ul = ulMatch?.ulNumber ?? ulHint;
+    const line = ulMatch?.rowNum ?? String(kgdRow.line ?? "");
     const control = `${ul}${line}${parcel}`;
     const old = oldItogByControl.get(control) ?? oldByParcel;
     const id = ulMatch?.cargoPlace || String(old?.id ?? "");
@@ -153,8 +177,8 @@ export function rebuildItogFromKgd(workbook: HaulzWorkbook): HaulzWorkbook {
   }
 
   let next: HaulzWorkbook = {
-    ...workbook,
-    sheets: workbook.sheets.map((s) => (s.id === "itog" ? { ...s, rows: appendItogSummaryRow(itogRows) } : s)),
+    ...synced,
+    sheets: synced.sheets.map((s) => (s.id === "itog" ? { ...s, rows: appendItogSummaryRow(itogRows) } : s)),
   };
   next = recalcWorkbookAfterItogChange(next);
 

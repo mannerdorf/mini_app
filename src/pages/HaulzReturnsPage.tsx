@@ -44,10 +44,13 @@ import {
   rebuildItogFromKgd,
   removeKgdDuplicates,
   removeStopWord,
+  updateStopWordMatchMode,
   removeUlRow,
   removeUlSheetFromWorkbook,
   type HaulzWorkbook,
   type HaulzCarrier,
+  type StopMatchMode,
+  STOP_MATCH_MODE_LABELS,
   type TdDraft,
   applyWorkbookTdMeta,
   mergeTdDraft,
@@ -74,6 +77,9 @@ type Props = {
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
+
+const YELLOW_BADGE_TAB_IDS = new Set(["kgd", "plomby", "stop"]);
+const RED_BADGE_TAB_IDS = new Set(["itog"]);
 
 function formatJobDate(iso: string) {
   try {
@@ -117,6 +123,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
   const [error, setError] = useState<string | null>(null);
   const [loadingUlTab, setLoadingUlTab] = useState<string | null>(null);
   const [newStopWord, setNewStopWord] = useState("");
+  const [newStopMatchMode, setNewStopMatchMode] = useState<StopMatchMode>("exact");
   const [workbookTableCollapsed, setWorkbookTableCollapsed] = useState(false);
   const [storedFilesCollapsed, setStoredFilesCollapsed] = useState(true);
   const [translating, setTranslating] = useState(false);
@@ -128,6 +135,8 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
   const autoLoadedSessionRef = useRef(false);
   const workbookRef = useRef<HaulzWorkbook | null>(null);
   workbookRef.current = workbook ?? null;
+  const tdDraftPersistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tdDraftPersistWorkbookRef = useRef<HaulzWorkbook | null>(null);
 
   const [carriers, setCarriers] = useState<HaulzCarrier[]>([]);
   const [tdPanelOpen, setTdPanelOpen] = useState(false);
@@ -343,14 +352,9 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
           };
           let wb = await hydrateDeferredItogSheet(data.workbook, id);
           wb = normalizeWorkbookColumns(wb);
+          wb = applyWorkbookTdMeta(savedTdMeta, wb);
           setActiveTab("itog");
           setWorkbookTableCollapsed(false);
-          try {
-            wb = await runItogTranslation(wb, id);
-          } catch (e: unknown) {
-            setError((e as Error)?.message || "Ошибка перевода");
-          }
-          wb = applyWorkbookTdMeta(savedTdMeta, wb);
           setWorkbook(wb);
           if (data.needsUlTdDatePersist) {
             await saveHaulzReturnsWorkbook(auth, id, wb);
@@ -367,7 +371,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
         setProcessing(false);
       }
     },
-    [auth, runItogTranslation, hydrateDeferredItogSheet],
+    [auth, hydrateDeferredItogSheet],
   );
 
   /** При открытии страницы — загрузить последнюю сессию, если пользователь не начал новую загрузку. */
@@ -430,36 +434,66 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
     [workbook, commitWorkbook],
   );
 
+  const flushTdDraftPersist = useCallback(async () => {
+    const pending = tdDraftPersistWorkbookRef.current;
+    tdDraftPersistWorkbookRef.current = null;
+    if (!pending || !jobId || !auth) return;
+    await persistWorkbook(pending, jobId);
+  }, [auth, jobId, persistWorkbook]);
+
+  useEffect(() => {
+    return () => {
+      if (tdDraftPersistTimerRef.current) {
+        clearTimeout(tdDraftPersistTimerRef.current);
+        tdDraftPersistTimerRef.current = null;
+      }
+      void flushTdDraftPersist();
+    };
+  }, [flushTdDraftPersist]);
+
   const handleTdDraftChange = useCallback(
-    async (draft: TdDraft) => {
+    (draft: TdDraft) => {
       const current = workbookRef.current;
       if (!current) return;
       const mergedDraft = mergeTdDraft(current.tdDraft, current.tdPrepared?.draft, draft) ?? draft;
       const tdPrepared = current.tdPrepared
         ? { ...current.tdPrepared, draft: mergedDraft }
         : undefined;
-      await commitWorkbook({ ...current, tdDraft: mergedDraft, tdPrepared });
+      const next = applyWorkbookTdMeta(current, { ...current, tdDraft: mergedDraft, tdPrepared });
+      setWorkbook(next);
+      tdDraftPersistWorkbookRef.current = next;
+      if (tdDraftPersistTimerRef.current) clearTimeout(tdDraftPersistTimerRef.current);
+      tdDraftPersistTimerRef.current = setTimeout(() => {
+        tdDraftPersistTimerRef.current = null;
+        void flushTdDraftPersist();
+      }, 450);
     },
-    [commitWorkbook],
+    [flushTdDraftPersist],
   );
 
   const handlePrepareTd = useCallback(async () => {
     if (!workbook) return;
     setError(null);
-    const errors = validateTdPrep(workbook);
+    if (tdDraftPersistTimerRef.current) {
+      clearTimeout(tdDraftPersistTimerRef.current);
+      tdDraftPersistTimerRef.current = null;
+    }
+    await flushTdDraftPersist();
+    const current = workbookRef.current ?? workbook;
+    const errors = validateTdPrep(current);
     if (errors.length) {
       setError(errors.join("\n"));
       return;
     }
     try {
       const carriersById = new Map(carriers.map((c) => [c.id, c]));
-      const prepared = buildTdPrepared(workbook, carriersById);
-      await commitWorkbook({ ...workbook, tdDraft: prepared.draft, tdPrepared: prepared });
+      const prepared = buildTdPrepared(current, carriersById);
+      await commitWorkbook({ ...current, tdDraft: prepared.draft, tdPrepared: prepared });
       setTdPanelOpen(true);
     } catch (e: unknown) {
       setError((e as Error)?.message || "Ошибка подготовки ТД");
     }
-  }, [workbook, carriers, commitWorkbook]);
+  }, [workbook, carriers, commitWorkbook, flushTdDraftPersist]);
 
   useEffect(() => {
     if (workbook?.tdPrepared) setTdPanelOpen(true);
@@ -554,11 +588,6 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
         let wb = loaded.workbook
           ? normalizeWorkbookColumns(await hydrateDeferredItogSheet(loaded.workbook, newJobId))
           : (await buildLocalWorkbookPreview()) ?? wbLocal;
-        try {
-          wb = await runItogTranslation(wb, newJobId);
-        } catch (e: unknown) {
-          setError((e as Error)?.message || "Ошибка перевода");
-        }
         setWorkbook(wb);
         await refreshJobs();
       } catch {
@@ -570,7 +599,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
       setProcessing(false);
       setUploadProgress(null);
     }
-  }, [auth, otpravkaFile, ulPrio1, ulPrio2, refreshJobs, runItogTranslation, buildLocalWorkbookPreview, hydrateDeferredItogSheet]);
+  }, [auth, otpravkaFile, ulPrio1, ulPrio2, refreshJobs, buildLocalWorkbookPreview, hydrateDeferredItogSheet]);
 
   const handleAddUlToSession = useCallback(async () => {
     if (!auth || !jobId) return;
@@ -595,11 +624,6 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
       setStoredFiles(data.files);
       if (data.workbook) {
         let wb = normalizeWorkbookColumns(await hydrateDeferredItogSheet(data.workbook, jobId));
-        try {
-          wb = await runItogTranslation(wb, jobId);
-        } catch (e: unknown) {
-          setError((e as Error)?.message || "Ошибка перевода");
-        }
         setWorkbook(wb);
         setActiveTab("kgd");
         setWorkbookTableCollapsed(false);
@@ -613,7 +637,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
       setProcessing(false);
       setUploadProgress(null);
     }
-  }, [auth, jobId, ulPrio1, ulPrio2, runItogTranslation, refreshJobs, hydrateDeferredItogSheet]);
+  }, [auth, jobId, ulPrio1, ulPrio2, refreshJobs, hydrateDeferredItogSheet]);
 
   const handleDeleteItogRow = useCallback(
     (rowId: string) => {
@@ -689,15 +713,36 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
     })();
   }, [workbook, commitWorkbook]);
 
+  const hydrateAllUlSheets = useCallback(
+    async (currentWorkbook: HaulzWorkbook, currentJobId: string): Promise<HaulzWorkbook> => {
+      let wb = currentWorkbook;
+      for (const sheet of wb.sheets) {
+        if (!sheet.id.startsWith("ul-")) continue;
+        const applyLoaded = await ensureUlSheetLoaded(sheet.id, wb, currentJobId, storedFiles);
+        if (applyLoaded) wb = applyLoaded(wb);
+      }
+      return wb;
+    },
+    [ensureUlSheetLoaded, storedFiles],
+  );
+
   const handleRecalcItogFromKgd = useCallback(() => {
-    if (!workbook) return;
+    if (!workbook || !jobId) return;
     void (async () => {
       setError(null);
-      const next = rebuildItogFromKgd(workbook);
-      await commitWorkbook(next);
-      setActiveTab("itog");
+      setProcessing(true);
+      try {
+        let wb = await hydrateAllUlSheets(workbook, jobId);
+        const next = rebuildItogFromKgd(wb);
+        await commitWorkbook(next);
+        setActiveTab("itog");
+      } catch (e: unknown) {
+        setError((e as Error)?.message || "Ошибка пересчёта итога");
+      } finally {
+        setProcessing(false);
+      }
     })();
-  }, [workbook, commitWorkbook]);
+  }, [workbook, jobId, hydrateAllUlSheets, commitWorkbook]);
 
   const handleAddStopWord = useCallback(() => {
     if (!workbook) return;
@@ -707,16 +752,28 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
       return;
     }
     void (async () => {
-      const { workbook: next, added } = addStopWord(workbook, word);
+      const { workbook: next, added } = addStopWord(workbook, word, "STOP", newStopMatchMode);
       if (!added) {
         setError(`«${word}» уже есть в справочнике STOP`);
         return;
       }
       setNewStopWord("");
+      setNewStopMatchMode("exact");
       setError(null);
       await commitWorkbook(next);
     })();
-  }, [workbook, newStopWord, commitWorkbook]);
+  }, [workbook, newStopWord, newStopMatchMode, commitWorkbook]);
+
+  const handleStopMatchModeChange = useCallback(
+    (rowId: string, matchMode: StopMatchMode) => {
+      if (!workbook) return;
+      void (async () => {
+        const next = updateStopWordMatchMode(workbook, rowId, matchMode);
+        await commitWorkbook(next);
+      })();
+    },
+    [workbook, commitWorkbook],
+  );
 
   const handleDeleteStopRow = useCallback(
     (rowId: string) => {
@@ -1116,7 +1173,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
               <button
                 key={tab.id}
                 type="button"
-                className={`hr-tab-btn ${activeTab === tab.id ? "active" : ""}${inItog ? " hr-tab-btn--in-itog" : ""}`}
+                className={`hr-tab-btn ${activeTab === tab.id ? "active" : ""}${inItog ? " hr-tab-btn--in-itog" : ""}${tab.id === "fix" ? " hr-tab-btn--fix" : ""}${YELLOW_BADGE_TAB_IDS.has(tab.id) ? " hr-tab-btn--badge-yellow" : ""}${RED_BADGE_TAB_IDS.has(tab.id) ? " hr-tab-btn--badge-red" : ""}`}
                 onClick={() => handleTabSelect(tab.id)}
               >
                 {tab.label}
@@ -1133,11 +1190,11 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
             </Button>
             {activeSheet.id === "itog" ? (
               <>
-                <Button type="button" className="filter-button" onClick={handleCreateFix}>
+                <Button type="button" className="filter-button hr-btn-purple" onClick={handleCreateFix}>
                   Создать FIX
                 </Button>
                 {workbook.sheets.some((s) => s.id === "fix") ? (
-                  <Button type="button" className="filter-button hr-btn-prepare-td" disabled={saving} onClick={() => void handlePrepareTd()}>
+                  <Button type="button" className="filter-button hr-btn-purple" disabled={saving} onClick={() => void handlePrepareTd()}>
                     <FileText className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
                     Подготовить ТД
                   </Button>
@@ -1203,6 +1260,19 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
                     }
                   }}
                 />
+                <select
+                  className="hr-stop-match-select hr-stop-add__select"
+                  value={newStopMatchMode}
+                  onChange={(e) => setNewStopMatchMode(e.target.value as StopMatchMode)}
+                >
+                  {(Object.entries(STOP_MATCH_MODE_LABELS) as [StopMatchMode, string][]).map(
+                    ([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ),
+                  )}
+                </select>
                 <Button
                   type="button"
                   className="filter-button"
@@ -1285,6 +1355,9 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
                     : activeSheet.id.startsWith("ul-")
                       ? handleDeleteUlRow
                       : undefined
+              }
+              onStopMatchModeChange={
+                activeSheet.id === "stop" ? handleStopMatchModeChange : undefined
               }
             />
             </>

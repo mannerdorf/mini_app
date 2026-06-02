@@ -54,13 +54,13 @@ function captureDataNumFormats(sheet: import("exceljs").Worksheet): Record<numbe
 }
 
 function applySummaryCellStyle(cell: import("exceljs").Cell, numFmt?: string) {
-  applySpecCellStyle(cell, { bold: true });
+  applySpecCellStyle(cell);
   if (numFmt) cell.numFmt = numFmt;
 }
 
 function styleTableHeaderRow(sheet: import("exceljs").Worksheet, row: number) {
   for (let c = 1; c <= PROFORMA_TABLE_COLS; c++) {
-    applySpecCellStyle(sheet.getCell(row, c), { bold: true });
+    applySpecCellStyle(sheet.getCell(row, c));
   }
 }
 

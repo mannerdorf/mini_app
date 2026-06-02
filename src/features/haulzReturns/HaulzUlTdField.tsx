@@ -99,7 +99,7 @@ export function HaulzUlTdField({ sheetId, ulNumber, tdNumber, tdDate, onChange, 
 
   return (
     <div className="hr-td-field">
-      <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Таможенная декларация</Typography.Body>
+      <Typography.Body className="hr-td-field__title">Таможенная декларация</Typography.Body>
       <div className="hr-td-field__grid">
         <label className="hr-td-field__cell">
           <span className="hr-td-field__cell-label">УЛ №</span>

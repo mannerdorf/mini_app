@@ -8621,6 +8621,83 @@ button.unpaid-plan-monitor:hover {
 .hr-tab-btn--in-itog.active {
     box-shadow: inset 0 -3px 0 #b7e1cd;
 }
+.hr-tab-btn--fix:not(.active) {
+    background: rgba(139, 92, 246, 0.2);
+    color: #6d28d9;
+    font-weight: 600;
+}
+.hr-tab-btn--fix.active {
+    background: #7c3aed;
+    color: #fff;
+    font-weight: 600;
+}
+.hr-tab-btn--badge-yellow:not(.active) {
+    background: #fef08a;
+    color: #92400e;
+    font-weight: 600;
+}
+.hr-tab-btn--badge-yellow.active {
+    background: #eab308;
+    color: #422006;
+    font-weight: 600;
+}
+.hr-tab-btn--badge-red:not(.active) {
+    background: #fecaca;
+    color: #991b1b;
+    font-weight: 600;
+}
+.hr-tab-btn--badge-red.active {
+    background: #dc2626;
+    color: #fff;
+    font-weight: 600;
+}
+.hr-btn-purple {
+    background: rgba(139, 92, 246, 0.18) !important;
+    border-color: #8b5cf6 !important;
+    color: #6d28d9 !important;
+    font-weight: 600;
+}
+.hr-btn-purple:not(:disabled):hover {
+    background: #7c3aed !important;
+    border-color: #6d28d9 !important;
+    color: #fff !important;
+}
+.hr-btn-purple:disabled {
+    opacity: 0.55;
+}
+.dark-mode .hr-tab-btn--fix:not(.active) {
+    background: #3b2a5c;
+    color: #ddd6fe;
+}
+.dark-mode .hr-tab-btn--fix.active {
+    background: #7c3aed;
+    color: #fff;
+}
+.dark-mode .hr-tab-btn--badge-yellow:not(.active) {
+    background: #713f12;
+    color: #fef08a;
+}
+.dark-mode .hr-tab-btn--badge-yellow.active {
+    background: #ca8a04;
+    color: #fefce8;
+}
+.dark-mode .hr-tab-btn--badge-red:not(.active) {
+    background: #7f1d1d;
+    color: #fecaca;
+}
+.dark-mode .hr-tab-btn--badge-red.active {
+    background: #dc2626;
+    color: #fff;
+}
+.dark-mode .hr-btn-purple {
+    background: #3b2a5c !important;
+    border-color: #8b5cf6 !important;
+    color: #ddd6fe !important;
+}
+.dark-mode .hr-btn-purple:not(:disabled):hover {
+    background: #7c3aed !important;
+    color: #fff !important;
+}
 .dark-mode .hr-tab-btn--in-itog:not(.active) {
     background: #2d4a3e;
     color: #a5d6a7;
@@ -9028,6 +9105,22 @@ button.unpaid-plan-monitor:hover {
     background: var(--color-bg, #fff);
     color: var(--color-text-primary, #111);
 }
+.hr-stop-match-select {
+    min-width: 180px;
+    max-width: 100%;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    background: var(--color-bg, #fff);
+    color: var(--color-text-primary, #111);
+}
+.hr-stop-add__select {
+    min-width: 200px;
+}
+.hr-table .hr-stop-match-select {
+    width: 100%;
+}
 
 .hr-carrier-panel {
     margin-bottom: 0.75rem;
@@ -9120,9 +9213,22 @@ button.unpaid-plan-monitor:hover {
 .hr-td-field {
     margin-bottom: 0.75rem;
     padding: 0.85rem 1rem;
-    border: 1px solid var(--color-border, #ddd);
+    border: 1px solid rgba(139, 92, 246, 0.35);
     border-radius: 12px;
-    background: var(--color-bg-secondary, #f8f9fa);
+    background: rgba(139, 92, 246, 0.06);
+}
+.hr-td-field__title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #6d28d9;
+}
+.dark-mode .hr-td-field {
+    border-color: rgba(139, 92, 246, 0.45);
+    background: rgba(139, 92, 246, 0.1);
+}
+.dark-mode .hr-td-field__title,
+.dark-mode .hr-td-field__cell-label {
+    color: #ddd6fe;
 }
 .hr-td-field__grid {
     display: grid;
@@ -9144,7 +9250,7 @@ button.unpaid-plan-monitor:hover {
 .hr-td-field__cell-label {
     font-size: 0.72rem;
     font-weight: 600;
-    color: var(--color-text-secondary, #666);
+    color: #7c3aed;
 }
 .hr-td-field__label {
     display: flex;
@@ -9167,9 +9273,9 @@ button.unpaid-plan-monitor:hover {
 .hr-customs-panel {
     margin-top: 1.25rem;
     padding: 1rem;
-    border: 1px solid #e8a4bc;
+    border: 1px solid var(--color-border, #ddd);
     border-radius: 12px;
-    background: #fdf5f8;
+    background: var(--color-bg-secondary, #f8f9fa);
 }
 .hr-customs-panel__head {
     display: flex;
@@ -9203,82 +9309,6 @@ button.unpaid-plan-monitor:hover {
 }
 .hr-customs-panel__body {
     margin-top: 0.35rem;
-}
-/* ТД: розовые вкладки документов (как в шаблонах Excel) */
-.hr-tab-btn--td-pink:not(.active) {
-    background: #f6dce6;
-    color: #8b2252;
-    font-weight: 600;
-}
-.hr-tab-btn--td-pink.active {
-    background: #db5a8a;
-    color: #fff;
-    font-weight: 600;
-}
-.hr-tab-btn--td-neutral:not(.active) {
-    background: var(--color-bg-hover, #f0f1f3);
-    color: var(--color-text-secondary, #666);
-}
-.hr-tab-btn--td-neutral.active {
-    background: var(--color-primary-blue, #0071e3);
-    color: #fff;
-}
-.hr-btn-prepare-td,
-.hr-btn-td-pink {
-    background: #f6dce6 !important;
-    border-color: #db5a8a !important;
-    color: #8b2252 !important;
-    font-weight: 600;
-}
-.hr-btn-prepare-td:not(:disabled):hover,
-.hr-btn-td-pink:not(:disabled):hover {
-    background: #db5a8a !important;
-    border-color: #c43d72 !important;
-    color: #fff !important;
-}
-.hr-btn-prepare-td:disabled,
-.hr-btn-td-pink:disabled {
-    opacity: 0.55;
-}
-.dark-mode .hr-customs-panel {
-    background: #2a1f24;
-    border-color: #6b3a4f;
-}
-.dark-mode .hr-tab-btn--td-pink:not(.active) {
-    background: #4a2a38;
-    color: #f6dce6;
-}
-.dark-mode .hr-tab-btn--td-pink.active {
-    background: #db5a8a;
-    color: #fff;
-}
-.dark-mode .hr-btn-prepare-td,
-.dark-mode .hr-btn-td-pink {
-    background: #4a2a38 !important;
-    border-color: #db5a8a !important;
-    color: #f6dce6 !important;
-}
-.dark-mode .hr-btn-prepare-td:not(:disabled):hover,
-.dark-mode .hr-btn-td-pink:not(:disabled):hover {
-    background: #db5a8a !important;
-    color: #fff !important;
-}
-/* Редактируемые поля шапки ТД — красным, как в шаблоне */
-.hr-customs-panel .hr-td-inline-field,
-.hr-customs-panel .hr-customs-form__field input,
-.hr-customs-panel .hr-td-date-field--boxed,
-.hr-customs-panel .hr-td-date-field--fts {
-    border-color: #e57373;
-}
-.hr-customs-panel .hr-td-inline-field__input,
-.hr-customs-panel .hr-td-inline-field__date,
-.hr-customs-panel .hr-customs-form__field input,
-.hr-customs-panel .hr-td-date-field__picker {
-    color: #c0392b;
-}
-.hr-customs-panel .hr-td-inline-field__label,
-.hr-customs-panel .hr-customs-form__field--compact > span:first-child {
-    color: #a93226;
 }
 .hr-customs-form-card {
     padding: 0.45rem 0.55rem;

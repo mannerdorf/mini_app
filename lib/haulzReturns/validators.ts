@@ -1,23 +1,11 @@
-import { lookupStopExact, lookupStopFromRows } from "./stopWords";
-import type { HaulzSheetRow } from "./types";
+import { lookupStopExact, lookupStopFromRows } from "./stopWords.js";
+import type { HaulzSheetRow } from "./types.js";
+import { isEnglishOnly, isRussianOnlyText } from "./textLanguage.js";
+
+export { isEnglishOnly, isRussianOnlyText } from "./textLanguage.js";
 
 const PINK_LIST_REGEX =
   /личн.*вещ|докум|пуст.*бутыл|бутыл|пакет|конверт|товар.*интернет.*магазин|товар.*подмен|прилож.*опис|опис|карт|вино|игрист|брют|розе|рислинг|зект|нипоццано|ле гран нуар|ханс баер|document|товар.*народ.*потребл|одежд|sim[- ]*карт|не *указан|other|device|tools|橡皮绑带|case|друг|ruler|clothes|connector|pendants|stickers|fittings|bangles|bracelets|lockparts|renault|printers/i;
-
-export function isEnglishOnly(text: string): boolean {
-  const t = text.trim();
-  if (!t) return false;
-  if (!/[A-Za-z]/.test(t)) return false;
-  return !/[А-Яа-яЁё]/.test(t);
-}
-
-/** Только кириллица (и цифры/знаки), без латиницы — перевод не нужен. */
-export function isRussianOnlyText(text: string): boolean {
-  const t = text.trim();
-  if (!t) return false;
-  if (!/[А-Яа-яЁё]/.test(t)) return false;
-  return !/[A-Za-z]/.test(t);
-}
 
 export function hasAu585OrAg925(text: string): boolean {
   const u = text.toUpperCase();

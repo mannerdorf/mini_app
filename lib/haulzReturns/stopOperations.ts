@@ -1,4 +1,6 @@
 import type { HaulzSheetRow, HaulzWorkbook } from "./types.js";
+import type { StopMatchMode } from "./stopWords.js";
+import { normalizeStopMatchMode } from "./stopWords.js";
 import { buildFixSheetFromItog, recalcWorkbookAfterItogChange } from "./workbookRecalc.js";
 
 function recalcAfterStopSheetChange(workbook: HaulzWorkbook): HaulzWorkbook {
@@ -17,6 +19,7 @@ export function addStopWord(
   workbook: HaulzWorkbook,
   word: string,
   result = "STOP",
+  matchMode: StopMatchMode = "exact",
 ): { workbook: HaulzWorkbook; added: boolean } {
   const trimmed = word.trim();
   if (!trimmed) return { workbook, added: false };
@@ -32,6 +35,7 @@ export function addStopWord(
     _rowId: `stop-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     word: trimmed,
     result: result.trim() || "STOP",
+    matchMode: normalizeStopMatchMode(matchMode),
   };
 
   const sheets = workbook.sheets.map((s) =>
@@ -39,6 +43,23 @@ export function addStopWord(
   );
 
   return { workbook: recalcAfterStopSheetChange({ ...workbook, sheets }), added: true };
+}
+
+export function updateStopWordMatchMode(
+  workbook: HaulzWorkbook,
+  rowId: string,
+  matchMode: StopMatchMode,
+): HaulzWorkbook {
+  const mode = normalizeStopMatchMode(matchMode);
+  const sheets = workbook.sheets.map((s) =>
+    s.id === "stop"
+      ? {
+          ...s,
+          rows: s.rows.map((r) => (r._rowId === rowId ? { ...r, matchMode: mode } : r)),
+        }
+      : s,
+  );
+  return recalcAfterStopSheetChange({ ...workbook, sheets });
 }
 
 export function removeStopWord(workbook: HaulzWorkbook, rowId: string): HaulzWorkbook {
