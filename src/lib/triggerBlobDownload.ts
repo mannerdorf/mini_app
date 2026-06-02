@@ -1,1 +1,1 @@
-export { triggerBlobDownload } from "../../../lib/haulzReturns/triggerBlobDownload.js";
+export { triggerBlobDownload } from "../../lib/haulzReturns/triggerBlobDownload";
