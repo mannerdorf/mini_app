@@ -6,6 +6,7 @@ import {
   isUlRowInItog,
   itogRowHighlight,
   itogUlDataHighlight,
+  itogValidationFromRow,
 } from "../../lib/haulzReturns";
 import { HaulzColumnFilterHeader } from "./HaulzColumnFilterHeader";
 import {
@@ -55,13 +56,8 @@ function formatUlCellDisplay(sheet: HaulzSheet, row: HaulzSheetRow, col: HaulzCo
 
 function cellStyle(sheet: HaulzSheet, row: HaulzSheetRow, col: HaulzColumn): React.CSSProperties | undefined {
   if (isSummaryRow(row)) return undefined;
-  if (sheet.id === "itog") {
-    const validation = {
-      englishOnly: Boolean(row.englishOnly),
-      au585: Boolean(row.au585),
-      digitsOnly: Boolean(row.digitsOnly),
-      pinkList: Boolean(row.pinkList),
-    };
+  if (sheet.id === "itog" || sheet.id === "fix") {
+    const validation = itogValidationFromRow(row);
     if (col.key === "ulData") {
       const c = itogUlDataHighlight(validation);
       if (c) return { backgroundColor: c };

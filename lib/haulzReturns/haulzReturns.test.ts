@@ -8,9 +8,10 @@ import { removeItogStopRowsFromWorkbook } from "./itogOperations";
 import { appendItogSummaryRow, appendKgdSummaryRow, appendUlSummaryRow, collectUlNumbersInItog, computeItogTotals, computeUlTotals, countUlDataRows, isItogDataRowFilled, isItogStopRow, isSummaryRow, isUlDataRowFilled, isUlRowInItog, isUlTabInItog, removeItogStopRows, removeUlRow, stripSummaryRows, syncUlSheetFromControlKeys } from "./ulTotals";
 import { removeUlSheetFromWorkbook } from "./ulSheetOperations";
 import { removeItogRow } from "./ulTotals";
-import { recalcWorkbookAfterItogChange } from "./workbookRecalc";
+import { buildFixSheetFromItog, recalcWorkbookAfterItogChange } from "./workbookRecalc";
 import { ensureItogRowIds, stableItogRowId } from "./itogRowKeys";
 import { mergeWorkbookOnReprocess } from "./mergeWorkbookOnReprocess";
+import { itogValidationFromRow } from "./validators";
 import {
   workbookForApi,
   workbookForApiWithinBudget,
@@ -391,6 +392,44 @@ describe("buildWorkbook", () => {
     expect(isSummaryRow(nextItog.rows[0]!)).toBe(true);
     const fix = next.sheets.find((s) => s.id === "fix")!;
     expect(fix.rows.length).toBeGreaterThan(0);
+  });
+
+  it("buildFixSheetFromItog copies validation flags from itog", () => {
+    const itog = {
+      id: "itog",
+      name: "итог",
+      columns: [],
+      rows: [
+        {
+          _rowId: "r1",
+          num: 1,
+          ulData: "Shirts",
+          englishOnly: true,
+          au585: false,
+          digitsOnly: false,
+          pinkList: false,
+        },
+        {
+          _rowId: "r2",
+          num: 2,
+          ulData: "Личные вещи",
+          englishOnly: false,
+          au585: false,
+          digitsOnly: false,
+          pinkList: true,
+        },
+      ],
+    };
+    const fix = buildFixSheetFromItog(itog);
+    expect(fix.rows).toHaveLength(2);
+    expect(fix.rows[0]!.englishOnly).toBe(true);
+    expect(fix.rows[1]!.pinkList).toBe(true);
+    expect(itogValidationFromRow(fix.rows[0]!)).toEqual({
+      englishOnly: true,
+      au585: false,
+      digitsOnly: false,
+      pinkList: false,
+    });
   });
 
   it("parseTranslationsJson accepts array and fenced json", () => {
