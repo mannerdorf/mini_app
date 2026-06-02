@@ -132,16 +132,16 @@ export function computeProformaTotals(rows: import("./collectTdRows.js").FixTdRo
   let qty = 0;
   let weight = 0;
   let cost = 0;
-  const ulSet = new Set<string>();
+  const idSet = new Set<string>();
   for (const r of rows) {
     qty += parseNum(r.qty);
     weight += parseNum(r.weight);
     cost += parseNum(r.cost);
-    const ul = String(r.ul ?? "").trim();
-    if (ul) ulSet.add(ul);
+    const id = String(r.id ?? "").trim();
+    if (id) idSet.add(id);
   }
   return {
-    places: ulSet.size || rows.length,
+    places: idSet.size || rows.length,
     qty: round2(qty),
     weight: round2(weight),
     cost: round2(cost),

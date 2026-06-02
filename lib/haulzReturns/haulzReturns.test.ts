@@ -1031,18 +1031,23 @@ describe("tdDocuments", () => {
     );
   });
 
-  it("computeProformaTotals sums qty/weight/cost and counts unique UL as places", () => {
+  it("computeProformaTotals sums qty/weight/cost and counts unique id as places", () => {
     const rows = [
-      { ul: "232", qty: 2, weight: "0,397", cost: "7 990,00" },
-      { ul: "232", qty: 1, weight: 1.427, cost: 650 },
-      { ul: "233", qty: 1, weight: "0,199", cost: "1 495,00" },
+      { ul: "232", id: "100001", qty: 2, weight: "0,397", cost: "7 990,00" },
+      { ul: "232", id: "100002", qty: 1, weight: 1.427, cost: 650 },
+      { ul: "233", id: "100003", qty: 1, weight: "0,199", cost: "1 495,00" },
     ] as import("./tdDocuments/collectTdRows.js").FixTdRow[];
     expect(computeProformaTotals(rows)).toEqual({
-      places: 2,
+      places: 3,
       qty: 4,
       weight: 2.02,
       cost: 10135,
     });
+    const sameId = [
+      { ul: "232", id: "100001", qty: 1, weight: 1, cost: 100 },
+      { ul: "233", id: "100001", qty: 1, weight: 1, cost: 100 },
+    ] as import("./tdDocuments/collectTdRows.js").FixTdRow[];
+    expect(computeProformaTotals(sameId).places).toBe(1);
   });
 
   it("computeProformaTotals rounds summed decimals to 2 places", () => {
