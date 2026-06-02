@@ -1,5 +1,6 @@
 import { WRITEOFF_TEMPLATE } from "./templateMaps.js";
 import type { WriteoffSheetInput } from "./types.js";
+import { formatRuDate } from "./defaults.js";
 import {
   loadTemplateWorkbook,
   setCellValue,
@@ -79,5 +80,3 @@ export async function buildWriteoffBuffer(sheets: WriteoffSheetInput[]): Promise
 
   return workbookToBuffer(out);
 }
-
-export { templatePath };

@@ -76,3 +76,43 @@ export const SPEC_EDITABLE_KEYS = [
 ] as const;
 
 export type SpecEditableKey = (typeof SPEC_EDITABLE_KEYS)[number];
+
+export type PreviewColumn = { key: string; label: string };
+
+/** Заголовки preview-таблиц — как в шаблонах Excel. */
+export const SPEC_PREVIEW_COLUMNS: PreviewColumn[] = [
+  { key: "num", label: "№ П/П" },
+  { key: "id", label: "ID Посылки" },
+  { key: "parcel", label: "Номер посылки" },
+  { key: "name", label: "Наименование" },
+  { key: "qty", label: "Кол-во" },
+  { key: "weight", label: "Вес" },
+  { key: "cost", label: "Стоимость" },
+  { key: "tdNumber", label: "Номер ТД" },
+  { key: "ul", label: "УЛ" },
+];
+
+export const PROFORMA_PREVIEW_COLUMNS: PreviewColumn[] = [
+  { key: "num", label: "№ П/П" },
+  { key: "id", label: "ID Посылки" },
+  { key: "parcel", label: "Номер посылки" },
+  { key: "name", label: "Наименование" },
+  { key: "qty", label: "Кол-во" },
+  { key: "weight", label: "Вес" },
+  { key: "cost", label: "Стоимость" },
+  { key: "ul", label: "УЛ" },
+];
+
+export const WRITEOFF_PREVIEW_COLUMNS: PreviewColumn[] = [
+  { key: "num", label: "№" },
+  { key: "rowNum", label: "Номер п/п по УЛ" },
+  { key: "id", label: "ID Посылки" },
+  { key: "parcel", label: "Номер посылки" },
+  { key: "airport", label: "Аэропорт назначения" },
+  { key: "weight", label: "Вес факт." },
+  { key: "volume", label: "Объем факт." },
+  { key: "category", label: "Категория" },
+  { key: "name", label: "Наименование" },
+  { key: "qty", label: "кол-во" },
+  { key: "cost", label: "Стоимость" },
+];

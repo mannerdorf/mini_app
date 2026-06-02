@@ -13,3 +13,9 @@ export {
   formatRuDate,
 } from "./defaults.js";
 export { SPEC_EDITABLE_KEYS } from "./templateMaps.js";
+export {
+  SPEC_PREVIEW_COLUMNS,
+  PROFORMA_PREVIEW_COLUMNS,
+  WRITEOFF_PREVIEW_COLUMNS,
+  type PreviewColumn,
+} from "./templateMaps.js";

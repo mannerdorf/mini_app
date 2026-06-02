@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Download, FileText } from "lucide-react";
 import { Button, Typography } from "@maxhub/max-ui";
 import type { AuthData } from "../../types";
-import type { HaulzCarrier } from "../../lib/haulzReturns";
+import type { HaulzCarrier, HaulzWorkbook, PreviewColumn, TdDraft } from "../../lib/haulzReturns";
 import {
   buildWriteoffInputs,
   collectFixRows,
@@ -11,10 +11,12 @@ import {
   isHolzCarrier,
   poruchenieInputs,
   proformaPreviewRows,
+  PROFORMA_PREVIEW_COLUMNS,
   specificationPreviewRows,
   SPEC_EDITABLE_KEYS,
-  type TdDraft,
+  SPEC_PREVIEW_COLUMNS,
   validateTdPrep,
+  WRITEOFF_PREVIEW_COLUMNS,
 } from "../../lib/haulzReturns";
 import { downloadTdBlob, exportTdDocument } from "../../api/client/haulzReturnsTd";
 
@@ -176,10 +178,7 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, onDraftChan
                   </label>
                 ))}
               </div>
-              <PreviewTable
-                columns={["num", "id", "parcel", "name", "qty", "weight", "cost", "tdNumber", "ul"]}
-                rows={specPreview.slice(0, 50)}
-              />
+              <PreviewTable columns={SPEC_PREVIEW_COLUMNS} rows={specPreview.slice(0, 50)} />
               {specPreview.length > 50 ? (
                 <Typography.Body style={{ color: "var(--color-text-secondary)", fontSize: "0.8rem" }}>
                   Показаны первые 50 из {specPreview.length} строк
@@ -205,10 +204,7 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, onDraftChan
                   </label>
                 ))}
               </div>
-              <PreviewTable
-                columns={["num", "id", "parcel", "name", "qty", "weight", "cost", "ul"]}
-                rows={proformaPreview.slice(0, 50)}
-              />
+              <PreviewTable columns={PROFORMA_PREVIEW_COLUMNS} rows={proformaPreview.slice(0, 50)} />
             </div>
           ) : null}
 
@@ -232,7 +228,7 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, onDraftChan
                   </div>
                   {activeWriteoff ? (
                     <PreviewTable
-                      columns={["num", "rowNum", "id", "parcel", "airport", "weight", "volume", "name", "qty", "cost"]}
+                      columns={WRITEOFF_PREVIEW_COLUMNS}
                       rows={activeWriteoff.rows.slice(0, 50)}
                     />
                   ) : null}
@@ -265,7 +261,7 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, onDraftChan
   );
 }
 
-function PreviewTable({ columns, rows }: { columns: string[]; rows: Record<string, unknown>[] }) {
+function PreviewTable({ columns, rows }: { columns: PreviewColumn[]; rows: Record<string, unknown>[] }) {
   if (rows.length === 0) {
     return <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет данных</Typography.Body>;
   }
@@ -274,16 +270,16 @@ function PreviewTable({ columns, rows }: { columns: string[]; rows: Record<strin
       <table className="hr-table">
         <thead>
           <tr className="hr-table__header-row">
-            {columns.map((c) => (
-              <th key={c}>{c}</th>
+            {columns.map((col) => (
+              <th key={col.key}>{col.label}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((row, i) => (
             <tr key={i}>
-              {columns.map((c) => (
-                <td key={c}>{String(row[c] ?? "")}</td>
+              {columns.map((col) => (
+                <td key={col.key}>{String(row[col.key] ?? "")}</td>
               ))}
             </tr>
           ))}
