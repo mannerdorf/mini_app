@@ -74,7 +74,19 @@ export async function processJobWorkbook(
 ): Promise<{ workbook: HaulzWorkbook; version: number }> {
   const { saveWorkbook: save } = await import("./workbookStorage.js");
   const files = await loadJobFiles(pool, jobId);
-  const workbook = buildWorkbookFromFiles(files);
+  let workbook = buildWorkbookFromFiles(files);
+  const { translateItogWorkbook } = await import("./translateOperations.js");
+  try {
+    workbook = await translateItogWorkbook(workbook);
+  } catch (e) {
+    console.warn(
+      JSON.stringify({
+        event: "haulz_translate_itog_skipped",
+        jobId,
+        error: e instanceof Error ? e.message : String(e),
+      }),
+    );
+  }
   const version = await save(pool, jobId, loginKey, workbook);
   await pool.query(
     `update haulz_returns_jobs set status = 'ready', error_message = null, updated_at = now() where id = $1`,

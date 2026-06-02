@@ -1,4 +1,5 @@
 import { appendSheetSummaryRow, syncUlSheetFromControlKeys } from "./ulTotals.js";
+import { ensureItogRowIds } from "./itogRowKeys.js";
 
 export type CellValue = string | number | boolean | null;
 
@@ -144,7 +145,10 @@ export function normalizeWorkbookColumns(wb: HaulzWorkbook): HaulzWorkbook {
       if (sheet.rows.length > 0) {
         if (sheet.id.startsWith("ul-") && !sheet.ulDeferred) {
           sheet = syncUlSheetFromControlKeys(sheet, wb.itogControlKeys);
-        } else if (sheet.id === "itog" || sheet.id === "kgd") {
+        } else if (sheet.id === "itog") {
+          const dataRows = ensureItogRowIds(sheet.rows);
+          sheet = appendSheetSummaryRow({ ...sheet, rows: dataRows });
+        } else if (sheet.id === "kgd") {
           sheet = appendSheetSummaryRow(sheet);
         }
       }

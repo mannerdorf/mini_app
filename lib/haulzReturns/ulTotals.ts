@@ -35,6 +35,23 @@ export function isUlRowInItog(row: HaulzSheetRow): boolean {
   return String(v ?? "").trim() === "1";
 }
 
+/** Номера УЛ, у которых есть хотя бы одна строка на листе «итог». */
+export function collectUlNumbersInItog(workbook: { sheets: { id: string; rows: HaulzSheetRow[] }[] }): Set<string> {
+  const itog = workbook.sheets.find((s) => s.id === "itog");
+  if (!itog) return new Set();
+  const out = new Set<string>();
+  for (const row of stripSummaryRows(itog.rows)) {
+    const ul = String(row.ul ?? "").trim();
+    if (ul) out.add(ul);
+  }
+  return out;
+}
+
+export function isUlTabInItog(tabId: string, ulNumbersInItog: Set<string>): boolean {
+  if (!tabId.startsWith("ul-")) return false;
+  return ulNumbersInItog.has(tabId.slice(3));
+}
+
 export function ulControlKey(row: HaulzSheetRow, ulNumber: string): string {
   const mark = String(row.mark ?? ulNumber);
   return `${mark}${row.rowNum ?? ""}${row.parcel ?? ""}`;

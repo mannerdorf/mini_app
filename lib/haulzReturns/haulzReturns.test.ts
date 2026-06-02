@@ -5,7 +5,7 @@ import { addStopWord, removeStopWord } from "./stopOperations";
 import { parseOtpravkaMatrix } from "./parseOtpravka";
 import { parseUlMatrix } from "./parseUl";
 import { removeItogStopRowsFromWorkbook } from "./itogOperations";
-import { appendItogSummaryRow, appendKgdSummaryRow, appendUlSummaryRow, computeItogTotals, computeUlTotals, countUlDataRows, isItogDataRowFilled, isItogStopRow, isSummaryRow, isUlDataRowFilled, isUlRowInItog, removeItogStopRows, removeUlRow, syncUlSheetFromControlKeys } from "./ulTotals";
+import { appendItogSummaryRow, appendKgdSummaryRow, appendUlSummaryRow, collectUlNumbersInItog, computeItogTotals, computeUlTotals, countUlDataRows, isItogDataRowFilled, isItogStopRow, isSummaryRow, isUlDataRowFilled, isUlRowInItog, isUlTabInItog, removeItogStopRows, removeUlRow, syncUlSheetFromControlKeys } from "./ulTotals";
 import { removeUlSheetFromWorkbook } from "./ulSheetOperations";
 import { applyItogTranslations, applyItogTranslationsToWorkbook, countItogTranslatedRows, itogRowsNeedingTranslation } from "./translateOperations";
 import {
@@ -193,6 +193,19 @@ describe("ulTotals", () => {
     expect(isSummaryRow(synced.rows[synced.rows.length - 1])).toBe(true);
   });
 
+  it("collectUlNumbersInItog returns UL numbers from itog rows", () => {
+    const wb = buildWorkbook({
+      otpravka: parseOtpravkaMatrix(OTPRAVKA_SAMPLE),
+      ulPrio1: [parseUlMatrix(UL_SAMPLE, "02630423.xlsx")],
+      ulPrio2: [],
+    });
+    const nums = collectUlNumbersInItog(wb);
+    expect(nums.has("02630423")).toBe(true);
+    expect(isUlTabInItog("ul-02630423", nums)).toBe(true);
+    expect(isUlTabInItog("ul-99999999", nums)).toBe(false);
+    expect(isUlTabInItog("itog", nums)).toBe(false);
+  });
+
   it("removes a data row and rebuilds summary", () => {
     const sheet = {
       id: "ul-02630423",
@@ -323,18 +336,18 @@ describe("buildWorkbook", () => {
 
   it("itogRowsNeedingTranslation skips filled translate and summary row", () => {
     const rows = appendItogSummaryRow([
-      { _rowId: "a", ulData: "Shirt", translate: "" },
-      { _rowId: "b", ulData: "Pants", translate: "Штаны" },
-      { _rowId: "c", ulData: "", translate: "" },
+      { _rowId: "a", control: "k1", ulData: "Shirt", translate: "" },
+      { _rowId: "b", control: "k2", ulData: "Pants", translate: "Штаны" },
+      { _rowId: "c", control: "k3", ulData: "", translate: "" },
     ]);
-    expect(itogRowsNeedingTranslation(rows)).toEqual([{ rowId: "a", text: "Shirt" }]);
+    expect(itogRowsNeedingTranslation(rows)).toEqual([{ rowKey: "k1", text: "Shirt" }]);
     expect(countItogTranslatedRows(rows)).toBe(1);
   });
 
   it("applyItogTranslationsToWorkbook fills translate and rebuilds fix", () => {
     const itog = appendItogSummaryRow([
-      { _rowId: "a", ulData: "Shirt", translate: "" },
-      { _rowId: "b", ulData: "Pants", translate: "" },
+      { _rowId: "a", control: "k1", ulData: "Shirt", translate: "" },
+      { _rowId: "b", control: "k2", ulData: "Pants", translate: "" },
     ]);
     const wb: import("./types").HaulzWorkbook = {
       itogControlKeys: new Set(),
@@ -346,8 +359,8 @@ describe("buildWorkbook", () => {
     const next = applyItogTranslationsToWorkbook(
       wb,
       new Map([
-        ["a", "Рубашка"],
-        ["b", "Штаны"],
+        ["k1", "Рубашка"],
+        ["k2", "Штаны"],
       ]),
     );
     const nextItog = next.sheets.find((s) => s.id === "itog")!;

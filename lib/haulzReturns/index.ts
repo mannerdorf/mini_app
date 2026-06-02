@@ -13,5 +13,6 @@ export * from "./kgdOperations";
 export * from "./stopOperations";
 export * from "./itogOperations";
 export * from "./ulTotals";
+export * from "./itogRowKeys";
 export * from "./ulSheetOperations";
 export * from "./translateOperations";

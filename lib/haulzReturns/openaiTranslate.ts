@@ -40,9 +40,11 @@ export async function translateProductNamesEnToRu(texts: string[], model = DEFAU
     throw new Error("Не удалось разобрать ответ переводчика");
   }
 
-  if (!Array.isArray(parsed.translations) || parsed.translations.length !== texts.length) {
+  if (!Array.isArray(parsed.translations)) {
     throw new Error("Неверный формат ответа переводчика");
   }
 
-  return parsed.translations.map((t) => String(t ?? "").trim());
+  const out = parsed.translations.map((t) => String(t ?? "").trim());
+  while (out.length < texts.length) out.push("");
+  return out.slice(0, texts.length);
 }

@@ -160,7 +160,7 @@ export async function saveHaulzReturnsWorkbook(auth: AuthData, jobId: string, wo
 }
 
 export type ItogTranslateResult = {
-  rowId: string;
+  rowKey: string;
   translation: string;
 };
 
@@ -168,7 +168,7 @@ const TRANSLATE_BATCH_SIZE = 40;
 
 export async function translateHaulzItogBatch(
   auth: AuthData,
-  items: { rowId: string; text: string }[],
+  items: { rowKey: string; text: string }[],
 ): Promise<ItogTranslateResult[]> {
   const res = await fetch("/api/haulz-returns/translate-itog", {
     method: "POST",
@@ -177,13 +177,17 @@ export async function translateHaulzItogBatch(
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`[перевод] ${parseJson(res, data)}`);
-  return (data as { items?: ItogTranslateResult[] }).items ?? [];
+  const raw = (data as { items?: Array<{ rowKey?: string; rowId?: string; translation?: string }> }).items ?? [];
+  return raw.map((row) => ({
+    rowKey: String(row.rowKey ?? row.rowId ?? ""),
+    translation: String(row.translation ?? ""),
+  }));
 }
 
 /** Пакетный перевод ulData → translate на листе «итог» (EN→RU через OpenAI). */
 export async function translateHaulzItogAll(
   auth: AuthData,
-  items: { rowId: string; text: string }[],
+  items: { rowKey: string; text: string }[],
   onProgress?: (done: number, total: number) => void,
 ): Promise<Map<string, string>> {
   const map = new Map<string, string>();
@@ -191,7 +195,7 @@ export async function translateHaulzItogAll(
     const batch = items.slice(i, i + TRANSLATE_BATCH_SIZE);
     const results = await translateHaulzItogBatch(auth, batch);
     for (const row of results) {
-      if (row.translation) map.set(row.rowId, row.translation);
+      if (row.translation) map.set(row.rowKey, row.translation);
     }
     onProgress?.(Math.min(i + batch.length, items.length), items.length);
   }

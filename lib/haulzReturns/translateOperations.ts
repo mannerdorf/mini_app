@@ -1,32 +1,36 @@
 import type { HaulzSheet, HaulzSheetRow, HaulzWorkbook } from "./types.js";
+import { ensureItogRowIds, itogRowTranslateKey } from "./itogRowKeys.js";
 import { appendItogSummaryRow, isSummaryRow, stripSummaryRows } from "./ulTotals.js";
 import { buildFixSheetFromItog } from "./workbookRecalc.js";
+import { translateProductNamesEnToRu } from "./openaiTranslate.js";
 
 export type ItogTranslateItem = {
-  rowId: string;
+  rowKey: string;
   text: string;
 };
 
+export { ensureItogRowIds, itogRowTranslateKey } from "./itogRowKeys.js";
+
 export function itogRowsNeedingTranslation(rows: HaulzSheetRow[]): ItogTranslateItem[] {
-  return stripSummaryRows(rows)
+  return ensureItogRowIds(rows)
     .filter((row) => {
       const text = String(row.ulData ?? "").trim();
       const translate = String(row.translate ?? "").trim();
       return text.length > 0 && translate.length === 0;
     })
     .map((row) => ({
-      rowId: String(row._rowId ?? ""),
+      rowKey: itogRowTranslateKey(row),
       text: String(row.ulData ?? "").trim(),
     }))
-    .filter((item) => item.rowId.length > 0);
+    .filter((item) => item.rowKey.length > 0);
 }
 
 export function applyItogTranslations(sheet: HaulzSheet, translations: Map<string, string>): HaulzSheet {
   if (sheet.id !== "itog" || translations.size === 0) return sheet;
 
-  const dataRows = stripSummaryRows(sheet.rows).map((row) => {
-    const rowId = String(row._rowId ?? "");
-    const translation = translations.get(rowId);
+  const dataRows = ensureItogRowIds(stripSummaryRows(sheet.rows)).map((row) => {
+    const key = itogRowTranslateKey(row);
+    const translation = translations.get(key);
     if (translation == null) return row;
     return { ...row, translate: translation };
   });
@@ -54,6 +58,33 @@ export function applyItogTranslationsToWorkbook(
   }
 
   return { ...workbook, sheets };
+}
+
+const TRANSLATE_BATCH_SIZE = 40;
+
+/** Переводит пустые ячейки «Перевод» на листе итог (сервер, OPENAI_API_KEY). */
+export async function translateItogWorkbook(wb: HaulzWorkbook): Promise<HaulzWorkbook> {
+  if (!process.env.OPENAI_API_KEY?.trim()) return wb;
+
+  const itog = wb.sheets.find((s) => s.id === "itog");
+  if (!itog) return wb;
+
+  const pending = itogRowsNeedingTranslation(itog.rows);
+  if (pending.length === 0) return wb;
+
+  let current = wb;
+  for (let i = 0; i < pending.length; i += TRANSLATE_BATCH_SIZE) {
+    const batch = pending.slice(i, i + TRANSLATE_BATCH_SIZE);
+    const translations = await translateProductNamesEnToRu(batch.map((item) => item.text));
+    const map = new Map<string, string>();
+    batch.forEach((item, idx) => {
+      const text = String(translations[idx] ?? "").trim();
+      if (text) map.set(item.rowKey, text);
+    });
+    current = applyItogTranslationsToWorkbook(current, map);
+  }
+
+  return current;
 }
 
 /** Сколько строк итога уже имеют перевод (без суммирующей строки). */

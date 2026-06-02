@@ -29,13 +29,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  const items: { rowId: string; text: string }[] = [];
+  const items: { rowKey: string; text: string }[] = [];
   for (const row of rawItems) {
     if (!row || typeof row !== "object") continue;
-    const rowId = String((row as { rowId?: unknown }).rowId ?? "").trim();
-    const text = String((row as { text?: unknown }).text ?? "").trim();
-    if (!rowId || !text) continue;
-    items.push({ rowId, text });
+    const item = row as { rowKey?: unknown; rowId?: unknown; text?: unknown };
+    const rowKey = String(item.rowKey ?? item.rowId ?? "").trim();
+    const text = String(item.text ?? "").trim();
+    if (!rowKey || !text) continue;
+    items.push({ rowKey, text });
   }
 
   if (items.length === 0) {
@@ -45,7 +46,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const translations = await translateProductNamesEnToRu(items.map((i) => i.text));
     const result = items.map((item, idx) => ({
-      rowId: item.rowId,
+      rowKey: item.rowKey,
+      rowId: item.rowKey,
       translation: translations[idx] ?? "",
     }));
     return res.status(200).json({ items: result, request_id: ctx.requestId });

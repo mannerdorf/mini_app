@@ -26,6 +26,9 @@ import {
   downloadBlob,
   exportSheetToExcel,
   countSheetDataRows,
+  collectUlNumbersInItog,
+  countItogTranslatedRows,
+  isUlTabInItog,
   itogRowsNeedingTranslation,
   removeItogRow,
   removeItogStopRowsFromWorkbook,
@@ -304,15 +307,19 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
 
       await processHaulzReturnsJob(auth, newJobId);
       setJobId(newJobId);
-      setWorkbook(wbLocal);
       setActiveTab("itog");
       setWorkbookTableCollapsed(true);
       try {
         const loaded = await getHaulzReturnsJob(auth, newJobId);
         setStoredFiles(loaded.files);
+        if (loaded.workbook) {
+          setWorkbook(normalizeWorkbookColumns(loaded.workbook));
+        } else {
+          setWorkbook(wbLocal);
+        }
         await refreshJobs();
       } catch {
-        /* результат уже на экране; обновление списка необязательно */
+        setWorkbook(wbLocal);
       }
     } catch (e: unknown) {
       setError((e as Error)?.message || "Ошибка обработки");
@@ -345,7 +352,11 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
   );
 
   const handleTranslateItog = useCallback(() => {
-    if (!auth || !workbook || !jobId) return;
+    if (!auth || !workbook) return;
+    if (!jobId) {
+      setError("Сначала сохраните сессию (обработайте файлы)");
+      return;
+    }
     const itog = workbook.sheets.find((s) => s.id === "itog");
     if (!itog) return;
     const pending = itogRowsNeedingTranslation(itog.rows);
@@ -359,14 +370,24 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
       setError(null);
       try {
         let current = workbook;
+        const before = countItogTranslatedRows(itog.rows);
         const batchSize = 40;
         for (let i = 0; i < pending.length; i += batchSize) {
           const batch = pending.slice(i, i + batchSize);
           const results = await translateHaulzItogBatch(auth, batch);
-          const batchMap = new Map(results.map((row) => [row.rowId, row.translation]));
+          const batchMap = new Map(
+            results.filter((row) => row.translation.trim()).map((row) => [row.rowKey, row.translation]),
+          );
+          if (batchMap.size === 0 && batch.length > 0) {
+            throw new Error("Переводчик не вернул результат — проверьте OPENAI_API_KEY на сервере");
+          }
           current = applyItogTranslationsToWorkbook(current, batchMap);
           setWorkbook(current);
           setTranslateProgress({ done: Math.min(i + batch.length, pending.length), total: pending.length });
+        }
+        const after = countItogTranslatedRows(current.sheets.find((s) => s.id === "itog")?.rows ?? []);
+        if (after <= before) {
+          throw new Error("Перевод не применился к строкам — попробуйте ещё раз");
         }
         await persistWorkbook(current, jobId);
       } catch (e: unknown) {
@@ -577,6 +598,11 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
     return job ? haulzJobDisplayTitle(job) : null;
   }, [jobId, jobs]);
 
+  const ulNumbersInItog = useMemo(
+    () => (workbook ? collectUlNumbersInItog(workbook) : new Set<string>()),
+    [workbook],
+  );
+
   if (!auth) {
     return (
       <div className="w-full hr-page">
@@ -777,16 +803,20 @@ export function HaulzReturnsPage({ auth, onBack }: Props) {
       {workbook && activeSheet ? (
         <>
           <div className="hr-tabs">
-            {tabs.map((tab) => (
+            {tabs.map((tab) => {
+              const inItog = isUlTabInItog(tab.id, ulNumbersInItog);
+              return (
               <button
                 key={tab.id}
                 type="button"
-                className={`hr-tab-btn ${activeTab === tab.id ? "active" : ""}`}
+                className={`hr-tab-btn ${activeTab === tab.id ? "active" : ""}${inItog ? " hr-tab-btn--in-itog" : ""}`}
                 onClick={() => handleTabSelect(tab.id)}
               >
                 {tab.label}
+                {inItog ? " ✓" : ""}
               </button>
-            ))}
+              );
+            })}
           </div>
 
           <Flex gap="0.5rem" wrap="wrap" style={{ margin: "0.75rem 0" }}>
