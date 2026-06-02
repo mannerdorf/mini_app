@@ -11,9 +11,9 @@ import {
   type UlWriteoffRow,
 } from "./collectTdRows.js";
 import { isHolzCarrier } from "./isHolzCarrier.js";
-import { formatWriteoffTitle, formatWriteoffTdLine } from "./formatWriteoffHeader.js";
+import { formatWriteoffTitle, formatWriteoffTdLineFromSpecification } from "./formatWriteoffHeader.js";
 import { normalizeSpecificationDraft } from "./draftDateFields.js";
-import { resolvePoruchenieUlDraft } from "./formatPoruchenieDraft.js";
+import { resolvePoruchenieUlDraft, mergePoruchenieWriteoffRows, resolveStoredPoruchenieDraft } from "./formatPoruchenieDraft.js";
 import type { PoruchenieInput, TdDraft, WriteoffSheetInput } from "./types.js";
 
 export type TdExportContext = {
@@ -94,7 +94,8 @@ export function buildWriteoffInputs(ctx: TdExportContext): WriteoffSheetInput[] 
           specification: specDraft,
         }),
       tdLineOverride:
-        mergedDraft.writeoff?.[w.ulNumber]?.tdLine ?? formatWriteoffTdLine(w.tdNumber),
+        mergedDraft.writeoff?.[w.ulNumber]?.tdLine ??
+        formatWriteoffTdLineFromSpecification(specDraft, w.tdNumber),
     };
   };
 
@@ -125,30 +126,44 @@ export function poruchenieInputs(ctx: TdExportContext): PoruchenieInput[] {
   const writeoffs = buildWriteoffInputs(ctx);
   const mergedDraft = { ...ctx.workbook.tdPrepared?.draft, ...ctx.draft };
   const specDraft = normalizeSpecificationDraft({ ...(mergedDraft.specification ?? {}) });
-  const out: PoruchenieInput[] = [];
+
+  const byCarrier = new Map<
+    string,
+    { carrier: HaulzCarrier; writeoffs: ReturnType<typeof buildWriteoffInputs> }
+  >();
+
   for (const wo of writeoffs) {
     const sheet = findUlSheet(ctx.workbook, wo.ulNumber);
     const carrier = sheet?.carrierId ? ctx.carriersById.get(sheet.carrierId) : undefined;
     if (!carrier || isHolzCarrier(carrier)) continue;
     if (wo.rows.length === 0) continue;
-    const header = resolvePoruchenieUlDraft(
-      specDraft,
-      wo.sheetNumber ?? 1,
-      mergedDraft.poruchenie?.[wo.ulNumber],
-    );
+    const group = byCarrier.get(carrier.id) ?? { carrier, writeoffs: [] };
+    group.writeoffs.push(wo);
+    byCarrier.set(carrier.id, group);
+  }
+
+  const out: PoruchenieInput[] = [];
+  for (const { carrier, writeoffs: groupWriteoffs } of byCarrier.values()) {
+    const rows = mergePoruchenieWriteoffRows(groupWriteoffs);
+    const first = groupWriteoffs[0]!;
+    const ulNumbers = groupWriteoffs.map((w) => w.ulNumber);
+    const stored = resolveStoredPoruchenieDraft(mergedDraft.poruchenie, carrier.id, ulNumbers);
+    const header = resolvePoruchenieUlDraft(specDraft, first.sheetNumber ?? 1, stored);
     out.push({
-      ulNumber: wo.ulNumber,
+      ulNumber: first.ulNumber,
       assignmentNumber: header.number,
-      writeoffNumber: wo.sheetNumber ?? 1,
-      tdNumber: wo.tdNumber,
+      writeoffNumber: first.sheetNumber ?? 1,
+      tdNumber: first.tdNumber,
       carrier,
-      rows: wo.rows,
+      rows,
+      writeoffSheetCount: groupWriteoffs.length,
       date: header.date,
       contractNumber: header.contractNumber,
       contractDate: header.contractDate,
     });
   }
-  return out;
+
+  return out.sort((a, b) => a.carrier.name.localeCompare(b.carrier.name, "ru"));
 }
 
 export { collectFixRows, ulSheetsWithInItog, type FixTdRow, type UlWriteoffRow };

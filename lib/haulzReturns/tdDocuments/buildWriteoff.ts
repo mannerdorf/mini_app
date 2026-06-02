@@ -4,10 +4,21 @@ import { formatRuDate } from "./defaults.js";
 import {
   loadTemplateWorkbook,
   setCellValue,
+  tryMergeCells,
   workbookToBuffer,
 } from "./excelUtils.js";
 
 export type { WriteoffSheetInput } from "./types.js";
+
+const WRITEOFF_HEADER_COLS = 11;
+
+function applyWriteoffHeaderRow(sheet: import("exceljs").Worksheet, row: number, text: string) {
+  for (let c = 1; c <= WRITEOFF_HEADER_COLS; c++) {
+    sheet.getCell(row, c).value = null;
+  }
+  tryMergeCells(sheet, row, 1, row, WRITEOFF_HEADER_COLS);
+  setCellValue(sheet, row, 1, text);
+}
 
 function cloneWorksheet(
   wb: import("exceljs").Workbook,
@@ -29,6 +40,13 @@ function cloneWorksheet(
   source.columns?.forEach((col, idx) => {
     if (col?.width) ws.getColumn(idx + 1).width = col.width;
   });
+  for (const ref of source.model.merges ?? []) {
+    try {
+      ws.mergeCells(ref);
+    } catch {
+      // ignore invalid merge from template
+    }
+  }
   return ws;
 }
 
@@ -41,8 +59,8 @@ function fillWriteoffSheet(
   const title = input.titleOverride ?? `Дополнительный лист списания №${sheetNo} от ${date} к упаковочному листу № ${input.ulNumber}`;
   const tdLine = input.tdLineOverride ?? `Вывезено по ТД ${input.tdNumber}/ /`;
 
-  setCellValue(sheet, WRITEOFF_TEMPLATE.titleRow, 1, title);
-  setCellValue(sheet, WRITEOFF_TEMPLATE.tdRow, 1, tdLine);
+  applyWriteoffHeaderRow(sheet, WRITEOFF_TEMPLATE.titleRow, title);
+  applyWriteoffHeaderRow(sheet, WRITEOFF_TEMPLATE.tdRow, tdLine);
 
   const { dataStartRow, dataCols } = WRITEOFF_TEMPLATE;
   for (let i = 0; i < input.rows.length; i++) {

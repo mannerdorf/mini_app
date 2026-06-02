@@ -36,7 +36,15 @@ export {
   formatPoruchenieTitleLine,
   formatPoruchenieCityLine,
   formatPoruchenieContractLine,
+  formatPoruchenieCityLineExcel,
+  formatPorucheniePreamble,
+  formatPoruchenieFooter,
+  carrierQuotedName,
+  PORUCHENIE_MERGED_DRAFT_KEY,
+  mergePoruchenieWriteoffRows,
+  renumberPoruchenieRows,
 } from "./formatPoruchenieDraft.js";
+export { poruchenieExportFileName } from "./fileNames.js";
 export { isHolzCarrier } from "./isHolzCarrier.js";
 export {
   defaultSpecificationDraft,

@@ -57,3 +57,12 @@ export function formatWriteoffTdLine(tdNumber: string): string {
   const normalized = td.endsWith("/") ? td : `${td}/`;
   return `Вывезено по ТД ${normalized} /`;
 }
+
+/** Вторая строка листа списания — номер ТД из шапки спецификации. */
+export function formatWriteoffTdLineFromSpecification(
+  specification: Record<string, string> = {},
+  fallbackTd = "",
+): string {
+  const headerTd = String(specification.headerTd ?? "").trim() || String(fallbackTd ?? "").trim();
+  return formatWriteoffTdLine(headerTd);
+}

@@ -1,6 +1,7 @@
 import type { AuthData } from "../../types";
 import type { TdDocType, TdDraft, TdPrepared } from "../../../lib/haulzReturns/tdDocuments/index";
-import { proformaExportFileName, specificationExportFileName } from "../../../lib/haulzReturns/tdDocuments/fileNames";
+import { proformaExportFileName, specificationExportFileName, writeoffExportFileName, poruchenieExportFileName } from "../../../lib/haulzReturns/tdDocuments/fileNames";
+import { PORUCHENIE_MERGED_DRAFT_KEY, defaultPoruchenieDate } from "../../../lib/haulzReturns/tdDocuments/formatPoruchenieDraft";
 import { triggerBlobDownload } from "../../lib/triggerBlobDownload";
 
 export type TdExportRequest = {
@@ -30,8 +31,16 @@ function defaultFileName(docType: TdDocType, draft?: TdDraft): string {
     const title = draft?.specification?.title?.trim();
     return title ? specificationExportFileName(title) : "Spetsifikatsiya.xlsx";
   }
-  if (docType === "poruchenie") return "Поручения.zip";
-  if (docType === "writeoff") return "Листы списания.xlsx";
+  if (docType === "poruchenie") {
+    const merged = draft?.poruchenie?.[PORUCHENIE_MERGED_DRAFT_KEY];
+    const number = merged?.number?.trim() || "1";
+    const date = merged?.date?.trim() || defaultPoruchenieDate(draft?.specification ?? {});
+    return poruchenieExportFileName(number, date);
+  }
+  if (docType === "writeoff") {
+    const title = draft?.specification?.title?.trim();
+    return title ? writeoffExportFileName(title) : writeoffExportFileName("");
+  }
   return `${docType}.xlsx`;
 }
 
@@ -91,7 +100,8 @@ export async function exportTdDocument(
     throw new Error(typeof (data as { error?: string }).error === "string" ? (data as { error: string }).error : "Ошибка выгрузки");
   }
 
-  const blob = await res.blob();
+  const buffer = await res.arrayBuffer();
+  const blob = new Blob([buffer], { type: "application/octet-stream" });
   if (blob.size === 0) {
     throw new Error("Пустой файл — повторите «Подготовить ТД»");
   }
@@ -157,6 +167,7 @@ export async function exportTdAllZip(
 
   const blob = await zip.generateAsync({
     type: "blob",
+    mimeType: "application/octet-stream",
     compression: "DEFLATE",
     compressionOptions: { level: 6 },
   });

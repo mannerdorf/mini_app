@@ -45,13 +45,17 @@ export type WriteoffSheetInput = {
 };
 
 export type PoruchenieInput = {
+  /** Первый УЛ в группе — для имени файла. */
   ulNumber: string;
   /** Номер поручения в шапке DOCX. */
   assignmentNumber: string;
   writeoffNumber: number;
   tdNumber: string;
   carrier: HaulzCarrier;
+  /** Все строки листов списания по выборке, склеенные подряд. */
   rows: UlWriteoffRow[];
+  /** Сколько листов списания вошло в поручение. */
+  writeoffSheetCount: number;
   date?: string;
   contractNumber?: string;
   contractDate?: string;

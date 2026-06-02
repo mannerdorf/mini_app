@@ -2,15 +2,13 @@ import type { HaulzCarrier } from "../carriers.js";
 import type { HaulzWorkbook } from "../types.js";
 import {
   collectFixRows,
-  normalizeUlKey,
   validateTdPrep,
 } from "./collectTdRows.js";
 import { buildPoruchenieBuffer, poruchenieFileName } from "./buildPoruchenie.js";
 import { buildProformaBuffer } from "./buildProforma.js";
 import { buildSpecificationBuffer } from "./buildSpecification.js";
 import { buildWriteoffBuffer } from "./buildWriteoff.js";
-import { defaultProformaDraft, defaultSpecificationDraft } from "./defaults.js";
-import { proformaExportFileName, specificationExportFileName } from "./fileNames.js";
+import { proformaExportFileName, specificationExportFileName, writeoffExportFileName } from "./fileNames.js";
 import {
   buildWriteoffInputs,
   poruchenieInputs,
@@ -46,15 +44,7 @@ export {
 } from "./preview.js";
 export { buildTdPrepared, firstHeaderTd } from "./prepareTd.js";
 
-export type TdExportOptions = {
-  /** Скачать поручение только для указанного УЛ. */
-  ulNumber?: string;
-};
-
-function matchesUlFilter(ulNumber: string, filter?: string): boolean {
-  if (!filter) return true;
-  return ulNumber === filter || normalizeUlKey(ulNumber) === normalizeUlKey(filter);
-}
+export type TdExportOptions = Record<string, never>;
 
 export async function exportTdDocuments(
   ctx: TdExportContext,
@@ -99,7 +89,7 @@ export async function exportTdDocuments(
     const sheets = buildWriteoffInputs(exportCtx);
     if (sheets.length) {
       files.push({
-        name: "Листы списания.xlsx",
+        name: writeoffExportFileName(specDraft.title ?? ""),
         buffer: await buildWriteoffBuffer(sheets),
         mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
@@ -112,11 +102,10 @@ export async function exportTdDocuments(
       workbook: { ...ctx.workbook, tdPrepared: snapshot },
     };
     for (const input of poruchenieInputs(exportCtx)) {
-      if (!matchesUlFilter(input.ulNumber, options?.ulNumber)) continue;
       files.push({
         name: poruchenieFileName(input),
         buffer: await buildPoruchenieBuffer(input),
-        mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
     }
   }

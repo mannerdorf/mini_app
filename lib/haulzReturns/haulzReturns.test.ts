@@ -741,7 +741,7 @@ describe("tdDocuments", () => {
           id: "fix",
           name: "FIX",
           columns: [],
-          rows: [
+      rows: [
             { ul: "233", line: "2", id: "a", parcel: "p", translate: "n", qty: 1, weight: 1, cost: 1 },
             { ul: "232", line: "2", id: "b", parcel: "p", translate: "n", qty: 1, weight: 1, cost: 1 },
             { ul: "232", line: "1", id: "c", parcel: "p", translate: "n", qty: 1, weight: 1, cost: 1 },
@@ -766,7 +766,7 @@ describe("tdDocuments", () => {
           id: "fix",
           name: "FIX",
           columns: [],
-          rows: [{ ul: "2606521", line: "1", id: "a", parcel: "p", translate: "n", qty: 1, weight: 1, cost: 1 }],
+      rows: [{ ul: "2606521", line: "1", id: "a", parcel: "p", translate: "n", qty: 1, weight: 1, cost: 1 }],
         },
         { id: "ul-02606521", name: "02606521", columns: [], rows: [], tdNumber: "TD-001" },
       ],
@@ -783,7 +783,7 @@ describe("tdDocuments", () => {
           id: "fix",
           name: "FIX",
           columns: [],
-          rows: [{
+      rows: [{
             ul: "232",
             line: "1",
             id: "cp1",
@@ -799,7 +799,7 @@ describe("tdDocuments", () => {
           id: "itog",
           name: "итог",
           columns: [],
-          rows: [{
+      rows: [{
             ul: "232",
             line: "1",
             id: "cp1",
@@ -816,7 +816,7 @@ describe("tdDocuments", () => {
           name: "232",
           columns: [],
           tdNumber: "TD-1",
-          rows: [{
+      rows: [{
             rowNum: "1",
             cargoPlace: "cp1",
             parcel: "P100",
@@ -848,6 +848,13 @@ describe("tdDocuments", () => {
     );
   });
 
+  it("writeoffExportFileName transliterates specification number and date", async () => {
+    const { writeoffExportFileName } = await import("./tdDocuments/fileNames.js");
+    expect(writeoffExportFileName("Спецификация №1 от 28.04.2026 к CMR б/н от 19.03.2026")).toBe(
+      "Listy spisaniya k spetsifikatsii No1 ot 28.04.2026.xlsx",
+    );
+  });
+
   it("formatWriteoffTitle builds header from specification draft", async () => {
     const { formatWriteoffTitle, formatWriteoffTdLine } = await import("./tdDocuments/formatWriteoffHeader.js");
     const title = formatWriteoffTitle({
@@ -865,6 +872,16 @@ describe("tdDocuments", () => {
     );
     expect(formatWriteoffTdLine("10229010/280426/0113288")).toBe(
       "Вывезено по ТД 10229010/280426/0113288/ /",
+    );
+    const { formatWriteoffTdLineFromSpecification } = await import("./tdDocuments/formatWriteoffHeader.js");
+    expect(
+      formatWriteoffTdLineFromSpecification(
+        { headerTd: "10229010/280426/0113288" },
+        "99999999/010101/0000000",
+      ),
+    ).toBe("Вывезено по ТД 10229010/280426/0113288/ /");
+    expect(formatWriteoffTdLineFromSpecification({}, "99999999/010101/0000000")).toBe(
+      "Вывезено по ТД 99999999/010101/0000000/ /",
     );
   });
 
@@ -1045,7 +1062,7 @@ describe("tdDocuments", () => {
         id: "ul-02606521",
         name: "02606521",
         columns: [],
-        rows: [{ rowNum: "1", parcel: "p", inItog: 1 }],
+      rows: [{ rowNum: "1", parcel: "p", inItog: 1 }],
         carrierId: null,
         tdNumber: null,
       }],
@@ -1057,7 +1074,7 @@ describe("tdDocuments", () => {
         id: "ul-02606521",
         name: "02606521",
         columns: [],
-        rows: [],
+      rows: [],
         carrierId: "42",
         tdNumber: "10229010/260526/0113288",
       }],
@@ -1123,7 +1140,7 @@ describe("tdDocuments", () => {
     const parsed = {
       ulNumber: "02611106",
       sheet: {
-        rows: [{ rowNum: "1", cargoPlace: "cp", parcel: "p", airport: "", weight: 1, volume: 1, category: "", name: "n", qty: 1, cost: 1 }],
+      rows: [{ rowNum: "1", cargoPlace: "cp", parcel: "p", airport: "", weight: 1, volume: 1, category: "", name: "n", qty: 1, cost: 1 }],
       },
     } as import("./types.js").ParsedUlFile;
     const hydrated = hydrateUlSheetFromParsed(existing, parsed, new Set(["026111061p"]));
@@ -1140,13 +1157,13 @@ describe("tdDocuments", () => {
           id: "fix",
           name: "FIX",
           columns: [],
-          rows: [{ ul: "232", line: "1", id: "a", parcel: "p", translate: "n", qty: 1, weight: 1, cost: 1 }],
+      rows: [{ ul: "232", line: "1", id: "a", parcel: "p", translate: "n", qty: 1, weight: 1, cost: 1 }],
         },
         {
           id: "ul-232",
           name: "232",
           columns: [],
-          rows: [{ rowNum: "1", inItog: 1, cargoPlace: "id", parcel: "p", name: "x", qty: 1, weight: 1, cost: 1 }],
+      rows: [{ rowNum: "1", inItog: 1, cargoPlace: "id", parcel: "p", name: "x", qty: 1, weight: 1, cost: 1 }],
           tdNumber: "TD-232",
         },
       ],
@@ -1174,7 +1191,7 @@ describe("tdDocuments", () => {
           id: "ul-02612691",
           name: "02612691",
           columns: [],
-          rows: [{ rowNum: "1", inItog: 1, cargoPlace: "id", parcel: "p", name: "x", qty: 1, weight: 1, cost: 1 }],
+      rows: [{ rowNum: "1", inItog: 1, cargoPlace: "id", parcel: "p", name: "x", qty: 1, weight: 1, cost: 1 }],
         },
       ],
       itogControlKeys: new Set<string>(),
@@ -1195,7 +1212,7 @@ describe("tdDocuments", () => {
           columns: [],
           carrierId: "c1",
           tdNumber: "10229010/280426/0113288",
-          rows: [
+      rows: [
             { rowNum: "989", inItog: 1, cargoPlace: "id1", parcel: "p1", name: "item 1", qty: 1, weight: 1, cost: 1, airport: "Калининград (KGD)" },
             { rowNum: "990", inItog: 1, cargoPlace: "id2", parcel: "p2", name: "item 2", qty: 1, weight: 2, cost: 2, airport: "Калининград (KGD)" },
           ],
@@ -1210,7 +1227,7 @@ describe("tdDocuments", () => {
           ulNumber: "02606521",
           tdNumber: "",
           sheetNumber: 1,
-          rows: [{ num: 1, ulNumber: "02606521", rowNum: "989", line: "989", id: "id1", parcel: "p1", airport: "", weight: 1, volume: 0, category: "", name: "old", qty: 1, cost: 1 }],
+      rows: [{ num: 1, ulNumber: "02606521", rowNum: "989", line: "989", id: "id1", parcel: "p1", airport: "", weight: 1, volume: 0, category: "", name: "old", qty: 1, cost: 1 }],
         }],
         draft: {},
       },
@@ -1221,16 +1238,45 @@ describe("tdDocuments", () => {
     expect(inputs[0]!.tdNumber).toBe("10229010/280426/0113288");
   });
 
-  it("poruchenieFileName matches template naming", async () => {
+  it("mergePoruchenieWriteoffRows concatenates writeoff sheets with sequential num", async () => {
+    const { mergePoruchenieWriteoffRows } = await import("./tdDocuments/formatPoruchenieDraft.js");
+    const row = (num: number, ul: string) =>
+      ({
+        num,
+        ulNumber: ul,
+        rowNum: String(num),
+        line: String(num),
+        id: `id-${ul}-${num}`,
+        parcel: `p-${num}`,
+        airport: "KGD",
+        weight: "1",
+        volume: "1",
+        category: "<>",
+        name: `item ${num}`,
+        qty: "1",
+        cost: "100",
+      }) as import("./tdDocuments/collectTdRows.js").UlWriteoffRow;
+
+    const merged = mergePoruchenieWriteoffRows([
+      { rows: [row(1, "111"), row(2, "111")] },
+      { rows: [row(1, "222")] },
+    ]);
+    expect(merged).toHaveLength(3);
+    expect(merged.map((r) => r.num)).toEqual([1, 2, 3]);
+    expect(merged[2]?.ulNumber).toBe("222");
+  });
+
+  it("poruchenieExportFileName transliterates header", async () => {
+    const { poruchenieExportFileName } = await import("./tdDocuments/fileNames.js");
+    expect(poruchenieExportFileName("2", "03.06.2026")).toBe("Poruchenie No2 ot 03.06.2026.xlsx");
+  });
+
+  it("poruchenieFileName uses transliterated header", async () => {
     const { poruchenieFileName, carrierShortLabel } = await import("./tdDocuments/buildPoruchenie.js");
     expect(carrierShortLabel('ООО «Геологистика»')).toBe("Гео");
-    expect(
-      poruchenieFileName({
-        ulNumber: "02612691",
-        assignmentNumber: "6",
-        carrier: { id: "1", name: 'ООО «Геологистика»', legalAddress: "", inn: "", kpp: "", loadingAddress: "", unloadingAddress: "", createdAt: "", updatedAt: "" },
-      }),
-    ).toBe("02612691_Поручение_Агенту_Холз_Гео_6.docx");
+    expect(poruchenieFileName({ assignmentNumber: "6", date: "27.04.2026" })).toBe(
+      "Poruchenie No6 ot 27.04.2026.xlsx",
+    );
   });
 
   it("resolvePoruchenieUlDraft defaults date from specification fts", async () => {
@@ -1247,12 +1293,13 @@ describe("tdDocuments", () => {
 
   it("buildPoruchenieBuffer replaces header number, dates and contract", async () => {
     const { buildPoruchenieBuffer } = await import("./tdDocuments/buildPoruchenie.js");
-    const PizZip = (await import("pizzip")).default;
+    const ExcelJS = await import("exceljs");
     const buf = await buildPoruchenieBuffer({
       ulNumber: "02612691",
       assignmentNumber: "9",
       writeoffNumber: 6,
       tdNumber: "10229010/280426/0113288",
+      writeoffSheetCount: 1,
       date: "27.04.2026",
       contractNumber: "02/27",
       contractDate: "15.05.2026",
@@ -1285,25 +1332,26 @@ describe("tdDocuments", () => {
         },
       ],
     });
-    const xml = new PizZip(buf).file("word/document.xml")?.asText() ?? "";
-    const plain = [...xml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((m) => m[1]).join("");
-    expect(plain).toContain("ПОРУЧЕНИЕ № 9 от 27.04.2026");
-    expect(plain).toContain("27 апреля 2026 г.");
-    expect(plain).toContain("«ТестПеревозчик»");
-    expect(plain).toContain("02/27 от 15.05.2026");
-    expect(plain).toContain("агентского договора № 02/27 от 15.05.2026");
-    expect(plain).toContain("ООО «Геологистика»");
-    expect(plain).toContain("Мандров А.А");
+    const wb = new ExcelJS.default.Workbook();
+    await wb.xlsx.load(buf);
+    const sheet = wb.worksheets[0]!;
+    expect(String(sheet.getCell(1, 1).value)).toContain("ПОРУЧЕНИЕ № 9 от 27.04.2026");
+    expect(String(sheet.getCell(2, 1).value)).toContain("27 апреля 2026 г.");
+    expect(String(sheet.getCell(3, 1).value)).toContain("«ТестПеревозчик»");
+    expect(String(sheet.getCell(3, 1).value)).toContain("02/27 от 15.05.2026");
+    expect(String(sheet.getCell(7, 6).value)).toBe("Test item");
+    expect(String(sheet.getCell(9, 1).value)).toContain("Мандров А.А");
   });
 
   it("buildPoruchenieBuffer fills template table rows", async () => {
     const { buildPoruchenieBuffer } = await import("./tdDocuments/buildPoruchenie.js");
-    const PizZip = (await import("pizzip")).default;
+    const ExcelJS = await import("exceljs");
     const buf = await buildPoruchenieBuffer({
       ulNumber: "02612691",
       assignmentNumber: "6",
       writeoffNumber: 6,
       tdNumber: "10229010/280426/0113288",
+      writeoffSheetCount: 1,
       date: "31.05.2026",
       carrier: {
         id: "1",
@@ -1335,12 +1383,10 @@ describe("tdDocuments", () => {
       ],
     });
     expect(buf.length).toBeGreaterThan(1000);
-    const zip = new PizZip(buf);
-    const xml = zip.file("word/document.xml")?.asText() ?? "";
-    expect(xml).toContain("Test item");
-    expect(xml).toContain("GEOMR00-6947001");
-    expect(xml).not.toContain("GEOMR00-6946998");
-    const rowCount = (xml.match(/<w:tr[\s>]/g) ?? []).length;
-    expect(rowCount).toBe(2);
+    const wb = new ExcelJS.default.Workbook();
+    await wb.xlsx.load(buf);
+    const sheet = wb.worksheets[0]!;
+    expect(String(sheet.getCell(7, 6).value)).toBe("Test item");
+    expect(String(sheet.getCell(7, 3).value)).toBe("GEOMR00-6947001");
   });
 });

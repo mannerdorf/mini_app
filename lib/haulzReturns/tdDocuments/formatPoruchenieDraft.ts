@@ -1,6 +1,7 @@
 import { formatRuDate } from "./defaults.js";
 import { extractDraftRuDate } from "./draftDateFields.js";
 import type { PoruchenieUlDraft } from "./types.js";
+import type { UlWriteoffRow } from "./collectTdRows.js";
 
 const MONTHS_GENITIVE = [
   "января",
@@ -75,4 +76,77 @@ export function formatPoruchenieContractLine(
   header: Pick<PoruchenieHeaderDraft, "contractNumber" | "contractDate">,
 ): string {
   return `агентскому договору № ${header.contractNumber} от ${header.contractDate}`;
+}
+
+export function formatPoruchenieCityLineExcel(date: string): string {
+  return `г. Калининград      ${formatPoruchenieProseDate(date)}`;
+}
+
+export function carrierQuotedName(name: string): string {
+  const m = name.match(/[«"]([^»"]+)[»"]/);
+  if (m?.[1]) return m[1].trim();
+  return name.replace(/^ООО\s+/i, "").trim();
+}
+
+export function formatPorucheniePreamble(input: {
+  assignmentNumber: string;
+  contractNumber: string;
+  contractDate: string;
+  carrierName: string;
+}): string {
+  const principal = carrierQuotedName(input.carrierName);
+  const num = input.assignmentNumber.trim() || "1";
+  const contract = input.contractNumber.trim() || "01/26";
+  const contractDate = input.contractDate.trim() || "01.01.2026";
+  return (
+    `Общество с ограниченной ответственностью «ХОЛЗ», именуемое в дальнейшем " Агент", в лице Генерального директора Слободчикова Анатолия Вячеславовича, действующею на основании Устава, с одной стороны, и ` +
+    `Общество с ограниченной ответственностью «${principal}», именуемое в дальнейшем "Принципал", в лице Генерального директора Мандрова Александра Анатольевича, действующего на основании Устава, с другой стороны ` +
+    `вместе именуемые Стороны, а индивидуально – Сторона, заключили настоящее поручение №${num} к агентскому договору № ${contract} от ${contractDate} г. о нижеследующем:\n\n` +
+    `В рамках агентского договора № ${contract} от ${contractDate} г. Принципал поручает Агенту осуществить юридические и иные действия по следующим товарам:`
+  );
+}
+
+export function formatPoruchenieFooter(): string {
+  return (
+    "Настоящее поручение вступает с момента его подписания Сторонами и составлено в двух экземплярах: по одному для каждой из сторон.\n\n" +
+    "Генеральный директор «ХОЛЗ»                          ______________________/Слободчиков А.В./\n" +
+    "Генеральный директор ООО «Геологистика»              _____________________/Мандров А.А./"
+  );
+}
+
+/** Ключ черновика шапки поручения (одно на все листы списания). */
+export const PORUCHENIE_MERGED_DRAFT_KEY = "__merged__";
+
+export function renumberPoruchenieRows(rows: UlWriteoffRow[]): UlWriteoffRow[] {
+  return rows.map((row, index) => ({ ...row, num: index + 1 }));
+}
+
+/** Последовательно склеивает строки всех листов списания с новой нумерацией №. */
+export function mergePoruchenieWriteoffRows(
+  writeoffs: Array<{ rows: UlWriteoffRow[] }>,
+): UlWriteoffRow[] {
+  const merged: UlWriteoffRow[] = [];
+  for (const wo of writeoffs) {
+    merged.push(...wo.rows);
+  }
+  return renumberPoruchenieRows(merged);
+}
+
+export function resolveStoredPoruchenieDraft(
+  poruchenie: Record<string, PoruchenieUlDraft> | undefined,
+  carrierId: string,
+  ulNumbers: string[],
+): PoruchenieUlDraft | undefined {
+  if (!poruchenie) return undefined;
+  const merged = poruchenie[PORUCHENIE_MERGED_DRAFT_KEY];
+  if (merged) return merged;
+  const byCarrier = poruchenie[carrierId];
+  if (byCarrier) return byCarrier;
+  for (const ul of ulNumbers) {
+    const draft = poruchenie[ul];
+    if (draft && (draft.number || draft.date || draft.contractNumber || draft.contractDate)) {
+      return draft;
+    }
+  }
+  return undefined;
 }

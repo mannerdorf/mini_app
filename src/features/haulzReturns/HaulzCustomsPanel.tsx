@@ -19,6 +19,7 @@ import {
   syncProformaHeaderFromSpecification,
   mergeTdDraft,
   WRITEOFF_PREVIEW_COLUMNS,
+  PORUCHENIE_MERGED_DRAFT_KEY,
 } from "../../lib/haulzReturns";
 import { downloadTdBlob, exportTdAllZip, exportTdDocument } from "../../api/client/haulzReturnsTd";
 import { HaulzPoruchenieDraftForm } from "./HaulzPoruchenieDraftForm";
@@ -55,7 +56,7 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
   const [activeTab, setActiveTab] = useState<TabId>("specification");
   const [pendingExport, setPendingExport] = useState<TabId | "all" | null>(null);
   const [activeWriteoffUl, setActiveWriteoffUl] = useState<string>("");
-  const [activePoruchenieUl, setActivePoruchenieUl] = useState<string>("");
+  const [activePoruchenieCarrierId, setActivePoruchenieCarrierId] = useState<string>("");
 
   const prepared = workbook.tdPrepared;
   const carriersById = useMemo(() => new Map(carriers.map((c) => [c.id, c])), [carriers]);
@@ -132,7 +133,8 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
   }, [fixRows]);
 
   const activeWriteoff = writeoffSheets.find((s) => s.ulNumber === activeWriteoffUl) ?? writeoffSheets[0];
-  const activePoruchenie = poruchenieList.find((p) => p.ulNumber === activePoruchenieUl) ?? poruchenieList[0];
+  const activePoruchenie =
+    poruchenieList.find((p) => p.carrier.id === activePoruchenieCarrierId) ?? poruchenieList[0];
 
   const updateSpecField = useCallback(
     (key: string, value: string) => {
@@ -164,13 +166,13 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
   );
 
   const updatePoruchenieField = useCallback(
-    (ulNumber: string, patch: { number?: string; date?: string; contractNumber?: string; contractDate?: string }) => {
+    (patch: { number?: string; date?: string; contractNumber?: string; contractDate?: string }) => {
       void onDraftChange({
         ...mergedTdDraft,
         poruchenie: {
           ...mergedTdDraft?.poruchenie,
-          [ulNumber]: {
-            ...mergedTdDraft?.poruchenie?.[ulNumber],
+          [PORUCHENIE_MERGED_DRAFT_KEY]: {
+            ...mergedTdDraft?.poruchenie?.[PORUCHENIE_MERGED_DRAFT_KEY],
             ...patch,
           },
         },
@@ -191,10 +193,6 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
       void (async () => {
         try {
           const draft = mergeTdDraft(prepared.draft, workbook.tdDraft) ?? prepared.draft;
-          const poruchenieUl =
-            docType === "poruchenie"
-              ? (poruchenieList.find((p) => p.ulNumber === activePoruchenieUl) ?? poruchenieList[0])?.ulNumber
-              : undefined;
           const { blob, fileName } =
             docType === "all"
               ? await exportTdAllZip(auth, jobId, draft, prepared)
@@ -203,7 +201,6 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
                   docType,
                   draft,
                   tdPrepared: prepared,
-                  ulNumber: poruchenieUl,
                 });
           downloadTdBlob(blob, fileName);
         } catch (e: unknown) {
@@ -213,7 +210,7 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
         }
       })();
     },
-    [auth, jobId, onError, pendingExport, prepared, workbook.tdDraft, poruchenieList, activePoruchenieUl],
+    [auth, jobId, onError, pendingExport, prepared, workbook.tdDraft],
   );
 
   if (!workbook.sheets.some((s) => s.id === "fix")) return null;
@@ -343,39 +340,38 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
                 </Typography.Body>
               ) : (
                 <>
-                  <div className="hr-tabs">
-                    {poruchenieList.map((p) => (
-                      <button
-                        key={p.ulNumber}
-                        type="button"
-                        className={`hr-tab-btn ${activePoruchenie?.ulNumber === p.ulNumber ? "active" : ""}`}
-                        onClick={() => setActivePoruchenieUl(p.ulNumber)}
-                      >
-                        {p.ulNumber}
-                      </button>
-                    ))}
-                  </div>
+                  {poruchenieList.length > 1 ? (
+                    <div className="hr-tabs">
+                      {poruchenieList.map((p) => (
+                        <button
+                          key={p.carrier.id}
+                          type="button"
+                          className={`hr-tab-btn ${activePoruchenie?.carrier.id === p.carrier.id ? "active" : ""}`}
+                          onClick={() => setActivePoruchenieCarrierId(p.carrier.id)}
+                        >
+                          {p.carrier.name}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                   {activePoruchenie ? (
                     <>
                       <Typography.Body style={{ margin: "0.5rem 0", color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>
-                        {activePoruchenie.carrier.name} · лист списания №{activePoruchenie.writeoffNumber} · ТД {activePoruchenie.tdNumber || "—"}
+                        {activePoruchenie.carrier.name} · {activePoruchenie.writeoffSheetCount} листов списания ·{" "}
+                        {activePoruchenie.rows.length} строк
                       </Typography.Body>
                       <HaulzPoruchenieDraftForm
                         number={activePoruchenie.assignmentNumber}
                         date={activePoruchenie.date ?? ""}
                         contractNumber={activePoruchenie.contractNumber ?? "01/26"}
                         contractDate={activePoruchenie.contractDate ?? ""}
-                        onNumberChange={(number) => updatePoruchenieField(activePoruchenie.ulNumber, { number })}
-                        onDateChange={(date) => updatePoruchenieField(activePoruchenie.ulNumber, { date })}
-                        onContractNumberChange={(contractNumber) =>
-                          updatePoruchenieField(activePoruchenie.ulNumber, { contractNumber })
-                        }
-                        onContractDateChange={(contractDate) =>
-                          updatePoruchenieField(activePoruchenie.ulNumber, { contractDate })
-                        }
+                        onNumberChange={(number) => updatePoruchenieField({ number })}
+                        onDateChange={(date) => updatePoruchenieField({ date })}
+                        onContractNumberChange={(contractNumber) => updatePoruchenieField({ contractNumber })}
+                        onContractDateChange={(contractDate) => updatePoruchenieField({ contractDate })}
                       />
                       <HaulzTdPreviewTable
-                        tableId={`td-poruchenie-${activePoruchenie.ulNumber}`}
+                        tableId="td-poruchenie-merged"
                         columns={PORUCHENIE_PREVIEW_COLUMNS}
                         rows={porucheniePreviewRows(activePoruchenie.rows)}
                       />

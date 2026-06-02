@@ -1,3 +1,6 @@
+import { formatRuDate } from "./defaults.js";
+import { extractDraftRuDate } from "./draftDateFields.js";
+
 const TRANSLIT: Record<string, string> = {
   а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z",
   и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r",
@@ -40,4 +43,26 @@ export function specificationExportFileName(title: string): string {
 
 export function proformaExportFileName(title: string): string {
   return tdExportFileNameFromTitle(title, ".xlsx");
+}
+
+export function parseSpecificationTitleMeta(title: string): { number: string; date: string } {
+  const trimmed = title.trim();
+  const numMatch =
+    /(?:Спецификация|спецификации)\s*№\s*(\d+)/i.exec(trimmed) ?? /№\s*(\d+)/i.exec(trimmed);
+  const number = numMatch?.[1]?.trim() || "1";
+  const date = extractDraftRuDate("title", trimmed) ?? formatRuDate();
+  return { number, date };
+}
+
+/** «ПОРУЧЕНИЕ № N от DD.MM.YYYY.xlsx» в транслите. */
+export function poruchenieExportFileName(assignmentNumber: string, date: string): string {
+  const num = assignmentNumber.trim() || "1";
+  const ruDate = date.trim() || formatRuDate();
+  return tdExportFileNameFromTitle(`Поручение №${num} от ${ruDate}`, ".xlsx");
+}
+
+/** «Листы списания к спецификации №N от DD.MM.YYYY.xlsx» в транслите. */
+export function writeoffExportFileName(specificationTitle: string): string {
+  const { number, date } = parseSpecificationTitleMeta(specificationTitle);
+  return tdExportFileNameFromTitle(`Листы списания к спецификации №${number} от ${date}`, ".xlsx");
 }

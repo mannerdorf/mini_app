@@ -47,6 +47,27 @@ export const PROFORMA_TEMPLATE = {
   },
 } as const;
 
+export const PORUCHENIE_TEMPLATE = {
+  sheetName: "Поручение",
+  titleRow: 1,
+  cityRow: 2,
+  preambleRow: 3,
+  preambleMergeRows: 3,
+  tableHeaderRow: 6,
+  dataStartRow: 7,
+  headerCols: 8,
+  dataCols: {
+    num: 1,
+    ulLine: 2,
+    id: 3,
+    parcel: 4,
+    weight: 5,
+    name: 6,
+    qty: 7,
+    cost: 8,
+  },
+} as const;
+
 export const WRITEOFF_TEMPLATE = {
   titleRow: 2,
   tdRow: 3,
