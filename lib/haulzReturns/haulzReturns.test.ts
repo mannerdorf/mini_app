@@ -315,6 +315,15 @@ describe("ulTotals", () => {
     expect(isItogStopRow({ stop: "STOP" })).toBe(true);
     expect(isItogStopRow({ stop: "OK" })).toBe(false);
   });
+
+  it("detects STOP rows by live lookup when stop column is stale", () => {
+    const stopRows = [{ word: "Документы", result: "STOP" }];
+    expect(isItogStopRow({ ulData: "Документы", stop: "OK" }, stopRows)).toBe(true);
+    const rows = [{ parcel: "111", ulData: "Документы", stop: "OK" }];
+    const { sheet, removed } = removeItogStopRows({ id: "itog", name: "итог", columns: [], rows }, stopRows);
+    expect(removed).toBe(1);
+    expect(sheet.rows.filter((r) => !isSummaryRow(r))).toHaveLength(0);
+  });
 });
 
 describe("itogOperations", () => {
@@ -331,7 +340,7 @@ describe("itogOperations", () => {
           ? {
               ...s,
               rows: appendItogSummaryRow([
-                { ...dataRows[0]!, stop: "STOP", _rowId: "a" },
+                { ...dataRows[0]!, ulData: "Документы", stop: "STOP", _rowId: "a" },
                 { ...dataRows[1]!, stop: "OK", _rowId: "b", parcel: "999" },
               ]),
             }

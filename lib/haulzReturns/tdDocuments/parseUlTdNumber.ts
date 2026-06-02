@@ -63,14 +63,14 @@ export function composeUlTdNumber(head: string, dateRu: string, tail: string): s
   return formatUlTdNumberWithoutDate(h, t);
 }
 
-/** Дата из номера ТД или сохранённого tdDate. */
+/** Дата УЛ из номера ТД или сохранённого tdDate. */
 export function resolveUlTdDateRu(tdNumber: string | null | undefined, tdDate: string | null | undefined): string {
   const stored = String(tdDate ?? "").trim();
   if (stored) return stored;
   return parseUlTdNumber(String(tdNumber ?? "")).dateRu;
 }
 
-/** Подставляет tdDate из номера ТД, если дата ещё не сохранена. */
+/** Подставляет дату УЛ из номера ТД, если дата ещё не сохранена. */
 export function normalizeUlSheetTdMeta<T extends {
   id?: string;
   tdNumber?: string | null;

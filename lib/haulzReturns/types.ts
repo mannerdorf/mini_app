@@ -31,7 +31,7 @@ export type HaulzSheet = {
   carrierId?: string | null;
   /** Номер таможенной декларации (ТД) для документов */
   tdNumber?: string | null;
-  /** Дата ТД (DD.MM.YYYY), парсится из номера или задаётся вручную */
+  /** Дата УЛ (DD.MM.YYYY), парсится из номера ТД или задаётся вручную */
   tdDate?: string | null;
 };
 

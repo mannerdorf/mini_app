@@ -1,5 +1,6 @@
 import type { HaulzSheet, HaulzSheetRow } from "./types.js";
 import { itogControlKey } from "./itogRowKeys.js";
+import { stopColumnValue } from "./validators.js";
 
 export type UlTotals = {
   weight: number;
@@ -242,15 +243,25 @@ export function removeItogRow(sheet: HaulzSheet, rowId: string): HaulzSheet {
   return { ...sheet, rows: appendItogSummaryRow(dataRows) };
 }
 
-export function isItogStopRow(row: HaulzSheetRow): boolean {
+export function isItogStopRow(row: HaulzSheetRow, stopRows: HaulzSheetRow[] = []): boolean {
   if (isSummaryRow(row)) return false;
-  return String(row.stop ?? "").trim().toUpperCase() === "STOP";
+  if (String(row.stop ?? "").trim().toUpperCase() === "STOP") return true;
+  const ulData = String(row.ulData ?? "").trim();
+  if (!ulData || stopRows.length === 0) return false;
+  return stopColumnValue(ulData, stopRows) === "STOP";
 }
 
-export function removeItogStopRows(sheet: HaulzSheet): { sheet: HaulzSheet; removed: number } {
+export function countItogStopRows(rows: HaulzSheetRow[], stopRows: HaulzSheetRow[] = []): number {
+  return stripSummaryRows(rows).filter((r) => isItogStopRow(r, stopRows)).length;
+}
+
+export function removeItogStopRows(
+  sheet: HaulzSheet,
+  stopRows: HaulzSheetRow[] = [],
+): { sheet: HaulzSheet; removed: number } {
   if (sheet.id !== "itog") return { sheet, removed: 0 };
   const dataRows = stripSummaryRows(sheet.rows);
-  const kept = dataRows.filter((r) => !isItogStopRow(r));
+  const kept = dataRows.filter((r) => !isItogStopRow(r, stopRows));
   const removed = dataRows.length - kept.length;
   return {
     sheet: { ...sheet, rows: appendItogSummaryRow(kept) },

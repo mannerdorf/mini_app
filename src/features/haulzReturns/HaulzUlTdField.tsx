@@ -131,7 +131,7 @@ export function HaulzUlTdField({ sheetId, ulNumber, tdNumber, tdDate, onChange, 
           />
         </label>
         <label className="hr-td-field__cell">
-          <span className="hr-td-field__cell-label">Дата ТД</span>
+          <span className="hr-td-field__cell-label">Дата УЛ</span>
           <input
             type="date"
             className="hr-td-field__input hr-td-field__input--date"
@@ -146,7 +146,7 @@ export function HaulzUlTdField({ sheetId, ulNumber, tdNumber, tdDate, onChange, 
         </label>
       </div>
       <Typography.Body style={{ color: "var(--color-text-secondary)", fontSize: "0.8rem", marginTop: "0.35rem" }}>
-        Дата подставляется из номера ТД (сегмент DDMMYY). Для спецификации и листа списания сохраняется полный номер.
+        Дата УЛ подставляется из номера ТД (сегмент DDMMYY). Для спецификации и листа списания сохраняется полный номер.
       </Typography.Body>
     </div>
   );

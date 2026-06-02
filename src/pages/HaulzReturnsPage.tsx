@@ -31,6 +31,7 @@ import {
   downloadBlob,
   exportSheetToExcel,
   countSheetDataRows,
+  countItogStopRowsInWorkbook,
   collectUlNumbersInItog,
   isUlTabInItog,
   itogRowsNeedingTranslation,
@@ -686,17 +687,26 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
   }, [auth, workbook, jobId, runItogTranslation]);
 
   const handleRemoveItogStopRows = useCallback(() => {
-    if (!workbook) return;
+    const current = workbookRef.current;
+    if (!current) return;
     void (async () => {
-      const { workbook: next, removed } = removeItogStopRowsFromWorkbook(workbook);
+      setProcessing(true);
+      const { workbook: next, removed } = removeItogStopRowsFromWorkbook(current);
       if (removed === 0) {
-        setError("STOP строки не найдены");
+        setError("STOP строки не найдены — в колонке STOP должно быть значение STOP");
+        setProcessing(false);
         return;
       }
       setError(null);
-      await commitWorkbook(next);
+      try {
+        await commitWorkbook(next);
+      } catch (e: unknown) {
+        setError((e as Error)?.message || "Ошибка удаления STOP строк");
+      } finally {
+        setProcessing(false);
+      }
     })();
-  }, [workbook, commitWorkbook]);
+  }, [commitWorkbook]);
 
   const handleRemoveKgdDuplicates = useCallback(() => {
     if (!workbook) return;
@@ -907,6 +917,11 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
     Boolean(auth) && Boolean(jobId) && (ulPrio1.length > 0 || ulPrio2.length > 0) && !processing;
 
   const activeDataRowCount = activeSheet ? countSheetDataRows(activeSheet) : 0;
+
+  const itogStopRowCount = useMemo(() => {
+    if (!workbook) return 0;
+    return countItogStopRowsInWorkbook(workbook);
+  }, [workbook]);
 
   const itogPendingTranslateCount = useMemo(() => {
     if (!workbook) return 0;
@@ -1217,10 +1232,10 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
                 <Button
                   type="button"
                   className="filter-button"
-                  disabled={saving || translating}
+                  disabled={saving || translating || processing || itogStopRowCount === 0}
                   onClick={handleRemoveItogStopRows}
                 >
-                  Удалить STOP строки
+                  {itogStopRowCount > 0 ? `Удалить STOP (${itogStopRowCount})` : "Удалить STOP строки"}
                 </Button>
               </>
             ) : null}
