@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { Button, Typography } from "@maxhub/max-ui";
 import type { AuthData } from "../../types";
-import type { HaulzCarrier, HaulzWorkbook, PreviewColumn, TdDraft } from "../../lib/haulzReturns";
+import type { HaulzCarrier, HaulzWorkbook, TdDraft } from "../../lib/haulzReturns";
 import {
   buildWriteoffInputs,
   isHolzCarrier,
@@ -12,9 +12,13 @@ import {
   specificationPreviewRows,
   SPEC_EDITABLE_KEYS,
   SPEC_PREVIEW_COLUMNS,
+  computeProformaTotals,
+  syncTitleDateFromFts,
   WRITEOFF_PREVIEW_COLUMNS,
 } from "../../lib/haulzReturns";
 import { downloadTdBlob, exportTdDocument } from "../../api/client/haulzReturnsTd";
+import { HaulzTdDraftField } from "./HaulzTdDraftField";
+import { HaulzTdPreviewTable } from "./HaulzTdPreviewTable";
 
 type TabId = "specification" | "proforma" | "writeoff" | "poruchenie";
 
@@ -81,15 +85,35 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
 
   const specPreview = useMemo(() => specificationPreviewRows(fixRows), [fixRows]);
   const proformaPreview = useMemo(() => proformaPreviewRows(fixRows), [fixRows]);
+  const proformaSummary = useMemo(() => {
+    if (fixRows.length === 0) return undefined;
+    const totals = computeProformaTotals(fixRows);
+    return {
+      num: "",
+      id: "",
+      parcel: "",
+      name: `Итого: грузовых мест ${totals.places}`,
+      qty: totals.qty,
+      weight: totals.weight,
+      cost: totals.cost,
+    };
+  }, [fixRows]);
 
   const activeWriteoff = writeoffSheets.find((s) => s.ulNumber === activeWriteoffUl) ?? writeoffSheets[0];
 
   const updateSpecField = useCallback(
     (key: string, value: string) => {
+      let specification = { ...specDraft, [key]: value };
+      if (key === "fts") {
+        specification = {
+          ...specification,
+          title: syncTitleDateFromFts(specDraft.title ?? "", value),
+        };
+      }
       void onDraftChange({
         ...prepared?.draft,
         ...workbook.tdDraft,
-        specification: { ...specDraft, [key]: value },
+        specification,
       });
     },
     [onDraftChange, prepared?.draft, specDraft, workbook.tdDraft],
@@ -97,10 +121,17 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
 
   const updateProformaField = useCallback(
     (key: string, value: string) => {
+      let proforma = { ...proformaDraft, [key]: value };
+      if (key === "fts") {
+        proforma = {
+          ...proforma,
+          title: syncTitleDateFromFts(proformaDraft.title ?? "", value),
+        };
+      }
       void onDraftChange({
         ...prepared?.draft,
         ...workbook.tdDraft,
-        proforma: { ...proformaDraft, [key]: value },
+        proforma,
       });
     },
     [onDraftChange, prepared?.draft, proformaDraft, workbook.tdDraft],
@@ -114,7 +145,7 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
     setExporting(true);
     try {
       const draft = { ...prepared.draft, ...workbook.tdDraft };
-      const { blob, fileName } = await exportTdDocument(auth, jobId, docType, draft);
+      const { blob, fileName } = await exportTdDocument(auth, jobId, docType, draft, prepared);
       downloadTdBlob(blob, fileName);
     } catch (e: unknown) {
       onError?.((e as Error)?.message || "Ошибка выгрузки");
@@ -172,22 +203,17 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
               </Typography.Body>
               <div className="hr-customs-form">
                 {SPEC_EDITABLE_KEYS.map((key) => (
-                  <label key={key} className="hr-customs-form__field">
-                    <span>{SPEC_LABELS[key] ?? key}</span>
-                    <input
-                      type="text"
-                      value={specDraft[key] ?? ""}
-                      onChange={(e) => updateSpecField(key, e.target.value)}
-                    />
-                  </label>
+                  <HaulzTdDraftField
+                    key={key}
+                    fieldKey={key}
+                    label={SPEC_LABELS[key] ?? key}
+                    value={specDraft[key] ?? ""}
+                    ftsValue={key === "title" ? specDraft.fts : undefined}
+                    onChange={(v) => updateSpecField(key, v)}
+                  />
                 ))}
               </div>
-              <PreviewTable columns={SPEC_PREVIEW_COLUMNS} rows={specPreview.slice(0, 50)} />
-              {specPreview.length > 50 ? (
-                <Typography.Body style={{ color: "var(--color-text-secondary)", fontSize: "0.8rem" }}>
-                  Показаны первые 50 из {specPreview.length} строк
-                </Typography.Body>
-              ) : null}
+              <HaulzTdPreviewTable tableId="td-spec" columns={SPEC_PREVIEW_COLUMNS} rows={specPreview} />
             </div>
           ) : null}
 
@@ -198,17 +224,22 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
               </Typography.Body>
               <div className="hr-customs-form">
                 {Object.keys(proformaDraft).map((key) => (
-                  <label key={key} className="hr-customs-form__field">
-                    <span>{SPEC_LABELS[key] ?? key}</span>
-                    <input
-                      type="text"
-                      value={proformaDraft[key] ?? ""}
-                      onChange={(e) => updateProformaField(key, e.target.value)}
-                    />
-                  </label>
+                  <HaulzTdDraftField
+                    key={key}
+                    fieldKey={key}
+                    label={SPEC_LABELS[key] ?? key}
+                    value={proformaDraft[key] ?? ""}
+                    ftsValue={key === "title" ? proformaDraft.fts : undefined}
+                    onChange={(v) => updateProformaField(key, v)}
+                  />
                 ))}
               </div>
-              <PreviewTable columns={PROFORMA_PREVIEW_COLUMNS} rows={proformaPreview.slice(0, 50)} />
+              <HaulzTdPreviewTable
+                tableId="td-proforma"
+                columns={PROFORMA_PREVIEW_COLUMNS}
+                rows={proformaPreview}
+                summaryRow={proformaSummary}
+              />
             </div>
           ) : null}
 
@@ -231,9 +262,10 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
                     ))}
                   </div>
                   {activeWriteoff ? (
-                    <PreviewTable
+                    <HaulzTdPreviewTable
+                      tableId={`td-writeoff-${activeWriteoff.ulNumber}`}
                       columns={WRITEOFF_PREVIEW_COLUMNS}
-                      rows={activeWriteoff.rows.slice(0, 50)}
+                      rows={activeWriteoff.rows}
                     />
                   ) : null}
                 </>
@@ -261,34 +293,6 @@ export function HaulzCustomsPanel({ auth, jobId, workbook, carriers, open, onDra
           ) : null}
         </>
       ) : null}
-    </div>
-  );
-}
-
-function PreviewTable({ columns, rows }: { columns: PreviewColumn[]; rows: Record<string, unknown>[] }) {
-  if (rows.length === 0) {
-    return <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет данных</Typography.Body>;
-  }
-  return (
-    <div className="hr-table-wrap" style={{ maxHeight: "320px", marginTop: "0.75rem" }}>
-      <table className="hr-table">
-        <thead>
-          <tr className="hr-table__header-row">
-            {columns.map((col) => (
-              <th key={col.key}>{col.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={i}>
-              {columns.map((col) => (
-                <td key={col.key}>{String(row[col.key] ?? "")}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }

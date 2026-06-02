@@ -32,6 +32,7 @@ export const PROFORMA_TEMPLATE = {
     row3Col5: { row: 3, col: 5, key: "zpu" },
     row4Col5: { row: 4, col: 5, key: "fts" },
     row5Title: { row: 5, col: 1, key: "title" },
+    row5Td: { row: 5, col: 5, key: "headerTd" },
   },
   tableHeaderRow: 10,
   dataStartRow: 11,
@@ -89,7 +90,6 @@ export const SPEC_PREVIEW_COLUMNS: PreviewColumn[] = [
   { key: "weight", label: "Вес" },
   { key: "cost", label: "Стоимость" },
   { key: "tdNumber", label: "Номер ТД" },
-  { key: "ul", label: "УЛ" },
 ];
 
 export const PROFORMA_PREVIEW_COLUMNS: PreviewColumn[] = [
@@ -100,7 +100,6 @@ export const PROFORMA_PREVIEW_COLUMNS: PreviewColumn[] = [
   { key: "qty", label: "Кол-во" },
   { key: "weight", label: "Вес" },
   { key: "cost", label: "Стоимость" },
-  { key: "ul", label: "УЛ" },
 ];
 
 export const WRITEOFF_PREVIEW_COLUMNS: PreviewColumn[] = [

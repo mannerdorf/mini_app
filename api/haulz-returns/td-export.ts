@@ -7,7 +7,7 @@ import {
   resolveHaulzReturnsAccess,
 } from "../_haulzReturns.js";
 import { carrierFromDbRow } from "../../lib/haulzReturns/carriers.js";
-import type { TdDocType, TdDraft } from "../../lib/haulzReturns/tdDocuments/index.js";
+import type { TdDocType, TdDraft, TdPrepared } from "../../lib/haulzReturns/tdDocuments/index.js";
 import { loadLatestWorkbook } from "../../lib/haulzReturns/workbookStorage.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -25,6 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const jobId = Number(req.body?.jobId);
   const docType = String(req.body?.docType ?? "all") as TdDocType;
   const draft = req.body?.draft as TdDraft | undefined;
+  const bodyPrepared = req.body?.tdPrepared as TdPrepared | undefined;
 
   if (!Number.isFinite(jobId) || jobId <= 0) {
     return res.status(400).json({ error: "Укажите jobId", request_id: ctx.requestId });
@@ -68,26 +69,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       for (const row of rows) carriersById.set(row.id, carrierFromDbRow(row));
     }
 
+    const tdPrepared = bodyPrepared ?? workbook.tdPrepared;
+
     const ctxExport = {
-      workbook: { ...workbook, tdDraft: draft ?? workbook.tdDraft, tdPrepared: workbook.tdPrepared },
+      workbook: { ...workbook, tdDraft: draft ?? workbook.tdDraft, tdPrepared },
       carriersById,
-      draft: draft ?? workbook.tdDraft ?? workbook.tdPrepared?.draft,
+      draft: draft ?? workbook.tdDraft ?? tdPrepared?.draft,
     };
 
     if (docType === "all") {
-      const zip = await exportTdZip(ctxExport, workbook.tdPrepared);
+      const zip = await exportTdZip(ctxExport, tdPrepared);
       res.setHeader("Content-Type", "application/zip");
-      res.setHeader("Content-Disposition", 'attachment; filename="ТД-документы.zip"');
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="TD-documents.zip"; filename*=UTF-8''${encodeURIComponent("ТД-документы.zip")}`,
+      );
       return res.status(200).send(zip);
     }
 
-    const files = await exportTdDocuments(ctxExport, docType, workbook.tdPrepared);
+    const files = await exportTdDocuments(ctxExport, docType, tdPrepared);
     if (files.length === 0) {
-      return res.status(404).json({ error: "Нет документов для выгрузки", request_id: ctx.requestId });
+      const emptyMsg =
+        docType === "poruchenie"
+          ? "Нет поручений — перевозчик на всех УЛ «Холз» или не выбран"
+          : "Нет документов для выгрузки";
+      return res.status(404).json({ error: emptyMsg, request_id: ctx.requestId });
     }
+
+    if (docType === "poruchenie" && files.length > 1) {
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      for (const f of files) zip.file(f.name, f.buffer);
+      const zipBuf = await zip.generateAsync({ type: "nodebuffer" });
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="Porucheniya.zip"; filename*=UTF-8''${encodeURIComponent("Поручения.zip")}`,
+      );
+      return res.status(200).send(zipBuf);
+    }
+
     const file = files[0]!;
+    const asciiName = file.name.replace(/[^\x20-\x7E]/g, "_") || "document.xlsx";
     res.setHeader("Content-Type", file.mime);
-    res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(file.name)}"`);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+    );
     return res.status(200).send(file.buffer);
   } catch (e) {
     logError(ctx, "haulz_returns_td_export_failed", e);

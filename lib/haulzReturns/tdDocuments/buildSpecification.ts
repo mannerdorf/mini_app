@@ -7,6 +7,7 @@ import {
   setCellValue,
   workbookToBuffer,
 } from "./excelUtils.js";
+import { normalizeSpecificationDraft } from "./draftDateFields.js";
 
 export type { SpecificationDraft } from "./types.js";
 export { defaultSpecificationDraft } from "./defaults.js";
@@ -23,7 +24,7 @@ function applyHeader(sheet: import("exceljs").Worksheet, draft: SpecificationDra
 
 function fillDataRows(sheet: import("exceljs").Worksheet, rows: FixTdRow[]) {
   const { dataStartRow, dataCols } = SPEC_TEMPLATE;
-  clearRowsFrom(sheet, dataStartRow, 11);
+  clearRowsFrom(sheet, dataStartRow, 8);
   rows.forEach((row, i) => {
     const r = dataStartRow + i;
     setCellValue(sheet, r, dataCols.num, row.num);
@@ -34,8 +35,6 @@ function fillDataRows(sheet: import("exceljs").Worksheet, rows: FixTdRow[]) {
     setCellValue(sheet, r, dataCols.weight, row.weight);
     setCellValue(sheet, r, dataCols.cost, row.cost);
     setCellValue(sheet, r, dataCols.tdNumber, row.tdNumber);
-    setCellValue(sheet, r, 10, row.seal);
-    setCellValue(sheet, r, 11, row.ul);
   });
 }
 
@@ -43,10 +42,11 @@ export async function buildSpecificationBuffer(
   rows: FixTdRow[],
   draft: SpecificationDraft,
 ): Promise<Buffer> {
+  const normalized = normalizeSpecificationDraft(draft);
   const wb = await loadTemplateWorkbook("specification.xlsx");
   const sheet = wb.worksheets[0];
   if (!sheet) throw new Error("Шаблон спецификации пуст");
-  applyHeader(sheet, draft);
+  applyHeader(sheet, normalized);
   fillDataRows(sheet, rows);
   return workbookToBuffer(wb);
 }

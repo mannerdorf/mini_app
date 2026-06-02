@@ -14,6 +14,7 @@ import {
   poruchenieInputs,
 } from "./preview.js";
 import { firstHeaderTd } from "./prepareTd.js";
+import { normalizeProformaDraft, normalizeSpecificationDraft } from "./draftDateFields.js";
 import type { TdDocType, TdDraft, TdExportContext, TdExportFile, TdPrepared, WriteoffSheetInput } from "./types.js";
 
 export type {
@@ -67,8 +68,13 @@ export async function exportTdDocuments(
 
   const draft: TdDraft = { ...snapshot.draft, ...ctx.draft };
   const fixRows = snapshot.fixRows;
-  const specDraft = draft.specification ?? defaultSpecificationDraft(firstHeaderTd(ctx.workbook));
-  const proformaDraft = draft.proforma ?? defaultProformaDraft();
+  const specDraft = normalizeSpecificationDraft({
+    ...(draft.specification ?? {}),
+  } as Record<string, string>);
+  const proformaDraft = normalizeProformaDraft({
+    ...(draft.proforma ?? {}),
+  } as Record<string, string>);
+  const headerTd = specDraft.headerTd ?? "";
   const files: TdExportFile[] = [];
   const want = (t: TdDocType) => docType === "all" || docType === t;
 
@@ -82,7 +88,7 @@ export async function exportTdDocuments(
   if (want("proforma")) {
     files.push({
       name: "Проформа.xlsx",
-      buffer: await buildProformaBuffer(fixRows, proformaDraft),
+      buffer: await buildProformaBuffer(fixRows, proformaDraft, headerTd),
       mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
   }
@@ -104,7 +110,7 @@ export async function exportTdDocuments(
     };
     for (const input of poruchenieInputs(exportCtx)) {
       files.push({
-        name: poruchenieFileName(input.ulNumber),
+        name: poruchenieFileName(input),
         buffer: await buildPoruchenieBuffer(input),
         mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       });

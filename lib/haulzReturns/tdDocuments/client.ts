@@ -2,6 +2,18 @@ export type { TdDraft, TdDocType, TdPrepared, SpecificationDraft, ProformaDraft 
 export { collectFixRows, validateTdPrep, type FixTdRow, type UlWriteoffRow } from "./collectTdRows.js";
 export { buildTdPrepared } from "./prepareTd.js";
 export {
+  isTdDraftDateField,
+  splitDraftDateField,
+  joinDraftDateField,
+  ruDateToIso,
+  isoDateToRu,
+  replaceDraftRuDate,
+  syncTitleDateFromFts,
+  normalizeSpecificationDraft,
+  normalizeProformaDraft,
+  computeProformaTotals,
+} from "./draftDateFields.js";
+export {
   buildWriteoffInputs,
   poruchenieInputs,
   specificationPreviewRows,

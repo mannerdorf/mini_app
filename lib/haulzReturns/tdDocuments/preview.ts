@@ -40,8 +40,6 @@ export function proformaPreviewRows(rows: FixTdRow[]) {
     qty: r.qty,
     weight: r.weight,
     cost: r.cost,
-    ul: r.ul,
-    line: r.line,
   }));
 }
 

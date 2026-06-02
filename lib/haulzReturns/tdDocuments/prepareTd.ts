@@ -2,6 +2,7 @@ import type { HaulzCarrier } from "../carriers.js";
 import type { HaulzWorkbook } from "../types.js";
 import { collectFixRows, ulSheetsWithInItog, validateTdPrep } from "./collectTdRows.js";
 import { defaultProformaDraft, defaultSpecificationDraft } from "./defaults.js";
+import { normalizeProformaDraft, normalizeSpecificationDraft } from "./draftDateFields.js";
 import { buildWriteoffInputs } from "./preview.js";
 import type { TdDraft, TdPrepared } from "./types.js";
 
@@ -22,8 +23,8 @@ export function buildTdPrepared(
 
   const headerTd = firstHeaderTd(workbook);
   const draft: TdDraft = {
-    specification: defaultSpecificationDraft(headerTd),
-    proforma: defaultProformaDraft(),
+    specification: normalizeSpecificationDraft(defaultSpecificationDraft(headerTd)),
+    proforma: normalizeProformaDraft(defaultProformaDraft()),
   };
 
   const fixRows = collectFixRows(workbook);

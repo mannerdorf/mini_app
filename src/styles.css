@@ -9174,6 +9174,49 @@ button.unpaid-plan-monitor:hover {
     font-size: 0.85rem;
     background: var(--color-bg, #fff);
 }
+.hr-td-date-field {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.5rem;
+}
+.hr-td-date-field__prefix,
+.hr-td-date-field__suffix {
+    color: var(--color-text-secondary, #666);
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+}
+.hr-td-date-field--fts {
+    width: 100%;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 8px;
+    background: var(--color-bg, #fff);
+}
+.hr-td-date-field__fts-num {
+    font-size: 0.85rem;
+    color: var(--color-text-primary, #111);
+}
+.hr-td-date-field__ot {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary, #666);
+    margin: 0 0.15rem;
+}
+.hr-td-date-field__hint {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.75rem;
+    color: var(--color-text-secondary, #666);
+}
+.hr-td-date-field__picker {
+    min-width: 10.5rem;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    background: var(--color-bg, #fff);
+    color: var(--color-text-primary, #111);
+}
 .hr-customs-list {
     margin: 0;
     padding-left: 1.1rem;

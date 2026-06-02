@@ -1,5 +1,5 @@
 import type { AuthData } from "../../types";
-import type { TdDocType, TdDraft } from "../../../lib/haulzReturns/tdDocuments/index";
+import type { TdDocType, TdDraft, TdPrepared } from "../../../lib/haulzReturns/tdDocuments/index";
 
 function authHeaders(auth: AuthData): Record<string, string> {
   return {
@@ -14,11 +14,12 @@ export async function exportTdDocument(
   jobId: string,
   docType: TdDocType,
   draft?: TdDraft,
+  tdPrepared?: TdPrepared,
 ): Promise<{ blob: Blob; fileName: string }> {
   const res = await fetch("/api/haulz-returns/td-export", {
     method: "POST",
     headers: authHeaders(auth),
-    body: JSON.stringify({ jobId, docType, draft }),
+    body: JSON.stringify({ jobId, docType, draft, tdPrepared }),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -26,8 +27,22 @@ export async function exportTdDocument(
   }
   const blob = await res.blob();
   const cd = res.headers.get("Content-Disposition") ?? "";
-  const match = /filename="([^"]+)"/.exec(cd);
-  const fileName = match?.[1] ? decodeURIComponent(match[1]) : docType === "all" ? "ТД-документы.zip" : `${docType}.xlsx`;
+  const match = /filename\*=UTF-8''([^;]+)|filename="([^"]+)"/i.exec(cd);
+  const fileName = match?.[1]
+    ? decodeURIComponent(match[1])
+    : match?.[2]
+      ? decodeURIComponent(match[2])
+      : docType === "all"
+        ? "TD-documents.zip"
+        : docType === "proforma"
+          ? "Proforma.xlsx"
+          : docType === "specification"
+            ? "Specification.xlsx"
+            : docType === "poruchenie"
+              ? "Poruchenie.docx"
+              : docType === "writeoff"
+                ? "Writeoff.xlsx"
+                : `${docType}.xlsx`;
   return { blob, fileName };
 }
 

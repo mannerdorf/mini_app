@@ -14,6 +14,7 @@ import { mergeWorkbookOnReprocess } from "./mergeWorkbookOnReprocess";
 import { itogValidationFromRow } from "./validators";
 import { parseCarrierInput, formatCarrierCard } from "./carriers";
 import { collectFixRows, isHolzCarrier, validateTdPrep, buildTdPrepared } from "./tdDocuments/index.js";
+import { replaceDraftRuDate, splitDraftDateField, syncTitleDateFromFts, computeProformaTotals } from "./tdDocuments/draftDateFields.js";
 import { workbookForApi, workbookForApiWithinBudget } from "./workbookApi";
 import { parseTranslationsJson } from "./openaiTranslate";
 import {
@@ -745,6 +746,40 @@ describe("tdDocuments", () => {
     expect(collectFixRows(wb)[0]!.tdNumber).toBe("TD-001");
   });
 
+  it("splitDraftDateField parses and replaces embedded ru dates", () => {
+    const exportPermit = "ВЫВОЗ РАЗРЕШЕН      02.06.2026";
+    expect(splitDraftDateField("exportPermit", exportPermit).date).toBe("02.06.2026");
+    expect(replaceDraftRuDate("exportPermit", exportPermit, "15.03.2026")).toContain("15.03.2026");
+
+    const fts = "02 ФТС № от 02.06.2026";
+    expect(splitDraftDateField("fts", fts).date).toBe("02.06.2026");
+    expect(replaceDraftRuDate("fts", fts, "15.03.2026")).toBe("02 ФТС № от 15.03.2026");
+
+    const title = "Спецификация №1 от 02.06.2026 к CMR";
+    expect(splitDraftDateField("title", title).date).toBe("02.06.2026");
+    expect(replaceDraftRuDate("title", title, "15.03.2026")).toBe("Спецификация №1 от 15.03.2026 к CMR");
+  });
+
+  it("syncTitleDateFromFts copies fts date into title", () => {
+    const fts = "02 ФТС № от 15.03.2026";
+    const title = "Спецификация №1 от 02.06.2026 к CMR";
+    expect(syncTitleDateFromFts(title, fts)).toBe("Спецификация №1 от 15.03.2026 к CMR");
+  });
+
+  it("computeProformaTotals sums qty/weight/cost and counts unique UL as places", () => {
+    const rows = [
+      { ul: "232", qty: 2, weight: "0,397", cost: "7 990,00" },
+      { ul: "232", qty: 1, weight: 1.427, cost: 650 },
+      { ul: "233", qty: 1, weight: "0,199", cost: "1 495,00" },
+    ] as import("./tdDocuments/collectTdRows.js").FixTdRow[];
+    expect(computeProformaTotals(rows)).toEqual({
+      places: 2,
+      qty: 4,
+      weight: 2.023,
+      cost: 10135,
+    });
+  });
+
   it("buildTdPrepared stores fix rows and draft", () => {
     const wb = {
       sheets: [
@@ -769,6 +804,8 @@ describe("tdDocuments", () => {
     expect(prepared.fixRows).toHaveLength(1);
     expect(prepared.fixRows[0]!.tdNumber).toBe("TD-232");
     expect(prepared.draft.specification?.headerTd).toBe("TD-232");
+    expect(prepared.draft.specification?.fts).toContain("от");
+    expect(prepared.draft.specification?.title).toContain("от");
     expect(prepared.writeoffs).toHaveLength(1);
   });
 
@@ -793,5 +830,64 @@ describe("tdDocuments", () => {
     expect(validateTdPrep(wb).some((e) => e.includes("FIX"))).toBe(true);
     wb.sheets.push({ id: "fix", name: "FIX", columns: [], rows: [{ ul: "02612691", line: "1" }] });
     expect(validateTdPrep(wb).some((e) => e.includes("ТД"))).toBe(true);
+  });
+
+  it("poruchenieFileName matches template naming", async () => {
+    const { poruchenieFileName, carrierShortLabel } = await import("./tdDocuments/buildPoruchenie.js");
+    expect(carrierShortLabel('ООО «Геологистика»')).toBe("Гео");
+    expect(
+      poruchenieFileName({
+        ulNumber: "02612691",
+        writeoffNumber: 6,
+        carrier: { id: "1", name: 'ООО «Геологистика»', legalAddress: "", inn: "", kpp: "", loadingAddress: "", unloadingAddress: "", createdAt: "", updatedAt: "" },
+      }),
+    ).toBe("02612691_Поручение_Агенту_Холз_Гео_6.docx");
+  });
+
+  it("buildPoruchenieBuffer fills template table rows", async () => {
+    const { buildPoruchenieBuffer } = await import("./tdDocuments/buildPoruchenie.js");
+    const PizZip = (await import("pizzip")).default;
+    const buf = await buildPoruchenieBuffer({
+      ulNumber: "02612691",
+      writeoffNumber: 6,
+      tdNumber: "10229010/280426/0113288",
+      date: "31.05.2026",
+      carrier: {
+        id: "1",
+        name: "ООО «Геологистика»",
+        legalAddress: "Москва",
+        inn: "123",
+        kpp: "456",
+        loadingAddress: "",
+        unloadingAddress: "",
+        createdAt: "",
+        updatedAt: "",
+      },
+      rows: [
+        {
+          num: 1,
+          ulNumber: "02612691",
+          rowNum: "5",
+          line: "5",
+          id: "GEOMR00-6947001",
+          parcel: "10000195020905",
+          airport: "KGD",
+          weight: "0,658",
+          volume: "0.1",
+          category: "<>",
+          name: "Test item",
+          qty: "1",
+          cost: "7996",
+        },
+      ],
+    });
+    expect(buf.length).toBeGreaterThan(1000);
+    const zip = new PizZip(buf);
+    const xml = zip.file("word/document.xml")?.asText() ?? "";
+    expect(xml).toContain("Test item");
+    expect(xml).toContain("GEOMR00-6947001");
+    expect(xml).not.toContain("GEOMR00-6946998");
+    const rowCount = (xml.match(/<w:tr[\s>]/g) ?? []).length;
+    expect(rowCount).toBe(2);
   });
 });
