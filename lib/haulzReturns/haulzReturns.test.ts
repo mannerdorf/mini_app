@@ -1062,7 +1062,7 @@ describe("tdDocuments", () => {
     expect(String(sheet.getCell(2, 4).value ?? sheet.getCell("D2").value ?? "")).toContain("15.03.2026");
     expect(String(sheet.getCell(4, 4).value ?? "")).toContain("15.03.2026");
     expect(String(sheet.getCell(5, 4).value ?? "")).toBe("10229010/280426/0113288");
-    expect(String(sheet.getCell(8, 1).value ?? "")).toContain("Счет-проформа");
+    expect(String(sheet.getCell(6, 4).value ?? "")).toContain("Счет-проформа");
     expect(sheet.getCell(5, 1).value).toBeNull();
   });
 
@@ -1088,35 +1088,53 @@ describe("tdDocuments", () => {
     expect(sheet.getColumn(1).width).toBe(4);
     expect(sheet.getColumn(2).width).toBe(11);
     expect(sheet.getColumn(5).width).toBe(5);
+    expect(sheet.model.merges).toContain("A7:G7");
+    expect(sheet.model.merges).toContain("A8:G8");
     expect(sheet.model.merges).toContain("A9:G9");
     expect(sheet.model.merges).toContain("A10:G10");
-    expect(sheet.model.merges).toContain("A11:G11");
-    expect(sheet.model.merges).toContain("A12:G12");
-    expect(sheet.model.merges).toContain("A8:C8");
-    expect(sheet.model.merges).toContain("A5:C5");
+    expect(sheet.model.merges).toContain("A1:C5");
+    expect(sheet.model.merges).toContain("A6:C6");
     expect(sheet.model.merges).toContain("D5:G5");
+    expect(sheet.model.merges).toContain("D6:G6");
     expect(sheet.model.merges).toContain("D1:G1");
     expect(sheet.getCell(1, 1).border?.top?.style).toBeFalsy();
-    expect(sheet.getCell(14, 1).border?.top?.style).toBe("thin");
-    expect(sheet.getCell(16, 7).border?.right?.style).toBe("thin");
-    expect(String(sheet.getCell(16, 4).value ?? "")).toContain("Итого");
-    expect(sheet.getCell(16, 5).value).toBe(1);
-    expect(sheet.getCell(16, 6).value).toBe(1);
-    expect(sheet.getCell(16, 7).value).toBe(1);
-    expect(sheet.getCell(16, 4).font?.bold).not.toBe(true);
-    expect(sheet.getCell(16, 6).numFmt).toBe("0.00");
-    expect(sheet.getCell(16, 7).numFmt).toBe("#,##0.00");
-    expect(sheet.getCell(16, 7).border?.bottom?.style).toBe("thin");
-    expect(String(sheet.getCell(8, 1).value ?? "")).toContain("Счет-проформа");
-    expect(String(sheet.getCell(9, 1).value ?? "")).toContain("ГРУЗООТПРАВИТЕЛЬ:");
-    expect(String(sheet.getCell(9, 1).value ?? "")).toContain("ИНН / КПП: 9706037094 / 770601001");
-    expect(String(sheet.getCell(10, 1).value ?? "")).toContain("Факт. адрес загрузки:");
-    expect(String(sheet.getCell(10, 1).value ?? "")).toContain("Калининград");
-    expect(String(sheet.getCell(11, 1).value ?? "")).toMatch(/^ГРУЗОПОЛУЧАТЕЛЬ: /);
-    expect(String(sheet.getCell(12, 1).value ?? "")).toContain("Факт. адрес выгрузки:");
-    expect(String(sheet.getCell(12, 1).value ?? "")).toContain("Вавилова");
-    expect(sheet.rowCount).toBe(16);
-    expect(sheet.dimensions?.model?.bottom).toBe(16);
+    expect(sheet.getCell(12, 1).border?.top?.style).toBe("thin");
+    expect(sheet.getCell(14, 7).border?.right?.style).toBe("thin");
+    expect(String(sheet.getCell(14, 4).value ?? "")).toContain("Итого");
+    expect(sheet.getCell(14, 5).value).toBe(1);
+    expect(sheet.getCell(14, 6).value).toBe(1);
+    expect(sheet.getCell(14, 7).value).toBe(1);
+    expect(sheet.getCell(14, 4).font?.bold).not.toBe(true);
+    expect(sheet.getCell(14, 6).numFmt).toBe("0.00");
+    expect(sheet.getCell(14, 7).numFmt).toBe("#,##0.00");
+    expect(sheet.getCell(14, 7).border?.bottom?.style).toBe("thin");
+    expect(String(sheet.getCell(6, 4).value ?? "")).toContain("Счет-проформа");
+    expect(String(sheet.getCell(7, 1).value ?? "")).toContain("ГРУЗООТПРАВИТЕЛЬ:");
+    expect(String(sheet.getCell(7, 1).value ?? "")).toContain("ИНН / КПП: 9706037094 / 770601001");
+    expect(String(sheet.getCell(8, 1).value ?? "")).toContain("Факт. адрес загрузки:");
+    expect(String(sheet.getCell(8, 1).value ?? "")).toContain("Калининград");
+    expect(String(sheet.getCell(9, 1).value ?? "")).toMatch(/^ГРУЗОПОЛУЧАТЕЛЬ: /);
+    expect(String(sheet.getCell(10, 1).value ?? "")).toContain("Факт. адрес выгрузки:");
+    expect(String(sheet.getCell(10, 1).value ?? "")).toContain("Вавилова");
+    expect(sheet.getCell(13, 1).value).toBe(1);
+    expect(sheet.getCell(13, 2).value).toBe("ID1");
+    expect(sheet.rowCount).toBe(14);
+    expect(sheet.dimensions?.model?.bottom).toBe(14);
+  });
+
+  it("buildProformaBuffer numbers table rows 1..n regardless of source num", async () => {
+    const { buildProformaBuffer } = await import("./tdDocuments/buildProforma.js");
+    const ExcelJS = await import("exceljs");
+    const rows = [
+      { num: 40, ul: "1", line: "40", id: "A", parcel: "P1", name: "N1", qty: 1, weight: 1, cost: 1, tdNumber: "", seal: "" },
+      { num: 99, ul: "1", line: "99", id: "B", parcel: "P2", name: "N2", qty: 1, weight: 1, cost: 1, tdNumber: "", seal: "" },
+    ];
+    const buf = await buildProformaBuffer(rows, { title: "Счет-проформа №1" }, "");
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buf);
+    const sheet = wb.worksheets[0]!;
+    expect(sheet.getCell(13, 1).value).toBe(1);
+    expect(sheet.getCell(14, 1).value).toBe(2);
   });
 
   it("buildSpecificationBuffer merges header and clears borders", async () => {

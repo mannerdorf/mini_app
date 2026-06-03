@@ -45,8 +45,8 @@ export function specificationPreviewRows(rows: FixTdRow[]) {
 }
 
 export function proformaPreviewRows(rows: FixTdRow[]) {
-  return rows.map((r) => ({
-    num: r.num,
+  return rows.map((r, i) => ({
+    num: i + 1,
     id: r.id,
     parcel: r.parcel,
     name: r.name,

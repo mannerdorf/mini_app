@@ -81,7 +81,7 @@ function fillDataRows(
       if (fmt) sheet.getCell(r, c).numFmt = fmt;
     }
     const { dataCols } = PROFORMA_TEMPLATE;
-    setCellValue(sheet, r, dataCols.num, row.num);
+    setCellValue(sheet, r, dataCols.num, i + 1);
     setCellValue(sheet, r, dataCols.id, row.id);
     setCellValue(sheet, r, dataCols.parcel, row.parcel);
     setCellValue(sheet, r, dataCols.name, row.name);
