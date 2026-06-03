@@ -63,47 +63,30 @@ export function composeUlTdNumber(head: string, dateRu: string, tail: string): s
   return formatUlTdNumberWithoutDate(h, t);
 }
 
-/** Дата УЛ из номера ТД или сохранённого tdDate. */
-export function resolveUlTdDateRu(tdNumber: string | null | undefined, tdDate: string | null | undefined): string {
-  const stored = String(tdDate ?? "").trim();
-  if (stored) return stored;
-  return parseUlTdNumber(String(tdNumber ?? "")).dateRu;
+/** Дата УЛ — только сохранённое поле tdDate (не из сегмента номера ТД). */
+export function resolveUlTdDateRu(_tdNumber: string | null | undefined, tdDate: string | null | undefined): string {
+  return String(tdDate ?? "").trim();
 }
 
-/** Подставляет дату УЛ из номера ТД, если дата ещё не сохранена. */
+/** Нормализация метаданных УЛ: дата УЛ не выводится из номера ТД. */
 export function normalizeUlSheetTdMeta<T extends {
   id?: string;
   tdNumber?: string | null;
   tdDate?: string | null;
 }>(sheet: T): T {
-  if (!String(sheet.id ?? "").startsWith("ul-")) return sheet;
-  const stored = String(sheet.tdDate ?? "").trim();
-  if (stored) return sheet;
-  const inferred = parseUlTdNumber(String(sheet.tdNumber ?? "")).dateRu;
-  if (!inferred) return sheet;
-  return { ...sheet, tdDate: inferred };
+  return sheet;
 }
 
-export function workbookNeedsUlTdDateBackfill(workbook: {
+export function workbookNeedsUlTdDateBackfill(_workbook: {
   sheets: Array<{ id?: string; tdNumber?: string | null; tdDate?: string | null }>;
 }): boolean {
-  return workbook.sheets.some((s) => {
-    if (!String(s.id ?? "").startsWith("ul-")) return false;
-    if (String(s.tdDate ?? "").trim()) return false;
-    return Boolean(parseUlTdNumber(String(s.tdNumber ?? "")).dateRu);
-  });
+  return false;
 }
 
 export function normalizeWorkbookUlTdDates<T extends {
   sheets: Array<{ id?: string; tdNumber?: string | null; tdDate?: string | null }>;
 }>(workbook: T): T {
-  let changed = false;
-  const sheets = workbook.sheets.map((s) => {
-    const next = normalizeUlSheetTdMeta(s);
-    if (next !== s) changed = true;
-    return next;
-  });
-  return changed ? { ...workbook, sheets } : workbook;
+  return workbook;
 }
 
 /** Номер и дата УЛ для шапки листа списания. */

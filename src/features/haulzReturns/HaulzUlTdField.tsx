@@ -1,16 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Typography } from "@maxhub/max-ui";
 import {
-  composeUlTdNumber,
-  formatUlTdNumberWithoutDate,
-  parseUlTdNumber,
-  resolveUlTdDateRu,
-} from "../../../lib/haulzReturns/tdDocuments/parseUlTdNumber";
-import {
-  applyTdDateToTdNumberMask,
-  formatTdNumberMaskFromParsed,
+  formatTdNumberMask,
   formatTdNumberMaskInput,
   TD_NUMBER_MASK_PLACEHOLDER,
+  tdNumberDigitsOnly,
 } from "../../../lib/haulzReturns/tdDocuments/tdNumberMask";
 import { isoDateToRu, ruDateToIso } from "../../lib/haulzReturns";
 
@@ -36,24 +30,16 @@ type LocalState = {
 };
 
 function toLocal(ulNumber: string, tdNumber: string | null | undefined, tdDate: string | null | undefined): LocalState {
-  const parsed = parseUlTdNumber(String(tdNumber ?? ""));
-  const dateRu = resolveUlTdDateRu(tdNumber, tdDate);
-  const composed = composeUlTdNumber(parsed.head, dateRu, parsed.tail);
-  const number = composed
-    ? formatTdNumberMaskFromParsed(composed)
-    : formatTdNumberMaskFromParsed(formatUlTdNumberWithoutDate(parsed.head, parsed.tail));
+  const digits = tdNumberDigitsOnly(String(tdNumber ?? ""));
   return {
     ul: ulNumber,
-    number,
-    dateRu,
+    number: digits ? formatTdNumberMask(digits) : "",
+    dateRu: String(tdDate ?? "").trim(),
   };
 }
 
 function toPatch(local: LocalState): UlTdMetaPatch {
-  const parsed = parseUlTdNumber(local.number);
-  const head = parsed.head || local.number.trim();
-  const tail = parsed.tail;
-  const tdNumber = composeUlTdNumber(head, local.dateRu, tail);
+  const tdNumber = formatTdNumberMaskInput(local.number);
   const dateRu = local.dateRu.trim();
   return {
     ulNumber: local.ul.trim(),
@@ -78,13 +64,10 @@ export function HaulzUlTdField({ sheetId, ulNumber, tdNumber, tdDate, onChange, 
 
   const commit = useCallback(() => {
     const current = localRef.current;
-    const parsed = parseUlTdNumber(current.number);
     const normalized: LocalState = {
       ...current,
-      number: formatTdNumberMaskFromParsed(
-        composeUlTdNumber(parsed.head, current.dateRu.trim() || parsed.dateRu, parsed.tail),
-      ) || current.number,
-      dateRu: current.dateRu.trim() || parsed.dateRu,
+      number: formatTdNumberMaskInput(current.number),
+      dateRu: current.dateRu.trim(),
     };
     localRef.current = normalized;
     setLocal(normalized);
@@ -132,15 +115,7 @@ export function HaulzUlTdField({ sheetId, ulNumber, tdNumber, tdDate, onChange, 
             inputMode="numeric"
             value={local.number}
             disabled={disabled}
-            onChange={(e) => {
-              const masked = formatTdNumberMaskInput(e.target.value);
-              const parsed = parseUlTdNumber(masked);
-              setLocal((s) => ({
-                ...s,
-                number: masked,
-                dateRu: parsed.dateRu || s.dateRu,
-              }));
-            }}
+            onChange={(e) => setLocal((s) => ({ ...s, number: formatTdNumberMaskInput(e.target.value) }))}
             onBlur={commit}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -159,11 +134,7 @@ export function HaulzUlTdField({ sheetId, ulNumber, tdNumber, tdDate, onChange, 
             disabled={disabled}
             onChange={(e) => {
               const ru = isoDateToRu(e.target.value);
-              setLocal((s) => ({
-                ...s,
-                dateRu: ru ?? "",
-                number: ru ? applyTdDateToTdNumberMask(s.number, ru) : s.number,
-              }));
+              setLocal((s) => ({ ...s, dateRu: ru ?? "" }));
             }}
             onBlur={commit}
           />

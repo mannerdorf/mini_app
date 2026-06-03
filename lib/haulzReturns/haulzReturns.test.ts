@@ -1246,7 +1246,8 @@ describe("tdDocuments", () => {
     });
     expect(formatUlTdNumberWithoutDate(parsed.head, parsed.tail)).toBe("10229010/0113288");
     expect(composeUlTdNumber("10229010", "28.04.2026", "0113288")).toBe("10229010/280426/0113288");
-    expect(resolveUlTdDateRu("10229010/280426/0113288", null)).toBe("28.04.2026");
+    expect(resolveUlTdDateRu("10229010/280426/0113288", null)).toBe("");
+    expect(resolveUlTdDateRu("10229010/280426/0113288", "16.04.2026")).toBe("16.04.2026");
     expect(resolveUlTdDateRu("10229010/0113288", "15.03.2026")).toBe("15.03.2026");
   });
 
@@ -1262,7 +1263,7 @@ describe("tdDocuments", () => {
     expect(formatTdNumberMaskFromParsed("10229010/280426/0113288")).toBe("10229010/280426/0113288");
   });
 
-  it("normalizeWorkbookUlTdDates backfills tdDate from tdNumber on UL sheets", async () => {
+  it("normalizeWorkbookUlTdDates does not infer tdDate from tdNumber segment", async () => {
     const { normalizeWorkbookUlTdDates, workbookNeedsUlTdDateBackfill } = await import(
       "./tdDocuments/parseUlTdNumber.js"
     );
@@ -1280,10 +1281,9 @@ describe("tdDocuments", () => {
       itogControlKeys: new Set<string>(),
       excludedUlNumbers: new Set<string>(),
     };
-    expect(workbookNeedsUlTdDateBackfill(wb)).toBe(true);
+    expect(workbookNeedsUlTdDateBackfill(wb)).toBe(false);
     const normalized = normalizeWorkbookUlTdDates(wb);
-    expect(normalized.sheets[0]!.tdDate).toBe("28.04.2026");
-    expect(workbookNeedsUlTdDateBackfill(normalized)).toBe(false);
+    expect(normalized.sheets[0]!.tdDate).toBeNull();
   });
 
   it("mergeWorkbookPatch keeps carrierId and tdNumber on deferred UL patch", () => {
