@@ -57,10 +57,16 @@ export function itogRowTranslationLookupKeys(row: HaulzSheetRow): string[] {
 }
 
 export function ensureItogRowIds(rows: HaulzSheetRow[]): HaulzSheetRow[] {
+  const controlDup = new Map<string, number>();
   return stripSummaryRows(rows).map((row, idx) => {
     const control = itogControlKey(row);
     const existing = String(row._rowId ?? "").trim();
-    const stableId = stableItogRowId(row) || `itog:idx:${idx}`;
+    let stableId = stableItogRowId(row) || `itog:idx:${idx}`;
+    if (control && stableItogRowId(row)) {
+      const n = controlDup.get(control) ?? 0;
+      controlDup.set(control, n + 1);
+      if (n > 0) stableId = `${stableItogRowId(row)}#${n}`;
+    }
     const rowId = shouldMigrateRowId(existing, control) ? stableId : existing || stableId;
     if (existing === rowId && String(row.control ?? "").trim() === control) {
       return row;

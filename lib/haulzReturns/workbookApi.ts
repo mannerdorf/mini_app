@@ -1,4 +1,5 @@
 import type { HaulzSheet, HaulzWorkbook } from "./types.js";
+import { normalizeWorkbookColumns } from "./types.js";
 import type { TdDraft } from "./tdDocuments/index.js";
 import { mergeTdDraft, mergeWorkbookTdMeta } from "./tdMetaMerge.js";
 import { normalizeUlSheetTdMeta, normalizeWorkbookUlTdDates } from "./tdDocuments/parseUlTdNumber.js";
@@ -54,12 +55,14 @@ export function deserializeWorkbook(sheets: unknown, keys: unknown): HaulzWorkbo
     | { tdDraft?: TdDraft; tdPrepared?: import("./tdDocuments/types.js").TdPrepared }
     | undefined;
   const filteredSheets = list.filter((s) => normalizeSheetId(s) !== WORKBOOK_META_SHEET_ID);
-  return normalizeWorkbookUlTdDates({
-    sheets: filteredSheets,
-    ...keysMeta,
-    tdDraft: metaSheet?.tdDraft,
-    tdPrepared: metaSheet?.tdPrepared,
-  });
+  return normalizeWorkbookColumns(
+    normalizeWorkbookUlTdDates({
+      sheets: filteredSheets,
+      ...keysMeta,
+      tdDraft: metaSheet?.tdDraft,
+      tdPrepared: metaSheet?.tdPrepared,
+    }),
+  );
 }
 
 /** Убирает строки УЛ из JSON-ответа API (лимит Vercel ~4.5 МБ). */

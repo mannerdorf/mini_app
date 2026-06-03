@@ -57,22 +57,20 @@ export function applyColumnFilters(
   filters: Record<string, Set<string> | null | undefined>,
   sheetId?: string,
 ): HaulzSheetRow[] {
-  const summaryRows = rows.filter(isSummaryRow);
   const dataRows = rows.filter((r) => !isSummaryRow(r));
 
   const active = columns.filter((col) => {
     const allowed = filters[col.key];
     return allowed != null;
   });
-  if (active.length === 0) return rows;
+  if (active.length === 0) return dataRows;
 
-  const filtered = dataRows.filter((row) =>
+  return dataRows.filter((row) =>
     active.every((col) => {
       const allowed = filters[col.key]!;
       return allowed.has(columnCellFilterLabel(row, col, sheetId));
     }),
   );
-  return [...summaryRows, ...filtered];
 }
 
 export function isColumnFilterActive(

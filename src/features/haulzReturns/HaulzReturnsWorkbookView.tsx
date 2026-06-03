@@ -429,12 +429,13 @@ export function HaulzReturnsWorkbookView({
                     <td colSpan={sheet.columns.length + leadColCount} style={{ height: padTop, padding: 0, border: 0 }} />
                   </tr>
                 ) : null}
-                {visibleRows.map((row) => {
+                {visibleRows.map((row, visIdx) => {
                   const rowId = row._rowId ?? "";
                   const isSelected = Boolean(rowId && selectedRowIds.has(rowId));
+                  const rowKey = rowId ? `${rowId}@${start + visIdx}` : `${sheet.id}-row-${start + visIdx}`;
                   return (
                   <tr
-                    key={row._rowId ?? String(row.num ?? Math.random())}
+                    key={rowKey}
                     className={[
                       sheet.id.startsWith("ul-") && isUlRowInItog(row) ? "hr-table__row--in-itog" : "",
                       isSelected ? "hr-table__row--selected" : "",

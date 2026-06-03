@@ -20,7 +20,15 @@ export type KgdTotals = {
 };
 
 export function isSummaryRow(row: HaulzSheetRow): boolean {
-  return Boolean(row._isSummary);
+  if (row._isSummary) return true;
+  const id = String(row._rowId ?? "");
+  if (id === "__itog_summary__" || id === "__kgd_summary__" || id.startsWith("__ul_summary")) return true;
+  const line = String(row.line ?? "");
+  const weight = String(row.weight ?? "");
+  if (line.includes("Количество мест") && weight.includes("Вес брутто")) return true;
+  const parcel = String(row.parcel ?? "");
+  if (parcel.includes("Количество мест") && !String(row.ulData ?? "").trim() && !line) return true;
+  return false;
 }
 
 /** @deprecated use isSummaryRow */

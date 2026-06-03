@@ -95,7 +95,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const stored = storedRows[0]
       ? deserializeWorkbook(storedRows[0].sheets, storedRows[0].itog_control_keys)
       : null;
-    const version = await insertWorkbookVersion(pool, jobId, access.loginKey, wb, { stored });
+    const { enrichWorkbookWithGlobalStopWords } = await import(
+      "../../lib/haulzReturns/stopWordsStorage.js"
+    );
+    const enriched = await enrichWorkbookWithGlobalStopWords(pool, access.loginKey, wb);
+    const version = await insertWorkbookVersion(pool, jobId, access.loginKey, enriched, { stored });
     await pool.query(
       `update haulz_returns_jobs set status = 'ready', updated_at = now() where id = $1`,
       [jobId],

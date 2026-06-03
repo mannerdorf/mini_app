@@ -82,7 +82,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const { deserializeWorkbook, workbookForApiWithinBudget } = await import(
             "../../lib/haulzReturns/workbookApi.js"
           );
-          const deserialized = deserializeWorkbook(wbRow.sheets, wbRow.itog_control_keys);
+          let deserialized = deserializeWorkbook(wbRow.sheets, wbRow.itog_control_keys);
+          const { enrichWorkbookWithGlobalStopWords } = await import(
+            "../../lib/haulzReturns/stopWordsStorage.js"
+          );
+          deserialized = await enrichWorkbookWithGlobalStopWords(pool, access.loginKey, deserialized);
           const overhead =
             JSON.stringify({
               job,

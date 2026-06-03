@@ -1,6 +1,7 @@
 import type { CellValue, HaulzSheetRow, HaulzWorkbook } from "./types.js";
 import { itogControlKey, stableItogRowId } from "./itogRowKeys.js";
 import { appendItogSummaryRow, appendKgdSummaryRow, isSummaryRow, stripSummaryRows } from "./ulTotals.js";
+import { sanitizePlombyRows } from "./plombyOperations.js";
 import { buildFixSheetFromItog, recalcWorkbookAfterItogChange } from "./workbookRecalc.js";
 import { countUlPlaces, stopColumnValue, validateItogRow } from "./validators.js";
 
@@ -111,7 +112,7 @@ export function rebuildItogFromKgd(workbook: HaulzWorkbook): HaulzWorkbook {
 
   const plombySheet = synced.sheets.find((s) => s.id === "plomby");
   const sealMap = new Map<string, string>();
-  for (const row of plombySheet?.rows ?? []) {
+  for (const row of sanitizePlombyRows(plombySheet?.rows ?? [])) {
     const parcel = String(row.parcel ?? "").trim();
     if (parcel) sealMap.set(parcel, String(row.cargoPlace ?? ""));
   }

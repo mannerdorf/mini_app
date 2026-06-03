@@ -5,7 +5,8 @@ import { applyExcludedUlNumbers, parseUlSheetId } from "./ulSheetOperations.js";
 import { buildFixSheetFromItog, recalcWorkbookAfterItogChange } from "./workbookRecalc.js";
 import { normalizeUlSheetTdMeta } from "./tdDocuments/parseUlTdNumber.js";
 
-const PRESERVE_SHEET_IDS = new Set(["stop"]);
+/** STOP — общий справочник в БД (haulz_returns_stop_words), не копируем лист из старой сессии. */
+const PRESERVE_SHEET_IDS = new Set<string>();
 
 function mergeItogRow(oldRow: import("./types.js").HaulzSheetRow, newRow: import("./types.js").HaulzSheetRow) {
   const oldUl = String(oldRow.ulData ?? "").trim();

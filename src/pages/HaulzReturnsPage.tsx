@@ -23,7 +23,13 @@ import { HaulzUlTdField, type UlTdMetaPatch } from "../features/haulzReturns/Hau
 import { HaulzCustomsPanel } from "../features/haulzReturns/HaulzCustomsPanel";
 import { listHaulzCarriers } from "../api/client/haulzReturnsCarriers";
 import {
+  deleteGlobalStopWord,
+  patchGlobalStopWordMatchMode,
+  upsertGlobalStopWord,
+} from "../api/client/haulzReturnsStopWords";
+import {
   addStopWord,
+  parseGlobalStopRowId,
   buildFixSheetFromItog,
   buildTdPrepared,
   hydrateUlSheetFromParsed,
@@ -689,6 +695,12 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
           if (result.removed === 0) return;
           next = result.workbook;
         } else if (activeSheet.id === "stop") {
+          if (auth) {
+            for (const rowId of rowIds) {
+              const globalId = parseGlobalStopRowId(rowId);
+              if (globalId) await deleteGlobalStopWord(auth, { id: globalId }).catch(() => undefined);
+            }
+          }
           next = rowIds.reduce((wb, rowId) => removeStopWord(wb, rowId), current);
         } else if (activeSheet.id.startsWith("ul-")) {
           const sheetId = activeSheet.id;
@@ -834,34 +846,52 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
   }, [workbook, jobId, hydrateAllUlSheets, commitWorkbook]);
 
   const handleAddStopWord = useCallback(() => {
-    if (!workbook) return;
+    if (!workbook || !auth) return;
     const word = newStopWord.trim();
     if (!word) {
       setError("Введите наименование для STOP");
       return;
     }
     void (async () => {
-      const { workbook: next, added } = addStopWord(workbook, word, "STOP", newStopMatchMode);
-      if (!added) {
-        setError(`«${word}» уже есть в справочнике STOP`);
-        return;
+      try {
+        await upsertGlobalStopWord(auth, word, newStopMatchMode, "STOP");
+        const { workbook: next, added } = addStopWord(workbook, word, "STOP", newStopMatchMode);
+        if (!added) {
+          setError(`«${word}» уже есть в справочнике STOP`);
+          return;
+        }
+        setNewStopWord("");
+        setNewStopMatchMode("exact");
+        setError(null);
+        await commitWorkbook(next);
+      } catch (e: unknown) {
+        setError((e as Error)?.message || "Не удалось сохранить STOP-слово");
       }
-      setNewStopWord("");
-      setNewStopMatchMode("exact");
-      setError(null);
-      await commitWorkbook(next);
     })();
-  }, [workbook, newStopWord, newStopMatchMode, commitWorkbook]);
+  }, [workbook, auth, newStopWord, newStopMatchMode, commitWorkbook]);
 
   const handleStopMatchModeChange = useCallback(
     (rowId: string, matchMode: StopMatchMode) => {
-      if (!workbook) return;
+      if (!workbook || !auth) return;
       void (async () => {
-        const next = updateStopWordMatchMode(workbook, rowId, matchMode);
-        await commitWorkbook(next);
+        try {
+          const globalId = parseGlobalStopRowId(rowId);
+          const stopSheet = workbook.sheets.find((s) => s.id === "stop");
+          const row = stopSheet?.rows.find((r) => r._rowId === rowId);
+          const word = String(row?.word ?? "").trim();
+          if (globalId) {
+            await patchGlobalStopWordMatchMode(auth, globalId, matchMode);
+          } else if (word) {
+            await upsertGlobalStopWord(auth, word, matchMode, String(row?.result ?? "STOP"));
+          }
+          const next = updateStopWordMatchMode(workbook, rowId, matchMode);
+          await commitWorkbook(next);
+        } catch (e: unknown) {
+          setError((e as Error)?.message || "Не удалось сохранить режим совпадения");
+        }
       })();
     },
-    [workbook, commitWorkbook],
+    [workbook, auth, commitWorkbook],
   );
 
   const handleDeleteStopRow = useCallback(
@@ -869,11 +899,19 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
       if (!workbook) return;
       void (async () => {
         setError(null);
-        const next = removeStopWord(workbook, rowId);
-        await commitWorkbook(next);
+        try {
+          const globalId = parseGlobalStopRowId(rowId);
+          if (auth && globalId) {
+            await deleteGlobalStopWord(auth, { id: globalId });
+          }
+          const next = removeStopWord(workbook, rowId);
+          await commitWorkbook(next);
+        } catch (e: unknown) {
+          setError((e as Error)?.message || "Не удалось удалить STOP-слово");
+        }
       })();
     },
-    [workbook, commitWorkbook],
+    [workbook, auth, commitWorkbook],
   );
 
   const handleDeleteUlSheet = useCallback(() => {

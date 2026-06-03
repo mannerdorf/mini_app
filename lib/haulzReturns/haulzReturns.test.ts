@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { normalizeWorkbookColumns } from "./types";
 import { buildWorkbook, hydrateUlSheetFromParsed } from "./buildWorkbook";
 import { rebuildItogFromKgd, refreshKgdFromUlSheets, removeKgdDuplicates } from "./kgdOperations";
 import { addStopWord, removeStopWord, updateStopWordMatchMode } from "./stopOperations";
@@ -10,11 +11,22 @@ import { removeUlSheetFromWorkbook } from "./ulSheetOperations";
 import { removeItogRow } from "./ulTotals";
 import { buildFixSheetFromItog, recalcWorkbookAfterItogChange } from "./workbookRecalc";
 import { ensureItogRowIds, stableItogRowId } from "./itogRowKeys";
+import {
+  isItogShapedPlombyRow,
+  sanitizePlombyRows,
+  sanitizePlombySheet,
+} from "./plombyOperations";
+import {
+  applyGlobalStopWords,
+  extractStopWordsForPersistence,
+  globalStopRowId,
+} from "./globalStopWords";
 import { mergeWorkbookOnReprocess } from "./mergeWorkbookOnReprocess";
 import { itogValidationFromRow } from "./validators";
 import { parseCarrierInput, formatCarrierCard } from "./carriers";
 import { proformaExportFileName, specificationExportFileName } from "./tdDocuments/fileNames.js";
-import { isHolzCarrier, validateTdPrep, buildTdPrepared } from "./tdDocuments/index.js";
+import { isHolzCarrier, validateTdPrep, buildTdPrepared, collectFixRows } from "./tdDocuments/index.js";
+import { collectWriteoffRowsForUl } from "./tdDocuments/collectTdRows.js";
 import { replaceDraftRuDate, splitDraftDateField, syncTitleDateFromFts, computeProformaTotals, normalizeSpecificationDraft } from "./tdDocuments/draftDateFields.js";
 import { workbookForApi, workbookForApiWithinBudget, mergeWorkbookPatch } from "./workbookApi";
 import { mergeTdDraft, mergeWorkbookTdMeta } from "./tdMetaMerge";
@@ -161,6 +173,37 @@ describe("kgdOperations", () => {
       kgd.rows.filter((r) => !isSummaryRow(r)).length,
     );
     expect(itog.rows[1]!.parcel).toBe(kgd.rows[1]!.parcel);
+  });
+});
+
+describe("globalStopWords", () => {
+  it("extractStopWordsForPersistence keeps session custom and mode overrides", () => {
+    const extracted = extractStopWordsForPersistence([
+      { _rowId: "stop-0", word: "Документы", result: "STOP", matchMode: "partial" },
+      { _rowId: "stop-custom-1", word: "MyGadget", result: "STOP", matchMode: "exact" },
+    ]);
+    expect(extracted.some((e) => e.word === "MyGadget")).toBe(true);
+    expect(extracted.some((e) => e.word === "Документы" && e.matchMode === "partial")).toBe(true);
+
+    const wb = applyGlobalStopWords(
+      {
+        sheets: [
+          {
+            id: "stop",
+            name: "STOP",
+            columns: [],
+            rows: [{ _rowId: "stop-0", word: "Документы", result: "STOP" }],
+          },
+          { id: "itog", name: "итог", columns: [], rows: [] },
+        ],
+        itogControlKeys: new Set(),
+        excludedUlNumbers: new Set(),
+      },
+      [{ id: 42, word: "MyGadget", result: "STOP", matchMode: "partial" }],
+    );
+    const stop = wb.sheets.find((s) => s.id === "stop")!;
+    expect(stop.rows.some((r) => r.word === "MyGadget")).toBe(true);
+    expect(stop.rows.find((r) => r.word === "MyGadget")?._rowId).toBe(globalStopRowId(42));
   });
 });
 
@@ -327,6 +370,16 @@ describe("ulTotals", () => {
     const withSummary = appendKgdSummaryRow(rows);
     expect(isSummaryRow(withSummary[0]!)).toBe(true);
     expect(String(withSummary[0]!.parcel)).toContain("Количество мест 2");
+  });
+
+  it("detects legacy itog summary row without _isSummary flag", () => {
+    expect(
+      isSummaryRow({
+        line: "Количество мест 99",
+        weight: "Вес брутто 10,0 кг",
+        cost: "Сумма 100,00",
+      }),
+    ).toBe(true);
   });
 
   it("removes itog rows marked STOP", () => {
@@ -693,6 +746,59 @@ describe("buildWorkbook", () => {
     expect(row!.translate).toBe("Товар");
   });
 
+  it("sanitizePlombyRows removes itog-shaped rows and assigns stable ids", () => {
+    const rows = sanitizePlombyRows([
+      { _rowId: "itog:02606521989P1", num: 6, ul: "02606521", line: "989", parcel: "P1", ulData: "Свеча", seal: "CP1" },
+      { _rowId: "plomby-0", parcel: "10000211381829", cargoPlace: "10000211381829" },
+      { _rowId: "plomby-0", parcel: "10000208095697", cargoPlace: "130603961000310610" },
+    ]);
+    expect(rows).toHaveLength(2);
+    expect(isItogShapedPlombyRow({ num: 1, ul: "1", parcel: "P" })).toBe(true);
+    expect(new Set(rows.map((r) => r._rowId)).size).toBe(2);
+    expect(rows[0]!._rowId).toBe("plomby:10000211381829");
+  });
+
+  it("normalizeWorkbookColumns cleans plomby sheet on load", () => {
+    const wb = normalizeWorkbookColumns({
+      sheets: [
+        {
+          id: "itog",
+          name: "итог",
+          columns: [],
+          rows: appendItogSummaryRow([
+            { _rowId: "itog:P1", parcel: "P1", seal: "SEAL1", ul: "1", line: "1", ulData: "Item" },
+          ]),
+        },
+        {
+          id: "plomby",
+          name: "пломбы",
+          columns: [],
+          rows: [
+            { _rowId: "itog:P1", num: 1, ul: "1", line: "1", parcel: "P1", ulData: "Item" },
+            { parcel: "P2", cargoPlace: "SEAL2" },
+          ],
+        },
+      ],
+      itogControlKeys: new Set(),
+      excludedUlNumbers: new Set(),
+    });
+    const plomby = wb.sheets.find((s) => s.id === "plomby")!;
+    expect(plomby.rows.every((r) => !isItogShapedPlombyRow(r))).toBe(true);
+    expect(plomby.rows.some((r) => String(r.parcel) === "P2")).toBe(true);
+  });
+
+  it("ensureItogRowIds assigns unique ids for duplicate control keys", () => {
+    const rows = ensureItogRowIds([
+      { ul: "02606521", line: "989", parcel: "P1", ulData: "A" },
+      { ul: "02606521", line: "989", parcel: "P1", ulData: "A" },
+      { ul: "02606521", line: "990", parcel: "P2", ulData: "B" },
+    ]);
+    const ids = rows.map((r) => r._rowId);
+    expect(new Set(ids).size).toBe(3);
+    expect(ids[0]).toBe("itog:02606521989P1");
+    expect(ids[1]).toBe("itog:02606521989P1#1");
+  });
+
   it("mergeWorkbookOnReprocess fills empty ulData and keeps translate", () => {
     const previous: import("./types").HaulzWorkbook = {
       itogControlKeys: new Set(["1111P1", "1112P2"]),
@@ -763,7 +869,7 @@ describe("buildWorkbook", () => {
     expect(itog.find((r) => r.parcel === "P1")?.translate).toBe("Рубашка");
     expect(itog.find((r) => r.parcel === "P2")?.ulData).toBe("Pants");
     expect(itog.some((r) => r.parcel === "P3")).toBe(false);
-    expect(merged.sheets.find((s) => s.id === "stop")?.rows[0]?.word).toBe("X");
+    expect(merged.sheets.find((s) => s.id === "stop")?.rows).toEqual([]);
   });
 });
 

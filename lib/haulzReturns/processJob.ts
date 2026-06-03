@@ -78,7 +78,9 @@ export async function processJobWorkbook(
   const files = await loadJobFiles(pool, jobId);
   const rebuilt = buildWorkbookFromFiles(files);
   const existing = await loadLatestWorkbook(pool, jobId);
-  const workbook = mergeWorkbookOnReprocess(existing, rebuilt);
+  let workbook = mergeWorkbookOnReprocess(existing, rebuilt);
+  const { enrichWorkbookWithGlobalStopWords } = await import("./stopWordsStorage.js");
+  workbook = await enrichWorkbookWithGlobalStopWords(pool, loginKey, workbook);
   const version = await save(pool, jobId, loginKey, workbook);
   await pool.query(
     `update haulz_returns_jobs set status = 'ready', error_message = null, updated_at = now() where id = $1`,

@@ -1,5 +1,6 @@
-import { appendSheetSummaryRow, syncUlSheetFromControlKeys } from "./ulTotals.js";
+import { appendSheetSummaryRow, stripSummaryRows, syncUlSheetFromControlKeys } from "./ulTotals.js";
 import { ensureItogRowIds } from "./itogRowKeys.js";
+import { sanitizePlombySheet } from "./plombyOperations.js";
 
 export type CellValue = string | number | boolean | null;
 
@@ -158,22 +159,24 @@ export function canonicalColumnsForSheet(sheet: Pick<HaulzSheet, "id">): HaulzCo
 }
 
 export function normalizeWorkbookColumns(wb: HaulzWorkbook): HaulzWorkbook {
-  return {
-    ...wb,
-    sheets: wb.sheets.map((s) => {
-      const columns = canonicalColumnsForSheet(s);
-      let sheet = columns.length ? { ...s, columns } : s;
-      if (sheet.rows.length > 0) {
-        if (sheet.id.startsWith("ul-") && !sheet.ulDeferred) {
-          sheet = syncUlSheetFromControlKeys(sheet, wb.itogControlKeys);
-        } else if (sheet.id === "itog") {
-          const dataRows = ensureItogRowIds(sheet.rows);
-          sheet = appendSheetSummaryRow({ ...sheet, rows: dataRows });
-        } else if (sheet.id === "kgd") {
-          sheet = appendSheetSummaryRow(sheet);
-        }
+  let sheets = wb.sheets.map((s) => {
+    const columns = canonicalColumnsForSheet(s);
+    let sheet = columns.length ? { ...s, columns } : s;
+    if (sheet.rows.length > 0) {
+      if (sheet.id.startsWith("ul-") && !sheet.ulDeferred) {
+        sheet = syncUlSheetFromControlKeys(sheet, wb.itogControlKeys);
+      } else if (sheet.id === "itog") {
+        const dataRows = ensureItogRowIds(stripSummaryRows(sheet.rows));
+        sheet = appendSheetSummaryRow({ ...sheet, rows: dataRows });
+      } else if (sheet.id === "kgd") {
+        sheet = appendSheetSummaryRow({ ...sheet, columns: [...KGD_COLUMNS], rows: stripSummaryRows(sheet.rows) });
       }
-      return sheet;
-    }),
-  };
+    }
+    return sheet;
+  });
+
+  const itogSheet = sheets.find((s) => s.id === "itog") ?? null;
+  sheets = sheets.map((s) => (s.id === "plomby" ? sanitizePlombySheet(s, itogSheet) : s));
+
+  return { ...wb, sheets };
 }
