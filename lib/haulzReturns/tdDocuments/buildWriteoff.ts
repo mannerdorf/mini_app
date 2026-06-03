@@ -1,6 +1,7 @@
 import { WRITEOFF_TEMPLATE } from "./templateMaps.js";
 import type { WriteoffSheetInput } from "./types.js";
 import { formatRuDate } from "./defaults.js";
+import { formatWriteoffTitle } from "./formatWriteoffHeader.js";
 import { applySpecCellStyle, applySpecTableRangeBorders, SPEC_FONT, SPEC_FONT_SIZE } from "./specSheetStyles.js";
 import {
   loadTemplateWorkbook,
@@ -105,7 +106,15 @@ function fillWriteoffSheet(
   date = formatRuDate(),
 ) {
   const sheetNo = input.sheetNumber ?? 1;
-  const title = input.titleOverride ?? `Дополнительный лист списания №${sheetNo} от ${date} к упаковочному листу № ${input.ulNumber}`;
+  const title =
+    input.titleOverride ??
+    formatWriteoffTitle({
+      sheetNumber: sheetNo,
+      ulNumber: input.ulNumber,
+      tdNumber: input.tdNumber,
+      rows: input.rows,
+      holzCarrier: input.holzCarrier,
+    });
   const tdLine = input.tdLineOverride ?? `Вывезено по ТД ${input.tdNumber}/ /`;
 
   applyWriteoffHeaderRow(sheet, WRITEOFF_TEMPLATE.titleRow, title);

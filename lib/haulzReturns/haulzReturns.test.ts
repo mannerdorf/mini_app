@@ -998,6 +998,17 @@ describe("tdDocuments", () => {
     expect(titleFromUl).toContain("к упаковочному листу № 02606521");
     expect(titleFromUl).toContain("от 02.06.2026");
     expect(titleFromUl).not.toContain("от 19.03.2026");
+    const titleHolz = formatWriteoffTitle({
+      sheetNumber: 1,
+      ulNumber: "02611106",
+      ulDate: "16.03.2026",
+      tdNumber: "10229010/270222/0113288",
+      rows: [{ airport: "Калининград (KGD)" } as import("./tdDocuments/collectTdRows.js").UlWriteoffRow],
+      holzCarrier: true,
+      specification: { exportPermit: "ВЫВОЗ РАЗРЕШЕН      02.06.2026" },
+    });
+    expect(titleHolz).toContain("к счет-проформе № 02611106");
+    expect(titleHolz).not.toContain("упаковочному листу");
     expect(formatWriteoffTdLine("10229010/280426/0113288")).toBe(
       "Вывезено по ТД 10229010/280426/0113288/ /",
     );
@@ -1506,12 +1517,50 @@ describe("tdDocuments", () => {
         draft: {},
       },
     };
-    const inputs = buildWriteoffInputs({ workbook: wb, carriersById: new Map(), draft: {} });
+    const inputs = buildWriteoffInputs({
+      workbook: wb,
+      carriersById: new Map(),
+      draft: {
+        specification: {
+          fts: "02 ФТС № от 28.04.2026",
+          exportPermit: "ВЫВОЗ РАЗРЕШЕН      28.04.2026",
+          title: "Спецификация №1 от 28.04.2026 к CMR б/н от 28.04.2026",
+        },
+      },
+    });
     expect(inputs).toHaveLength(1);
     expect(inputs[0]!.rows).toHaveLength(2);
     expect(inputs[0]!.tdNumber).toBe("10229010/280426/0113288");
     expect(inputs[0]!.titleOverride).toContain("к упаковочному листу № 02606521");
     expect(inputs[0]!.titleOverride).toContain("от 28.04.2026");
+  });
+
+  it("buildWriteoffInputs uses «к счет-проформе» when UL carrier is ХОЛЗ", async () => {
+    const { buildWriteoffInputs } = await import("./tdDocuments/preview.js");
+    const holz = { id: "c-holz", name: "ООО «ХОЛЗ»", inn: "9706037094", kpp: "", legalAddress: "", loadingAddress: "", unloadingAddress: "" };
+    const wb = {
+      sheets: [
+        {
+          id: "ul-02611106",
+          name: "02611106",
+          columns: [],
+          carrierId: "c-holz",
+          tdNumber: "10229010/270222/0113288",
+          tdDate: "16.03.2026",
+          rows: [{ rowNum: "1", inItog: 1, cargoPlace: "id1", parcel: "p1", name: "x", qty: 1, weight: 1, cost: 1, airport: "Калининград (KGD)" }],
+        },
+      ],
+      itogControlKeys: new Set<string>(),
+      excludedUlNumbers: new Set<string>(),
+    };
+    const inputs = buildWriteoffInputs({
+      workbook: wb,
+      carriersById: new Map([["c-holz", holz]]),
+      draft: { specification: { exportPermit: "ВЫВОЗ РАЗРЕШЕН      02.06.2026" } },
+    });
+    expect(inputs[0]!.holzCarrier).toBe(true);
+    expect(inputs[0]!.titleOverride).toContain("к счет-проформе № 02611106");
+    expect(inputs[0]!.titleOverride).not.toContain("упаковочному листу");
   });
 
   it("buildWriteoffInputs drops prepared writeoffs for removed UL sheets", async () => {

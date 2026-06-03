@@ -10,7 +10,14 @@ export type WriteoffHeaderInput = {
   tdNumber: string;
   rows: UlWriteoffRow[];
   specification?: Record<string, string>;
+  /** Перевозчик УЛ — ООО «ХОЛЗ»: в шапке «к счет-проформе» вместо «к упаковочному листу». */
+  holzCarrier?: boolean;
 };
+
+/** Фраза привязки документа в заголовке листа списания. */
+export function writeoffDocumentRefPhrase(holzCarrier: boolean): string {
+  return holzCarrier ? "к счет-проформе" : "к упаковочному листу";
+}
 
 /** Дата из полей спецификации (ВЫВОЗ РАЗРЕШЕН / 02 ФТС). */
 export function writeoffDateFromSpecification(specification: Record<string, string> = {}): string {
@@ -48,9 +55,10 @@ export function formatWriteoffTitle(input: WriteoffHeaderInput): string {
     String(input.ulDate ?? "").trim() || packingListDateFromSpecification(spec);
   const destination = writeoffDestinationFromRows(input.rows);
   const ulNumber = String(input.ulNumber ?? "").trim();
+  const docRef = writeoffDocumentRefPhrase(Boolean(input.holzCarrier));
   return (
     `Дополнительный лист списания №${sheetNo} от ${writeoffDate} ` +
-    `к упаковочному листу № ${ulNumber} в ${destination} от ${ulDate}`
+    `${docRef} № ${ulNumber} в ${destination} от ${ulDate}`
   );
 }
 

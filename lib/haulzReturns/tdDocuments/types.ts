@@ -40,6 +40,8 @@ export type WriteoffSheetInput = {
   tdNumber: string;
   sheetNumber?: number;
   rows: UlWriteoffRow[];
+  /** ООО «ХОЛЗ» на УЛ — заголовок «к счет-проформе». */
+  holzCarrier?: boolean;
   titleOverride?: string;
   tdLineOverride?: string;
 };
