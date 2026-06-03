@@ -1,11 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Typography } from "@maxhub/max-ui";
-import {
-  formatTdNumberMask,
-  formatTdNumberMaskInput,
-  TD_NUMBER_MASK_PLACEHOLDER,
-  tdNumberDigitsOnly,
-} from "../../../lib/haulzReturns/tdDocuments/tdNumberMask";
 import { isoDateToRu, ruDateToIso } from "../../lib/haulzReturns";
 
 export type UlTdMetaPatch = {
@@ -30,21 +24,18 @@ type LocalState = {
 };
 
 function toLocal(ulNumber: string, tdNumber: string | null | undefined, tdDate: string | null | undefined): LocalState {
-  const digits = tdNumberDigitsOnly(String(tdNumber ?? ""));
   return {
     ul: ulNumber,
-    number: digits ? formatTdNumberMask(digits) : "",
+    number: String(tdNumber ?? ""),
     dateRu: String(tdDate ?? "").trim(),
   };
 }
 
 function toPatch(local: LocalState): UlTdMetaPatch {
-  const tdNumber = formatTdNumberMaskInput(local.number);
-  const dateRu = local.dateRu.trim();
   return {
     ulNumber: local.ul.trim(),
-    tdNumber,
-    tdDate: dateRu || null,
+    tdNumber: local.number.trim(),
+    tdDate: local.dateRu.trim() || null,
   };
 }
 
@@ -66,7 +57,7 @@ export function HaulzUlTdField({ sheetId, ulNumber, tdNumber, tdDate, onChange, 
     const current = localRef.current;
     const normalized: LocalState = {
       ...current,
-      number: formatTdNumberMaskInput(current.number),
+      number: current.number.trim(),
       dateRu: current.dateRu.trim(),
     };
     localRef.current = normalized;
@@ -111,11 +102,9 @@ export function HaulzUlTdField({ sheetId, ulNumber, tdNumber, tdDate, onChange, 
           <input
             type="text"
             className="hr-td-field__input"
-            placeholder={TD_NUMBER_MASK_PLACEHOLDER}
-            inputMode="numeric"
             value={local.number}
             disabled={disabled}
-            onChange={(e) => setLocal((s) => ({ ...s, number: formatTdNumberMaskInput(e.target.value) }))}
+            onChange={(e) => setLocal((s) => ({ ...s, number: e.target.value }))}
             onBlur={commit}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
