@@ -81,13 +81,6 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
     [directionOverride, fromAddr?.city, toAddr?.city],
   );
 
-  const directionAmbiguous = useMemo(() => {
-    if (directionOverride) return false;
-    const f = fromAddr?.city;
-    const t = toAddr?.city;
-    return !f && !t;
-  }, [directionOverride, fromAddr?.city, toAddr?.city]);
-
   const chargeableHint = useMemo(() => {
     const factor = options?.volumetricFactor ?? 200;
     let w = 0;
@@ -119,9 +112,20 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
     };
   }, [auth, inferredDirection, chargeableHint.ch]);
 
-  const canQuote = Boolean(
-    auth && fromAddr?.point && toAddr?.point && chargeableHint.ch > 0 && !directionAmbiguous,
-  );
+  const applyQuickCity = useCallback((side: "from" | "to", city: CityCode) => {
+    const label = city === "moscow" ? "Москва" : "Калининград";
+    if (side === "from") {
+      setDirectionOverride(city === "moscow" ? "mow_kgd" : "kgd_mow");
+      setFromQuery(`${label}, `);
+      setFromAddr(null);
+    } else {
+      setDirectionOverride(city === "moscow" ? "kgd_mow" : "mow_kgd");
+      setToQuery(`${label}, `);
+      setToAddr(null);
+    }
+  }, []);
+
+  const canQuote = Boolean(auth && fromAddr?.point && toAddr?.point && chargeableHint.ch > 0);
 
   const canSubmitOrder = Boolean(canQuote && quote && !loading && !orderLoading);
 
@@ -262,26 +266,13 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
           <h1 className="haulz-calc-header__title">Расчёт доставки</h1>
         </header>
 
-        {directionAmbiguous && (
-          <div className="haulz-calc-alert haulz-calc-alert--warn">
-            Укажите направление:
-            <div className="haulz-calc-direction-pills" style={{ marginTop: "0.5rem", marginBottom: 0 }}>
-              <button type="button" className="haulz-calc-direction-pill" onClick={() => setDirectionOverride("mow_kgd")}>
-                Москва → Калининград
-              </button>
-              <button type="button" className="haulz-calc-direction-pill" onClick={() => setDirectionOverride("kgd_mow")}>
-                Калининград → Москва
-              </button>
-            </div>
-          </div>
-        )}
-
         {error && <div className="haulz-calc-alert haulz-calc-alert--error">{error}</div>}
 
         <div className="haulz-calc-grid">
           <div className="haulz-calc-main">
             <HaulzCalcAddressField
               title="Отправить"
+              side="from"
               city={suggestCityFrom}
               auth={auth}
               query={fromQuery}
@@ -294,10 +285,12 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
               setPhone={setFromPhone}
               fullName={fromName}
               setFullName={setFromName}
+              onQuickCity={(c) => applyQuickCity("from", c)}
             />
 
             <HaulzCalcAddressField
               title="Вручить"
+              side="to"
               city={suggestCityTo}
               auth={auth}
               query={toQuery}
@@ -310,6 +303,7 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
               setPhone={setToPhone}
               fullName={toName}
               setFullName={setToName}
+              onQuickCity={(c) => applyQuickCity("to", c)}
             />
 
             <div className="haulz-calc-card">

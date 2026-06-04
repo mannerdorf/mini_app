@@ -5,8 +5,10 @@ import {
 } from "./chargeableWeight.js";
 import {
   haversineKm,
+  isInsideRingPolygon,
   pointInPolygon,
   pickTopExitsByHaversine,
+  polygonFromExitsCatalogOrder,
   ringFromExits,
 } from "./mkadDistance.js";
 import { calcPickupCityFee, resolveTierIndex } from "./pickupTariff.js";
@@ -78,6 +80,18 @@ describe("mkadDistance", () => {
     ];
     const top = pickTopExitsByHaversine({ lat: 55.81, lon: 37.51 }, exits, 1);
     expect(top[0]?.code).toBe("A");
+  });
+
+  it("isInsideRingPolygon uses catalog order polygon", () => {
+    const exits: RingExitRow[] = [
+      { id: 1, city_code: "moscow", code: "A", name: "A", lat: 0, lon: 0, active: true, sort_order: 0 },
+      { id: 2, city_code: "moscow", code: "B", name: "B", lat: 0, lon: 10, active: true, sort_order: 1 },
+      { id: 3, city_code: "moscow", code: "C", name: "C", lat: 10, lon: 10, active: true, sort_order: 2 },
+      { id: 4, city_code: "moscow", code: "D", name: "D", lat: 10, lon: 0, active: true, sort_order: 3 },
+    ];
+    const ring = polygonFromExitsCatalogOrder(exits);
+    expect(isInsideRingPolygon({ lat: 5, lon: 5 }, ring, [])).toBe(true);
+    expect(isInsideRingPolygon({ lat: 15, lon: 5 }, ring, [])).toBe(false);
   });
 
   it("ringFromExits builds closed ordering", () => {

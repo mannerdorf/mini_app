@@ -10,6 +10,7 @@ import { DEFAULT_CDEK_EXTRAS } from "../lib/haulzCalculator/defaultExtras.js";
 import { seedKadFromDefaults, seedMkadFromRepo } from "../lib/haulzCalculator/seedRingData.js";
 import { parsePickupXlsxFile } from "../lib/haulzCalculator/pickupXlsxParser.js";
 import type { PickupTier } from "../lib/haulzCalculator/types.js";
+import { warehouseHubRows } from "../lib/haulzCalculator/warehouses.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SEED_DIR = path.resolve(__dirname, "../data/haulz-calculator-seed");
@@ -87,10 +88,11 @@ function buildPickupPayload(scope: "pickup" | "last_mile", moscowTiers: PickupTi
 }
 
 const DEFAULT_HUBS = [
+  ...warehouseHubRows(),
   { code: "SVO", name: "Шереметьево", lat: 55.9726, lon: 37.4146, role: "moscow" as const },
   { code: "DME", name: "Домодедово", lat: 55.4088, lon: 37.9063, role: "moscow" as const },
   { code: "VKO", name: "Внуково", lat: 55.5965, lon: 37.2615, role: "moscow" as const },
-  { code: "KGD", name: "Храброво (Калининград)", lat: 54.8901, lon: 20.5926, role: "kaliningrad" as const },
+  { code: "KGD_APT", name: "Храброво (Калининград)", lat: 54.8901, lon: 20.5926, role: "kaliningrad" as const },
 ];
 
 async function main() {

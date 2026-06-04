@@ -10,9 +10,21 @@ import type {
 
 export type HaulzSuggestItem = {
   id?: string;
+  uri?: string;
   label: string;
   fullAddress: string;
   point?: { lat: number; lon: number };
+};
+
+export type HaulzMapsConfig = {
+  mapsApiKey: string;
+  cityCenters: Record<string, { lat: number; lon: number; zoom: number }>;
+};
+
+export type HaulzGeocodeResult = {
+  label: string;
+  fullAddress: string;
+  point: { lat: number; lon: number };
 };
 
 function authHeaders(auth: AuthData): Record<string, string> {
@@ -41,6 +53,41 @@ export async function fetchHaulzAddressSuggest(
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(parseError(res, data));
   return (data as { items?: HaulzSuggestItem[] }).items ?? [];
+}
+
+export async function fetchHaulzMapsConfig(auth: AuthData): Promise<HaulzMapsConfig> {
+  const res = await fetch("/api/haulz-calculator/maps-config", {
+    method: "POST",
+    headers: authHeaders(auth),
+    body: JSON.stringify({}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(parseError(res, data));
+  const mapsApiKey = (data as { mapsApiKey?: string }).mapsApiKey;
+  const cityCenters = (data as { cityCenters?: HaulzMapsConfig["cityCenters"] }).cityCenters;
+  if (!mapsApiKey) throw new Error("Нет ключа карты");
+  return { mapsApiKey, cityCenters: cityCenters ?? {} };
+}
+
+export async function fetchHaulzGeocode(
+  auth: AuthData,
+  body: { lat: number; lon: number; city?: "moscow" | "kaliningrad" } | { address: string; uri?: string; city?: "moscow" | "kaliningrad" },
+): Promise<HaulzGeocodeResult> {
+  const res = await fetch("/api/haulz-calculator/geocode", {
+    method: "POST",
+    headers: authHeaders(auth),
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(parseError(res, data));
+  const point = (data as { point?: { lat: number; lon: number } }).point;
+  const fullAddress = (data as { fullAddress?: string }).fullAddress;
+  if (!point || !fullAddress) throw new Error("Пустой ответ геокодера");
+  return {
+    label: String((data as { label?: string }).label || fullAddress),
+    fullAddress,
+    point,
+  };
 }
 
 export async function fetchHaulzRingDistance(

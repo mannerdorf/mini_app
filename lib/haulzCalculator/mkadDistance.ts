@@ -1,9 +1,10 @@
 import type { Pool } from "pg";
 import type { CityCode, GeoPoint, RingExitRow } from "./types.js";
-import { dgisRouteKm } from "./dgisClient.js";
+import { roadRouteKm } from "./roadRouteKm.js";
 
 const EARTH_RADIUS_KM = 6371;
-const TOP_EXIT_CANDIDATES = 7;
+/** Как «МаксимальноеКоличествоКандидатовСъездов» в 1С. */
+export const MAX_EXIT_CANDIDATES = 7;
 
 export function haversineKm(a: GeoPoint, b: GeoPoint): number {
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -16,7 +17,7 @@ export function haversineKm(a: GeoPoint, b: GeoPoint): number {
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-/** Ray-casting point-in-polygon (ring may be open; first==last not required). */
+/** Ray-casting (как «ТочкаВнутриПолигона» в 1С). */
 export function pointInPolygon(point: GeoPoint, ring: GeoPoint[]): boolean {
   if (ring.length < 3) return false;
   let inside = false;
@@ -33,6 +34,52 @@ export function pointInPolygon(point: GeoPoint, ring: GeoPoint[]): boolean {
   return inside;
 }
 
+/**
+ * Обход по контуру (как «ПроверитьТочкуНаВхождение» в 1С).
+ * В 1С в полигоне Х = широта, У = долгота.
+ */
+export function pointInsideByWinding(point: GeoPoint, ring: GeoPoint[]): boolean {
+  if (ring.length < 3) return false;
+
+  const template = [
+    [0, 1],
+    [3, 2],
+  ];
+
+  let result = 0;
+  const size = ring.length - 1;
+  let prev = ring[size];
+  let prevX = prev.lat - point.lat;
+  let prevY = prev.lon - point.lon;
+  let hx = prevY < 0 ? 1 : 0;
+  let hy = prevX < 0 ? 1 : 0;
+  let prevKu = template[hx][hy];
+
+  for (let i = 0; i <= size; i++) {
+    const cur = ring[i];
+    const curX = cur.lat - point.lat;
+    const curY = cur.lon - point.lon;
+    hx = curY < 0 ? 1 : 0;
+    hy = curX < 0 ? 1 : 0;
+    const ku = template[hx][hy];
+    const delta = ku - prevKu;
+
+    if (delta === -3) result += 1;
+    else if (delta === 3) result -= 1;
+    else if (delta === -2) {
+      if (prevX * curY >= prevY * curX) result += 1;
+    } else if (delta === 2) {
+      if (!(prevX * curY >= prevY * curX)) result -= 1;
+    }
+
+    prevX = curX;
+    prevY = curY;
+    prevKu = ku;
+  }
+
+  return result !== 0;
+}
+
 export function polygonCentroid(ring: GeoPoint[]): GeoPoint {
   if (ring.length === 0) return { lat: 55.75, lon: 37.62 };
   let lat = 0;
@@ -44,7 +91,7 @@ export function polygonCentroid(ring: GeoPoint[]): GeoPoint {
   return { lat: lat / ring.length, lon: lon / ring.length };
 }
 
-/** Order exits by polar angle around centroid → closed ring for inside test. */
+/** Полигон по углу вокруг центра (для seed / отображения). */
 export function ringFromExits(exits: RingExitRow[]): GeoPoint[] {
   if (exits.length < 3) return [];
   const pts = exits.map((e) => ({ lat: e.lat, lon: e.lon }));
@@ -54,6 +101,24 @@ export function ringFromExits(exits: RingExitRow[]): GeoPoint[] {
     const bb = Math.atan2(b.lat - c.lat, b.lon - c.lon);
     return aa - bb;
   });
+}
+
+/** Полигон в порядке справочника съездов (как «Мполигона» в 1С). */
+export function polygonFromExitsCatalogOrder(exits: RingExitRow[]): GeoPoint[] {
+  return exits.map((e) => ({ lat: e.lat, lon: e.lon }));
+}
+
+/** Внутри кольца: оба теста 1С или сохранённый полигон из БД. */
+export function isInsideRingPolygon(point: GeoPoint, catalogRing: GeoPoint[], storedRing: GeoPoint[]): boolean {
+  if (catalogRing.length >= 3) {
+    if (pointInsideByWinding(point, catalogRing) || pointInPolygon(point, catalogRing)) {
+      return true;
+    }
+  }
+  if (storedRing.length >= 3 && pointInPolygon(point, storedRing)) {
+    return true;
+  }
+  return false;
 }
 
 export async function loadRingPolygon(pool: Pool, cityCode: CityCode): Promise<GeoPoint[]> {
@@ -88,7 +153,12 @@ export async function loadActiveExits(pool: Pool, cityCode: CityCode): Promise<R
   return rows;
 }
 
-export function pickTopExitsByHaversine(address: GeoPoint, exits: RingExitRow[], topN = TOP_EXIT_CANDIDATES): RingExitRow[] {
+/** Топ-N съездов по прямой (шаг 1 алгоритма 1С). */
+export function pickTopExitsByHaversine(
+  address: GeoPoint,
+  exits: RingExitRow[],
+  topN = MAX_EXIT_CANDIDATES,
+): RingExitRow[] {
   return [...exits]
     .map((e) => ({ e, d: haversineKm(address, { lat: e.lat, lon: e.lon }) }))
     .sort((a, b) => a.d - b.d)
@@ -96,6 +166,19 @@ export function pickTopExitsByHaversine(address: GeoPoint, exits: RingExitRow[],
     .map((x) => x.e);
 }
 
+type ExitCandidate = RingExitRow & {
+  straightKm: number;
+  roadKm: number;
+  routed: boolean;
+};
+
+/**
+ * Км за пределами МКАД/КАД — порт логики из «расчет расстояний.txt» (1С):
+ * 1) полигон из съездов → внутри = 0;
+ * 2) прямая до каждого съезда, сортировка;
+ * 3) для топ-7 — дорожное расстояние (OSRM вместо 2GIS);
+ * 4) минимум по дороге среди успешно рассчитанных.
+ */
 export async function kmBeyondRing(
   pool: Pool,
   cityCode: CityCode,
@@ -105,24 +188,49 @@ export async function kmBeyondRing(
   if (kmOverride != null && Number.isFinite(kmOverride) && kmOverride >= 0) {
     return kmOverride;
   }
-  const polygon = await loadRingPolygon(pool, cityCode);
-  if (polygon.length >= 3 && pointInPolygon(address, polygon)) {
-    return 0;
-  }
+
   const exits = await loadActiveExits(pool, cityCode);
   if (exits.length === 0) return 0;
 
-  const candidates = pickTopExitsByHaversine(address, exits);
-  let minKm = Infinity;
-  for (const exit of candidates) {
-    const exitPoint = { lat: exit.lat, lon: exit.lon };
-    try {
-      const km = await dgisRouteKm(exitPoint, address, pool);
-      if (km < minKm) minKm = km;
-    } catch {
-      const fallback = haversineKm(exitPoint, address);
-      if (fallback < minKm) minKm = fallback;
+  const catalogRing = polygonFromExitsCatalogOrder(exits);
+  const storedRing = await loadRingPolygon(pool, cityCode);
+  if (isInsideRingPolygon(address, catalogRing, storedRing)) {
+    return 0;
+  }
+
+  const candidates: ExitCandidate[] = exits.map((e) => {
+    const straightM = Math.round(haversineKm({ lat: e.lat, lon: e.lon }, address) * 1000);
+    return {
+      ...e,
+      straightKm: straightM / 1000,
+      roadKm: 0,
+      routed: false,
+    };
+  });
+
+  candidates.sort((a, b) => a.straightKm - b.straightKm);
+
+  const top = candidates.slice(0, MAX_EXIT_CANDIDATES);
+  const addressPoint = address;
+
+  await Promise.all(
+    top.map(async (c) => {
+      const exitPoint = { lat: c.lat, lon: c.lon };
+      const km = await roadRouteKm(exitPoint, addressPoint, pool);
+      if (km != null && Number.isFinite(km)) {
+        c.roadKm = km;
+        c.routed = true;
+      }
+    }),
+  );
+
+  candidates.sort((a, b) => a.roadKm - b.roadKm);
+
+  for (const c of candidates) {
+    if (c.routed) {
+      return Math.max(0, c.roadKm);
     }
   }
-  return Number.isFinite(minKm) ? Math.max(0, minKm) : 0;
+
+  return 0;
 }

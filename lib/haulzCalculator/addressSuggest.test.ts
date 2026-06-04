@@ -1,22 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { normalizeSuggestResponse } from "./addressSuggest.js";
+import { prepareSuggestQuery } from "./yandexSuggest.js";
 
-describe("addressSuggest", () => {
-  it("normalizeSuggestResponse maps 2GIS items", () => {
-    const items = normalizeSuggestResponse({
-      result: {
-        items: [
-          {
-            id: "abc",
-            name: "Ленинский пр.",
-            full_address_name: "Россия, Москва, Ленинский проспект",
-            point: { lat: 55.7, lon: 37.5 },
-          },
-        ],
-      },
-    });
-    expect(items).toHaveLength(1);
-    expect(items[0].fullAddress).toContain("Москва");
-    expect(items[0].point?.lat).toBe(55.7);
+describe("yandex address suggest", () => {
+  it("prepareSuggestQuery adds city to street-only input", () => {
+    expect(prepareSuggestQuery("ленина 10", "moscow")).toBe("Москва, ленина 10");
+    expect(prepareSuggestQuery("Москва, ленина", "moscow")).toBe("Москва, ленина");
+    expect(prepareSuggestQuery("Калининград, ", "kaliningrad")).toBe("Калининград");
   });
 });

@@ -7,8 +7,17 @@ export const HAULZ_SPLASH_BACKGROUND = "#3655ff";
 export const HAULZ_LOGO_SRC = "/haulz-wordmark.png";
 
 export const HAULZ_OFFICES: HaulzOffice[] = [
-    { city: "Калининград", address: "Железнодорожная ул., 12к4", phone: "+7 (401) 227-95-55" },
-    { city: "Москва / МО", address: "Индустриальный парк «Андреевское», вл. 14А", phone: "+7 (958) 538-42-22" },
+    {
+        city: "Калининград",
+        address: "Железнодорожная улица, 12к4, Калининград, 236039",
+        phone: "+7 (401) 227-95-55",
+    },
+    {
+        city: "Москва / МО",
+        address:
+            "территория Индустриальный парк Андреевское, вл14А, деревня Андреевское, Ленинский городской округ, Московская область",
+        phone: "+7 (958) 538-42-22",
+    },
 ];
 
 export const HAULZ_EMAIL = "Info@haulz.pro";
