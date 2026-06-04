@@ -1,5 +1,8 @@
 import type { Pool } from "pg";
+import { parseHaulzCalcDraftStatus, type HaulzCalcDraftStatus } from "./draftStatus.js";
 import type { MainlineMode, QuoteResult } from "./types.js";
+
+export type { HaulzCalcDraftStatus };
 
 export type HaulzCalculatorFormState = {
   fromQuery: string;
@@ -12,6 +15,8 @@ export type HaulzCalculatorFormState = {
   toPhone: string;
   fromInn: string;
   toInn: string;
+  fromCompanyName: string;
+  toCompanyName: string;
   fromName: string;
   toName: string;
   places: import("./types.js").ParcelPlace[];
@@ -26,13 +31,20 @@ export type HaulzCalculatorFormState = {
 export type HaulzCalcDraftRow = {
   id: number;
   title: string | null;
-  status: "draft" | "submitted";
+  status: HaulzCalcDraftStatus;
   nomerZayavki: string | null;
   formState: HaulzCalculatorFormState;
   quoteResult: QuoteResult | null;
+  recipientEmail?: string | null;
+  agreeToken?: string | null;
+  transportAgreedAt?: string | null;
+  loginKey?: string;
   createdAt: string;
   updatedAt: string;
 };
+
+const DRAFT_SELECT = `id::text, login_key, title, status, nomer_zayavki, form_state, quote_result,
+  recipient_email, agree_token, transport_agreed_at, created_at, updated_at`;
 
 function draftTitleFromForm(form: HaulzCalculatorFormState): string {
   const from = form.from?.label || form.fromQuery || "—";
@@ -42,38 +54,37 @@ function draftTitleFromForm(form: HaulzCalculatorFormState): string {
 
 function mapRow(r: {
   id: string;
+  login_key?: string;
   title: string | null;
   status: string;
   nomer_zayavki: string | null;
   form_state: HaulzCalculatorFormState;
   quote_result: QuoteResult | null;
+  recipient_email?: string | null;
+  agree_token?: string | null;
+  transport_agreed_at?: Date | string | null;
   created_at: Date | string;
   updated_at: Date | string;
 }): HaulzCalcDraftRow {
   return {
     id: Number(r.id),
     title: r.title,
-    status: r.status === "submitted" ? "submitted" : "draft",
+    status: parseHaulzCalcDraftStatus(r.status),
     nomerZayavki: r.nomer_zayavki,
     formState: r.form_state,
     quoteResult: r.quote_result,
+    recipientEmail: r.recipient_email ?? null,
+    agreeToken: r.agree_token ?? null,
+    transportAgreedAt: r.transport_agreed_at ? new Date(r.transport_agreed_at).toISOString() : null,
+    loginKey: r.login_key,
     createdAt: new Date(r.created_at).toISOString(),
     updatedAt: new Date(r.updated_at).toISOString(),
   };
 }
 
 export async function listHaulzCalcDrafts(pool: Pool, loginKey: string): Promise<HaulzCalcDraftRow[]> {
-  const { rows } = await pool.query<{
-    id: string;
-    title: string | null;
-    status: string;
-    nomer_zayavki: string | null;
-    form_state: HaulzCalculatorFormState;
-    quote_result: QuoteResult | null;
-    created_at: Date;
-    updated_at: Date;
-  }>(
-    `select id::text, title, status, nomer_zayavki, form_state, quote_result, created_at, updated_at
+  const { rows } = await pool.query(
+    `select ${DRAFT_SELECT}
      from haulz_calc_drafts
      where login_key = $1
      order by updated_at desc
@@ -88,17 +99,8 @@ export async function getHaulzCalcDraft(
   loginKey: string,
   id: number,
 ): Promise<HaulzCalcDraftRow | null> {
-  const { rows } = await pool.query<{
-    id: string;
-    title: string | null;
-    status: string;
-    nomer_zayavki: string | null;
-    form_state: HaulzCalculatorFormState;
-    quote_result: QuoteResult | null;
-    created_at: Date;
-    updated_at: Date;
-  }>(
-    `select id::text, title, status, nomer_zayavki, form_state, quote_result, created_at, updated_at
+  const { rows } = await pool.query(
+    `select ${DRAFT_SELECT}
      from haulz_calc_drafts where login_key = $1 and id = $2`,
     [loginKey, id],
   );
@@ -112,14 +114,14 @@ export async function upsertHaulzCalcDraft(
   input: {
     id?: number;
     title?: string;
-    status?: "draft" | "submitted";
+    status?: HaulzCalcDraftStatus;
     nomerZayavki?: string;
     formState: HaulzCalculatorFormState;
     quoteResult?: QuoteResult | null;
   },
 ): Promise<HaulzCalcDraftRow> {
   const title = String(input.title || "").trim() || draftTitleFromForm(input.formState);
-  const status = input.status === "submitted" ? "submitted" : "draft";
+  const status = input.status ? parseHaulzCalcDraftStatus(input.status) : "draft";
   const nomer = input.nomerZayavki?.trim() || null;
 
   if (input.id) {

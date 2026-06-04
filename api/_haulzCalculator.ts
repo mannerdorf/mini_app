@@ -27,3 +27,20 @@ export async function resolveHaulzCalculatorAccess(
   if (perms?.haulz !== true) return null;
   return { login, loginKey };
 }
+
+/** Менеджер заявок калькулятора: haulz + (supervisor или cms_access). */
+export async function resolveHaulzCalcManagerAccess(
+  req: VercelRequest,
+  body?: unknown,
+): Promise<HaulzCalculatorAccess | null> {
+  const access = await resolveHaulzCalculatorAccess(req, body);
+  if (!access) return null;
+  const pool = getPool();
+  const { rows } = await pool.query<{ permissions: Record<string, boolean> | null }>(
+    `select permissions from registered_users where lower(trim(login)) = $1 and active = true`,
+    [access.loginKey],
+  );
+  const perms = rows[0]?.permissions;
+  if (perms?.cms_access === true || perms?.supervisor === true) return access;
+  return null;
+}

@@ -13,6 +13,7 @@ import {
 } from "./mkadDistance.js";
 import { calcPickupCityFee, resolveTierIndex } from "./pickupTariff.js";
 import { isLastMileLegCharged, isPickupLegCharged, resolveDirection } from "./quoteEngine.js";
+import { formatQuoteVatLine, vatAmountIncludedInTotal } from "./quoteVat.js";
 import { parsePickupXlsxFile } from "./pickupXlsxParser.js";
 import path from "node:path";
 import type { PickupTier, RingExitRow } from "./types.js";
@@ -125,6 +126,13 @@ describe("quoteEngine leg charges", () => {
     expect(isLastMileLegCharged({ toParty: { mode: "point" } })).toBe(false);
     expect(isLastMileLegCharged({ toParty: { mode: "courier" } })).toBe(true);
     expect(isLastMileLegCharged({})).toBe(true);
+  });
+});
+
+describe("quoteVat", () => {
+  it("computes VAT included in total at 5%", () => {
+    expect(vatAmountIncludedInTotal(5817.85)).toBe(277.04);
+    expect(formatQuoteVatLine(5817.85)).toBe("в том числе НДС 5% 277,04 ₽");
   });
 });
 

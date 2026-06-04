@@ -10,6 +10,7 @@ import {
 } from "../emailTypography.js";
 import { HAULZ_LEGAL } from "../haulzLegal.js";
 import { getAppUrl } from "../sendRegistrationEmail.js";
+import { formatQuoteVatLine } from "./quoteVat.js";
 import { HAULZ_WAREHOUSES } from "./warehouses.js";
 import type {
   AddressSelection,
@@ -31,7 +32,22 @@ export type QuoteProposalEmailInput = {
   fromParty?: DeliveryParty;
   toParty?: DeliveryParty;
   recipientName?: string;
+  /** Ссылка «Согласовать перевозку» из письма */
+  agreeUrl?: string;
 };
+
+function renderAgreeTransportButtonHtml(agreeUrl: string): string {
+  return `
+    <table cellpadding="0" cellspacing="0" style="margin:16px 0 8px;">
+      <tr>
+        <td style="border-radius:10px;background:#2563eb;">
+          <a href="${escapeHtml(agreeUrl)}" style="display:inline-block;padding:14px 28px;color:#ffffff;font-weight:600;font-size:15px;text-decoration:none;">
+            Согласовать перевозку
+          </a>
+        </td>
+      </tr>
+    </table>`;
+}
 
 const TILE_CELL_PAD = "6px";
 const TILE_RADIUS = "8px";
@@ -94,9 +110,10 @@ function renderPartyBlock(title: string, party: DeliveryParty | undefined, addr:
     `<strong>${escapeHtml(partyLegLabel(mode, leg))}</strong>`,
     escapeHtml(addr.fullAddress || addr.label),
   ];
-  if (party?.fullName) lines.push(`Контакт: ${escapeHtml(party.fullName)}`);
-  if (party?.phone) lines.push(`Тел.: ${escapeHtml(party.phone)}`);
+  if (party?.companyName) lines.push(`Организация: ${escapeHtml(party.companyName)}`);
   if (party?.inn) lines.push(`ИНН: ${escapeHtml(party.inn)}`);
+  if (party?.fullName) lines.push(`ФИО контактного лица: ${escapeHtml(party.fullName)}`);
+  if (party?.phone) lines.push(`Тел.: ${escapeHtml(party.phone)}`);
   return `
     <div style="margin-bottom:12px;padding:12px 14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;">
       <div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:6px;">${escapeHtml(title)}</div>
@@ -144,8 +161,13 @@ function renderQuoteLinesTable(quote: QuoteResult): string {
       </tr>
       ${rows}
       <tr>
-        <td style="${emailTableBodyCellStyle()};font-weight:700;border-bottom:none;">Итого</td>
-        <td style="${emailTableBodyCellStyle()};text-align:right;font-weight:700;font-size:15px;border-bottom:none;">${formatMoney(quote.totalRub)} ₽</td>
+        <td style="${emailTableBodyCellStyle()};font-weight:700;">Итого</td>
+        <td style="${emailTableBodyCellStyle()};text-align:right;font-weight:700;font-size:15px;">${formatMoney(quote.totalRub)} ₽</td>
+      </tr>
+      <tr>
+        <td colspan="2" style="${emailTableBodyCellStyle()};font-size:12px;color:#6b7280;border-bottom:none;padding-top:4px;">
+          ${escapeHtml(formatQuoteVatLine(quote.totalRub))}
+        </td>
       </tr>
     </table>`;
 }
@@ -198,7 +220,7 @@ function renderQuoteProposalFooterHtml(): string {
 }
 
 export function renderHaulzQuoteProposalHtml(input: QuoteProposalEmailInput): string {
-  const { quote, from, to, places, mainlineMode, direction, dataZabora, fromParty, toParty } = input;
+  const { quote, from, to, places, mainlineMode, direction, dataZabora, fromParty, toParty, agreeUrl } = input;
   const ch = quote.chargeable;
   const dirLabel = DIRECTION_LABELS[direction] ?? direction;
   const mainlineLabel = MAINLINE_LABELS[mainlineMode] ?? mainlineMode;
@@ -206,6 +228,8 @@ export function renderHaulzQuoteProposalHtml(input: QuoteProposalEmailInput): st
   const dateLabel = dataZabora ? formatRuDate(dataZabora) : "по согласованию";
 
   const chargeSub = `${formatMoney(ch.chargeableWeightKg)} кг к расчёту · ${places.length} мест · ${formatMoney(ch.volumeM3)} м³`;
+  const vatLine = formatQuoteVatLine(quote.totalRub);
+  const totalTileSub = [deliveryHint || chargeSub, vatLine].filter(Boolean).join(" · ");
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">${HAULZ_EMAIL_HEAD_LINKS}</head>
@@ -240,7 +264,7 @@ export function renderHaulzQuoteProposalHtml(input: QuoteProposalEmailInput): st
 
       ${sectionTitle("Итого по расчёту")}
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:14px;">
-        <tr>${totalTile(`${formatMoney(quote.totalRub)} ₽`, "Предварительная стоимость", deliveryHint || chargeSub)}</tr>
+        <tr>${totalTile(`${formatMoney(quote.totalRub)} ₽`, "Предварительная стоимость", totalTileSub)}</tr>
       </table>
 
       ${sectionTitle("Параметры перевозки")}
@@ -265,10 +289,18 @@ export function renderHaulzQuoteProposalHtml(input: QuoteProposalEmailInput): st
       ${sectionTitle("Наши склады и контакты")}
       ${renderWarehousesBlock()}
 
-      <p style="margin:16px 0 0;font-size:14px;color:#111827;line-height:1.55;">
-        Чтобы закрепить расчёт и запустить перевозку, ответьте на это письмо или оформите заявку в личном кабинете —
+      ${
+        agreeUrl
+          ? `<p style="margin:16px 0 8px;font-size:14px;color:#111827;line-height:1.55;">
+        Чтобы закрепить расчёт и запустить перевозку, нажмите кнопку «Согласовать перевозку» —
         менеджер свяжется с вами для подтверждения деталей.
       </p>
+      ${renderAgreeTransportButtonHtml(agreeUrl)}`
+          : `<p style="margin:16px 0 0;font-size:14px;color:#111827;line-height:1.55;">
+        Чтобы закрепить расчёт и запустить перевозку, оформите заявку в личном кабинете —
+        менеджер свяжется с вами для подтверждения деталей.
+      </p>`
+      }
       <p style="margin:8px 0 0;font-size:14px;color:#4b5563;line-height:1.5;">
         С уважением к вашему бизнесу,<br/><strong>команда HAULZ</strong>
       </p>

@@ -60,6 +60,12 @@ function parseParty(raw: unknown): DeliveryParty | undefined {
     inn: innRaw || undefined,
     phone: typeof o.phone === "string" ? o.phone.trim() : undefined,
     fullName: typeof o.fullName === "string" ? o.fullName.trim() : undefined,
+    companyName:
+      typeof o.companyName === "string"
+        ? o.companyName.trim()
+        : typeof o.company_name === "string"
+          ? o.company_name.trim()
+          : undefined,
   };
 }
 

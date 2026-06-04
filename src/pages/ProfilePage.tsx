@@ -1226,9 +1226,12 @@ export function ProfilePage({
                 </div>
             );
         }
+        const calcManagerMode =
+            activeAccount?.permissions?.haulz === true && activeAccount?.permissions?.supervisor === true;
         return (
             <HaulzCalcRequestsPage
                 auth={auth}
+                managerMode={calcManagerMode}
                 onBack={() => setCurrentView("haulz")}
                 onOpenCalculator={(draftId) => {
                     setHaulzCalcRestoreDraftId(draftId ?? null);

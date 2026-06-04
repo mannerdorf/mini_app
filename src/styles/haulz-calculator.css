@@ -198,6 +198,31 @@
   color: var(--calc-alert-success-text, #166534);
 }
 
+.haulz-calc-requests-card__badge--new {
+  background: rgba(37, 99, 235, 0.15);
+  color: #1d4ed8;
+}
+
+.haulz-calc-requests-card__badge--awaiting {
+  background: rgba(234, 179, 8, 0.18);
+  color: #a16207;
+}
+
+.haulz-calc-requests-card__badge--reject {
+  background: var(--calc-alert-error-bg, rgba(239, 68, 68, 0.12));
+  color: var(--calc-alert-error-text, #b91c1c);
+}
+
+.haulz-calc-requests-card__login {
+  margin: 0 0 0.25rem;
+  font-size: 0.75rem;
+  color: var(--calc-text-secondary, #6b7280);
+}
+
+.haulz-calc-requests-card__actions {
+  flex-wrap: wrap;
+}
+
 .haulz-calc-requests-card__sum {
   font-weight: 600;
   color: var(--calc-text);
@@ -227,29 +252,20 @@
   align-items: start;
 }
 
-/* «Ваш расчёт» — фиксирован на экране (колонка в grid остаётся для отступа слева) */
+/* «Ваш расчёт» — правая колонка grid; на десктопе липнет при прокрутке, не наезжает на форму */
 .haulz-calc-summary-wrap {
   align-self: start;
   min-width: 0;
-  width: var(--haulz-summary-col-width);
-  max-width: 100%;
-  pointer-events: none;
-}
-
-.haulz-calc-summary-wrap .haulz-calc-summary {
-  pointer-events: auto;
+  width: 100%;
+  max-width: var(--haulz-summary-col-width);
+  justify-self: end;
 }
 
 @media (min-width: 901px) {
   .haulz-calc-summary-wrap {
-    position: fixed;
-    z-index: 44;
+    position: sticky;
+    z-index: 2;
     top: var(--haulz-summary-fixed-top);
-    right: max(
-      var(--pad-page-h, 24px),
-      calc((100vw - min(56rem, 100vw - 2 * var(--pad-page-h, 24px))) / 2)
-    );
-    width: min(var(--haulz-summary-col-width), calc(100vw - 2 * var(--pad-page-h, 24px)));
     max-height: calc(100dvh - var(--haulz-summary-fixed-top) - 1rem);
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -394,9 +410,10 @@
   max-height: 90vh;
   overflow: auto;
   border-radius: 12px;
-  background: var(--calc-card-bg, #fff);
-  color: var(--calc-text, #1a1a1a);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+  background: var(--calc-card);
+  color: var(--calc-text);
+  border: 1px solid var(--calc-border);
+  box-shadow: var(--calc-shadow);
 }
 
 .haulz-calc-map-modal__head {
@@ -411,6 +428,7 @@
   align-items: center;
   font-weight: 600;
   font-size: 0.9375rem;
+  color: var(--calc-text);
 }
 
 .haulz-calc-map-modal__close {
@@ -466,23 +484,15 @@
 
 .haulz-calc-email-modal__field {
   margin: 0 1rem 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
 }
 
-.haulz-calc-email-modal__field label {
-  font-size: 0.8125rem;
-  color: var(--calc-text-secondary, #6b7280);
+.haulz-calc-email-modal__field .haulz-calc-input {
+  height: var(--calc-input-h);
 }
 
-.haulz-calc-email-modal__field input {
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--calc-border, #e5e7eb);
-  border-radius: 8px;
-  font-size: 0.9375rem;
-  background: var(--calc-card-bg, #fff);
-  color: inherit;
+.haulz-calc-map-modal--email .haulz-calc-map-modal__actions .haulz-calc-btn-primary {
+  width: auto;
+  min-width: 8.5rem;
 }
 
 .haulz-calc-map-modal__actions {
@@ -550,7 +560,8 @@
   margin-top: 0.75rem;
 }
 
-.haulz-calc-contacts__inn {
+.haulz-calc-contacts__inn,
+.haulz-calc-contacts__company {
   grid-column: 1 / -1;
 }
 
@@ -646,7 +657,7 @@
   max-height: 100dvh;
   overflow: hidden;
   overscroll-behavior: none;
-  background: var(--calc-card-bg, #fff);
+  background: var(--calc-card);
   color: var(--calc-text, #1a1a1a);
 }
 
@@ -675,7 +686,7 @@ body.haulz-calc-map-screen-open {
   max-width: 100%;
   padding: 0 1.25rem 1rem;
   border-right: 1px solid var(--calc-border, #e5e7eb);
-  background: var(--calc-card-bg, #fff);
+  background: var(--calc-card);
   overflow-y: auto;
 }
 
@@ -1167,6 +1178,13 @@ body.haulz-calc-map-screen-open {
 .haulz-calc-summary__total-value {
   font-size: 1.375rem;
   color: var(--calc-text);
+}
+
+.haulz-calc-summary__vat {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--calc-text-secondary);
+  line-height: 1.4;
 }
 
 .haulz-calc-summary__days {

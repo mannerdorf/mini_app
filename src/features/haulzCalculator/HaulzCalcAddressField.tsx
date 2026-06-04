@@ -41,8 +41,10 @@ type Props = {
   setPhone: (v: string) => void;
   inn: string;
   setInn: (v: string) => void;
-  fullName: string;
-  setFullName: (v: string) => void;
+  companyName: string;
+  setCompanyName: (v: string) => void;
+  contactName: string;
+  setContactName: (v: string) => void;
   onQuickCity: (city: CityCode) => void;
 };
 
@@ -61,8 +63,10 @@ export function HaulzCalcAddressField({
   setPhone,
   inn,
   setInn,
-  fullName,
-  setFullName,
+  companyName,
+  setCompanyName,
+  contactName,
+  setContactName,
   onQuickCity,
 }: Props) {
   const [suggestions, setSuggestions] = useState<HaulzSuggestItem[]>([]);
@@ -181,7 +185,7 @@ export function HaulzCalcAddressField({
       .then((party) => {
         if (!cancelled) {
           setInn(party.inn);
-          setFullName(party.fullName);
+          setCompanyName(party.fullName);
           setInnError(null);
         }
       })
@@ -196,7 +200,7 @@ export function HaulzCalcAddressField({
     return () => {
       cancelled = true;
     };
-  }, [auth, debouncedInn, innTouched, setFullName, setInn]);
+  }, [auth, debouncedInn, innTouched, setCompanyName, setInn]);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -396,6 +400,15 @@ export function HaulzCalcAddressField({
           )}
           {innError && !innLoading && <span className="haulz-calc-field-hint haulz-calc-field-hint--error">{innError}</span>}
         </label>
+        <label className="haulz-calc-field haulz-calc-contacts__company">
+          <span className="haulz-calc-label">Полное наименование</span>
+          <input
+            className="haulz-calc-input"
+            placeholder="Заполнится по ИНН или введите вручную"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+          />
+        </label>
         <label className="haulz-calc-field">
           <span className="haulz-calc-label">Телефон</span>
           <input
@@ -407,12 +420,12 @@ export function HaulzCalcAddressField({
           />
         </label>
         <label className="haulz-calc-field">
-          <span className="haulz-calc-label">Полное наименование</span>
+          <span className="haulz-calc-label">ФИО контактного лица</span>
           <input
             className="haulz-calc-input"
-            placeholder="Заполнится по ИНН или введите вручную"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
+            placeholder="Иванов Иван Иванович"
+            value={contactName}
+            onChange={(e) => setContactName(e.target.value)}
           />
         </label>
       </div>

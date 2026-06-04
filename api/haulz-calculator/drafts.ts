@@ -12,6 +12,7 @@ import {
   upsertHaulzCalcDraft,
   type HaulzCalculatorFormState,
 } from "../../lib/haulzCalculator/calculatorDraft.js";
+import { parseHaulzCalcDraftStatus } from "../../lib/haulzCalculator/draftStatus.js";
 import type { QuoteResult } from "../../lib/haulzCalculator/types.js";
 
 function parseBody(req: VercelRequest): Record<string, unknown> {
@@ -83,7 +84,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const draft = await upsertHaulzCalcDraft(pool, access.loginKey, {
         id: id ?? undefined,
         title: typeof body.title === "string" ? body.title : undefined,
-        status: body.status === "submitted" ? "submitted" : "draft",
+        status: body.status != null ? parseHaulzCalcDraftStatus(body.status) : "draft",
         nomerZayavki:
           typeof body.nomerZayavki === "string"
             ? body.nomerZayavki

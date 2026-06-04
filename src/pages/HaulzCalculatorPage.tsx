@@ -20,6 +20,7 @@ import {
   type HaulzCalculatorFormState,
 } from "../api/client/haulzCalculator";
 import { HaulzCalcAddressField } from "../features/haulzCalculator/HaulzCalcAddressField";
+import { formatQuoteVatLine } from "../../lib/haulzCalculator/quoteVat";
 
 type Props = {
   auth: AuthData | null;
@@ -63,6 +64,8 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
   const [toPhone, setToPhone] = useState("");
   const [fromInn, setFromInn] = useState("");
   const [toInn, setToInn] = useState("");
+  const [fromCompanyName, setFromCompanyName] = useState("");
+  const [toCompanyName, setToCompanyName] = useState("");
   const [fromName, setFromName] = useState("");
   const [toName, setToName] = useState("");
   const [places, setPlaces] = useState<ParcelPlace[]>([{ weightKg: 100, volumeM3: 0.5 }]);
@@ -141,6 +144,8 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
       toPhone,
       fromInn,
       toInn,
+      fromCompanyName,
+      toCompanyName,
       fromName,
       toName,
       places,
@@ -162,6 +167,8 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     toPhone,
     fromInn,
     toInn,
+    fromCompanyName,
+    toCompanyName,
     fromName,
     toName,
     places,
@@ -184,6 +191,8 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     setToPhone(f.toPhone ?? "");
     setFromInn(f.fromInn ?? "");
     setToInn(f.toInn ?? "");
+    setFromCompanyName(f.fromCompanyName ?? "");
+    setToCompanyName(f.toCompanyName ?? "");
     setFromName(f.fromName ?? "");
     setToName(f.toName ?? "");
     setPlaces(f.places?.length ? f.places : [{ weightKg: 100, volumeM3: 0.5 }]);
@@ -290,8 +299,20 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
           direction: inferredDirection,
           declaredValueRub: Number(declaredValue) || 0,
           extraCodes,
-          fromParty: { mode: fromMode, inn: fromInn, phone: fromPhone, fullName: fromName },
-          toParty: { mode: toMode, inn: toInn, phone: toPhone, fullName: toName },
+          fromParty: {
+            mode: fromMode,
+            inn: fromInn,
+            phone: fromPhone,
+            companyName: fromCompanyName,
+            fullName: fromName,
+          },
+          toParty: {
+            mode: toMode,
+            inn: toInn,
+            phone: toPhone,
+            companyName: toCompanyName,
+            fullName: toName,
+          },
         });
         if (!cancelled) {
           setQuote(result);
@@ -329,8 +350,20 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
         declaredValueRub: Number(declaredValue) || 0,
         extraCodes,
         dataZabora,
-        fromParty: { mode: fromMode, inn: fromInn, phone: fromPhone, fullName: fromName },
-        toParty: { mode: toMode, inn: toInn, phone: toPhone, fullName: toName },
+        fromParty: {
+          mode: fromMode,
+          inn: fromInn,
+          phone: fromPhone,
+          companyName: fromCompanyName,
+          fullName: fromName,
+        },
+        toParty: {
+          mode: toMode,
+          inn: toInn,
+          phone: toPhone,
+          companyName: toCompanyName,
+          fullName: toName,
+        },
       });
       setQuote(q);
       setOrderMessage(`Заявка ${nomerZayavki} зарегистрирована`);
@@ -364,10 +397,12 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     fromMode,
     fromInn,
     fromPhone,
+    fromCompanyName,
     fromName,
     toMode,
     toInn,
     toPhone,
+    toCompanyName,
     toName,
     draftId,
     buildFormState,
@@ -383,6 +418,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
       `Направление: ${quote.direction}`,
       ...quote.lines.map((l) => `${l.label}: ${l.amountRub} ₽`),
       `Итого: ${quote.totalRub} ₽`,
+      formatQuoteVatLine(quote.totalRub),
       quote.deliveryDays ? `Срок: ~${quote.deliveryDays} дн.` : "",
     ]
       .filter(Boolean)
@@ -394,8 +430,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     if (!quote) return;
     setEmailError(null);
     setEmailSuccess(null);
-    const login = auth?.login?.trim() ?? "";
-    if (!emailTo && login.includes("@")) setEmailTo(login);
+    setEmailTo("");
     setEmailModalOpen(true);
   };
 
@@ -410,8 +445,10 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     setEmailError(null);
     setEmailSuccess(null);
     try {
-      await sendHaulzQuoteEmail(auth, {
+      const sent = await sendHaulzQuoteEmail(auth, {
         email,
+        formState: buildFormState(),
+        draftId: draftId ?? undefined,
         from: fromAddr,
         to: toAddr,
         places,
@@ -420,9 +457,22 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
         declaredValueRub: Number(declaredValue) || 0,
         extraCodes,
         dataZabora,
-        fromParty: { mode: fromMode, inn: fromInn, phone: fromPhone, fullName: fromName },
-        toParty: { mode: toMode, inn: toInn, phone: toPhone, fullName: toName },
+        fromParty: {
+          mode: fromMode,
+          inn: fromInn,
+          phone: fromPhone,
+          companyName: fromCompanyName,
+          fullName: fromName,
+        },
+        toParty: {
+          mode: toMode,
+          inn: toInn,
+          phone: toPhone,
+          companyName: toCompanyName,
+          fullName: toName,
+        },
       });
+      if (sent.draftId) setDraftId(sent.draftId);
       setEmailSuccess(`КП отправлено на ${email}`);
       setTimeout(() => setEmailModalOpen(false), 1800);
     } catch (e) {
@@ -445,11 +495,15 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     fromMode,
     fromInn,
     fromPhone,
+    fromCompanyName,
     fromName,
     toMode,
     toInn,
     toPhone,
+    toCompanyName,
     toName,
+    buildFormState,
+    draftId,
   ]);
 
   if (!auth) {
@@ -507,8 +561,10 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
               setPhone={setFromPhone}
               inn={fromInn}
               setInn={setFromInn}
-              fullName={fromName}
-              setFullName={setFromName}
+              companyName={fromCompanyName}
+              setCompanyName={setFromCompanyName}
+              contactName={fromName}
+              setContactName={setFromName}
               onQuickCity={(c) => applyQuickCity("from", c)}
             />
 
@@ -527,8 +583,10 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
               setPhone={setToPhone}
               inn={toInn}
               setInn={setToInn}
-              fullName={toName}
-              setFullName={setToName}
+              companyName={toCompanyName}
+              setCompanyName={setToCompanyName}
+              contactName={toName}
+              setContactName={setToName}
               onQuickCity={(c) => applyQuickCity("to", c)}
             />
 
@@ -720,6 +778,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
                   <span>Итого</span>
                   <span className="haulz-calc-summary__total-value">{quote.totalRub.toLocaleString("ru-RU")} ₽</span>
                 </div>
+                <p className="haulz-calc-summary__vat">{formatQuoteVatLine(quote.totalRub)}</p>
 
                 {quote.deliveryDays > 0 && (
                   <p className="haulz-calc-summary__days">Срок доставки: ~{quote.deliveryDays} дн.</p>
@@ -772,7 +831,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
           aria-labelledby="haulz-calc-email-title"
           onClick={() => !emailSending && setEmailModalOpen(false)}
         >
-          <div className="haulz-calc-map-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="haulz-calc-map-modal haulz-calc-map-modal--email" onClick={(e) => e.stopPropagation()}>
             <div className="haulz-calc-map-modal__head">
               <div id="haulz-calc-email-title" className="haulz-calc-map-modal__title">
                 <Mail className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
@@ -791,11 +850,12 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
             <p className="haulz-calc-map-modal__hint">
               На указанный адрес уйдёт коммерческое предложение с расчётом, маршрутом и контактами HAULZ.
             </p>
-            <div className="haulz-calc-email-modal__field">
-              <label htmlFor="haulz-calc-email-input">Электронная почта</label>
+            <label className="haulz-calc-field haulz-calc-email-modal__field" htmlFor="haulz-calc-email-input">
+              <span className="haulz-calc-label">Электронная почта</span>
               <input
                 id="haulz-calc-email-input"
                 type="email"
+                className="haulz-calc-input"
                 autoComplete="email"
                 placeholder="partner@company.ru"
                 value={emailTo}
@@ -805,7 +865,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
                   if (e.key === "Enter") void sendQuoteEmail();
                 }}
               />
-            </div>
+            </label>
             {emailError && <p className="haulz-calc-map-modal__error">{emailError}</p>}
             {emailSuccess && <div className="haulz-calc-alert haulz-calc-alert--success" style={{ margin: "0 1rem 0.5rem" }}>{emailSuccess}</div>}
             <div className="haulz-calc-map-modal__actions">

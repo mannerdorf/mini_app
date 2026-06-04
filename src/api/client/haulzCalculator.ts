@@ -8,16 +8,19 @@ import type {
   QuoteResult,
 } from "../../../lib/haulzCalculator/types";
 import type { HaulzCalculatorFormState } from "../../../lib/haulzCalculator/calculatorDraft.js";
+import type { HaulzCalcDraftStatus } from "../../../lib/haulzCalculator/draftStatus.js";
 
-export type { HaulzCalculatorFormState };
+export type { HaulzCalculatorFormState, HaulzCalcDraftStatus };
 
 export type HaulzCalcDraft = {
   id: number;
   title: string | null;
-  status: "draft" | "submitted";
+  status: HaulzCalcDraftStatus;
   nomerZayavki: string | null;
   formState: HaulzCalculatorFormState;
   quoteResult: QuoteResult | null;
+  recipientEmail?: string | null;
+  loginKey?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -170,8 +173,20 @@ export async function fetchHaulzQuote(
     extraCodes?: string[];
     kmOverride?: { moscow?: number; kaliningrad?: number };
     saveQuote?: boolean;
-    fromParty?: { mode: "courier" | "point"; phone?: string; fullName?: string };
-    toParty?: { mode: "courier" | "point"; phone?: string; fullName?: string };
+    fromParty?: {
+      mode: "courier" | "point";
+      inn?: string;
+      phone?: string;
+      companyName?: string;
+      fullName?: string;
+    };
+    toParty?: {
+      mode: "courier" | "point";
+      inn?: string;
+      phone?: string;
+      companyName?: string;
+      fullName?: string;
+    };
   },
 ): Promise<QuoteResult> {
   const res = await fetch("/api/haulz-calculator/quote", {
@@ -251,8 +266,10 @@ export async function sendHaulzQuoteEmail(
   auth: AuthData,
   body: {
     email: string;
+    formState: HaulzCalculatorFormState;
+    draftId?: number;
   } & Parameters<typeof fetchHaulzQuote>[1] & { dataZabora?: string },
-): Promise<void> {
+): Promise<{ draftId?: number }> {
   const res = await fetch("/api/haulz-calculator/send-quote-email", {
     method: "POST",
     headers: authHeaders(auth),
@@ -260,6 +277,34 @@ export async function sendHaulzQuoteEmail(
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(parseError(res, data));
+  return { draftId: (data as { draftId?: number }).draftId };
+}
+
+export async function fetchHaulzCalcDraftsManager(auth: AuthData): Promise<HaulzCalcDraft[]> {
+  const res = await fetch("/api/haulz-calculator/drafts-manager", {
+    method: "GET",
+    headers: authHeaders(auth),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(parseError(res, data));
+  return (data as { drafts?: HaulzCalcDraft[] }).drafts ?? [];
+}
+
+export async function patchHaulzCalcDraftStatus(
+  auth: AuthData,
+  id: number,
+  status: "agreed" | "rejected",
+): Promise<HaulzCalcDraft> {
+  const res = await fetch("/api/haulz-calculator/draft-status", {
+    method: "PATCH",
+    headers: authHeaders(auth),
+    body: JSON.stringify({ id, status }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(parseError(res, data));
+  const draft = (data as { draft?: HaulzCalcDraft }).draft;
+  if (!draft) throw new Error("Пустой ответ");
+  return draft;
 }
 
 export async function submitHaulzCalculatorOrder(

@@ -9,6 +9,8 @@ import {
   quoteProposalEmailSubject,
   renderHaulzQuoteProposalHtml,
 } from "../../lib/haulzCalculator/quoteProposalEmail.js";
+import { saveDraftForQuoteEmail } from "../../lib/haulzCalculator/calculatorDraftAgree.js";
+import type { HaulzCalculatorFormState } from "../../lib/haulzCalculator/calculatorDraft.js";
 import { sendHaulzEmail } from "../../lib/sendRegistrationEmail.js";
 import type {
   AddressSelection,
@@ -61,6 +63,12 @@ function parseParty(raw: unknown): DeliveryParty | undefined {
     inn: innRaw || undefined,
     phone: typeof o.phone === "string" ? o.phone.trim() : undefined,
     fullName: typeof o.fullName === "string" ? o.fullName.trim() : undefined,
+    companyName:
+      typeof o.companyName === "string"
+        ? o.companyName.trim()
+        : typeof o.company_name === "string"
+          ? o.company_name.trim()
+          : undefined,
   };
 }
 
@@ -135,6 +143,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ? body.data_zabora.trim()
           : undefined;
 
+    const formRaw = body.formState ?? body.form_state;
+    const formState =
+      formRaw && typeof formRaw === "object" ? (formRaw as HaulzCalculatorFormState) : null;
+    if (!formState) {
+      return res.status(400).json({ error: "formState обязателен", request_id: ctx.requestId });
+    }
+
+    const draftIdRaw = Number(body.draftId ?? body.draft_id);
+    const draftId = Number.isFinite(draftIdRaw) && draftIdRaw > 0 ? draftIdRaw : undefined;
+
+    let agreeUrl = "";
+    let savedDraftId: number | undefined;
+    if (await pgTableExists(pool, "haulz_calc_drafts")) {
+      const saved = await saveDraftForQuoteEmail(pool, access.loginKey, {
+        draftId,
+        formState,
+        quote,
+        recipientEmail,
+      });
+      agreeUrl = saved.agreeUrl;
+      savedDraftId = saved.draft.id;
+    }
+
     const html = renderHaulzQuoteProposalHtml({
       quote,
       from,
@@ -145,6 +176,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       dataZabora,
       fromParty: quoteReq.fromParty,
       toParty: quoteReq.toParty,
+      agreeUrl: agreeUrl || undefined,
     });
 
     const subject = quoteProposalEmailSubject(quote.direction);
@@ -156,7 +188,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    return res.status(200).json({ ok: true, request_id: ctx.requestId });
+    return res.status(200).json({
+      ok: true,
+      draftId: savedDraftId,
+      agreeUrl: agreeUrl || undefined,
+      request_id: ctx.requestId,
+    });
   } catch (e) {
     logError(ctx, "haulz_calc_send_email_failed", e);
     const msg = e instanceof Error ? e.message : "Ошибка расчёта или отправки";

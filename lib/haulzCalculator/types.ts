@@ -131,7 +131,10 @@ export type DeliveryParty = {
   mode: "courier" | "point";
   inn?: string;
   phone?: string;
+  /** ФИО контактного лица */
   fullName?: string;
+  /** Полное наименование организации (по ИНН / вручную) */
+  companyName?: string;
 };
 
 export type HubSummary = {
