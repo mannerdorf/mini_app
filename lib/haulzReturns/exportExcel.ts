@@ -1,12 +1,12 @@
-import type { HaulzSheet, HaulzSheetRow, HaulzWorkbook } from "./types";
-import { FIX_COLUMNS } from "./types";
+import type { HaulzSheet, HaulzSheetRow, HaulzWorkbook } from "./types.js";
+import { FIX_COLUMNS } from "./types.js";
 import { isSummaryRow, isUlRowInItog, stripSummaryRows } from "./ulTotals.js";
 import {
   itogRowHighlight,
   itogUlDataHighlight,
   itogValidationFromRow,
   UL_HIGHLIGHT,
-} from "./validators";
+} from "./validators.js";
 
 function argb(hex: string): string {
   const h = hex.replace("#", "");

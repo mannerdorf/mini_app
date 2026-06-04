@@ -1,4 +1,4 @@
-import type { OtpravkaRow } from "./types";
+import type { OtpravkaRow } from "./types.js";
 import {
   cellText,
   colIndexByHeader,
@@ -6,7 +6,7 @@ import {
   readWorkbookFromArrayBuffer,
   sheetToMatrix,
   normalizeHeader,
-} from "./excelUtils";
+} from "./excelUtils.js";
 
 export function parseOtpravkaBuffer(buffer: ArrayBuffer, fileName?: string): OtpravkaRow[] {
   const wb = readWorkbookFromArrayBuffer(buffer);

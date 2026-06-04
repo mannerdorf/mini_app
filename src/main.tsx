@@ -14,6 +14,7 @@ import "@fontsource/manrope/700.css";
 import "./design-tokens.css";
 import "./styles.css";
 import "./components/shipment-status.css";
+import "./styles/haulz-calculator.css";
 
 const swrConfig = {
     revalidateOnFocus: false,

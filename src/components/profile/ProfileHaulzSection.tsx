@@ -64,6 +64,11 @@ export function ProfileHaulzSection({
                     </Button>
                 )}
                 {activeAccount?.permissions?.haulz === true && (
+                    <Button type="button" className="button-primary" onClick={() => navigateTo("haulzCalculator")}>
+                        Калькулятор
+                    </Button>
+                )}
+                {activeAccount?.permissions?.haulz === true && (
                     <Button type="button" className="button-primary" onClick={() => navigateTo("haulzReturns")}>
                         {RED_RETURNS_LABEL}
                     </Button>

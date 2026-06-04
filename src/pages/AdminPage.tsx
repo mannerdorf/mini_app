@@ -53,6 +53,7 @@ import {
   refreshAdminPvzCache,
   saveAdminFerry,
 } from "../api/client/admin/directories";
+import { AdminHaulzCalculatorSection } from "../features/admin/sections/AdminHaulzCalculatorSection";
 import { fetchAdminMe } from "../api/client/admin/me";
 import { fetchAdminUsers, registerAdminUser, patchAdminUser } from "../api/client/admin/users";
 import {
@@ -622,7 +623,7 @@ function UserRow({
 
 const ADMIN_THEME_KEY = "admin-theme";
 const ADMIN_TAB_KEY = "haulz.admin.tab";
-const ADMIN_TABS = ["users", "templates", "customers", "suppliers", "tariffs", "sverki", "dogovors", "ferries", "pvz", "audit", "logs", "integrations", "legal", "employee_directory", "subdivisions", "presets", "payment_calendar", "work_schedule", "timesheet", "expense_requests", "accounting", "claims", "dashboards", "pnl"] as const;
+const ADMIN_TABS = ["users", "templates", "customers", "suppliers", "tariffs", "sverki", "dogovors", "ferries", "haulz_calculator", "pvz", "audit", "logs", "integrations", "legal", "employee_directory", "subdivisions", "presets", "payment_calendar", "work_schedule", "timesheet", "expense_requests", "accounting", "claims", "dashboards", "pnl"] as const;
 type AdminTab = (typeof ADMIN_TABS)[number];
 
 function getInitialAdminTab(): AdminTab {
@@ -3397,7 +3398,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
     return items;
   }, [selectedUser, editorPermissions, editorFinancial, editorAccessAllInns, editorCustomers]);
-  const isDirectoryTab = tab === "users" || tab === "customers" || tab === "suppliers" || tab === "tariffs" || tab === "sverki" || tab === "dogovors" || tab === "ferries" || tab === "pvz" || tab === "employee_directory" || tab === "subdivisions" || tab === "presets";
+  const isDirectoryTab = tab === "users" || tab === "customers" || tab === "suppliers" || tab === "tariffs" || tab === "sverki" || tab === "dogovors" || tab === "ferries" || tab === "haulz_calculator" || tab === "pvz" || tab === "employee_directory" || tab === "subdivisions" || tab === "presets";
 
   return (
     <div className="light-mode w-full admin-page-root admin-page-root--saas-analytics">
@@ -3594,6 +3595,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           >
             <Ship className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             Справочник паромов
+          </Button>
+          <Button
+            className="filter-button"
+            style={{ background: tab === "haulz_calculator" ? "var(--color-primary-blue)" : undefined, color: tab === "haulz_calculator" ? "white" : undefined }}
+            onClick={() => setTab("haulz_calculator")}
+          >
+            <Calculator className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Калькулятор HAULZ
           </Button>
           <Button
             className="filter-button"
@@ -11064,6 +11073,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       />
 
       {tab === "dashboards" && isSuperAdmin && <AdminDashboardsPanel adminToken={adminToken} />}
+
+      {tab === "haulz_calculator" && adminToken && (
+        <AdminHaulzCalculatorSection adminToken={adminToken} />
+      )}
 
       {tab === "pnl" && isSuperAdmin && (
         <PnlSection

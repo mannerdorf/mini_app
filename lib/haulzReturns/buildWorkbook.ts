@@ -6,20 +6,20 @@ import type {
   OtpravkaRow,
   ParsedUlFile,
   UlDataRow,
-} from "./types";
-import { FIX_COLUMNS, ITog_HEADERS, KGD_COLUMNS, PLOMBY_HEADERS, STOP_HEADERS, UL_HEADERS } from "./types";
-import { STOP_WORDS } from "./stopWords";
+} from "./types.js";
+import { FIX_COLUMNS, ITog_HEADERS, KGD_COLUMNS, PLOMBY_HEADERS, STOP_HEADERS, UL_HEADERS } from "./types.js";
+import { STOP_WORDS } from "./stopWords.js";
 import { mergeUlFiles } from "./parseUl.js";
 import {
   countUlPlaces,
   stopColumnValue,
   validateItogRow,
-} from "./validators";
+} from "./validators.js";
 import { recalcKgdDupCounts } from "./kgdOperations.js";
 import { stableItogRowId } from "./itogRowKeys.js";
 import { appendItogSummaryRow, appendKgdSummaryRow, appendUlSummaryRow } from "./ulTotals.js";
 import { normalizeUlSheetTdMeta } from "./tdDocuments/parseUlTdNumber.js";
-import type { ParsedUlFile as UlFile } from "./types";
+import type { ParsedUlFile as UlFile } from "./types.js";
 
 export type BuildInput = {
   otpravka: OtpravkaRow[];

@@ -1,4 +1,4 @@
-import type { ParsedUlFile, UlDataRow } from "./types";
+import type { ParsedUlFile, UlDataRow } from "./types.js";
 import {
   cellText,
   colIndexByHeader,
@@ -8,7 +8,7 @@ import {
   findHeaderRowIndex,
   readWorkbookFromArrayBuffer,
   sheetToMatrix,
-} from "./excelUtils";
+} from "./excelUtils.js";
 
 function parseUlMatrix(matrix: unknown[][], fileName: string): ParsedUlFile {
   const headerIdx = findHeaderRowIndex(matrix, [

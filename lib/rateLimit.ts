@@ -56,3 +56,7 @@ export const AUTH_2FA_VERIFY_LIMIT = 10;    // 10 попыток проверк�
 export const AUTH_2FA_SEND_LIMIT = 5;       // 5 запросов на отправку 2FA-кода в Telegram в минуту с одного IP
 export const AUTH_VERIFY_INN_CODE_LIMIT = 10; // 10 попыток проверки кода доступа по ИНН в минуту с одного IP
 export const REQUEST_INN_ACCESS_LIMIT = 5;    // 5 запросов на отправку кода доступа по ИНН в минуту (email)
+
+/** HAULZ калькулятор — платные вызовы 2GIS */
+export const HAULZ_CALC_SUGGEST_LIMIT = 60;  // подсказки адреса в минуту с IP
+export const HAULZ_CALC_QUOTE_LIMIT = 30;    // полных расчётов в минуту с IP
