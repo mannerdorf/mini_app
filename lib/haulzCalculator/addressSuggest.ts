@@ -2,10 +2,12 @@ import type { Pool } from "pg";
 import {
   geoReadCache,
   geoWriteCache,
+  getYandexGeocoderApiKey,
   yandexGeocode,
+  yandexGeocoderSuggest,
   type AddressSuggestItem,
 } from "./yandexClient.js";
-import { prepareSuggestQuery, yandexSuggestAddresses } from "./yandexSuggest.js";
+import { getYandexGeosuggestApiKeyOrNull, prepareSuggestQuery, yandexSuggestAddresses } from "./yandexSuggest.js";
 
 export type { AddressSuggestItem } from "./yandexClient.js";
 /** @deprecated */
@@ -64,9 +66,32 @@ export async function suggestAddresses(
   const fromCache = cached ? readCachedItems(cached) : null;
   if (fromCache && fromCache.length > 0) return fromCache;
 
-  let items = await yandexSuggestAddresses(apiQuery, opts);
-  if (items.length === 0 && apiQuery !== query) {
+  let items: AddressSuggestItem[] = [];
+  if (getYandexGeosuggestApiKeyOrNull()) {
     items = await yandexSuggestAddresses(query, opts);
+  }
+
+  if (items.length === 0) {
+    try {
+      getYandexGeocoderApiKey();
+      items = await yandexGeocoderSuggest(apiQuery, pool, opts);
+      if (items.length === 0 && apiQuery !== query) {
+        items = await yandexGeocoderSuggest(query, pool, opts);
+      }
+    } catch {
+      /* геокодер не настроен */
+    }
+  }
+
+  if (items.length === 0 && !getYandexGeosuggestApiKeyOrNull()) {
+    try {
+      getYandexGeocoderApiKey();
+    } catch {
+      throw new Error(
+        "Задайте HAULZ_YANDEX_GEOSUGGEST_API_KEY или HAULZ_YANDEX_GEOCODER_API_KEY на сервере",
+      );
+    }
+    throw new Error("Подсказки адреса не найдены. Проверьте ключ Geosuggest в кабинете Яндекса.");
   }
 
   items = await enrichWithGeocode(items, pool, opts.city, 8);

@@ -82,19 +82,100 @@ function pointFromGeocoderResponse(data: unknown): GeoPoint | null {
   return { lat, lon };
 }
 
+type GeocoderMember = {
+  GeoObject?: {
+    name?: string;
+    Point?: { pos?: string };
+    metaDataProperty?: {
+      GeocoderMetaData?: {
+        text?: string;
+        Address?: { formatted?: string };
+        uri?: string;
+      };
+    };
+  };
+};
+
+function geocoderMembers(data: unknown): GeocoderMember[] {
+  const list = (data as { response?: { GeoObjectCollection?: { featureMember?: GeocoderMember[] } } })?.response
+    ?.GeoObjectCollection?.featureMember;
+  return Array.isArray(list) ? list : [];
+}
+
 function formattedAddressFromGeocoder(data: unknown): string | null {
-  const member = (data as { response?: { GeoObjectCollection?: { featureMember?: unknown[] } } })?.response
-    ?.GeoObjectCollection?.featureMember?.[0] as {
-    GeoObject?: { metaDataProperty?: { GeocoderMetaData?: { text?: string; Address?: { formatted?: string } } } };
-  } | undefined;
+  const member = geocoderMembers(data)[0];
   const meta = member?.GeoObject?.metaDataProperty?.GeocoderMetaData;
   return String(meta?.text || meta?.Address?.formatted || "").trim() || null;
+}
+
+function suggestItemsFromGeocoder(data: unknown): AddressSuggestItem[] {
+  const out: AddressSuggestItem[] = [];
+  for (const member of geocoderMembers(data)) {
+    const obj = member.GeoObject;
+    if (!obj) continue;
+    const meta = obj.metaDataProperty?.GeocoderMetaData;
+    const fullAddress = String(meta?.text || meta?.Address?.formatted || obj.name || "").trim();
+    const label = String(obj.name || fullAddress).trim();
+    if (!label && !fullAddress) continue;
+    const pos = obj.Point?.pos;
+    let point: GeoPoint | undefined;
+    if (pos) {
+      const [lonS, latS] = pos.split(/\s+/);
+      const lat = Number(latS);
+      const lon = Number(lonS);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) point = { lat, lon };
+    }
+    out.push({
+      uri: meta?.uri,
+      label,
+      fullAddress: fullAddress || label,
+      point,
+    });
+  }
+  return out;
 }
 
 const CITY_BBOX: Record<"moscow" | "kaliningrad", string> = {
   moscow: "37.319,55.489~37.967,55.957",
   kaliningrad: "20.350,54.620~20.750,54.820",
 };
+
+/** Подсказки через Геокодер (fallback, если Geosuggest пустой или ключ не задан). */
+export async function yandexGeocoderSuggest(
+  query: string,
+  pool: Pool | null = null,
+  opts?: { city?: "moscow" | "kaliningrad" },
+): Promise<AddressSuggestItem[]> {
+  const address = String(query || "").trim();
+  if (address.length < 2) return [];
+
+  const cacheKey = `ygeosuggest:${opts?.city || "any"}:${address.toLowerCase()}`;
+  const cached = await geoReadCache(pool, cacheKey);
+  if (cached && typeof cached === "object" && "items" in cached) {
+    const items = (cached as { items?: AddressSuggestItem[] }).items;
+    if (Array.isArray(items) && items.length > 0) return items;
+  }
+
+  const key = getYandexGeocoderApiKey();
+  const params = new URLSearchParams({
+    apikey: key,
+    geocode: address,
+    format: "json",
+    lang: "ru_RU",
+    results: "10",
+  });
+  if (opts?.city) {
+    params.set("bbox", CITY_BBOX[opts.city]);
+    params.set("rspn", "0");
+  }
+
+  const data = await yandexFetchJson(`${GEOCODE_URL}?${params}`, undefined, 12000);
+  const items = suggestItemsFromGeocoder(data);
+  if (items.length > 0) {
+    await geoWriteCache(pool, cacheKey, "suggest", { items }, 12);
+  }
+  return items;
+}
 
 export async function yandexGeocode(
   query: string,

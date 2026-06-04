@@ -452,7 +452,8 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
             )}
           </div>
 
-          <aside className="haulz-calc-summary">
+          <aside className="haulz-calc-summary-wrap" aria-label="Ваш расчёт">
+            <div className="haulz-calc-summary">
             <h2 className="haulz-calc-summary__title">Ваш расчёт</h2>
 
             {loading && (
@@ -528,6 +529,7 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
                 </div>
               </>
             )}
+            </div>
           </aside>
         </div>
       </div>

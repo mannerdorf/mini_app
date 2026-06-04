@@ -1,10 +1,16 @@
 import type { AddressSuggestItem } from "./yandexClient.js";
+import { yandexFetchJson } from "./yandexClient.js";
 
 const YANDEX_SUGGEST_URL = "https://suggest-maps.yandex.ru/v1/suggest";
 
 /** API Геосаджеста — подсказки при вводе адреса. */
-export function getYandexGeosuggestApiKey(): string {
+export function getYandexGeosuggestApiKeyOrNull(): string | null {
   const k = String(process.env.HAULZ_YANDEX_GEOSUGGEST_API_KEY || "").trim();
+  return k || null;
+}
+
+export function getYandexGeosuggestApiKey(): string {
+  const k = getYandexGeosuggestApiKeyOrNull();
   if (!k) throw new Error("HAULZ_YANDEX_GEOSUGGEST_API_KEY не задан");
   return k;
 }
@@ -44,16 +50,46 @@ type YandexSuggestResponse = {
     uri?: string;
     tags?: string[];
   }>;
+  error?: string;
+  message?: string;
 };
 
-export async function yandexSuggestAddresses(
-  q: string,
-  opts: { city?: "moscow" | "kaliningrad" },
+function filterByCity(items: AddressSuggestItem[], city?: "moscow" | "kaliningrad"): AddressSuggestItem[] {
+  const cityNeedle =
+    city === "kaliningrad" ? "калининград" : city === "moscow" ? "москва" : null;
+  if (!cityNeedle) return items;
+
+  return items.filter((item) => {
+    const lower = `${item.fullAddress} ${item.label}`.toLowerCase();
+    if (cityNeedle === "москва") {
+      if (lower.includes("калининград") || lower.includes("санкт-петербург")) return false;
+      return true;
+    }
+    if (lower.includes("москва") || lower.includes("санкт-петербург")) return false;
+    return true;
+  });
+}
+
+function parseSuggestResponse(data: YandexSuggestResponse): AddressSuggestItem[] {
+  const out: AddressSuggestItem[] = [];
+  for (const row of data.results ?? []) {
+    const fullAddress = String(row.address?.formatted_address ?? row.title?.text ?? "").trim();
+    const label = String(row.title?.text ?? fullAddress).trim();
+    if (!label && !fullAddress) continue;
+    out.push({
+      uri: row.uri,
+      fullAddress: fullAddress || label,
+      label,
+    });
+  }
+  return out;
+}
+
+async function fetchGeosuggestOnce(
+  text: string,
+  opts: { city?: "moscow" | "kaliningrad"; useBbox?: boolean },
 ): Promise<AddressSuggestItem[]> {
   const apikey = getYandexGeosuggestApiKey();
-  const text = prepareSuggestQuery(String(q || "").trim(), opts.city);
-  if (text.length < 2) return [];
-
   const params = new URLSearchParams({
     apikey,
     text,
@@ -61,46 +97,39 @@ export async function yandexSuggestAddresses(
     results: "10",
     print_address: "1",
     attrs: "uri",
-    types: "house,street",
+    types: "geo",
     countries: "ru",
   });
-  if (opts.city) {
+  if (opts.city && opts.useBbox !== false) {
     params.set("bbox", CITY_BBOX[opts.city]);
     params.set("strict_bounds", "0");
   }
 
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 10000);
-  try {
-    const res = await fetch(`${YANDEX_SUGGEST_URL}?${params}`, { signal: ctrl.signal });
-    const data = (await res.json().catch(() => ({}))) as YandexSuggestResponse;
-    if (!res.ok) return [];
+  const data = (await yandexFetchJson(
+    `${YANDEX_SUGGEST_URL}?${params}`,
+    undefined,
+    10000,
+  )) as YandexSuggestResponse;
+  return parseSuggestResponse(data);
+}
 
-    const cityNeedle =
-      opts.city === "kaliningrad" ? "калининград" : opts.city === "moscow" ? "москва" : null;
+export async function yandexSuggestAddresses(
+  q: string,
+  opts: { city?: "moscow" | "kaliningrad" },
+): Promise<AddressSuggestItem[]> {
+  const apikey = getYandexGeosuggestApiKeyOrNull();
+  if (!apikey) return [];
 
-    const out: AddressSuggestItem[] = [];
-    for (const row of data.results ?? []) {
-      const fullAddress = String(row.address?.formatted_address ?? row.title?.text ?? "").trim();
-      const label = String(row.title?.text ?? fullAddress).trim();
-      if (!label && !fullAddress) continue;
+  const text = prepareSuggestQuery(String(q || "").trim(), opts.city);
+  if (text.length < 2) return [];
 
-      const lower = `${fullAddress} ${label}`.toLowerCase();
-      if (cityNeedle === "москва" && (lower.includes("калининград") || lower.includes("санкт-петербург"))) {
-        continue;
-      }
-      if (cityNeedle === "калининград" && (lower.includes("москва") || lower.includes("санкт-петербург"))) {
-        continue;
-      }
-
-      out.push({
-        uri: row.uri,
-        fullAddress: fullAddress || label,
-        label,
-      });
-    }
-    return out;
-  } finally {
-    clearTimeout(t);
+  let items = filterByCity(await fetchGeosuggestOnce(text, { ...opts, useBbox: true }), opts.city);
+  if (items.length === 0 && opts.city) {
+    items = filterByCity(await fetchGeosuggestOnce(text, { ...opts, useBbox: false }), opts.city);
   }
+  const rawQuery = String(q || "").trim();
+  if (items.length === 0 && text !== rawQuery) {
+    items = filterByCity(await fetchGeosuggestOnce(rawQuery, { useBbox: false }), opts.city);
+  }
+  return items;
 }

@@ -115,12 +115,31 @@
   align-items: start;
 }
 
+/* Обёртка для sticky в grid (колонка «Ваш расчёт») */
+.haulz-calc-summary-wrap {
+  align-self: start;
+  min-width: 0;
+}
+
+@media (min-width: 901px) {
+  .haulz-calc-summary-wrap {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100dvh - 2rem);
+    z-index: 5;
+  }
+}
+
 @media (max-width: 900px) {
   .haulz-calc-grid {
     grid-template-columns: 1fr;
   }
-  .haulz-calc-summary {
-    position: static !important;
+
+  .haulz-calc-summary-wrap {
+    position: sticky;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 0.5rem);
+    top: auto;
+    z-index: 44;
   }
 }
 
@@ -924,13 +943,27 @@ body.haulz-calc-map-screen-open {
 
 /* Правая колонка — Ваш расчёт */
 .haulz-calc-summary {
-  position: sticky;
-  top: 0.75rem;
   padding: 1.5rem;
   border-radius: var(--calc-radius-lg);
   background: var(--calc-card);
   box-shadow: var(--calc-shadow);
   border: 1px solid var(--calc-border);
+}
+
+@media (min-width: 901px) {
+  .haulz-calc-summary {
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+@media (max-width: 900px) {
+  .haulz-calc-summary {
+    max-height: min(52vh, calc(100dvh - 120px - env(safe-area-inset-bottom, 0px)));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
 }
 
 .haulz-calc-summary__title {

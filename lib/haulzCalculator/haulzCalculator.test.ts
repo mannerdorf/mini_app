@@ -12,7 +12,7 @@ import {
   ringFromExits,
 } from "./mkadDistance.js";
 import { calcPickupCityFee, resolveTierIndex } from "./pickupTariff.js";
-import { resolveDirection } from "./quoteEngine.js";
+import { isLastMileLegCharged, isPickupLegCharged, resolveDirection } from "./quoteEngine.js";
 import { parsePickupXlsxFile } from "./pickupXlsxParser.js";
 import path from "node:path";
 import type { PickupTier, RingExitRow } from "./types.js";
@@ -111,6 +111,20 @@ describe("quoteEngine direction", () => {
       { label: "КГД", fullAddress: "Калининград", point: { lat: 54.7, lon: 20.5 } },
     );
     expect(d).toBe("mow_kgd");
+  });
+});
+
+describe("quoteEngine leg charges", () => {
+  it("skips pickup when sending from warehouse (point)", () => {
+    expect(isPickupLegCharged({ fromParty: { mode: "point" } })).toBe(false);
+    expect(isPickupLegCharged({ fromParty: { mode: "courier" } })).toBe(true);
+    expect(isPickupLegCharged({})).toBe(true);
+  });
+
+  it("skips last mile when delivering to warehouse (point)", () => {
+    expect(isLastMileLegCharged({ toParty: { mode: "point" } })).toBe(false);
+    expect(isLastMileLegCharged({ toParty: { mode: "courier" } })).toBe(true);
+    expect(isLastMileLegCharged({})).toBe(true);
   });
 });
 

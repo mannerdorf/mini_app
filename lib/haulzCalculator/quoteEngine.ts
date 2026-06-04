@@ -37,6 +37,16 @@ export function resolveDirection(from: AddressSelection, to: AddressSelection, e
   return "mow_kgd";
 }
 
+/** Со склада (point) — без заборной логистики. */
+export function isPickupLegCharged(req: Pick<QuoteRequest, "fromParty">): boolean {
+  return req.fromParty?.mode !== "point";
+}
+
+/** На складе (point) — без последней мили. */
+export function isLastMileLegCharged(req: Pick<QuoteRequest, "toParty">): boolean {
+  return req.toParty?.mode !== "point";
+}
+
 function pickMainline(mainlines: MainlinePayload[], direction: Direction, mode: MainlineMode): MainlinePayload | null {
   return (
     mainlines.find((m) => m.direction === direction && m.mode === mode) ??
@@ -102,23 +112,30 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
     lastMileCity === "kaliningrad" ? req.kmOverride?.kaliningrad : undefined,
   );
 
+  const chargePickup = isPickupLegCharged(req);
+  const chargeLastMile = isLastMileLegCharged(req);
+
   const pickupKm = pickupCity === "moscow" ? kmMoscow : kmKaliningrad;
   const lastMileKm = lastMileCity === "kaliningrad" ? kmKaliningrad : kmMoscow;
 
-  const pickupCalc = calcPickupFromMatrix(
-    tariffs.pickup,
-    pickupCity,
-    chargeable.chargeableWeightKg,
-    chargeable.volumeM3,
-    pickupKm,
-  );
-  const lastMileCalc = calcPickupFromMatrix(
-    tariffs.lastMile,
-    lastMileCity,
-    chargeable.chargeableWeightKg,
-    chargeable.volumeM3,
-    lastMileKm,
-  );
+  const pickupCalc = chargePickup
+    ? calcPickupFromMatrix(
+        tariffs.pickup,
+        pickupCity,
+        chargeable.chargeableWeightKg,
+        chargeable.volumeM3,
+        pickupKm,
+      )
+    : null;
+  const lastMileCalc = chargeLastMile
+    ? calcPickupFromMatrix(
+        tariffs.lastMile,
+        lastMileCity,
+        chargeable.chargeableWeightKg,
+        chargeable.volumeM3,
+        lastMileKm,
+      )
+    : null;
 
   const mainline = pickMainline(tariffs.mainline, direction, req.mainlineMode);
   const mainlineRate = Number(mainline?.price_per_kg) || 0;
@@ -151,26 +168,30 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
     });
   }
 
-  lines.push(
-    {
+  if (chargePickup && pickupCalc) {
+    lines.push({
       key: "pickup",
       label: `Забор (${pickupCity === "moscow" ? "МКАД" : "КАД"}, ${pickupKm.toFixed(1)} км)`,
       amountRub: Math.round(pickupCalc.total * 100) / 100,
       meta: { tierIndex: pickupCalc.tierIndex, km: pickupKm },
-    },
-    {
-      key: "mainline",
-      label: `Магистраль ${req.mainlineMode === "ferry" ? "паром" : "авто"}`,
-      amountRub: Math.round(mainlineAmount * 100) / 100,
-      meta: { pricePerKg: mainlineRate, mode: req.mainlineMode },
-    },
-    {
+    });
+  }
+
+  lines.push({
+    key: "mainline",
+    label: `Магистраль ${req.mainlineMode === "ferry" ? "паром" : "авто"}`,
+    amountRub: Math.round(mainlineAmount * 100) / 100,
+    meta: { pricePerKg: mainlineRate, mode: req.mainlineMode },
+  });
+
+  if (chargeLastMile && lastMileCalc) {
+    lines.push({
       key: "last_mile",
       label: `Последняя миля (${lastMileKm.toFixed(1)} км)`,
       amountRub: Math.round(lastMileCalc.total * 100) / 100,
       meta: { tierIndex: lastMileCalc.tierIndex, km: lastMileKm },
-    },
-  );
+    });
+  }
 
   const declared = Number(req.declaredValueRub) || 0;
   const extraLines = calcExtras(tariffs.extras?.services ?? [], req.extraCodes ?? [], declared);
