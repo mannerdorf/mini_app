@@ -5,10 +5,15 @@ import { pgTableExists } from "../_haulzReturns.js";
 import { resolveHaulzCalculatorAccess } from "../_haulzCalculator.js";
 import { getClientIp, isRateLimited, HAULZ_CALC_QUOTE_LIMIT } from "../../lib/rateLimit.js";
 import { buildQuote } from "../../lib/haulzCalculator/quoteEngine.js";
-import { saveQuoteSnapshot } from "../../lib/haulzCalculator/quoteSnapshot.js";
+import {
+  quoteProposalEmailSubject,
+  renderHaulzQuoteProposalHtml,
+} from "../../lib/haulzCalculator/quoteProposalEmail.js";
+import { sendHaulzEmail } from "../../lib/sendRegistrationEmail.js";
 import type {
   AddressSelection,
   DeliveryParty,
+  Direction,
   MainlineMode,
   ParcelPlace,
   QuoteRequest,
@@ -35,9 +40,7 @@ function parseAddress(raw: unknown): AddressSelection | null {
 }
 
 function parsePlaces(raw: unknown): ParcelPlace[] {
-  if (!Array.isArray(raw) || raw.length === 0) {
-    return [{ weightKg: 1, volumeM3: 0.01 }];
-  }
+  if (!Array.isArray(raw) || raw.length === 0) return [{ weightKg: 1, volumeM3: 0.01 }];
   return raw.map((p) => {
     const o = p && typeof p === "object" ? (p as Record<string, unknown>) : {};
     return {
@@ -61,10 +64,14 @@ function parseParty(raw: unknown): DeliveryParty | undefined {
   };
 }
 
+function isValidEmail(v: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const ctx = initRequestContext(req, res, "haulz_calculator_quote");
-  if (isRateLimited("haulz_calc_quote", getClientIp(req), HAULZ_CALC_QUOTE_LIMIT)) {
-    return res.status(429).json({ error: "Слишком много запросов расчёта", request_id: ctx.requestId });
+  const ctx = initRequestContext(req, res, "haulz_calculator_send_quote_email");
+  if (isRateLimited("haulz_calc_send_email", getClientIp(req), HAULZ_CALC_QUOTE_LIMIT)) {
+    return res.status(429).json({ error: "Слишком много запросов", request_id: ctx.requestId });
   }
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -85,9 +92,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
+  const recipientEmail = String(body.email ?? body.recipientEmail ?? "").trim().toLowerCase();
+  if (!recipientEmail || !isValidEmail(recipientEmail)) {
+    return res.status(400).json({ error: "Укажите корректный email", request_id: ctx.requestId });
+  }
+
   const from = parseAddress(body.from);
-  const to = parseAddress(body.to);
-  if (!from || !to) {
+  const toAddr = parseAddress(body.to);
+  if (!from || !toAddr) {
     return res.status(400).json({
       error: "from и to с координатами обязательны",
       request_id: ctx.requestId,
@@ -96,43 +108,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const modeRaw = String(body.mainlineMode ?? body.mainline_mode ?? "ferry").toLowerCase();
   const mainlineMode: MainlineMode = modeRaw === "auto" ? "auto" : "ferry";
+  const directionRaw = String(body.direction ?? "").toLowerCase();
+  const direction: Direction =
+    directionRaw === "kgd_mow" ? "kgd_mow" : directionRaw === "mow_kgd" ? "mow_kgd" : "mow_kgd";
 
   const quoteReq: QuoteRequest = {
     from,
-    to,
+    to: toAddr,
     places: parsePlaces(body.places),
     mainlineMode,
-    direction:
-      body.direction === "mow_kgd" || body.direction === "kgd_mow" ? body.direction : undefined,
-    declaredValueRub: Number(body.declaredValueRub ?? body.declared_value_rub) || 0,
+    direction,
+    declaredValueRub: Math.max(0, Number(body.declaredValueRub ?? body.declared_value_rub) || 0),
     extraCodes: Array.isArray(body.extraCodes)
-      ? body.extraCodes.map(String)
-      : Array.isArray(body.extra_codes)
-        ? body.extra_codes.map(String)
-        : [],
-    kmOverride:
-      body.kmOverride && typeof body.kmOverride === "object"
-        ? {
-            moscow: Number((body.kmOverride as Record<string, unknown>).moscow),
-            kaliningrad: Number((body.kmOverride as Record<string, unknown>).kaliningrad),
-          }
-        : undefined,
-    saveQuote: body.saveQuote === true || body.save_quote === true,
+      ? (body.extraCodes as unknown[]).map((c) => String(c).trim()).filter(Boolean)
+      : [],
     fromParty: parseParty(body.fromParty ?? body.from_party),
     toParty: parseParty(body.toParty ?? body.to_party),
   };
 
   try {
     const quote = await buildQuote(pool, quoteReq);
-    if (quoteReq.saveQuote && (await pgTableExists(pool, "haulz_calc_quotes"))) {
-      quote.quoteId = await saveQuoteSnapshot(pool, access.loginKey, quoteReq, quote);
-    }
-    return res.status(200).json({ quote, request_id: ctx.requestId });
-  } catch (e) {
-    logError(ctx, "haulz_calculator_quote_failed", e);
-    return res.status(500).json({
-      error: (e as Error)?.message || "Ошибка расчёта",
-      request_id: ctx.requestId,
+    const dataZabora =
+      typeof body.dataZabora === "string"
+        ? body.dataZabora.trim()
+        : typeof body.data_zabora === "string"
+          ? body.data_zabora.trim()
+          : undefined;
+
+    const html = renderHaulzQuoteProposalHtml({
+      quote,
+      from,
+      to: toAddr,
+      places: quoteReq.places,
+      mainlineMode,
+      direction: quote.direction,
+      dataZabora,
+      fromParty: quoteReq.fromParty,
+      toParty: quoteReq.toParty,
     });
+
+    const subject = quoteProposalEmailSubject(quote.direction);
+    const sendResult = await sendHaulzEmail(pool, { to: recipientEmail, subject, html });
+    if (!sendResult.ok) {
+      return res.status(502).json({
+        error: sendResult.error || "Не удалось отправить письмо",
+        request_id: ctx.requestId,
+      });
+    }
+
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
+  } catch (e) {
+    logError(ctx, "haulz_calc_send_email_failed", e);
+    const msg = e instanceof Error ? e.message : "Ошибка расчёта или отправки";
+    return res.status(500).json({ error: msg, request_id: ctx.requestId });
   }
 }

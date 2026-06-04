@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Copy, Loader2, Plus } from "lucide-react";
+import { ArrowLeft, Copy, Loader2, Mail, Plus, X } from "lucide-react";
 import type { AuthData } from "../types";
 import type {
   AddressSelection,
@@ -11,15 +11,21 @@ import type {
   QuoteResult,
 } from "../../lib/haulzCalculator/types";
 import {
+  fetchHaulzCalcDraft,
   fetchHaulzCalculatorOptions,
   fetchHaulzQuote,
+  saveHaulzCalcDraft,
+  sendHaulzQuoteEmail,
   submitHaulzCalculatorOrder,
+  type HaulzCalculatorFormState,
 } from "../api/client/haulzCalculator";
 import { HaulzCalcAddressField } from "../features/haulzCalculator/HaulzCalcAddressField";
 
 type Props = {
   auth: AuthData | null;
   onBack: () => void;
+  restoreDraftId?: number | null;
+  onDraftConsumed?: () => void;
 };
 
 const BOX_PRESETS: { label: string; weightKg: number; volumeM3: number }[] = [
@@ -46,7 +52,7 @@ function inferDirectionFromCities(from?: CityCode | null, to?: CityCode | null):
   return null;
 }
 
-export function HaulzCalculatorPage({ auth, onBack }: Props) {
+export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsumed }: Props) {
   const [fromQuery, setFromQuery] = useState("");
   const [toQuery, setToQuery] = useState("");
   const [fromAddr, setFromAddr] = useState<AddressSelection | null>(null);
@@ -55,6 +61,8 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
   const [toMode, setToMode] = useState<"courier" | "point">("courier");
   const [fromPhone, setFromPhone] = useState("");
   const [toPhone, setToPhone] = useState("");
+  const [fromInn, setFromInn] = useState("");
+  const [toInn, setToInn] = useState("");
   const [fromName, setFromName] = useState("");
   const [toName, setToName] = useState("");
   const [places, setPlaces] = useState<ParcelPlace[]>([{ weightKg: 100, volumeM3: 0.5 }]);
@@ -70,11 +78,20 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
   const [autoQuoteEnabled] = useState(true);
   const [orderLoading, setOrderLoading] = useState(false);
   const [orderMessage, setOrderMessage] = useState<string | null>(null);
+  const [draftId, setDraftId] = useState<number | null>(null);
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [draftMessage, setDraftMessage] = useState<string | null>(null);
+  const [draftLoading, setDraftLoading] = useState(false);
   const [dataZabora, setDataZabora] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
     return d.toISOString().slice(0, 10);
   });
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
 
   const inferredDirection = useMemo(
     () => directionOverride ?? inferDirectionFromCities(fromAddr?.city, toAddr?.city) ?? "mow_kgd",
@@ -111,6 +128,117 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
       cancelled = true;
     };
   }, [auth, inferredDirection, chargeableHint.ch]);
+
+  const buildFormState = useCallback((): HaulzCalculatorFormState => {
+    return {
+      fromQuery,
+      toQuery,
+      from: fromAddr,
+      to: toAddr,
+      fromMode,
+      toMode,
+      fromPhone,
+      toPhone,
+      fromInn,
+      toInn,
+      fromName,
+      toName,
+      places,
+      activePresetIdx,
+      declaredValue,
+      mainlineMode,
+      directionOverride,
+      extraCodes,
+      dataZabora,
+    };
+  }, [
+    fromQuery,
+    toQuery,
+    fromAddr,
+    toAddr,
+    fromMode,
+    toMode,
+    fromPhone,
+    toPhone,
+    fromInn,
+    toInn,
+    fromName,
+    toName,
+    places,
+    activePresetIdx,
+    declaredValue,
+    mainlineMode,
+    directionOverride,
+    extraCodes,
+    dataZabora,
+  ]);
+
+  const applyFormState = useCallback((f: HaulzCalculatorFormState) => {
+    setFromQuery(f.fromQuery ?? "");
+    setToQuery(f.toQuery ?? "");
+    setFromAddr(f.from ?? null);
+    setToAddr(f.to ?? null);
+    setFromMode(f.fromMode === "point" ? "point" : "courier");
+    setToMode(f.toMode === "point" ? "point" : "courier");
+    setFromPhone(f.fromPhone ?? "");
+    setToPhone(f.toPhone ?? "");
+    setFromInn(f.fromInn ?? "");
+    setToInn(f.toInn ?? "");
+    setFromName(f.fromName ?? "");
+    setToName(f.toName ?? "");
+    setPlaces(f.places?.length ? f.places : [{ weightKg: 100, volumeM3: 0.5 }]);
+    setActivePresetIdx(f.activePresetIdx ?? { 0: "XL" });
+    setDeclaredValue(f.declaredValue ?? "");
+    setMainlineMode(f.mainlineMode === "auto" ? "auto" : "ferry");
+    setDirectionOverride(f.directionOverride ?? null);
+    setExtraCodes(Array.isArray(f.extraCodes) ? f.extraCodes : []);
+    if (f.dataZabora) setDataZabora(f.dataZabora);
+  }, []);
+
+  useEffect(() => {
+    if (!auth || !restoreDraftId) return;
+    let cancelled = false;
+    setDraftLoading(true);
+    setError(null);
+    fetchHaulzCalcDraft(auth, restoreDraftId)
+      .then((d) => {
+        if (cancelled) return;
+        setDraftId(d.id);
+        applyFormState(d.formState);
+        if (d.quoteResult) setQuote(d.quoteResult);
+        onDraftConsumed?.();
+      })
+      .catch((e) => {
+        if (!cancelled) setError((e as Error)?.message || "Не удалось открыть черновик");
+      })
+      .finally(() => {
+        if (!cancelled) setDraftLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [auth, restoreDraftId, applyFormState, onDraftConsumed]);
+
+  const saveDraft = useCallback(async () => {
+    if (!auth) return;
+    setDraftSaving(true);
+    setDraftMessage(null);
+    setError(null);
+    try {
+      const saved = await saveHaulzCalcDraft(auth, {
+        id: draftId ?? undefined,
+        formState: buildFormState(),
+        quote: quote ?? null,
+        status: "draft",
+      });
+      setDraftId(saved.id);
+      setDraftMessage("Черновик сохранён");
+    } catch (e) {
+      setError((e as Error)?.message || "Не удалось сохранить черновик");
+    } finally {
+      setDraftSaving(false);
+    }
+  }, [auth, draftId, buildFormState, quote]);
 
   const applyQuickCity = useCallback((side: "from" | "to", city: CityCode) => {
     const label = city === "moscow" ? "Москва" : "Калининград";
@@ -162,8 +290,8 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
           direction: inferredDirection,
           declaredValueRub: Number(declaredValue) || 0,
           extraCodes,
-          fromParty: { mode: fromMode, phone: fromPhone, fullName: fromName },
-          toParty: { mode: toMode, phone: toPhone, fullName: toName },
+          fromParty: { mode: fromMode, inn: fromInn, phone: fromPhone, fullName: fromName },
+          toParty: { mode: toMode, inn: toInn, phone: toPhone, fullName: toName },
         });
         if (!cancelled) {
           setQuote(result);
@@ -201,11 +329,23 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
         declaredValueRub: Number(declaredValue) || 0,
         extraCodes,
         dataZabora,
-        fromParty: { mode: fromMode, phone: fromPhone, fullName: fromName },
-        toParty: { mode: toMode, phone: toPhone, fullName: toName },
+        fromParty: { mode: fromMode, inn: fromInn, phone: fromPhone, fullName: fromName },
+        toParty: { mode: toMode, inn: toInn, phone: toPhone, fullName: toName },
       });
       setQuote(q);
       setOrderMessage(`Заявка ${nomerZayavki} зарегистрирована`);
+      try {
+        const saved = await saveHaulzCalcDraft(auth, {
+          id: draftId ?? undefined,
+          formState: buildFormState(),
+          quote: q,
+          status: "submitted",
+          nomerZayavki,
+        });
+        setDraftId(saved.id);
+      } catch {
+        /* черновик в списке — опционально */
+      }
     } catch (e) {
       setError((e as Error)?.message || "Ошибка оформления");
     } finally {
@@ -222,11 +362,15 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
     extraCodes,
     dataZabora,
     fromMode,
+    fromInn,
     fromPhone,
     fromName,
     toMode,
+    toInn,
     toPhone,
     toName,
+    draftId,
+    buildFormState,
   ]);
 
   const toggleExtra = (code: string) => {
@@ -246,6 +390,68 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
     void navigator.clipboard?.writeText(text);
   };
 
+  const openEmailModal = () => {
+    if (!quote) return;
+    setEmailError(null);
+    setEmailSuccess(null);
+    const login = auth?.login?.trim() ?? "";
+    if (!emailTo && login.includes("@")) setEmailTo(login);
+    setEmailModalOpen(true);
+  };
+
+  const sendQuoteEmail = useCallback(async () => {
+    if (!auth || !quote || !fromAddr?.point || !toAddr?.point) return;
+    const email = emailTo.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailError("Укажите корректный адрес электронной почты");
+      return;
+    }
+    setEmailSending(true);
+    setEmailError(null);
+    setEmailSuccess(null);
+    try {
+      await sendHaulzQuoteEmail(auth, {
+        email,
+        from: fromAddr,
+        to: toAddr,
+        places,
+        mainlineMode,
+        direction: inferredDirection,
+        declaredValueRub: Number(declaredValue) || 0,
+        extraCodes,
+        dataZabora,
+        fromParty: { mode: fromMode, inn: fromInn, phone: fromPhone, fullName: fromName },
+        toParty: { mode: toMode, inn: toInn, phone: toPhone, fullName: toName },
+      });
+      setEmailSuccess(`КП отправлено на ${email}`);
+      setTimeout(() => setEmailModalOpen(false), 1800);
+    } catch (e) {
+      setEmailError((e as Error)?.message || "Не удалось отправить");
+    } finally {
+      setEmailSending(false);
+    }
+  }, [
+    auth,
+    quote,
+    fromAddr,
+    toAddr,
+    emailTo,
+    places,
+    mainlineMode,
+    inferredDirection,
+    declaredValue,
+    extraCodes,
+    dataZabora,
+    fromMode,
+    fromInn,
+    fromPhone,
+    fromName,
+    toMode,
+    toInn,
+    toPhone,
+    toName,
+  ]);
+
   if (!auth) {
     return (
       <div className="haulz-calc-page--cdek">
@@ -264,8 +470,24 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="haulz-calc-header__title">Расчёт доставки</h1>
+          <button
+            type="button"
+            className="haulz-calc-btn-secondary haulz-calc-header__save-draft"
+            disabled={draftSaving || draftLoading || !auth}
+            onClick={() => void saveDraft()}
+          >
+            {draftSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            Сохранить черновик
+          </button>
         </header>
 
+        {draftLoading && (
+          <p className="haulz-calc-hint" style={{ marginBottom: "0.75rem" }}>
+            <Loader2 className="w-3 h-3 animate-spin" style={{ display: "inline", marginRight: "0.25rem" }} />
+            Загружаем черновик…
+          </p>
+        )}
+        {draftMessage && <div className="haulz-calc-alert haulz-calc-alert--success">{draftMessage}</div>}
         {error && <div className="haulz-calc-alert haulz-calc-alert--error">{error}</div>}
 
         <div className="haulz-calc-grid">
@@ -283,6 +505,8 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
               setMode={setFromMode}
               phone={fromPhone}
               setPhone={setFromPhone}
+              inn={fromInn}
+              setInn={setFromInn}
               fullName={fromName}
               setFullName={setFromName}
               onQuickCity={(c) => applyQuickCity("from", c)}
@@ -301,6 +525,8 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
               setMode={setToMode}
               phone={toPhone}
               setPhone={setToPhone}
+              inn={toInn}
+              setInn={setToInn}
               fullName={toName}
               setFullName={setToName}
               onQuickCity={(c) => applyQuickCity("to", c)}
@@ -526,6 +752,10 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
                     <Copy className="w-4 h-4" />
                     Копировать расчёт
                   </button>
+                  <button type="button" className="haulz-calc-btn-secondary" disabled={!quote} onClick={openEmailModal}>
+                    <Mail className="w-4 h-4" />
+                    Отправить на почту
+                  </button>
                 </div>
               </>
             )}
@@ -533,6 +763,63 @@ export function HaulzCalculatorPage({ auth, onBack }: Props) {
           </aside>
         </div>
       </div>
+
+      {emailModalOpen && (
+        <div
+          className="haulz-calc-map-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="haulz-calc-email-title"
+          onClick={() => !emailSending && setEmailModalOpen(false)}
+        >
+          <div className="haulz-calc-map-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="haulz-calc-map-modal__head">
+              <div id="haulz-calc-email-title" className="haulz-calc-map-modal__title">
+                <Mail className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+                Отправить КП на почту
+              </div>
+              <button
+                type="button"
+                className="haulz-calc-map-modal__close"
+                aria-label="Закрыть"
+                disabled={emailSending}
+                onClick={() => setEmailModalOpen(false)}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="haulz-calc-map-modal__hint">
+              На указанный адрес уйдёт коммерческое предложение с расчётом, маршрутом и контактами HAULZ.
+            </p>
+            <div className="haulz-calc-email-modal__field">
+              <label htmlFor="haulz-calc-email-input">Электронная почта</label>
+              <input
+                id="haulz-calc-email-input"
+                type="email"
+                autoComplete="email"
+                placeholder="partner@company.ru"
+                value={emailTo}
+                disabled={emailSending}
+                onChange={(e) => setEmailTo(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void sendQuoteEmail();
+                }}
+              />
+            </div>
+            {emailError && <p className="haulz-calc-map-modal__error">{emailError}</p>}
+            {emailSuccess && <div className="haulz-calc-alert haulz-calc-alert--success" style={{ margin: "0 1rem 0.5rem" }}>{emailSuccess}</div>}
+            <div className="haulz-calc-map-modal__actions">
+              <button type="button" className="haulz-calc-btn-secondary" disabled={emailSending} onClick={() => setEmailModalOpen(false)}>
+                Отмена
+              </button>
+              <button type="button" className="haulz-calc-btn-primary" disabled={emailSending || !quote} onClick={() => void sendQuoteEmail()}>
+                {emailSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                Отправить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

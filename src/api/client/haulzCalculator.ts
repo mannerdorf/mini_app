@@ -7,6 +7,20 @@ import type {
   ParcelPlace,
   QuoteResult,
 } from "../../../lib/haulzCalculator/types";
+import type { HaulzCalculatorFormState } from "../../../lib/haulzCalculator/calculatorDraft.js";
+
+export type { HaulzCalculatorFormState };
+
+export type HaulzCalcDraft = {
+  id: number;
+  title: string | null;
+  status: "draft" | "submitted";
+  nomerZayavki: string | null;
+  formState: HaulzCalculatorFormState;
+  quoteResult: QuoteResult | null;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type HaulzSuggestItem = {
   id?: string;
@@ -38,6 +52,30 @@ function authHeaders(auth: AuthData): Record<string, string> {
 function parseError(res: Response, data: unknown): string {
   if (typeof (data as { error?: string })?.error === "string") return (data as { error: string }).error;
   return `HTTP ${res.status}`;
+}
+
+export type HaulzPartyByInn = {
+  inn: string;
+  kpp?: string;
+  ogrn?: string;
+  type: "LEGAL" | "INDIVIDUAL";
+  fullName: string;
+  shortName?: string;
+  status?: string;
+};
+
+export async function fetchHaulzPartyByInn(auth: AuthData, inn: string): Promise<HaulzPartyByInn> {
+  const digits = inn.replace(/\D/g, "");
+  const res = await fetch("/api/haulz-calculator/party-by-inn", {
+    method: "POST",
+    headers: authHeaders(auth),
+    body: JSON.stringify({ inn: digits }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(parseError(res, data));
+  const party = (data as { party?: HaulzPartyByInn }).party;
+  if (!party?.fullName) throw new Error("Организация не найдена");
+  return party;
 }
 
 export async function fetchHaulzAddressSuggest(
@@ -146,6 +184,82 @@ export async function fetchHaulzQuote(
   const quote = (data as { quote?: QuoteResult }).quote;
   if (!quote) throw new Error("Пустой ответ расчёта");
   return quote;
+}
+
+export async function fetchHaulzCalcDrafts(auth: AuthData): Promise<HaulzCalcDraft[]> {
+  const res = await fetch("/api/haulz-calculator/drafts", {
+    method: "GET",
+    headers: authHeaders(auth),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(parseError(res, data));
+  return (data as { drafts?: HaulzCalcDraft[] }).drafts ?? [];
+}
+
+export async function fetchHaulzCalcDraft(auth: AuthData, id: number): Promise<HaulzCalcDraft> {
+  const res = await fetch(`/api/haulz-calculator/drafts?id=${id}`, {
+    method: "GET",
+    headers: authHeaders(auth),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(parseError(res, data));
+  const draft = (data as { draft?: HaulzCalcDraft }).draft;
+  if (!draft) throw new Error("Черновик не найден");
+  return draft;
+}
+
+export async function saveHaulzCalcDraft(
+  auth: AuthData,
+  body: {
+    id?: number;
+    title?: string;
+    status?: "draft" | "submitted";
+    nomerZayavki?: string;
+    formState: HaulzCalculatorFormState;
+    quote?: QuoteResult | null;
+  },
+): Promise<HaulzCalcDraft> {
+  const res = await fetch("/api/haulz-calculator/drafts", {
+    method: "POST",
+    headers: authHeaders(auth),
+    body: JSON.stringify({
+      id: body.id,
+      title: body.title,
+      status: body.status,
+      nomerZayavki: body.nomerZayavki,
+      formState: body.formState,
+      quote: body.quote ?? null,
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(parseError(res, data));
+  const draft = (data as { draft?: HaulzCalcDraft }).draft;
+  if (!draft) throw new Error("Не удалось сохранить");
+  return draft;
+}
+
+export async function deleteHaulzCalcDraft(auth: AuthData, id: number): Promise<void> {
+  const res = await fetch(`/api/haulz-calculator/drafts?id=${id}`, {
+    method: "DELETE",
+    headers: authHeaders(auth),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(parseError(res, data));
+}
+
+export async function sendHaulzQuoteEmail(
+  auth: AuthData,
+  body: {
+    email: string;
+  } & Parameters<typeof fetchHaulzQuote>[1] & { dataZabora?: string },
+): Promise<void> {
+  const res = await fetch("/api/haulz-calculator/send-quote-email", {
+    method: "POST",
+    headers: authHeaders(auth),
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(parseError(res, data));
 }
 
 export async function submitHaulzCalculatorOrder(

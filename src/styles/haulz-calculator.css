@@ -1,6 +1,8 @@
 /* Калькулятор HAULZ — layout как CDEK, цвета из темы приложения (тёмная по умолчанию) */
 
 .haulz-calc-page--cdek {
+  --haulz-summary-col-width: 360px;
+  --haulz-summary-fixed-top: max(1rem, env(safe-area-inset-top, 0px));
   --calc-bg: var(--color-bg-primary);
   --calc-card: var(--color-bg-card);
   --calc-surface-muted: var(--color-bg-secondary);
@@ -102,44 +104,177 @@
 
 .haulz-calc-page--cdek .haulz-calc-header__title {
   margin: 0;
+  flex: 1;
+  min-width: 0;
   font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--calc-text);
 }
 
+.haulz-calc-header__save-draft {
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 0.85rem;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+/* Список сохранённых заявок (профиль → HAULZ → Заявки) */
+.haulz-calc-requests-page__head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.haulz-calc-requests-page__hint {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  color: var(--calc-text-secondary);
+  line-height: 1.45;
+}
+
+.haulz-calc-requests-page__new {
+  width: 100%;
+  max-width: 320px;
+  margin-bottom: 1rem;
+}
+
+.haulz-calc-requests-page__empty {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--calc-text-secondary);
+}
+
+.haulz-calc-requests-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.haulz-calc-requests-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.15rem;
+  border-radius: var(--calc-radius-lg);
+  background: var(--calc-card);
+  border: 1px solid var(--calc-border);
+  box-shadow: var(--calc-shadow);
+}
+
+.haulz-calc-requests-card__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--calc-text);
+  line-height: 1.35;
+}
+
+.haulz-calc-requests-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.25rem;
+  font-size: 0.8125rem;
+}
+
+.haulz-calc-requests-card__badge {
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  background: var(--calc-segment-track);
+  color: var(--calc-text-secondary);
+}
+
+.haulz-calc-requests-card__badge--ok {
+  background: var(--calc-alert-success-bg, rgba(34, 197, 94, 0.15));
+  color: var(--calc-alert-success-text, #166534);
+}
+
+.haulz-calc-requests-card__sum {
+  font-weight: 600;
+  color: var(--calc-text);
+}
+
+.haulz-calc-requests-card__date {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--calc-text-secondary);
+}
+
+.haulz-calc-requests-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.haulz-calc-requests-card__delete {
+  min-width: 40px;
+  padding: 0 0.5rem;
+}
+
 .haulz-calc-grid {
   display: grid;
   gap: 1rem;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  grid-template-columns: minmax(0, 1fr) minmax(300px, var(--haulz-summary-col-width));
   align-items: start;
 }
 
-/* Обёртка для sticky в grid (колонка «Ваш расчёт») */
+/* «Ваш расчёт» — фиксирован на экране (колонка в grid остаётся для отступа слева) */
 .haulz-calc-summary-wrap {
   align-self: start;
   min-width: 0;
+  width: var(--haulz-summary-col-width);
+  max-width: 100%;
+  pointer-events: none;
+}
+
+.haulz-calc-summary-wrap .haulz-calc-summary {
+  pointer-events: auto;
 }
 
 @media (min-width: 901px) {
   .haulz-calc-summary-wrap {
-    position: sticky;
-    top: 1rem;
-    max-height: calc(100dvh - 2rem);
-    z-index: 5;
+    position: fixed;
+    z-index: 44;
+    top: var(--haulz-summary-fixed-top);
+    right: max(
+      var(--pad-page-h, 24px),
+      calc((100vw - min(56rem, 100vw - 2 * var(--pad-page-h, 24px))) / 2)
+    );
+    width: min(var(--haulz-summary-col-width), calc(100vw - 2 * var(--pad-page-h, 24px)));
+    max-height: calc(100dvh - var(--haulz-summary-fixed-top) - 1rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 }
 
 @media (max-width: 900px) {
   .haulz-calc-grid {
     grid-template-columns: 1fr;
+    padding-bottom: calc(280px + 72px + env(safe-area-inset-bottom, 0px));
   }
 
   .haulz-calc-summary-wrap {
-    position: sticky;
+    position: fixed;
+    z-index: 44;
+    left: max(var(--space-3, 12px), env(safe-area-inset-left, 0px));
+    right: max(var(--space-3, 12px), env(safe-area-inset-right, 0px));
     bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 0.5rem);
     top: auto;
-    z-index: 44;
+    width: auto;
+    max-height: min(56vh, calc(100dvh - 120px - env(safe-area-inset-bottom, 0px)));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 }
 
@@ -329,6 +464,27 @@
   color: var(--calc-text-secondary);
 }
 
+.haulz-calc-email-modal__field {
+  margin: 0 1rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.haulz-calc-email-modal__field label {
+  font-size: 0.8125rem;
+  color: var(--calc-text-secondary, #6b7280);
+}
+
+.haulz-calc-email-modal__field input {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--calc-border, #e5e7eb);
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  background: var(--calc-card-bg, #fff);
+  color: inherit;
+}
+
 .haulz-calc-map-modal__actions {
   display: flex;
   gap: 0.5rem;
@@ -392,6 +548,22 @@
   grid-template-columns: 1fr 1.4fr;
   gap: 0.75rem;
   margin-top: 0.75rem;
+}
+
+.haulz-calc-contacts__inn {
+  grid-column: 1 / -1;
+}
+
+.haulz-calc-field-hint {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--calc-text-secondary);
+  line-height: 1.35;
+}
+
+.haulz-calc-field-hint--error {
+  color: #b91c1c;
 }
 
 @media (max-width: 520px) {
@@ -948,22 +1120,6 @@ body.haulz-calc-map-screen-open {
   background: var(--calc-card);
   box-shadow: var(--calc-shadow);
   border: 1px solid var(--calc-border);
-}
-
-@media (min-width: 901px) {
-  .haulz-calc-summary {
-    max-height: calc(100dvh - 2rem);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
-}
-
-@media (max-width: 900px) {
-  .haulz-calc-summary {
-    max-height: min(52vh, calc(100dvh - 120px - env(safe-area-inset-bottom, 0px)));
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
 }
 
 .haulz-calc-summary__title {

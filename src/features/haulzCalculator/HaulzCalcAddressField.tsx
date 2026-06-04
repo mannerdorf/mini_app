@@ -6,6 +6,7 @@ import { warehouseForCity } from "../../../lib/haulzCalculator/warehouses";
 import {
   fetchHaulzAddressSuggest,
   fetchHaulzGeocode,
+  fetchHaulzPartyByInn,
   fetchHaulzRingDistance,
   type HaulzSuggestItem,
 } from "../../api/client/haulzCalculator";
@@ -38,6 +39,8 @@ type Props = {
   setMode: (m: "courier" | "point") => void;
   phone: string;
   setPhone: (v: string) => void;
+  inn: string;
+  setInn: (v: string) => void;
   fullName: string;
   setFullName: (v: string) => void;
   onQuickCity: (city: CityCode) => void;
@@ -56,6 +59,8 @@ export function HaulzCalcAddressField({
   setMode,
   phone,
   setPhone,
+  inn,
+  setInn,
   fullName,
   setFullName,
   onQuickCity,
@@ -63,6 +68,9 @@ export function HaulzCalcAddressField({
   const [suggestions, setSuggestions] = useState<HaulzSuggestItem[]>([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestError, setSuggestError] = useState<string | null>(null);
+  const [innLoading, setInnLoading] = useState(false);
+  const [innError, setInnError] = useState<string | null>(null);
+  const [innTouched, setInnTouched] = useState(false);
   const [ringKm, setRingKm] = useState<number | null>(null);
   const [open, setOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
@@ -72,6 +80,7 @@ export function HaulzCalcAddressField({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const debouncedQuery = useDebounced(query, 300);
+  const debouncedInn = useDebounced(inn.replace(/\D/g, ""), 500);
   const ringLabel = city === "moscow" ? "МКАД" : "КАД";
   const warehouseLabel = side === "from" ? "Со Склада" : "на Складе";
   const isWarehouseMode = mode === "point";
@@ -156,6 +165,38 @@ export function HaulzCalcAddressField({
       cancelled = true;
     };
   }, [auth, debouncedQuery, city, addr, isWarehouseMode]);
+
+  useEffect(() => {
+    if (!innTouched) return;
+    const digits = debouncedInn;
+    if (digits.length !== 10 && digits.length !== 12) {
+      setInnLoading(false);
+      setInnError(digits.length > 0 ? "ИНН: 10 цифр (ЮЛ) или 12 (ИП)" : null);
+      return;
+    }
+    let cancelled = false;
+    setInnLoading(true);
+    setInnError(null);
+    fetchHaulzPartyByInn(auth, digits)
+      .then((party) => {
+        if (!cancelled) {
+          setInn(party.inn);
+          setFullName(party.fullName);
+          setInnError(null);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setInnError((e as Error)?.message || "Не удалось найти организацию");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setInnLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [auth, debouncedInn, innTouched, setFullName, setInn]);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -332,6 +373,29 @@ export function HaulzCalcAddressField({
       )}
 
       <div className="haulz-calc-contacts">
+        <label className="haulz-calc-field haulz-calc-contacts__inn">
+          <span className="haulz-calc-label">ИНН</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            className="haulz-calc-input"
+            placeholder="10 или 12 цифр"
+            value={inn}
+            maxLength={12}
+            onChange={(e) => {
+              setInnTouched(true);
+              setInn(e.target.value.replace(/\D/g, "").slice(0, 12));
+              if (innError) setInnError(null);
+            }}
+          />
+          {innLoading && (
+            <span className="haulz-calc-field-hint">
+              <Loader2 className="w-3 h-3 animate-spin" style={{ display: "inline", marginRight: "0.25rem" }} />
+              Загружаем наименование…
+            </span>
+          )}
+          {innError && !innLoading && <span className="haulz-calc-field-hint haulz-calc-field-hint--error">{innError}</span>}
+        </label>
         <label className="haulz-calc-field">
           <span className="haulz-calc-label">Телефон</span>
           <input
@@ -343,10 +407,10 @@ export function HaulzCalcAddressField({
           />
         </label>
         <label className="haulz-calc-field">
-          <span className="haulz-calc-label">ФИО</span>
+          <span className="haulz-calc-label">Полное наименование</span>
           <input
             className="haulz-calc-input"
-            placeholder="Фамилия и имя"
+            placeholder="Заполнится по ИНН или введите вручную"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
           />

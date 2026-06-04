@@ -129,6 +129,7 @@ export type CalculatorOptions = {
 
 export type DeliveryParty = {
   mode: "courier" | "point";
+  inn?: string;
   phone?: string;
   fullName?: string;
 };

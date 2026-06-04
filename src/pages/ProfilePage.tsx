@@ -28,6 +28,7 @@ import { ProfileHaulzSection } from "../components/profile/ProfileHaulzSection";
 import { HaulzSummarySandboxPage } from "./HaulzSummarySandboxPage";
 import { HaulzReturnsPage } from "./HaulzReturnsPage";
 import { HaulzCalculatorPage } from "./HaulzCalculatorPage";
+import { HaulzCalcRequestsPage } from "./HaulzCalcRequestsPage";
 import { ProfileParcelScannerSection } from "../components/profile/ProfileParcelScannerSection";
 import { ProfileExpenseRequestsSection } from "../components/profile/ProfileExpenseRequestsSection";
 import { ProfileApiKeysSection } from "../components/profile/ProfileApiKeysSection";
@@ -73,6 +74,8 @@ export function ProfilePage({
     profileSaasShellActive?: boolean;
 }) {
     const [currentView, setCurrentView] = useState<ProfileView>('main');
+    const [haulzCalcRestoreDraftId, setHaulzCalcRestoreDraftId] = useState<number | null>(null);
+    const [haulzCalcBackView, setHaulzCalcBackView] = useState<ProfileView>("haulz");
     const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
     const [legalStatus, setLegalStatus] = useState<LegalStatusResponse | null>(null);
 
@@ -1169,7 +1172,16 @@ export function ProfilePage({
             <ProfileHaulzSection
                 activeAccount={activeAccount}
                 onBack={() => setCurrentView("main")}
-                navigateTo={(view) => setCurrentView(view)}
+                navigateTo={(view) => {
+                    if (view === "haulzCalculator") {
+                        setHaulzCalcRestoreDraftId(null);
+                        setHaulzCalcBackView("haulz");
+                    }
+                    if (view === "haulzCalcRequests") {
+                        setHaulzCalcRestoreDraftId(null);
+                    }
+                    setCurrentView(view);
+                }}
                 onOpenDocumentsWithSection={onOpenDocumentsWithSection}
                 onOpenWildberries={onOpenWildberries}
             />
@@ -1197,6 +1209,36 @@ export function ProfilePage({
         );
     }
 
+    if (currentView === 'haulzCalcRequests') {
+        const auth: AuthData | null = activeAccount ? {
+            login: activeAccount.login,
+            password: activeAccount.password,
+            inn: activeAccount.activeCustomerInn ?? activeAccount.customers?.[0]?.inn,
+            ...(activeAccount.isRegisteredUser === true ? { isRegisteredUser: true } : {}),
+        } : null;
+        if (!auth) {
+            return (
+                <div className="w-full">
+                    <p>Нет авторизации</p>
+                    <Button type="button" className="button-primary" onClick={() => setCurrentView("haulz")}>
+                        Назад
+                    </Button>
+                </div>
+            );
+        }
+        return (
+            <HaulzCalcRequestsPage
+                auth={auth}
+                onBack={() => setCurrentView("haulz")}
+                onOpenCalculator={(draftId) => {
+                    setHaulzCalcRestoreDraftId(draftId ?? null);
+                    setHaulzCalcBackView("haulzCalcRequests");
+                    setCurrentView("haulzCalculator");
+                }}
+            />
+        );
+    }
+
     if (currentView === 'haulzCalculator') {
         const auth: AuthData | null = activeAccount ? {
             login: activeAccount.login,
@@ -1205,7 +1247,15 @@ export function ProfilePage({
             ...(activeAccount.isRegisteredUser === true ? { isRegisteredUser: true } : {}),
         } : null;
         return (
-            <HaulzCalculatorPage auth={auth} onBack={() => setCurrentView("haulz")} />
+            <HaulzCalculatorPage
+                auth={auth}
+                onBack={() => {
+                    setHaulzCalcRestoreDraftId(null);
+                    setCurrentView(haulzCalcBackView);
+                }}
+                restoreDraftId={haulzCalcRestoreDraftId}
+                onDraftConsumed={() => setHaulzCalcRestoreDraftId(null)}
+            />
         );
     }
 

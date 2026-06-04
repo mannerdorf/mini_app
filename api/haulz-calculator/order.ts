@@ -54,8 +54,10 @@ function parseParty(raw: unknown): DeliveryParty | undefined {
   const o = raw as Record<string, unknown>;
   const mode = o.mode === "point" ? "point" : o.mode === "courier" ? "courier" : undefined;
   if (!mode) return undefined;
+  const innRaw = typeof o.inn === "string" ? o.inn.replace(/\D/g, "").trim() : "";
   return {
     mode,
+    inn: innRaw || undefined,
     phone: typeof o.phone === "string" ? o.phone.trim() : undefined,
     fullName: typeof o.fullName === "string" ? o.fullName.trim() : undefined,
   };
