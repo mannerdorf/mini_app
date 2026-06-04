@@ -9,9 +9,11 @@ import {
   fetchAdminHubs,
   fetchAdminRingExits,
   importAdminHaulzFile,
+  initAdminHaulzCalculator,
   publishAdminHaulzTariffVersion,
   saveAdminHub,
   saveAdminRingExit,
+  seedAdminRingExits,
   type AdminHaulzTariffSet,
   type HubRow,
 } from "../../../api/client/admin/haulzCalculatorAdmin";
@@ -41,6 +43,11 @@ const TAB_LABELS: Record<AdminTab, string> = {
 
 function todayIso(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Moscow" }).format(new Date());
+}
+
+function versionPayload(set: AdminHaulzTariffSet | undefined): unknown | undefined {
+  if (!set) return undefined;
+  return set.active_version?.payload ?? set.latest_version?.payload;
 }
 
 function TierTable({ tiers, onChange }: { tiers: PickupTier[]; onChange: (t: PickupTier[]) => void }) {
@@ -106,6 +113,7 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
   const [historyRows, setHistoryRows] = useState<TariffVersionHistory[]>([]);
   const [historyActive, setHistoryActive] = useState<TariffVersionHistory | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [initLoading, setInitLoading] = useState(false);
 
   const loadSets = useCallback(async () => {
     if (!adminToken) return;
@@ -118,19 +126,27 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
       const lastMile = list.find((s) => s.code === "last_mile_matrix");
       const extras = list.find((s) => s.code === "calc_extras");
       const settings = list.find((s) => s.code === "calc_settings");
-      if (pickup?.active_version?.payload) setPickupDraft(pickup.active_version.payload as PickupMatrixPayload);
-      if (lastMile?.active_version?.payload) setLastMileDraft(lastMile.active_version.payload as PickupMatrixPayload);
-      if (extras?.active_version?.payload) {
-        const p = extras.active_version.payload as { services?: ExtraServicePayload[] };
+      const pickupPayload = versionPayload(pickup);
+      const lastMilePayload = versionPayload(lastMile);
+      if (pickupPayload) setPickupDraft(pickupPayload as PickupMatrixPayload);
+      else setPickupDraft(null);
+      if (lastMilePayload) setLastMileDraft(lastMilePayload as PickupMatrixPayload);
+      else setLastMileDraft(null);
+      const extrasP = versionPayload(extras);
+      if (extrasP) {
+        const p = extrasP as { services?: ExtraServicePayload[] };
         setExtrasDraft(p.services ?? []);
+      } else {
+        setExtrasDraft([]);
       }
-      if (settings?.active_version?.payload) {
-        const p = settings.active_version.payload as { volumetric_factor_kg_m3?: number };
+      const settingsP = versionPayload(settings);
+      if (settingsP) {
+        const p = settingsP as { volumetric_factor_kg_m3?: number };
         setSettingsFactor(String(p.volumetric_factor_kg_m3 ?? 200));
       }
       const ml: MainlinePayload[] = [];
-      for (const s of list.filter((x) => x.block === "mainline" && x.active_version?.payload)) {
-        const p = s.active_version!.payload as MainlinePayload;
+      for (const s of list.filter((x) => x.block === "mainline")) {
+        const p = versionPayload(s) as MainlinePayload | undefined;
         if (p?.mode) ml.push(p);
       }
       setMainlineDrafts(ml);
@@ -185,11 +201,35 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
 
   const setByCode = useMemo(() => Object.fromEntries(sets.map((s) => [s.code, s])), [sets]);
 
+  const runBootstrap = async () => {
+    setInitLoading(true);
+    setError(null);
+    try {
+      const r = await initAdminHaulzCalculator(adminToken, effectiveFrom);
+      setMessage(
+        r.wasEmpty
+          ? `Создана структура тарифов (${r.sets} наборов). Загрузите xlsx на вкладке «Импорт» или отредактируйте таблицы.`
+          : `Структура тарифов проверена (${r.sets} наборов). Отсутствующие наборы добавлены.`,
+      );
+      await loadSets();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setInitLoading(false);
+    }
+  };
+
   const publish = async (code: string, payload: unknown) => {
-    const set = setByCode[code];
-    if (!set) throw new Error(`Тариф ${code} не найден`);
+    let set = setByCode[code];
+    if (!set) {
+      await initAdminHaulzCalculator(adminToken, effectiveFrom);
+      await loadSets();
+      const list = await fetchAdminHaulzCalculatorTariffs(adminToken);
+      set = Object.fromEntries(list.map((s) => [s.code, s]))[code];
+    }
+    if (!set) throw new Error(`Тариф ${code} не найден — нажмите «Создать структуру тарифов»`);
     await publishAdminHaulzTariffVersion(adminToken, set.id, effectiveFrom, payload);
-    setMessage(`Версия ${code} от ${effectiveFrom} сохранена`);
+    setMessage(`Новая версия «${code}» с ${effectiveFrom} сохранена`);
     await loadSets();
   };
 
@@ -209,10 +249,30 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
         Версии с датой вступления в силу. Тарифы на {sets[0]?.active_version?.effective_from ?? "—"} (актуальные).
       </Typography.Body>
 
-      <label style={{ fontSize: "0.85rem", marginBottom: "0.75rem", display: "block" }}>
-        Новая версия с даты:{" "}
-        <input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
-      </label>
+      <Flex gap="0.5rem" wrap="wrap" align="center" style={{ marginBottom: "0.75rem" }}>
+        <label style={{ fontSize: "0.85rem" }}>
+          Новая версия с даты:{" "}
+          <input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
+        </label>
+        <button
+          type="button"
+          className="button-primary"
+          disabled={initLoading || loading}
+          onClick={() => void runBootstrap()}
+        >
+          {initLoading ? "Создание…" : "Создать структуру тарифов"}
+        </button>
+      </Flex>
+      <Typography.Body style={{ fontSize: "0.8rem", opacity: 0.85, marginBottom: "0.75rem" }}>
+        Данные из xlsx — вкладка «Импорт». Новые цены — выберите дату выше и «Сохранить версию…» на нужной вкладке (это не отдельный
+        тариф, а версия с новой датой). Сейчас в БД: {sets.length} наборов
+        {sets.length > 0 && sets[0]?.active_version?.effective_from
+          ? `, актуально с ${sets[0].active_version.effective_from}`
+          : sets.length > 0
+            ? " (нет версии на сегодня — нажмите «Создать структуру» или импорт)"
+            : " — сначала «Создать структуру тарифов»"}
+        .
+      </Typography.Body>
 
       <div className="hr-calc-admin-tabs">
         {(Object.keys(TAB_LABELS) as AdminTab[]).map((t) => (
@@ -226,6 +286,12 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
       {error && <Typography.Body style={{ color: "var(--color-danger, #c00)" }}>{error}</Typography.Body>}
       {message && <Typography.Body style={{ color: "var(--color-success, #059669)", marginBottom: "0.5rem" }}>{message}</Typography.Body>}
 
+      {tab === "pickup" && !pickupDraft && (
+        <Typography.Body style={{ fontSize: "0.9rem", opacity: 0.9 }}>
+          Нет данных забора. Нажмите «Создать структуру тарифов» или загрузите пикап.xlsx на вкладке «Импорт» (дата версии = поле выше).
+        </Typography.Body>
+      )}
+
       {tab === "pickup" && pickupDraft && (
         <div>
           <Typography.Body style={{ fontWeight: 600 }}>Москва</Typography.Body>
@@ -236,6 +302,12 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
             Сохранить версию забора
           </button>
         </div>
+      )}
+
+      {tab === "last_mile" && !lastMileDraft && (
+        <Typography.Body style={{ fontSize: "0.9rem", opacity: 0.9 }}>
+          Нет данных последней мили. Импорт xlsx или «Создать структуру тарифов».
+        </Typography.Body>
       )}
 
       {tab === "last_mile" && lastMileDraft && (
@@ -250,7 +322,13 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
         </div>
       )}
 
-      {tab === "mainline" && (
+      {tab === "mainline" && sets.filter((s) => s.block === "mainline").length === 0 && (
+        <Typography.Body style={{ fontSize: "0.9rem", opacity: 0.9 }}>
+          Нет наборов магистрали. Нажмите «Создать структуру тарифов».
+        </Typography.Body>
+      )}
+
+      {tab === "mainline" && sets.filter((s) => s.block === "mainline").length > 0 && (
         <div style={{ overflowX: "auto" }}>
           <table style={{ fontSize: "0.85rem", width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -267,7 +345,7 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
               {sets
                 .filter((s) => s.block === "mainline")
                 .map((s) => {
-                  const p = (s.active_version?.payload ?? {}) as MainlinePayload;
+                  const p = (versionPayload(s) ?? {}) as MainlinePayload;
                   const draft = mainlineDrafts.find((d) => d.direction === p.direction && d.mode === p.mode) ?? p;
                   return (
                     <tr key={s.id} style={{ borderTop: "1px solid #e5e7eb" }}>
@@ -324,8 +402,19 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
         </div>
       )}
 
-      {tab === "extras" && (
+      {tab === "extras" && !setByCode.calc_extras && (
+        <Typography.Body style={{ fontSize: "0.9rem", opacity: 0.9 }}>
+          Набор «Доп. услуги» не создан. Нажмите «Создать структуру тарифов».
+        </Typography.Body>
+      )}
+
+      {tab === "extras" && setByCode.calc_extras && (
         <div>
+          {extrasDraft.length === 0 && (
+            <Typography.Body style={{ fontSize: "0.85rem", marginBottom: "0.5rem", opacity: 0.85 }}>
+              Список пуст — «Создать структуру» добавит стандартные доп. услуги CDEK.
+            </Typography.Body>
+          )}
           {extrasDraft.map((ex, i) => (
             <Flex key={ex.code} gap="0.35rem" wrap="wrap" style={{ marginBottom: "0.5rem", alignItems: "center" }}>
               <input value={ex.code} readOnly style={{ width: 120 }} />
@@ -418,36 +507,97 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
 
       {tab === "ring" && (
         <div>
-          <Flex gap="0.5rem" style={{ marginBottom: "0.5rem" }}>
-            <button type="button" className={ringCity === "moscow" ? "button-primary" : "filter-button"} onClick={() => setRingCity("moscow")}>
-              Москва (МКАД)
+          <Typography.Body style={{ fontSize: "0.85rem", marginBottom: "0.65rem", opacity: 0.9 }}>
+            Съезды кольцевой дороги для автоматического расчёта км за МКАД/КАД. МКАД — из файла 1С «Список.MXL» (47 точек). КАД — справочник
+            пересечений обхода Калининграда (20 точек); при выгрузке 1С можно заменить импортом.
+          </Typography.Body>
+          <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: "0.65rem" }}>
+            <button
+              type="button"
+              className="button-primary"
+              onClick={() => {
+                void seedAdminRingExits(adminToken, "seed_kad")
+                  .then((r) => {
+                    setMessage(`КАД: загружено ${r.count ?? 0} съездов`);
+                    setRingCity("kaliningrad");
+                    return loadRing();
+                  })
+                  .catch((e) => setError((e as Error).message));
+              }}
+            >
+              Загрузить КАД (20 съездов)
             </button>
-            <button type="button" className={ringCity === "kaliningrad" ? "button-primary" : "filter-button"} onClick={() => setRingCity("kaliningrad")}>
-              Калининград (КАД)
+            <button
+              type="button"
+              className="filter-button"
+              onClick={() => {
+                void seedAdminRingExits(adminToken, "seed_mkad")
+                  .then((r) => {
+                    setMessage(`МКАД: загружено ${r.count ?? 0} съездов`);
+                    setRingCity("moscow");
+                    return loadRing();
+                  })
+                  .catch((e) => setError((e as Error).message));
+              }}
+            >
+              Загрузить МКАД из Список.MXL
+            </button>
+            <button
+              type="button"
+              className="filter-button"
+              onClick={() => {
+                void seedAdminRingExits(adminToken, "seed_all")
+                  .then((r) => {
+                    setMessage(`МКАД ${r.moscow ?? 0}, КАД ${r.kaliningrad ?? 0} съездов`);
+                    return loadRing();
+                  })
+                  .catch((e) => setError((e as Error).message));
+              }}
+            >
+              Загрузить оба кольца
             </button>
           </Flex>
-          <table style={{ fontSize: "0.8rem", width: "100%" }}>
-            <thead>
-              <tr>
-                <th>Код</th>
-                <th>Название</th>
-                <th>lat</th>
-                <th>lon</th>
-                <th>активен</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ringExits.map((e) => (
-                <tr key={e.id}>
-                  <td>{e.code}</td>
-                  <td>{e.name}</td>
-                  <td>{e.lat}</td>
-                  <td>{e.lon}</td>
-                  <td>{e.active ? "да" : "нет"}</td>
+          <Flex gap="0.5rem" style={{ marginBottom: "0.5rem" }}>
+            <button type="button" className={ringCity === "moscow" ? "button-primary" : "filter-button"} onClick={() => setRingCity("moscow")}>
+              Москва (МКАД) — {ringCity === "moscow" ? ringExits.length : "…"}
+            </button>
+            <button
+              type="button"
+              className={ringCity === "kaliningrad" ? "button-primary" : "filter-button"}
+              onClick={() => setRingCity("kaliningrad")}
+            >
+              Калининград (КАД) — {ringCity === "kaliningrad" ? ringExits.length : "…"}
+            </button>
+          </Flex>
+          {ringExits.length === 0 && (
+            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-warning, #b45309)", marginBottom: "0.5rem" }}>
+              Нет съездов для {ringCity === "moscow" ? "Москвы" : "Калининграда"}. Нажмите «Загрузить КАД» или «Загрузить МКАД».
+            </Typography.Body>
+          )}
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ fontSize: "0.8rem", width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left", padding: "0.35rem" }}>Код</th>
+                  <th style={{ textAlign: "left", padding: "0.35rem" }}>Название</th>
+                  <th style={{ textAlign: "right", padding: "0.35rem" }}>Широта</th>
+                  <th style={{ textAlign: "right", padding: "0.35rem" }}>Долгота</th>
+                  <th style={{ padding: "0.35rem" }}>Активен</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {ringExits.map((e) => (
+                  <tr key={e.id} style={{ borderTop: "1px solid var(--color-border, #e5e7eb)" }}>
+                    <td style={{ padding: "0.35rem" }}>{e.code}</td>
+                    <td style={{ padding: "0.35rem" }}>{e.name}</td>
+                    <td style={{ padding: "0.35rem", textAlign: "right" }}>{Number(e.lat).toFixed(6)}</td>
+                    <td style={{ padding: "0.35rem", textAlign: "right" }}>{Number(e.lon).toFixed(6)}</td>
+                    <td style={{ padding: "0.35rem", textAlign: "center" }}>{e.active ? "да" : "нет"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <Typography.Body style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
             Добавить точку (код, название, координаты):
           </Typography.Body>
@@ -573,7 +723,7 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
               if (!importFile) return;
               void importAdminHaulzFile(adminToken, importKind, importFile, effectiveFrom)
                 .then(() => {
-                  setMessage("Импорт выполнен");
+                  setMessage(`Импорт выполнен (версия с ${effectiveFrom}). Откройте вкладку «Забор» или «Магистраль».`);
                   return loadSets();
                 })
                 .catch((e) => setError((e as Error).message));

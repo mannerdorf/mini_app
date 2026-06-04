@@ -5,6 +5,7 @@ import { writeAuditLog } from "../lib/adminAuditLog.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import {
   getActiveVersion,
+  getLatestVersion,
   listTariffSets,
   listVersionHistory,
   todayDateMoscow,
@@ -50,10 +51,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const day = todayDateMoscow();
       const enriched = [];
       for (const set of sets) {
-        const version = await getActiveVersion(pool, set.id, day);
+        const active_version = await getActiveVersion(pool, set.id, day);
+        const latest_version = await getLatestVersion(pool, set.id);
         enriched.push({
           ...set,
-          active_version: version,
+          active_version,
+          latest_version,
         });
       }
       return res.status(200).json({ sets: enriched, as_of: day, request_id: ctx.requestId });

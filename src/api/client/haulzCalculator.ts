@@ -33,9 +33,11 @@ export async function fetchHaulzAddressSuggest(
   q: string,
   city?: "moscow" | "kaliningrad",
 ): Promise<HaulzSuggestItem[]> {
-  const params = new URLSearchParams({ q });
-  if (city) params.set("city", city);
-  const res = await fetch(`/api/haulz-calculator/suggest?${params}`, { headers: authHeaders(auth) });
+  const res = await fetch("/api/haulz-calculator/suggest", {
+    method: "POST",
+    headers: authHeaders(auth),
+    body: JSON.stringify({ q, city }),
+  });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(parseError(res, data));
   return (data as { items?: HaulzSuggestItem[] }).items ?? [];

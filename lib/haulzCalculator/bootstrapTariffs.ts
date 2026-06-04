@@ -1,20 +1,8 @@
-/**
- * Seed HAULZ calculator: tariff sets/versions, ring exits (MOXCEL), pickup xlsx.
- * Usage: npx tsx scripts/seed-haulz-calculator.ts
- */
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { getPool } from "../api/_db.js";
-import { DEFAULT_CDEK_EXTRAS } from "../lib/haulzCalculator/defaultExtras.js";
-import { seedKadFromDefaults, seedMkadFromRepo } from "../lib/haulzCalculator/seedRingData.js";
-import { parsePickupXlsxFile } from "../lib/haulzCalculator/pickupXlsxParser.js";
-import type { PickupTier } from "../lib/haulzCalculator/types.js";
+import type { Pool } from "pg";
+import { DEFAULT_CDEK_EXTRAS } from "./defaultExtras.js";
+import type { PickupTier } from "./types.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SEED_DIR = path.resolve(__dirname, "../data/haulz-calculator-seed");
-
-const DEFAULT_TIERS: PickupTier[] = [
+export const DEFAULT_PICKUP_TIERS: PickupTier[] = [
   { weight_max_kg: 100, volume_max_m3: 0.5, city_fee: 1350, per_km: 23, load_minutes: 30, overtime_rub_per_hour: 700 },
   { weight_max_kg: 500, volume_max_m3: 2, city_fee: 2300, per_km: 24, load_minutes: 30, overtime_rub_per_hour: 700 },
   { weight_max_kg: 1000, volume_max_m3: 4, city_fee: 3200, per_km: 25, load_minutes: 45, overtime_rub_per_hour: 700 },
@@ -29,23 +17,14 @@ const DEFAULT_TIERS: PickupTier[] = [
   { weight_max_kg: 20000, volume_max_m3: 86, city_fee: 23000, per_km: 70, load_minutes: 120, overtime_rub_per_hour: 2200 },
 ];
 
-const KGD_DEFAULT = DEFAULT_TIERS.map((t, i) => ({
+const KGD_DEFAULT = DEFAULT_PICKUP_TIERS.map((t, i) => ({
   ...t,
   city_fee: [800, 1250, 1850, 2200, 2450, 3100, 3600, 4800, 6500, 7500, 12500, 23000][i] ?? t.city_fee,
   per_km: [22, 22, 22, 28, 28, 28, 33, 33, 35, 53, 53, 70][i] ?? t.per_km,
 }));
 
-function findSeedFile(names: string[]): string | null {
-  if (!fs.existsSync(SEED_DIR)) return null;
-  for (const name of names) {
-    const p = path.join(SEED_DIR, name);
-    if (fs.existsSync(p)) return p;
-  }
-  return null;
-}
-
 async function upsertTariffSet(
-  pool: Awaited<ReturnType<typeof getPool>>,
+  pool: Pool,
   code: string,
   name: string,
   block: string,
@@ -61,21 +40,25 @@ async function upsertTariffSet(
   return Number(rows[0].id);
 }
 
-async function upsertVersion(
-  pool: Awaited<ReturnType<typeof getPool>>,
-  tariffSetId: number,
-  effectiveFrom: string,
-  payload: unknown,
-) {
+/** Добавляет стартовую версию только если у набора ещё нет ни одной версии. */
+async function ensureInitialVersion(pool: Pool, tariffSetId: number, effectiveFrom: string, payload: unknown) {
+  const { rows } = await pool.query(`select 1 from haulz_calc_tariff_versions where tariff_set_id = $1 limit 1`, [
+    tariffSetId,
+  ]);
+  if (rows.length > 0) return;
   await pool.query(
     `insert into haulz_calc_tariff_versions (tariff_set_id, effective_from, payload, created_by, comment)
-     values ($1, $2::date, $3::jsonb, 'seed', 'initial seed')
-     on conflict (tariff_set_id, effective_from) do update set payload = excluded.payload`,
+     values ($1, $2::date, $3::jsonb, 'bootstrap', 'bootstrap defaults')`,
     [tariffSetId, effectiveFrom, JSON.stringify(payload)],
   );
 }
 
-function buildPickupPayload(scope: "pickup" | "last_mile", moscowTiers: PickupTier[], kgdTiers: PickupTier[], note?: string) {
+function buildPickupPayload(
+  scope: "pickup" | "last_mile",
+  moscowTiers: PickupTier[],
+  kgdTiers: PickupTier[],
+  note?: string,
+) {
   return {
     scope,
     note: note || "ДО 20 КМ ОТ МКАД",
@@ -86,32 +69,34 @@ function buildPickupPayload(scope: "pickup" | "last_mile", moscowTiers: PickupTi
   };
 }
 
-const DEFAULT_HUBS = [
-  { code: "SVO", name: "Шереметьево", lat: 55.9726, lon: 37.4146, role: "moscow" as const },
-  { code: "DME", name: "Домодедово", lat: 55.4088, lon: 37.9063, role: "moscow" as const },
-  { code: "VKO", name: "Внуково", lat: 55.5965, lon: 37.2615, role: "moscow" as const },
-  { code: "KGD", name: "Храброво (Калининград)", lat: 54.8901, lon: 20.5926, role: "kaliningrad" as const },
-];
-
-async function main() {
-  const pool = getPool();
-  const effectiveFrom = "2020-01-01";
-
-  const xlsxPath = findSeedFile(["пикап.xlsx", "pickup.xlsx"]);
-  const parsedXlsx = xlsxPath ? parsePickupXlsxFile(xlsxPath) : null;
-  const moscowTiers = parsedXlsx?.moscow ?? DEFAULT_TIERS;
-  const kgdTiers = parsedXlsx?.kaliningrad ?? KGD_DEFAULT;
-  const pickupNote = parsedXlsx?.note;
+/** Создаёт наборы тарифов и стартовые версии, если их ещё нет в БД. */
+export async function bootstrapHaulzCalculatorTariffs(
+  pool: Pool,
+  opts?: { effectiveFrom?: string },
+): Promise<{ sets: number; versionsWritten: number }> {
+  const effectiveFrom = opts?.effectiveFrom || "2020-01-01";
+  const before = await pool.query<{ n: string }>(`select count(*)::text as n from haulz_calc_tariff_sets`);
+  const setsBefore = Number(before.rows[0]?.n) || 0;
 
   const pickupId = await upsertTariffSet(pool, "pickup_matrix", "Заборная логистика", "pickup", null);
   const lastMileId = await upsertTariffSet(pool, "last_mile_matrix", "Последняя миля", "last_mile", null);
   const settingsId = await upsertTariffSet(pool, "calc_settings", "Настройки калькулятора", "settings", null);
   const extrasId = await upsertTariffSet(pool, "calc_extras", "Доп. услуги", "extra", null);
 
-  await upsertVersion(pool, pickupId, effectiveFrom, buildPickupPayload("pickup", moscowTiers, kgdTiers, pickupNote));
-  await upsertVersion(pool, lastMileId, effectiveFrom, buildPickupPayload("last_mile", moscowTiers, kgdTiers, pickupNote));
-  await upsertVersion(pool, settingsId, effectiveFrom, { volumetric_factor_kg_m3: 200 });
-  await upsertVersion(pool, extrasId, effectiveFrom, { services: DEFAULT_CDEK_EXTRAS });
+  await ensureInitialVersion(
+    pool,
+    pickupId,
+    effectiveFrom,
+    buildPickupPayload("pickup", DEFAULT_PICKUP_TIERS, KGD_DEFAULT),
+  );
+  await ensureInitialVersion(
+    pool,
+    lastMileId,
+    effectiveFrom,
+    buildPickupPayload("last_mile", DEFAULT_PICKUP_TIERS, KGD_DEFAULT),
+  );
+  await ensureInitialVersion(pool, settingsId, effectiveFrom, { volumetric_factor_kg_m3: 200 });
+  await ensureInitialVersion(pool, extrasId, effectiveFrom, { services: DEFAULT_CDEK_EXTRAS });
 
   const mainlines = [
     { code: "mainline_mow_kgd_ferry", name: "Магистраль MOW→KGD паром", direction: "mow_kgd", mode: "ferry", price_per_kg: 35, delivery_days: 12 },
@@ -122,7 +107,7 @@ async function main() {
 
   for (const m of mainlines) {
     const id = await upsertTariffSet(pool, m.code, m.name, "mainline", m.direction);
-    await upsertVersion(pool, id, effectiveFrom, {
+    await ensureInitialVersion(pool, id, effectiveFrom, {
       mode: m.mode,
       price_per_kg: m.price_per_kg,
       direction: m.direction,
@@ -130,30 +115,26 @@ async function main() {
     });
   }
 
-  try {
-    const mkad = await seedMkadFromRepo(pool);
-    console.log(`MKAD exits seeded: ${mkad}`);
-  } catch (e) {
-    console.warn("MKAD seed skipped:", (e as Error).message);
-  }
+  const after = await pool.query<{ n: string }>(`select count(*)::text as n from haulz_calc_tariff_sets`);
+  const setsAfter = Number(after.rows[0]?.n) || 0;
 
-  const kad = await seedKadFromDefaults(pool);
-  console.log(`KAD exits seeded: ${kad}`);
+  const { rows: verRows } = await pool.query<{ n: string }>(
+    `select count(*)::text as n from haulz_calc_tariff_versions where created_by = 'bootstrap'`,
+  );
 
-  for (const h of DEFAULT_HUBS) {
-    await pool.query(
-      `insert into haulz_calc_hubs (code, name, lat, lon, role, active)
-       values ($1,$2,$3,$4,$5,true)
-       on conflict (code) do update set name=excluded.name, lat=excluded.lat, lon=excluded.lon, role=excluded.role`,
-      [h.code, h.name, h.lat, h.lon, h.role],
-    );
-  }
-
-  console.log("HAULZ calculator seed complete.");
-  await pool.end();
+  return {
+    sets: setsAfter,
+    versionsWritten: Number(verRows[0]?.n) || 0,
+    wasEmpty: setsBefore === 0,
+  };
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+export async function ensureTariffSetExists(pool: Pool, code: string): Promise<number> {
+  const { rows } = await pool.query<{ id: string }>(`select id::text from haulz_calc_tariff_sets where code = $1`, [code]);
+  if (rows[0]?.id) return Number(rows[0].id);
+  await bootstrapHaulzCalculatorTariffs(pool);
+  const { rows: again } = await pool.query<{ id: string }>(`select id::text from haulz_calc_tariff_sets where code = $1`, [code]);
+  const id = Number(again[0]?.id);
+  if (!id) throw new Error(`Набор тарифов ${code} не найден после инициализации`);
+  return id;
+}

@@ -9,6 +9,11 @@ export type AdminHaulzTariffSet = {
     effective_from: string;
     payload: unknown;
   } | null;
+  latest_version?: {
+    id: number;
+    effective_from: string;
+    payload: unknown;
+  } | null;
 };
 
 function adminHeaders(adminToken: string): Record<string, string> {
@@ -39,4 +44,18 @@ export async function publishAdminHaulzTariffVersion(
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
+}
+
+export async function initAdminHaulzCalculator(
+  adminToken: string,
+  effectiveFrom?: string,
+): Promise<{ sets: number; wasEmpty?: boolean }> {
+  const res = await fetch("/api/admin-haulz-calculator-init", {
+    method: "POST",
+    headers: adminHeaders(adminToken),
+    body: JSON.stringify({ effective_from: effectiveFrom }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
+  return data as { sets: number; wasEmpty?: boolean };
 }

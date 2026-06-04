@@ -1,11 +1,17 @@
 import type { ExtraServicePayload, PickupMatrixPayload, RingExitRow } from "../../../../lib/haulzCalculator/types";
 import {
   fetchAdminHaulzCalculatorTariffs,
+  initAdminHaulzCalculator,
   publishAdminHaulzTariffVersion,
   type AdminHaulzTariffSet,
 } from "./haulzCalculatorTariffs";
 
-export { fetchAdminHaulzCalculatorTariffs, publishAdminHaulzTariffVersion, type AdminHaulzTariffSet };
+export {
+  fetchAdminHaulzCalculatorTariffs,
+  initAdminHaulzCalculator,
+  publishAdminHaulzTariffVersion,
+  type AdminHaulzTariffSet,
+};
 
 function adminHeaders(adminToken: string): Record<string, string> {
   return {
@@ -71,6 +77,20 @@ export async function fetchAdminRingExits(
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
   return (data as { exits?: RingExitRow[] }).exits ?? [];
+}
+
+export async function seedAdminRingExits(
+  adminToken: string,
+  action: "seed_mkad" | "seed_kad" | "seed_all",
+): Promise<{ count?: number; moscow?: number; kaliningrad?: number }> {
+  const res = await fetch("/api/admin-haulz-calculator-ring", {
+    method: "POST",
+    headers: adminHeaders(adminToken),
+    body: JSON.stringify({ action }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
+  return data as { count?: number; moscow?: number; kaliningrad?: number };
 }
 
 export async function saveAdminRingExit(

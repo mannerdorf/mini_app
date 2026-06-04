@@ -7,6 +7,7 @@ import { parseMkadExitsFromMoxcel, parseMoxcelCells } from "../lib/haulzCalculat
 import { parsePickupXlsxBuffer } from "../lib/haulzCalculator/pickupXlsxParser.js";
 import { ringFromExits } from "../lib/haulzCalculator/mkadDistance.js";
 import type { CityCode } from "../lib/haulzCalculator/types.js";
+import { ensureTariffSetExists } from "../lib/haulzCalculator/bootstrapTariffs.js";
 
 function parseBody(req: VercelRequest): Record<string, unknown> {
   let body: unknown = req.body;
@@ -26,12 +27,7 @@ async function upsertPickupVersion(
   payload: unknown,
   effectiveFrom: string,
 ) {
-  const { rows } = await pool.query<{ id: string }>(
-    `select id::text from haulz_calc_tariff_sets where code = $1`,
-    [code],
-  );
-  const setId = Number(rows[0]?.id);
-  if (!setId) throw new Error(`tariff set ${code} не найден — выполните seed`);
+  const setId = await ensureTariffSetExists(pool, code);
   await pool.query(
     `insert into haulz_calc_tariff_versions (tariff_set_id, effective_from, payload, created_by, comment)
      values ($1, $2::date, $3::jsonb, 'admin_import', 'import xlsx')

@@ -1205,11 +1205,7 @@ export function ProfilePage({
             ...(activeAccount.isRegisteredUser === true ? { isRegisteredUser: true } : {}),
         } : null;
         return (
-            <HaulzCalculatorPage
-                auth={auth}
-                onBack={() => setCurrentView("haulz")}
-                serviceMode={activeAccount?.permissions?.service_mode === true}
-            />
+            <HaulzCalculatorPage auth={auth} onBack={() => setCurrentView("haulz")} />
         );
     }
 

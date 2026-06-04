@@ -41,6 +41,19 @@ export async function getActiveVersion(
   return rows[0] ?? null;
 }
 
+/** Последняя версия по дате (для админки, в т.ч. будущие effective_from). */
+export async function getLatestVersion(pool: Pool, tariffSetId: number): Promise<TariffVersionRow | null> {
+  const { rows } = await pool.query<TariffVersionRow>(
+    `select id, tariff_set_id, effective_from::text, payload, comment, created_by, created_at::text
+     from haulz_calc_tariff_versions
+     where tariff_set_id = $1
+     order by effective_from desc, id desc
+     limit 1`,
+    [tariffSetId],
+  );
+  return rows[0] ?? null;
+}
+
 export async function getActiveVersionByCode(
   pool: Pool,
   code: string,

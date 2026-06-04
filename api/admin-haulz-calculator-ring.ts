@@ -4,6 +4,7 @@ import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js"
 import { writeAuditLog } from "../lib/adminAuditLog.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import { ringFromExits } from "../lib/haulzCalculator/mkadDistance.js";
+import { seedKadFromDefaults, seedMkadFromRepo } from "../lib/haulzCalculator/seedRingData.js";
 import type { CityCode } from "../lib/haulzCalculator/types.js";
 
 function parseBody(req: VercelRequest): Record<string, unknown> {
@@ -73,6 +74,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === "POST") {
       const body = parseBody(req);
+      const action = String(body.action ?? "").trim();
+
+      if (action === "seed_mkad") {
+        const count = await seedMkadFromRepo(pool);
+        await writeAuditLog(pool, {
+          action: "haulz_calc_ring_seed_mkad",
+          target_type: "haulz_calc_ring_exits",
+          details: { count },
+        });
+        return res.status(200).json({ ok: true, city: "moscow", count, request_id: ctx.requestId });
+      }
+
+      if (action === "seed_kad") {
+        const count = await seedKadFromDefaults(pool);
+        await writeAuditLog(pool, {
+          action: "haulz_calc_ring_seed_kad",
+          target_type: "haulz_calc_ring_exits",
+          details: { count },
+        });
+        return res.status(200).json({ ok: true, city: "kaliningrad", count, request_id: ctx.requestId });
+      }
+
+      if (action === "seed_all") {
+        const moscow = await seedMkadFromRepo(pool);
+        const kaliningrad = await seedKadFromDefaults(pool);
+        await writeAuditLog(pool, {
+          action: "haulz_calc_ring_seed_all",
+          target_type: "haulz_calc_ring_exits",
+          details: { moscow, kaliningrad },
+        });
+        return res.status(200).json({ ok: true, moscow, kaliningrad, request_id: ctx.requestId });
+      }
+
       const cityCode = body.city_code === "kaliningrad" ? "kaliningrad" : "moscow";
       const id = Number(body.id);
       const code = typeof body.code === "string" ? body.code.trim() : null;
