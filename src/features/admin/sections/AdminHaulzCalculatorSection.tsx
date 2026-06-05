@@ -126,6 +126,7 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
   const [lastMileDraft, setLastMileDraft] = useState<PickupMatrixPayload | null>(null);
   const [extrasDraft, setExtrasDraft] = useState<ExtraServicePayload[]>([]);
   const [settingsFactor, setSettingsFactor] = useState("200");
+  const [settingsMainlineMinKg, setSettingsMainlineMinKg] = useState("20");
   const [mainlineDrafts, setMainlineDrafts] = useState<MainlinePayload[]>([]);
   const [ringCity, setRingCity] = useState<"moscow" | "kaliningrad">("moscow");
   const [ringExits, setRingExits] = useState<Awaited<ReturnType<typeof fetchAdminRingExits>>>([]);
@@ -164,8 +165,9 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
       }
       const settingsP = versionPayload(settings);
       if (settingsP) {
-        const p = settingsP as { volumetric_factor_kg_m3?: number };
+        const p = settingsP as { volumetric_factor_kg_m3?: number; mainline_min_chargeable_weight_kg?: number };
         setSettingsFactor(String(p.volumetric_factor_kg_m3 ?? 200));
+        setSettingsMainlineMinKg(String(p.mainline_min_chargeable_weight_kg ?? 20));
       }
       const ml: MainlinePayload[] = [];
       for (const s of list.filter((x) => x.block === "mainline")) {
@@ -573,12 +575,28 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
               onChange={(e) => setSettingsFactor(e.target.value)}
             />
           </label>
+          <label className="hr-calc-admin__field" style={{ maxWidth: "16rem", marginTop: "0.75rem" }}>
+            <span className="hr-calc-admin__label">Мин. платный вес магистрали (кг)</span>
+            <input
+              type="number"
+              min={0}
+              className="hr-calc-admin-input"
+              value={settingsMainlineMinKg}
+              onChange={(e) => setSettingsMainlineMinKg(e.target.value)}
+            />
+          </label>
+          <p className="hr-calc-admin__hint" style={{ marginTop: "0.5rem" }}>
+            Если платный вес груза меньше минимума, для расчёта магистрали используется указанное значение.
+          </p>
           <div className="hr-calc-admin__actions">
             <button
               type="button"
               className="button-primary"
               onClick={() =>
-                void publish("calc_settings", { volumetric_factor_kg_m3: Number(settingsFactor) || 200 }).catch((e) =>
+                void publish("calc_settings", {
+                  volumetric_factor_kg_m3: Number(settingsFactor) || 200,
+                  mainline_min_chargeable_weight_kg: Number(settingsMainlineMinKg) || 20,
+                }).catch((e) =>
                   setError((e as Error).message),
                 )
               }

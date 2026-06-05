@@ -841,7 +841,9 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
                       <div className="haulz-calc-tariff-card__name">{m.label}</div>
                       <div className="haulz-calc-tariff-card__days">~{m.deliveryDays} дн.</div>
                       <div className="haulz-calc-tariff-card__price">{m.estimatedRub.toLocaleString("ru-RU")} ₽</div>
-                      <div className="haulz-calc-tariff-card__sub">{m.pricePerKg} ₽/кг</div>
+                      <div className="haulz-calc-tariff-card__sub">
+                        {Math.round(m.billableWeightKg)} кг · {m.pricePerKg} ₽/кг
+                      </div>
                     </button>
                   ))}
                 </div>

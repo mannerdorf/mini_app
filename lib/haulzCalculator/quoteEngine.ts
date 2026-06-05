@@ -16,7 +16,11 @@ import {
   type QuoteRequest,
   type QuoteResult,
 } from "./types.js";
-import { summarizePlaces } from "./chargeableWeight.js";
+import {
+  DEFAULT_MAINLINE_MIN_CHARGEABLE_WEIGHT_KG,
+  mainlineBillableWeightKg,
+  summarizePlaces,
+} from "./chargeableWeight.js";
 import { kmBeyondRing } from "./mkadDistance.js";
 import { calcPickupFromMatrix } from "./pickupTariff.js";
 import { buildMainlineOptions } from "./calculatorOptions.js";
@@ -89,7 +93,17 @@ function calcExtras(
 export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteResult> {
   const tariffs = await loadCalculatorTariffs(pool);
   const factor = Number(tariffs.settings?.volumetric_factor_kg_m3) || 200;
-  const chargeable = summarizePlaces(req.places, factor);
+  const mainlineMinChargeableWeightKg =
+    Number(tariffs.settings?.mainline_min_chargeable_weight_kg) || DEFAULT_MAINLINE_MIN_CHARGEABLE_WEIGHT_KG;
+  const chargeableBase = summarizePlaces(req.places, factor);
+  const mainlineWeightKg = mainlineBillableWeightKg(
+    chargeableBase.chargeableWeightKg,
+    mainlineMinChargeableWeightKg,
+  );
+  const chargeable = {
+    ...chargeableBase,
+    mainlineChargeableWeightKg: mainlineWeightKg,
+  };
   const direction = resolveDirection(req.from, req.to, req.direction);
   const warnings: string[] = [];
 
@@ -141,7 +155,7 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
 
   const mainline = pickMainline(tariffs.mainline, direction, req.mainlineMode);
   const mainlineRate = Number(mainline?.price_per_kg) || 0;
-  const mainlineAmount = mainlineRate * chargeable.chargeableWeightKg;
+  const mainlineAmount = mainlineRate * mainlineWeightKg;
   const deliveryDays = Number(mainline?.delivery_days) || 0;
 
   const hubs: QuoteResult["hubs"] = { from: null, to: null };
@@ -183,7 +197,12 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
     key: "mainline",
     label: `Магистраль ${req.mainlineMode === "ferry" ? "паром" : "авто"}`,
     amountRub: Math.round(mainlineAmount * 100) / 100,
-    meta: { pricePerKg: mainlineRate, mode: req.mainlineMode },
+    meta: {
+      pricePerKg: mainlineRate,
+      mode: req.mainlineMode,
+      billableWeightKg: mainlineWeightKg,
+      minChargeableWeightKg: mainlineMinChargeableWeightKg,
+    },
   });
 
   if (chargeLastMile && lastMileCalc) {
@@ -200,7 +219,12 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
   lines.push(...extraLines);
 
   const totalRub = Math.round(lines.reduce((s, l) => s + l.amountRub, 0) * 100) / 100;
-  const mainlineOptions = buildMainlineOptions(tariffs.mainline, direction, chargeable.chargeableWeightKg);
+  const mainlineOptions = buildMainlineOptions(
+    tariffs.mainline,
+    direction,
+    chargeable.chargeableWeightKg,
+    mainlineMinChargeableWeightKg,
+  );
 
   return {
     direction,

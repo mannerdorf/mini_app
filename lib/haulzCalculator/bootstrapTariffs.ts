@@ -95,7 +95,10 @@ export async function bootstrapHaulzCalculatorTariffs(
     effectiveFrom,
     buildPickupPayload("last_mile", DEFAULT_PICKUP_TIERS, KGD_DEFAULT),
   );
-  await ensureInitialVersion(pool, settingsId, effectiveFrom, { volumetric_factor_kg_m3: 200 });
+  await ensureInitialVersion(pool, settingsId, effectiveFrom, {
+    volumetric_factor_kg_m3: 200,
+    mainline_min_chargeable_weight_kg: 20,
+  });
   await ensureInitialVersion(pool, extrasId, effectiveFrom, { services: DEFAULT_CDEK_EXTRAS });
 
   const mainlines = [

@@ -1,5 +1,18 @@
 import type { ChargeableSummary, ParcelPlace } from "./types.js";
 
+/** Минимальный платный вес для расчёта магистрали, если в настройках не задано иное. */
+export const DEFAULT_MAINLINE_MIN_CHARGEABLE_WEIGHT_KG = 20;
+
+export function mainlineBillableWeightKg(
+  chargeableWeightKg: number,
+  minKg = DEFAULT_MAINLINE_MIN_CHARGEABLE_WEIGHT_KG,
+): number {
+  const weight = Number(chargeableWeightKg) || 0;
+  const min = Number(minKg) || 0;
+  if (min <= 0) return weight;
+  return Math.max(weight, min);
+}
+
 export function computeVolumeWeightKg(volumeM3: number, factorKgM3 = 200): number {
   const v = Number(volumeM3);
   const f = Number(factorKgM3);

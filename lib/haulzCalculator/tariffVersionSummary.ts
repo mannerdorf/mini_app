@@ -96,8 +96,13 @@ export function describeTariffVersionPayload(
   }
 
   if (blk === "settings" || code === "calc_settings") {
-    const factor = Number((payload as SettingsPayload)?.volumetric_factor_kg_m3) || 200;
-    return [`Объёмный коэффициент для расчёта веса: ${factor} кг/м³`];
+    const settings = payload as SettingsPayload;
+    const factor = Number(settings?.volumetric_factor_kg_m3) || 200;
+    const mainlineMin = Number(settings?.mainline_min_chargeable_weight_kg) || 20;
+    return [
+      `Объёмный коэффициент для расчёта веса: ${factor} кг/м³`,
+      `Минимальный платный вес магистрали: ${mainlineMin} кг`,
+    ];
   }
 
   if (blk === "mainline" || code.startsWith("mainline_")) {

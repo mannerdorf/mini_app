@@ -104,7 +104,14 @@ export type HaulzCalcMobileFlowProps = {
   suggestCityFrom: CityCode;
   suggestCityTo: CityCode;
   applyQuickCity: (side: "from" | "to", city: CityCode) => void;
-  mainlineCards: { mode: MainlineMode; label: string; deliveryDays: number; estimatedRub: number; pricePerKg: number }[];
+  mainlineCards: {
+    mode: MainlineMode;
+    label: string;
+    deliveryDays: number;
+    estimatedRub: number;
+    pricePerKg: number;
+    billableWeightKg: number;
+  }[];
   canSubmitOrder: boolean;
   orderLoading: boolean;
   orderMessage: string | null;
@@ -529,7 +536,9 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
                   <div className="haulz-calc-tariff-card__name">{m.label}</div>
                   <div className="haulz-calc-tariff-card__days">~{m.deliveryDays} дн.</div>
                   <div className="haulz-calc-tariff-card__price">{m.estimatedRub.toLocaleString("ru-RU")} ₽</div>
-                  <div className="haulz-calc-tariff-card__sub">{m.pricePerKg} ₽/кг</div>
+                  <div className="haulz-calc-tariff-card__sub">
+                    {Math.round(m.billableWeightKg)} кг · {m.pricePerKg} ₽/кг
+                  </div>
                 </button>
               ))}
             </div>

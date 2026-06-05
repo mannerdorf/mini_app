@@ -112,7 +112,10 @@ async function main() {
 
   await upsertVersion(pool, pickupId, effectiveFrom, buildPickupPayload("pickup", moscowTiers, kgdTiers, pickupNote));
   await upsertVersion(pool, lastMileId, effectiveFrom, buildPickupPayload("last_mile", moscowTiers, kgdTiers, pickupNote));
-  await upsertVersion(pool, settingsId, effectiveFrom, { volumetric_factor_kg_m3: 200 });
+  await upsertVersion(pool, settingsId, effectiveFrom, {
+    volumetric_factor_kg_m3: 200,
+    mainline_min_chargeable_weight_kg: 20,
+  });
   await upsertVersion(pool, extrasId, effectiveFrom, { services: DEFAULT_CDEK_EXTRAS });
 
   const mainlines = [

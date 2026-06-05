@@ -22,6 +22,7 @@ export async function saveQuoteSnapshot(
       delivery_days: m.delivery_days,
     })),
     volumetric_factor: tariffs.settings?.volumetric_factor_kg_m3 ?? 200,
+    mainline_min_chargeable_weight_kg: tariffs.settings?.mainline_min_chargeable_weight_kg ?? 20,
   };
 
   const { rows } = await pool.query<{ id: string }>(

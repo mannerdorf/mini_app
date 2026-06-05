@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeChargeableWeight,
+  mainlineBillableWeightKg,
   summarizePlaces,
 } from "./chargeableWeight.js";
 import {
@@ -32,6 +33,12 @@ describe("chargeableWeight", () => {
     expect(s.actualWeightKg).toBe(157);
     expect(s.volumeM3).toBe(1);
     expect(s.chargeableWeightKg).toBe(200);
+  });
+
+  it("applies mainline minimum billable weight", () => {
+    expect(mainlineBillableWeightKg(5)).toBe(20);
+    expect(mainlineBillableWeightKg(25)).toBe(25);
+    expect(mainlineBillableWeightKg(10, 0)).toBe(10);
   });
 });
 

@@ -46,6 +46,8 @@ export type MainlinePayload = {
 
 export type SettingsPayload = {
   volumetric_factor_kg_m3?: number;
+  /** Минимальный платный вес для расчёта магистрали, кг */
+  mainline_min_chargeable_weight_kg?: number;
 };
 
 export type ExtraServicePayload = {
@@ -105,6 +107,8 @@ export type ChargeableSummary = {
   volumeM3: number;
   volumeWeightKg: number;
   chargeableWeightKg: number;
+  /** Платный вес для магистрали с учётом минимума из настроек */
+  mainlineChargeableWeightKg?: number;
   volumetricFactor: number;
 };
 
@@ -121,6 +125,7 @@ export type MainlineOption = {
   pricePerKg: number;
   deliveryDays: number;
   estimatedRub: number;
+  billableWeightKg: number;
   direction: Direction;
 };
 
@@ -128,6 +133,7 @@ export type CalculatorOptions = {
   asOfDate: string;
   direction: Direction;
   volumetricFactor: number;
+  mainlineMinChargeableWeightKg: number;
   mainlineOptions: MainlineOption[];
   extras: ExtraServicePayload[];
   pickupNote?: string;
