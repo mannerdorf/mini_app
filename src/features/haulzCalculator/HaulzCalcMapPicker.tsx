@@ -23,6 +23,7 @@ type LeafletMap = {
   on: (ev: string, cb: (e: { latlng: { lat: number; lng: number } }) => void) => void;
   invalidateSize: () => void;
   remove: () => void;
+  attributionControl: { setPrefix: (prefix: string | false) => void };
 };
 
 type LeafletMarker = {
@@ -305,6 +306,10 @@ export function HaulzCalcMapPicker({
           zoom: draftAddr?.point ? 16 : center.zoom,
         });
         mapInstance.current = map;
+        // Leaflet 1.9+ добавляет 🇺🇦 в prefix по умолчанию — оставляем только ссылку на Leaflet.
+        map.attributionControl.setPrefix(
+          '<a href="https://leafletjs.com" title="A JavaScript library for interactive maps">Leaflet</a>',
+        );
 
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
