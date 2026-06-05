@@ -68,7 +68,12 @@ export async function suggestAddresses(
 
   let items: AddressSuggestItem[] = [];
   if (getYandexGeosuggestApiKeyOrNull()) {
-    items = await yandexSuggestAddresses(query, opts);
+    try {
+      items = await yandexSuggestAddresses(query, opts);
+    } catch {
+      /* неверный/просроченный ключ Geosuggest — пробуем Геокодер */
+      items = [];
+    }
   }
 
   if (items.length === 0) {

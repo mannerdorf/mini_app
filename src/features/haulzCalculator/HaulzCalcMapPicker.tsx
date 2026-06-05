@@ -149,6 +149,15 @@ export function HaulzCalcMapPicker({
       setSuggestLoading(false);
       return;
     }
+    if (
+      draftAddr?.point &&
+      debouncedQuery.trim() === draftAddr.fullAddress.trim()
+    ) {
+      setSuggestions([]);
+      setSuggestLoading(false);
+      setSuggestError(null);
+      return;
+    }
     let cancelled = false;
     setSuggestLoading(true);
     setSuggestError(null);
@@ -168,12 +177,13 @@ export function HaulzCalcMapPicker({
     return () => {
       cancelled = true;
     };
-  }, [open, auth, debouncedQuery, city, isWarehouse]);
+  }, [open, auth, debouncedQuery, city, isWarehouse, draftAddr?.point, draftAddr?.fullAddress]);
 
   const applyDraft = (fullAddress: string, label: string, point: { lat: number; lon: number }, sourceId?: string) => {
     setDraftAddr({ label, fullAddress, point, city, sourceId });
     setQuery(fullAddress);
     setSuggestions([]);
+    setSuggestError(null);
     if (mapInstance.current && placemarkRef.current) {
       placemarkRef.current.geometry.setCoordinates([point.lat, point.lon]);
       mapInstance.current.setCenter([point.lat, point.lon], 16);
@@ -364,7 +374,7 @@ export function HaulzCalcMapPicker({
                 placeholder="Начните вводить адрес"
                 autoComplete="off"
               />
-              {(suggestLoading || suggestions.length > 0 || suggestError) && (
+              {(suggestLoading || suggestions.length > 0 || (suggestError && !draftAddr?.point)) && (
                 <div className="haulz-calc-suggest-panel haulz-calc-map-screen__suggest">
                   {suggestLoading && (
                     <div className="haulz-calc-suggest-row haulz-calc-suggest-muted">

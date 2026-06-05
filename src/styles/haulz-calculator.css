@@ -3,6 +3,8 @@
 .haulz-calc-page--cdek {
   --haulz-summary-col-width: 360px;
   --haulz-summary-fixed-top: max(1rem, env(safe-area-inset-top, 0px));
+  --haulz-calc-content-max: min(1180px, calc(100vw - 2 * var(--pad-page-h, 24px)));
+  --haulz-summary-fixed-right: calc((100vw - var(--haulz-calc-content-max)) / 2 + var(--pad-page-h, 24px));
   /* высота липкого .app-header + небольшой зазор (десктоп) */
   --haulz-summary-header-offset: calc(
     var(--space-4, 16px) * 2 + 2.75rem + var(--space-1, 4px) + var(--space-2, 8px)
@@ -537,15 +539,15 @@
 }
 
 @media (min-width: 769px) {
-  .haulz-calc-page--cdek {
-    --haulz-summary-fixed-top: max(var(--haulz-summary-header-offset), env(safe-area-inset-top, 0px));
+  /* Калькулятору нужна ширина под две колонки без ручного «развернуть» */
+  .app-container:has(.haulz-calc-page--cdek) .app-main,
+  .app-container:has(.haulz-calc-page--cdek) .app-header {
+    max-width: min(96vw, 1180px);
   }
-}
 
-@media (min-width: 901px) {
   /*
-   * overflow-x:auto у .app-container / .app-main даёт overflow-y:auto и ломает position:sticky.
-   * На странице калькулятора возвращаем visible — скролл остаётся у окна, блок «Ваш расчёт» липнет.
+   * overflow-x:auto у .app-container / .app-main даёт overflow-y:auto и ломает sticky.
+   * На десктопе фиксируем блок «Ваш расчёт» к окну — надёжнее sticky.
    */
   .app-container:has(.haulz-calc-page--cdek),
   .app-main:has(.haulz-calc-page--cdek),
@@ -559,10 +561,26 @@
     overflow: visible;
   }
 
+  .haulz-calc-page--cdek {
+    --haulz-summary-fixed-top: max(var(--haulz-summary-header-offset), env(safe-area-inset-top, 0px));
+  }
+
+  .haulz-calc-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .haulz-calc-main {
+    margin-right: calc(var(--haulz-summary-col-width) + 1rem);
+    min-width: 0;
+  }
+
   .haulz-calc-summary-wrap {
-    position: sticky;
-    z-index: 5;
+    position: fixed;
     top: var(--haulz-summary-fixed-top);
+    right: max(var(--pad-page-h, 24px), var(--haulz-summary-fixed-right));
+    width: var(--haulz-summary-col-width);
+    max-width: var(--haulz-summary-col-width);
+    z-index: 5;
     max-height: calc(100dvh - var(--haulz-summary-fixed-top) - 1rem);
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -570,7 +588,7 @@
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
   .haulz-calc-grid {
     grid-template-columns: 1fr;
     padding-bottom: calc(280px + 72px + env(safe-area-inset-bottom, 0px));
