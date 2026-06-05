@@ -7,62 +7,98 @@ import { warehouseForCity } from "../../../lib/haulzCalculator/warehouses";
 import {
   fetchHaulzAddressSuggest,
   fetchHaulzGeocode,
-  fetchHaulzMapsConfig,
   type HaulzSuggestItem,
 } from "../../api/client/haulzCalculator";
 
-type MapGL = {
-  Map: new (
-    el: HTMLElement,
-    opts: { key: string; center: [number, number]; zoom: number; zoomControl?: boolean },
-  ) => {
-    on: (ev: string, cb: (e: { lngLat: [number, number] }) => void) => void;
-    setCenter: (c: [number, number]) => void;
-    setZoom: (z: number) => void;
-    destroy: () => void;
-  };
-  Marker: new (
-    map: InstanceType<MapGL["Map"]>,
-    opts: { coordinates: [number, number]; draggable?: boolean },
-  ) => {
-    on: (ev: string, cb: () => void) => void;
-    getCoordinates: () => [number, number];
-    setCoordinates: (c: [number, number]) => void;
-    destroy: () => void;
-  };
+const CITY_CENTERS: Record<CityCode, { lat: number; lon: number; zoom: number }> = {
+  moscow: { lat: 55.7558, lon: 37.6173, zoom: 10 },
+  kaliningrad: { lat: 54.7104, lon: 20.5103, zoom: 11 },
+};
+
+const LEAFLET_VERSION = "1.9.4";
+const LEAFLET_BASE = `https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist`;
+
+type LeafletMap = {
+  setView: (center: [number, number], zoom: number) => void;
+  on: (ev: string, cb: (e: { latlng: { lat: number; lng: number } }) => void) => void;
+  invalidateSize: () => void;
+  remove: () => void;
+};
+
+type LeafletMarker = {
+  setLatLng: (latlng: [number, number]) => void;
+  getLatLng: () => { lat: number; lng: number };
+  on: (ev: string, cb: () => void) => void;
+  remove: () => void;
+};
+
+type LeafletApi = {
+  map: (el: HTMLElement, opts: { center: [number, number]; zoom: number }) => LeafletMap;
+  tileLayer: (
+    url: string,
+    opts: { attribution: string; maxZoom?: number },
+  ) => { addTo: (map: LeafletMap) => void };
+  marker: (
+    latlng: [number, number],
+    opts?: { draggable?: boolean; icon?: unknown },
+  ) => LeafletMarker & { addTo: (map: LeafletMap) => LeafletMarker };
+  icon: (opts: Record<string, unknown>) => unknown;
 };
 
 declare global {
   interface Window {
-    mapgl?: MapGL;
+    L?: LeafletApi;
   }
 }
 
-function loadMapglScript(): Promise<MapGL> {
+function loadLeaflet(): Promise<LeafletApi> {
   return new Promise((resolve, reject) => {
-    if (window.mapgl) {
-      resolve(window.mapgl);
+    if (window.L) {
+      resolve(window.L);
       return;
     }
-    const id = "dgis-mapgl-haulz";
-    if (document.getElementById(id)) {
+
+    const cssId = "leaflet-css-haulz";
+    if (!document.getElementById(cssId)) {
+      const link = document.createElement("link");
+      link.id = cssId;
+      link.rel = "stylesheet";
+      link.href = `${LEAFLET_BASE}/leaflet.css`;
+      document.head.appendChild(link);
+    }
+
+    const scriptId = "leaflet-js-haulz";
+    if (document.getElementById(scriptId)) {
       const wait = () => {
-        if (window.mapgl) resolve(window.mapgl);
+        if (window.L) resolve(window.L);
         else setTimeout(wait, 100);
       };
       wait();
       return;
     }
+
     const s = document.createElement("script");
-    s.id = id;
-    s.src = "https://mapgl.2gis.com/api/js/v1";
+    s.id = scriptId;
+    s.src = `${LEAFLET_BASE}/leaflet.js`;
     s.async = true;
     s.onload = () => {
-      if (!window.mapgl) reject(new Error("2GIS MapGL не загрузился"));
-      else resolve(window.mapgl);
+      if (!window.L) reject(new Error("Leaflet не загрузился"));
+      else resolve(window.L);
     };
-    s.onerror = () => reject(new Error("Ошибка загрузки 2GIS MapGL"));
+    s.onerror = () => reject(new Error("Ошибка загрузки Leaflet"));
     document.head.appendChild(s);
+  });
+}
+
+function defaultMarkerIcon(L: LeafletApi) {
+  return L.icon({
+    iconUrl: `${LEAFLET_BASE}/images/marker-icon.png`,
+    iconRetinaUrl: `${LEAFLET_BASE}/images/marker-icon-2x.png`,
+    shadowUrl: `${LEAFLET_BASE}/images/marker-shadow.png`,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41],
   });
 }
 
@@ -109,8 +145,10 @@ export function HaulzCalcMapPicker({
   onConfirm,
 }: HaulzCalcMapPickerProps) {
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstance = useRef<InstanceType<MapGL["Map"]> | null>(null);
-  const placemarkRef = useRef<InstanceType<MapGL["Marker"]> | null>(null);
+  const mapInstance = useRef<LeafletMap | null>(null);
+  const placemarkRef = useRef<LeafletMarker | null>(null);
+  const leafletRef = useRef<LeafletApi | null>(null);
+  const resolveOnMapRef = useRef<(lat: number, lon: number) => void>(() => {});
   const [mapLoading, setMapLoading] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);
@@ -178,19 +216,18 @@ export function HaulzCalcMapPicker({
 
   const setPlacemark = (lat: number, lon: number) => {
     const map = mapInstance.current;
-    const mapgl = window.mapgl;
-    if (!map || !mapgl) return;
+    const L = leafletRef.current;
+    if (!map || !L) return;
+
     if (placemarkRef.current) {
-      placemarkRef.current.destroy();
-      placemarkRef.current = null;
+      placemarkRef.current.setLatLng([lat, lon]);
+      return;
     }
-    const pm = new mapgl.Marker(map, {
-      coordinates: [lon, lat],
-      draggable: true,
-    });
+
+    const pm = L.marker([lat, lon], { draggable: true, icon: defaultMarkerIcon(L) }).addTo(map);
     pm.on("dragend", () => {
-      const [plon, plat] = pm.getCoordinates();
-      void resolveOnMap(plat, plon);
+      const pos = pm.getLatLng();
+      resolveOnMapRef.current(pos.lat, pos.lng);
     });
     placemarkRef.current = pm;
   };
@@ -202,8 +239,7 @@ export function HaulzCalcMapPicker({
     setSuggestError(null);
     if (mapInstance.current) {
       setPlacemark(point.lat, point.lon);
-      mapInstance.current.setCenter([point.lon, point.lat]);
-      mapInstance.current.setZoom(16);
+      mapInstance.current.setView([point.lat, point.lon], 16);
     }
   };
 
@@ -218,6 +254,10 @@ export function HaulzCalcMapPicker({
     } finally {
       setResolving(false);
     }
+  };
+
+  resolveOnMapRef.current = (lat, lon) => {
+    void resolveOnMap(lat, lon);
   };
 
   const pickSuggestion = async (s: HaulzSuggestItem) => {
@@ -245,19 +285,23 @@ export function HaulzCalcMapPicker({
 
     (async () => {
       try {
-        const cfg = await fetchHaulzMapsConfig(auth);
-        const center = cfg.cityCenters[city] ?? cfg.cityCenters.moscow;
-        const mapgl = await loadMapglScript();
+        const L = await loadLeaflet();
         if (destroyed || !mapRef.current) return;
 
+        leafletRef.current = L;
+        const center = CITY_CENTERS[city];
         const start = draftAddr?.point ?? center;
-        const map = new mapgl.Map(mapRef.current, {
-          key: cfg.mapsApiKey,
-          center: [start.lon, start.lat],
+
+        const map = L.map(mapRef.current, {
+          center: [start.lat, start.lon],
           zoom: draftAddr?.point ? 16 : center.zoom,
-          zoomControl: true,
         });
         mapInstance.current = map;
+
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          maxZoom: 19,
+        }).addTo(map);
 
         if (draftAddr?.point) {
           setPlacemark(draftAddr.point.lat, draftAddr.point.lon);
@@ -265,11 +309,15 @@ export function HaulzCalcMapPicker({
 
         if (!isWarehouse) {
           map.on("click", (e) => {
-            const [lon, lat] = e.lngLat;
-            setPlacemark(lat, lon);
-            void resolveOnMap(lat, lon);
+            const { lat, lng } = e.latlng;
+            setPlacemark(lat, lng);
+            void resolveOnMap(lat, lng);
           });
         }
+
+        requestAnimationFrame(() => {
+          if (!destroyed) map.invalidateSize();
+        });
       } catch (e) {
         if (!destroyed) setMapError((e as Error)?.message || "Карта недоступна");
       } finally {
@@ -279,10 +327,11 @@ export function HaulzCalcMapPicker({
 
     return () => {
       destroyed = true;
-      placemarkRef.current?.destroy();
+      placemarkRef.current?.remove();
       placemarkRef.current = null;
-      mapInstance.current?.destroy();
+      mapInstance.current?.remove();
       mapInstance.current = null;
+      leafletRef.current = null;
     };
   }, [open, auth, city, isWarehouse]);
 

@@ -119,9 +119,8 @@ export async function fetchHaulzMapsConfig(auth: AuthData): Promise<HaulzMapsCon
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(parseError(res, data));
-  const mapsApiKey = (data as { mapsApiKey?: string }).mapsApiKey;
+  const mapsApiKey = String((data as { mapsApiKey?: string }).mapsApiKey ?? "");
   const cityCenters = (data as { cityCenters?: HaulzMapsConfig["cityCenters"] }).cityCenters;
-  if (!mapsApiKey) throw new Error("Нет ключа карты");
   return { mapsApiKey, cityCenters: cityCenters ?? {} };
 }
 
@@ -146,11 +145,17 @@ export async function fetchHaulzGeocode(
   };
 }
 
+export type HaulzRingDistance = {
+  km: number;
+  osrmKm: number | null;
+  dgisKm: number | null;
+};
+
 export async function fetchHaulzRingDistance(
   auth: AuthData,
   city: "moscow" | "kaliningrad",
   point: { lat: number; lon: number },
-): Promise<number> {
+): Promise<HaulzRingDistance> {
   const res = await fetch("/api/haulz-calculator/distance", {
     method: "POST",
     headers: authHeaders(auth),
@@ -158,7 +163,12 @@ export async function fetchHaulzRingDistance(
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(parseError(res, data));
-  return Number((data as { km?: number }).km) || 0;
+  const km = Number((data as { km?: number }).km) || 0;
+  const osrmRaw = (data as { osrmKm?: number | null }).osrmKm;
+  const dgisRaw = (data as { dgisKm?: number | null }).dgisKm;
+  const osrmKm = osrmRaw != null && Number.isFinite(Number(osrmRaw)) ? Number(osrmRaw) : null;
+  const dgisKm = dgisRaw != null && Number.isFinite(Number(dgisRaw)) ? Number(dgisRaw) : null;
+  return { km, osrmKm, dgisKm };
 }
 
 export async function fetchHaulzCalculatorOptions(

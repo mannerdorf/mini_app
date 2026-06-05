@@ -1,12 +1,37 @@
 import type { Pool } from "pg";
 import type { GeoPoint } from "./types.js";
-import { dgisReadCache, dgisWriteCache } from "./dgisClient.js";
+import { dgisReadCache, dgisRouteKmOrNull, dgisWriteCache } from "./dgisClient.js";
 
 const OSRM_URL = "https://router.project-osrm.org/route/v1/driving";
 
+/** Максимум из доступных маршрутов (для расчёта берём большее). */
+export function roadKmForCalc(osrmKm: number | null, dgisKm: number | null): number | null {
+  const vals = [osrmKm, dgisKm].filter((v): v is number => v != null && Number.isFinite(v) && v >= 0);
+  if (vals.length === 0) return null;
+  return Math.max(...vals);
+}
+
+export type RoadRouteBreakdown = {
+  osrmKm: number | null;
+  dgisKm: number | null;
+  km: number | null;
+};
+
+/** Параллельно OSRM и 2GIS Routing. */
+export async function roadRouteKmBoth(
+  from: GeoPoint,
+  to: GeoPoint,
+  pool: Pool | null = null,
+): Promise<RoadRouteBreakdown> {
+  const [osrmKm, dgisKm] = await Promise.all([
+    roadRouteKm(from, to, pool),
+    dgisRouteKmOrNull(from, to, pool),
+  ]);
+  return { osrmKm, dgisKm, km: roadKmForCalc(osrmKm, dgisKm) };
+}
+
 /**
- * Дорожное расстояние, км (как «РасстояниеПОГИС» в 1С через 2GIS Routing).
- * OSRM — бесплатно, без ключа; при ошибке — null (кандидат не учитывается).
+ * Дорожное расстояние OSRM, км; при ошибке — null.
  */
 export async function roadRouteKm(
   from: GeoPoint,

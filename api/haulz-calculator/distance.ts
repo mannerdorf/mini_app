@@ -49,8 +49,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     body.kmOverride != null && Number.isFinite(Number(body.kmOverride)) ? Number(body.kmOverride) : undefined;
 
   try {
-    const km = await kmBeyondRing(pool, city, point, kmOverride);
-    return res.status(200).json({ city, km, request_id: ctx.requestId });
+    const ring = await kmBeyondRing(pool, city, point, kmOverride);
+    return res.status(200).json({
+      city,
+      km: ring.km,
+      osrmKm: ring.osrmKm,
+      dgisKm: ring.dgisKm,
+      request_id: ctx.requestId,
+    });
   } catch (e) {
     logError(ctx, "haulz_calculator_distance_failed", e);
     return res.status(500).json({

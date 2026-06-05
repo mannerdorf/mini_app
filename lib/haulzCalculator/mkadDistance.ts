@@ -1,6 +1,13 @@
 import type { Pool } from "pg";
 import type { CityCode, GeoPoint, RingExitRow } from "./types.js";
-import { roadRouteKm } from "./roadRouteKm.js";
+import { roadRouteKmBoth } from "./roadRouteKm.js";
+
+export type RingDistanceBreakdown = {
+  /** Значение для тарифа — max(OSRM, 2GIS). */
+  km: number;
+  osrmKm: number | null;
+  dgisKm: number | null;
+};
 
 const EARTH_RADIUS_KM = 6371;
 /** Как «МаксимальноеКоличествоКандидатовСъездов» в 1С. */
@@ -169,6 +176,8 @@ export function pickTopExitsByHaversine(
 type ExitCandidate = RingExitRow & {
   straightKm: number;
   roadKm: number;
+  osrmKm: number | null;
+  dgisKm: number | null;
   routed: boolean;
 };
 
@@ -176,7 +185,7 @@ type ExitCandidate = RingExitRow & {
  * Км за пределами МКАД/КАД — порт логики из «расчет расстояний.txt» (1С):
  * 1) полигон из съездов → внутри = 0;
  * 2) прямая до каждого съезда, сортировка;
- * 3) для топ-7 — дорожное расстояние (OSRM вместо 2GIS);
+ * 3) для топ-7 — OSRM и 2GIS Routing, в расчёт max(оба);
  * 4) минимум по дороге среди успешно рассчитанных.
  */
 export async function kmBeyondRing(
@@ -184,18 +193,18 @@ export async function kmBeyondRing(
   cityCode: CityCode,
   address: GeoPoint,
   kmOverride?: number,
-): Promise<number> {
+): Promise<RingDistanceBreakdown> {
   if (kmOverride != null && Number.isFinite(kmOverride) && kmOverride >= 0) {
-    return kmOverride;
+    return { km: kmOverride, osrmKm: null, dgisKm: null };
   }
 
   const exits = await loadActiveExits(pool, cityCode);
-  if (exits.length === 0) return 0;
+  if (exits.length === 0) return { km: 0, osrmKm: null, dgisKm: null };
 
   const catalogRing = polygonFromExitsCatalogOrder(exits);
   const storedRing = await loadRingPolygon(pool, cityCode);
   if (isInsideRingPolygon(address, catalogRing, storedRing)) {
-    return 0;
+    return { km: 0, osrmKm: 0, dgisKm: 0 };
   }
 
   const candidates: ExitCandidate[] = exits.map((e) => {
@@ -204,6 +213,8 @@ export async function kmBeyondRing(
       ...e,
       straightKm: straightM / 1000,
       roadKm: 0,
+      osrmKm: null,
+      dgisKm: null,
       routed: false,
     };
   });
@@ -216,9 +227,11 @@ export async function kmBeyondRing(
   await Promise.all(
     top.map(async (c) => {
       const exitPoint = { lat: c.lat, lon: c.lon };
-      const km = await roadRouteKm(exitPoint, addressPoint, pool);
-      if (km != null && Number.isFinite(km)) {
-        c.roadKm = km;
+      const route = await roadRouteKmBoth(exitPoint, addressPoint, pool);
+      if (route.km != null && Number.isFinite(route.km)) {
+        c.roadKm = route.km;
+        c.osrmKm = route.osrmKm;
+        c.dgisKm = route.dgisKm;
         c.routed = true;
       }
     }),
@@ -228,9 +241,13 @@ export async function kmBeyondRing(
 
   for (const c of candidates) {
     if (c.routed) {
-      return Math.max(0, c.roadKm);
+      return {
+        km: Math.max(0, c.roadKm),
+        osrmKm: c.osrmKm,
+        dgisKm: c.dgisKm,
+      };
     }
   }
 
-  return 0;
+  return { km: 0, osrmKm: null, dgisKm: null };
 }

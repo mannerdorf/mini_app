@@ -161,6 +161,19 @@ export async function dgisGeocodeById(id: string, pool: Pool | null = null): Pro
   return resultFromGeocode(data);
 }
 
+/** 2GIS Routing; при ошибке или отсутствии ключа — null (как OSRM). */
+export async function dgisRouteKmOrNull(
+  from: GeoPoint,
+  to: GeoPoint,
+  pool: Pool | null = null,
+): Promise<number | null> {
+  try {
+    return await dgisRouteKm(from, to, pool);
+  } catch {
+    return null;
+  }
+}
+
 export async function dgisRouteKm(from: GeoPoint, to: GeoPoint, pool: Pool | null = null): Promise<number> {
   const cacheKey = `route:${from.lat},${from.lon}:${to.lat},${to.lon}`;
   const cached = await dgisReadCache(pool, cacheKey);

@@ -55,6 +55,16 @@ describe("pickupTariff", () => {
   });
 });
 
+describe("roadRouteKm", () => {
+  it("roadKmForCalc takes max of OSRM and 2GIS", async () => {
+    const { roadKmForCalc } = await import("./roadRouteKm.js");
+    expect(roadKmForCalc(10.2, 12.5)).toBe(12.5);
+    expect(roadKmForCalc(15, null)).toBe(15);
+    expect(roadKmForCalc(null, 8)).toBe(8);
+    expect(roadKmForCalc(null, null)).toBeNull();
+  });
+});
+
 describe("mkadDistance", () => {
   it("haversine is symmetric", () => {
     const a = { lat: 55.75, lon: 37.62 };

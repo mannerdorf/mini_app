@@ -8,9 +8,11 @@ import {
   fetchHaulzGeocode,
   fetchHaulzPartyByInn,
   fetchHaulzRingDistance,
+  type HaulzRingDistance,
   type HaulzSuggestItem,
 } from "../../api/client/haulzCalculator";
 import { HaulzCalcMapPicker } from "./HaulzCalcMapPicker";
+import { HaulzCalcRingDistanceHint } from "./HaulzCalcRingDistanceHint";
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -79,7 +81,7 @@ export function HaulzCalcAddressField({
     label: string;
     kind: "active_partner" | "need_contract" | "new_partner";
   } | null>(null);
-  const [ringKm, setRingKm] = useState<number | null>(null);
+  const [ringDistance, setRingDistance] = useState<HaulzRingDistance | null>(null);
   const [open, setOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [pickLoading, setPickLoading] = useState(false);
@@ -121,16 +123,16 @@ export function HaulzCalcAddressField({
 
   useEffect(() => {
     if (!addr?.point) {
-      setRingKm(null);
+      setRingDistance(null);
       return;
     }
     let cancelled = false;
     fetchHaulzRingDistance(auth, city, addr.point)
-      .then((km) => {
-        if (!cancelled) setRingKm(km);
+      .then((dist) => {
+        if (!cancelled) setRingDistance(dist);
       })
       .catch(() => {
-        if (!cancelled) setRingKm(null);
+        if (!cancelled) setRingDistance(null);
       });
     return () => {
       cancelled = true;
@@ -296,10 +298,8 @@ export function HaulzCalcAddressField({
           <p className="haulz-calc-warehouse__meta">
             {warehouseForCity(city).hours} · {warehouseForCity(city).phone}
           </p>
-          {addr && ringKm != null && (
-            <p className="haulz-calc-hint">
-              км за {ringLabel}: {ringKm.toFixed(1)}
-            </p>
+          {addr && ringDistance != null && (
+            <HaulzCalcRingDistanceHint ringLabel={ringLabel} distance={ringDistance} />
           )}
         </div>
       ) : (
@@ -376,10 +376,8 @@ export function HaulzCalcAddressField({
               </div>
             )}
           </div>
-          {addr && ringKm != null && (
-            <p className="haulz-calc-hint">
-              км за {ringLabel}: {ringKm.toFixed(1)}
-            </p>
+          {addr && ringDistance != null && (
+            <HaulzCalcRingDistanceHint ringLabel={ringLabel} distance={ringDistance} />
           )}
         </label>
       )}

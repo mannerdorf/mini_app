@@ -101,13 +101,13 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
   const pickupCity: CityCode = fromCity === "kaliningrad" ? "kaliningrad" : "moscow";
   const lastMileCity: CityCode = toCity === "moscow" ? "moscow" : "kaliningrad";
 
-  const kmMoscow = await kmBeyondRing(
+  const ringMoscow = await kmBeyondRing(
     pool,
     "moscow",
     req.from.point,
     pickupCity === "moscow" ? req.kmOverride?.moscow : undefined,
   );
-  const kmKaliningrad = await kmBeyondRing(
+  const ringKaliningrad = await kmBeyondRing(
     pool,
     "kaliningrad",
     req.to.point,
@@ -117,8 +117,8 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
   const chargePickup = isPickupLegCharged(req);
   const chargeLastMile = isLastMileLegCharged(req);
 
-  const pickupKm = pickupCity === "moscow" ? kmMoscow : kmKaliningrad;
-  const lastMileKm = lastMileCity === "kaliningrad" ? kmKaliningrad : kmMoscow;
+  const pickupKm = pickupCity === "moscow" ? ringMoscow.km : ringKaliningrad.km;
+  const lastMileKm = lastMileCity === "kaliningrad" ? ringKaliningrad.km : ringMoscow.km;
 
   const pickupCalc = chargePickup
     ? calcPickupFromMatrix(

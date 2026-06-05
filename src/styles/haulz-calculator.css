@@ -1205,6 +1205,38 @@ body.haulz-calc-map-screen-open {
   min-height: 100%;
 }
 
+.haulz-calc-map-screen__map .leaflet-container {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  font-family: inherit;
+}
+
+.haulz-calc-ring-dist__used {
+  font-weight: 600;
+}
+
+.haulz-calc-ring-dist__sources {
+  display: inline-block;
+  margin-left: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--calc-text-muted, #64748b);
+}
+
+.haulz-calc-ring-dist__osrm {
+  color: var(--calc-text-muted, #64748b);
+}
+
+.haulz-calc-ring-dist__dgis {
+  color: #15803d;
+  font-weight: 500;
+}
+
+.haulz-calc-ring-dist__sep {
+  margin: 0 0.25rem;
+  opacity: 0.6;
+}
+
 .haulz-calc-map-screen__map-loader {
   position: absolute;
   inset: 0;
