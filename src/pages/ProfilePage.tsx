@@ -35,6 +35,12 @@ import { ProfileExpenseRequestsSection } from "../components/profile/ProfileExpe
 import { ProfileApiKeysSection } from "../components/profile/ProfileApiKeysSection";
 import { cargoListContainerVariants, cargoListItemVariants, cargoSummaryMotion } from "./cargoMotion";
 import { fetchLegalStatus, type LegalStatusResponse } from "../api/client/legal";
+import {
+  persistProfileNavigation,
+  readStoredHaulzCalcBackView,
+  readStoredHaulzCalcDraftId,
+  readStoredProfileView,
+} from "../lib/profileViewPersist";
 
 export function ProfilePage({
     accounts,
@@ -74,9 +80,11 @@ export function ProfilePage({
     /** Активна оболочка «мягкая панель» (суперадмин или право haulz). */
     profileSaasShellActive?: boolean;
 }) {
-    const [currentView, setCurrentView] = useState<ProfileView>('main');
-    const [haulzCalcRestoreDraftId, setHaulzCalcRestoreDraftId] = useState<number | null>(null);
-    const [haulzCalcBackView, setHaulzCalcBackView] = useState<ProfileView>("haulz");
+    const [currentView, setCurrentView] = useState<ProfileView>(() => readStoredProfileView());
+    const [haulzCalcRestoreDraftId, setHaulzCalcRestoreDraftId] = useState<number | null>(() =>
+      readStoredHaulzCalcDraftId(),
+    );
+    const [haulzCalcBackView, setHaulzCalcBackView] = useState<ProfileView>(() => readStoredHaulzCalcBackView());
     const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
     const [legalStatus, setLegalStatus] = useState<LegalStatusResponse | null>(null);
 
@@ -96,6 +104,10 @@ export function ProfilePage({
             setCurrentView('ais');
         }
     }, [aisOpenWithMmsi]);
+
+    useEffect(() => {
+        persistProfileNavigation(currentView, haulzCalcBackView, haulzCalcRestoreDraftId);
+    }, [currentView, haulzCalcBackView, haulzCalcRestoreDraftId]);
     const [employeesList, setEmployeesList] = useState<{ id: number; login: string; active: boolean; createdAt: string; presetLabel: string; fullName?: string; department?: string; employeeRole?: "employee" | "department_head" }[]>([]);
     const [employeesLoading, setEmployeesLoading] = useState(false);
     const [employeesError, setEmployeesError] = useState<string | null>(null);

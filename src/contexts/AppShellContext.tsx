@@ -37,6 +37,7 @@ function initialActiveTab(): Tab {
   try {
     const url = new URL(window.location.href);
     const t = (url.searchParams.get("tab") || "").toLowerCase();
+    if (url.searchParams.get("profileView")) return "profile";
     if (t === "profile") return "profile";
     if (t === "cargo") return "cargo";
     if (t === "home" || t === "dashboard") return "dashboard";
