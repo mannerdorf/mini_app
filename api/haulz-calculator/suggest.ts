@@ -68,9 +68,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (e) {
     logError(ctx, "haulz_calculator_suggest_failed", e);
     const msg = (e as Error)?.message || "Ошибка подсказок адреса";
-    const hint =
-      msg.includes("HAULZ_YANDEX_GEOSUGGEST") || msg.includes("HAULZ_YANDEX_GEOCODER")
-        ? " Задайте HAULZ_YANDEX_GEOSUGGEST_API_KEY (или HAULZ_YANDEX_GEOCODER_API_KEY) на Vercel."
+    const hint = msg.includes("DADATA_API_KEY")
+      ? " Задайте DADATA_API_KEY на Vercel."
+      : msg.includes("HAULZ_DGIS")
+        ? " Задайте HAULZ_DGIS_API_KEY на Vercel."
         : "";
     return res.status(500).json({
       error: msg + hint,

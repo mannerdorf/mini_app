@@ -11,46 +11,43 @@ import {
   type HaulzSuggestItem,
 } from "../../api/client/haulzCalculator";
 
-type YMaps = {
-  ready: (cb: () => void) => void;
+type MapGL = {
   Map: new (
     el: HTMLElement,
-    opts: { center: number[]; zoom: number; controls?: string[] },
+    opts: { key: string; center: [number, number]; zoom: number; zoomControl?: boolean },
   ) => {
-    events: { add: (ev: string, cb: (e: { get: (k: string) => number[] }) => void) => void };
-    geoObjects: {
-      add: (obj: unknown) => void;
-      remove: (obj: unknown) => void;
-    };
-    setCenter: (c: number[], zoom?: number) => void;
+    on: (ev: string, cb: (e: { lngLat: [number, number] }) => void) => void;
+    setCenter: (c: [number, number]) => void;
+    setZoom: (z: number) => void;
     destroy: () => void;
   };
-  Placemark: new (
-    coords: number[],
-    props?: Record<string, unknown>,
-    opts?: { preset?: string; draggable?: boolean },
+  Marker: new (
+    map: InstanceType<MapGL["Map"]>,
+    opts: { coordinates: [number, number]; draggable?: boolean },
   ) => {
-    geometry: { getCoordinates: () => number[]; setCoordinates: (c: number[]) => void };
-    events: { add: (ev: string, cb: () => void) => void };
+    on: (ev: string, cb: () => void) => void;
+    getCoordinates: () => [number, number];
+    setCoordinates: (c: [number, number]) => void;
+    destroy: () => void;
   };
 };
 
 declare global {
   interface Window {
-    ymaps?: YMaps;
+    mapgl?: MapGL;
   }
 }
 
-function loadYmapsScript(apiKey: string): Promise<YMaps> {
+function loadMapglScript(): Promise<MapGL> {
   return new Promise((resolve, reject) => {
-    if (window.ymaps) {
-      window.ymaps.ready(() => resolve(window.ymaps!));
+    if (window.mapgl) {
+      resolve(window.mapgl);
       return;
     }
-    const id = "yandex-maps-haulz";
+    const id = "dgis-mapgl-haulz";
     if (document.getElementById(id)) {
       const wait = () => {
-        if (window.ymaps) window.ymaps.ready(() => resolve(window.ymaps!));
+        if (window.mapgl) resolve(window.mapgl);
         else setTimeout(wait, 100);
       };
       wait();
@@ -58,13 +55,13 @@ function loadYmapsScript(apiKey: string): Promise<YMaps> {
     }
     const s = document.createElement("script");
     s.id = id;
-    s.src = `https://api-maps.yandex.ru/2.1/?apikey=${encodeURIComponent(apiKey)}&lang=ru_RU`;
+    s.src = "https://mapgl.2gis.com/api/js/v1";
     s.async = true;
     s.onload = () => {
-      if (!window.ymaps) reject(new Error("Yandex Maps не загрузились"));
-      else window.ymaps.ready(() => resolve(window.ymaps!));
+      if (!window.mapgl) reject(new Error("2GIS MapGL не загрузился"));
+      else resolve(window.mapgl);
     };
-    s.onerror = () => reject(new Error("Ошибка загрузки Yandex Maps"));
+    s.onerror = () => reject(new Error("Ошибка загрузки 2GIS MapGL"));
     document.head.appendChild(s);
   });
 }
@@ -112,8 +109,8 @@ export function HaulzCalcMapPicker({
   onConfirm,
 }: HaulzCalcMapPickerProps) {
   const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstance = useRef<InstanceType<YMaps["Map"]> | null>(null);
-  const placemarkRef = useRef<InstanceType<YMaps["Placemark"]> | null>(null);
+  const mapInstance = useRef<InstanceType<MapGL["Map"]> | null>(null);
+  const placemarkRef = useRef<InstanceType<MapGL["Marker"]> | null>(null);
   const [mapLoading, setMapLoading] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);
@@ -179,14 +176,34 @@ export function HaulzCalcMapPicker({
     };
   }, [open, auth, debouncedQuery, city, isWarehouse, draftAddr?.point, draftAddr?.fullAddress]);
 
+  const setPlacemark = (lat: number, lon: number) => {
+    const map = mapInstance.current;
+    const mapgl = window.mapgl;
+    if (!map || !mapgl) return;
+    if (placemarkRef.current) {
+      placemarkRef.current.destroy();
+      placemarkRef.current = null;
+    }
+    const pm = new mapgl.Marker(map, {
+      coordinates: [lon, lat],
+      draggable: true,
+    });
+    pm.on("dragend", () => {
+      const [plon, plat] = pm.getCoordinates();
+      void resolveOnMap(plat, plon);
+    });
+    placemarkRef.current = pm;
+  };
+
   const applyDraft = (fullAddress: string, label: string, point: { lat: number; lon: number }, sourceId?: string) => {
     setDraftAddr({ label, fullAddress, point, city, sourceId });
     setQuery(fullAddress);
     setSuggestions([]);
     setSuggestError(null);
-    if (mapInstance.current && placemarkRef.current) {
-      placemarkRef.current.geometry.setCoordinates([point.lat, point.lon]);
-      mapInstance.current.setCenter([point.lat, point.lon], 16);
+    if (mapInstance.current) {
+      setPlacemark(point.lat, point.lon);
+      mapInstance.current.setCenter([point.lon, point.lat]);
+      mapInstance.current.setZoom(16);
     }
   };
 
@@ -210,7 +227,7 @@ export function HaulzCalcMapPicker({
     }
     setResolving(true);
     try {
-      const r = await fetchHaulzGeocode(auth, { address: s.fullAddress, uri: s.uri, city });
+      const r = await fetchHaulzGeocode(auth, { address: s.fullAddress, uri: s.uri || s.id, city });
       applyDraft(r.fullAddress, r.label, r.point, s.uri || s.id);
     } catch (e) {
       setSuggestError((e as Error)?.message || "Не удалось получить координаты");
@@ -230,39 +247,27 @@ export function HaulzCalcMapPicker({
       try {
         const cfg = await fetchHaulzMapsConfig(auth);
         const center = cfg.cityCenters[city] ?? cfg.cityCenters.moscow;
-        const ymaps = await loadYmapsScript(cfg.mapsApiKey);
+        const mapgl = await loadMapglScript();
         if (destroyed || !mapRef.current) return;
 
         const start = draftAddr?.point ?? center;
-        const map = new ymaps.Map(mapRef.current, {
-          center: [start.lat, start.lon],
+        const map = new mapgl.Map(mapRef.current, {
+          key: cfg.mapsApiKey,
+          center: [start.lon, start.lat],
           zoom: draftAddr?.point ? 16 : center.zoom,
-          controls: ["zoomControl"],
+          zoomControl: true,
         });
         mapInstance.current = map;
-
-        const setPlacemark = (lat: number, lon: number) => {
-          if (placemarkRef.current) {
-            map.geoObjects.remove(placemarkRef.current);
-          }
-          const pm = new ymaps.Placemark([lat, lon], {}, { preset: "islands#blueDotIcon", draggable: true });
-          pm.events.add("dragend", () => {
-            const c = pm.geometry.getCoordinates();
-            void resolveOnMap(c[0], c[1]);
-          });
-          map.geoObjects.add(pm);
-          placemarkRef.current = pm;
-        };
 
         if (draftAddr?.point) {
           setPlacemark(draftAddr.point.lat, draftAddr.point.lon);
         }
 
         if (!isWarehouse) {
-          map.events.add("click", (e) => {
-            const coords = e.get("coords");
-            setPlacemark(coords[0], coords[1]);
-            void resolveOnMap(coords[0], coords[1]);
+          map.on("click", (e) => {
+            const [lon, lat] = e.lngLat;
+            setPlacemark(lat, lon);
+            void resolveOnMap(lat, lon);
           });
         }
       } catch (e) {
@@ -274,9 +279,10 @@ export function HaulzCalcMapPicker({
 
     return () => {
       destroyed = true;
+      placemarkRef.current?.destroy();
+      placemarkRef.current = null;
       mapInstance.current?.destroy();
       mapInstance.current = null;
-      placemarkRef.current = null;
     };
   }, [open, auth, city, isWarehouse]);
 

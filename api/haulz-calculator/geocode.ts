@@ -4,8 +4,8 @@ import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgTableExists } from "../_haulzReturns.js";
 import { resolveHaulzCalculatorAccess } from "../_haulzCalculator.js";
 import { pickHaulzCredentials } from "../_haulzReturns.js";
-import { yandexGeocode, yandexReverseGeocode } from "../../lib/haulzCalculator/yandexClient.js";
-import type { CityCode, GeoPoint } from "../../lib/haulzCalculator/types.js";
+import { dgisGeocodeById, dgisGeocodeFull, dgisReverseGeocode } from "../../lib/haulzCalculator/dgisClient.js";
+import type { GeoPoint } from "../../lib/haulzCalculator/types.js";
 
 function parseBody(req: VercelRequest): Record<string, unknown> {
   const raw = req.body;
@@ -56,22 +56,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const body = parseBody(req);
-  const cityRaw = String(body.city ?? "").trim().toLowerCase();
-  const city: CityCode | undefined =
-    cityRaw === "moscow" || cityRaw === "kaliningrad" ? cityRaw : undefined;
   const point = parsePoint(body);
   const address = String(body.address ?? body.q ?? "").trim();
   const uri = String(body.uri ?? "").trim() || undefined;
 
   try {
     if (point) {
-      const rev = await yandexReverseGeocode(point, pool);
+      const rev = await dgisReverseGeocode(point, pool);
       if (!rev) {
         return res.status(404).json({ error: "Адрес не найден", request_id: ctx.requestId });
       }
       return res.status(200).json({
-        label: rev.formatted,
-        fullAddress: rev.formatted,
+        label: rev.label,
+        fullAddress: rev.fullAddress,
         point: rev.point,
         request_id: ctx.requestId,
       });
@@ -81,22 +78,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "address или lat/lon обязательны", request_id: ctx.requestId });
     }
 
-    const fwd = await yandexGeocode(address || uri || "", pool, { city, uri });
+    const fwd = address
+      ? await dgisGeocodeFull(address, pool)
+      : uri
+        ? await dgisGeocodeById(uri, pool)
+        : null;
     if (!fwd) {
       return res.status(404).json({ error: "Адрес не найден", request_id: ctx.requestId });
     }
     return res.status(200).json({
-      label: fwd.formatted,
-      fullAddress: fwd.formatted,
+      label: fwd.label,
+      fullAddress: fwd.fullAddress,
       point: fwd.point,
       request_id: ctx.requestId,
     });
   } catch (e) {
     logError(ctx, "haulz_calculator_geocode_failed", e);
     const msg = (e as Error)?.message || "Ошибка геокодирования";
-    const hint = msg.includes("HAULZ_YANDEX_GEOCODER")
-      ? " Задайте HAULZ_YANDEX_GEOCODER_API_KEY на Vercel."
-      : "";
+    const hint = msg.includes("HAULZ_DGIS") ? " Задайте HAULZ_DGIS_API_KEY на Vercel." : "";
     return res.status(500).json({ error: msg + hint, request_id: ctx.requestId });
   }
 }

@@ -1,6 +1,6 @@
 export * from "./types.js";
 export * from "./chargeableWeight.js";
-export * from "./yandexClient.js";
+export * from "./dgisClient.js";
 export * from "./addressSuggest.js";
 export * from "./mkadDistance.js";
 export * from "./pickupTariff.js";

@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import type { GeoPoint } from "./types.js";
-import { geoReadCache, geoWriteCache } from "./yandexClient.js";
+import { dgisReadCache, dgisWriteCache } from "./dgisClient.js";
 
 const OSRM_URL = "https://router.project-osrm.org/route/v1/driving";
 
@@ -14,7 +14,7 @@ export async function roadRouteKm(
   pool: Pool | null = null,
 ): Promise<number | null> {
   const cacheKey = `osrm:${from.lat.toFixed(5)},${from.lon.toFixed(5)}:${to.lat.toFixed(5)},${to.lon.toFixed(5)}`;
-  const cached = await geoReadCache(pool, cacheKey);
+  const cached = await dgisReadCache(pool, cacheKey);
   if (cached && typeof cached === "object" && cached !== null && "km" in cached) {
     const km = Number((cached as { km: number }).km);
     if (Number.isFinite(km)) return km;
@@ -32,7 +32,7 @@ export async function roadRouteKm(
     const meters = Number(data.routes[0].distance);
     if (!Number.isFinite(meters) || meters <= 0) return null;
     const km = meters / 1000;
-    await geoWriteCache(pool, cacheKey, "routing", { km }, 48);
+    await dgisWriteCache(pool, cacheKey, "routing", { km }, 48);
     return km;
   } catch {
     return null;
