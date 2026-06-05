@@ -10,6 +10,10 @@ import {
   renderHaulzQuoteProposalHtml,
 } from "../../lib/haulzCalculator/quoteProposalEmail.js";
 import { saveDraftForQuoteEmail } from "../../lib/haulzCalculator/calculatorDraftAgree.js";
+import {
+  HAULZ_QUOTE_EMAIL_REQUIRES_ORDER_MSG,
+  resolveQuoteEmailNomerZayavki,
+} from "../../lib/haulzCalculator/quoteEmailEligibility.js";
 import type { HaulzCalculatorFormState } from "../../lib/haulzCalculator/calculatorDraft.js";
 import { sendHaulzEmail } from "../../lib/sendRegistrationEmail.js";
 import type {
@@ -152,6 +156,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const draftIdRaw = Number(body.draftId ?? body.draft_id);
     const draftId = Number.isFinite(draftIdRaw) && draftIdRaw > 0 ? draftIdRaw : undefined;
+    const nomerFromBody = String(body.nomerZayavki ?? body.nomer_zayavki ?? "").trim();
+
+    let nomerZayavki: string | null = nomerFromBody || null;
+    if (await pgTableExists(pool, "haulz_calc_drafts")) {
+      nomerZayavki = await resolveQuoteEmailNomerZayavki(pool, access.loginKey, {
+        draftId,
+        nomerZayavki: nomerFromBody,
+      });
+    } else if (!nomerZayavki) {
+      return res.status(400).json({
+        error: HAULZ_QUOTE_EMAIL_REQUIRES_ORDER_MSG,
+        request_id: ctx.requestId,
+      });
+    }
+
+    if (!nomerZayavki) {
+      return res.status(400).json({
+        error: HAULZ_QUOTE_EMAIL_REQUIRES_ORDER_MSG,
+        request_id: ctx.requestId,
+      });
+    }
 
     let agreeUrl = "";
     let savedDraftId: number | undefined;

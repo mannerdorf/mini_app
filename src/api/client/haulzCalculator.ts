@@ -281,6 +281,7 @@ export async function sendHaulzQuoteEmail(
   auth: AuthData,
   body: {
     email: string;
+    nomerZayavki: string;
     formState: HaulzCalculatorFormState;
     draftId?: number;
   } & Parameters<typeof fetchHaulzQuote>[1] & { dataZabora?: string },

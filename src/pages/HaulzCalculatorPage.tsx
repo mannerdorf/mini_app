@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Copy, Loader2, Mail, Plus, X } from "lucide-react";
 import type { AuthData } from "../types";
 import type {
@@ -95,6 +95,8 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
   const [emailSending, setEmailSending] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
+  const [registeredNomerZayavki, setRegisteredNomerZayavki] = useState<string | null>(null);
+  const prevQuoteDepsRef = useRef<string | null>(null);
 
   const inferredDirection = useMemo(
     () => directionOverride ?? inferDirectionFromCities(fromAddr?.city, toAddr?.city) ?? "mow_kgd",
@@ -215,6 +217,10 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
         setDraftId(d.id);
         applyFormState(d.formState);
         if (d.quoteResult) setQuote(d.quoteResult);
+        if (d.nomerZayavki?.trim()) {
+          setRegisteredNomerZayavki(d.nomerZayavki.trim());
+          setOrderMessage(`Заявка ${d.nomerZayavki.trim()} оформлена`);
+        }
         onDraftConsumed?.();
       })
       .catch((e) => {
@@ -265,6 +271,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
   const canQuote = Boolean(auth && fromAddr?.point && toAddr?.point && chargeableHint.ch > 0);
 
   const canSubmitOrder = Boolean(canQuote && quote && !loading && !orderLoading);
+  const canSendQuoteEmail = Boolean(quote && registeredNomerZayavki);
 
   const quoteDepsKey = useMemo(
     () =>
@@ -280,6 +287,14 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     [fromAddr?.point, toAddr?.point, places, mainlineMode, inferredDirection, declaredValue, extraCodes],
   );
   const debouncedQuoteDeps = useDebounced(quoteDepsKey, 700);
+
+  useEffect(() => {
+    if (prevQuoteDepsRef.current !== null && prevQuoteDepsRef.current !== quoteDepsKey) {
+      setRegisteredNomerZayavki(null);
+      setOrderMessage(null);
+    }
+    prevQuoteDepsRef.current = quoteDepsKey;
+  }, [quoteDepsKey]);
 
   useEffect(() => {
     if (!autoQuoteEnabled || !canQuote) {
@@ -366,6 +381,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
         },
       });
       setQuote(q);
+      setRegisteredNomerZayavki(nomerZayavki);
       setOrderMessage(`Заявка ${nomerZayavki} зарегистрирована`);
       try {
         const saved = await saveHaulzCalcDraft(auth, {
@@ -428,6 +444,10 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
 
   const openEmailModal = () => {
     if (!quote) return;
+    if (!registeredNomerZayavki) {
+      setError("Сначала оформите заявку (кнопка «Оформить»), затем отправьте КП на почту.");
+      return;
+    }
     setEmailError(null);
     setEmailSuccess(null);
     setEmailTo("");
@@ -435,7 +455,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
   };
 
   const sendQuoteEmail = useCallback(async () => {
-    if (!auth || !quote || !fromAddr?.point || !toAddr?.point) return;
+    if (!auth || !quote || !fromAddr?.point || !toAddr?.point || !registeredNomerZayavki) return;
     const email = emailTo.trim().toLowerCase();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setEmailError("Укажите корректный адрес электронной почты");
@@ -447,6 +467,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     try {
       const sent = await sendHaulzQuoteEmail(auth, {
         email,
+        nomerZayavki: registeredNomerZayavki,
         formState: buildFormState(),
         draftId: draftId ?? undefined,
         from: fromAddr,
@@ -504,6 +525,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     toName,
     buildFormState,
     draftId,
+    registeredNomerZayavki,
   ]);
 
   if (!auth) {
@@ -811,10 +833,25 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
                     <Copy className="w-4 h-4" />
                     Копировать расчёт
                   </button>
-                  <button type="button" className="haulz-calc-btn-secondary" disabled={!quote} onClick={openEmailModal}>
+                  <button
+                    type="button"
+                    className="haulz-calc-btn-secondary"
+                    disabled={!canSendQuoteEmail}
+                    title={
+                      canSendQuoteEmail
+                        ? undefined
+                        : "Сначала оформите заявку — кнопка «Оформить»"
+                    }
+                    onClick={openEmailModal}
+                  >
                     <Mail className="w-4 h-4" />
                     Отправить на почту
                   </button>
+                  {!canSendQuoteEmail && quote && (
+                    <p className="haulz-calc-field-hint" style={{ margin: 0 }}>
+                      КП на почту доступно после оформления заявки.
+                    </p>
+                  )}
                 </div>
               </>
             )}
@@ -849,6 +886,12 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
             </div>
             <p className="haulz-calc-map-modal__hint">
               На указанный адрес уйдёт коммерческое предложение с расчётом, маршрутом и контактами HAULZ.
+              {registeredNomerZayavki ? (
+                <>
+                  {" "}
+                  Заявка №{registeredNomerZayavki}.
+                </>
+              ) : null}
             </p>
             <label className="haulz-calc-field haulz-calc-email-modal__field" htmlFor="haulz-calc-email-input">
               <span className="haulz-calc-label">Электронная почта</span>
@@ -872,7 +915,12 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
               <button type="button" className="haulz-calc-btn-secondary" disabled={emailSending} onClick={() => setEmailModalOpen(false)}>
                 Отмена
               </button>
-              <button type="button" className="haulz-calc-btn-primary" disabled={emailSending || !quote} onClick={() => void sendQuoteEmail()}>
+              <button
+                type="button"
+                className="haulz-calc-btn-primary"
+                disabled={emailSending || !canSendQuoteEmail}
+                onClick={() => void sendQuoteEmail()}
+              >
                 {emailSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
                 Отправить
               </button>
