@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Flex, Typography } from "@maxhub/max-ui";
 import { Loader2, Trash2 } from "lucide-react";
 import type { ExtraServicePayload, MainlinePayload, PickupMatrixPayload, PickupTier } from "../../../../lib/haulzCalculator/types";
 import {
@@ -17,6 +16,11 @@ import {
   type AdminHaulzTariffSet,
   type HubRow,
 } from "../../../api/client/admin/haulzCalculatorAdmin";
+import {
+  describeTariffVersionPayload,
+  formatTariffDateRu,
+  tariffSetSelectLabel,
+} from "../../../../lib/haulzCalculator/tariffVersionSummary";
 
 type AdminTab =
   | "pickup"
@@ -52,11 +56,11 @@ function versionPayload(set: AdminHaulzTariffSet | undefined): unknown | undefin
 
 function TierTable({ tiers, onChange }: { tiers: PickupTier[]; onChange: (t: PickupTier[]) => void }) {
   return (
-    <div style={{ overflowX: "auto", marginTop: "0.5rem" }}>
-      <table style={{ fontSize: "0.8rem", borderCollapse: "collapse", width: "100%" }}>
+    <div className="hr-calc-admin-table-wrap">
+      <table className="hr-calc-admin-table hr-calc-admin-table--numeric">
         <thead>
           <tr>
-            <th style={{ padding: "0.3rem" }}>Вес max</th>
+            <th>Вес max</th>
             <th>Объём max</th>
             <th>По городу</th>
             <th>₽/км</th>
@@ -69,9 +73,10 @@ function TierTable({ tiers, onChange }: { tiers: PickupTier[]; onChange: (t: Pic
             <tr key={i}>
               {(["weight_max_kg", "volume_max_m3", "city_fee", "per_km", "load_minutes", "overtime_rub_per_hour"] as const).map(
                 (field) => (
-                  <td key={field} style={{ padding: "0.2rem" }}>
+                  <td key={field}>
                     <input
                       type="number"
+                      className="hr-calc-admin-input hr-calc-admin-input--num"
                       value={t[field] ?? ""}
                       onChange={(e) => {
                         const v = e.target.value === "" ? undefined : Number(e.target.value);
@@ -79,7 +84,6 @@ function TierTable({ tiers, onChange }: { tiers: PickupTier[]; onChange: (t: Pic
                         next[i] = { ...next[i], [field]: v };
                         onChange(next);
                       }}
-                      style={{ width: "72px" }}
                     />
                   </td>
                 ),
@@ -89,6 +93,25 @@ function TierTable({ tiers, onChange }: { tiers: PickupTier[]; onChange: (t: Pic
         </tbody>
       </table>
     </div>
+  );
+}
+
+function TariffVersionSummary({
+  tariffCode,
+  block,
+  payload,
+}: {
+  tariffCode: string;
+  block: string;
+  payload: unknown;
+}) {
+  const lines = describeTariffVersionPayload(tariffCode, block, payload);
+  return (
+    <ul className="hr-calc-admin-history-summary">
+      {lines.map((line, i) => (
+        <li key={`${i}-${line.slice(0, 24)}`}>{line}</li>
+      ))}
+    </ul>
   );
 }
 
@@ -200,6 +223,10 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
   }, [tab, adminToken, historySetId]);
 
   const setByCode = useMemo(() => Object.fromEntries(sets.map((s) => [s.code, s])), [sets]);
+  const historySet = useMemo(
+    () => (historySetId ? sets.find((s) => s.id === Number(historySetId)) : undefined),
+    [sets, historySetId],
+  );
 
   const runBootstrap = async () => {
     setInitLoading(true);
@@ -243,16 +270,23 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
   if (!adminToken) return null;
 
   return (
-    <div className="w-full">
-      <Typography.Headline style={{ marginBottom: "0.5rem" }}>Тарифы калькулятора HAULZ</Typography.Headline>
-      <Typography.Body style={{ marginBottom: "0.75rem", fontSize: "0.9rem", opacity: 0.85 }}>
-        Версии с датой вступления в силу. Тарифы на {sets[0]?.active_version?.effective_from ?? "—"} (актуальные).
-      </Typography.Body>
+    <div className="hr-calc-admin">
+      <header className="hr-calc-admin__header">
+        <h2 className="hr-calc-admin__title">Тарифы калькулятора HAULZ</h2>
+        <p className="hr-calc-admin__subtitle">
+          Версии с датой вступления в силу. Тарифы на {sets[0]?.active_version?.effective_from ?? "—"} (актуальные).
+        </p>
+      </header>
 
-      <Flex gap="0.5rem" wrap="wrap" align="center" style={{ marginBottom: "0.75rem" }}>
-        <label style={{ fontSize: "0.85rem" }}>
-          Новая версия с даты:{" "}
-          <input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
+      <div className="hr-calc-admin__toolbar">
+        <label className="hr-calc-admin__field">
+          <span className="hr-calc-admin__label">Новая версия с даты</span>
+          <input
+            type="date"
+            className="hr-calc-admin-input"
+            value={effectiveFrom}
+            onChange={(e) => setEffectiveFrom(e.target.value)}
+          />
         </label>
         <button
           type="button"
@@ -262,8 +296,9 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
         >
           {initLoading ? "Создание…" : "Создать структуру тарифов"}
         </button>
-      </Flex>
-      <Typography.Body style={{ fontSize: "0.8rem", opacity: 0.85, marginBottom: "0.75rem" }}>
+      </div>
+
+      <p className="hr-calc-admin__hint">
         Данные из xlsx — вкладка «Импорт». Новые цены — выберите дату выше и «Сохранить версию…» на нужной вкладке (это не отдельный
         тариф, а версия с новой датой). Сейчас в БД: {sets.length} наборов
         {sets.length > 0 && sets[0]?.active_version?.effective_from
@@ -272,65 +307,78 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
             ? " (нет версии на сегодня — нажмите «Создать структуру» или импорт)"
             : " — сначала «Создать структуру тарифов»"}
         .
-      </Typography.Body>
+      </p>
 
-      <div className="hr-calc-admin-tabs">
+      <nav className="hr-calc-admin-tabs" role="tablist" aria-label="Разделы тарифов">
         {(Object.keys(TAB_LABELS) as AdminTab[]).map((t) => (
-          <button key={t} type="button" className={`hr-calc-admin-tab${tab === t ? " active" : ""}`} onClick={() => setTab(t)}>
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={tab === t}
+            className={`hr-calc-admin-tab${tab === t ? " active" : ""}`}
+            onClick={() => setTab(t)}
+          >
             {TAB_LABELS[t]}
           </button>
         ))}
-      </div>
+      </nav>
 
-      {loading && <Loader2 className="w-5 h-5 animate-spin" />}
-      {error && <Typography.Body style={{ color: "var(--color-danger, #c00)" }}>{error}</Typography.Body>}
-      {message && <Typography.Body style={{ color: "var(--color-success, #059669)", marginBottom: "0.5rem" }}>{message}</Typography.Body>}
+      {loading && (
+        <div className="hr-calc-admin__loading">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Загрузка…
+        </div>
+      )}
+      {error && <div className="hr-calc-admin-alert hr-calc-admin-alert--error">{error}</div>}
+      {message && <div className="hr-calc-admin-alert hr-calc-admin-alert--success">{message}</div>}
 
+      <div className="hr-calc-admin__panel">
       {tab === "pickup" && !pickupDraft && (
-        <Typography.Body style={{ fontSize: "0.9rem", opacity: 0.9 }}>
+        <p className="hr-calc-admin__empty">
           Нет данных забора. Нажмите «Создать структуру тарифов» или загрузите пикап.xlsx на вкладке «Импорт» (дата версии = поле выше).
-        </Typography.Body>
+        </p>
       )}
 
       {tab === "pickup" && pickupDraft && (
         <div>
-          <Typography.Body style={{ fontWeight: 600 }}>Москва</Typography.Body>
+          <h3 className="hr-calc-admin__section-title">Москва</h3>
           <TierTable tiers={pickupDraft.cities.moscow?.tiers ?? []} onChange={(tiers) => setPickupDraft({ ...pickupDraft, cities: { ...pickupDraft.cities, moscow: { ...pickupDraft.cities.moscow, tiers } } })} />
-          <Typography.Body style={{ fontWeight: 600, marginTop: "1rem" }}>Калининград</Typography.Body>
+          <h3 className="hr-calc-admin__section-title">Калининград</h3>
           <TierTable tiers={pickupDraft.cities.kaliningrad?.tiers ?? []} onChange={(tiers) => setPickupDraft({ ...pickupDraft, cities: { ...pickupDraft.cities, kaliningrad: { ...pickupDraft.cities.kaliningrad, tiers } } })} />
-          <button type="button" className="button-primary" style={{ marginTop: "0.75rem" }} onClick={() => void savePickup("pickup").catch((e) => setError((e as Error).message))}>
-            Сохранить версию забора
-          </button>
+          <div className="hr-calc-admin__actions">
+            <button type="button" className="button-primary" onClick={() => void savePickup("pickup").catch((e) => setError((e as Error).message))}>
+              Сохранить версию забора
+            </button>
+          </div>
         </div>
       )}
 
       {tab === "last_mile" && !lastMileDraft && (
-        <Typography.Body style={{ fontSize: "0.9rem", opacity: 0.9 }}>
-          Нет данных последней мили. Импорт xlsx или «Создать структуру тарифов».
-        </Typography.Body>
+        <p className="hr-calc-admin__empty">Нет данных последней мили. Импорт xlsx или «Создать структуру тарифов».</p>
       )}
 
       {tab === "last_mile" && lastMileDraft && (
         <div>
-          <Typography.Body style={{ fontWeight: 600 }}>Москва</Typography.Body>
+          <h3 className="hr-calc-admin__section-title">Москва</h3>
           <TierTable tiers={lastMileDraft.cities.moscow?.tiers ?? []} onChange={(tiers) => setLastMileDraft({ ...lastMileDraft, cities: { ...lastMileDraft.cities, moscow: { ...lastMileDraft.cities.moscow, tiers } } })} />
-          <Typography.Body style={{ fontWeight: 600, marginTop: "1rem" }}>Калининград</Typography.Body>
+          <h3 className="hr-calc-admin__section-title">Калининград</h3>
           <TierTable tiers={lastMileDraft.cities.kaliningrad?.tiers ?? []} onChange={(tiers) => setLastMileDraft({ ...lastMileDraft, cities: { ...lastMileDraft.cities, kaliningrad: { ...lastMileDraft.cities.kaliningrad, tiers } } })} />
-          <button type="button" className="button-primary" style={{ marginTop: "0.75rem" }} onClick={() => void savePickup("last_mile").catch((e) => setError((e as Error).message))}>
-            Сохранить версию последней мили
-          </button>
+          <div className="hr-calc-admin__actions">
+            <button type="button" className="button-primary" onClick={() => void savePickup("last_mile").catch((e) => setError((e as Error).message))}>
+              Сохранить версию последней мили
+            </button>
+          </div>
         </div>
       )}
 
       {tab === "mainline" && sets.filter((s) => s.block === "mainline").length === 0 && (
-        <Typography.Body style={{ fontSize: "0.9rem", opacity: 0.9 }}>
-          Нет наборов магистрали. Нажмите «Создать структуру тарифов».
-        </Typography.Body>
+        <p className="hr-calc-admin__empty">Нет наборов магистрали. Нажмите «Создать структуру тарифов».</p>
       )}
 
       {tab === "mainline" && sets.filter((s) => s.block === "mainline").length > 0 && (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ fontSize: "0.85rem", width: "100%", borderCollapse: "collapse" }}>
+        <div className="hr-calc-admin-table-wrap">
+          <table className="hr-calc-admin-table">
             <thead>
               <tr>
                 <th>Набор</th>
@@ -348,13 +396,14 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
                   const p = (versionPayload(s) ?? {}) as MainlinePayload;
                   const draft = mainlineDrafts.find((d) => d.direction === p.direction && d.mode === p.mode) ?? p;
                   return (
-                    <tr key={s.id} style={{ borderTop: "1px solid #e5e7eb" }}>
+                    <tr key={s.id}>
                       <td>{s.name}</td>
                       <td>{p.mode}</td>
                       <td>{p.direction}</td>
                       <td>
                         <input
                           type="number"
+                          className="hr-calc-admin-input hr-calc-admin-input--num"
                           value={draft.price_per_kg}
                           onChange={(e) => {
                             const v = Number(e.target.value);
@@ -364,12 +413,12 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
                               ),
                             );
                           }}
-                          style={{ width: 72 }}
                         />
                       </td>
                       <td>
                         <input
                           type="number"
+                          className="hr-calc-admin-input hr-calc-admin-input--num"
                           value={draft.delivery_days}
                           onChange={(e) => {
                             const v = Number(e.target.value);
@@ -379,7 +428,6 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
                               ),
                             );
                           }}
-                          style={{ width: 56 }}
                         />
                       </td>
                       <td>
@@ -403,32 +451,25 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
       )}
 
       {tab === "extras" && !setByCode.calc_extras && (
-        <Typography.Body style={{ fontSize: "0.9rem", opacity: 0.9 }}>
-          Набор «Доп. услуги» не создан. Нажмите «Создать структуру тарифов».
-        </Typography.Body>
+        <p className="hr-calc-admin__empty">Набор «Доп. услуги» не создан. Нажмите «Создать структуру тарифов».</p>
       )}
 
       {tab === "extras" && setByCode.calc_extras && (
         <div>
           {extrasDraft.length === 0 && (
-            <Typography.Body style={{ fontSize: "0.85rem", marginBottom: "0.5rem", opacity: 0.85 }}>
+            <p className="hr-calc-admin__empty" style={{ marginBottom: "0.75rem" }}>
               Список пуст — «Создать структуру» добавит стандартные доп. услуги CDEK.
-            </Typography.Body>
+            </p>
           )}
+          <div className="hr-calc-admin-extras">
           {extrasDraft.map((ex, i) => {
             const enabled = ex.enabled !== false;
             return (
-            <Flex
+            <div
               key={`${ex.code}-${i}`}
-              gap="0.35rem"
-              wrap="wrap"
-              style={{
-                marginBottom: "0.5rem",
-                alignItems: "center",
-                opacity: enabled ? 1 : 0.5,
-              }}
+              className={`hr-calc-admin-extra-row${enabled ? "" : " hr-calc-admin-extra-row--off"}`}
             >
-              <label className="haulz-calc-switch" title={enabled ? "Включено" : "Выключено"} style={{ flexShrink: 0 }}>
+              <label className="haulz-calc-switch" title={enabled ? "Включено" : "Выключено"}>
                 <input
                   type="checkbox"
                   checked={enabled}
@@ -440,17 +481,18 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
                 />
                 <span className="haulz-calc-switch__track" />
               </label>
-              <input value={ex.code} readOnly style={{ width: 120 }} />
+              <input className="hr-calc-admin-input hr-calc-admin-input--code" value={ex.code} readOnly />
               <input
+                className="hr-calc-admin-input hr-calc-admin-input--wide"
                 value={ex.label}
                 onChange={(e) => {
                   const next = [...extrasDraft];
                   next[i] = { ...next[i], label: e.target.value };
                   setExtrasDraft(next);
                 }}
-                style={{ flex: 1, minWidth: 140 }}
               />
               <select
+                className="hr-calc-admin-select"
                 value={ex.pricing_type}
                 onChange={(e) => {
                   const next = [...extrasDraft];
@@ -463,6 +505,7 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
               </select>
               <input
                 type="number"
+                className="hr-calc-admin-input hr-calc-admin-input--num"
                 placeholder="₽"
                 value={ex.amount_rub ?? ""}
                 onChange={(e) => {
@@ -470,10 +513,10 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
                   next[i] = { ...next[i], amount_rub: Number(e.target.value) || 0 };
                   setExtrasDraft(next);
                 }}
-                style={{ width: 72 }}
               />
               <input
                 type="number"
+                className="hr-calc-admin-input hr-calc-admin-input--num"
                 placeholder="%"
                 value={ex.percent ?? ""}
                 onChange={(e) => {
@@ -481,9 +524,8 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
                   next[i] = { ...next[i], percent: Number(e.target.value) || 0 };
                   setExtrasDraft(next);
                 }}
-                style={{ width: 56 }}
               />
-              <label>
+              <label className="hr-calc-admin-extra-row__default">
                 <input
                   type="checkbox"
                   checked={ex.default_on === true}
@@ -492,69 +534,68 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
                     next[i] = { ...next[i], default_on: e.target.checked };
                     setExtrasDraft(next);
                   }}
-                />{" "}
+                />
                 по умолч.
               </label>
               <button
                 type="button"
+                className="hr-calc-admin-extra-row__delete"
                 onClick={() => setExtrasDraft(extrasDraft.filter((_, idx) => idx !== i))}
                 aria-label={`Удалить ${ex.label}`}
                 title="Удалить"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "0.35rem",
-                  border: "1px solid var(--color-border, #e5e7eb)",
-                  borderRadius: 8,
-                  background: "var(--color-bg-card, #fff)",
-                  color: "var(--color-error-text, #b91c1c)",
-                  cursor: "pointer",
-                }}
               >
                 <Trash2 className="w-4 h-4" />
               </button>
-            </Flex>
+            </div>
             );
           })}
-          <button
-            type="button"
-            className="button-primary"
-            onClick={() => void publish("calc_extras", { services: extrasDraft }).catch((e) => setError((e as Error).message))}
-          >
-            Сохранить доп. услуги
-          </button>
+          </div>
+          <div className="hr-calc-admin__actions">
+            <button
+              type="button"
+              className="button-primary"
+              onClick={() => void publish("calc_extras", { services: extrasDraft }).catch((e) => setError((e as Error).message))}
+            >
+              Сохранить доп. услуги
+            </button>
+          </div>
         </div>
       )}
 
       {tab === "settings" && (
         <div>
-          <label>
-            Коэффициент объёмного веса (кг/м³):{" "}
-            <input type="number" value={settingsFactor} onChange={(e) => setSettingsFactor(e.target.value)} />
+          <label className="hr-calc-admin__field" style={{ maxWidth: "16rem" }}>
+            <span className="hr-calc-admin__label">Коэффициент объёмного веса (кг/м³)</span>
+            <input
+              type="number"
+              className="hr-calc-admin-input"
+              value={settingsFactor}
+              onChange={(e) => setSettingsFactor(e.target.value)}
+            />
           </label>
-          <button
-            type="button"
-            className="button-primary"
-            style={{ marginTop: "0.5rem", display: "block" }}
-            onClick={() =>
-              void publish("calc_settings", { volumetric_factor_kg_m3: Number(settingsFactor) || 200 }).catch((e) =>
-                setError((e as Error).message),
-              )
-            }
-          >
-            Сохранить настройки
-          </button>
+          <div className="hr-calc-admin__actions">
+            <button
+              type="button"
+              className="button-primary"
+              onClick={() =>
+                void publish("calc_settings", { volumetric_factor_kg_m3: Number(settingsFactor) || 200 }).catch((e) =>
+                  setError((e as Error).message),
+                )
+              }
+            >
+              Сохранить настройки
+            </button>
+          </div>
         </div>
       )}
 
       {tab === "ring" && (
         <div>
-          <Typography.Body style={{ fontSize: "0.85rem", marginBottom: "0.65rem", opacity: 0.9 }}>
+          <p className="hr-calc-admin__hint" style={{ marginBottom: "0.875rem" }}>
             Съезды кольцевой дороги для автоматического расчёта км за МКАД/КАД. МКАД — из файла 1С «Список.MXL» (47 точек). КАД — справочник
             пересечений обхода Калининграда (20 точек); при выгрузке 1С можно заменить импортом.
-          </Typography.Body>
-          <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: "0.65rem" }}>
+          </p>
+          <div className="hr-calc-admin__actions" style={{ marginTop: 0, marginBottom: "0.875rem" }}>
             <button
               type="button"
               className="button-primary"
@@ -599,8 +640,8 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
             >
               Загрузить оба кольца
             </button>
-          </Flex>
-          <Flex gap="0.5rem" style={{ marginBottom: "0.5rem" }}>
+          </div>
+          <div className="hr-calc-admin-subtabs">
             <button type="button" className={ringCity === "moscow" ? "button-primary" : "filter-button"} onClick={() => setRingCity("moscow")}>
               Москва (МКАД) — {ringCity === "moscow" ? ringExits.length : "…"}
             </button>
@@ -611,39 +652,37 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
             >
               Калининград (КАД) — {ringCity === "kaliningrad" ? ringExits.length : "…"}
             </button>
-          </Flex>
+          </div>
           {ringExits.length === 0 && (
-            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-warning, #b45309)", marginBottom: "0.5rem" }}>
+            <div className="hr-calc-admin-alert hr-calc-admin-alert--warn">
               Нет съездов для {ringCity === "moscow" ? "Москвы" : "Калининграда"}. Нажмите «Загрузить КАД» или «Загрузить МКАД».
-            </Typography.Body>
+            </div>
           )}
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ fontSize: "0.8rem", width: "100%", borderCollapse: "collapse" }}>
+          <div className="hr-calc-admin-table-wrap">
+            <table className="hr-calc-admin-table">
               <thead>
                 <tr>
-                  <th style={{ textAlign: "left", padding: "0.35rem" }}>Код</th>
-                  <th style={{ textAlign: "left", padding: "0.35rem" }}>Название</th>
-                  <th style={{ textAlign: "right", padding: "0.35rem" }}>Широта</th>
-                  <th style={{ textAlign: "right", padding: "0.35rem" }}>Долгота</th>
-                  <th style={{ padding: "0.35rem" }}>Активен</th>
+                  <th>Код</th>
+                  <th>Название</th>
+                  <th style={{ textAlign: "right" }}>Широта</th>
+                  <th style={{ textAlign: "right" }}>Долгота</th>
+                  <th style={{ textAlign: "center" }}>Активен</th>
                 </tr>
               </thead>
               <tbody>
                 {ringExits.map((e) => (
-                  <tr key={e.id} style={{ borderTop: "1px solid var(--color-border, #e5e7eb)" }}>
-                    <td style={{ padding: "0.35rem" }}>{e.code}</td>
-                    <td style={{ padding: "0.35rem" }}>{e.name}</td>
-                    <td style={{ padding: "0.35rem", textAlign: "right" }}>{Number(e.lat).toFixed(6)}</td>
-                    <td style={{ padding: "0.35rem", textAlign: "right" }}>{Number(e.lon).toFixed(6)}</td>
-                    <td style={{ padding: "0.35rem", textAlign: "center" }}>{e.active ? "да" : "нет"}</td>
+                  <tr key={e.id}>
+                    <td>{e.code}</td>
+                    <td>{e.name}</td>
+                    <td style={{ textAlign: "right" }}>{Number(e.lat).toFixed(6)}</td>
+                    <td style={{ textAlign: "right" }}>{Number(e.lon).toFixed(6)}</td>
+                    <td style={{ textAlign: "center" }}>{e.active ? "да" : "нет"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <Typography.Body style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
-            Добавить точку (код, название, координаты):
-          </Typography.Body>
+          <h3 className="hr-calc-admin__section-title">Добавить точку</h3>
           <RingExitForm
             city={ringCity}
             onSave={async (row) => {
@@ -657,28 +696,31 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
 
       {tab === "hubs" && (
         <div>
-          <table style={{ fontSize: "0.85rem", width: "100%" }}>
-            <thead>
-              <tr>
-                <th>Код</th>
-                <th>Название</th>
-                <th>Роль</th>
-                <th>lat</th>
-                <th>lon</th>
-              </tr>
-            </thead>
-            <tbody>
-              {hubs.map((h) => (
-                <tr key={h.id}>
-                  <td>{h.code}</td>
-                  <td>{h.name}</td>
-                  <td>{h.role}</td>
-                  <td>{h.lat}</td>
-                  <td>{h.lon}</td>
+          <div className="hr-calc-admin-table-wrap">
+            <table className="hr-calc-admin-table">
+              <thead>
+                <tr>
+                  <th>Код</th>
+                  <th>Название</th>
+                  <th>Роль</th>
+                  <th style={{ textAlign: "right" }}>lat</th>
+                  <th style={{ textAlign: "right" }}>lon</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {hubs.map((h) => (
+                  <tr key={h.id}>
+                    <td>{h.code}</td>
+                    <td>{h.name}</td>
+                    <td>{h.role}</td>
+                    <td style={{ textAlign: "right" }}>{h.lat}</td>
+                    <td style={{ textAlign: "right" }}>{h.lon}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <h3 className="hr-calc-admin__section-title">Добавить хаб</h3>
           <HubForm
             onSave={async (row) => {
               await saveAdminHub(adminToken, row);
@@ -691,73 +733,107 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
 
       {tab === "history" && (
         <div>
-          <label style={{ fontSize: "0.85rem" }}>
-            Тариф:{" "}
+          <p className="hr-calc-admin__hint" style={{ marginTop: 0 }}>
+            Здесь видно, какие версии тарифов сохранялись и с какой даты они действуют. Выберите нужный раздел — список
+            покажет изменения простым языком, без технических кодов.
+          </p>
+          <label className="hr-calc-admin__field" style={{ maxWidth: "24rem" }}>
+            <span className="hr-calc-admin__label">Раздел тарифов</span>
             <select
+              className="hr-calc-admin-select"
               value={historySetId}
               onChange={(e) => setHistorySetId(e.target.value ? Number(e.target.value) : "")}
             >
-              <option value="">— выберите —</option>
+              <option value="">— выберите раздел —</option>
               {sets.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.code} ({s.block})
+                  {tariffSetSelectLabel(s)}
                 </option>
               ))}
             </select>
           </label>
-          {historyLoading && <Loader2 className="w-5 h-5 animate-spin" style={{ marginTop: "0.5rem" }} />}
-          {historyActive && (
-            <Typography.Body style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
-              Активная версия: <strong>{historyActive.effective_from}</strong>
-              {historyActive.comment ? ` — ${historyActive.comment}` : ""}
-            </Typography.Body>
+          {historyLoading && (
+            <div className="hr-calc-admin__loading" style={{ marginTop: "0.75rem" }}>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Загрузка истории…
+            </div>
           )}
-          {historyRows.length > 0 && (
-            <div style={{ overflowX: "auto", marginTop: "0.75rem" }}>
-              <table style={{ fontSize: "0.8rem", width: "100%", borderCollapse: "collapse" }}>
+          {historySet && historyActive && (
+            <div className="hr-calc-admin-history-active" style={{ marginTop: "0.875rem" }}>
+              <p className="hr-calc-admin-history-active__title">
+                Сейчас действует версия от{" "}
+                <strong>{formatTariffDateRu(historyActive.effective_from)}</strong>
+                {historyActive.created_by ? ` · сохранил ${historyActive.created_by}` : ""}
+              </p>
+              <TariffVersionSummary
+                tariffCode={historySet.code}
+                block={historySet.block}
+                payload={historyActive.payload}
+              />
+            </div>
+          )}
+          {historySet && historyRows.length > 0 && (
+            <div className="hr-calc-admin-table-wrap" style={{ marginTop: "0.875rem" }}>
+              <table className="hr-calc-admin-table">
                 <thead>
                   <tr>
-                    <th style={{ textAlign: "left", padding: "0.35rem" }}>С даты</th>
-                    <th>Кем</th>
-                    <th>Комментарий</th>
-                    <th>Payload</th>
+                    <th>Действует с</th>
+                    <th>Кто сохранил</th>
+                    <th>Что в версии</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {historyRows.map((h) => (
-                    <tr key={h.id} style={{ borderTop: "1px solid #e5e7eb", verticalAlign: "top" }}>
-                      <td style={{ padding: "0.35rem", whiteSpace: "nowrap" }}>{h.effective_from}</td>
-                      <td style={{ padding: "0.35rem" }}>{h.created_by ?? "—"}</td>
-                      <td style={{ padding: "0.35rem" }}>{h.comment ?? "—"}</td>
-                      <td style={{ padding: "0.35rem", maxWidth: 420 }}>
-                        <pre
-                          style={{
-                            margin: 0,
-                            fontSize: "0.7rem",
-                            maxHeight: 120,
-                            overflow: "auto",
-                            whiteSpace: "pre-wrap",
-                          }}
-                        >
-                          {JSON.stringify(h.payload, null, 2)}
-                        </pre>
-                      </td>
-                    </tr>
-                  ))}
+                  {historyRows.map((h) => {
+                    const isActive = historyActive?.id === h.id;
+                    return (
+                      <tr key={h.id} className={isActive ? "hr-calc-admin-history-row--active" : undefined}>
+                        <td style={{ whiteSpace: "nowrap" }}>
+                          {formatTariffDateRu(h.effective_from)}
+                          {isActive && (
+                            <span className="hr-calc-admin-history-badge" style={{ marginLeft: "0.5rem" }}>
+                              сейчас
+                            </span>
+                          )}
+                        </td>
+                        <td>{h.created_by?.trim() || "—"}</td>
+                        <td>
+                          <TariffVersionSummary
+                            tariffCode={historySet.code}
+                            block={historySet.block}
+                            payload={h.payload}
+                          />
+                          {h.comment?.trim() && (
+                            <p className="hr-calc-admin-history-comment">Комментарий: {h.comment.trim()}</p>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
+          )}
+          {historySet && !historyLoading && historyRows.length === 0 && (
+            <p className="hr-calc-admin__empty" style={{ marginTop: "0.75rem" }}>
+              Для «{tariffSetSelectLabel(historySet)}» пока нет сохранённых версий.
+            </p>
           )}
         </div>
       )}
 
       {tab === "import" && (
-        <div>
-          <select value={importKind} onChange={(e) => setImportKind(e.target.value as typeof importKind)}>
-            <option value="pickup_xlsx">пикап.xlsx (забор + последняя миля)</option>
-            <option value="mkad_mxl">Список.MXL (съезды МКАД)</option>
-          </select>
-          <input type="file" style={{ display: "block", margin: "0.5rem 0" }} onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} />
+        <div className="hr-calc-admin-import">
+          <label className="hr-calc-admin__field">
+            <span className="hr-calc-admin__label">Тип файла</span>
+            <select className="hr-calc-admin-select" value={importKind} onChange={(e) => setImportKind(e.target.value as typeof importKind)}>
+              <option value="pickup_xlsx">пикап.xlsx (забор + последняя миля)</option>
+              <option value="mkad_mxl">Список.MXL (съезды МКАД)</option>
+            </select>
+          </label>
+          <label className="hr-calc-admin__field">
+            <span className="hr-calc-admin__label">Файл</span>
+            <input type="file" className="hr-calc-admin-import__file" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} />
+          </label>
           <button
             type="button"
             className="button-primary"
@@ -774,17 +850,19 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
           >
             Загрузить
           </button>
-          <Typography.Body style={{ marginTop: "0.5rem", fontSize: "0.8rem", opacity: 0.8 }}>
+          <p className="hr-calc-admin__hint" style={{ margin: 0 }}>
             Или: npx tsx scripts/seed-haulz-calculator.ts (файлы в data/haulz-calculator-seed/)
-          </Typography.Body>
+          </p>
         </div>
       )}
 
-      <Flex style={{ marginTop: "1rem" }}>
+      </div>
+
+      <footer className="hr-calc-admin__footer">
         <button type="button" className="filter-button" onClick={() => void loadSets()} disabled={loading}>
           Обновить всё
         </button>
-      </Flex>
+      </footer>
     </div>
   );
 }
@@ -801,11 +879,23 @@ function RingExitForm({
   const [lat, setLat] = useState("");
   const [lon, setLon] = useState("");
   return (
-    <Flex gap="0.35rem" wrap="wrap" style={{ marginTop: "0.35rem" }}>
-      <input placeholder="Код" value={code} onChange={(e) => setCode(e.target.value)} />
-      <input placeholder="Название" value={name} onChange={(e) => setName(e.target.value)} style={{ minWidth: 160 }} />
-      <input placeholder="lat" value={lat} onChange={(e) => setLat(e.target.value)} style={{ width: 88 }} />
-      <input placeholder="lon" value={lon} onChange={(e) => setLon(e.target.value)} style={{ width: 88 }} />
+    <div className="hr-calc-admin-form-row">
+      <label className="hr-calc-admin__field">
+        <span className="hr-calc-admin__label">Код</span>
+        <input className="hr-calc-admin-input" placeholder="KAD_021" value={code} onChange={(e) => setCode(e.target.value)} />
+      </label>
+      <label className="hr-calc-admin__field" style={{ flex: "2 1 12rem" }}>
+        <span className="hr-calc-admin__label">Название</span>
+        <input className="hr-calc-admin-input" placeholder="Название съезда" value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
+      <label className="hr-calc-admin__field">
+        <span className="hr-calc-admin__label">Широта</span>
+        <input className="hr-calc-admin-input hr-calc-admin-input--num" placeholder="54.71" value={lat} onChange={(e) => setLat(e.target.value)} />
+      </label>
+      <label className="hr-calc-admin__field">
+        <span className="hr-calc-admin__label">Долгота</span>
+        <input className="hr-calc-admin-input hr-calc-admin-input--num" placeholder="20.45" value={lon} onChange={(e) => setLon(e.target.value)} />
+      </label>
       <button
         type="button"
         className="filter-button"
@@ -815,7 +905,7 @@ function RingExitForm({
       >
         Добавить
       </button>
-    </Flex>
+    </div>
   );
 }
 
@@ -830,15 +920,30 @@ function HubForm({
   const [lat, setLat] = useState("");
   const [lon, setLon] = useState("");
   return (
-    <Flex gap="0.35rem" wrap="wrap" style={{ marginTop: "0.75rem" }}>
-      <input placeholder="Код" value={code} onChange={(e) => setCode(e.target.value)} />
-      <input placeholder="Название" value={name} onChange={(e) => setName(e.target.value)} />
-      <select value={role} onChange={(e) => setRole(e.target.value as typeof role)}>
-        <option value="moscow">moscow</option>
-        <option value="kaliningrad">kaliningrad</option>
-      </select>
-      <input placeholder="lat" value={lat} onChange={(e) => setLat(e.target.value)} style={{ width: 88 }} />
-      <input placeholder="lon" value={lon} onChange={(e) => setLon(e.target.value)} style={{ width: 88 }} />
+    <div className="hr-calc-admin-form-row">
+      <label className="hr-calc-admin__field">
+        <span className="hr-calc-admin__label">Код</span>
+        <input className="hr-calc-admin-input" placeholder="HUB_MSK" value={code} onChange={(e) => setCode(e.target.value)} />
+      </label>
+      <label className="hr-calc-admin__field" style={{ flex: "2 1 12rem" }}>
+        <span className="hr-calc-admin__label">Название</span>
+        <input className="hr-calc-admin-input" placeholder="Название хаба" value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
+      <label className="hr-calc-admin__field">
+        <span className="hr-calc-admin__label">Роль</span>
+        <select className="hr-calc-admin-select" value={role} onChange={(e) => setRole(e.target.value as typeof role)}>
+          <option value="moscow">moscow</option>
+          <option value="kaliningrad">kaliningrad</option>
+        </select>
+      </label>
+      <label className="hr-calc-admin__field">
+        <span className="hr-calc-admin__label">Широта</span>
+        <input className="hr-calc-admin-input hr-calc-admin-input--num" placeholder="55.75" value={lat} onChange={(e) => setLat(e.target.value)} />
+      </label>
+      <label className="hr-calc-admin__field">
+        <span className="hr-calc-admin__label">Долгота</span>
+        <input className="hr-calc-admin-input hr-calc-admin-input--num" placeholder="37.62" value={lon} onChange={(e) => setLon(e.target.value)} />
+      </label>
       <button
         type="button"
         className="filter-button"
@@ -846,6 +951,6 @@ function HubForm({
       >
         Добавить хаб
       </button>
-    </Flex>
+    </div>
   );
 }

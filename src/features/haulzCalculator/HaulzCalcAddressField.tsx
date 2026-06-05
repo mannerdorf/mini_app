@@ -48,6 +48,10 @@ type Props = {
   contactName: string;
   setContactName: (v: string) => void;
   onQuickCity: (city: CityCode) => void;
+  /** Без обёртки-карточки — для мобильного подэкрана */
+  embedded?: boolean;
+  /** Открыть карту сразу (мобильный сценарий «как в СДЭК») */
+  openMapOnMount?: boolean;
 };
 
 export function HaulzCalcAddressField({
@@ -70,6 +74,8 @@ export function HaulzCalcAddressField({
   contactName,
   setContactName,
   onQuickCity,
+  embedded = false,
+  openMapOnMount = false,
 }: Props) {
   const [suggestions, setSuggestions] = useState<HaulzSuggestItem[]>([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
@@ -84,6 +90,7 @@ export function HaulzCalcAddressField({
   const [ringDistance, setRingDistance] = useState<HaulzRingDistance | null>(null);
   const [open, setOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
+  const mapAutoOpenedRef = useRef(false);
   const [pickLoading, setPickLoading] = useState(false);
   const [mapDraftAddr, setMapDraftAddr] = useState<AddressSelection | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -270,9 +277,16 @@ export function HaulzCalcAddressField({
     setMapOpen(true);
   };
 
-  return (
-    <div className="haulz-calc-card">
-      <h2 className="haulz-calc-card__title">{title}</h2>
+  useEffect(() => {
+    if (!openMapOnMount || mapAutoOpenedRef.current || isWarehouseMode) return;
+    mapAutoOpenedRef.current = true;
+    setMapDraftAddr(addr);
+    setMapOpen(true);
+  }, [openMapOnMount, isWarehouseMode, addr]);
+
+  const body = (
+    <>
+      {!embedded && <h2 className="haulz-calc-card__title">{title}</h2>}
 
       <div className="haulz-calc-segment" role="tablist">
         <button
@@ -479,6 +493,12 @@ export function HaulzCalcAddressField({
           Уточняем координаты…
         </p>
       )}
+    </>
+  );
+
+  return (
+    <div className={embedded ? "haulz-calc-address-embedded" : "haulz-calc-card"}>
+      {body}
     </div>
   );
 }

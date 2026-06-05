@@ -20,6 +20,9 @@ import {
   type HaulzCalculatorFormState,
 } from "../api/client/haulzCalculator";
 import { HaulzCalcAddressField } from "../features/haulzCalculator/HaulzCalcAddressField";
+import { HaulzCalcMobileFlow } from "../features/haulzCalculator/HaulzCalcMobileFlow";
+import type { HaulzCalcMobileRoute } from "../features/haulzCalculator/haulzCalcMobileLabels";
+import { useHaulzCalcMobile } from "../features/haulzCalculator/useHaulzCalcMobile";
 import { formatQuoteVatLine } from "../../lib/haulzCalculator/quoteVat";
 
 type Props = {
@@ -96,6 +99,8 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
   const [emailError, setEmailError] = useState<string | null>(null);
   const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
   const [registeredNomerZayavki, setRegisteredNomerZayavki] = useState<string | null>(null);
+  const [mobileRoute, setMobileRoute] = useState<HaulzCalcMobileRoute>("hub");
+  const isMobileLayout = useHaulzCalcMobile();
   const prevQuoteDepsRef = useRef<string | null>(null);
 
   const inferredDirection = useMemo(
@@ -572,9 +577,81 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
 
   const mainlineCards = quote?.mainlineOptions?.length ? quote.mainlineOptions : options?.mainlineOptions ?? [];
 
+  const mobileFlowProps = {
+    auth,
+    route: mobileRoute,
+    setRoute: setMobileRoute,
+    onBackFromCalc: onBack,
+    draftSaving,
+    draftLoading,
+    saveDraft: () => void saveDraft(),
+    draftMessage,
+    error,
+    fromQuery,
+    setFromQuery,
+    fromAddr,
+    setFromAddr,
+    toQuery,
+    setToQuery,
+    toAddr,
+    setToAddr,
+    fromMode,
+    setFromMode,
+    toMode,
+    setToMode,
+    fromPhone,
+    setFromPhone,
+    toPhone,
+    setToPhone,
+    fromInn,
+    setFromInn,
+    toInn,
+    setToInn,
+    fromCompanyName,
+    setFromCompanyName,
+    toCompanyName,
+    setToCompanyName,
+    fromName,
+    setFromName,
+    toName,
+    setToName,
+    places,
+    setPlaces,
+    activePresetIdx,
+    setActivePresetIdx,
+    declaredValue,
+    setDeclaredValue,
+    mainlineMode,
+    setMainlineMode,
+    extraCodes,
+    toggleExtra,
+    options,
+    quote,
+    loading,
+    chargeableHint,
+    suggestCityFrom,
+    suggestCityTo,
+    applyQuickCity,
+    mainlineCards,
+    canSubmitOrder,
+    orderLoading,
+    orderMessage,
+    submitOrder: () => void submitOrder(),
+    dataZabora,
+    setDataZabora,
+    copySummary,
+    openEmailModal,
+    canSendQuoteEmail,
+    registeredNomerZayavki,
+  };
+
   return (
-    <div className="haulz-calc-page--cdek">
+    <div className={`haulz-calc-page--cdek${isMobileLayout ? " haulz-calc-page--mobile-flow" : ""}`}>
       <div className="haulz-calc-shell-bg">
+        {isMobileLayout ? (
+          <HaulzCalcMobileFlow {...mobileFlowProps} />
+        ) : (
+          <>
         <header className="haulz-calc-header">
           <button type="button" className="haulz-calc-header__back" onClick={onBack} aria-label="Назад">
             <ArrowLeft className="w-5 h-5" />
@@ -900,6 +977,8 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
             </div>
           </aside>
         </div>
+          </>
+        )}
       </div>
 
       {emailModalOpen && (
