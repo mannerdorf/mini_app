@@ -6,6 +6,7 @@
   --haulz-calc-content-max: min(1180px, 96vw);
   /* сдвиг блока «Ваш расчёт» чуть левее для равных полей фона по краям */
   --haulz-summary-fixed-shift: 20px;
+  --haulz-summary-fixed-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
   /* высота липкого .app-header + небольшой зазор (десктоп) */
   --haulz-summary-header-offset: calc(
     var(--space-4, 16px) * 2 + 2.75rem + var(--space-1, 4px) + var(--space-2, 8px)
@@ -568,7 +569,10 @@
   }
 
   .haulz-calc-page--cdek {
-    --haulz-summary-fixed-top: max(var(--haulz-summary-header-offset), env(safe-area-inset-top, 0px));
+    --haulz-summary-fixed-top: max(
+      calc(var(--haulz-summary-header-offset) + 0.75rem),
+      env(safe-area-inset-top, 0px)
+    );
   }
 
   .haulz-calc-grid {
@@ -595,7 +599,17 @@
     width: var(--haulz-summary-col-width);
     max-width: var(--haulz-summary-col-width);
     z-index: 5;
-    max-height: calc(100dvh - var(--haulz-summary-fixed-top) - 1rem);
+    max-height: calc(100dvh - var(--haulz-summary-fixed-top) - var(--haulz-summary-fixed-bottom));
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+  }
+
+  .haulz-calc-summary-wrap > .haulz-calc-summary {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;

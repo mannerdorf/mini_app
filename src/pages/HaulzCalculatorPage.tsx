@@ -24,6 +24,7 @@ import { HaulzCalcMobileFlow } from "../features/haulzCalculator/HaulzCalcMobile
 import type { HaulzCalcMobileRoute } from "../features/haulzCalculator/haulzCalcMobileLabels";
 import { useHaulzCalcMobile } from "../features/haulzCalculator/useHaulzCalcMobile";
 import { formatQuoteVatLine } from "../../lib/haulzCalculator/quoteVat";
+import { formatPhoneMask } from "../lib/formatPhoneMask";
 
 type Props = {
   auth: AuthData | null;
@@ -194,8 +195,8 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     setToAddr(f.to ?? null);
     setFromMode(f.fromMode === "point" ? "point" : "courier");
     setToMode(f.toMode === "point" ? "point" : "courier");
-    setFromPhone(f.fromPhone ?? "");
-    setToPhone(f.toPhone ?? "");
+    setFromPhone(formatPhoneMask(f.fromPhone ?? ""));
+    setToPhone(formatPhoneMask(f.toPhone ?? ""));
     setFromInn(f.fromInn ?? "");
     setToInn(f.toInn ?? "");
     setFromCompanyName(f.fromCompanyName ?? "");

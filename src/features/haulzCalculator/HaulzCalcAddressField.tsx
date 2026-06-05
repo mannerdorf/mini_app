@@ -13,6 +13,7 @@ import {
 } from "../../api/client/haulzCalculator";
 import { HaulzCalcMapPicker } from "./HaulzCalcMapPicker";
 import { HaulzCalcRingDistanceHint } from "./HaulzCalcRingDistanceHint";
+import { formatPhoneMask } from "../../lib/formatPhoneMask";
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -459,10 +460,12 @@ export function HaulzCalcAddressField({
           <span className="haulz-calc-label">Телефон</span>
           <input
             type="tel"
+            inputMode="tel"
+            autoComplete="tel"
             className="haulz-calc-input"
-            placeholder="+7"
+            placeholder="+7 (___) ___-__-__"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => setPhone(formatPhoneMask(e.target.value))}
           />
         </label>
         <label className="haulz-calc-field">
