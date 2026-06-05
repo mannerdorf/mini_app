@@ -134,7 +134,6 @@ export type ProfileView =
     | "haulzSummary"
     | "haulzReturns"
     | "haulzCalculator"
-    | "haulzCalcDrafts"
     | "haulzCalcRequests"
     | "admin"
     | "tinyurl-test"

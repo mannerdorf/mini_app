@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import { isEdoMyCounterpartyStatus } from "../kontragentEdoStatus.js";
 
 export type HaulzPartnerDirectoryKind = "active_partner" | "need_contract" | "new_partner";
 
@@ -8,6 +9,7 @@ export type HaulzPartnerDirectoryInfo = {
   contractNumber?: string;
   inCustomerDirectory: boolean;
   customerName?: string;
+  hasEdo: boolean;
 };
 
 function normalizeInnDigits(inn: string): string {
@@ -24,6 +26,7 @@ export async function lookupPartnerDirectoryByInn(
       kind: "new_partner",
       label: "Новый партнёр, необходимо заключить договор",
       inCustomerDirectory: false,
+      hasEdo: false,
     };
   }
 
@@ -58,6 +61,17 @@ export async function lookupPartnerDirectoryByInn(
     /* cache_dogovors может отсутствовать */
   }
 
+  let hasEdo = false;
+  try {
+    const { rows: supplierRows } = await pool.query<{ counterparty_status: string | null }>(
+      `select counterparty_status from cache_suppliers where inn = $1 limit 1`,
+      [inn],
+    );
+    hasEdo = isEdoMyCounterpartyStatus(supplierRows[0]?.counterparty_status);
+  } catch {
+    /* cache_suppliers может отсутствовать */
+  }
+
   if (inCustomerDirectory && contractNumber) {
     return {
       kind: "active_partner",
@@ -65,6 +79,7 @@ export async function lookupPartnerDirectoryByInn(
       contractNumber,
       inCustomerDirectory: true,
       customerName,
+      hasEdo,
     };
   }
 
@@ -74,6 +89,7 @@ export async function lookupPartnerDirectoryByInn(
       label: "Необходимо заключить договор",
       inCustomerDirectory: true,
       customerName,
+      hasEdo,
     };
   }
 
@@ -81,5 +97,6 @@ export async function lookupPartnerDirectoryByInn(
     kind: "new_partner",
     label: "Новый партнёр, необходимо заключить договор",
     inCustomerDirectory: false,
+    hasEdo,
   };
 }

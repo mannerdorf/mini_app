@@ -252,7 +252,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
         status: "draft",
       });
       setDraftId(saved.id);
-      setDraftMessage("Черновик сохранён — откройте в HAULZ → Черновики");
+      setDraftMessage("Черновик сохранён — откройте в HAULZ → Заявки → Черновики");
     } catch (e) {
       setError((e as Error)?.message || "Не удалось сохранить черновик");
     } finally {

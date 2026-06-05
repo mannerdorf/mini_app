@@ -3,6 +3,9 @@ import type { ProfileView } from "../types";
 const PROFILE_VIEW_KEY = "haulz.profile.view";
 const PROFILE_HAULZ_BACK_KEY = "haulz.profile.haulzBackView";
 const PROFILE_CALC_DRAFT_KEY = "haulz.profile.calcDraftId";
+const REQUESTS_TAB_KEY = "haulz.profile.requestsTab";
+
+export type HaulzCalcRequestsTab = "requests" | "saved";
 
 const PROFILE_VIEWS = new Set<ProfileView>([
   "main",
@@ -26,7 +29,6 @@ const PROFILE_VIEWS = new Set<ProfileView>([
   "haulzSummary",
   "haulzReturns",
   "haulzCalculator",
-  "haulzCalcDrafts",
   "haulzCalcRequests",
   "admin",
   "tinyurl-test",
@@ -38,13 +40,43 @@ function isProfileView(value: string | null | undefined): value is ProfileView {
   return Boolean(value && PROFILE_VIEWS.has(value as ProfileView));
 }
 
+function migrateLegacyDraftsView(view: string | null | undefined): ProfileView | null {
+  if (view === "haulzCalcDrafts") {
+    persistHaulzCalcRequestsTab("saved");
+    return "haulzCalcRequests";
+  }
+  return null;
+}
+
+export function readStoredHaulzCalcRequestsTab(): HaulzCalcRequestsTab {
+  if (typeof window === "undefined") return "requests";
+  try {
+    return sessionStorage.getItem(REQUESTS_TAB_KEY) === "saved" ? "saved" : "requests";
+  } catch {
+    return "requests";
+  }
+}
+
+export function persistHaulzCalcRequestsTab(tab: HaulzCalcRequestsTab): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(REQUESTS_TAB_KEY, tab);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function readStoredProfileView(): ProfileView {
   if (typeof window === "undefined") return "main";
   try {
     const url = new URL(window.location.href);
     const fromUrl = url.searchParams.get("profileView");
+    const migratedUrl = migrateLegacyDraftsView(fromUrl);
+    if (migratedUrl) return migratedUrl;
     if (isProfileView(fromUrl)) return fromUrl;
     const saved = window.localStorage.getItem(PROFILE_VIEW_KEY);
+    const migratedSaved = migrateLegacyDraftsView(saved);
+    if (migratedSaved) return migratedSaved;
     if (isProfileView(saved)) return saved;
   } catch {
     /* ignore */
@@ -56,6 +88,8 @@ export function readStoredHaulzCalcBackView(): ProfileView {
   if (typeof window === "undefined") return "haulz";
   try {
     const saved = window.localStorage.getItem(PROFILE_HAULZ_BACK_KEY);
+    const migrated = migrateLegacyDraftsView(saved);
+    if (migrated) return migrated;
     if (isProfileView(saved)) return saved;
   } catch {
     /* ignore */

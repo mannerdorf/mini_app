@@ -86,6 +86,7 @@ export function HaulzCalcAddressField({
   const [partnerHint, setPartnerHint] = useState<{
     label: string;
     kind: "active_partner" | "need_contract" | "new_partner";
+    hasEdo: boolean;
   } | null>(null);
   const [ringDistance, setRingDistance] = useState<HaulzRingDistance | null>(null);
   const [open, setOpen] = useState(false);
@@ -201,7 +202,7 @@ export function HaulzCalcAddressField({
         if (!cancelled) {
           setInn(party.inn);
           setCompanyName(party.fullName);
-          setPartnerHint({ label: partnerDirectory.label, kind: partnerDirectory.kind });
+          setPartnerHint({ label: partnerDirectory.label, kind: partnerDirectory.kind, hasEdo: partnerDirectory.hasEdo });
           setInnError(null);
         }
       })
@@ -439,11 +440,18 @@ export function HaulzCalcAddressField({
               onChange={(e) => setCompanyName(e.target.value)}
             />
             {partnerHint && (
-              <span
-                className={`haulz-calc-field-hint haulz-calc-partner-hint haulz-calc-partner-hint--${partnerHint.kind}`}
-              >
-                {partnerHint.label}
-              </span>
+              <div className="haulz-calc-partner-hints">
+                <span
+                  className={`haulz-calc-field-hint haulz-calc-partner-hint haulz-calc-partner-hint--${partnerHint.kind}`}
+                >
+                  {partnerHint.label}
+                </span>
+                <span
+                  className={`haulz-calc-field-hint haulz-calc-partner-hint haulz-calc-partner-hint--edo-${partnerHint.hasEdo ? "yes" : "no"}`}
+                >
+                  {partnerHint.hasEdo ? "Есть ЭДО" : "Нет ЭДО"}
+                </span>
+              </div>
             )}
           </label>
         )}

@@ -63,6 +63,7 @@ export type HaulzPartnerDirectoryInfo = {
   contractNumber?: string;
   inCustomerDirectory: boolean;
   customerName?: string;
+  hasEdo: boolean;
 };
 
 export type HaulzPartyByInn = {

@@ -29,7 +29,6 @@ import { HaulzSummarySandboxPage } from "./HaulzSummarySandboxPage";
 import { HaulzReturnsPage } from "./HaulzReturnsPage";
 import { HaulzCalculatorPage } from "./HaulzCalculatorPage";
 import { HaulzCalcRequestsPage } from "./HaulzCalcRequestsPage";
-import { HaulzCalcDraftsPage } from "./HaulzCalcDraftsPage";
 import { ProfileParcelScannerSection } from "../components/profile/ProfileParcelScannerSection";
 import { ProfileExpenseRequestsSection } from "../components/profile/ProfileExpenseRequestsSection";
 import { ProfileApiKeysSection } from "../components/profile/ProfileApiKeysSection";
@@ -1190,7 +1189,7 @@ export function ProfilePage({
                         setHaulzCalcRestoreDraftId(null);
                         setHaulzCalcBackView("haulz");
                     }
-                    if (view === "haulzCalcRequests" || view === "haulzCalcDrafts") {
+                    if (view === "haulzCalcRequests") {
                         setHaulzCalcRestoreDraftId(null);
                     }
                     setCurrentView(view);
@@ -1219,36 +1218,6 @@ export function ProfilePage({
         } : null;
         return (
             <HaulzReturnsPage auth={auth} onBack={() => setCurrentView("haulz")} />
-        );
-    }
-
-    if (currentView === 'haulzCalcDrafts') {
-        const auth: AuthData | null = activeAccount ? {
-            login: activeAccount.login,
-            password: activeAccount.password,
-            inn: activeAccount.activeCustomerInn ?? activeAccount.customers?.[0]?.inn,
-            ...(activeAccount.isRegisteredUser === true ? { isRegisteredUser: true } : {}),
-        } : null;
-        if (!auth) {
-            return (
-                <div className="w-full">
-                    <p>Нет авторизации</p>
-                    <Button type="button" className="button-primary" onClick={() => setCurrentView("haulz")}>
-                        Назад
-                    </Button>
-                </div>
-            );
-        }
-        return (
-            <HaulzCalcDraftsPage
-                auth={auth}
-                onBack={() => setCurrentView("haulz")}
-                onOpenCalculator={(draftId) => {
-                    setHaulzCalcRestoreDraftId(draftId ?? null);
-                    setHaulzCalcBackView("haulzCalcDrafts");
-                    setCurrentView("haulzCalculator");
-                }}
-            />
         );
     }
 

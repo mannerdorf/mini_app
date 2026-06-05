@@ -146,6 +146,11 @@
   line-height: 1.45;
 }
 
+.haulz-calc-requests-page__tabs {
+  max-width: 360px;
+  margin-bottom: 1rem;
+}
+
 .haulz-calc-requests-page__new {
   width: 100%;
   max-width: 320px;
@@ -948,6 +953,22 @@
 
 .haulz-calc-partner-hint {
   font-weight: 500;
+}
+
+.haulz-calc-partner-hints {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  margin-top: 0.35rem;
+}
+
+.haulz-calc-partner-hint--edo-yes {
+  color: var(--calc-alert-success-text, #047857);
+}
+
+.haulz-calc-partner-hint--edo-no {
+  color: var(--calc-alert-error-text, #b91c1c);
 }
 
 .haulz-calc-partner-hint--active_partner {
