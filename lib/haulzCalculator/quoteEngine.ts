@@ -208,7 +208,7 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
     lines,
     totalRub,
     deliveryDays,
-    km: { moscow: kmMoscow, kaliningrad: kmKaliningrad },
+    km: { moscow: ringMoscow.km, kaliningrad: ringKaliningrad.km },
     warnings,
     mainlineOptions,
     hubs,

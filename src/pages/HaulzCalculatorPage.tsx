@@ -278,13 +278,25 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
       JSON.stringify({
         from: fromAddr?.point,
         to: toAddr?.point,
+        fromMode,
+        toMode,
         places,
         mainlineMode,
         direction: inferredDirection,
         declaredValue,
         extraCodes,
       }),
-    [fromAddr?.point, toAddr?.point, places, mainlineMode, inferredDirection, declaredValue, extraCodes],
+    [
+      fromAddr?.point,
+      toAddr?.point,
+      fromMode,
+      toMode,
+      places,
+      mainlineMode,
+      inferredDirection,
+      declaredValue,
+      extraCodes,
+    ],
   );
   const debouncedQuoteDeps = useDebounced(quoteDepsKey, 700);
 
@@ -348,7 +360,29 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuoteDeps, autoQuoteEnabled, canQuote]);
+  }, [
+    debouncedQuoteDeps,
+    autoQuoteEnabled,
+    canQuote,
+    auth,
+    fromAddr,
+    toAddr,
+    places,
+    mainlineMode,
+    inferredDirection,
+    declaredValue,
+    extraCodes,
+    fromMode,
+    toMode,
+    fromInn,
+    fromPhone,
+    fromCompanyName,
+    fromName,
+    toInn,
+    toPhone,
+    toCompanyName,
+    toName,
+  ]);
 
   const submitOrder = useCallback(async () => {
     if (!auth || !fromAddr?.point || !toAddr?.point) return;
@@ -768,7 +802,17 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
             )}
 
             {!quote && !loading && (
-              <p className="haulz-calc-summary__empty">Заполните адреса — расчёт обновится автоматически</p>
+              <p
+                className={`haulz-calc-summary__empty${error && canQuote ? " haulz-calc-summary__empty--error" : ""}`}
+              >
+                {error && canQuote
+                  ? error
+                  : !fromAddr?.point || !toAddr?.point
+                    ? "Заполните адреса — расчёт обновится автоматически"
+                    : chargeableHint.ch <= 0
+                      ? "Укажите вес или объём груза"
+                      : "Заполните адреса — расчёт обновится автоматически"}
+              </p>
             )}
 
             {quote && (

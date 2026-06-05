@@ -31,9 +31,21 @@ export type DadataSuggestItem = {
   label: string;
 };
 
-const CITY_LOCATIONS: Record<"moscow" | "kaliningrad", Record<string, string>[]> = {
-  moscow: [{ city: "Москва" }],
-  kaliningrad: [{ city: "Калининград" }],
+type SuggestScope = {
+  locations: Record<string, string>[];
+  locations_boost?: Record<string, string>[];
+};
+
+/** Москва — только город; Калининград — вся область, приоритет у г. Калининград. */
+const SUGGEST_SCOPES: Record<"moscow" | "kaliningrad", SuggestScope> = {
+  moscow: {
+    locations: [{ city: "Москва" }],
+    locations_boost: [{ city: "Москва" }],
+  },
+  kaliningrad: {
+    locations: [{ region: "Калининградская" }],
+    locations_boost: [{ city: "Калининград" }],
+  },
 };
 
 function labelFromSuggestion(row: DadataAddressSuggestion): string {
@@ -76,9 +88,11 @@ export async function dadataSuggestAddresses(
     count: 10,
   };
   if (opts.city) {
-    const loc = CITY_LOCATIONS[opts.city];
-    body.locations = loc;
-    body.locations_boost = loc;
+    const scope = SUGGEST_SCOPES[opts.city];
+    body.locations = scope.locations;
+    if (scope.locations_boost?.length) {
+      body.locations_boost = scope.locations_boost;
+    }
   }
 
   const res = await fetch(DADATA_SUGGEST_ADDRESS_URL, {

@@ -78,9 +78,14 @@ export async function dgisSuggest(
 function addressFromGeocodeItem(it: Record<string, unknown> | null): { label: string; fullAddress: string } | null {
   if (!it) return null;
   const fullAddress = String(
-    it.full_address_name ?? it.full_name ?? it.address_name ?? it.name ?? "",
+    it.full_address_name ??
+      it.full_name ??
+      it.address_name ??
+      it.building_name ??
+      it.name ??
+      "",
   ).trim();
-  const label = String(it.name ?? fullAddress).trim();
+  const label = String(it.building_name ?? it.name ?? fullAddress).trim();
   if (!label && !fullAddress) return null;
   return { label: label || fullAddress, fullAddress: fullAddress || label };
 }
@@ -128,19 +133,25 @@ export async function dgisGeocodeFull(address: string, pool: Pool | null = null)
 }
 
 export async function dgisReverseGeocode(point: GeoPoint, pool: Pool | null = null): Promise<DgisGeocodeResult | null> {
-  const cacheKey = `revgeocode:${point.lat.toFixed(5)},${point.lon.toFixed(5)}`;
+  const cacheKey = `revgeocode:v2:${point.lat.toFixed(5)},${point.lon.toFixed(5)}`;
   const cached = await dgisReadCache(pool, cacheKey);
   if (cached) return resultFromGeocode(cached, point);
 
   const key = getDgisApiKey();
   const params = new URLSearchParams({
     key,
-    q: `${point.lon},${point.lat}`,
-    fields: "items.point,items.full_address_name,items.full_name,items.address_name,items.name",
+    lat: String(point.lat),
+    lon: String(point.lon),
+    radius: "80",
+    locale: "ru_RU",
+    page_size: "1",
+    fields:
+      "items.point,items.full_address_name,items.full_name,items.address_name,items.name,items.building_name",
   });
   const data = await dgisFetchJson(`${GEOCODE_URL}?${params}`, undefined, 12000);
+  const result = resultFromGeocode(data, point);
   await dgisWriteCache(pool, cacheKey, "geocode", data, 24);
-  return resultFromGeocode(data, point);
+  return result;
 }
 
 export async function dgisGeocodeById(id: string, pool: Pool | null = null): Promise<DgisGeocodeResult | null> {

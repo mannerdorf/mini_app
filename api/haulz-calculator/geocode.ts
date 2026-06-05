@@ -4,6 +4,7 @@ import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgTableExists } from "../_haulzReturns.js";
 import { resolveHaulzCalculatorAccess } from "../_haulzCalculator.js";
 import { pickHaulzCredentials } from "../_haulzReturns.js";
+import { dadataGeolocateAddress } from "../../lib/dadata/geolocateAddress.js";
 import { dgisGeocodeById, dgisGeocodeFull, dgisReverseGeocode } from "../../lib/haulzCalculator/dgisClient.js";
 import type { GeoPoint } from "../../lib/haulzCalculator/types.js";
 
@@ -62,7 +63,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     if (point) {
-      const rev = await dgisReverseGeocode(point, pool);
+      let rev = await dgisReverseGeocode(point, pool);
+      if (!rev) {
+        try {
+          const dadata = await dadataGeolocateAddress(point);
+          if (dadata) rev = dadata;
+        } catch {
+          /* DaData не настроен */
+        }
+      }
       if (!rev) {
         return res.status(404).json({ error: "Адрес не найден", request_id: ctx.requestId });
       }

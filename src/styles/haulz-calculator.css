@@ -3,8 +3,9 @@
 .haulz-calc-page--cdek {
   --haulz-summary-col-width: 360px;
   --haulz-summary-fixed-top: max(1rem, env(safe-area-inset-top, 0px));
-  --haulz-calc-content-max: min(1180px, calc(100vw - 2 * var(--pad-page-h, 24px)));
-  --haulz-summary-fixed-right: calc((100vw - var(--haulz-calc-content-max)) / 2 + var(--pad-page-h, 24px));
+  --haulz-calc-content-max: min(1180px, 96vw);
+  /* сдвиг блока «Ваш расчёт» чуть левее для равных полей фона по краям */
+  --haulz-summary-fixed-shift: 20px;
   /* высота липкого .app-header + небольшой зазор (десктоп) */
   --haulz-summary-header-offset: calc(
     var(--space-4, 16px) * 2 + 2.75rem + var(--space-1, 4px) + var(--space-2, 8px)
@@ -577,7 +578,15 @@
   .haulz-calc-summary-wrap {
     position: fixed;
     top: var(--haulz-summary-fixed-top);
-    right: max(var(--pad-page-h, 24px), var(--haulz-summary-fixed-right));
+    left: max(
+      var(--pad-page-h, 24px),
+      calc(
+        50vw - var(--haulz-calc-content-max) / 2
+        + var(--haulz-calc-content-max) - var(--haulz-summary-col-width)
+        - var(--pad-page-h, 24px) - var(--haulz-summary-fixed-shift)
+      )
+    );
+    right: auto;
     width: var(--haulz-summary-col-width);
     max-width: var(--haulz-summary-col-width);
     z-index: 5;
@@ -1562,6 +1571,10 @@ body.haulz-calc-map-screen-open {
   font-size: 0.9375rem;
   color: var(--calc-text-secondary);
   line-height: 1.5;
+}
+
+.haulz-calc-summary__empty--error {
+  color: #b91c1c;
 }
 
 .haulz-calc-summary__line {
