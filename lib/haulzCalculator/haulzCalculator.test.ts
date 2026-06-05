@@ -65,6 +65,18 @@ describe("roadRouteKm", () => {
   });
 });
 
+describe("dgis routing response", () => {
+  it("parses Routing 7.0 result[].total_distance", async () => {
+    const { kmFromRouting } = await import("./dgisClient.js");
+    expect(
+      kmFromRouting({
+        status: "OK",
+        result: [{ total_distance: 28900, type: "carrouting" }],
+      }),
+    ).toBeCloseTo(28.9, 5);
+  });
+});
+
 describe("mkadDistance", () => {
   it("haversine is symmetric", () => {
     const a = { lat: 55.75, lon: 37.62 };

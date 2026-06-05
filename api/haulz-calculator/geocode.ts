@@ -4,6 +4,7 @@ import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgTableExists } from "../_haulzReturns.js";
 import { resolveHaulzCalculatorAccess } from "../_haulzCalculator.js";
 import { pickHaulzCredentials } from "../_haulzReturns.js";
+import { dadataFindAddressByFiasId } from "../../lib/dadata/findAddressById.js";
 import { dadataGeolocateAddress } from "../../lib/dadata/geolocateAddress.js";
 import { dgisGeocodeById, dgisGeocodeFull, dgisReverseGeocode } from "../../lib/haulzCalculator/dgisClient.js";
 import type { GeoPoint } from "../../lib/haulzCalculator/types.js";
@@ -85,6 +86,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!address && !uri) {
       return res.status(400).json({ error: "address или lat/lon обязательны", request_id: ctx.requestId });
+    }
+
+    const fiasId = String(body.fiasId ?? body.fias_id ?? uri ?? "").trim() || undefined;
+
+    if (fiasId) {
+      try {
+        const dadata = await dadataFindAddressByFiasId(fiasId);
+        if (dadata) {
+          return res.status(200).json({
+            label: dadata.label,
+            fullAddress: dadata.fullAddress,
+            point: dadata.point,
+            request_id: ctx.requestId,
+          });
+        }
+      } catch {
+        /* fallback на 2GIS */
+      }
     }
 
     const fwd = address

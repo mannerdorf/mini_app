@@ -246,10 +246,18 @@ export function HaulzCalcAddressField({
     try {
       const r = await fetchHaulzGeocode(auth, {
         address: s.fullAddress,
-        uri: s.uri,
+        uri: s.uri || s.id,
         city,
       });
-      applyAddress(r.fullAddress, r.label, r.point, s.uri || s.id);
+      const vague =
+        /городской округ|муниципальный округ/i.test(r.fullAddress) &&
+        !/ул\.? |пер\.? |пр\.? |ш\.? |д\.? /i.test(r.fullAddress);
+      applyAddress(
+        vague ? s.fullAddress : r.fullAddress,
+        s.label || r.label,
+        r.point,
+        s.uri || s.id,
+      );
     } catch (e) {
       setSuggestError((e as Error)?.message || "Не удалось получить координаты адреса");
     } finally {

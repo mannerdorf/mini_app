@@ -186,7 +186,7 @@ export async function dgisRouteKmOrNull(
 }
 
 export async function dgisRouteKm(from: GeoPoint, to: GeoPoint, pool: Pool | null = null): Promise<number> {
-  const cacheKey = `route:${from.lat},${from.lon}:${to.lat},${to.lon}`;
+  const cacheKey = `route:v2:${from.lat.toFixed(5)},${from.lon.toFixed(5)}:${to.lat.toFixed(5)},${to.lon.toFixed(5)}`;
   const cached = await dgisReadCache(pool, cacheKey);
   if (cached) return kmFromRouting(cached);
 
@@ -196,23 +196,38 @@ export async function dgisRouteKm(from: GeoPoint, to: GeoPoint, pool: Pool | nul
       { type: "stop", lon: from.lon, lat: from.lat },
       { type: "stop", lon: to.lon, lat: to.lat },
     ],
-    transport: "car",
+    transport: "driving",
     route_mode: "fastest",
     traffic_mode: "statistics",
     output: "summary",
+    locale: "ru_RU",
   };
   const data = await dgisFetchJson(
     `${ROUTING_URL}?key=${encodeURIComponent(key)}`,
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
     30000,
   );
+  const km = kmFromRouting(data);
   await dgisWriteCache(pool, cacheKey, "routing", data, 24);
-  return kmFromRouting(data);
+  return km;
 }
 
-function kmFromRouting(data: unknown): number {
-  const routes = (data as { result?: { routes?: { length?: number }[] } })?.result?.routes;
-  const lengthM = Array.isArray(routes) && routes[0] ? Number(routes[0].length) : NaN;
-  if (!Number.isFinite(lengthM) || lengthM <= 0) throw new Error("2GIS routing: нет длины маршрута");
-  return lengthM / 1000;
+/** Парсит ответ Routing API 7.0: result — массив маршрутов с total_distance (м). */
+export function kmFromRouting(data: unknown): number {
+  const payload = data as {
+    status?: string;
+    result?: Array<{ total_distance?: number; length?: number }> | { routes?: { length?: number }[] };
+  };
+
+  if (Array.isArray(payload.result) && payload.result.length > 0) {
+    const lengthM = Number(payload.result[0].total_distance ?? payload.result[0].length);
+    if (Number.isFinite(lengthM) && lengthM > 0) return lengthM / 1000;
+  }
+
+  const legacyRoutes = !Array.isArray(payload.result) ? payload.result?.routes : undefined;
+  const legacyM = Array.isArray(legacyRoutes) && legacyRoutes[0] ? Number(legacyRoutes[0].length) : NaN;
+  if (Number.isFinite(legacyM) && legacyM > 0) return legacyM / 1000;
+
+  const status = payload.status ?? "unknown";
+  throw new Error(`2GIS routing: нет длины маршрута (${status})`);
 }

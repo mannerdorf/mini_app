@@ -16,6 +16,9 @@ export type DadataAddressSuggestion = {
     flat?: string;
     settlement?: string;
     region?: string;
+    geo_lat?: string | number;
+    geo_lon?: string | number;
+    qc_geo?: string | number;
   };
 };
 
@@ -25,10 +28,19 @@ type DadataSuggestResponse = {
   family?: string;
 };
 
+export type DadataGeoPoint = { lat: number; lon: number };
+
 export type DadataSuggestItem = {
   id?: string;
   fullAddress: string;
   label: string;
+  point?: DadataGeoPoint;
+};
+
+export type DadataAddressResult = {
+  label: string;
+  fullAddress: string;
+  point: DadataGeoPoint;
 };
 
 type SuggestScope = {
@@ -57,6 +69,29 @@ function labelFromSuggestion(row: DadataAddressSuggestion): string {
   return String(row.value || row.unrestricted_value || "").trim();
 }
 
+/** qc_geo: 0 дом, 1 ближайший дом, 2 улица, 3 населённый пункт. */
+export function dadataPointFromSuggestion(row: DadataAddressSuggestion): DadataGeoPoint | undefined {
+  const data = row.data;
+  const lat = Number(data?.geo_lat);
+  const lon = Number(data?.geo_lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return undefined;
+  const qc = Number(data?.qc_geo);
+  if (Number.isFinite(qc) && qc > 3) return undefined;
+  return { lat, lon };
+}
+
+export function dadataAddressFromSuggestion(row: DadataAddressSuggestion): DadataAddressResult | null {
+  const point = dadataPointFromSuggestion(row);
+  const fullAddress = String(row.unrestricted_value || row.value || "").trim();
+  const label = labelFromSuggestion(row);
+  if (!point || (!fullAddress && !label)) return null;
+  return {
+    label: label || fullAddress,
+    fullAddress: fullAddress || label,
+    point,
+  };
+}
+
 export function normalizeDadataSuggestResponse(data: unknown): DadataSuggestItem[] {
   const rows = (data as DadataSuggestResponse)?.suggestions;
   if (!Array.isArray(rows)) return [];
@@ -66,10 +101,12 @@ export function normalizeDadataSuggestResponse(data: unknown): DadataSuggestItem
     const fullAddress = String(row.unrestricted_value || row.value || "").trim();
     const label = labelFromSuggestion(row);
     if (!fullAddress && !label) continue;
+    const point = dadataPointFromSuggestion(row);
     out.push({
       id: row.data?.fias_id || row.data?.kladr_id || undefined,
       fullAddress: fullAddress || label,
       label: label || fullAddress,
+      point,
     });
   }
   return out;

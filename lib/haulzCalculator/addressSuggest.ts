@@ -23,10 +23,7 @@ function readCachedItems(cached: unknown): AddressSuggestItem[] | null {
   return null;
 }
 
-/**
- * Подсказки адреса через DaData Suggest.
- * Координаты не запрашиваем здесь — только при выборе пункта (2GIS Geocoder).
- */
+/** Подсказки адреса через DaData Suggest (координаты из geo_lat/lon, если есть). */
 export async function suggestAddresses(
   q: string,
   opts: { city?: "moscow" | "kaliningrad" },
@@ -35,13 +32,19 @@ export async function suggestAddresses(
   const query = String(q || "").trim();
   if (query.length < 2) return [];
 
-  const cacheKey = `suggest:dadata:v1:${opts.city || "any"}:${query.toLowerCase()}`;
+  const cacheKey = `suggest:dadata:v2:${opts.city || "any"}:${query.toLowerCase()}`;
   const cached = await dgisReadCache(pool, cacheKey);
   const fromCache = cached ? readCachedItems(cached) : null;
   if (fromCache && fromCache.length > 0) return fromCache;
 
   const items = await dadataSuggestAddresses(query, opts);
-  const result = items.slice(0, 12);
+  const result: AddressSuggestItem[] = items.slice(0, 12).map((item) => ({
+    id: item.id,
+    uri: item.id,
+    fullAddress: item.fullAddress,
+    label: item.label,
+    point: item.point,
+  }));
 
   await dgisWriteCache(pool, cacheKey, "suggest", { items: result }, 12);
   return result;
