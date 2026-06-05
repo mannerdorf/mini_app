@@ -236,6 +236,16 @@ export async function fetchHaulzCalcDrafts(auth: AuthData): Promise<HaulzCalcDra
   return (data as { drafts?: HaulzCalcDraft[] }).drafts ?? [];
 }
 
+export async function fetchHaulzCalcSavedDrafts(auth: AuthData): Promise<HaulzCalcDraft[]> {
+  const res = await fetch("/api/haulz-calculator/drafts?scope=saved", {
+    method: "GET",
+    headers: authHeaders(auth),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(parseError(res, data));
+  return (data as { drafts?: HaulzCalcDraft[] }).drafts ?? [];
+}
+
 export async function fetchHaulzCalcDraft(auth: AuthData, id: number): Promise<HaulzCalcDraft> {
   const res = await fetch(`/api/haulz-calculator/drafts?id=${id}`, {
     method: "GET",

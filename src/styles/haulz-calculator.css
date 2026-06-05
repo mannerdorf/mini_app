@@ -2348,18 +2348,14 @@ body.haulz-calc-map-screen-open {
 }
 
 .haulz-calc-tariff-carousel {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.65rem;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  padding-bottom: 0.35rem;
-  margin: 0 -0.25rem;
-  -webkit-overflow-scrolling: touch;
 }
 
 .haulz-calc-tariff-card--carousel {
-  flex: 0 0 min(72vw, 220px);
-  scroll-snap-align: start;
+  min-width: 0;
+  padding: 0.85rem 0.75rem;
 }
 
 .haulz-calc-mobile-dock {
@@ -2477,4 +2473,38 @@ body.haulz-calc-map-screen-open {
 
 .haulz-calc-place--embedded {
   margin-bottom: 0;
+}
+
+.haulz-calc-drafts-page .haulz-calc-requests-table__actions {
+  width: 3rem;
+  text-align: center;
+}
+
+.haulz-calc-drafts-open {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.haulz-calc-drafts-open__chevron {
+  flex-shrink: 0;
+  color: var(--calc-text-secondary);
+}
+
+.haulz-calc-drafts-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  padding: 0.35rem;
 }

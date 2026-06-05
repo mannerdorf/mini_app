@@ -602,15 +602,6 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
                 <Copy className="w-4 h-4" />
                 Копировать
               </button>
-              <button
-                type="button"
-                className="haulz-calc-btn-secondary"
-                disabled={!canSendQuoteEmail}
-                onClick={openEmailModal}
-              >
-                <Mail className="w-4 h-4" />
-                На почту
-              </button>
             </div>
           </div>
         )}
@@ -634,15 +625,26 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
           {summaryExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
         </button>
 
-        <button
-          type="button"
-          className="haulz-calc-btn-primary haulz-calc-mobile-dock__submit"
-          disabled={!canSubmitOrder}
-          onClick={() => void submitOrder()}
-        >
-          {orderLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-          Оформить
-        </button>
+        {canSendQuoteEmail ? (
+          <button
+            type="button"
+            className="haulz-calc-btn-primary haulz-calc-mobile-dock__submit"
+            onClick={openEmailModal}
+          >
+            <Mail className="w-4 h-4" />
+            Отправить КП на почту
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="haulz-calc-btn-primary haulz-calc-mobile-dock__submit"
+            disabled={!canSubmitOrder}
+            onClick={() => void submitOrder()}
+          >
+            {orderLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            Оформить
+          </button>
+        )}
       </div>
     </div>
   );

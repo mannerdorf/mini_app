@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ChevronRight, Loader2 } from "lucide-react";
 import type { AuthData } from "../types";
 import {
-  deleteHaulzCalcDraft,
   fetchHaulzCalcDrafts,
   fetchHaulzCalcDraftsManager,
   patchHaulzCalcDraftStatus,
@@ -45,7 +44,6 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [statusLoadingId, setStatusLoadingId] = useState<number | null>(null);
 
   const selected = useMemo(
@@ -76,20 +74,6 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
     void load();
   }, [load]);
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("Удалить сохранённую заявку?")) return;
-    setDeletingId(id);
-    try {
-      await deleteHaulzCalcDraft(auth, id);
-      setDrafts((prev) => prev.filter((d) => d.id !== id));
-      if (selectedId === id) setSelectedId(null);
-    } catch (e) {
-      setError((e as Error)?.message || "Ошибка удаления");
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
   const handleManagerStatus = async (id: number, status: "agreed" | "rejected") => {
     setStatusLoadingId(id);
     setError(null);
@@ -115,7 +99,7 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
       <p className="haulz-calc-requests-page__hint">
         {managerMode
           ? "Выберите строку в таблице, чтобы открыть полную информацию и изменить статус после звонка."
-          : "Выберите заявку в таблице, чтобы посмотреть детали и продолжить расчёт."}
+          : "Здесь только оформленные заявки и расчёты после отправки КП. Черновики из калькулятора сюда не попадают."}
       </p>
 
       {!managerMode && (
@@ -137,7 +121,7 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
         <p className="haulz-calc-requests-page__empty">
           {managerMode
             ? "Нет заявок для обработки."
-            : "Пока нет сохранённых заявок. В калькуляторе оформите заявку или отправьте КП на почту."}
+            : "Пока нет заявок. Оформите расчёт в калькуляторе или отправьте КП на почту."}
         </p>
       )}
 
@@ -207,12 +191,10 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
                 draft={selected}
                 managerMode={managerMode}
                 statusLoading={statusLoadingId === selected.id}
-                deleting={deletingId === selected.id}
                 onClose={() => setSelectedId(null)}
                 onAgreed={() => void handleManagerStatus(selected.id, "agreed")}
                 onRejected={() => void handleManagerStatus(selected.id, "rejected")}
                 onContinue={() => onOpenCalculator(selected.id)}
-                onDelete={() => void handleDelete(selected.id)}
               />
             ) : (
               <div className="haulz-calc-requests-panel__placeholder">

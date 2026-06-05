@@ -9,6 +9,7 @@ import {
   deleteHaulzCalcDraft,
   getHaulzCalcDraft,
   listHaulzCalcDrafts,
+  listHaulzCalcSavedDrafts,
   upsertHaulzCalcDraft,
   type HaulzCalculatorFormState,
 } from "../../lib/haulzCalculator/calculatorDraft.js";
@@ -71,7 +72,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         return res.status(200).json({ draft, request_id: ctx.requestId });
       }
-      const drafts = await listHaulzCalcDrafts(pool, access.loginKey);
+      const scope = String(req.query.scope ?? "").trim();
+      const drafts =
+        scope === "saved"
+          ? await listHaulzCalcSavedDrafts(pool, access.loginKey)
+          : await listHaulzCalcDrafts(pool, access.loginKey);
       return res.status(200).json({ drafts, request_id: ctx.requestId });
     }
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { Loader2, Trash2, X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import type { HaulzCalcDraft } from "../../api/client/haulzCalculator";
 import { formatQuoteVatLine } from "../../../lib/haulzCalculator/quoteVat";
 import {
@@ -37,12 +37,10 @@ type Props = {
   draft: HaulzCalcDraft;
   managerMode?: boolean;
   statusLoading: boolean;
-  deleting: boolean;
   onClose?: () => void;
   onAgreed: () => void;
   onRejected: () => void;
   onContinue: () => void;
-  onDelete: () => void;
 };
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
@@ -59,12 +57,10 @@ export function HaulzCalcRequestDetail({
   draft: d,
   managerMode,
   statusLoading,
-  deleting,
   onClose,
   onAgreed,
   onRejected,
   onContinue,
-  onDelete,
 }: Props) {
   const f = d.formState;
   const q = d.quoteResult;
@@ -216,20 +212,8 @@ export function HaulzCalcRequestDetail({
         {!managerMode && (
           <div className="haulz-calc-requests-detail__footer-actions">
             <button type="button" className="haulz-calc-btn-primary" onClick={onContinue}>
-              Продолжить в калькуляторе
+              Открыть в калькуляторе
             </button>
-            {d.status === "draft" && (
-              <button
-                type="button"
-                className="haulz-calc-btn-secondary"
-                disabled={deleting}
-                onClick={onDelete}
-                aria-label="Удалить"
-              >
-                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                Удалить
-              </button>
-            )}
           </div>
         )}
       </footer>

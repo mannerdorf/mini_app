@@ -86,7 +86,20 @@ export async function listHaulzCalcDrafts(pool: Pool, loginKey: string): Promise
   const { rows } = await pool.query(
     `select ${DRAFT_SELECT}
      from haulz_calc_drafts
-     where login_key = $1
+     where login_key = $1 and status <> 'draft'
+     order by updated_at desc
+     limit 50`,
+    [loginKey],
+  );
+  return rows.map(mapRow);
+}
+
+/** Незавершённые расчёты, сохранённые кнопкой «Черновик» в калькуляторе. */
+export async function listHaulzCalcSavedDrafts(pool: Pool, loginKey: string): Promise<HaulzCalcDraftRow[]> {
+  const { rows } = await pool.query(
+    `select ${DRAFT_SELECT}
+     from haulz_calc_drafts
+     where login_key = $1 and status = 'draft'
      order by updated_at desc
      limit 50`,
     [loginKey],
