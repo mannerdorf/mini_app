@@ -613,8 +613,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
             />
 
             <div className="haulz-calc-card">
-              <h2 className="haulz-calc-card__title">Посылка</h2>
-              {options?.pickupNote && <p className="haulz-calc-place-note">{options.pickupNote}</p>}
+              <h2 className="haulz-calc-card__title">Груз</h2>
 
               {places.map((p, idx) => (
                 <div key={idx} className="haulz-calc-place">
@@ -701,9 +700,8 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
               </button>
 
               <p className="haulz-calc-place-note">
-                Факт {chargeableHint.w.toFixed(0)} кг · объём {chargeableHint.v.toFixed(2)} м³ · объёмный{" "}
-                {chargeableHint.volW.toFixed(0)} кг · <strong>платный {chargeableHint.ch.toFixed(0)} кг</strong> (×
-                {chargeableHint.factor})
+                Вес {chargeableHint.w.toFixed(0)} кг · объём {chargeableHint.v.toFixed(2)} м³ · объёмный вес{" "}
+                {chargeableHint.volW.toFixed(0)} кг · <strong>платный вес {chargeableHint.ch.toFixed(0)} кг</strong>
               </p>
 
               <label className="haulz-calc-field" style={{ marginTop: "1rem" }}>

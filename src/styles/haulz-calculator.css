@@ -3,6 +3,10 @@
 .haulz-calc-page--cdek {
   --haulz-summary-col-width: 360px;
   --haulz-summary-fixed-top: max(1rem, env(safe-area-inset-top, 0px));
+  /* высота липкого .app-header + небольшой зазор (десктоп) */
+  --haulz-summary-header-offset: calc(
+    var(--space-4, 16px) * 2 + 2.75rem + var(--space-1, 4px) + var(--space-2, 8px)
+  );
   --calc-bg: var(--color-bg-primary);
   --calc-card: var(--color-bg-card);
   --calc-surface-muted: var(--color-bg-secondary);
@@ -532,10 +536,32 @@
   justify-self: end;
 }
 
+@media (min-width: 769px) {
+  .haulz-calc-page--cdek {
+    --haulz-summary-fixed-top: max(var(--haulz-summary-header-offset), env(safe-area-inset-top, 0px));
+  }
+}
+
 @media (min-width: 901px) {
+  /*
+   * overflow-x:auto у .app-container / .app-main даёт overflow-y:auto и ломает position:sticky.
+   * На странице калькулятора возвращаем visible — скролл остаётся у окна, блок «Ваш расчёт» липнет.
+   */
+  .app-container:has(.haulz-calc-page--cdek),
+  .app-main:has(.haulz-calc-page--cdek),
+  .app-main:has(.haulz-calc-page--cdek) > div {
+    overflow: visible;
+  }
+
+  .haulz-calc-page--cdek,
+  .haulz-calc-page--cdek .haulz-calc-shell-bg,
+  .haulz-calc-page--cdek .haulz-calc-grid {
+    overflow: visible;
+  }
+
   .haulz-calc-summary-wrap {
     position: sticky;
-    z-index: 2;
+    z-index: 5;
     top: var(--haulz-summary-fixed-top);
     max-height: calc(100dvh - var(--haulz-summary-fixed-top) - 1rem);
     overflow-y: auto;
@@ -983,8 +1009,18 @@
   color: var(--calc-text-secondary);
 }
 
-/* Полноэкранное окно карты (как СДЭК) */
+/* Полноэкранное окно карты (как СДЭК). Портал в body — нужны переменные темы и непрозрачный фон. */
 .haulz-calc-map-screen {
+  --calc-card: var(--color-bg-card, #ffffff);
+  --calc-surface-muted: var(--color-bg-secondary, #f5f5f7);
+  --calc-border: var(--color-border, #e5e7eb);
+  --calc-text: var(--color-text-primary, #1a1a1a);
+  --calc-text-secondary: var(--color-text-secondary, #6b7280);
+  --calc-accent: var(--color-primary-blue, #0071e3);
+  --calc-input-bg: var(--color-bg-input, #ffffff);
+  --calc-segment-track: var(--color-bg-hover, #f0f2f5);
+  --calc-input-h: 48px;
+
   position: fixed;
   inset: 0;
   z-index: 10060;
@@ -993,8 +1029,9 @@
   max-height: 100dvh;
   overflow: hidden;
   overscroll-behavior: none;
+  isolation: isolate;
   background: var(--calc-card);
-  color: var(--calc-text, #1a1a1a);
+  color: var(--calc-text);
 }
 
 /* Портал в body + блокировка скролла страницы (на мобиле скролл в .app-main) */
@@ -1018,11 +1055,15 @@ body.haulz-calc-map-screen-open {
 .haulz-calc-map-screen__panel {
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
   width: min(100%, 420px);
   max-width: 100%;
   padding: 0 1.25rem 1rem;
   border-right: 1px solid var(--calc-border, #e5e7eb);
   background: var(--calc-card);
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
@@ -1057,16 +1098,10 @@ body.haulz-calc-map-screen-open {
 }
 
 .haulz-calc-map-screen__title {
-  margin: 0 0 0.25rem;
-  font-size: 1.375rem;
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-.haulz-calc-map-screen__hint {
   margin: 0 0 1rem;
-  font-size: 0.875rem;
-  color: var(--calc-text-secondary);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.25;
 }
 
 .haulz-calc-map-screen__segment {
@@ -1105,6 +1140,7 @@ body.haulz-calc-map-screen-open {
   padding: 0.65rem 0.75rem;
   border-radius: 10px;
   background: var(--calc-surface-muted);
+  min-width: 0;
 }
 
 .haulz-calc-map-screen__picked-icon {
@@ -1114,16 +1150,12 @@ body.haulz-calc-map-screen-open {
 }
 
 .haulz-calc-map-screen__picked-line {
-  margin: 0 0 0.2rem;
-  font-size: 0.9375rem;
-  font-weight: 600;
-}
-
-.haulz-calc-map-screen__picked-sub {
   margin: 0;
-  font-size: 0.8125rem;
-  color: var(--calc-text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
   line-height: 1.4;
+  color: var(--calc-text);
+  word-break: break-word;
 }
 
 .haulz-calc-map-screen__error {
@@ -1238,7 +1270,7 @@ body.haulz-calc-map-screen-open {
   cursor: default;
 }
 
-/* Посылка: места */
+/* Груз: места */
 .haulz-calc-place {
   padding: 1rem;
   margin-bottom: 0.75rem;

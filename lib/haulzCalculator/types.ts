@@ -52,6 +52,8 @@ export type ExtraServicePayload = {
   code: string;
   label: string;
   description?: string;
+  /** false — услуга скрыта в калькуляторе и не участвует в расчёте */
+  enabled?: boolean;
   default_on?: boolean;
   applies_to?: string;
   pricing_type: "fixed" | "percent_of_declared_value";
@@ -60,6 +62,10 @@ export type ExtraServicePayload = {
   min_amount_rub?: number;
   max_amount_rub?: number;
 };
+
+export function isExtraServiceEnabled(s: ExtraServicePayload): boolean {
+  return s.enabled !== false;
+}
 
 export type ExtrasBlockPayload = {
   services: ExtraServicePayload[];

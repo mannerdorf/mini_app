@@ -1,10 +1,11 @@
 import type { Pool } from "pg";
-import type {
-  CalculatorOptions,
-  Direction,
-  MainlineMode,
-  MainlineOption,
-  MainlinePayload,
+import {
+  isExtraServiceEnabled,
+  type CalculatorOptions,
+  type Direction,
+  type MainlineMode,
+  type MainlineOption,
+  type MainlinePayload,
 } from "./types.js";
 import { loadCalculatorTariffs } from "./tariffStore.js";
 
@@ -42,7 +43,7 @@ export async function loadCalculatorOptions(
     direction,
     volumetricFactor: factor,
     mainlineOptions: buildMainlineOptions(tariffs.mainline, direction, chargeableWeightKg),
-    extras: tariffs.extras?.services ?? [],
+    extras: (tariffs.extras?.services ?? []).filter(isExtraServiceEnabled),
     pickupNote: tariffs.pickup?.note,
   };
 }

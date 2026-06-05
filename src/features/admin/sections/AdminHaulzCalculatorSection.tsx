@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Flex, Typography } from "@maxhub/max-ui";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import type { ExtraServicePayload, MainlinePayload, PickupMatrixPayload, PickupTier } from "../../../../lib/haulzCalculator/types";
 import {
   fetchAdminHaulzCalculatorTariffs,
@@ -415,8 +415,31 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
               Список пуст — «Создать структуру» добавит стандартные доп. услуги CDEK.
             </Typography.Body>
           )}
-          {extrasDraft.map((ex, i) => (
-            <Flex key={ex.code} gap="0.35rem" wrap="wrap" style={{ marginBottom: "0.5rem", alignItems: "center" }}>
+          {extrasDraft.map((ex, i) => {
+            const enabled = ex.enabled !== false;
+            return (
+            <Flex
+              key={`${ex.code}-${i}`}
+              gap="0.35rem"
+              wrap="wrap"
+              style={{
+                marginBottom: "0.5rem",
+                alignItems: "center",
+                opacity: enabled ? 1 : 0.5,
+              }}
+            >
+              <label className="haulz-calc-switch" title={enabled ? "Включено" : "Выключено"} style={{ flexShrink: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={enabled}
+                  onChange={() => {
+                    const next = [...extrasDraft];
+                    next[i] = { ...next[i], enabled: !enabled };
+                    setExtrasDraft(next);
+                  }}
+                />
+                <span className="haulz-calc-switch__track" />
+              </label>
               <input value={ex.code} readOnly style={{ width: 120 }} />
               <input
                 value={ex.label}
@@ -472,8 +495,28 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
                 />{" "}
                 по умолч.
               </label>
+              <button
+                type="button"
+                onClick={() => setExtrasDraft(extrasDraft.filter((_, idx) => idx !== i))}
+                aria-label={`Удалить ${ex.label}`}
+                title="Удалить"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "0.35rem",
+                  border: "1px solid var(--color-border, #e5e7eb)",
+                  borderRadius: 8,
+                  background: "var(--color-bg-card, #fff)",
+                  color: "var(--color-error-text, #b91c1c)",
+                  cursor: "pointer",
+                }}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             </Flex>
-          ))}
+            );
+          })}
           <button
             type="button"
             className="button-primary"

@@ -297,8 +297,13 @@ export function HaulzCalcMapPicker({
 
   if (!open) return null;
 
+  const pickedDiffersFromInput =
+    draftAddr &&
+    draftAddr.fullAddress.trim() !== query.trim() &&
+    draftAddr.label.trim() !== query.trim();
+
   return createPortal(
-    <div className="haulz-calc-map-screen" role="dialog" aria-modal="true">
+    <div className="haulz-calc-page--cdek haulz-calc-map-screen" role="dialog" aria-modal="true">
       <div className="haulz-calc-map-screen__layout">
         <aside className="haulz-calc-map-screen__panel">
           <div className="haulz-calc-map-screen__panel-top">
@@ -312,7 +317,6 @@ export function HaulzCalcMapPicker({
           </div>
 
           <h2 className="haulz-calc-map-screen__title">{screenTitle}</h2>
-          <p className="haulz-calc-map-screen__hint">Укажите адрес на карте или введите вручную</p>
 
           <div className="haulz-calc-segment haulz-calc-map-screen__segment" role="tablist">
             <button
@@ -388,13 +392,12 @@ export function HaulzCalcMapPicker({
             </div>
           )}
 
-          {draftAddr && (
+          {pickedDiffersFromInput && draftAddr && (
             <div className="haulz-calc-map-screen__picked">
-              <MapPin className="w-4 h-4 haulz-calc-map-screen__picked-icon" />
-              <div>
-                <p className="haulz-calc-map-screen__picked-line">{draftAddr.label}</p>
-                <p className="haulz-calc-map-screen__picked-sub">{draftAddr.fullAddress}</p>
-              </div>
+              <MapPin className="w-4 h-4 haulz-calc-map-screen__picked-icon" aria-hidden />
+              <p className="haulz-calc-map-screen__picked-line">
+                {draftAddr.label !== draftAddr.fullAddress ? draftAddr.label : draftAddr.fullAddress}
+              </p>
             </div>
           )}
 

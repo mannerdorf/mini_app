@@ -409,22 +409,24 @@ export function HaulzCalcAddressField({
           )}
           {innError && !innLoading && <span className="haulz-calc-field-hint haulz-calc-field-hint--error">{innError}</span>}
         </label>
-        <label className="haulz-calc-field haulz-calc-contacts__company">
-          <span className="haulz-calc-label">Полное наименование</span>
-          <input
-            className="haulz-calc-input"
-            placeholder="Заполнится по ИНН или введите вручную"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-          />
-          {partnerHint && (
-            <span
-              className={`haulz-calc-field-hint haulz-calc-partner-hint haulz-calc-partner-hint--${partnerHint.kind}`}
-            >
-              {partnerHint.label}
-            </span>
-          )}
-        </label>
+        {inn.replace(/\D/g, "").length > 0 && (
+          <label className="haulz-calc-field haulz-calc-contacts__company">
+            <span className="haulz-calc-label">Полное наименование</span>
+            <input
+              className="haulz-calc-input"
+              placeholder="Заполнится по ИНН или введите вручную"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+            />
+            {partnerHint && (
+              <span
+                className={`haulz-calc-field-hint haulz-calc-partner-hint haulz-calc-partner-hint--${partnerHint.kind}`}
+              >
+                {partnerHint.label}
+              </span>
+            )}
+          </label>
+        )}
         <label className="haulz-calc-field">
           <span className="haulz-calc-label">Телефон</span>
           <input

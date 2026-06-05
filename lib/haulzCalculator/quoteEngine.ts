@@ -4,16 +4,17 @@ async function pgTableExists(pool: Pool, tableName: string): Promise<boolean> {
   const { rows } = await pool.query<{ reg: string | null }>(`select to_regclass($1) as reg`, [tableName]);
   return Boolean(rows[0]?.reg);
 }
-import type {
-  AddressSelection,
-  CityCode,
-  Direction,
-  ExtraServicePayload,
-  MainlineMode,
-  MainlinePayload,
-  QuoteLine,
-  QuoteRequest,
-  QuoteResult,
+import {
+  isExtraServiceEnabled,
+  type AddressSelection,
+  type CityCode,
+  type Direction,
+  type ExtraServicePayload,
+  type MainlineMode,
+  type MainlinePayload,
+  type QuoteLine,
+  type QuoteRequest,
+  type QuoteResult,
 } from "./types.js";
 import { summarizePlaces } from "./chargeableWeight.js";
 import { kmBeyondRing } from "./mkadDistance.js";
@@ -63,6 +64,7 @@ function calcExtras(
   const lines: QuoteLine[] = [];
   const set = new Set(selected);
   for (const s of services) {
+    if (!isExtraServiceEnabled(s)) continue;
     const on = set.has(s.code) || (s.default_on === true && selected.length === 0);
     if (!on) continue;
     let amount = 0;
@@ -187,7 +189,7 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
   if (chargeLastMile && lastMileCalc) {
     lines.push({
       key: "last_mile",
-      label: `Последняя миля (${lastMileKm.toFixed(1)} км)`,
+      label: `Последняя миля (${lastMileCity === "moscow" ? "МКАД" : "КАД"}, ${lastMileKm.toFixed(1)} км)`,
       amountRub: Math.round(lastMileCalc.total * 100) / 100,
       meta: { tierIndex: lastMileCalc.tierIndex, km: lastMileKm },
     });
