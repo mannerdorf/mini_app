@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { haulzCalculatorPreflight } from "./_preflight.js";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgTableExists } from "../_haulzReturns.js";
@@ -18,6 +19,7 @@ function parsePoint(body: Record<string, unknown>): GeoPoint | null {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (haulzCalculatorPreflight(req, res)) return;
   const ctx = initRequestContext(req, res, "haulz_calculator_distance");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");

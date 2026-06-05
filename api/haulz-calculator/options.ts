@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { haulzCalculatorPreflight } from "./_preflight.js";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgTableExists } from "../_haulzReturns.js";
@@ -7,6 +8,7 @@ import { loadCalculatorOptions } from "../../lib/haulzCalculator/calculatorOptio
 import type { Direction } from "../../lib/haulzCalculator/types.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (haulzCalculatorPreflight(req, res)) return;
   const ctx = initRequestContext(req, res, "haulz_calculator_options");
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");

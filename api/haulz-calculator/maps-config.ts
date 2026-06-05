@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { haulzCalculatorPreflight } from "./_preflight.js";
 import { initRequestContext } from "../_lib/observability.js";
 import { resolveHaulzCalculatorAccess } from "../_haulzCalculator.js";
 
@@ -9,6 +10,7 @@ const CITY_CENTER: Record<string, { lat: number; lon: number; zoom: number }> = 
 
 /** @deprecated Карта на Leaflet+OSM; ключ не требуется. Оставлено для совместимости API. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (haulzCalculatorPreflight(req, res)) return;
   const ctx = initRequestContext(req, res, "haulz_calculator_maps_config");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");

@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { haulzCalculatorPreflight } from "./_preflight.js";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgTableExists } from "../_haulzReturns.js";
@@ -30,6 +31,7 @@ function readSuggestParams(req: VercelRequest): { q: string; city?: "moscow" | "
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (haulzCalculatorPreflight(req, res)) return;
   const ctx = initRequestContext(req, res, "haulz_calculator_suggest");
   if (isRateLimited("haulz_calc_suggest", getClientIp(req), HAULZ_CALC_SUGGEST_LIMIT)) {
     return res.status(429).json({ error: "Слишком много запросов подсказок", request_id: ctx.requestId });
