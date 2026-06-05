@@ -57,6 +57,14 @@ function parseError(res: Response, data: unknown): string {
   return `HTTP ${res.status}`;
 }
 
+export type HaulzPartnerDirectoryInfo = {
+  kind: "active_partner" | "need_contract" | "new_partner";
+  label: string;
+  contractNumber?: string;
+  inCustomerDirectory: boolean;
+  customerName?: string;
+};
+
 export type HaulzPartyByInn = {
   inn: string;
   kpp?: string;
@@ -67,7 +75,12 @@ export type HaulzPartyByInn = {
   status?: string;
 };
 
-export async function fetchHaulzPartyByInn(auth: AuthData, inn: string): Promise<HaulzPartyByInn> {
+export type HaulzPartyByInnResult = {
+  party: HaulzPartyByInn;
+  partnerDirectory: HaulzPartnerDirectoryInfo;
+};
+
+export async function fetchHaulzPartyByInn(auth: AuthData, inn: string): Promise<HaulzPartyByInnResult> {
   const digits = inn.replace(/\D/g, "");
   const res = await fetch("/api/haulz-calculator/party-by-inn", {
     method: "POST",
@@ -77,8 +90,10 @@ export async function fetchHaulzPartyByInn(auth: AuthData, inn: string): Promise
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(parseError(res, data));
   const party = (data as { party?: HaulzPartyByInn }).party;
+  const partnerDirectory = (data as { partnerDirectory?: HaulzPartnerDirectoryInfo }).partnerDirectory;
   if (!party?.fullName) throw new Error("Организация не найдена");
-  return party;
+  if (!partnerDirectory?.label) throw new Error("Не удалось проверить партнёра");
+  return { party, partnerDirectory };
 }
 
 export async function fetchHaulzAddressSuggest(

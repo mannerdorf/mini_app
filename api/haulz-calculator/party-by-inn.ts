@@ -1,9 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
 import { resolveHaulzCalculatorAccess } from "../_haulzCalculator.js";
 import { pickHaulzCredentials } from "../_haulzReturns.js";
 import { getClientIp, isRateLimited, HAULZ_CALC_SUGGEST_LIMIT } from "../../lib/rateLimit.js";
 import { findPartyByInn, isValidInn, normalizeInn } from "../../lib/dadata/findPartyByInn.js";
+import { lookupPartnerDirectoryByInn } from "../../lib/haulzCalculator/partnerDirectory.js";
 
 function readInn(req: VercelRequest): string {
   let body: Record<string, unknown> = {};
@@ -53,14 +55,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const party = await findPartyByInn(inn);
-    if (!party) {
-      return res.status(404).json({
-        error: "Организация с таким ИНН не найдена",
-        request_id: ctx.requestId,
-      });
+    const pool = getPool();
+    const partnerDirectory = await lookupPartnerDirectoryByInn(pool, inn);
+
+    let party: Awaited<ReturnType<typeof findPartyByInn>> = null;
+    try {
+      party = await findPartyByInn(inn);
+    } catch {
+      party = null;
     }
-    return res.status(200).json({ party, request_id: ctx.requestId });
+
+    if (!party) {
+      if (partnerDirectory.customerName) {
+        party = {
+          inn,
+          type: "LEGAL",
+          fullName: partnerDirectory.customerName,
+          shortName: partnerDirectory.customerName,
+        };
+      } else {
+        return res.status(404).json({
+          error: "Организация с таким ИНН не найдена",
+          partnerDirectory,
+          request_id: ctx.requestId,
+        });
+      }
+    }
+
+    return res.status(200).json({ party, partnerDirectory, request_id: ctx.requestId });
   } catch (e) {
     logError(ctx, "haulz_calculator_party_by_inn_failed", e);
     const msg = (e as Error)?.message || "Ошибка запроса к DaData";

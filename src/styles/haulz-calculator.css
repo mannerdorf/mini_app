@@ -577,6 +577,26 @@
   color: #b91c1c;
 }
 
+.haulz-calc-partner-hint {
+  font-weight: 500;
+}
+
+.haulz-calc-partner-hint--active_partner {
+  color: var(--calc-alert-success-text, #047857);
+}
+
+.haulz-calc-partner-hint--need_contract {
+  color: var(--calc-alert-warn-text, #a16207);
+}
+
+.haulz-calc-partner-hint--new_partner {
+  color: #7c3aed;
+}
+
+.light-mode .haulz-calc-partner-hint--new_partner {
+  color: #6d28d9;
+}
+
 @media (max-width: 520px) {
   .haulz-calc-contacts {
     grid-template-columns: 1fr;

@@ -75,6 +75,10 @@ export function HaulzCalcAddressField({
   const [innLoading, setInnLoading] = useState(false);
   const [innError, setInnError] = useState<string | null>(null);
   const [innTouched, setInnTouched] = useState(false);
+  const [partnerHint, setPartnerHint] = useState<{
+    label: string;
+    kind: "active_partner" | "need_contract" | "new_partner";
+  } | null>(null);
   const [ringKm, setRingKm] = useState<number | null>(null);
   const [open, setOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
@@ -176,21 +180,25 @@ export function HaulzCalcAddressField({
     if (digits.length !== 10 && digits.length !== 12) {
       setInnLoading(false);
       setInnError(digits.length > 0 ? "ИНН: 10 цифр (ЮЛ) или 12 (ИП)" : null);
+      setPartnerHint(null);
       return;
     }
     let cancelled = false;
     setInnLoading(true);
     setInnError(null);
+    setPartnerHint(null);
     fetchHaulzPartyByInn(auth, digits)
-      .then((party) => {
+      .then(({ party, partnerDirectory }) => {
         if (!cancelled) {
           setInn(party.inn);
           setCompanyName(party.fullName);
+          setPartnerHint({ label: partnerDirectory.label, kind: partnerDirectory.kind });
           setInnError(null);
         }
       })
       .catch((e) => {
         if (!cancelled) {
+          setPartnerHint(null);
           setInnError((e as Error)?.message || "Не удалось найти организацию");
         }
       })
@@ -390,6 +398,7 @@ export function HaulzCalcAddressField({
               setInnTouched(true);
               setInn(e.target.value.replace(/\D/g, "").slice(0, 12));
               if (innError) setInnError(null);
+              setPartnerHint(null);
             }}
           />
           {innLoading && (
@@ -408,6 +417,13 @@ export function HaulzCalcAddressField({
             value={companyName}
             onChange={(e) => setCompanyName(e.target.value)}
           />
+          {partnerHint && (
+            <span
+              className={`haulz-calc-field-hint haulz-calc-partner-hint haulz-calc-partner-hint--${partnerHint.kind}`}
+            >
+              {partnerHint.label}
+            </span>
+          )}
         </label>
         <label className="haulz-calc-field">
           <span className="haulz-calc-label">Телефон</span>
