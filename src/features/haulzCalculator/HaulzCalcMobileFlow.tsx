@@ -81,6 +81,7 @@ export type HaulzCalcMobileFlowProps = {
   setCustomerInn: (v: string) => void;
   customerCompanyName: string;
   setCustomerCompanyName: (v: string) => void;
+  showCustomerBlock: boolean;
   fromName: string;
   setFromName: (v: string) => void;
   toName: string;
@@ -208,6 +209,7 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
     setCustomerInn,
     customerCompanyName,
     setCustomerCompanyName,
+    showCustomerBlock,
     fromName,
     setFromName,
     toName,
@@ -468,16 +470,18 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
       {error && <div className="haulz-calc-alert haulz-calc-alert--error">{error}</div>}
 
       <div className="haulz-calc-mobile-hub__scroll">
-        <section className="haulz-calc-card haulz-calc-mobile-section">
-          <HaulzCalcCustomerBlock
-            embedded
-            auth={auth}
-            inn={customerInn}
-            setInn={setCustomerInn}
-            companyName={customerCompanyName}
-            setCompanyName={setCustomerCompanyName}
-          />
-        </section>
+        {showCustomerBlock && (
+          <section className="haulz-calc-card haulz-calc-mobile-section">
+            <HaulzCalcCustomerBlock
+              embedded
+              auth={auth}
+              inn={customerInn}
+              setInn={setCustomerInn}
+              companyName={customerCompanyName}
+              setCompanyName={setCustomerCompanyName}
+            />
+          </section>
+        )}
 
         <section className="haulz-calc-card haulz-calc-mobile-section">
           <h2 className="haulz-calc-card__title">Направление</h2>
