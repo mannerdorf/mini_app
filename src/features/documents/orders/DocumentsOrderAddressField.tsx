@@ -32,6 +32,8 @@ type Props = {
   addr: AddressSelection | null;
   setAddr: (a: AddressSelection | null) => void;
   onQuickCity: (city: CityCode) => void;
+  /** После паузы в вводе — геокод для расчёта по введённому адресу */
+  geocodeOnIdle?: boolean;
 };
 
 export function DocumentsOrderAddressField({
@@ -43,6 +45,7 @@ export function DocumentsOrderAddressField({
   addr,
   setAddr,
   onQuickCity,
+  geocodeOnIdle = false,
 }: Props) {
   const effectiveCity = lockCity ?? city;
   const [suggestions, setSuggestions] = useState<DocumentsSuggestItem[]>([]);
@@ -54,6 +57,7 @@ export function DocumentsOrderAddressField({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const debouncedQuery = useDebounced(query, 300);
+  const debouncedQueryGeocode = useDebounced(query, 900);
 
   const pickCity = (picked: CityCode) => {
     onQuickCity(picked);
@@ -121,26 +125,43 @@ export function DocumentsOrderAddressField({
     setSuggestError(null);
   };
 
-  const pickSuggestion = async (s: DocumentsSuggestItem) => {
-    if (s.point) {
-      applyAddress(s.fullAddress, s.label, s.point, s.id || s.uri);
-      return;
-    }
+  const geocodeQuery = async (address: string, label?: string, uri?: string) => {
     setPickLoading(true);
     setSuggestError(null);
     try {
       const r = await fetchDocumentsGeocode(authScope, {
-        address: s.fullAddress,
-        uri: s.uri || s.id,
+        address,
+        uri,
         city: effectiveCity,
       });
-      applyAddress(r.fullAddress, s.label || r.label, r.point, s.uri || s.id);
+      applyAddress(r.fullAddress, label || r.label, r.point, uri);
     } catch (e) {
       setSuggestError((e as Error)?.message || "Не удалось определить адрес");
     } finally {
       setPickLoading(false);
     }
   };
+
+  const pickSuggestion = async (s: DocumentsSuggestItem) => {
+    if (s.point) {
+      applyAddress(s.fullAddress, s.label, s.point, s.id || s.uri);
+      return;
+    }
+    await geocodeQuery(s.fullAddress, s.label, s.uri || s.id);
+  };
+
+  const confirmTypedAddress = async () => {
+    const q = query.trim();
+    if (addr || pickLoading || q.length < 5) return;
+    await geocodeQuery(q);
+  };
+
+  useEffect(() => {
+    if (!geocodeOnIdle || addr || pickLoading) return;
+    const q = debouncedQueryGeocode.trim();
+    if (q.length < 10) return;
+    void geocodeQuery(q);
+  }, [geocodeOnIdle, debouncedQueryGeocode, addr, pickLoading]);
 
   const showPanel = open && !addr && query.trim().length >= 2;
 
@@ -180,6 +201,17 @@ export function DocumentsOrderAddressField({
           }}
           onFocus={() => {
             if (!addr && query.trim().length >= 2) setOpen(true);
+          }}
+          onBlur={() => {
+            window.setTimeout(() => {
+              void confirmTypedAddress();
+            }, 150);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void confirmTypedAddress();
+            }
           }}
         />
         {(suggestLoading || pickLoading) && (

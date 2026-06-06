@@ -44,9 +44,8 @@ export function DocumentsOrderCustomAddressContacts({
 
   const innDigits = inn.replace(/\D/g, "");
   const debouncedInn = useDebounced(innDigits, 500);
-  const innLabel = side === "from" ? "ИНН отправителя" : "ИНН получателя";
-  const showCompany = innDigits.length > 0;
-  const showPhoneAndName = innDigits.length === 10 || innDigits.length === 12;
+  const innLabel = "ИНН получателя";
+  const showAfterInn = innDigits.length > 0;
 
   useEffect(() => {
     if (!innTouched) return;
@@ -107,20 +106,17 @@ export function DocumentsOrderCustomAddressContacts({
         )}
       </label>
 
-      {showCompany && (
-        <label className="haulz-calc-field haulz-calc-contacts__company">
-          <span className="haulz-calc-label">Наименование</span>
-          <input
-            className="haulz-calc-input"
-            placeholder="Заполнится по ИНН или введите вручную"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-          />
-        </label>
-      )}
-
-      {showPhoneAndName && (
+      {showAfterInn && (
         <>
+          <label className="haulz-calc-field haulz-calc-contacts__company">
+            <span className="haulz-calc-label">Наименование</span>
+            <input
+              className="haulz-calc-input"
+              placeholder="Заполнится по ИНН или введите вручную"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+            />
+          </label>
           <label className="haulz-calc-field">
             <span className="haulz-calc-label">Телефон</span>
             <input

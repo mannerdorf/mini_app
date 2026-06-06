@@ -411,10 +411,10 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
 
   const emptyHint =
     !fromAddr?.point || !toAddr?.point
-      ? "Выберите пункты отправки и назначения — расчёт обновится автоматически"
+      ? "Укажите адреса отправки и назначения (из ПВЗ или новый адрес) — расчёт обновится автоматически"
       : chargeableHint.ch <= 0
         ? "Укажите вес или объём груза"
-        : "Заполните адреса — расчёт обновится автоматически";
+        : "Заполните параметры груза — расчёт обновится автоматически";
 
   return (
     <div className="haulz-calc-page--cdek documents-order-form">

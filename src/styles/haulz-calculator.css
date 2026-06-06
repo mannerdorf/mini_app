@@ -2576,38 +2576,73 @@ body.haulz-calc-map-screen-open {
   padding: 0.35rem;
 }
 
-/* Форма заявки в «Документы» — summary в колонке grid, без fixed по viewport */
+/* Форма заявки в «Документы» — блок «Ваш расчёт» всегда на экране (fixed) */
+.app-container:has(.documents-order-form) .app-main,
+.app-container:has(.documents-order-form) .app-header,
+.app-main:has(.documents-order-form),
+.app-main:has(.documents-order-form) > div,
+.documents-page:has(.documents-order-form),
+.documents-order-form.haulz-calc-page--cdek,
+.documents-order-form.haulz-calc-page--cdek .haulz-calc-shell-bg,
+.documents-order-form.haulz-calc-page--cdek .haulz-calc-grid {
+  overflow: visible;
+}
+
+.documents-order-form.haulz-calc-page--cdek {
+  max-width: none;
+  width: 100%;
+}
+
+.documents-order-form.haulz-calc-page--cdek .haulz-calc-shell-bg {
+  margin-left: 0;
+  margin-right: 0;
+}
+
 @media (min-width: 769px) {
   .documents-order-form.haulz-calc-page--cdek {
-    max-width: none;
-    width: 100%;
-  }
-
-  .documents-order-form.haulz-calc-page--cdek .haulz-calc-shell-bg {
-    margin-left: 0;
-    margin-right: 0;
+    --haulz-summary-fixed-top: max(
+      calc(var(--haulz-summary-header-offset) + 0.75rem),
+      env(safe-area-inset-top, 0px)
+    );
   }
 
   .documents-order-form.haulz-calc-page--cdek .haulz-calc-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(280px, var(--haulz-summary-col-width));
-    gap: 1.25rem;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .documents-order-form .haulz-calc-main {
-    margin-right: 0;
+    margin-right: calc(var(--haulz-summary-col-width) + 1rem);
     min-width: 0;
   }
 
   .documents-order-form .haulz-calc-summary-wrap {
-    position: sticky;
-    top: calc(var(--haulz-summary-header-offset, 5rem) + 0.75rem);
+    position: fixed;
+    top: var(--haulz-summary-fixed-top);
+    right: max(var(--pad-page-h, 24px), env(safe-area-inset-right, 0px));
     left: auto;
-    right: auto;
-    width: 100%;
+    width: var(--haulz-summary-col-width);
     max-width: var(--haulz-summary-col-width);
-    max-height: calc(100dvh - var(--haulz-summary-header-offset, 5rem) - 2rem);
-    z-index: 2;
-    justify-self: stretch;
+    z-index: 5;
+    max-height: calc(100dvh - var(--haulz-summary-fixed-top) - var(--haulz-summary-fixed-bottom));
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+  }
+
+  .documents-order-form .haulz-calc-summary-wrap > .haulz-calc-summary {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 768px) {
+  .documents-order-form .haulz-calc-grid {
+    padding-bottom: calc(280px + 72px + env(safe-area-inset-bottom, 0px));
   }
 }
 

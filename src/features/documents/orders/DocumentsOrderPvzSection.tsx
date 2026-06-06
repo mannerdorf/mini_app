@@ -275,6 +275,7 @@ export function DocumentsOrderPvzSection({
                 authScope={authScope}
                 city={state.city}
                 lockCity={defaultCity}
+                geocodeOnIdle
                 query={state.query}
                 setQuery={(q) => onChange({ ...state, query: q })}
                 addr={state.addr}
