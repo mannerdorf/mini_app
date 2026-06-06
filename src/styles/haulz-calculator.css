@@ -2606,21 +2606,24 @@ body.haulz-calc-map-screen-open {
     );
   }
 
+  /* В «Документах» форма уже контейнера — summary в правой колонке grid, не fixed к краю окна */
   .documents-order-form.haulz-calc-page--cdek .haulz-calc-grid {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(300px, var(--haulz-summary-col-width));
   }
 
   .documents-order-form .haulz-calc-main {
-    margin-right: calc(var(--haulz-summary-col-width) + 1rem);
+    margin-right: 0;
     min-width: 0;
   }
 
   .documents-order-form .haulz-calc-summary-wrap {
-    position: fixed;
+    position: sticky;
     top: var(--haulz-summary-fixed-top);
-    right: max(var(--pad-page-h, 24px), env(safe-area-inset-right, 0px));
+    right: auto;
     left: auto;
-    width: var(--haulz-summary-col-width);
+    align-self: start;
+    justify-self: end;
+    width: 100%;
     max-width: var(--haulz-summary-col-width);
     z-index: 5;
     max-height: calc(100dvh - var(--haulz-summary-fixed-top) - var(--haulz-summary-fixed-bottom));
