@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { AddressSelection, CityCode } from "../../../../lib/haulzCalculator/types";
 import {
@@ -32,8 +32,6 @@ type Props = {
   addr: AddressSelection | null;
   setAddr: (a: AddressSelection | null) => void;
   onQuickCity: (city: CityCode) => void;
-  /** После паузы в вводе — геокод для расчёта по введённому адресу */
-  geocodeOnIdle?: boolean;
 };
 
 export function DocumentsOrderAddressField({
@@ -45,7 +43,6 @@ export function DocumentsOrderAddressField({
   addr,
   setAddr,
   onQuickCity,
-  geocodeOnIdle = false,
 }: Props) {
   const effectiveCity = lockCity ?? city;
   const [suggestions, setSuggestions] = useState<DocumentsSuggestItem[]>([]);
@@ -55,11 +52,8 @@ export function DocumentsOrderAddressField({
   const [pickLoading, setPickLoading] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const geocodeInFlightRef = useRef(false);
-  const lastIdleGeocodeRef = useRef("");
 
   const debouncedQuery = useDebounced(query, 300);
-  const debouncedQueryGeocode = useDebounced(query, 1200);
 
   const pickCity = (picked: CityCode) => {
     onQuickCity(picked);
@@ -75,9 +69,9 @@ export function DocumentsOrderAddressField({
   }, [debouncedQuery, addr]);
 
   useEffect(() => {
-    if (addr || pickLoading || debouncedQuery.trim().length < 2) {
+    if (addr || debouncedQuery.trim().length < 2) {
       setSuggestions([]);
-      if (!pickLoading) setSuggestError(null);
+      setSuggestError(null);
       setSuggestLoading(false);
       return;
     }
@@ -103,7 +97,7 @@ export function DocumentsOrderAddressField({
     return () => {
       cancelled = true;
     };
-  }, [authScope, debouncedQuery, effectiveCity, addr, pickLoading]);
+  }, [authScope, debouncedQuery, effectiveCity, addr]);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -127,54 +121,34 @@ export function DocumentsOrderAddressField({
     setSuggestError(null);
   };
 
-  const geocodeQuery = useCallback(
-    async (address: string, label?: string, uri?: string) => {
-      const q = address.trim();
-      if (!q || geocodeInFlightRef.current) return;
-      geocodeInFlightRef.current = true;
-      setPickLoading(true);
-      setSuggestError(null);
-      try {
-        const r = await fetchDocumentsGeocode(authScope, {
-          address: q,
-          uri,
-          city: effectiveCity,
-        });
-        applyAddress(r.fullAddress, label || r.label, r.point, uri);
-      } catch (e) {
-        setSuggestError((e as Error)?.message || "Не удалось определить адрес");
-      } finally {
-        setPickLoading(false);
-        geocodeInFlightRef.current = false;
-      }
-    },
-    [authScope, effectiveCity, setAddr, setQuery],
-  );
-
   const pickSuggestion = async (s: DocumentsSuggestItem) => {
-    lastIdleGeocodeRef.current = s.fullAddress.trim();
     if (s.point) {
       applyAddress(s.fullAddress, s.label, s.point, s.id || s.uri);
       return;
     }
-    await geocodeQuery(s.fullAddress, s.label, s.uri || s.id);
+    setPickLoading(true);
+    setSuggestError(null);
+    try {
+      const r = await fetchDocumentsGeocode(authScope, {
+        address: s.fullAddress,
+        uri: s.uri || s.id,
+        city: effectiveCity,
+      });
+      const vague =
+        /городской округ|муниципальный округ/i.test(r.fullAddress) &&
+        !/ул\.? |пер\.? |пр\.? |ш\.? |д\.? /i.test(r.fullAddress);
+      applyAddress(
+        vague ? s.fullAddress : r.fullAddress,
+        s.label || r.label,
+        r.point,
+        s.uri || s.id,
+      );
+    } catch (e) {
+      setSuggestError((e as Error)?.message || "Не удалось получить координаты адреса");
+    } finally {
+      setPickLoading(false);
+    }
   };
-
-  const confirmTypedAddress = useCallback(async () => {
-    const q = query.trim();
-    if (addr || geocodeInFlightRef.current || q.length < 5) return;
-    lastIdleGeocodeRef.current = q;
-    await geocodeQuery(q);
-  }, [addr, geocodeQuery, query]);
-
-  useEffect(() => {
-    if (!geocodeOnIdle || addr || geocodeInFlightRef.current) return;
-    const q = debouncedQueryGeocode.trim();
-    if (q.length < 10) return;
-    if (lastIdleGeocodeRef.current === q) return;
-    lastIdleGeocodeRef.current = q;
-    void geocodeQuery(q);
-  }, [geocodeOnIdle, debouncedQueryGeocode, addr, geocodeQuery]);
 
   const showPanel = open && !addr && query.trim().length >= 2;
 
@@ -204,34 +178,19 @@ export function DocumentsOrderAddressField({
           ref={inputRef}
           type="search"
           className="haulz-calc-input"
-          placeholder="Введите адрес"
+          placeholder="Начните вводить адрес"
           value={query}
           autoComplete="off"
           onChange={(e) => {
-            const next = e.target.value;
-            lastIdleGeocodeRef.current = "";
-            setQuery(next);
-            if (addr && next !== (addr.fullAddress || addr.label)) {
-              setAddr(null);
-            }
+            setQuery(e.target.value);
+            setAddr(null);
             setOpen(true);
           }}
           onFocus={() => {
-            if (!addr && query.trim().length >= 2) setOpen(true);
-          }}
-          onBlur={() => {
-            window.setTimeout(() => {
-              void confirmTypedAddress();
-            }, 150);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              void confirmTypedAddress();
-            }
+            if (query.trim().length >= 2) setOpen(true);
           }}
         />
-        {(suggestLoading || pickLoading) && (
+        {suggestLoading && (
           <Loader2
             className="w-4 h-4 animate-spin"
             style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)" }}
@@ -252,12 +211,12 @@ export function DocumentsOrderAddressField({
               !suggestError &&
               suggestions.map((s, i) => (
                 <button
-                  key={s.id || s.uri || `${s.fullAddress}-${i}`}
+                  key={s.id || `${s.fullAddress}-${i}`}
                   type="button"
                   className="haulz-calc-suggest-row"
                   role="option"
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => void pickSuggestion(s)}
+                  onClick={() => pickSuggestion(s)}
                 >
                   {s.fullAddress}
                 </button>
@@ -268,6 +227,12 @@ export function DocumentsOrderAddressField({
           </div>
         )}
       </div>
+      {pickLoading && (
+        <p className="haulz-calc-hint">
+          <Loader2 className="w-3 h-3 animate-spin" style={{ display: "inline", marginRight: "0.25rem" }} />
+          Уточняем координаты…
+        </p>
+      )}
       {addr && (
         <p className="haulz-calc-hint" style={{ marginTop: "0.5rem" }}>
           {addr.fullAddress || addr.label}{" "}
