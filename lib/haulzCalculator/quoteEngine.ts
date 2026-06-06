@@ -122,17 +122,20 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
   const pickupCity: CityCode = fromCity === "kaliningrad" ? "kaliningrad" : "moscow";
   const lastMileCity: CityCode = toCity === "moscow" ? "moscow" : "kaliningrad";
 
+  const routeKmMode = req.routeKmMode === "osrm" ? "osrm" : "max";
   const ringMoscow = await kmBeyondRing(
     pool,
     "moscow",
     req.from.point,
     pickupCity === "moscow" ? req.kmOverride?.moscow : undefined,
+    routeKmMode,
   );
   const ringKaliningrad = await kmBeyondRing(
     pool,
     "kaliningrad",
     req.to.point,
     lastMileCity === "kaliningrad" ? req.kmOverride?.kaliningrad : undefined,
+    routeKmMode,
   );
 
   const chargePickup = isPickupLegCharged(req);

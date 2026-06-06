@@ -17,17 +17,25 @@ export type RoadRouteBreakdown = {
   km: number | null;
 };
 
-/** Параллельно OSRM и 2GIS Routing. */
+export type RouteKmMode = "osrm" | "max";
+
+function kmForMode(osrmKm: number | null, dgisKm: number | null, mode: RouteKmMode): number | null {
+  if (mode === "osrm") {
+    return osrmKm != null && Number.isFinite(osrmKm) && osrmKm >= 0 ? osrmKm : null;
+  }
+  return roadKmForCalc(osrmKm, dgisKm);
+}
+
+/** OSRM и при mode=max — параллельно 2GIS Routing. */
 export async function roadRouteKmBoth(
   from: GeoPoint,
   to: GeoPoint,
   pool: Pool | null = null,
+  mode: RouteKmMode = "max",
 ): Promise<RoadRouteBreakdown> {
-  const [osrmKm, dgisKm] = await Promise.all([
-    roadRouteKm(from, to, pool),
-    dgisRouteKmOrNull(from, to, pool),
-  ]);
-  return { osrmKm, dgisKm, km: roadKmForCalc(osrmKm, dgisKm) };
+  const osrmKm = await roadRouteKm(from, to, pool);
+  const dgisKm = mode === "max" ? await dgisRouteKmOrNull(from, to, pool) : null;
+  return { osrmKm, dgisKm, km: kmForMode(osrmKm, dgisKm, mode) };
 }
 
 /**

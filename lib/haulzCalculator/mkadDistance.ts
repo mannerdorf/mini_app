@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 import type { CityCode, GeoPoint, RingExitRow } from "./types.js";
-import { roadRouteKmBoth } from "./roadRouteKm.js";
+import { roadRouteKmBoth, type RouteKmMode } from "./roadRouteKm.js";
 
 export type RingDistanceBreakdown = {
   /** Значение для тарифа — max(OSRM, 2GIS). */
@@ -193,6 +193,7 @@ export async function kmBeyondRing(
   cityCode: CityCode,
   address: GeoPoint,
   kmOverride?: number,
+  routeKmMode: RouteKmMode = "max",
 ): Promise<RingDistanceBreakdown> {
   if (kmOverride != null && Number.isFinite(kmOverride) && kmOverride >= 0) {
     return { km: kmOverride, osrmKm: null, dgisKm: null };
@@ -227,7 +228,7 @@ export async function kmBeyondRing(
   await Promise.all(
     top.map(async (c) => {
       const exitPoint = { lat: c.lat, lon: c.lon };
-      const route = await roadRouteKmBoth(exitPoint, addressPoint, pool);
+      const route = await roadRouteKmBoth(exitPoint, addressPoint, pool, routeKmMode);
       if (route.km != null && Number.isFinite(route.km)) {
         c.roadKm = route.km;
         c.osrmKm = route.osrmKm;

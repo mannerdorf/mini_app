@@ -9,7 +9,7 @@ import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
 import { InvoiceDetailModal } from "../features/documents/invoices";
 import { ActDetailModal } from "../features/documents/acts";
-import { NewOrderModal } from "../features/documents/orders";
+import { DocumentsOrderForm } from "../features/documents/orders";
 import {
     SendingsInfographic,
     SendingsPreface,
@@ -61,7 +61,6 @@ import {
     postSverkiRequest,
     fetchDogovorContractLabels,
     postDownloadDocument,
-    postOrderCreate,
 } from "../api/client/documents";
 import {
     type SanctionCheckResult,
@@ -284,7 +283,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
     const [expandedTableActCustomer, setExpandedTableActCustomer] = useState<string | null>(null);
     const [expandedOrderRow, setExpandedOrderRow] = useState<string | null>(null);
-    const [newOrderModalOpen, setNewOrderModalOpen] = useState(false);
+    const [documentsOrderFormOpen, setDocumentsOrderFormOpen] = useState(false);
     const [expandedSendingRow, setExpandedSendingRow] = useState<string | null>(null);
     const [sendingsSummaryCollapsed, setSendingsSummaryCollapsed] = useState(false);
     /** Столбец EOR виден всем с правом haulz; менять значение могут только с правом eor или суперадмин */
@@ -2633,7 +2632,7 @@ useEffect(() => {
                     <div className="documents-new-order-bar documents-new-order-bar--in-sticky">
                         <Button
                             className="button-primary doc-section-action-btn"
-                            onClick={() => setNewOrderModalOpen(true)}
+                            onClick={() => setDocumentsOrderFormOpen(true)}
                             disabled={!auth?.login || !auth?.password || !effectiveActiveInn}
                             title={!effectiveActiveInn ? 'Выберите заказчика в хедере' : !auth?.login || !auth?.password ? 'Требуется авторизация' : undefined}
                         >
@@ -3228,24 +3227,19 @@ useEffect(() => {
             )}
             {docSection === 'Заявки' && (
             <>
-            <NewOrderModal
-                isOpen={newOrderModalOpen}
-                onClose={() => setNewOrderModalOpen(false)}
-                auth={{ login: auth.login, password: auth.password }}
-                activeInn={effectiveActiveInn || null}
-                onSubmit={async (data) => {
-                    await postOrderCreate({
-                        login: auth.login,
-                        password: auth.password,
-                        punktOtpravki: data.punktOtpravki,
-                        punktNaznacheniya: data.punktNaznacheniya,
-                        nomerZayavki: data.nomerZayavki,
-                        dataZabora: data.dataZabora,
-                        tableRows: data.tableRows,
-                    });
-                    void mutateOrders(undefined, { revalidate: true });
-                }}
-            />
+            {documentsOrderFormOpen && effectiveActiveInn ? (
+                <DocumentsOrderForm
+                    auth={auth}
+                    activeInn={effectiveActiveInn}
+                    activeCustomerName={runtime.activeCustomerName}
+                    onBack={() => setDocumentsOrderFormOpen(false)}
+                    onSuccess={() => {
+                        setDocumentsOrderFormOpen(false);
+                        void mutateOrders(undefined, { revalidate: true });
+                    }}
+                />
+            ) : (
+            <>
             {(ordersLoading || !!ordersError) && <DocumentsStateBlocks loading={ordersLoading} error={ordersError} emptyText="" />}
             <AnimatePresence mode="wait">
             {!ordersLoading && !ordersError && tableModeEffective && orderRowsSorted.length > 0 ? (
@@ -3617,6 +3611,8 @@ useEffect(() => {
             </AnimatePresence>
             {!ordersLoading && !ordersError && orderRowsSorted.length === 0 && (
                 <Typography.Body className="text-empty-state" style={{ padding: '2rem 0' }}>Нет заявок за выбранный период</Typography.Body>
+            )}
+            </>
             )}
             </>
             )}

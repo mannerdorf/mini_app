@@ -189,4 +189,6 @@ export type QuoteRequest = {
   toParty?: DeliveryParty;
   /** Заказчик — по его ИНН подставляется согласованный тариф */
   customerParty?: DeliveryParty;
+  /** Источник км за кольцом: osrm — только OSRM; max (по умолчанию) — max(OSRM, 2GIS) */
+  routeKmMode?: "osrm" | "max";
 };

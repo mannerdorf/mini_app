@@ -2561,3 +2561,38 @@ body.haulz-calc-map-screen-open {
   min-height: 2.25rem;
   padding: 0.35rem;
 }
+
+.documents-order-form .haulz-calc-customer-readonly {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--calc-text-primary, var(--color-text-primary));
+}
+
+.haulz-calc-hint--error {
+  color: var(--color-error, #dc2626);
+}
+
+.haulz-calc-file-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-bg-hover);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.haulz-calc-mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.haulz-calc-mini-table th,
+.haulz-calc-mini-table td {
+  padding: 0.4rem 0.35rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
