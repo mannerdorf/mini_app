@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { AuthData } from "../../../types";
 import { fetchHaulzPartyByInn } from "../../../api/client/haulzCalculator";
@@ -41,6 +41,7 @@ export function DocumentsOrderCustomAddressContacts({
   const [innLoading, setInnLoading] = useState(false);
   const [innError, setInnError] = useState<string | null>(null);
   const [innTouched, setInnTouched] = useState(false);
+  const lastFetchedInnRef = useRef("");
 
   const innDigits = inn.replace(/\D/g, "");
   const debouncedInn = useDebounced(innDigits, 500);
@@ -52,21 +53,26 @@ export function DocumentsOrderCustomAddressContacts({
     if (debouncedInn.length !== 10 && debouncedInn.length !== 12) {
       setInnLoading(false);
       setInnError(debouncedInn.length > 0 ? "ИНН: 10 цифр (ЮЛ) или 12 (ИП)" : null);
+      lastFetchedInnRef.current = "";
       return;
     }
+    if (lastFetchedInnRef.current === debouncedInn) return;
+    lastFetchedInnRef.current = debouncedInn;
+
     let cancelled = false;
     setInnLoading(true);
     setInnError(null);
     fetchHaulzPartyByInn(auth, debouncedInn)
       .then(({ party }) => {
         if (!cancelled) {
-          setInn(party.inn);
-          setCompanyName(party.fullName);
+          if (party.inn !== innDigits) setInn(party.inn);
+          if (party.fullName !== companyName) setCompanyName(party.fullName);
           setInnError(null);
         }
       })
       .catch((e) => {
         if (!cancelled) {
+          lastFetchedInnRef.current = "";
           setInnError((e as Error)?.message || "Не удалось найти организацию");
         }
       })
@@ -76,7 +82,7 @@ export function DocumentsOrderCustomAddressContacts({
     return () => {
       cancelled = true;
     };
-  }, [auth, debouncedInn, innTouched, setCompanyName, setInn]);
+  }, [auth, debouncedInn, innTouched]);
 
   return (
     <div className="haulz-calc-contacts">
@@ -91,6 +97,7 @@ export function DocumentsOrderCustomAddressContacts({
           maxLength={12}
           onChange={(e) => {
             setInnTouched(true);
+            lastFetchedInnRef.current = "";
             setInn(e.target.value.replace(/\D/g, "").slice(0, 12));
             if (innError) setInnError(null);
           }}
