@@ -10,6 +10,7 @@ import {
 } from "../emailTypography.js";
 import { HAULZ_LEGAL } from "../haulzLegal.js";
 import { getAppUrl } from "../sendRegistrationEmail.js";
+import { PVZ_CREATION_REQUIRED_NOTE } from "./orderAddressKind.js";
 import { formatQuoteVatLine } from "./quoteVat.js";
 import { HAULZ_WAREHOUSES } from "./warehouses.js";
 import type {
@@ -31,6 +32,9 @@ export type QuoteProposalEmailInput = {
   dataZabora?: string;
   fromParty?: DeliveryParty;
   toParty?: DeliveryParty;
+  /** Адрес не из справочника ПВЗ — нужно создать ПВЗ в 1С. */
+  fromRequiresPvzCreation?: boolean;
+  toRequiresPvzCreation?: boolean;
   recipientName?: string;
   /** Ссылка «Согласовать перевозку» из письма */
   agreeUrl?: string;
@@ -104,18 +108,28 @@ function partyLegLabel(mode: "courier" | "point", leg: "from" | "to"): string {
   return mode === "point" ? "Приём на склад HAULZ" : "Доставка до адреса получателя";
 }
 
-function renderPartyBlock(title: string, party: DeliveryParty | undefined, addr: AddressSelection, leg: "from" | "to"): string {
+function renderPartyBlock(
+  title: string,
+  party: DeliveryParty | undefined,
+  addr: AddressSelection,
+  leg: "from" | "to",
+  requiresPvzCreation?: boolean,
+): string {
   const mode = party?.mode ?? "courier";
-  const lines: string[] = [
-    `<strong>${escapeHtml(partyLegLabel(mode, leg))}</strong>`,
-    escapeHtml(addr.fullAddress || addr.label),
-  ];
+  const addressText = escapeHtml(addr.fullAddress || addr.label);
+  const addressLine = requiresPvzCreation
+    ? `<span style="color:#dc2626;font-weight:600;">${addressText}</span><br/><span style="color:#dc2626;font-size:12px;font-weight:600;">${escapeHtml(PVZ_CREATION_REQUIRED_NOTE)}</span>`
+    : addressText;
+  const lines: string[] = [`<strong>${escapeHtml(partyLegLabel(mode, leg))}</strong>`, addressLine];
   if (party?.companyName) lines.push(`Организация: ${escapeHtml(party.companyName)}`);
   if (party?.inn) lines.push(`ИНН: ${escapeHtml(party.inn)}`);
   if (party?.fullName) lines.push(`ФИО контактного лица: ${escapeHtml(party.fullName)}`);
   if (party?.phone) lines.push(`Тел.: ${escapeHtml(party.phone)}`);
+  const boxStyle = requiresPvzCreation
+    ? "margin-bottom:12px;padding:12px 14px;background:#fef2f2;border-radius:8px;border:1px solid #fecaca;"
+    : "margin-bottom:12px;padding:12px 14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;";
   return `
-    <div style="margin-bottom:12px;padding:12px 14px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;">
+    <div style="${boxStyle}">
       <div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:6px;">${escapeHtml(title)}</div>
       <div style="font-size:13px;color:#111827;line-height:1.5;">${lines.join("<br/>")}</div>
     </div>`;
@@ -220,7 +234,20 @@ function renderQuoteProposalFooterHtml(): string {
 }
 
 export function renderHaulzQuoteProposalHtml(input: QuoteProposalEmailInput): string {
-  const { quote, from, to, places, mainlineMode, direction, dataZabora, fromParty, toParty, agreeUrl } = input;
+  const {
+    quote,
+    from,
+    to,
+    places,
+    mainlineMode,
+    direction,
+    dataZabora,
+    fromParty,
+    toParty,
+    fromRequiresPvzCreation,
+    toRequiresPvzCreation,
+    agreeUrl,
+  } = input;
   const ch = quote.chargeable;
   const dirLabel = DIRECTION_LABELS[direction] ?? direction;
   const mainlineLabel = MAINLINE_LABELS[mainlineMode] ?? mainlineMode;
@@ -278,8 +305,8 @@ export function renderHaulzQuoteProposalHtml(input: QuoteProposalEmailInput): st
       ${renderPlacesTable(places)}
 
       ${sectionTitle("Маршрут")}
-      ${renderPartyBlock("Откуда", fromParty, from, "from")}
-      ${renderPartyBlock("Куда", toParty, to, "to")}
+      ${renderPartyBlock("Откуда", fromParty, from, "from", fromRequiresPvzCreation)}
+      ${renderPartyBlock("Куда", toParty, to, "to", toRequiresPvzCreation)}
 
       ${sectionTitle("Состав стоимости")}
       ${renderQuoteLinesTable(quote)}

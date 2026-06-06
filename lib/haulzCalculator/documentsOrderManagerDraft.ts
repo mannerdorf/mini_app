@@ -1,4 +1,5 @@
 import type { HaulzCalculatorFormState } from "./calculatorDraft.js";
+import type { OrderLegAddressKind } from "./orderAddressKind.js";
 import type {
   AddressSelection,
   DeliveryParty,
@@ -12,6 +13,8 @@ export function buildDocumentsOrderFormState(input: {
   to: AddressSelection;
   fromParty?: DeliveryParty;
   toParty?: DeliveryParty;
+  fromAddressKind?: OrderLegAddressKind;
+  toAddressKind?: OrderLegAddressKind;
   customerInn: string;
   customerName?: string;
   places: ParcelPlace[];
@@ -48,6 +51,8 @@ export function buildDocumentsOrderFormState(input: {
     directionOverride: input.direction ?? null,
     extraCodes: input.extraCodes,
     dataZabora: input.dataZabora,
+    fromAddressKind: input.fromAddressKind,
+    toAddressKind: input.toAddressKind,
   };
 }
 

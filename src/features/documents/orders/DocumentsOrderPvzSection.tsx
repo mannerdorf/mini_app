@@ -7,8 +7,10 @@ import {
   fetchDocumentsGeocode,
   type DocumentsAuthScope,
 } from "../../../api/client/documentsOrder";
+import type { AuthData } from "../../../types";
 import { DocumentsOrderAddressField } from "./DocumentsOrderAddressField";
-import { filterDocumentsOrderPvzList } from "./documentsOrderPvzFilter";
+import { DocumentsOrderCustomAddressContacts } from "./DocumentsOrderCustomAddressContacts";
+import { filterDocumentsOrderPvzList, inferPvzCityCode } from "./documentsOrderPvzFilter";
 
 export type PvzSelectionState = {
   deliveryMode: "courier" | "point";
@@ -18,11 +20,23 @@ export type PvzSelectionState = {
   addr: AddressSelection | null;
   query: string;
   city: CityCode;
+  inn: string;
+  companyName: string;
+  phone: string;
+  contactName: string;
 };
+
+export const emptyPvzContactFields = {
+  inn: "",
+  companyName: "",
+  phone: "",
+  contactName: "",
+} as const;
 
 type Props = {
   title: string;
   side: "from" | "to";
+  auth: AuthData;
   authScope: DocumentsAuthScope;
   pvzList: PvzItem[];
   pvzLoading: boolean;
@@ -40,13 +54,6 @@ function geocodeQueryForPvz(p: PvzItem): string {
   return parts.join(", ");
 }
 
-function inferCityFromPvz(p: PvzItem, fallback: CityCode): CityCode {
-  const city = (p.ГородНаименование || "").toLowerCase();
-  if (city.includes("калининград")) return "kaliningrad";
-  if (city.includes("москва")) return "moscow";
-  return fallback;
-}
-
 function warehouseAddr(city: CityCode): AddressSelection {
   const wh = warehouseForCity(city);
   return {
@@ -58,9 +65,14 @@ function warehouseAddr(city: CityCode): AddressSelection {
   };
 }
 
+function clearContacts<T extends PvzSelectionState>(state: T): T {
+  return { ...state, ...emptyPvzContactFields };
+}
+
 export function DocumentsOrderPvzSection({
   title,
   side,
+  auth,
   authScope,
   pvzList,
   pvzLoading,
@@ -130,15 +142,17 @@ export function DocumentsOrderPvzSection({
       });
       return;
     }
-    onChange({
-      ...state,
-      deliveryMode: "courier",
-      pvzRef: "",
-      pvzItem: null,
-      addr: null,
-      query: "",
-      addressKind: "pvz",
-    });
+    onChange(
+      clearContacts({
+        ...state,
+        deliveryMode: "courier",
+        pvzRef: "",
+        pvzItem: null,
+        addr: null,
+        query: "",
+        addressKind: "pvz",
+      }),
+    );
     setGeocodeError(null);
   };
 
@@ -205,7 +219,7 @@ export function DocumentsOrderPvzSection({
                       });
                       return;
                     }
-                    const city = inferCityFromPvz(item, defaultCity);
+                    const city = inferPvzCityCode(item, defaultCity) ?? defaultCity;
                     void geocodePvz(item, city);
                   }}
                 >
@@ -238,16 +252,18 @@ export function DocumentsOrderPvzSection({
                 className="haulz-calc-link-btn"
                 style={{ marginTop: "0.75rem" }}
                 onClick={() =>
-                  onChange({
-                    ...state,
-                    deliveryMode: "courier",
-                    addressKind: "custom",
-                    pvzRef: "",
-                    pvzItem: null,
-                    addr: null,
-                    query: "",
-                    city: defaultCity,
-                  })
+                  onChange(
+                    clearContacts({
+                      ...state,
+                      deliveryMode: "courier",
+                      addressKind: "custom",
+                      pvzRef: "",
+                      pvzItem: null,
+                      addr: null,
+                      query: "",
+                      city: defaultCity,
+                    }),
+                  )
                 }
               >
                 Новый адрес
@@ -258,27 +274,54 @@ export function DocumentsOrderPvzSection({
               <DocumentsOrderAddressField
                 authScope={authScope}
                 city={state.city}
+                lockCity={defaultCity}
                 query={state.query}
                 setQuery={(q) => onChange({ ...state, query: q })}
                 addr={state.addr}
-                setAddr={(a) => onChange({ ...state, addr: a })}
-                onQuickCity={(c) => onChange({ ...state, city: c, addr: null, query: "" })}
+                setAddr={(a) =>
+                  onChange(
+                    a
+                      ? { ...state, addr: a }
+                      : clearContacts({ ...state, addr: null }),
+                  )
+                }
+                onQuickCity={(c) =>
+                  onChange(clearContacts({ ...state, city: c, addr: null, query: "" }))
+                }
               />
+
+              {state.addr?.point && (
+                <DocumentsOrderCustomAddressContacts
+                  side={side}
+                  auth={auth}
+                  inn={state.inn}
+                  setInn={(inn) => onChange({ ...state, inn })}
+                  companyName={state.companyName}
+                  setCompanyName={(companyName) => onChange({ ...state, companyName })}
+                  phone={state.phone}
+                  setPhone={(phone) => onChange({ ...state, phone })}
+                  contactName={state.contactName}
+                  setContactName={(contactName) => onChange({ ...state, contactName })}
+                />
+              )}
+
               <button
                 type="button"
                 className="haulz-calc-link-btn"
                 style={{ marginTop: "0.75rem" }}
                 onClick={() =>
-                  onChange({
-                    ...state,
-                    deliveryMode: "courier",
-                    addressKind: "pvz",
-                    pvzRef: "",
-                    pvzItem: null,
-                    addr: null,
-                    query: "",
-                    city: defaultCity,
-                  })
+                  onChange(
+                    clearContacts({
+                      ...state,
+                      deliveryMode: "courier",
+                      addressKind: "pvz",
+                      pvzRef: "",
+                      pvzItem: null,
+                      addr: null,
+                      query: "",
+                      city: defaultCity,
+                    }),
+                  )
                 }
               >
                 Выбрать из ПВЗ

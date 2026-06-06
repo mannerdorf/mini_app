@@ -455,6 +455,19 @@
   font-size: 0.8125rem;
 }
 
+.haulz-calc-requests-detail__address--needs-pvz {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.haulz-calc-requests-detail__pvz-warn {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #dc2626;
+}
+
 .haulz-calc-requests-detail__places {
   margin: 0;
   padding-left: 1.1rem;

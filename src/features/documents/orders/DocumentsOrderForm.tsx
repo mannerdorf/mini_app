@@ -16,11 +16,22 @@ import {
   submitDocumentsOrder,
   type DocumentsAuthScope,
 } from "../../../api/client/documentsOrder";
+import { warehouseForCity } from "../../../../lib/haulzCalculator/warehouses";
 import {
   DocumentsOrderPvzSection,
+  emptyPvzContactFields,
   useDocumentsOrderPvzList,
   type PvzSelectionState,
 } from "./DocumentsOrderPvzSection";
+import {
+  createDefaultCargoState,
+  DocumentsOrderCargoSection,
+  type DocumentsOrderCargoState,
+} from "./DocumentsOrderCargoSection";
+import { DocumentsOrderQuoteSummary } from "./DocumentsOrderQuoteSummary";
+import { DocumentsOrderSuccessModal } from "./DocumentsOrderSuccessModal";
+import { filterDocumentsOrderPvzByCity, inferPvzCityCode } from "./documentsOrderPvzFilter";
+import "../../../styles/haulz-calculator.css";
 
 function resolveLegEndpoint(state: PvzSelectionState) {
   if (state.deliveryMode === "point") {
@@ -41,16 +52,19 @@ function resolveLegEndpoint(state: PvzSelectionState) {
 }
 
 function legParty(state: PvzSelectionState): DeliveryParty {
-  return { mode: state.deliveryMode };
+  const party: DeliveryParty = { mode: state.deliveryMode };
+  if (state.addressKind === "custom" && state.addr?.point) {
+    const inn = state.inn.replace(/\D/g, "");
+    if (inn) party.inn = inn;
+    const companyName = state.companyName.trim();
+    if (companyName) party.companyName = companyName;
+    const phone = state.phone.trim();
+    if (phone) party.phone = phone;
+    const fullName = state.contactName.trim();
+    if (fullName) party.fullName = fullName;
+  }
+  return party;
 }
-import {
-  createDefaultCargoState,
-  DocumentsOrderCargoSection,
-  type DocumentsOrderCargoState,
-} from "./DocumentsOrderCargoSection";
-import { DocumentsOrderQuoteSummary } from "./DocumentsOrderQuoteSummary";
-import { DocumentsOrderSuccessModal } from "./DocumentsOrderSuccessModal";
-import "../../../styles/haulz-calculator.css";
 
 type Props = {
   auth: AuthData;
@@ -69,11 +83,50 @@ function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
-function inferDirectionFromCities(from?: CityCode | null, to?: CityCode | null): Direction | null {
-  if (from === "kaliningrad") return "kgd_mow";
-  if (from === "moscow") return "mow_kgd";
-  if (to === "moscow" && to !== from) return "kgd_mow";
-  return null;
+function citiesForDirection(direction: Direction): { from: CityCode; to: CityCode } {
+  return direction === "kgd_mow"
+    ? { from: "kaliningrad", to: "moscow" }
+    : { from: "moscow", to: "kaliningrad" };
+}
+
+function resetLegStateForCity(prev: PvzSelectionState, city: CityCode): PvzSelectionState {
+  if (prev.deliveryMode === "point") {
+    const wh = warehouseForCity(city);
+    return {
+      deliveryMode: "point",
+      addressKind: "pvz",
+      pvzRef: "",
+      pvzItem: null,
+      city,
+      addr: {
+        label: wh.label,
+        fullAddress: wh.fullAddress,
+        point: wh.point,
+        city,
+        sourceId: wh.code,
+      },
+      query: wh.fullAddress,
+      ...emptyPvzContactFields,
+    };
+  }
+
+  const wrongPvz = prev.pvzItem != null && inferPvzCityCode(prev.pvzItem, city) !== city;
+  const wrongAddr = prev.addr?.city != null && prev.addr.city !== city;
+
+  if (prev.city !== city || wrongPvz || wrongAddr) {
+    return {
+      deliveryMode: "courier",
+      addressKind: "pvz",
+      pvzRef: "",
+      pvzItem: null,
+      addr: null,
+      query: "",
+      city,
+      ...emptyPvzContactFields,
+    };
+  }
+
+  return { ...prev, city };
 }
 
 function defaultPvzState(city: CityCode): PvzSelectionState {
@@ -85,6 +138,7 @@ function defaultPvzState(city: CityCode): PvzSelectionState {
     addr: null,
     query: "",
     city,
+    ...emptyPvzContactFields,
   };
 }
 
@@ -101,6 +155,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
 
   const { pvzList, pvzLoading } = useDocumentsOrderPvzList(authScope, true);
 
+  const [direction, setDirection] = useState<Direction>("mow_kgd");
   const [fromState, setFromState] = useState<PvzSelectionState>(() => defaultPvzState("moscow"));
   const [toState, setToState] = useState<PvzSelectionState>(() => defaultPvzState("kaliningrad"));
   const [cargo, setCargo] = useState<DocumentsOrderCargoState>(createDefaultCargoState);
@@ -121,18 +176,28 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
 
   const fromAddr = fromState.addr;
   const toAddr = toState.addr;
-  const fromParty = useMemo(() => legParty(fromState), [fromState.deliveryMode]);
-  const toParty = useMemo(() => legParty(toState), [toState.deliveryMode]);
+  const fromParty = useMemo(() => legParty(fromState), [fromState]);
+  const toParty = useMemo(() => legParty(toState), [toState]);
   const fromEndpoint = useMemo(() => resolveLegEndpoint(fromState), [fromState]);
   const toEndpoint = useMemo(() => resolveLegEndpoint(toState), [toState]);
 
-  const inferredDirection = useMemo(
-    () => inferDirectionFromCities(fromAddr?.city, toAddr?.city) ?? "mow_kgd",
-    [fromAddr?.city, toAddr?.city],
+  const { from: suggestCityFrom, to: suggestCityTo } = useMemo(() => citiesForDirection(direction), [direction]);
+
+  const fromPvzList = useMemo(
+    () => filterDocumentsOrderPvzByCity(pvzList, suggestCityFrom),
+    [pvzList, suggestCityFrom],
+  );
+  const toPvzList = useMemo(
+    () => filterDocumentsOrderPvzByCity(pvzList, suggestCityTo),
+    [pvzList, suggestCityTo],
   );
 
-  const suggestCityFrom = inferredDirection === "kgd_mow" ? "kaliningrad" : "moscow";
-  const suggestCityTo = inferredDirection === "kgd_mow" ? "moscow" : "kaliningrad";
+  const handleDirectionChange = useCallback((next: Direction) => {
+    setDirection(next);
+    const { from, to } = citiesForDirection(next);
+    setFromState((prev) => resetLegStateForCity(prev, from));
+    setToState((prev) => resetLegStateForCity(prev, to));
+  }, []);
 
   const places = cargo.attachEnabled && cargo.tableRows.length > 0
     ? cargo.tableRows.map(() => ({ weightKg: 1, volumeM3: 0.01 }))
@@ -153,7 +218,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
 
   useEffect(() => {
     let cancelled = false;
-    fetchDocumentsOrderOptions(authScope, inferredDirection, chargeableHint.ch)
+    fetchDocumentsOrderOptions(authScope, direction, chargeableHint.ch)
       .then((o) => {
         if (!cancelled) setOptions(o);
       })
@@ -163,7 +228,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     return () => {
       cancelled = true;
     };
-  }, [authScope, inferredDirection, chargeableHint.ch]);
+  }, [authScope, direction, chargeableHint.ch]);
 
   const canQuote = Boolean(fromAddr?.point && toAddr?.point && chargeableHint.ch > 0);
 
@@ -174,7 +239,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
         to: toAddr?.point,
         places,
         mainlineMode,
-        direction: inferredDirection,
+        direction,
         declaredValue: cargo.declaredValue,
         extraCodes,
         fromParty,
@@ -185,7 +250,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
       toAddr?.point,
       places,
       mainlineMode,
-      inferredDirection,
+      direction,
       cargo.declaredValue,
       extraCodes,
       fromParty,
@@ -214,7 +279,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
       to: toAddr!,
       places,
       mainlineMode,
-      direction: inferredDirection,
+      direction,
       declaredValueRub: Number(cargo.declaredValue) || 0,
       extraCodes,
       fromParty,
@@ -244,7 +309,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     toAddr,
     places,
     mainlineMode,
-    inferredDirection,
+    direction,
     cargo.declaredValue,
     extraCodes,
     fromParty,
@@ -294,7 +359,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
         to: toAddr,
         places,
         mainlineMode,
-        direction: inferredDirection,
+        direction,
         declaredValueRub: Number(cargo.declaredValue) || 0,
         extraCodes,
         fromParty,
@@ -325,7 +390,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     authScope,
     places,
     mainlineMode,
-    inferredDirection,
+    direction,
     cargo,
     punktOtpravki,
     punktNaznacheniya,
@@ -363,11 +428,36 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
 
         <div className="haulz-calc-grid">
         <div className="haulz-calc-main">
+          <div className="haulz-calc-card documents-order-direction">
+            <h2 className="haulz-calc-card__title">Маршрут</h2>
+            <div className="haulz-calc-segment" role="tablist" aria-label="Маршрут перевозки">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={direction === "mow_kgd"}
+                className={`haulz-calc-segment__btn${direction === "mow_kgd" ? " haulz-calc-segment__btn--active" : ""}`}
+                onClick={() => handleDirectionChange("mow_kgd")}
+              >
+                МСК → КГД
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={direction === "kgd_mow"}
+                className={`haulz-calc-segment__btn${direction === "kgd_mow" ? " haulz-calc-segment__btn--active" : ""}`}
+                onClick={() => handleDirectionChange("kgd_mow")}
+              >
+                КГД → МСК
+              </button>
+            </div>
+          </div>
+
           <DocumentsOrderPvzSection
             title="Отправить"
             side="from"
+            auth={auth}
             authScope={authScope}
-            pvzList={pvzList}
+            pvzList={fromPvzList}
             pvzLoading={pvzLoading}
             state={fromState}
             onChange={setFromState}
@@ -377,8 +467,9 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
           <DocumentsOrderPvzSection
             title="Вручить"
             side="to"
+            auth={auth}
             authScope={authScope}
-            pvzList={pvzList}
+            pvzList={toPvzList}
             pvzLoading={pvzLoading}
             state={toState}
             onChange={setToState}

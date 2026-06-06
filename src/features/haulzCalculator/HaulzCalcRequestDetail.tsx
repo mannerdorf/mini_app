@@ -6,6 +6,10 @@ import {
   HAULZ_CALC_DRAFT_STATUS_LABELS,
   type HaulzCalcDraftStatus,
 } from "../../../lib/haulzCalculator/draftStatus";
+import {
+  legRequiresPvzCreation,
+  PVZ_CREATION_REQUIRED_NOTE,
+} from "../../../lib/haulzCalculator/orderAddressKind";
 
 function formatWhen(iso: string): string {
   try {
@@ -50,6 +54,29 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
       <dt className="haulz-calc-requests-detail__label">{label}</dt>
       <dd className="haulz-calc-requests-detail__value">{value}</dd>
     </div>
+  );
+}
+
+function RouteAddressValue({
+  address,
+  partyMode,
+  addressKind,
+}: {
+  address: string;
+  partyMode?: "courier" | "point";
+  addressKind?: "pvz" | "custom" | "warehouse";
+}) {
+  const needsPvz = legRequiresPvzCreation(partyMode ?? "courier", addressKind);
+  return (
+    <>
+      <span className={needsPvz ? "haulz-calc-requests-detail__address--needs-pvz" : undefined}>{address}</span>
+      {partyMode && (
+        <span className="haulz-calc-requests-detail__muted"> · {partyModeLabel(partyMode)}</span>
+      )}
+      {needsPvz && (
+        <span className="haulz-calc-requests-detail__pvz-warn">{PVZ_CREATION_REQUIRED_NOTE}</span>
+      )}
+    </>
   );
 }
 
@@ -103,23 +130,21 @@ export function HaulzCalcRequestDetail({
             <DetailRow
               label="Откуда"
               value={
-                <>
-                  {f.from?.fullAddress || f.fromQuery || "—"}
-                  {f.fromMode && (
-                    <span className="haulz-calc-requests-detail__muted"> · {partyModeLabel(f.fromMode)}</span>
-                  )}
-                </>
+                <RouteAddressValue
+                  address={f.from?.fullAddress || f.fromQuery || "—"}
+                  partyMode={f.fromMode}
+                  addressKind={f.fromAddressKind}
+                />
               }
             />
             <DetailRow
               label="Куда"
               value={
-                <>
-                  {f.to?.fullAddress || f.toQuery || "—"}
-                  {f.toMode && (
-                    <span className="haulz-calc-requests-detail__muted"> · {partyModeLabel(f.toMode)}</span>
-                  )}
-                </>
+                <RouteAddressValue
+                  address={f.to?.fullAddress || f.toQuery || "—"}
+                  partyMode={f.toMode}
+                  addressKind={f.toAddressKind}
+                />
               }
             />
             {f.mainlineMode && (

@@ -8,6 +8,10 @@ import {
   buildDocumentsOrderFormState,
   documentsOrderManagerDraftTitle,
 } from "../../lib/haulzCalculator/documentsOrderManagerDraft.js";
+import {
+  legRequiresPvzCreation,
+  type OrderLegAddressKind,
+} from "../../lib/haulzCalculator/orderAddressKind.js";
 import { buildQuote } from "../../lib/haulzCalculator/quoteEngine.js";
 import {
   quoteProposalEmailSubject,
@@ -50,6 +54,11 @@ function parseAttachments(raw: unknown): AttachmentInput[] {
 function attachmentSizeBytes(base64: string): number {
   const pad = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
   return Math.floor((base64.length * 3) / 4) - pad;
+}
+
+function parseOrderLegAddressKind(raw: string): OrderLegAddressKind {
+  if (raw === "custom" || raw === "warehouse" || raw === "pvz") return raw;
+  return "pvz";
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -104,8 +113,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const fromPvzRef = String(body.fromPvzRef ?? body.from_pvz_ref ?? "").trim() || undefined;
   const toPvzRef = String(body.toPvzRef ?? body.to_pvz_ref ?? "").trim() || undefined;
-  const fromAddressType = String(body.fromAddressType ?? body.from_address_type ?? "pvz").trim();
-  const toAddressType = String(body.toAddressType ?? body.to_address_type ?? "pvz").trim();
+  const fromAddressType = parseOrderLegAddressKind(
+    String(body.fromAddressType ?? body.from_address_type ?? "pvz").trim(),
+  );
+  const toAddressType = parseOrderLegAddressKind(
+    String(body.toAddressType ?? body.to_address_type ?? "pvz").trim(),
+  );
+  const fromPartyMode = quoteReq.fromParty?.mode === "point" ? "point" : "courier";
+  const toPartyMode = quoteReq.toParty?.mode === "point" ? "point" : "courier";
+  const fromRequiresPvzCreation = legRequiresPvzCreation(fromPartyMode, fromAddressType);
+  const toRequiresPvzCreation = legRequiresPvzCreation(toPartyMode, toAddressType);
 
   const pool = getPool();
 
@@ -190,6 +207,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           to,
           fromParty: quoteReq.fromParty,
           toParty: quoteReq.toParty,
+          fromAddressKind: fromAddressType,
+          toAddressKind: toAddressType,
           customerInn: access.customerInn,
           customerName: access.customerName,
           places: quoteReq.places,
@@ -221,6 +240,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       dataZabora,
       fromParty: quoteReq.fromParty,
       toParty: quoteReq.toParty,
+      fromRequiresPvzCreation,
+      toRequiresPvzCreation,
     });
 
     const docsBanner = `

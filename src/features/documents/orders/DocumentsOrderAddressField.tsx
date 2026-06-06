@@ -25,6 +25,8 @@ const CITY_LABELS: Record<CityCode, string> = {
 type Props = {
   authScope: DocumentsAuthScope;
   city: CityCode;
+  /** При маршруте МСК↔КГД — только город отправления/назначения на этой стороне. */
+  lockCity?: CityCode;
   query: string;
   setQuery: (v: string) => void;
   addr: AddressSelection | null;
@@ -35,12 +37,14 @@ type Props = {
 export function DocumentsOrderAddressField({
   authScope,
   city,
+  lockCity,
   query,
   setQuery,
   addr,
   setAddr,
   onQuickCity,
 }: Props) {
+  const effectiveCity = lockCity ?? city;
   const [suggestions, setSuggestions] = useState<DocumentsSuggestItem[]>([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [suggestError, setSuggestError] = useState<string | null>(null);
@@ -74,7 +78,7 @@ export function DocumentsOrderAddressField({
     let cancelled = false;
     setSuggestLoading(true);
     setSuggestError(null);
-    fetchDocumentsAddressSuggest(authScope, debouncedQuery, city)
+    fetchDocumentsAddressSuggest(authScope, debouncedQuery, effectiveCity)
       .then((items) => {
         if (!cancelled) {
           setSuggestions(items);
@@ -93,7 +97,7 @@ export function DocumentsOrderAddressField({
     return () => {
       cancelled = true;
     };
-  }, [authScope, debouncedQuery, city, addr]);
+  }, [authScope, debouncedQuery, effectiveCity, addr]);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -108,7 +112,7 @@ export function DocumentsOrderAddressField({
       label,
       fullAddress,
       point,
-      city,
+      city: effectiveCity,
       sourceId,
     });
     setQuery(fullAddress);
@@ -128,7 +132,7 @@ export function DocumentsOrderAddressField({
       const r = await fetchDocumentsGeocode(authScope, {
         address: s.fullAddress,
         uri: s.uri || s.id,
-        city,
+        city: effectiveCity,
       });
       applyAddress(r.fullAddress, s.label || r.label, r.point, s.uri || s.id);
     } catch (e) {
@@ -144,18 +148,22 @@ export function DocumentsOrderAddressField({
     <label className="haulz-calc-field">
       <span className="haulz-calc-label haulz-calc-label--cities">
         Адрес{" "}
-        {(["moscow", "kaliningrad"] as const).map((c, i) => (
-          <span key={c}>
-            {i > 0 && " "}
-            <button
-              type="button"
-              className={`haulz-calc-city-link${city === c ? " haulz-calc-city-link--active" : ""}`}
-              onClick={() => pickCity(c)}
-            >
-              {CITY_LABELS[c]}
-            </button>
-          </span>
-        ))}
+        {lockCity ? (
+          <span className="haulz-calc-city-link haulz-calc-city-link--active">{CITY_LABELS[lockCity]}</span>
+        ) : (
+          (["moscow", "kaliningrad"] as const).map((c, i) => (
+            <span key={c}>
+              {i > 0 && " "}
+              <button
+                type="button"
+                className={`haulz-calc-city-link${city === c ? " haulz-calc-city-link--active" : ""}`}
+                onClick={() => pickCity(c)}
+              >
+                {CITY_LABELS[c]}
+              </button>
+            </span>
+          ))
+        )}
       </span>
       <div className="haulz-calc-address-wrap" ref={wrapRef}>
         <input

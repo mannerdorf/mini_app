@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { PvzItem } from "../../../api/client/documentsOrders";
-import { filterDocumentsOrderPvzList, isExcludedDocumentsOrderPvz } from "./documentsOrderPvzFilter";
+import {
+  filterDocumentsOrderPvzByCity,
+  filterDocumentsOrderPvzList,
+  inferPvzCityCode,
+  isExcludedDocumentsOrderPvz,
+} from "./documentsOrderPvzFilter";
 
 const item = (name: string, city = ""): PvzItem => ({
   Ссылка: "1",
@@ -28,5 +33,17 @@ describe("documentsOrderPvzFilter", () => {
     ]);
     expect(out).toHaveLength(1);
     expect(out[0].Наименование).toBe("Офис");
+  });
+
+  it("infers PVZ city", () => {
+    expect(inferPvzCityCode(item("ПВЗ", "Москва"))).toBe("moscow");
+    expect(inferPvzCityCode(item("ПВЗ", "Калининград"))).toBe("kaliningrad");
+  });
+
+  it("filters PVZ by route city", () => {
+    const list = [item("Мск офис", "Москва"), item("Кгд офис", "Калининград")];
+    expect(filterDocumentsOrderPvzByCity(list, "moscow")).toHaveLength(1);
+    expect(filterDocumentsOrderPvzByCity(list, "moscow")[0].Наименование).toBe("Мск офис");
+    expect(filterDocumentsOrderPvzByCity(list, "kaliningrad")).toHaveLength(1);
   });
 });
