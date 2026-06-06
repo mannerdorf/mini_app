@@ -1,7 +1,13 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
+import { pgTableExists } from "../_haulzReturns.js";
 import { getClientIp, isRateLimited, HAULZ_CALC_QUOTE_LIMIT } from "../../lib/rateLimit.js";
+import { upsertHaulzCalcDraft } from "../../lib/haulzCalculator/calculatorDraft.js";
+import {
+  buildDocumentsOrderFormState,
+  documentsOrderManagerDraftTitle,
+} from "../../lib/haulzCalculator/documentsOrderManagerDraft.js";
 import { buildQuote } from "../../lib/haulzCalculator/quoteEngine.js";
 import {
   quoteProposalEmailSubject,
@@ -176,6 +182,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
        VALUES ($1, $2, $3, $4, $5, $6::date, $7::jsonb)`,
       [login, inn, punktOtpravki, punktNaznacheniya, nomerZayavki, dataZabora, JSON.stringify(tableRows)],
     );
+
+    if (await pgTableExists(pool, "haulz_calc_drafts")) {
+      try {
+        const formState = buildDocumentsOrderFormState({
+          from,
+          to,
+          fromParty: quoteReq.fromParty,
+          toParty: quoteReq.toParty,
+          customerInn: access.customerInn,
+          customerName: access.customerName,
+          places: quoteReq.places,
+          mainlineMode,
+          direction: quote.direction,
+          declaredValueRub: quoteReq.declaredValueRub,
+          extraCodes: quoteReq.extraCodes ?? [],
+          dataZabora,
+        });
+        await upsertHaulzCalcDraft(pool, access.loginKey, {
+          title: documentsOrderManagerDraftTitle(from, to),
+          status: "new",
+          nomerZayavki,
+          formState,
+          quoteResult: quote,
+        });
+      } catch (draftErr) {
+        logError(ctx, "documents_order_manager_draft_failed", draftErr);
+      }
+    }
 
     let html = renderHaulzQuoteProposalHtml({
       quote,

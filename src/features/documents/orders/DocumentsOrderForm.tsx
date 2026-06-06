@@ -4,6 +4,7 @@ import type { AuthData } from "../../../types";
 import type {
   CalculatorOptions,
   CityCode,
+  DeliveryParty,
   Direction,
   MainlineMode,
   QuoteResult,
@@ -20,12 +21,35 @@ import {
   useDocumentsOrderPvzList,
   type PvzSelectionState,
 } from "./DocumentsOrderPvzSection";
+
+function resolveLegEndpoint(state: PvzSelectionState) {
+  if (state.deliveryMode === "point") {
+    return {
+      punkt: state.addr?.sourceId || state.addr?.fullAddress || "",
+      addressType: "warehouse" as const,
+      pvzRef: undefined as string | undefined,
+    };
+  }
+  if (state.addressKind === "pvz" && state.pvzRef) {
+    return { punkt: state.pvzRef, addressType: "pvz" as const, pvzRef: state.pvzRef };
+  }
+  return {
+    punkt: state.addr?.fullAddress || "",
+    addressType: "custom" as const,
+    pvzRef: undefined as string | undefined,
+  };
+}
+
+function legParty(state: PvzSelectionState): DeliveryParty {
+  return { mode: state.deliveryMode };
+}
 import {
   createDefaultCargoState,
   DocumentsOrderCargoSection,
   type DocumentsOrderCargoState,
 } from "./DocumentsOrderCargoSection";
 import { DocumentsOrderQuoteSummary } from "./DocumentsOrderQuoteSummary";
+import { DocumentsOrderSuccessModal } from "./DocumentsOrderSuccessModal";
 import "../../../styles/haulz-calculator.css";
 
 type Props = {
@@ -54,7 +78,8 @@ function inferDirectionFromCities(from?: CityCode | null, to?: CityCode | null):
 
 function defaultPvzState(city: CityCode): PvzSelectionState {
   return {
-    mode: "pvz",
+    deliveryMode: "courier",
+    addressKind: "pvz",
     pvzRef: "",
     pvzItem: null,
     addr: null,
@@ -86,7 +111,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orderLoading, setOrderLoading] = useState(false);
-  const [orderMessage, setOrderMessage] = useState<string | null>(null);
+  const [submittedNomerZayavki, setSubmittedNomerZayavki] = useState<string | null>(null);
   const [nomerZayavki, setNomerZayavki] = useState("");
   const [dataZabora, setDataZabora] = useState(() => {
     const d = new Date();
@@ -96,6 +121,10 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
 
   const fromAddr = fromState.addr;
   const toAddr = toState.addr;
+  const fromParty = useMemo(() => legParty(fromState), [fromState.deliveryMode]);
+  const toParty = useMemo(() => legParty(toState), [toState.deliveryMode]);
+  const fromEndpoint = useMemo(() => resolveLegEndpoint(fromState), [fromState]);
+  const toEndpoint = useMemo(() => resolveLegEndpoint(toState), [toState]);
 
   const inferredDirection = useMemo(
     () => inferDirectionFromCities(fromAddr?.city, toAddr?.city) ?? "mow_kgd",
@@ -148,8 +177,20 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
         direction: inferredDirection,
         declaredValue: cargo.declaredValue,
         extraCodes,
+        fromParty,
+        toParty,
       }),
-    [fromAddr?.point, toAddr?.point, places, mainlineMode, inferredDirection, cargo.declaredValue, extraCodes],
+    [
+      fromAddr?.point,
+      toAddr?.point,
+      places,
+      mainlineMode,
+      inferredDirection,
+      cargo.declaredValue,
+      extraCodes,
+      fromParty,
+      toParty,
+    ],
   );
 
   const debouncedQuoteDeps = useDebounced(quoteDepsKey, 700);
@@ -176,6 +217,8 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
       direction: inferredDirection,
       declaredValueRub: Number(cargo.declaredValue) || 0,
       extraCodes,
+      fromParty,
+      toParty,
     })
       .then((q) => {
         if (!cancelled) setQuote(q);
@@ -193,14 +236,23 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     return () => {
       cancelled = true;
     };
-  }, [canQuote, debouncedQuoteDeps, authScope, fromAddr, toAddr, places, mainlineMode, inferredDirection, cargo.declaredValue, extraCodes]);
+  }, [
+    canQuote,
+    debouncedQuoteDeps,
+    authScope,
+    fromAddr,
+    toAddr,
+    places,
+    mainlineMode,
+    inferredDirection,
+    cargo.declaredValue,
+    extraCodes,
+    fromParty,
+    toParty,
+  ]);
 
-  const punktOtpravki = fromState.mode === "pvz" && fromState.pvzRef
-    ? fromState.pvzRef
-    : fromAddr?.fullAddress || "";
-  const punktNaznacheniya = toState.mode === "pvz" && toState.pvzRef
-    ? toState.pvzRef
-    : toAddr?.fullAddress || "";
+  const punktOtpravki = fromEndpoint.punkt;
+  const punktNaznacheniya = toEndpoint.punkt;
 
   const canSubmit = Boolean(
     canQuote &&
@@ -219,7 +271,6 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
   const submitOrder = useCallback(async () => {
     if (!canSubmit || !quote || !fromAddr || !toAddr) return;
     setOrderLoading(true);
-    setOrderMessage(null);
     setError(null);
     try {
       const attachments: { name: string; mimeType?: string; base64: string }[] = [];
@@ -246,21 +297,21 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
         direction: inferredDirection,
         declaredValueRub: Number(cargo.declaredValue) || 0,
         extraCodes,
+        fromParty,
+        toParty,
         punktOtpravki,
         punktNaznacheniya,
-        fromPvzRef: fromState.mode === "pvz" ? fromState.pvzRef : undefined,
-        toPvzRef: toState.mode === "pvz" ? toState.pvzRef : undefined,
-        fromAddressType: fromState.mode,
-        toAddressType: toState.mode,
+        fromPvzRef: fromEndpoint.pvzRef,
+        toPvzRef: toEndpoint.pvzRef,
+        fromAddressType: fromEndpoint.addressType,
+        toAddressType: toEndpoint.addressType,
         nomerZayavki: nomerZayavki.trim() || undefined,
         dataZabora,
         tableRows: cargo.tableRows,
         attachments: attachments.length ? attachments : undefined,
       });
 
-      setOrderMessage(result.message);
-      setNomerZayavki(result.nomerZayavki);
-      onSuccess?.();
+      setSubmittedNomerZayavki(result.nomerZayavki);
     } catch (e) {
       setError((e as Error)?.message || "Ошибка оформления");
     } finally {
@@ -278,12 +329,18 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     cargo,
     punktOtpravki,
     punktNaznacheniya,
-    fromState,
-    toState,
+    fromEndpoint,
+    toEndpoint,
+    fromParty,
+    toParty,
     nomerZayavki,
     dataZabora,
-    onSuccess,
   ]);
+
+  const dismissSuccessModal = useCallback(() => {
+    setSubmittedNomerZayavki(null);
+    onSuccess?.();
+  }, [onSuccess]);
 
   const mainlineCards = quote?.mainlineOptions?.length ? quote.mainlineOptions : options?.mainlineOptions ?? [];
 
@@ -295,32 +352,20 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
         : "Заполните адреса — расчёт обновится автоматически";
 
   return (
-    <div className="haulz-calc-page haulz-calc-page--cdek documents-order-form">
-      <div className="haulz-calc-page__head">
-        <button type="button" className="haulz-calc-back" onClick={onBack}>
-          <ArrowLeft className="w-5 h-5" />
-          Назад к заявкам
-        </button>
-        <h1 className="haulz-calc-page__title">Новая заявка</h1>
-      </div>
+    <div className="haulz-calc-page--cdek documents-order-form">
+      <div className="haulz-calc-shell-bg">
+        <header className="haulz-calc-header">
+          <button type="button" className="haulz-calc-header__back" onClick={onBack} aria-label="Назад к заявкам">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="haulz-calc-header__title">Новая заявка</h1>
+        </header>
 
-      <div className="haulz-calc-grid">
+        <div className="haulz-calc-grid">
         <div className="haulz-calc-main">
-          <div className="haulz-calc-card">
-            <h2 className="haulz-calc-card__title">Заказчик</h2>
-            <p className="haulz-calc-customer-readonly">
-              {activeCustomerName ? (
-                <>
-                  <strong>{activeCustomerName}</strong>
-                  <br />
-                </>
-              ) : null}
-              ИНН {activeInn}
-            </p>
-          </div>
-
           <DocumentsOrderPvzSection
             title="Отправить"
+            side="from"
             authScope={authScope}
             pvzList={pvzList}
             pvzLoading={pvzLoading}
@@ -331,6 +376,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
 
           <DocumentsOrderPvzSection
             title="Вручить"
+            side="to"
             authScope={authScope}
             pvzList={pvzList}
             pvzLoading={pvzLoading}
@@ -394,7 +440,6 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
           canQuote={canQuote}
           canSubmit={canSubmit}
           orderLoading={orderLoading}
-          orderMessage={orderMessage}
           dataZabora={dataZabora}
           setDataZabora={setDataZabora}
           nomerZayavki={nomerZayavki}
@@ -402,7 +447,12 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
           emptyHint={emptyHint}
           onSubmit={() => void submitOrder()}
         />
+        </div>
       </div>
+
+      {submittedNomerZayavki && (
+        <DocumentsOrderSuccessModal nomerZayavki={submittedNomerZayavki} onClose={dismissSuccessModal} />
+      )}
     </div>
   );
 }

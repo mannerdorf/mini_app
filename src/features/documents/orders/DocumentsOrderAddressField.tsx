@@ -51,6 +51,15 @@ export function DocumentsOrderAddressField({
 
   const debouncedQuery = useDebounced(query, 300);
 
+  const pickCity = (picked: CityCode) => {
+    onQuickCity(picked);
+    setAddr(null);
+    setSuggestions([]);
+    setOpen(false);
+    setSuggestError(null);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
   useEffect(() => {
     if (!addr && debouncedQuery.trim().length >= 2) setOpen(true);
   }, [debouncedQuery, addr]);
@@ -132,43 +141,79 @@ export function DocumentsOrderAddressField({
   const showPanel = open && !addr && query.trim().length >= 2;
 
   return (
-    <div className="haulz-calc-address-field" ref={wrapRef}>
-      <div className="haulz-calc-city-row">
-        {(["moscow", "kaliningrad"] as CityCode[]).map((c) => (
-          <button
-            key={c}
-            type="button"
-            className={`haulz-calc-city-chip${city === c ? " haulz-calc-city-chip--active" : ""}`}
-            onClick={() => onQuickCity(c)}
-          >
-            {CITY_LABELS[c]}
-          </button>
+    <label className="haulz-calc-field">
+      <span className="haulz-calc-label haulz-calc-label--cities">
+        Адрес{" "}
+        {(["moscow", "kaliningrad"] as const).map((c, i) => (
+          <span key={c}>
+            {i > 0 && " "}
+            <button
+              type="button"
+              className={`haulz-calc-city-link${city === c ? " haulz-calc-city-link--active" : ""}`}
+              onClick={() => pickCity(c)}
+            >
+              {CITY_LABELS[c]}
+            </button>
+          </span>
         ))}
-      </div>
-
-      <div className="haulz-calc-address-input-wrap">
+      </span>
+      <div className="haulz-calc-address-wrap" ref={wrapRef}>
         <input
           ref={inputRef}
-          type="text"
-          className="haulz-calc-input haulz-calc-address-input"
+          type="search"
+          className="haulz-calc-input"
           placeholder="Введите адрес"
           value={query}
+          autoComplete="off"
           onChange={(e) => {
             setQuery(e.target.value);
             if (addr) setAddr(null);
+            setOpen(true);
           }}
           onFocus={() => {
             if (!addr && query.trim().length >= 2) setOpen(true);
           }}
         />
         {(suggestLoading || pickLoading) && (
-          <Loader2 className="w-4 h-4 animate-spin haulz-calc-address-input__spinner" />
+          <Loader2
+            className="w-4 h-4 animate-spin"
+            style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)" }}
+          />
+        )}
+        {showPanel && (
+          <div className="haulz-calc-suggest-panel" role="listbox">
+            {suggestLoading && (
+              <div className="haulz-calc-suggest-row haulz-calc-suggest-muted">
+                <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.35rem" }} />
+                Поиск адреса…
+              </div>
+            )}
+            {suggestError && !suggestLoading && (
+              <div className="haulz-calc-suggest-row haulz-calc-suggest-error">{suggestError}</div>
+            )}
+            {!suggestLoading &&
+              !suggestError &&
+              suggestions.map((s, i) => (
+                <button
+                  key={s.id || s.uri || `${s.fullAddress}-${i}`}
+                  type="button"
+                  className="haulz-calc-suggest-row"
+                  role="option"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => void pickSuggestion(s)}
+                >
+                  {s.fullAddress}
+                </button>
+              ))}
+            {!suggestLoading && !suggestError && suggestions.length === 0 && (
+              <div className="haulz-calc-suggest-row haulz-calc-suggest-muted">Ничего не найдено</div>
+            )}
+          </div>
         )}
       </div>
-
       {addr && (
-        <p className="haulz-calc-address-confirmed">
-          {addr.fullAddress || addr.label}
+        <p className="haulz-calc-hint" style={{ marginTop: "0.5rem" }}>
+          {addr.fullAddress || addr.label}{" "}
           <button
             type="button"
             className="haulz-calc-text-btn"
@@ -181,26 +226,6 @@ export function DocumentsOrderAddressField({
           </button>
         </p>
       )}
-
-      {suggestError && <p className="haulz-calc-hint haulz-calc-hint--error">{suggestError}</p>}
-
-      {showPanel && (
-        <ul className="haulz-calc-suggest-list" role="listbox">
-          {suggestions.length === 0 && !suggestLoading && (
-            <li className="haulz-calc-suggest-item haulz-calc-suggest-item--empty">Ничего не найдено</li>
-          )}
-          {suggestions.map((s, i) => (
-            <li key={s.uri || s.id || i}>
-              <button type="button" className="haulz-calc-suggest-item" onClick={() => void pickSuggestion(s)}>
-                <span className="haulz-calc-suggest-item__label">{s.label}</span>
-                {s.fullAddress !== s.label && (
-                  <span className="haulz-calc-suggest-item__sub">{s.fullAddress}</span>
-                )}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    </label>
   );
 }

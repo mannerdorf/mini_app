@@ -892,7 +892,8 @@
 
 /* Выше специфичность, чем у .light-mode input в styles.css; фикс autofill и type=search/tel */
 .haulz-calc-page--cdek input.haulz-calc-input,
-.haulz-calc-page--cdek textarea.haulz-calc-input {
+.haulz-calc-page--cdek textarea.haulz-calc-input,
+.haulz-calc-page--cdek select.haulz-calc-input {
   display: block;
   width: 100%;
   height: var(--calc-input-h);
@@ -2562,11 +2563,55 @@ body.haulz-calc-map-screen-open {
   padding: 0.35rem;
 }
 
+/* Форма заявки в «Документы» — summary в колонке grid, без fixed по viewport */
+@media (min-width: 769px) {
+  .documents-order-form.haulz-calc-page--cdek {
+    max-width: none;
+    width: 100%;
+  }
+
+  .documents-order-form.haulz-calc-page--cdek .haulz-calc-shell-bg {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .documents-order-form.haulz-calc-page--cdek .haulz-calc-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, var(--haulz-summary-col-width));
+    gap: 1.25rem;
+  }
+
+  .documents-order-form .haulz-calc-main {
+    margin-right: 0;
+    min-width: 0;
+  }
+
+  .documents-order-form .haulz-calc-summary-wrap {
+    position: sticky;
+    top: calc(var(--haulz-summary-header-offset, 5rem) + 0.75rem);
+    left: auto;
+    right: auto;
+    width: 100%;
+    max-width: var(--haulz-summary-col-width);
+    max-height: calc(100dvh - var(--haulz-summary-header-offset, 5rem) - 2rem);
+    z-index: 2;
+    justify-self: stretch;
+  }
+}
+
 .documents-order-form .haulz-calc-customer-readonly {
   margin: 0;
   font-size: 0.95rem;
   line-height: 1.5;
   color: var(--calc-text-primary, var(--color-text-primary));
+}
+
+.documents-order-success-modal__text {
+  line-height: 1.55;
+  font-size: 0.9rem;
+}
+
+.documents-order-success-modal .haulz-calc-map-modal__actions .haulz-calc-btn-primary {
+  width: 100%;
 }
 
 .haulz-calc-hint--error {

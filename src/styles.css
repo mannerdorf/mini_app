@@ -1400,6 +1400,13 @@ body {
     }
 }
 
+/* Новая заявка: sticky summary в правой колонке grid */
+@media (min-width: 769px) {
+    .documents-page:has(.documents-order-form) {
+        overflow: visible;
+    }
+}
+
 /* ЭДО: монитор подписания по счетам */
 .documents-page--with-edo-section .documents-table-offset-desktop,
 .documents-page--with-edo-section .documents-cards-offset-desktop {

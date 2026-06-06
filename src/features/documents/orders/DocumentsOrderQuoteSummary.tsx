@@ -11,7 +11,6 @@ type Props = {
   canQuote: boolean;
   canSubmit: boolean;
   orderLoading: boolean;
-  orderMessage: string | null;
   dataZabora: string;
   setDataZabora: (v: string) => void;
   nomerZayavki: string;
@@ -27,7 +26,6 @@ export function DocumentsOrderQuoteSummary({
   canQuote,
   canSubmit,
   orderLoading,
-  orderMessage,
   dataZabora,
   setDataZabora,
   nomerZayavki,
@@ -110,7 +108,6 @@ export function DocumentsOrderQuoteSummary({
           />
         </label>
 
-        {orderMessage && <div className="haulz-calc-alert haulz-calc-alert--success">{orderMessage}</div>}
         {error && !canQuote && <div className="haulz-calc-alert haulz-calc-alert--error">{error}</div>}
 
         <div className="haulz-calc-summary__actions" style={{ marginTop: "1rem" }}>

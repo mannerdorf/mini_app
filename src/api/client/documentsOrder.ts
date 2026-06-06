@@ -2,6 +2,7 @@ import type { AuthData } from "../../types";
 import type {
   AddressSelection,
   CalculatorOptions,
+  DeliveryParty,
   Direction,
   MainlineMode,
   ParcelPlace,
@@ -110,6 +111,8 @@ export type DocumentsOrderQuotePayload = {
   direction?: Direction;
   declaredValueRub?: number;
   extraCodes?: string[];
+  fromParty?: DeliveryParty;
+  toParty?: DeliveryParty;
 };
 
 export async function fetchDocumentsOrderQuote(
@@ -137,8 +140,8 @@ export type DocumentsOrderSubmitPayload = DocumentsOrderQuotePayload & {
   punktNaznacheniya: string;
   fromPvzRef?: string;
   toPvzRef?: string;
-  fromAddressType?: "pvz" | "custom";
-  toAddressType?: "pvz" | "custom";
+  fromAddressType?: "pvz" | "custom" | "warehouse";
+  toAddressType?: "pvz" | "custom" | "warehouse";
   nomerZayavki?: string;
   dataZabora: string;
   tableRows?: TableRow[];

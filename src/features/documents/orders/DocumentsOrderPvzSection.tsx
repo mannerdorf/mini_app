@@ -1,15 +1,18 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { AddressSelection, CityCode } from "../../../../lib/haulzCalculator/types";
+import { warehouseForCity } from "../../../../lib/haulzCalculator/warehouses";
 import { fetchPvzList, type PvzItem } from "../../../api/client/documentsOrders";
 import {
   fetchDocumentsGeocode,
   type DocumentsAuthScope,
 } from "../../../api/client/documentsOrder";
 import { DocumentsOrderAddressField } from "./DocumentsOrderAddressField";
+import { filterDocumentsOrderPvzList } from "./documentsOrderPvzFilter";
 
 export type PvzSelectionState = {
-  mode: "pvz" | "custom";
+  deliveryMode: "courier" | "point";
+  addressKind: "pvz" | "custom";
   pvzRef: string;
   pvzItem: PvzItem | null;
   addr: AddressSelection | null;
@@ -19,6 +22,7 @@ export type PvzSelectionState = {
 
 type Props = {
   title: string;
+  side: "from" | "to";
   authScope: DocumentsAuthScope;
   pvzList: PvzItem[];
   pvzLoading: boolean;
@@ -43,8 +47,20 @@ function inferCityFromPvz(p: PvzItem, fallback: CityCode): CityCode {
   return fallback;
 }
 
+function warehouseAddr(city: CityCode): AddressSelection {
+  const wh = warehouseForCity(city);
+  return {
+    label: wh.label,
+    fullAddress: wh.fullAddress,
+    point: wh.point,
+    city,
+    sourceId: wh.code,
+  };
+}
+
 export function DocumentsOrderPvzSection({
   title,
+  side,
   authScope,
   pvzList,
   pvzLoading,
@@ -54,6 +70,8 @@ export function DocumentsOrderPvzSection({
 }: Props) {
   const [geocodeLoading, setGeocodeLoading] = useState(false);
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
+  const warehouseLabel = side === "from" ? "Со Склада" : "на Складе";
+  const isWarehouseMode = state.deliveryMode === "point";
 
   const geocodePvz = useCallback(
     async (p: PvzItem, city: CityCode) => {
@@ -63,7 +81,9 @@ export function DocumentsOrderPvzSection({
         const q = geocodeQueryForPvz(p);
         const r = await fetchDocumentsGeocode(authScope, { address: q, city });
         onChange({
-          mode: "pvz",
+          ...state,
+          deliveryMode: "courier",
+          addressKind: "pvz",
           pvzRef: p.Ссылка,
           pvzItem: p,
           addr: {
@@ -79,7 +99,9 @@ export function DocumentsOrderPvzSection({
       } catch (e) {
         setGeocodeError((e as Error)?.message || "Не удалось определить координаты ПВЗ");
         onChange({
-          mode: "pvz",
+          ...state,
+          deliveryMode: "courier",
+          addressKind: "pvz",
           pvzRef: p.Ссылка,
           pvzItem: p,
           addr: null,
@@ -90,112 +112,179 @@ export function DocumentsOrderPvzSection({
         setGeocodeLoading(false);
       }
     },
-    [authScope, onChange],
+    [authScope, onChange, state],
   );
+
+  const setDeliveryMode = (deliveryMode: "courier" | "point") => {
+    if (deliveryMode === "point") {
+      const wh = warehouseForCity(defaultCity);
+      onChange({
+        ...state,
+        deliveryMode: "point",
+        addressKind: "pvz",
+        city: defaultCity,
+        pvzRef: "",
+        pvzItem: null,
+        addr: warehouseAddr(defaultCity),
+        query: wh.fullAddress,
+      });
+      return;
+    }
+    onChange({
+      ...state,
+      deliveryMode: "courier",
+      pvzRef: "",
+      pvzItem: null,
+      addr: null,
+      query: "",
+      addressKind: "pvz",
+    });
+    setGeocodeError(null);
+  };
 
   return (
     <div className="haulz-calc-card">
       <h2 className="haulz-calc-card__title">{title}</h2>
-      <p className="haulz-calc-hint" style={{ marginBottom: "0.75rem" }}>
-        Выберите адрес из ранее использованных или введите новый
-      </p>
 
-      {state.mode === "pvz" ? (
+      <div className="haulz-calc-segment" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={state.deliveryMode === "courier"}
+          className={`haulz-calc-segment__btn${state.deliveryMode === "courier" ? " haulz-calc-segment__btn--active" : ""}`}
+          onClick={() => setDeliveryMode("courier")}
+        >
+          Курьером
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={state.deliveryMode === "point"}
+          className={`haulz-calc-segment__btn${state.deliveryMode === "point" ? " haulz-calc-segment__btn--active" : ""}`}
+          onClick={() => setDeliveryMode("point")}
+        >
+          {warehouseLabel}
+        </button>
+      </div>
+
+      {isWarehouseMode ? (
+        <div className="haulz-calc-warehouse">
+          <p className="haulz-calc-warehouse__title">{warehouseForCity(defaultCity).label}</p>
+          <p className="haulz-calc-warehouse__address">{warehouseForCity(defaultCity).fullAddress}</p>
+          <p className="haulz-calc-warehouse__meta">
+            {warehouseForCity(defaultCity).hours} · {warehouseForCity(defaultCity).phone}
+          </p>
+        </div>
+      ) : (
         <>
-          <label className="haulz-calc-field">
-            <span className="haulz-calc-label">Пункт из справочника</span>
-            <select
-              className="haulz-calc-input"
-              value={state.pvzRef}
-              disabled={pvzLoading || geocodeLoading}
-              onChange={(e) => {
-                const ref = e.target.value;
-                const item = pvzList.find((p) => p.Ссылка === ref) || null;
-                if (!item) {
+          <p className="haulz-calc-hint" style={{ marginBottom: "0.75rem" }}>
+            Выберите адрес из ранее использованных или введите новый
+          </p>
+
+          {state.addressKind === "pvz" ? (
+            <>
+              <label className="haulz-calc-field">
+                <span className="haulz-calc-label">Пункт из справочника</span>
+                <select
+                  className="haulz-calc-input"
+                  value={state.pvzRef}
+                  disabled={pvzLoading || geocodeLoading}
+                  onChange={(e) => {
+                    const ref = e.target.value;
+                    const item = pvzList.find((p) => p.Ссылка === ref) || null;
+                    if (!item) {
+                      onChange({
+                        ...state,
+                        deliveryMode: "courier",
+                        addressKind: "pvz",
+                        pvzRef: "",
+                        pvzItem: null,
+                        addr: null,
+                        query: "",
+                        city: defaultCity,
+                      });
+                      return;
+                    }
+                    const city = inferCityFromPvz(item, defaultCity);
+                    void geocodePvz(item, city);
+                  }}
+                >
+                  <option value="">— Выберите ПВЗ —</option>
+                  {pvzList.map((p) => (
+                    <option key={p.Ссылка} value={p.Ссылка}>
+                      {pvzLabel(p)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {(pvzLoading || geocodeLoading) && (
+                <p className="haulz-calc-hint" style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  {pvzLoading ? "Загрузка ПВЗ…" : "Определяем адрес…"}
+                </p>
+              )}
+
+              {geocodeError && <p className="haulz-calc-hint haulz-calc-hint--error">{geocodeError}</p>}
+
+              {state.addr && (
+                <p className="haulz-calc-hint" style={{ marginTop: "0.5rem" }}>
+                  {state.addr.fullAddress}
+                </p>
+              )}
+
+              <button
+                type="button"
+                className="haulz-calc-link-btn"
+                style={{ marginTop: "0.75rem" }}
+                onClick={() =>
                   onChange({
-                    mode: "pvz",
+                    ...state,
+                    deliveryMode: "courier",
+                    addressKind: "custom",
                     pvzRef: "",
                     pvzItem: null,
                     addr: null,
                     query: "",
                     city: defaultCity,
-                  });
-                  return;
+                  })
                 }
-                const city = inferCityFromPvz(item, defaultCity);
-                void geocodePvz(item, city);
-              }}
-            >
-              <option value="">— Выберите ПВЗ —</option>
-              {pvzList.map((p) => (
-                <option key={p.Ссылка} value={p.Ссылка}>
-                  {pvzLabel(p)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {(pvzLoading || geocodeLoading) && (
-            <p className="haulz-calc-hint" style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-              <Loader2 className="w-3 h-3 animate-spin" />
-              {pvzLoading ? "Загрузка ПВЗ…" : "Определяем адрес…"}
-            </p>
+              >
+                Новый адрес
+              </button>
+            </>
+          ) : (
+            <>
+              <DocumentsOrderAddressField
+                authScope={authScope}
+                city={state.city}
+                query={state.query}
+                setQuery={(q) => onChange({ ...state, query: q })}
+                addr={state.addr}
+                setAddr={(a) => onChange({ ...state, addr: a })}
+                onQuickCity={(c) => onChange({ ...state, city: c, addr: null, query: "" })}
+              />
+              <button
+                type="button"
+                className="haulz-calc-link-btn"
+                style={{ marginTop: "0.75rem" }}
+                onClick={() =>
+                  onChange({
+                    ...state,
+                    deliveryMode: "courier",
+                    addressKind: "pvz",
+                    pvzRef: "",
+                    pvzItem: null,
+                    addr: null,
+                    query: "",
+                    city: defaultCity,
+                  })
+                }
+              >
+                Выбрать из ПВЗ
+              </button>
+            </>
           )}
-
-          {geocodeError && <p className="haulz-calc-hint haulz-calc-hint--error">{geocodeError}</p>}
-
-          {state.addr && (
-            <p className="haulz-calc-address-confirmed" style={{ marginTop: "0.5rem" }}>
-              {state.addr.fullAddress}
-            </p>
-          )}
-
-          <button
-            type="button"
-            className="haulz-calc-link-btn"
-            style={{ marginTop: "0.75rem" }}
-            onClick={() =>
-              onChange({
-                mode: "custom",
-                pvzRef: "",
-                pvzItem: null,
-                addr: null,
-                query: "",
-                city: defaultCity,
-              })
-            }
-          >
-            Новый адрес
-          </button>
-        </>
-      ) : (
-        <>
-          <DocumentsOrderAddressField
-            authScope={authScope}
-            city={state.city}
-            query={state.query}
-            setQuery={(q) => onChange({ ...state, query: q })}
-            addr={state.addr}
-            setAddr={(a) => onChange({ ...state, addr: a })}
-            onQuickCity={(c) => onChange({ ...state, city: c, addr: null, query: "" })}
-          />
-          <button
-            type="button"
-            className="haulz-calc-link-btn"
-            style={{ marginTop: "0.75rem" }}
-            onClick={() =>
-              onChange({
-                mode: "pvz",
-                pvzRef: "",
-                pvzItem: null,
-                addr: null,
-                query: "",
-                city: defaultCity,
-              })
-            }
-          >
-            Выбрать из ПВЗ
-          </button>
         </>
       )}
     </div>
@@ -210,7 +299,7 @@ export function useDocumentsOrderPvzList(authScope: DocumentsAuthScope, enabled:
     if (!enabled || !authScope.login || !authScope.password) return;
     setPvzLoading(true);
     fetchPvzList({ login: authScope.login, password: authScope.password, inn: authScope.inn })
-      .then(setPvzList)
+      .then((list) => setPvzList(filterDocumentsOrderPvzList(list)))
       .catch(() => setPvzList([]))
       .finally(() => setPvzLoading(false));
   }, [enabled, authScope.login, authScope.password, authScope.inn]);
