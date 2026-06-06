@@ -1659,6 +1659,13 @@ body.haulz-calc-map-screen-open {
   margin-bottom: 0.5rem;
 }
 
+.haulz-calc-summary__footnote {
+  font-size: 0.75rem;
+  color: var(--calc-text-secondary);
+  line-height: 1.45;
+  margin: 0.35rem 0 0.5rem;
+}
+
 .haulz-calc-summary__disclaimer {
   font-size: 0.75rem;
   color: var(--calc-text-secondary);

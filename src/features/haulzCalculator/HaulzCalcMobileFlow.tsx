@@ -23,6 +23,7 @@ import type {
 } from "../../../lib/haulzCalculator/types";
 import { formatQuoteVatLine } from "../../../lib/haulzCalculator/quoteVat";
 import { HaulzCalcAddressField } from "./HaulzCalcAddressField";
+import { HaulzCalcTariffBasisFootnote } from "./HaulzCalcTariffBasisFootnote";
 import {
   addressModeLabel,
   addressRowSubtitle,
@@ -606,6 +607,7 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
               );
             })}
             <p className="haulz-calc-summary__vat">{formatQuoteVatLine(quote.totalRub)}</p>
+            <HaulzCalcTariffBasisFootnote footnote={quote.tariffBasisFootnote} />
             <div className="haulz-calc-mobile-dock__actions">
               <button type="button" className="haulz-calc-btn-secondary" disabled={!quote} onClick={copySummary}>
                 <Copy className="w-4 h-4" />

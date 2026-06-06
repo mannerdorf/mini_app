@@ -1,3 +1,7 @@
+import type { TariffBasis } from "./tariffBasisFootnote.js";
+
+export type { TariffBasis };
+
 export type CityCode = "moscow" | "kaliningrad";
 export type Direction = "mow_kgd" | "kgd_mow";
 export type MainlineMode = "ferry" | "auto";
@@ -166,6 +170,9 @@ export type QuoteResult = {
   mainlineOptions?: MainlineOption[];
   quoteId?: number;
   hubs?: { from: HubSummary | null; to: HubSummary | null };
+  /** Согласованный тариф и договор действующего партнёра */
+  tariffBasis?: TariffBasis;
+  tariffBasisFootnote?: string;
 };
 
 export type QuoteRequest = {

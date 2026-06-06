@@ -24,7 +24,14 @@ import {
 import { kmBeyondRing } from "./mkadDistance.js";
 import { calcPickupFromMatrix } from "./pickupTariff.js";
 import { buildMainlineOptions } from "./calculatorOptions.js";
+import {
+  buildTariffBasis,
+  buildTariffBasisFootnote,
+  loadClientMainlineTariffsByMode,
+  type ClientMainlineTariffRow,
+} from "./clientMainlineTariff.js";
 import { resolveNearestHub } from "./hubResolve.js";
+import { lookupPartnerDirectoryByInn } from "./partnerDirectory.js";
 import { loadCalculatorTariffs } from "./tariffStore.js";
 
 function inferCityFromAddress(addr: AddressSelection): CityCode | null {
@@ -154,7 +161,29 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
     : null;
 
   const mainline = pickMainline(tariffs.mainline, direction, req.mainlineMode);
-  const mainlineRate = Number(mainline?.price_per_kg) || 0;
+  let mainlineRate = Number(mainline?.price_per_kg) || 0;
+  let tariffBasis: QuoteResult["tariffBasis"];
+  let tariffBasisFootnote: string | undefined;
+  let clientMainlineUsed = false;
+
+  const customerInn = String(req.fromParty?.inn || req.toParty?.inn || "")
+    .replace(/\D/g, "")
+    .trim();
+  let clientTariffsByMode: Partial<Record<MainlineMode, ClientMainlineTariffRow>> = {};
+  if (customerInn) {
+    const partner = await lookupPartnerDirectoryByInn(pool, customerInn);
+    if (partner.kind === "active_partner" && partner.contractNumber) {
+      clientTariffsByMode = await loadClientMainlineTariffsByMode(pool, customerInn, direction);
+      const clientTariff = clientTariffsByMode[req.mainlineMode];
+      if (clientTariff) {
+        mainlineRate = clientTariff.tariff;
+        clientMainlineUsed = true;
+        tariffBasis = buildTariffBasis(clientTariff, partner.contractNumber, partner.contractDate);
+        tariffBasisFootnote = buildTariffBasisFootnote(clientTariff, partner.contractNumber, partner.contractDate) ?? undefined;
+      }
+    }
+  }
+
   const mainlineAmount = mainlineRate * mainlineWeightKg;
   const deliveryDays = Number(mainline?.delivery_days) || 0;
 
@@ -202,6 +231,7 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
       mode: req.mainlineMode,
       billableWeightKg: mainlineWeightKg,
       minChargeableWeightKg: mainlineMinChargeableWeightKg,
+      clientTariff: clientMainlineUsed,
     },
   });
 
@@ -225,6 +255,12 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
     chargeable.chargeableWeightKg,
     mainlineMinChargeableWeightKg,
   );
+  for (const option of mainlineOptions) {
+    const clientTariff = clientTariffsByMode[option.mode];
+    if (!clientTariff) continue;
+    option.pricePerKg = clientTariff.tariff;
+    option.estimatedRub = Math.round(clientTariff.tariff * option.billableWeightKg * 100) / 100;
+  }
 
   return {
     direction,
@@ -236,5 +272,7 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
     warnings,
     mainlineOptions,
     hubs,
+    tariffBasis,
+    tariffBasisFootnote,
   };
 }

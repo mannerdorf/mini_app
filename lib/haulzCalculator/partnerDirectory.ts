@@ -7,6 +7,7 @@ export type HaulzPartnerDirectoryInfo = {
   kind: HaulzPartnerDirectoryKind;
   label: string;
   contractNumber?: string;
+  contractDate?: string | null;
   inCustomerDirectory: boolean;
   customerName?: string;
   hasEdo: boolean;
@@ -47,9 +48,10 @@ export async function lookupPartnerDirectoryByInn(
   }
 
   let contractNumber: string | undefined;
+  let contractDate: string | null | undefined;
   try {
-    const { rows: contractRows } = await pool.query<{ doc_number: string }>(
-      `select doc_number
+    const { rows: contractRows } = await pool.query<{ doc_number: string; doc_date: string | null }>(
+      `select doc_number, doc_date
        from cache_dogovors
        where customer_inn = $1 and nullif(trim(doc_number), '') is not null
        order by doc_date desc nulls last, id desc
@@ -57,6 +59,7 @@ export async function lookupPartnerDirectoryByInn(
       [inn],
     );
     contractNumber = String(contractRows[0]?.doc_number || "").trim() || undefined;
+    contractDate = contractRows[0]?.doc_date ? String(contractRows[0].doc_date) : null;
   } catch {
     /* cache_dogovors может отсутствовать */
   }
@@ -77,6 +80,7 @@ export async function lookupPartnerDirectoryByInn(
       kind: "active_partner",
       label: `Действующий партнёр, номер договора ${contractNumber}`,
       contractNumber,
+      contractDate,
       inCustomerDirectory: true,
       customerName,
       hasEdo,

@@ -20,6 +20,7 @@ import {
   type HaulzCalculatorFormState,
 } from "../api/client/haulzCalculator";
 import { HaulzCalcAddressField } from "../features/haulzCalculator/HaulzCalcAddressField";
+import { HaulzCalcTariffBasisFootnote } from "../features/haulzCalculator/HaulzCalcTariffBasisFootnote";
 import { HaulzCalcMobileFlow } from "../features/haulzCalculator/HaulzCalcMobileFlow";
 import type { HaulzCalcMobileRoute } from "../features/haulzCalculator/haulzCalcMobileLabels";
 import { useHaulzCalcMobile } from "../features/haulzCalculator/useHaulzCalcMobile";
@@ -476,6 +477,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
       `Итого: ${quote.totalRub} ₽`,
       formatQuoteVatLine(quote.totalRub),
       quote.deliveryDays ? `Срок: ~${quote.deliveryDays} дн.` : "",
+      quote.tariffBasisFootnote ?? "",
     ]
       .filter(Boolean)
       .join("\n");
@@ -923,6 +925,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
                   <span className="haulz-calc-summary__total-value">{quote.totalRub.toLocaleString("ru-RU")} ₽</span>
                 </div>
                 <p className="haulz-calc-summary__vat">{formatQuoteVatLine(quote.totalRub)}</p>
+                <HaulzCalcTariffBasisFootnote footnote={quote.tariffBasisFootnote} />
 
                 {quote.deliveryDays > 0 && (
                   <p className="haulz-calc-summary__days">Срок доставки: ~{quote.deliveryDays} дн.</p>
