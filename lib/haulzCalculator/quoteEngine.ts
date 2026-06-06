@@ -166,7 +166,7 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
   let tariffBasisFootnote: string | undefined;
   let clientMainlineUsed = false;
 
-  const customerInn = String(req.fromParty?.inn || req.toParty?.inn || "")
+  const customerInn = String(req.customerParty?.inn || req.fromParty?.inn || req.toParty?.inn || "")
     .replace(/\D/g, "")
     .trim();
   let clientTariffsByMode: Partial<Record<MainlineMode, ClientMainlineTariffRow>> = {};

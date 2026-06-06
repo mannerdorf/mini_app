@@ -13,6 +13,8 @@ export type HaulzCalculatorFormState = {
   toMode: "courier" | "point";
   fromPhone: string;
   toPhone: string;
+  customerInn?: string;
+  customerCompanyName?: string;
   fromInn: string;
   toInn: string;
   fromCompanyName: string;

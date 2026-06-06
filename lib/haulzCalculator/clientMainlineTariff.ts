@@ -109,6 +109,7 @@ export function buildTariffBasis(
     tariffDate: clientTariff.docDate,
     contractNumber: String(contractNumber || "").trim(),
     contractDate: contractDate ? String(contractDate) : null,
+    pricePerKg: clientTariff.tariff,
   };
 }
 

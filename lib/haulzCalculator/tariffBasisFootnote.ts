@@ -3,7 +3,17 @@ export type TariffBasis = {
   tariffDate: string | null;
   contractNumber: string;
   contractDate: string | null;
+  pricePerKg?: number;
 };
+
+function formatPricePerKg(value: number): string {
+  const rounded = Math.round(value * 100) / 100;
+  if (!Number.isFinite(rounded) || rounded <= 0) return "";
+  return rounded.toLocaleString("ru-RU", {
+    minimumFractionDigits: rounded % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+}
 
 export function formatDocDateRu(value: string | null | undefined): string | null {
   if (!value) return null;
@@ -25,5 +35,8 @@ export function formatTariffBasisFootnote(basis: TariffBasis): string | null {
   const tariffDatePart = tariffDate ? ` от ${tariffDate}` : "";
   const contractDatePart = contractDate ? ` от ${contractDate}` : "";
 
-  return `На основе согласованного тарифа №${tariffNumber}${tariffDatePart} по договору №${contractNumber}${contractDatePart}`;
+  const pricePerKg = Number(basis.pricePerKg);
+  const pricePart = Number.isFinite(pricePerKg) && pricePerKg > 0 ? ` · ${formatPricePerKg(pricePerKg)} ₽/кг` : "";
+
+  return `На основе согласованного тарифа №${tariffNumber}${tariffDatePart} по договору №${contractNumber}${contractDatePart}${pricePart}`;
 }

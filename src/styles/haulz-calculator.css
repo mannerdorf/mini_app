@@ -655,6 +655,17 @@
   color: var(--calc-text);
 }
 
+.haulz-calc-card__subtitle {
+  margin: -0.5rem 0 1rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--calc-text-secondary);
+}
+
+.haulz-calc-customer-embedded .haulz-calc-card__title {
+  margin-bottom: 0.75rem;
+}
+
 /* Сегмент Курьер / Со склада */
 .haulz-calc-segment {
   display: flex;

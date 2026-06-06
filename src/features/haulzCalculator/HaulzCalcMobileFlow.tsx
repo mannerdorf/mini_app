@@ -23,6 +23,7 @@ import type {
 } from "../../../lib/haulzCalculator/types";
 import { formatQuoteVatLine } from "../../../lib/haulzCalculator/quoteVat";
 import { HaulzCalcAddressField } from "./HaulzCalcAddressField";
+import { HaulzCalcCustomerBlock } from "./HaulzCalcCustomerBlock";
 import { HaulzCalcTariffBasisFootnote } from "./HaulzCalcTariffBasisFootnote";
 import {
   addressModeLabel,
@@ -76,14 +77,10 @@ export type HaulzCalcMobileFlowProps = {
   setFromPhone: (v: string) => void;
   toPhone: string;
   setToPhone: (v: string) => void;
-  fromInn: string;
-  setFromInn: (v: string) => void;
-  toInn: string;
-  setToInn: (v: string) => void;
-  fromCompanyName: string;
-  setFromCompanyName: (v: string) => void;
-  toCompanyName: string;
-  setToCompanyName: (v: string) => void;
+  customerInn: string;
+  setCustomerInn: (v: string) => void;
+  customerCompanyName: string;
+  setCustomerCompanyName: (v: string) => void;
   fromName: string;
   setFromName: (v: string) => void;
   toName: string;
@@ -207,14 +204,10 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
     setFromPhone,
     toPhone,
     setToPhone,
-    fromInn,
-    setFromInn,
-    toInn,
-    setToInn,
-    fromCompanyName,
-    setFromCompanyName,
-    toCompanyName,
-    setToCompanyName,
+    customerInn,
+    setCustomerInn,
+    customerCompanyName,
+    setCustomerCompanyName,
     fromName,
     setFromName,
     toName,
@@ -277,12 +270,13 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
           setMode={setFromMode}
           phone={fromPhone}
           setPhone={setFromPhone}
-          inn={fromInn}
-          setInn={setFromInn}
-          companyName={fromCompanyName}
-          setCompanyName={setFromCompanyName}
+          inn=""
+          setInn={() => {}}
+          companyName=""
+          setCompanyName={() => {}}
           contactName={fromName}
           setContactName={setFromName}
+          showIdentityFields={false}
           onQuickCity={(c) => applyQuickCity("from", c)}
         />
       </MobileSubScreen>
@@ -315,12 +309,13 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
           setMode={setToMode}
           phone={toPhone}
           setPhone={setToPhone}
-          inn={toInn}
-          setInn={setToInn}
-          companyName={toCompanyName}
-          setCompanyName={setToCompanyName}
+          inn=""
+          setInn={() => {}}
+          companyName=""
+          setCompanyName={() => {}}
           contactName={toName}
           setContactName={setToName}
+          showIdentityFields={false}
           onQuickCity={(c) => applyQuickCity("to", c)}
         />
       </MobileSubScreen>
@@ -473,6 +468,17 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
       {error && <div className="haulz-calc-alert haulz-calc-alert--error">{error}</div>}
 
       <div className="haulz-calc-mobile-hub__scroll">
+        <section className="haulz-calc-card haulz-calc-mobile-section">
+          <HaulzCalcCustomerBlock
+            embedded
+            auth={auth}
+            inn={customerInn}
+            setInn={setCustomerInn}
+            companyName={customerCompanyName}
+            setCompanyName={setCustomerCompanyName}
+          />
+        </section>
+
         <section className="haulz-calc-card haulz-calc-mobile-section">
           <h2 className="haulz-calc-card__title">Направление</h2>
           <HubRow

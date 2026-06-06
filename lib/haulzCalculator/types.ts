@@ -187,4 +187,6 @@ export type QuoteRequest = {
   saveQuote?: boolean;
   fromParty?: DeliveryParty;
   toParty?: DeliveryParty;
+  /** Заказчик — по его ИНН подставляется согласованный тариф */
+  customerParty?: DeliveryParty;
 };

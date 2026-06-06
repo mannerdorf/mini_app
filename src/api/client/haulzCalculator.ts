@@ -213,6 +213,10 @@ export async function fetchHaulzQuote(
       companyName?: string;
       fullName?: string;
     };
+    customerParty?: {
+      inn?: string;
+      companyName?: string;
+    };
   },
 ): Promise<QuoteResult> {
   const res = await fetch("/api/haulz-calculator/quote", {

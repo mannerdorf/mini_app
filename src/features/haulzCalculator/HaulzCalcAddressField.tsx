@@ -61,6 +61,8 @@ type Props = {
   embedded?: boolean;
   /** Открыть карту сразу (мобильный сценарий «как в СДЭК») */
   openMapOnMount?: boolean;
+  /** ИНН и наименование — в блоке «Заказчик» */
+  showIdentityFields?: boolean;
 };
 
 export function HaulzCalcAddressField({
@@ -85,6 +87,7 @@ export function HaulzCalcAddressField({
   onQuickCity,
   embedded = false,
   openMapOnMount = false,
+  showIdentityFields = true,
 }: Props) {
   const [suggestions, setSuggestions] = useState<HaulzSuggestItem[]>([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
@@ -194,7 +197,7 @@ export function HaulzCalcAddressField({
   }, [auth, debouncedQuery, city, addr, isWarehouseMode]);
 
   useEffect(() => {
-    if (!innTouched) return;
+    if (!showIdentityFields || !innTouched) return;
     const digits = debouncedInn;
     if (digits.length !== 10 && digits.length !== 12) {
       setInnLoading(false);
@@ -227,7 +230,7 @@ export function HaulzCalcAddressField({
     return () => {
       cancelled = true;
     };
-  }, [auth, debouncedInn, innTouched, setCompanyName, setInn]);
+  }, [auth, debouncedInn, innTouched, setCompanyName, setInn, showIdentityFields]);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -415,54 +418,60 @@ export function HaulzCalcAddressField({
       )}
 
       <div className="haulz-calc-contacts">
-        <label className="haulz-calc-field haulz-calc-contacts__inn">
-          <span className="haulz-calc-label">ИНН</span>
-          <input
-            type="text"
-            inputMode="numeric"
-            className="haulz-calc-input"
-            placeholder="10 или 12 цифр"
-            value={inn}
-            maxLength={12}
-            onChange={(e) => {
-              setInnTouched(true);
-              setInn(e.target.value.replace(/\D/g, "").slice(0, 12));
-              if (innError) setInnError(null);
-              setPartnerHint(null);
-            }}
-          />
-          {innLoading && (
-            <span className="haulz-calc-field-hint">
-              <Loader2 className="w-3 h-3 animate-spin" style={{ display: "inline", marginRight: "0.25rem" }} />
-              Загружаем наименование…
-            </span>
-          )}
-          {innError && !innLoading && <span className="haulz-calc-field-hint haulz-calc-field-hint--error">{innError}</span>}
-        </label>
-        {inn.replace(/\D/g, "").length > 0 && (
-          <label className="haulz-calc-field haulz-calc-contacts__company">
-            <span className="haulz-calc-label">Полное наименование</span>
-            <input
-              className="haulz-calc-input"
-              placeholder="Заполнится по ИНН или введите вручную"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-            />
-            {partnerHint && (
-              <div className="haulz-calc-partner-hints">
-                <span
-                  className={`haulz-calc-field-hint haulz-calc-partner-hint haulz-calc-partner-hint--${partnerHint.kind}`}
-                >
-                  {partnerHint.label}
+        {showIdentityFields && (
+          <>
+            <label className="haulz-calc-field haulz-calc-contacts__inn">
+              <span className="haulz-calc-label">ИНН</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                className="haulz-calc-input"
+                placeholder="10 или 12 цифр"
+                value={inn}
+                maxLength={12}
+                onChange={(e) => {
+                  setInnTouched(true);
+                  setInn(e.target.value.replace(/\D/g, "").slice(0, 12));
+                  if (innError) setInnError(null);
+                  setPartnerHint(null);
+                }}
+              />
+              {innLoading && (
+                <span className="haulz-calc-field-hint">
+                  <Loader2 className="w-3 h-3 animate-spin" style={{ display: "inline", marginRight: "0.25rem" }} />
+                  Загружаем наименование…
                 </span>
-                <span
-                  className={`haulz-calc-field-hint haulz-calc-partner-hint haulz-calc-partner-hint--edo-${partnerHint.hasEdo ? "yes" : "no"}`}
-                >
-                  {partnerHint.hasEdo ? "Есть ЭДО" : "Нет ЭДО"}
-                </span>
-              </div>
+              )}
+              {innError && !innLoading && (
+                <span className="haulz-calc-field-hint haulz-calc-field-hint--error">{innError}</span>
+              )}
+            </label>
+            {inn.replace(/\D/g, "").length > 0 && (
+              <label className="haulz-calc-field haulz-calc-contacts__company">
+                <span className="haulz-calc-label">Полное наименование</span>
+                <input
+                  className="haulz-calc-input"
+                  placeholder="Заполнится по ИНН или введите вручную"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                />
+                {partnerHint && (
+                  <div className="haulz-calc-partner-hints">
+                    <span
+                      className={`haulz-calc-field-hint haulz-calc-partner-hint haulz-calc-partner-hint--${partnerHint.kind}`}
+                    >
+                      {partnerHint.label}
+                    </span>
+                    <span
+                      className={`haulz-calc-field-hint haulz-calc-partner-hint haulz-calc-partner-hint--edo-${partnerHint.hasEdo ? "yes" : "no"}`}
+                    >
+                      {partnerHint.hasEdo ? "Есть ЭДО" : "Нет ЭДО"}
+                    </span>
+                  </div>
+                )}
+              </label>
             )}
-          </label>
+          </>
         )}
         <label className="haulz-calc-field">
           <span className="haulz-calc-label">Телефон</span>

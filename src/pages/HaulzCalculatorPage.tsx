@@ -20,6 +20,7 @@ import {
   type HaulzCalculatorFormState,
 } from "../api/client/haulzCalculator";
 import { HaulzCalcAddressField } from "../features/haulzCalculator/HaulzCalcAddressField";
+import { HaulzCalcCustomerBlock } from "../features/haulzCalculator/HaulzCalcCustomerBlock";
 import { HaulzCalcTariffBasisFootnote } from "../features/haulzCalculator/HaulzCalcTariffBasisFootnote";
 import { HaulzCalcMobileFlow } from "../features/haulzCalculator/HaulzCalcMobileFlow";
 import type { HaulzCalcMobileRoute } from "../features/haulzCalculator/haulzCalcMobileLabels";
@@ -67,10 +68,8 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
   const [toMode, setToMode] = useState<"courier" | "point">("courier");
   const [fromPhone, setFromPhone] = useState("");
   const [toPhone, setToPhone] = useState("");
-  const [fromInn, setFromInn] = useState("");
-  const [toInn, setToInn] = useState("");
-  const [fromCompanyName, setFromCompanyName] = useState("");
-  const [toCompanyName, setToCompanyName] = useState("");
+  const [customerInn, setCustomerInn] = useState("");
+  const [customerCompanyName, setCustomerCompanyName] = useState("");
   const [fromName, setFromName] = useState("");
   const [toName, setToName] = useState("");
   const [places, setPlaces] = useState<ParcelPlace[]>([{ weightKg: 100, volumeM3: 0.5 }]);
@@ -104,6 +103,25 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
   const [mobileRoute, setMobileRoute] = useState<HaulzCalcMobileRoute>("hub");
   const isMobileLayout = useHaulzCalcMobile();
   const prevQuoteDepsRef = useRef<string | null>(null);
+  const customerInnBootstrappedRef = useRef(false);
+
+  useEffect(() => {
+    if (customerInnBootstrappedRef.current || customerInn.replace(/\D/g, "").length > 0) return;
+    const digits = String(auth?.inn ?? "").replace(/\D/g, "");
+    if (digits.length === 10 || digits.length === 12) {
+      setCustomerInn(digits);
+      customerInnBootstrappedRef.current = true;
+    }
+  }, [auth?.inn, customerInn]);
+
+  const buildCustomerParty = useCallback(
+    () => ({
+      mode: "courier" as const,
+      inn: customerInn,
+      companyName: customerCompanyName,
+    }),
+    [customerInn, customerCompanyName],
+  );
 
   const inferredDirection = useMemo(
     () => directionOverride ?? inferDirectionFromCities(fromAddr?.city, toAddr?.city) ?? "mow_kgd",
@@ -151,10 +169,12 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
       toMode,
       fromPhone,
       toPhone,
-      fromInn,
-      toInn,
-      fromCompanyName,
-      toCompanyName,
+      customerInn,
+      customerCompanyName,
+      fromInn: "",
+      toInn: "",
+      fromCompanyName: "",
+      toCompanyName: "",
       fromName,
       toName,
       places,
@@ -174,10 +194,8 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     toMode,
     fromPhone,
     toPhone,
-    fromInn,
-    toInn,
-    fromCompanyName,
-    toCompanyName,
+    customerInn,
+    customerCompanyName,
     fromName,
     toName,
     places,
@@ -198,10 +216,9 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     setToMode(f.toMode === "point" ? "point" : "courier");
     setFromPhone(formatPhoneMask(f.fromPhone ?? ""));
     setToPhone(formatPhoneMask(f.toPhone ?? ""));
-    setFromInn(f.fromInn ?? "");
-    setToInn(f.toInn ?? "");
-    setFromCompanyName(f.fromCompanyName ?? "");
-    setToCompanyName(f.toCompanyName ?? "");
+    setCustomerInn(f.customerInn ?? f.fromInn ?? "");
+    setCustomerCompanyName(f.customerCompanyName ?? f.fromCompanyName ?? "");
+    customerInnBootstrappedRef.current = true;
     setFromName(f.fromName ?? "");
     setToName(f.toName ?? "");
     setPlaces(f.places?.length ? f.places : [{ weightKg: 100, volumeM3: 0.5 }]);
@@ -292,6 +309,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
         direction: inferredDirection,
         declaredValue,
         extraCodes,
+        customerInn,
       }),
     [
       fromAddr?.point,
@@ -303,6 +321,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
       inferredDirection,
       declaredValue,
       extraCodes,
+      customerInn,
     ],
   );
   const debouncedQuoteDeps = useDebounced(quoteDepsKey, 700);
@@ -333,18 +352,15 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
           direction: inferredDirection,
           declaredValueRub: Number(declaredValue) || 0,
           extraCodes,
+          customerParty: buildCustomerParty(),
           fromParty: {
             mode: fromMode,
-            inn: fromInn,
             phone: fromPhone,
-            companyName: fromCompanyName,
             fullName: fromName,
           },
           toParty: {
             mode: toMode,
-            inn: toInn,
             phone: toPhone,
-            companyName: toCompanyName,
             fullName: toName,
           },
         });
@@ -381,13 +397,10 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     extraCodes,
     fromMode,
     toMode,
-    fromInn,
+    buildCustomerParty,
     fromPhone,
-    fromCompanyName,
     fromName,
-    toInn,
     toPhone,
-    toCompanyName,
     toName,
   ]);
 
@@ -406,18 +419,15 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
         declaredValueRub: Number(declaredValue) || 0,
         extraCodes,
         dataZabora,
+        customerParty: buildCustomerParty(),
         fromParty: {
           mode: fromMode,
-          inn: fromInn,
           phone: fromPhone,
-          companyName: fromCompanyName,
           fullName: fromName,
         },
         toParty: {
           mode: toMode,
-          inn: toInn,
           phone: toPhone,
-          companyName: toCompanyName,
           fullName: toName,
         },
       });
@@ -452,14 +462,11 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     extraCodes,
     dataZabora,
     fromMode,
-    fromInn,
+    buildCustomerParty,
     fromPhone,
-    fromCompanyName,
     fromName,
     toMode,
-    toInn,
     toPhone,
-    toCompanyName,
     toName,
     draftId,
     buildFormState,
@@ -520,18 +527,15 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
         declaredValueRub: Number(declaredValue) || 0,
         extraCodes,
         dataZabora,
+        customerParty: buildCustomerParty(),
         fromParty: {
           mode: fromMode,
-          inn: fromInn,
           phone: fromPhone,
-          companyName: fromCompanyName,
           fullName: fromName,
         },
         toParty: {
           mode: toMode,
-          inn: toInn,
           phone: toPhone,
-          companyName: toCompanyName,
           fullName: toName,
         },
       });
@@ -556,14 +560,11 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     extraCodes,
     dataZabora,
     fromMode,
-    fromInn,
+    buildCustomerParty,
     fromPhone,
-    fromCompanyName,
     fromName,
     toMode,
-    toInn,
     toPhone,
-    toCompanyName,
     toName,
     buildFormState,
     draftId,
@@ -606,14 +607,10 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     setFromPhone,
     toPhone,
     setToPhone,
-    fromInn,
-    setFromInn,
-    toInn,
-    setToInn,
-    fromCompanyName,
-    setFromCompanyName,
-    toCompanyName,
-    setToCompanyName,
+    customerInn,
+    setCustomerInn,
+    customerCompanyName,
+    setCustomerCompanyName,
     fromName,
     setFromName,
     toName,
@@ -682,6 +679,14 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
 
         <div className="haulz-calc-grid">
           <div className="haulz-calc-main">
+            <HaulzCalcCustomerBlock
+              auth={auth}
+              inn={customerInn}
+              setInn={setCustomerInn}
+              companyName={customerCompanyName}
+              setCompanyName={setCustomerCompanyName}
+            />
+
             <HaulzCalcAddressField
               title="Отправить"
               side="from"
@@ -695,12 +700,13 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
               setMode={setFromMode}
               phone={fromPhone}
               setPhone={setFromPhone}
-              inn={fromInn}
-              setInn={setFromInn}
-              companyName={fromCompanyName}
-              setCompanyName={setFromCompanyName}
+              inn=""
+              setInn={() => {}}
+              companyName=""
+              setCompanyName={() => {}}
               contactName={fromName}
               setContactName={setFromName}
+              showIdentityFields={false}
               onQuickCity={(c) => applyQuickCity("from", c)}
             />
 
@@ -717,12 +723,13 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
               setMode={setToMode}
               phone={toPhone}
               setPhone={setToPhone}
-              inn={toInn}
-              setInn={setToInn}
-              companyName={toCompanyName}
-              setCompanyName={setToCompanyName}
+              inn=""
+              setInn={() => {}}
+              companyName=""
+              setCompanyName={() => {}}
               contactName={toName}
               setContactName={setToName}
+              showIdentityFields={false}
               onQuickCity={(c) => applyQuickCity("to", c)}
             />
 

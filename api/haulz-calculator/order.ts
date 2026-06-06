@@ -130,6 +130,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         : undefined,
     fromParty: parseParty(body.fromParty ?? body.from_party),
     toParty: parseParty(body.toParty ?? body.to_party),
+    customerParty: parseParty(body.customerParty ?? body.customer_party),
   };
 
   try {
@@ -161,6 +162,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
       {
         type: "contacts",
+        customer: quoteReq.customerParty,
         from: quoteReq.fromParty,
         to: quoteReq.toParty,
         hubs: quote.hubs,

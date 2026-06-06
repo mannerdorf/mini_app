@@ -40,6 +40,7 @@ import {
   readStoredHaulzCalcDraftId,
   readStoredProfileView,
 } from "../lib/profileViewPersist";
+import { useAppShell } from "../contexts/AppShellContext";
 
 export function ProfilePage({
     accounts,
@@ -79,6 +80,7 @@ export function ProfilePage({
     /** Активна оболочка «мягкая панель» (суперадмин или право haulz). */
     profileSaasShellActive?: boolean;
 }) {
+    const { profileRootRequest } = useAppShell();
     const [currentView, setCurrentView] = useState<ProfileView>(() => readStoredProfileView());
     const [haulzCalcRestoreDraftId, setHaulzCalcRestoreDraftId] = useState<number | null>(() =>
       readStoredHaulzCalcDraftId(),
@@ -107,6 +109,12 @@ export function ProfilePage({
     useEffect(() => {
         persistProfileNavigation(currentView, haulzCalcBackView, haulzCalcRestoreDraftId);
     }, [currentView, haulzCalcBackView, haulzCalcRestoreDraftId]);
+
+    useEffect(() => {
+        if (profileRootRequest === 0) return;
+        setHaulzCalcRestoreDraftId(null);
+        setCurrentView("main");
+    }, [profileRootRequest]);
     const [employeesList, setEmployeesList] = useState<{ id: number; login: string; active: boolean; createdAt: string; presetLabel: string; fullName?: string; department?: string; employeeRole?: "employee" | "department_head" }[]>([]);
     const [employeesLoading, setEmployeesLoading] = useState(false);
     const [employeesError, setEmployeesError] = useState<string | null>(null);

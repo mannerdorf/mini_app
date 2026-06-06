@@ -1,5 +1,6 @@
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -24,6 +25,9 @@ export type AppShellContextValue = {
   setDesktopExpanded: React.Dispatch<React.SetStateAction<boolean>>;
   activeTab: Tab;
   setActiveTab: React.Dispatch<React.SetStateAction<Tab>>;
+  /** Увеличивается при повторном нажатии вкладки «Профиль» — сброс вложенных экранов. */
+  profileRootRequest: number;
+  requestProfileRoot: () => void;
   hasRestoredTabRef: React.MutableRefObject<boolean>;
   hasUrlTabOverrideRef: React.MutableRefObject<boolean>;
 };
@@ -63,8 +67,12 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
     return window.localStorage.getItem("haulz.desktop.expanded") === "true";
   });
   const [activeTab, setActiveTab] = useState<Tab>(initialActiveTab);
+  const [profileRootRequest, setProfileRootRequest] = useState(0);
   const hasRestoredTabRef = useRef(false);
   const hasUrlTabOverrideRef = useRef(false);
+  const requestProfileRoot = useCallback(() => {
+    setProfileRootRequest((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -137,10 +145,12 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
       setDesktopExpanded,
       activeTab,
       setActiveTab,
+      profileRootRequest,
+      requestProfileRoot,
       hasRestoredTabRef,
       hasUrlTabOverrideRef,
     }),
-    [theme, desktopExpanded, activeTab]
+    [theme, desktopExpanded, activeTab, profileRootRequest, requestProfileRoot]
   );
 
   return <AppShellContext.Provider value={value}>{children}</AppShellContext.Provider>;

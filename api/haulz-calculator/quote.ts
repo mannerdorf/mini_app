@@ -128,6 +128,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     saveQuote: body.saveQuote === true || body.save_quote === true,
     fromParty: parseParty(body.fromParty ?? body.from_party),
     toParty: parseParty(body.toParty ?? body.to_party),
+    customerParty: parseParty(body.customerParty ?? body.customer_party),
   };
 
   try {

@@ -9,12 +9,15 @@ type Props = {
 
 export function AppTabBar({ showDashboard }: Props) {
   const { activeAccount } = useAuth();
-  const { activeTab, setActiveTab, desktopExpanded } = useAppShell();
+  const { activeTab, setActiveTab, desktopExpanded, requestProfileRoot } = useAppShell();
 
   return (
     <TabBar
       active={activeTab}
       onChange={(tab) => {
+        if (tab === "profile" && activeTab === "profile") {
+          requestProfileRoot();
+        }
         if (showDashboard) {
           if (tab === "home") {
             setActiveTab("dashboard");

@@ -138,6 +138,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       : [],
     fromParty: parseParty(body.fromParty ?? body.from_party),
     toParty: parseParty(body.toParty ?? body.to_party),
+    customerParty: parseParty(body.customerParty ?? body.customer_party),
   };
 
   try {
