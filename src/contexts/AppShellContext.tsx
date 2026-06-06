@@ -41,12 +41,13 @@ function initialActiveTab(): Tab {
   try {
     const url = new URL(window.location.href);
     const t = (url.searchParams.get("tab") || "").toLowerCase();
-    if (url.searchParams.get("profileView")) return "profile";
+    // Явный tab в URL важнее устаревшего profileView (после перехода в Документы).
+    if (t === "docs") return "docs";
     if (t === "profile") return "profile";
     if (t === "cargo") return "cargo";
     if (t === "home" || t === "dashboard") return "dashboard";
-    if (t === "docs") return "docs";
     if (t === "expense_requests") return "expense_requests";
+    if (url.searchParams.get("profileView")) return "profile";
   } catch {
     // ignore
   }

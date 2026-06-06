@@ -264,7 +264,36 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [ordersParcelsSortOrder, setOrdersParcelsSortOrder] = useState<'asc' | 'desc'>('asc');
     const DOCS_TABLE_MODE_KEY = 'haulz.docs.tableMode';
     const DOCS_SECTION_KEY = 'haulz.docs.section';
+    const DOCS_NEW_ORDER_KEY = 'haulz.docs.orders.newFormOpen';
     const CLAIMS_PREFILL_CARGO_KEY = 'haulz.docs.claims.prefillCargoNumber';
+
+    const readDocumentsNewOrderOpen = useCallback((): boolean => {
+        try {
+            const url = new URL(window.location.href);
+            if (url.searchParams.get('newOrder') === '1') return true;
+            return window.localStorage.getItem(DOCS_NEW_ORDER_KEY) === '1';
+        } catch {
+            return false;
+        }
+    }, []);
+
+    const persistDocumentsNewOrderOpen = useCallback((open: boolean) => {
+        try {
+            const url = new URL(window.location.href);
+            if (open) {
+                url.searchParams.set('newOrder', '1');
+                url.searchParams.set('section', 'Заявки');
+                window.localStorage.setItem(DOCS_NEW_ORDER_KEY, '1');
+                window.localStorage.setItem(DOCS_SECTION_KEY, 'Заявки');
+            } else {
+                url.searchParams.delete('newOrder');
+                window.localStorage.removeItem(DOCS_NEW_ORDER_KEY);
+            }
+            window.history.replaceState(null, '', url.toString());
+        } catch {
+            /* ignore */
+        }
+    }, []);
     const [tableModeByCustomer, setTableModeByCustomer] = useState<boolean>(() => {
         try {
             const v = localStorage.getItem(DOCS_TABLE_MODE_KEY);
@@ -283,7 +312,11 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
     const [expandedTableActCustomer, setExpandedTableActCustomer] = useState<string | null>(null);
     const [expandedOrderRow, setExpandedOrderRow] = useState<string | null>(null);
-    const [documentsOrderFormOpen, setDocumentsOrderFormOpen] = useState(false);
+    const [documentsOrderFormOpen, setDocumentsOrderFormOpen] = useState(() => readDocumentsNewOrderOpen());
+    const setDocumentsOrderFormOpenPersist = useCallback((open: boolean) => {
+        setDocumentsOrderFormOpen(open);
+        persistDocumentsNewOrderOpen(open);
+    }, [persistDocumentsNewOrderOpen]);
     const [expandedSendingRow, setExpandedSendingRow] = useState<string | null>(null);
     const [sendingsSummaryCollapsed, setSendingsSummaryCollapsed] = useState(false);
     /** Столбец EOR виден всем с правом haulz; менять значение могут только с правом eor или суперадмин */
@@ -417,11 +450,25 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const defaultDocSection = allowedDocSections[0]?.key ?? 'ЭДО';
     const [docSection, setDocSection] = useState<DocSectionKey>(() => {
         try {
+            const url = new URL(window.location.href);
+            const fromUrl = url.searchParams.get('section')?.trim();
+            if (fromUrl && DOC_SECTIONS.some(({ key }) => key === fromUrl)) {
+                return fromUrl as DocSectionKey;
+            }
             const v = localStorage.getItem(DOCS_SECTION_KEY) as DocSectionKey | null;
             if (v && DOC_SECTIONS.some(({ key }) => key === v)) return v;
         } catch { /* ignore */ }
         return defaultDocSection;
     });
+    useEffect(() => {
+        if (!documentsOrderFormOpen || docSection === 'Заявки') return;
+        setDocSection('Заявки');
+        try {
+            localStorage.setItem(DOCS_SECTION_KEY, 'Заявки');
+        } catch {
+            /* ignore */
+        }
+    }, [documentsOrderFormOpen, docSection]);
     useEffect(() => {
         const isAllowed = allowedDocSections.some(({ key }) => key === docSection);
         if (!isAllowed && allowedDocSections.length > 0) {
@@ -2632,7 +2679,7 @@ useEffect(() => {
                     <div className="documents-new-order-bar documents-new-order-bar--in-sticky">
                         <Button
                             className="button-primary doc-section-action-btn"
-                            onClick={() => setDocumentsOrderFormOpen(true)}
+                            onClick={() => setDocumentsOrderFormOpenPersist(true)}
                             disabled={!auth?.login || !auth?.password || !effectiveActiveInn}
                             title={!effectiveActiveInn ? 'Выберите заказчика в хедере' : !auth?.login || !auth?.password ? 'Требуется авторизация' : undefined}
                         >
@@ -3232,9 +3279,9 @@ useEffect(() => {
                     auth={auth}
                     activeInn={effectiveActiveInn}
                     activeCustomerName={runtime.activeCustomerName}
-                    onBack={() => setDocumentsOrderFormOpen(false)}
+                    onBack={() => setDocumentsOrderFormOpenPersist(false)}
                     onSuccess={() => {
-                        setDocumentsOrderFormOpen(false);
+                        setDocumentsOrderFormOpenPersist(false);
                         void mutateOrders(undefined, { revalidate: true });
                     }}
                 />

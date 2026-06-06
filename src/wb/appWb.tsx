@@ -72,6 +72,13 @@ export function syncAppUrlWithActiveTab(activeTab: Tab): void {
     }
     const tabForUrl = activeTab === "dashboard" ? "home" : activeTab;
     url.searchParams.set("tab", tabForUrl);
+    if (activeTab !== "profile") {
+      url.searchParams.delete("profileView");
+    }
+    if (activeTab !== "docs") {
+      url.searchParams.delete("newOrder");
+      url.searchParams.delete("section");
+    }
     window.history.replaceState(null, "", url.toString());
   } catch {
     // ignore

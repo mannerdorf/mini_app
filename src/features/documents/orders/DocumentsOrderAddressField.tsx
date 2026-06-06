@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { AddressSelection, CityCode } from "../../../../lib/haulzCalculator/types";
 import {
@@ -55,9 +55,11 @@ export function DocumentsOrderAddressField({
   const [pickLoading, setPickLoading] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const geocodeInFlightRef = useRef(false);
+  const lastIdleGeocodeRef = useRef("");
 
   const debouncedQuery = useDebounced(query, 300);
-  const debouncedQueryGeocode = useDebounced(query, 900);
+  const debouncedQueryGeocode = useDebounced(query, 1200);
 
   const pickCity = (picked: CityCode) => {
     onQuickCity(picked);
@@ -73,9 +75,9 @@ export function DocumentsOrderAddressField({
   }, [debouncedQuery, addr]);
 
   useEffect(() => {
-    if (addr || debouncedQuery.trim().length < 2) {
+    if (addr || pickLoading || debouncedQuery.trim().length < 2) {
       setSuggestions([]);
-      setSuggestError(null);
+      if (!pickLoading) setSuggestError(null);
       setSuggestLoading(false);
       return;
     }
@@ -101,7 +103,7 @@ export function DocumentsOrderAddressField({
     return () => {
       cancelled = true;
     };
-  }, [authScope, debouncedQuery, effectiveCity, addr]);
+  }, [authScope, debouncedQuery, effectiveCity, addr, pickLoading]);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -125,24 +127,32 @@ export function DocumentsOrderAddressField({
     setSuggestError(null);
   };
 
-  const geocodeQuery = async (address: string, label?: string, uri?: string) => {
-    setPickLoading(true);
-    setSuggestError(null);
-    try {
-      const r = await fetchDocumentsGeocode(authScope, {
-        address,
-        uri,
-        city: effectiveCity,
-      });
-      applyAddress(r.fullAddress, label || r.label, r.point, uri);
-    } catch (e) {
-      setSuggestError((e as Error)?.message || "Не удалось определить адрес");
-    } finally {
-      setPickLoading(false);
-    }
-  };
+  const geocodeQuery = useCallback(
+    async (address: string, label?: string, uri?: string) => {
+      const q = address.trim();
+      if (!q || geocodeInFlightRef.current) return;
+      geocodeInFlightRef.current = true;
+      setPickLoading(true);
+      setSuggestError(null);
+      try {
+        const r = await fetchDocumentsGeocode(authScope, {
+          address: q,
+          uri,
+          city: effectiveCity,
+        });
+        applyAddress(r.fullAddress, label || r.label, r.point, uri);
+      } catch (e) {
+        setSuggestError((e as Error)?.message || "Не удалось определить адрес");
+      } finally {
+        setPickLoading(false);
+        geocodeInFlightRef.current = false;
+      }
+    },
+    [authScope, effectiveCity, setAddr, setQuery],
+  );
 
   const pickSuggestion = async (s: DocumentsSuggestItem) => {
+    lastIdleGeocodeRef.current = s.fullAddress.trim();
     if (s.point) {
       applyAddress(s.fullAddress, s.label, s.point, s.id || s.uri);
       return;
@@ -150,18 +160,21 @@ export function DocumentsOrderAddressField({
     await geocodeQuery(s.fullAddress, s.label, s.uri || s.id);
   };
 
-  const confirmTypedAddress = async () => {
+  const confirmTypedAddress = useCallback(async () => {
     const q = query.trim();
-    if (addr || pickLoading || q.length < 5) return;
+    if (addr || geocodeInFlightRef.current || q.length < 5) return;
+    lastIdleGeocodeRef.current = q;
     await geocodeQuery(q);
-  };
+  }, [addr, geocodeQuery, query]);
 
   useEffect(() => {
-    if (!geocodeOnIdle || addr || pickLoading) return;
+    if (!geocodeOnIdle || addr || geocodeInFlightRef.current) return;
     const q = debouncedQueryGeocode.trim();
     if (q.length < 10) return;
+    if (lastIdleGeocodeRef.current === q) return;
+    lastIdleGeocodeRef.current = q;
     void geocodeQuery(q);
-  }, [geocodeOnIdle, debouncedQueryGeocode, addr, pickLoading]);
+  }, [geocodeOnIdle, debouncedQueryGeocode, addr, geocodeQuery]);
 
   const showPanel = open && !addr && query.trim().length >= 2;
 
@@ -195,8 +208,12 @@ export function DocumentsOrderAddressField({
           value={query}
           autoComplete="off"
           onChange={(e) => {
-            setQuery(e.target.value);
-            if (addr) setAddr(null);
+            const next = e.target.value;
+            lastIdleGeocodeRef.current = "";
+            setQuery(next);
+            if (addr && next !== (addr.fullAddress || addr.label)) {
+              setAddr(null);
+            }
             setOpen(true);
           }}
           onFocus={() => {

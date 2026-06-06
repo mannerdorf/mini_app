@@ -80,6 +80,10 @@ function AppRoot() {
                     try {
                         window.localStorage.setItem("haulz.docs.section", section);
                     } catch { /* ignore */ }
+                } else if (url.searchParams.get("newOrder") === "1") {
+                    try {
+                        window.localStorage.setItem("haulz.docs.section", "Заявки");
+                    } catch { /* ignore */ }
                 }
                 const s = url.searchParams.get("search")?.trim();
                 if (s) return s;
