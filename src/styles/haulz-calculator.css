@@ -2577,6 +2577,7 @@ body.haulz-calc-map-screen-open {
 }
 
 /* Форма заявки в «Документы» — блок «Ваш расчёт» всегда на экране (fixed) */
+.app-container:has(.documents-order-form),
 .app-container:has(.documents-order-form) .app-main,
 .app-container:has(.documents-order-form) .app-header,
 .app-main:has(.documents-order-form),
@@ -2589,8 +2590,13 @@ body.haulz-calc-map-screen-open {
 }
 
 .documents-order-form.haulz-calc-page--cdek {
+  --haulz-docs-content-max: min(56rem, 100vw);
   max-width: none;
   width: 100%;
+}
+
+.app-main-wide .documents-order-form.haulz-calc-page--cdek {
+  --haulz-docs-content-max: min(96vw, 1400px);
 }
 
 .documents-order-form.haulz-calc-page--cdek .haulz-calc-shell-bg {
@@ -2606,24 +2612,31 @@ body.haulz-calc-map-screen-open {
     );
   }
 
-  /* В «Документах» форма уже контейнера — summary в правой колонке grid, не fixed к краю окна */
+  /*
+   * Форма в app-main: fixed по вертикали (как калькулятор), left по ширине контейнера — не к краю окна.
+   */
   .documents-order-form.haulz-calc-page--cdek .haulz-calc-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(300px, var(--haulz-summary-col-width));
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .documents-order-form .haulz-calc-main {
-    margin-right: 0;
+    margin-right: calc(var(--haulz-summary-col-width) + 1rem);
     min-width: 0;
   }
 
   .documents-order-form .haulz-calc-summary-wrap {
-    position: sticky;
+    position: fixed;
     top: var(--haulz-summary-fixed-top);
+    left: max(
+      var(--pad-page-h, 24px),
+      calc(
+        50vw - var(--haulz-docs-content-max) / 2
+        + var(--haulz-docs-content-max) - var(--haulz-summary-col-width)
+        - var(--pad-page-h, 24px)
+      )
+    );
     right: auto;
-    left: auto;
-    align-self: start;
-    justify-self: end;
-    width: 100%;
+    width: var(--haulz-summary-col-width);
     max-width: var(--haulz-summary-col-width);
     z-index: 5;
     max-height: calc(100dvh - var(--haulz-summary-fixed-top) - var(--haulz-summary-fixed-bottom));
