@@ -1,14 +1,44 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
-import { ChevronDown, ChevronUp, ArrowUp, ArrowDown, Share2, Heart, Loader2, Download } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
+import { Button, Flex, Typography } from "@maxhub/max-ui";
+import { ChevronDown, ChevronUp, ArrowUp, ArrowDown } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { ServiceRefreshFrom1cButton } from "../components/ServiceRefreshFrom1cButton";
 import { serviceRefreshKindsForDocumentsSection } from "../lib/serviceRefreshFrom1c";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
-import { InvoiceDetailModal } from "../features/documents/invoices";
-import { ActDetailModal } from "../features/documents/acts";
+import {
+    useDocumentsInvoices,
+    DocumentsInvoicesSection,
+} from "../features/documents/invoices";
+import {
+    useDocumentsActs,
+    DocumentsActsSection,
+    DocumentsActsToolbarFilters,
+} from "../features/documents/acts";
+import {
+    useDocumentsEdo,
+    DocumentsEdoSection,
+    DocumentsEdoToolbarFilters,
+} from "../features/documents/edo";
+import {
+    useDocumentsOrders,
+    DocumentsOrdersSection,
+    DocumentsOrdersToolbarFilters,
+} from "../features/documents/orders";
+import {
+    useDocFavorites,
+    useDocumentsTariffs,
+    useDocumentsSverki,
+    useDocumentsDogovors,
+    DocumentsTariffsSection,
+    DocumentsTariffsToolbarFilters,
+    DocumentsSverkiSection,
+    DocumentsSverkiToolbarFilters,
+    DocumentsDogovorsSection,
+    DocumentsDogovorsToolbarFilters,
+    SverkiOrderActionButton,
+} from "../features/documents/catalogs";
 import { DocumentsOrderForm } from "../features/documents/orders";
 import {
     SendingsInfographic,
@@ -21,7 +51,6 @@ import {
     useSendingsSectionProps,
     useSendingsSortState,
     getSendingSanctionResult,
-    getParcelSearchText,
     useSendingsRowRuntime,
     useSendingsStatusKeyResolver,
     useSendingsVisibleMeta,
@@ -31,57 +60,22 @@ import {
 } from "../features/documents/sendings";
 import { DocumentsTransportFilter, isDocumentsTransportFilterVisible } from "../features/documents";
 import {
+    useDocumentsClaims,
+    DocumentsClaimsSection,
     ClaimsToolbarFilters,
-    ClaimsCreateModal,
-    CLAIM_STATUS_BADGE,
-    CLAIM_STATUS_LABELS,
-    CLAIM_ROW_ACTION_BUTTON_STYLE,
-    FILE_PICKER_BUTTON_STYLE,
-    MANIPULATION_SIGN_LABELS_RU,
-    PACKAGING_TYPE_LABELS_RU,
-    extractCustomerClaimPayloadFromEvents,
-    fileToBase64,
-    mapClaimEnumToRu,
-    type ClaimStatusKey,
+    ClaimsCreateActionButton,
 } from "../features/documents/claims";
-import { DateText } from "../components/ui/DateText";
-import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode } from "../lib/formatUtils";
-import { ClickableCargoNumber, ClickableInvoiceNumber } from "../components/ui/EntityLinks";
-import { CargoTransportTypeIcon } from "../components/shared/CargoTableDisplay";
-import { downloadBase64File } from "../utils";
-import {
-    fetchTariffs,
-    fetchSverki,
-    fetchDogovors,
-    fetchEdoCounterpartyInns,
-    fetchClaimsList,
-    fetchClaimById,
-    postClaimAction,
-    fetchSverkiRequests,
-    postSverkiRequest,
-    fetchDogovorContractLabels,
-    postDownloadDocument,
-} from "../api/client/documents";
+import { stripOoo } from "../lib/formatUtils";
 import {
     type SanctionCheckResult,
 } from "../lib/sanctions";
-import { normalizeStatus, STATUS_MAP, getFilterKeyByStatus, BILL_STATUS_MAP, getSumColorByPaymentStatus } from "../lib/statusUtils";
+import { STATUS_MAP, getFilterKeyByStatus, BILL_STATUS_MAP } from "../lib/statusUtils";
 import { buildCargoDepartureByNumber } from "../lib/transitDateTime";
+import { buildCargoSumPaidByNumber } from "../../lib/invoiceAmounts.js";
 import {
-    buildCargoSumPaidByNumber,
-    invoiceBalance,
-    invoiceDocSum,
-    invoiceSumPaid,
-} from "../../lib/invoiceAmounts.js";
-import { StatusBadge } from "../components/shared/StatusBadges";
-import {
-    aggregateInvoiceEdoDocStats,
-    cachedDocumentMatchesEdoStatusFilter,
     collectUniqueCachedDocumentEdoLabels,
     collectUniqueInvoiceEdoTableLabels,
-    getCachedDocumentEdoInfo,
 } from "../lib/edoStatus";
-import { normalizeKontragentInn, type EdoCounterpartyFilter } from "../lib/edoCounterpartyStatus";
 import {
     getDefaultWeekMonday,
     getWeekRange,
@@ -90,8 +84,6 @@ import {
     MONTH_NAMES,
     DEFAULT_DATE_FROM,
     DEFAULT_DATE_TO,
-    getPayTillDate,
-getPayTillDateColor,
 } from "../lib/dateUtils";
 import {
     initSharedFilterSets,
@@ -105,23 +97,17 @@ import {
 } from "../lib/sharedListFilters";
 import { formatDateFilterButtonLabel, usePersistedDateFilter } from "../features/listWorkspace";
 import type { AccountPermissions, AuthData, CargoItem, DateFilter, StatusFilter } from "../types";
-import { useDocumentsDateRange, computeDocumentsApiDateRange } from "./useDocumentsDateRange";
+import { useDocumentsDateRange } from "./useDocumentsDateRange";
 import { useDocumentsDataLoad } from "./useDocumentsDataLoad";
 import { useCargoTransportFilter, usePerevozki } from "../hooks/useApi";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import {
-    buildActsSummary,
     buildCargoRouteByNumber,
     buildCargoStateByNumber,
     buildCargoSumByNumber,
     buildCargoTransportByNumber,
     buildDocsSummary,
     buildInvoicesSummary,
-    buildFilteredActs,
-    getActUpdEdoInfo,
-    buildFilteredInvoices,
-    buildFilteredOrders,
-    resolveInvoiceFiltersForDocSection,
     buildSendingsTotalsByVehicle,
     buildTransportLinkedCargoNumbersInPeriod,
     collectInvoiceLinkedCargoNumbers,
@@ -132,36 +118,15 @@ import {
     getSendingRowParcelMetrics,
     collectSendingFreightCargoNumbers,
     sendingRowInSelectedPeriod,
-    buildEdoCargoCardItems,
-    findInvoiceLinkedToAct,
+    getActUpdEdoInfo,
 } from "../features/documents/lib/documentsPipeline";
 import {
-    DocumentsApiDebugPanel,
-    DocumentsEdoMonitorGroupedTable,
-    DocumentsEdoMonitorSummaryTiles,
-    DocumentsInvoiceFinanceHeadCells,
-    DocumentsInvoiceFinanceCells,
-    DocumentsEdoCardsList,
-    DocumentsEdoCardBadge,
-    DocumentsEdoTableStatus,
-    DocumentsInvoiceCardsList,
-    DocumentsActCardsList,
     DocumentsSummaryCard,
     DocumentsStateBlocks,
-    DocumentsToolbarBelowSticky,
-    DocumentsRouteBadge,
-    formatTariffRouteLabel,
-    TariffTransportTypeIcon,
-    type DocumentsApiDebugSnapshot,
 } from "../features/documents/views/documentsViewBlocks";
-import { AppBadge } from "../components/shared/AppBadge";
 import {
-    cargoExpandMotionProps,
-    cargoListContainerVariants,
-    documentsListItemVariants,
     cargoModeSwitchMotion,
     cargoSummaryMotion,
-    cargoTableGroupRowVariants,
 } from "./cargoMotion";
 
 type DocSectionKey = 'Счета' | 'ЭДО' | 'УПД' | 'Заявки' | 'Отправки' | 'Претензии' | 'Договоры' | 'Акты сверок' | 'Тарифы';
@@ -234,12 +199,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [customerFilter, setCustomerFilter] = useState<string>('');
-    const [orderReceiverFilter, setOrderReceiverFilter] = useState<string>('');
-    const [orderSenderFilter, setOrderSenderFilter] = useState<string>('');
-    const [orderRouteFilter, setOrderRouteFilter] = useState<string>('all');
     const [actCustomerFilter, setActCustomerFilter] = useState<string>('');
-    const [sverkiCustomerFilter, setSverkiCustomerFilter] = useState<string>('');
-    const [dogovorsCustomerFilter, setDogovorsCustomerFilter] = useState<string>('');
     const [edoStatusFilterSet, setEdoStatusFilterSet] = useState<Set<string>>(() => new Set());
     const sharedFiltersInit = initSharedFilterSets();
     const [deliveryStatusFilterSet, setDeliveryStatusFilterSet] = useState<Set<CargoStatusFilterKey>>(() => sharedFiltersInit.statusFilterSet);
@@ -248,24 +208,14 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [routeFilterSet, setRouteFilterSet] = useState<Set<RouteFilterKey>>(() => sharedFiltersInit.routeFilterSet);
     const [invoiceFavoritesOnly, setInvoiceFavoritesOnly] = useState(false);
     const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
-    const [isReceiverDropdownOpen, setIsReceiverDropdownOpen] = useState(false);
-    const [isOrderSenderDropdownOpen, setIsOrderSenderDropdownOpen] = useState(false);
-    const [isOrderRouteDropdownOpen, setIsOrderRouteDropdownOpen] = useState(false);
     const [isBillStatusDropdownOpen, setIsBillStatusDropdownOpen] = useState(false);
     const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
     const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
-    const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
-    const [selectedAct, setSelectedAct] = useState<any | null>(null);
     const [sortBy, setSortBy] = useState<'date' | null>('date');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-    const [ordersSortColumn, setOrdersSortColumn] = useState<'date' | 'number' | 'clientNumber' | 'pickupDate' | 'cargo' | 'sender' | 'receiver' | 'route' | 'customer' | 'comment'>('date');
-    const [ordersSortOrder, setOrdersSortOrder] = useState<'asc' | 'desc'>('desc');
-    const [ordersParcelsSortColumn, setOrdersParcelsSortColumn] = useState<'parcel' | 'cargo' | 'tmc' | 'consolidation' | 'count' | 'cost'>('parcel');
-    const [ordersParcelsSortOrder, setOrdersParcelsSortOrder] = useState<'asc' | 'desc'>('asc');
     const DOCS_TABLE_MODE_KEY = 'haulz.docs.tableMode';
     const DOCS_SECTION_KEY = 'haulz.docs.section';
     const DOCS_NEW_ORDER_KEY = 'haulz.docs.orders.newFormOpen';
-    const CLAIMS_PREFILL_CARGO_KEY = 'haulz.docs.claims.prefillCargoNumber';
 
     const readDocumentsNewOrderOpen = useCallback((): boolean => {
         try {
@@ -310,8 +260,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         [showCustomerColumn, showSums],
     );
     const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
-    const [expandedTableActCustomer, setExpandedTableActCustomer] = useState<string | null>(null);
-    const [expandedOrderRow, setExpandedOrderRow] = useState<string | null>(null);
     const [documentsOrderFormOpen, setDocumentsOrderFormOpen] = useState(() => readDocumentsNewOrderOpen());
     const setDocumentsOrderFormOpenPersist = useCallback((open: boolean) => {
         setDocumentsOrderFormOpen(open);
@@ -339,7 +287,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [ferriesList, setFerriesList] = useState<{ id: number; name: string; mmsi: string }[]>([]);
     const [sendingsFerryMap, setSendingsFerryMap] = useState<Record<string, { ferry_id: number; ferry_name: string; eta: string | null }>>({});
     const [ferryEtaLoadingByRow, setFerryEtaLoadingByRow] = useState<Record<string, boolean>>({});
-    const [tariffsList, setTariffsList] = useState<{
         id: number;
         docDate: string | null;
         docNumber: string;
@@ -352,8 +299,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         isVet: boolean;
         tariff: number | null;
     }[]>([]);
-    const [tariffsLoading, setTariffsLoading] = useState(false);
-    const [sverkiList, setSverkiList] = useState<{
         id: number;
         docNumber: string;
         docDate: string | null;
@@ -364,10 +309,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         edoStatus?: string | null;
         data?: Record<string, unknown> | null;
     }[]>([]);
-    const [sverkiLoading, setSverkiLoading] = useState(false);
-    const [sverkiDownloadingId, setSverkiDownloadingId] = useState<number | null>(null);
-    const [sverkiDownloadError, setSverkiDownloadError] = useState<string | null>(null);
-    const [dogovorsList, setDogovorsList] = useState<{
         id: number;
         docNumber: string;
         docDate: string | null;
@@ -377,11 +318,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         edoStatus?: string | null;
         data?: Record<string, unknown> | null;
     }[]>([]);
-    const [dogovorsLoading, setDogovorsLoading] = useState(false);
-    const [dogovorsDownloadingId, setDogovorsDownloadingId] = useState<number | null>(null);
-    const [dogovorsDownloadError, setDogovorsDownloadError] = useState<string | null>(null);
-    const [sverkiApiDebug, setSverkiApiDebug] = useState<DocumentsApiDebugSnapshot | null>(null);
-    const [claimsList, setClaimsList] = useState<{
         id: number;
         claimNumber: string;
         cargoNumber: string;
@@ -394,27 +330,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         createdAt: string;
         updatedAt: string;
     }[]>([]);
-    const claimsRequestIdRef = useRef(0);
-    const [claimsLoading, setClaimsLoading] = useState(false);
-    const [claimsStatusFilter, setClaimsStatusFilter] = useState<string>('all');
-    const [claimsCustomerFilter, setClaimsCustomerFilter] = useState<string>('');
-    const [claimsCreateOpen, setClaimsCreateOpen] = useState(false);
-    const [claimsCreatePrefill, setClaimsCreatePrefill] = useState('');
-    const [claimsModalBusy, setClaimsModalBusy] = useState(false);
-    const [claimsEditingId, setClaimsEditingId] = useState<number | null>(null);
-    const [claimsActionLoadingId, setClaimsActionLoadingId] = useState<number | null>(null);
-    const [claimsReplyOpen, setClaimsReplyOpen] = useState(false);
-    const [claimsReplyClaimId, setClaimsReplyClaimId] = useState<number | null>(null);
-    const [claimsReplyPhotoFiles, setClaimsReplyPhotoFiles] = useState<File[]>([]);
-    const [claimsReplyDocumentFiles, setClaimsReplyDocumentFiles] = useState<File[]>([]);
-    const [claimsReplyVideoLink, setClaimsReplyVideoLink] = useState('');
-    const [claimsReplySubmitting, setClaimsReplySubmitting] = useState(false);
-    const [claimsReplyError, setClaimsReplyError] = useState<string | null>(null);
-    const [claimsDetailOpen, setClaimsDetailOpen] = useState(false);
-    const [claimsDetailLoading, setClaimsDetailLoading] = useState(false);
-    const [claimsDetailError, setClaimsDetailError] = useState<string | null>(null);
-    const [claimsDetailData, setClaimsDetailData] = useState<any | null>(null);
-    const [sverkiRequests, setSverkiRequests] = useState<{
         id: number;
         customerInn: string;
         contract: string;
@@ -423,21 +338,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         status: 'pending' | 'edo_sent';
         createdAt: string;
     }[]>([]);
-    const [sverkiRequestsLoading, setSverkiRequestsLoading] = useState(false);
-    const [sverkiOrderModalOpen, setSverkiOrderModalOpen] = useState(false);
-    const [sverkiOrderContract, setSverkiOrderContract] = useState('');
-    const [sverkiOrderContractOptions, setSverkiOrderContractOptions] = useState<string[]>([]);
-    const [sverkiOrderContractsLoading, setSverkiOrderContractsLoading] = useState(false);
-    const [sverkiOrderPeriodFrom, setSverkiOrderPeriodFrom] = useState('');
-    const [sverkiOrderPeriodTo, setSverkiOrderPeriodTo] = useState('');
-    const [sverkiOrderSubmitting, setSverkiOrderSubmitting] = useState(false);
-    const [sverkiOrderError, setSverkiOrderError] = useState<string | null>(null);
-    const [tariffsCustomerFilter, setTariffsCustomerFilter] = useState<string>("");
-    const [tariffsCustomerSearchQuery, setTariffsCustomerSearchQuery] = useState<string>("");
-    const [tariffsRouteFilter, setTariffsRouteFilter] = useState<string>("all");
-    const [tariffsTypeFilter, setTariffsTypeFilter] = useState<string>("all");
-    const [tariffsSortColumn, setTariffsSortColumn] = useState<"docDate" | "docNumber" | "customerName" | "route" | "transportType" | "dangerous" | "tariff">("docDate");
-    const [tariffsSortOrder, setTariffsSortOrder] = useState<"asc" | "desc">("desc");
     const allowedDocSections = useMemo(() => {
         if (!permissions) return DOC_SECTIONS;
         return DOC_SECTIONS.filter(({ key }) => {
@@ -480,271 +380,12 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     }, [allowedDocSections, docSection, defaultDocSection]);
     const serviceModeForCurrentDocSection = effectiveServiceMode || docSection === 'Отправки';
     useEffect(() => {
-        setExpandedOrderRow(null);
         setExpandedSendingRow(null);
     }, [docSection, dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
-    useEffect(() => {
-        if (docSection !== 'Тарифы') return;
-        setTariffsLoading(true);
-        const scope = { inn: effectiveActiveInn, serviceMode: effectiveServiceMode };
-        fetchTariffs(scope)
-            .then(setTariffsList)
-            .finally(() => setTariffsLoading(false));
-    }, [docSection, effectiveActiveInn, effectiveServiceMode]);
-    useEffect(() => {
-        if (docSection !== 'Акты сверок') return;
-        setSverkiLoading(true);
-        const scope = { inn: effectiveActiveInn, serviceMode: effectiveServiceMode };
-        fetchSverki(scope)
-            .then((result) => {
-                setSverkiApiDebug({
-                    fetchedAt: new Date().toISOString(),
-                    url: result.url,
-                    status: result.status,
-                    ok: result.ok,
-                    body: result.body,
-                    listKey: 'sverki',
-                    listLength: result.list.length,
-                    error: result.error,
-                });
-                setSverkiList(result.list);
-            })
-            .finally(() => setSverkiLoading(false));
-    }, [docSection, effectiveActiveInn, effectiveServiceMode]);
-    useEffect(() => {
-        if (docSection !== 'Договоры') return;
-        setDogovorsLoading(true);
-        const scope = { inn: effectiveActiveInn, serviceMode: effectiveServiceMode };
-        fetchDogovors<typeof dogovorsList[number]>(scope)
-            .then(setDogovorsList)
-            .finally(() => setDogovorsLoading(false));
-    }, [docSection, effectiveActiveInn, effectiveServiceMode]);
-    useEffect(() => {
-        if (docSection !== "ЭДО") return;
-        fetchEdoCounterpartyInns().then((inns) => {
-            const next = new Set(
-                inns.map((inn) => normalizeKontragentInn(inn)).filter(Boolean)
-            );
-            setEdoPartnerInns(next);
-        });
-    }, [docSection]);
-    const reloadClaims = useCallback(async () => {
-        const requestId = ++claimsRequestIdRef.current;
-        if (docSection !== 'Претензии' || !auth?.login || !auth?.password) {
-            setClaimsLoading(false);
-            setClaimsList([]);
-            return;
-        }
-        setClaimsLoading(true);
-        const claimsDateRange = computeDocumentsApiDateRange({
-            dateFilter,
-            customDateFrom,
-            customDateTo,
-            selectedMonthForFilter,
-            selectedYearForFilter,
-            selectedWeekForFilter,
-        });
-        const selectedInn = String(effectiveActiveInn || auth?.inn || '').trim();
-        try {
-            const list = await fetchClaimsList(
-                { login: auth.login, password: auth.password, inn: selectedInn },
-                {
-                    status: claimsStatusFilter,
-                    dateFrom: claimsDateRange.dateFrom,
-                    dateTo: claimsDateRange.dateTo,
-                    inn: selectedInn,
-                }
-            );
-            if (requestId === claimsRequestIdRef.current) {
-                setClaimsList(list as any[]);
-            }
-        } catch {
-            if (requestId === claimsRequestIdRef.current) {
-                setClaimsList([]);
-            }
-        } finally {
-            if (requestId === claimsRequestIdRef.current) {
-                setClaimsLoading(false);
-            }
-        }
-    }, [docSection, auth?.login, auth?.password, auth?.inn, claimsStatusFilter, effectiveActiveInn, dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
-    const loadSverkiOrderContracts = useCallback(async () => {
-        if (!effectiveActiveInn) {
-            setSverkiOrderContractOptions([]);
-            setSverkiOrderContract('');
-            return;
-        }
-        setSverkiOrderContractsLoading(true);
-        try {
-            const options = await fetchDogovorContractLabels(String(effectiveActiveInn));
-            setSverkiOrderContractOptions(options);
-            setSverkiOrderContract((prev) => (prev && options.includes(prev) ? prev : (options[0] || '')));
-        } catch {
-            setSverkiOrderContractOptions([]);
-            setSverkiOrderContract('');
-        } finally {
-            setSverkiOrderContractsLoading(false);
-        }
-    }, [effectiveActiveInn]);
-    useEffect(() => {
-        reloadClaims();
-    }, [reloadClaims]);
-    const openClaimsCreateModal = useCallback((prefillCargoNumber?: string) => {
-        setClaimsEditingId(null);
-        setClaimsCreatePrefill(String(prefillCargoNumber || '').trim());
-        setClaimsCreateOpen(true);
-    }, []);
-
-    useEffect(() => {
-        if (docSection !== 'Претензии') return;
-        if (!allowedDocSections.some(({ key }) => key === 'Претензии')) return;
-        let prefillCargo = '';
-        try {
-            prefillCargo = String(localStorage.getItem(CLAIMS_PREFILL_CARGO_KEY) || '').trim();
-            if (prefillCargo) localStorage.removeItem(CLAIMS_PREFILL_CARGO_KEY);
-        } catch {
-            prefillCargo = '';
-        }
-        if (!prefillCargo) return;
-        openClaimsCreateModal(prefillCargo);
-    }, [docSection, allowedDocSections, openClaimsCreateModal]);
-
-    useEffect(() => {
-        if (docSection === 'Претензии') return;
-        if (!allowedDocSections.some(({ key }) => key === 'Претензии')) return;
-        let hasPrefill = false;
-        try {
-            hasPrefill = Boolean(String(localStorage.getItem(CLAIMS_PREFILL_CARGO_KEY) || '').trim());
-        } catch {
-            hasPrefill = false;
-        }
-        if (hasPrefill) setDocSection('Претензии');
-    }, [docSection, allowedDocSections]);
-
-    const openDraftEditor = useCallback((claimId: number) => {
-            setClaimsEditingId(claimId);
-        setClaimsCreatePrefill('');
-            setClaimsCreateOpen(true);
-    }, []);
-    const openClaimDetailModal = useCallback(async (claimId: number) => {
-        if (!auth?.login || !auth?.password) return;
-        setClaimsDetailOpen(true);
-        setClaimsDetailLoading(true);
-        setClaimsDetailError(null);
-        setClaimsDetailData(null);
-        try {
-            const claimAuth = {
-                login: auth.login,
-                password: auth.password,
-                inn: String(effectiveActiveInn || auth?.inn || '').trim(),
-            };
-            const { ok, data } = await fetchClaimById(claimAuth, claimId);
-            if (!ok) throw new Error((data as { error?: string })?.error || 'Не удалось загрузить карточку претензии');
-            setClaimsDetailData(data);
-        } catch (e: any) {
-            setClaimsDetailError(e?.message || 'Не удалось загрузить карточку претензии');
-        } finally {
-            setClaimsDetailLoading(false);
-        }
-    }, [auth?.login, auth?.password, auth?.inn, effectiveActiveInn]);
-    const runClaimAction = useCallback(async (claimId: number, action: 'submit' | 'withdraw') => {
-        if (!auth?.login || !auth?.password) return;
-        setClaimsActionLoadingId(claimId);
-        try {
-            const claimAuth = {
-                login: auth.login,
-                password: auth.password,
-                inn: String(effectiveActiveInn || auth?.inn || '').trim(),
-            };
-            const { ok, data } = await postClaimAction(claimAuth, claimId, { action });
-            if (!ok) throw new Error((data as { error?: string })?.error || 'Не удалось обновить статус претензии');
-            await reloadClaims();
-        } catch (e: any) {
-            console.error(e?.message || 'Ошибка действия по претензии');
-        } finally {
-            setClaimsActionLoadingId(null);
-        }
-    }, [auth?.login, auth?.password, auth?.inn, effectiveActiveInn, reloadClaims]);
-    const openClaimReplyModal = useCallback((claimId: number) => {
-        setClaimsReplyClaimId(claimId);
-        setClaimsReplyPhotoFiles([]);
-        setClaimsReplyDocumentFiles([]);
-        setClaimsReplyVideoLink('');
-        setClaimsReplyError(null);
-        setClaimsReplyOpen(true);
-    }, []);
-    const submitClaimReplyDocuments = useCallback(async () => {
-        if (!claimsReplyClaimId || !auth?.login || !auth?.password) return;
-        setClaimsReplySubmitting(true);
-        setClaimsReplyError(null);
-        try {
-            const photosPayload = await Promise.all(
-                claimsReplyPhotoFiles.map(async (file) => ({
-                    fileName: file.name,
-                    mimeType: file.type || 'image/jpeg',
-                    caption: 'Ответ на запрос документов',
-                    base64: await fileToBase64(file),
-                }))
-            );
-            const documentsPayload = await Promise.all(
-                claimsReplyDocumentFiles.map(async (file) => ({
-                    fileName: file.name,
-                    mimeType: file.type || 'application/pdf',
-                    docType: 'other' as const,
-                    base64: await fileToBase64(file),
-                }))
-            );
-            const claimAuth = {
-                login: auth.login,
-                password: auth.password,
-                inn: String(effectiveActiveInn || auth?.inn || '').trim(),
-            };
-            const { ok, data } = await postClaimAction(claimAuth, claimsReplyClaimId, {
-                action: 'upload_documents',
-                photos: photosPayload,
-                documents: documentsPayload,
-                videoLinks: claimsReplyVideoLink.trim()
-                    ? [{ url: claimsReplyVideoLink.trim(), title: 'Видео по запросу документов' }]
-                    : [],
-            });
-            if (!ok) throw new Error((data as { error?: string })?.error || 'Не удалось отправить документы');
-            setClaimsReplyOpen(false);
-            setClaimsReplyClaimId(null);
-            setClaimsReplyPhotoFiles([]);
-            setClaimsReplyDocumentFiles([]);
-            setClaimsReplyVideoLink('');
-            await reloadClaims();
-        } catch (e: any) {
-            setClaimsReplyError(e?.message || 'Ошибка отправки документов');
-        } finally {
-            setClaimsReplySubmitting(false);
-        }
-    }, [claimsReplyClaimId, auth?.login, auth?.password, auth?.inn, effectiveActiveInn, claimsReplyPhotoFiles, claimsReplyDocumentFiles, claimsReplyVideoLink, reloadClaims]);
-    useEffect(() => {
-        if (docSection !== 'Акты сверок' || !effectiveActiveInn || !auth?.login || !auth?.password) {
-            setSverkiRequests([]);
-            return;
-        }
-        setSverkiRequestsLoading(true);
-        fetchSverkiRequests({ login: auth.login, password: auth.password }, effectiveActiveInn)
-            .then(setSverkiRequests)
-            .catch(() => setSverkiRequests([]))
-            .finally(() => setSverkiRequestsLoading(false));
-    }, [docSection, effectiveActiveInn, auth?.login, auth?.password]);
-    useEffect(() => {
-        if (effectiveServiceMode) return;
-        setTariffsCustomerFilter('');
-        setTariffsCustomerSearchQuery('');
-        setIsTariffsCustomerDropdownOpen(false);
-        setClaimsCustomerFilter('');
-        setIsClaimsCustomerDropdownOpen(false);
-    }, [effectiveServiceMode]);
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
     const [innerTableSortColumn, setInnerTableSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'paid' | 'balance' | 'deliveryStatus' | 'route'>('date');
     const [innerTableSortOrder, setInnerTableSortOrder] = useState<'asc' | 'desc'>('desc');
-    const [innerTableActSortColumn, setInnerTableActSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'deliveryStatus' | 'route'>('date');
-    const [innerTableActSortOrder, setInnerTableActSortOrder] = useState<'asc' | 'desc'>('desc');
     const [sendingsDetailsView, setSendingsDetailsView] = useState<'general' | 'byCargo' | 'byCustomer'>('general');
     const [sendingsSummaryGroupBy, setSendingsSummaryGroupBy] = useState<'customer' | 'receiver'>('customer');
     const [transportFilter, setTransportFilter] = useState<string>('');
@@ -754,17 +395,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const [isTransportDropdownOpen, setIsTransportDropdownOpen] = useState(false);
     const [isEdoStatusDropdownOpen, setIsEdoStatusDropdownOpen] = useState(false);
     const [isActCustomerDropdownOpen, setIsActCustomerDropdownOpen] = useState(false);
-    const [isSverkiCustomerDropdownOpen, setIsSverkiCustomerDropdownOpen] = useState(false);
-    const [isDogovorsCustomerDropdownOpen, setIsDogovorsCustomerDropdownOpen] = useState(false);
-    const [edoPartnerInns, setEdoPartnerInns] = useState<Set<string>>(() => new Set());
-    const [edoCounterpartyFilter, setEdoCounterpartyFilter] = useState<EdoCounterpartyFilter>("all");
-    const [isEdoCounterpartyDropdownOpen, setIsEdoCounterpartyDropdownOpen] = useState(false);
-    const [isTariffsCustomerDropdownOpen, setIsTariffsCustomerDropdownOpen] = useState(false);
-    const [isTariffsRouteDropdownOpen, setIsTariffsRouteDropdownOpen] = useState(false);
-    const [isTariffsTypeDropdownOpen, setIsTariffsTypeDropdownOpen] = useState(false);
-    const [isClaimsStatusDropdownOpen, setIsClaimsStatusDropdownOpen] = useState(false);
-    const [isClaimsCustomerDropdownOpen, setIsClaimsCustomerDropdownOpen] = useState(false);
-    const [favVersion, setFavVersion] = useState(0);
     useEffect(() => {
         setSelectedByCustomerSummaryKeys(new Set());
         setExpandedByCustomerKey(null);
@@ -778,22 +408,10 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     const deliveryStatusButtonRef = useRef<HTMLDivElement | null>(null);
     const routeCargoButtonRef = useRef<HTMLDivElement | null>(null);
     const edoStatusButtonRef = useRef<HTMLDivElement | null>(null);
-    const edoCounterpartyButtonRef = useRef<HTMLDivElement | null>(null);
-    const edoCounterpartyFilterLabel =
-        edoCounterpartyFilter === "with" ? "С ЭДО" : edoCounterpartyFilter === "without" ? "Без ЭДО" : "Все";
-    const actCustomerButtonRef = useRef<HTMLDivElement | null>(null);
-    const sverkiCustomerButtonRef = useRef<HTMLDivElement | null>(null);
-    const dogovorsCustomerButtonRef = useRef<HTMLDivElement | null>(null);
     const dateButtonRef = useRef<HTMLDivElement | null>(null);
     const customerButtonRef = useRef<HTMLDivElement | null>(null);
-    const receiverButtonRef = useRef<HTMLDivElement | null>(null);
-    const orderSenderButtonRef = useRef<HTMLDivElement | null>(null);
-    const orderRouteButtonRef = useRef<HTMLDivElement | null>(null);
     const billStatusButtonRef = useRef<HTMLDivElement | null>(null);
     const routeButtonRef = useRef<HTMLDivElement | null>(null);
-    const tariffsCustomerButtonRef = useRef<HTMLDivElement | null>(null);
-    const tariffsRouteButtonRef = useRef<HTMLDivElement | null>(null);
-    const tariffsTypeButtonRef = useRef<HTMLDivElement | null>(null);
     const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const monthWasLongPressRef = useRef(false);
     const yearLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -853,14 +471,9 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         if (effectiveServiceMode) return;
         setCustomerFilter('');
         setActCustomerFilter('');
-        setSverkiCustomerFilter('');
-        setDogovorsCustomerFilter('');
         setTransportFilter('');
-        setOrderRouteFilter('all');
         setIsCustomerDropdownOpen(false);
         setIsActCustomerDropdownOpen(false);
-        setIsSverkiCustomerDropdownOpen(false);
-        setIsDogovorsCustomerDropdownOpen(false);
         setIsTransportDropdownOpen(false);
     }, [effectiveServiceMode]);
 
@@ -1194,98 +807,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
         return m;
     }, [perevozkiItems, normCargoKey]);
 
-    const uniqueCustomers = useMemo(() => [...new Set(items.map(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [items]);
-    const uniqueOrderCustomers = useMemo(
-        () => [...new Set((ordersItems || []).map((i: any) => String(i?.ЗаказчикНаименование ?? i?.Заказчик ?? i?.Customer ?? i?.customer ?? i?.Контрагент ?? i?.Contractor ?? i?.Organization ?? i?.ПлательщикНаименование ?? i?.PayerName ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
-        [ordersItems]
-    );
-    const uniqueOrderReceivers = useMemo(
-        () => [...new Set((ordersItems || []).map((i: any) => String(i?.ПолучательНаименование ?? i?.Получатель ?? i?.ГрузополучательНаименование ?? i?.Грузополучатель ?? i?.Receiver ?? i?.receiver ?? i?.Consignee ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
-        [ordersItems]
-    );
-    const uniqueOrderSenders = useMemo(
-        () => [...new Set((ordersItems || []).map((i: any) => String(i?.ОтправительНаименование ?? i?.Отправитель ?? i?.ГрузоотправительНаименование ?? i?.Грузоотправитель ?? i?.Sender ?? i?.sender ?? i?.Shipper ?? i?.Consignor ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
-        [ordersItems]
-    );
-    const uniqueOrderRoutes = useMemo(() => {
-        const set = new Set<string>();
-        (ordersItems || []).forEach((item: any) => {
-            const fromRaw = String(item?.ПунктОтправкиНаименование ?? item?.ПунктОтправленияНаименование ?? item?.ПунктОтправки ?? item?.ПунктОтправления ?? item?.CitySender ?? '').trim();
-            const toRaw = String(item?.ПунктНазначенияНаименование ?? item?.ПунктПолученияНаименование ?? item?.ПунктНазначения ?? item?.ПунктДоставки ?? item?.CityReceiver ?? '').trim();
-            const route = [cityToCode(fromRaw) || fromRaw, cityToCode(toRaw) || toRaw].filter(Boolean).join(' – ');
-            if (route) set.add(route);
-        });
-        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [ordersItems]);
-    const uniqueSendingCustomers = useMemo(() => [...new Set((sendingsItems || []).map((i: any) => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [sendingsItems]);
-
-    const uniqueActCustomers = useMemo(() => [...new Set((actsItems || []).map((a: any) => ((a.Customer ?? a.customer ?? a.Контрагент ?? a.Contractor ?? a.Organization ?? '').trim())).filter(Boolean))].sort(), [actsItems]);
-    const uniqueSverkiCustomers = useMemo(
-        () => [...new Set(sverkiList.map((row) => String(row.customerName || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
-        [sverkiList]
-    );
-    const uniqueDogovorsCustomers = useMemo(
-        () => [...new Set(dogovorsList.map((row) => String(row.customerName || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
-        [dogovorsList]
-    );
-    const uniqueClaimsCustomers = useMemo(
-        () => [...new Set(claimsList.map((row) => String(row.customerCompanyName || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
-        [claimsList]
-    );
-    const claimCargoOptions = useMemo(() => {
-        const set = new Set<string>();
-        (items || []).forEach((item: any) => {
-            const number = String(getFirstCargoNumberFromInvoice(item) || '').trim();
-            if (number) set.add(number);
-        });
-        (perevozkiItems || []).forEach((c: any) => {
-            const raw = String(c?.Number ?? c?.number ?? '').trim();
-            if (raw) set.add(raw);
-        });
-        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [items, perevozkiItems, getFirstCargoNumberFromInvoice]);
-
-    const uniqueEdoStatuses = useMemo(() => {
-        if (docSection === 'Счета' || docSection === 'ЭДО') {
-            return collectUniqueInvoiceEdoTableLabels(items);
-        }
-        if (docSection === 'Договоры') {
-            return collectUniqueCachedDocumentEdoLabels(dogovorsList);
-        }
-        if (docSection === 'Акты сверок') {
-            return collectUniqueCachedDocumentEdoLabels(sverkiList);
-        }
-        const set = new Set<string>();
-        if (docSection === 'УПД') {
-            (actsItems || []).forEach((a: any) => {
-                const edo = getActUpdEdoInfo(a, items);
-                if (edo.raw) set.add(edo.label);
-            });
-        }
-        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [docSection, items, actsItems, dogovorsList, sverkiList]);
-
-    const toggleInvoiceFavorite = useCallback((invNum: string | undefined) => {
-        if (!invNum) return;
-        try {
-            const raw = typeof localStorage !== 'undefined' && localStorage.getItem('haulz.invoiceFavorites');
-            const arr: string[] = raw ? JSON.parse(raw) : [];
-            const set = new Set(arr);
-            if (set.has(invNum)) set.delete(invNum);
-            else set.add(invNum);
-            localStorage.setItem('haulz.invoiceFavorites', JSON.stringify([...set]));
-            setFavVersion(v => v + 1);
-        } catch {}
-    }, []);
-
-    const isInvoiceFavorite = useCallback((invNum: string | undefined): boolean => {
-        if (!invNum) return false;
-        try {
-            const raw = typeof localStorage !== 'undefined' && localStorage.getItem('haulz.invoiceFavorites');
-            const arr: string[] = raw ? JSON.parse(raw) : [];
-            return arr.includes(invNum);
-        } catch { return false; }
-    }, []);
+    const { isDocFavorite, toggleDocFavorite } = useDocFavorites();
 
     const invoiceFilterInputs = useMemo(
         () => ({
@@ -1296,7 +818,7 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
             invoiceFavoritesOnly,
             edoStatusFilterSet,
             transportFilter,
-            edoCounterpartyFilter,
+            edoCounterpartyFilter: "all" as const,
         }),
         [
             billStatusFilterSet,
@@ -1306,147 +828,163 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
             invoiceFavoritesOnly,
             edoStatusFilterSet,
             transportFilter,
-            edoCounterpartyFilter,
         ],
     );
 
-    const buildFilteredInvoicesForSection = useCallback(
-        (section: "Счета" | "ЭДО") => {
-            const scoped = resolveInvoiceFiltersForDocSection(section, invoiceFilterInputs);
-            return buildFilteredInvoices({
-                items,
-                activeInn: effectiveActiveInn,
-                useServiceRequest: effectiveServiceMode,
-                customerFilter,
-                invoiceFavoritesOnly: scoped.invoiceFavoritesOnly,
-                billStatusFilterSet: scoped.billStatusFilterSet,
-                typeFilterSet: scoped.typeFilterSet,
-                routeFilterSet: scoped.routeFilterSet,
-                deliveryStatusFilterSet: scoped.deliveryStatusFilterSet,
-                transportFilter: scoped.transportFilter,
-                transportLinkedCargoNumbers,
-                searchText: effectiveSearchText,
-                edoStatusFilterSet: scoped.edoStatusFilterSet,
-                edoCounterpartyFilter: section === "ЭДО" ? edoCounterpartyFilter : "all",
-                edoPartnerInns: section === "ЭДО" ? edoPartnerInns : undefined,
-                sortBy,
-                sortOrder,
-                isInvoiceFavorite,
-                getFirstCargoNumberFromInvoice,
-                cargoStateByNumber,
-                cargoRouteByNumber,
-                cargoTransportByNumber,
+    const invoicesCatalog = useDocumentsInvoices({
+        active: docSection === "Счета",
+        items,
+        actsItems,
+        perevozkiItems,
+        effectiveActiveInn,
+        effectiveServiceMode,
+        customerFilter,
+        effectiveSearchText,
+        sortBy,
+        sortOrder,
+        tableModeGroupedByCustomer,
+        tableSortColumn,
+        tableSortOrder,
+        innerTableSortColumn,
+        innerTableSortOrder,
+        invoiceFilterInputs,
+        transportLinkedCargoNumbers,
+        cargoStateByNumber,
+        cargoRouteByNumber,
+        cargoTransportByNumber,
+        cargoSumPaidByNumber,
+        normCargoKey,
+        expandedTableCustomer,
+        setExpandedTableCustomer,
+    });
+
+    const edoCatalog = useDocumentsEdo({
+        active: docSection === "ЭДО",
+        items,
+        perevozkiItems,
+        effectiveActiveInn,
+        effectiveServiceMode,
+        customerFilter,
+        effectiveSearchText,
+        sortBy,
+        sortOrder,
+        tableSortColumn,
+        tableSortOrder,
+        invoiceFilterInputs,
+        transportLinkedCargoNumbers,
+        cargoStateByNumber,
+        cargoRouteByNumber,
+        cargoTransportByNumber,
+        isInvoiceFavorite: invoicesCatalog.isInvoiceFavorite,
+        expandedTableCustomer,
+        setExpandedTableCustomer,
+    });
+
+    const actsCatalog = useDocumentsActs({
+        active: docSection === "УПД",
+        actsItems,
+        items,
+        perevozkiItems,
+        effectiveActiveInn,
+        effectiveServiceMode,
+        actCustomerFilter,
+        effectiveSearchText,
+        edoStatusFilterSet,
+        transportFilter,
+        transportLinkedCargoNumbers,
+        sortOrder,
+        tableModeGroupedByCustomer,
+        tableSortColumn,
+        tableSortOrder,
+        cargoTransportByNumber,
+        cargoStateByNumber,
+        cargoRouteByNumber,
+        normCargoKey,
+    });
+
+    const ordersCatalog = useDocumentsOrders({
+        active: docSection === "Заявки",
+        ordersItems,
+        effectiveActiveInn,
+        effectiveServiceMode,
+        customerFilter,
+        effectiveSearchText,
+        sortBy,
+        sortOrder,
+    });
+
+    const tariffsCatalog = useDocumentsTariffs({
+        active: docSection === "Тарифы",
+        effectiveActiveInn,
+        effectiveServiceMode,
+    });
+
+    const sverkiCatalog = useDocumentsSverki({
+        active: docSection === "Акты сверок",
+        auth,
+        effectiveActiveInn,
+        effectiveServiceMode,
+        apiDateRange,
+        edoStatusFilterSet,
+    });
+
+    const dogovorsCatalog = useDocumentsDogovors({
+        active: docSection === "Договоры",
+        effectiveActiveInn,
+        effectiveServiceMode,
+        edoStatusFilterSet,
+    });
+
+    const claimsCatalog = useDocumentsClaims({
+        active: docSection === "Претензии",
+        auth,
+        effectiveActiveInn,
+        effectiveServiceMode,
+        sortOrder,
+        dateFilter,
+        customDateFrom,
+        customDateTo,
+        selectedMonthForFilter,
+        selectedYearForFilter,
+        selectedWeekForFilter,
+        allowedDocSections,
+        onNavigateToClaims: () => setDocSection("Претензии"),
+        items,
+        perevozkiItems,
+    });
+
+    const edoDocumentsSummary = useMemo(
+        () => buildInvoicesSummary(edoCatalog.filteredEdoItems, actsItems, perevozkiItems),
+        [edoCatalog.filteredEdoItems, actsItems, perevozkiItems],
+    );
+
+    useEffect(() => {
+        ordersCatalog.resetExpandedOrderRow();
+    }, [docSection, dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter, ordersCatalog.resetExpandedOrderRow]);
+
+    const uniqueCustomers = useMemo(() => [...new Set(items.map(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [items]);
+    const uniqueSendingCustomers = useMemo(() => [...new Set((sendingsItems || []).map((i: any) => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [sendingsItems]);
+
+    const uniqueActCustomers = actsCatalog.uniqueActCustomers;
+    const uniqueEdoStatuses = useMemo(() => {
+        if (docSection === 'Счета' || docSection === 'ЭДО') {
+            return collectUniqueInvoiceEdoTableLabels(items);
+        }
+        if (docSection === 'Договоры') {
+            return collectUniqueCachedDocumentEdoLabels(dogovorsCatalog.dogovorsList);
+        }
+        if (docSection === 'Акты сверок') {
+            return collectUniqueCachedDocumentEdoLabels(sverkiCatalog.sverkiList);
+        }
+        const set = new Set<string>();
+        if (docSection === 'УПД') {
+            (actsItems || []).forEach((a: any) => {
+                const edo = getActUpdEdoInfo(a, items);
+                if (edo.raw) set.add(edo.label);
             });
-        },
-        [
-            invoiceFilterInputs,
-            edoCounterpartyFilter,
-            edoPartnerInns,
-            items,
-            effectiveActiveInn,
-            effectiveServiceMode,
-            customerFilter,
-            transportLinkedCargoNumbers,
-            effectiveSearchText,
-            sortBy,
-            sortOrder,
-            isInvoiceFavorite,
-            getFirstCargoNumberFromInvoice,
-            cargoStateByNumber,
-            cargoRouteByNumber,
-            cargoTransportByNumber,
-        ],
-    );
-
-    const filteredInvoiceItems = useMemo(
-        () => buildFilteredInvoicesForSection("Счета"),
-        [buildFilteredInvoicesForSection],
-    );
-
-    const filteredEdoItems = useMemo(
-        () => buildFilteredInvoicesForSection("ЭДО"),
-        [buildFilteredInvoicesForSection],
-    );
-
-    const filteredItems = useMemo(
-        () => (docSection === "ЭДО" ? filteredEdoItems : filteredInvoiceItems),
-        [docSection, filteredEdoItems, filteredInvoiceItems],
-    );
-
-    const documentsSummary = useMemo(
-        () => buildInvoicesSummary(filteredInvoiceItems, actsItems, perevozkiItems),
-        [filteredInvoiceItems, actsItems, perevozkiItems],
-    );
-
-    const mergedInvoicesEdoTotals = useMemo(
-        () => aggregateInvoiceEdoDocStats(filteredInvoiceItems),
-        [filteredInvoiceItems],
-    );
-
-    const edoCargoCardItems = useMemo(
-        () => buildEdoCargoCardItems(filteredEdoItems, perevozkiItems, getFirstCargoNumberFromInvoice),
-        [filteredEdoItems, perevozkiItems, getFirstCargoNumberFromInvoice],
-    );
-
-    const sortedActs = useMemo(() => {
-        const list = [...(actsItems || [])];
-        const getDate = (a: any) => (a.DateDoc ?? a.Date ?? a.date ?? '').toString();
-        list.sort((a, b) => {
-            const cmp = getDate(a).localeCompare(getDate(b));
-            return sortOrder === 'desc' ? -cmp : cmp;
-        });
-        return list;
-    }, [actsItems, sortOrder]);
-
-    const filteredActs = useMemo(() => {
-        return buildFilteredActs({
-            sortedActs,
-            activeInn: effectiveActiveInn,
-            useServiceRequest: effectiveServiceMode,
-            actCustomerFilter,
-            searchText: effectiveSearchText,
-            edoStatusFilterSet,
-            transportFilter,
-            transportLinkedCargoNumbers,
-            getFirstCargoNumberFromInvoice,
-            cargoTransportByNumber,
-            invoices: items,
-        });
-    }, [sortedActs, effectiveActiveInn, effectiveServiceMode, actCustomerFilter, effectiveSearchText, edoStatusFilterSet, transportFilter, transportLinkedCargoNumbers, getFirstCargoNumberFromInvoice, cargoTransportByNumber, items]);
-
-    const actsSummary = useMemo(
-        () => buildActsSummary(filteredActs, perevozkiItems),
-        [filteredActs, perevozkiItems],
-    );
-
-    const filteredOrders = useMemo(() => {
-        const base = buildFilteredOrders({
-            items: ordersItems || [],
-            activeInn: effectiveActiveInn,
-            useServiceRequest: effectiveServiceMode,
-            customerFilter,
-            typeFilterSet: new Set<TypeFilterKey>(),
-            routeFilterSet: new Set<RouteFilterKey>(),
-            deliveryStatusFilterSet: new Set<StatusFilter>(),
-            transportFilter: '',
-            searchText: effectiveSearchText,
-            sortBy,
-            sortOrder,
-        });
-        return base.filter((i: any) => {
-            if (orderReceiverFilter && String(i?.ПолучательНаименование ?? i?.Получатель ?? i?.ГрузополучательНаименование ?? i?.Грузополучатель ?? i?.Receiver ?? i?.receiver ?? i?.Consignee ?? '').trim() !== orderReceiverFilter) return false;
-            if (orderSenderFilter && String(i?.ОтправительНаименование ?? i?.Отправитель ?? i?.ГрузоотправительНаименование ?? i?.Грузоотправитель ?? i?.Sender ?? i?.sender ?? i?.Shipper ?? i?.Consignor ?? '').trim() !== orderSenderFilter) return false;
-            if (orderRouteFilter !== 'all') {
-                const fromRaw = String(i?.ПунктОтправкиНаименование ?? i?.ПунктОтправленияНаименование ?? i?.ПунктОтправки ?? i?.ПунктОтправления ?? i?.CitySender ?? '').trim();
-                const toRaw = String(i?.ПунктНазначенияНаименование ?? i?.ПунктПолученияНаименование ?? i?.ПунктНазначения ?? i?.ПунктДоставки ?? i?.CityReceiver ?? '').trim();
-                const route = [cityToCode(fromRaw) || fromRaw, cityToCode(toRaw) || toRaw].filter(Boolean).join(' – ');
-                if (route !== orderRouteFilter) return false;
-            }
-            return true;
-        });
-    }, [ordersItems, effectiveActiveInn, effectiveServiceMode, customerFilter, effectiveSearchText, sortBy, sortOrder, orderReceiverFilter, orderSenderFilter, orderRouteFilter]);
-
-    const ordersSummary = useMemo(() => buildDocsSummary(filteredOrders), [filteredOrders]);
+        }
+        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
+    }, [docSection, items, actsItems, dogovorsCatalog.dogovorsList, sverkiCatalog.sverkiList]);
 
     const {
         transportOptionsCurrentSection,
@@ -1501,297 +1039,6 @@ export function DocumentsPage({ auth, documentsServiceSaasUi = false, useService
     });
     const sendingsInitialLoading = sendingsLoading && (sendingsItems?.length ?? 0) === 0;
     const sendingsSummary = useMemo(() => buildDocsSummary(filteredSendings), [filteredSendings]);
-    const filteredTariffs = useMemo(() => {
-        const placeCode = (value: string) => cityToCode(value || '') || (value || '');
-        const allowedRoutes = new Set(["MSK – KGD", "KGD – MSK"]);
-        const list = tariffsList.filter((t) => {
-            if (t.isVet) return false;
-            if (effectiveServiceMode && tariffsCustomerFilter && String(t.customerName || '').trim() !== tariffsCustomerFilter) return false;
-            const route = formatTariffRouteLabel(t.cityFrom, t.cityTo);
-            if (!allowedRoutes.has(route)) return false;
-            if (tariffsRouteFilter !== 'all' && route !== tariffsRouteFilter) return false;
-            if (tariffsTypeFilter !== 'all' && String(t.transportType || '').trim() !== tariffsTypeFilter) return false;
-            return true;
-        });
-
-        const getVal = (t: typeof tariffsList[number]) => {
-            switch (tariffsSortColumn) {
-                case "docDate": return t.docDate ? new Date(t.docDate).getTime() : 0;
-                case "docNumber": return t.docNumber || "";
-                case "customerName": return t.customerName || "";
-                case "route": return formatTariffRouteLabel(t.cityFrom, t.cityTo);
-                case "transportType": return t.transportType || "";
-                case "dangerous": return t.isDangerous ? 1 : 0;
-                case "tariff": return Number(t.tariff ?? 0);
-                default: return "";
-            }
-        };
-
-        const sorted = [...list].sort((a, b) => {
-            const va = getVal(a);
-            const vb = getVal(b);
-            const cmp = typeof va === "number" && typeof vb === "number"
-                ? va - vb
-                : String(va).localeCompare(String(vb), 'ru', { numeric: true });
-            return tariffsSortOrder === "asc" ? cmp : -cmp;
-        });
-
-        // Collapse duplicates with same tariff/type/OG/from/to.
-        const seen = new Set<string>();
-        const collapsed: typeof sorted = [];
-        for (const t of sorted) {
-            const key = [
-                placeCode(t.cityFrom || ""),
-                placeCode(t.cityTo || ""),
-                String(t.transportType || "").trim().toLowerCase(),
-                t.isDangerous ? "1" : "0",
-                Number(t.tariff ?? 0).toFixed(4),
-            ].join("|");
-            if (seen.has(key)) continue;
-            seen.add(key);
-            collapsed.push(t);
-        }
-        return collapsed;
-    }, [tariffsList, effectiveServiceMode, tariffsCustomerFilter, tariffsRouteFilter, tariffsTypeFilter, tariffsSortColumn, tariffsSortOrder]);
-    const uniqueTariffsCustomers = useMemo(
-        () => [...new Set(tariffsList.map((t) => String(t.customerName || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru")),
-        [tariffsList],
-    );
-    const uniqueTariffsRoutes = useMemo(() => {
-        const allowedRoutes = new Set(["MSK – KGD", "KGD – MSK"]);
-        const set = new Set<string>();
-        tariffsList.forEach((t) => {
-            if (t.isVet) return;
-            const route = formatTariffRouteLabel(t.cityFrom, t.cityTo);
-            if (allowedRoutes.has(route)) set.add(route);
-        });
-        return [...set].sort((a, b) => a.localeCompare(b, "ru"));
-    }, [tariffsList]);
-    const uniqueTariffsTypes = useMemo(() => {
-        const set = new Set<string>();
-        tariffsList.forEach((t) => {
-            if (t.isVet) return;
-            const type = String(t.transportType || "").trim();
-            if (type) set.add(type);
-        });
-        return [...set].sort((a, b) => a.localeCompare(b, "ru"));
-    }, [tariffsList]);
-    const filteredSverki = useMemo(() => {
-        const fromDate = new Date(`${apiDateRange.dateFrom}T00:00:00`);
-        const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
-        return sverkiList.filter((row) => {
-            if (effectiveServiceMode && sverkiCustomerFilter && String(row.customerName || '').trim() !== sverkiCustomerFilter) return false;
-            if (!cachedDocumentMatchesEdoStatusFilter(row, edoStatusFilterSet)) return false;
-            if (!row.docDate) return true;
-            const d = new Date(row.docDate);
-            return d >= fromDate && d <= toDate;
-        });
-    }, [sverkiList, apiDateRange.dateFrom, apiDateRange.dateTo, effectiveServiceMode, sverkiCustomerFilter, edoStatusFilterSet]);
-    const downloadSverkaFile = useCallback(async (row: { id: number; docNumber: string; docDate: string | null }) => {
-        const number = String(row.docNumber || '').trim();
-        const docDateRaw = row.docDate;
-        const dateDoc = docDateRaw
-            ? (() => {
-                const d = new Date(docDateRaw);
-                if (isNaN(d.getTime())) return '';
-                const y = d.getFullYear();
-                const m = String(d.getMonth() + 1).padStart(2, '0');
-                const day = String(d.getDate()).padStart(2, '0');
-                return `${y}-${m}-${day}T00:00:00`;
-            })()
-            : '';
-        if (!number || !dateDoc) return;
-        setSverkiDownloadingId(row.id);
-        setSverkiDownloadError(null);
-        try {
-            const data = await postDownloadDocument({ metod: 'АктСверки', number, dateDoc });
-            await downloadBase64File({
-                data: String(data.data),
-                name: data?.name || `АктСверки_${number}.pdf`,
-                isHtml: Boolean(data?.isHtml),
-            });
-        } catch (e: unknown) {
-            setSverkiDownloadError((e as Error)?.message || 'Ошибка скачивания');
-        } finally {
-            setSverkiDownloadingId(null);
-        }
-    }, []);
-    const filteredDogovors = useMemo(() => {
-        return dogovorsList.filter((row) => {
-            if (effectiveServiceMode && dogovorsCustomerFilter && String(row.customerName || '').trim() !== dogovorsCustomerFilter) return false;
-            if (!cachedDocumentMatchesEdoStatusFilter(row, edoStatusFilterSet)) return false;
-            return true;
-        });
-    }, [dogovorsList, effectiveServiceMode, dogovorsCustomerFilter, edoStatusFilterSet]);
-    const downloadDogovorFile = useCallback(async (row: { id: number; docNumber: string; docDate: string | null; customerInn: string }) => {
-        const number = String(row.docNumber || '').trim();
-        const docDateRaw = row.docDate;
-        const dateDog = docDateRaw
-            ? (() => {
-                const d = new Date(docDateRaw);
-                if (isNaN(d.getTime())) return '';
-                const y = d.getFullYear();
-                const m = String(d.getMonth() + 1).padStart(2, '0');
-                const day = String(d.getDate()).padStart(2, '0');
-                return `${y}-${m}-${day}T00:00:00`;
-            })()
-            : '';
-        const inn = String(row.customerInn || '').trim();
-        if (!number || !dateDog || !inn) return;
-        setDogovorsDownloadingId(row.id);
-        setDogovorsDownloadError(null);
-        try {
-            const data = await postDownloadDocument({ metod: 'Договор', number, dateDog, inn });
-            await downloadBase64File({
-                data: String(data.data),
-                name: data?.name || `Договор_${number}.pdf`,
-                isHtml: Boolean(data?.isHtml),
-            });
-        } catch (e: unknown) {
-            setDogovorsDownloadError((e as Error)?.message || 'Ошибка скачивания');
-        } finally {
-            setDogovorsDownloadingId(null);
-        }
-    }, []);
-    const filteredClaims = useMemo(() => {
-        let rows = claimsList;
-        if (effectiveServiceMode && claimsCustomerFilter) {
-            rows = rows.filter((row) => String(row.customerCompanyName || '').trim() === claimsCustomerFilter);
-        }
-        return [...rows].sort((a, b) => {
-            const da = new Date(a.createdAt || 0).getTime();
-            const db = new Date(b.createdAt || 0).getTime();
-            return sortOrder === 'asc' ? da - db : db - da;
-        });
-    }, [claimsList, effectiveServiceMode, claimsCustomerFilter, sortOrder]);
-    const claimDetailStatusKey = useMemo(
-        () => String(claimsDetailData?.claim?.status || 'new') as ClaimStatusKey,
-        [claimsDetailData?.claim?.status]
-    );
-    const claimDetailStatusStyle = useMemo(
-        () => CLAIM_STATUS_BADGE[claimDetailStatusKey] || CLAIM_STATUS_BADGE.new,
-        [claimDetailStatusKey]
-    );
-    const claimCustomerPayload = useMemo(
-        () => extractCustomerClaimPayloadFromEvents(Array.isArray(claimsDetailData?.events) ? claimsDetailData.events : []),
-        [claimsDetailData?.events]
-    );
-    const groupedByCustomer = useMemo(() => {
-        const map = new Map<string, { customer: string; items: any[]; sum: number }>();
-        filteredItems.forEach(inv => {
-            const key = (inv.Customer ?? inv.customer ?? inv.Контрагент ?? inv.Contractor ?? inv.Organization ?? '').trim() || '—';
-            const sum = invoiceDocSum(inv);
-            const existing = map.get(key);
-            if (existing) {
-                existing.items.push(inv);
-                existing.sum += sum;
-            } else map.set(key, { customer: key, items: [inv], sum });
-        });
-        return Array.from(map.entries()).map(([, v]) => v);
-    }, [filteredItems]);
-
-    const sortedGroupedByCustomer = useMemo(() => {
-        const key = (row: { customer: string; sum: number; items: any[] }) =>
-            tableSortColumn === 'customer' ? (stripOoo(row.customer) || '').toLowerCase() : tableSortColumn === 'sum' ? row.sum : row.items.length;
-        return [...groupedByCustomer].sort((a, b) => {
-            const va = key(a);
-            const vb = key(b);
-            const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb));
-            return tableSortOrder === 'asc' ? cmp : -cmp;
-        });
-    }, [groupedByCustomer, tableSortColumn, tableSortOrder]);
-
-    const groupedActsByCustomer = useMemo(() => {
-        const map = new Map<string, { customer: string; items: any[]; sum: number }>();
-        filteredActs.forEach((act: any) => {
-            const key = (act.Customer ?? act.customer ?? act.Контрагент ?? act.Contractor ?? act.Organization ?? '').trim() || '—';
-            const v = act.SumDoc ?? act.Sum ?? act.sum ?? 0;
-            const sum = typeof v === 'string' ? parseFloat(v) || 0 : (v || 0);
-            const existing = map.get(key);
-            if (existing) {
-                existing.items.push(act);
-                existing.sum += sum;
-            } else map.set(key, { customer: key, items: [act], sum });
-        });
-        return Array.from(map.entries()).map(([, v]) => v);
-    }, [filteredActs]);
-
-    const sortedGroupedActsByCustomer = useMemo(() => {
-        const key = (row: { customer: string; sum: number; items: any[] }) =>
-            tableSortColumn === 'customer' ? (stripOoo(row.customer) || '').toLowerCase() : tableSortColumn === 'sum' ? row.sum : row.items.length;
-        return [...groupedActsByCustomer].sort((a, b) => {
-            const va = key(a);
-            const vb = key(b);
-            const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb));
-            return tableSortOrder === 'asc' ? cmp : -cmp;
-        });
-    }, [groupedActsByCustomer, tableSortColumn, tableSortOrder]);
-
-useEffect(() => {
-    if ((docSection !== 'Счета' && docSection !== 'ЭДО') || sortedGroupedByCustomer.length === 0) return;
-    if (docSection === 'Счета' && !tableModeGroupedByCustomer) return;
-    setExpandedTableCustomer((prev) => {
-        if (prev && sortedGroupedByCustomer.some((row) => row.customer === prev)) return prev;
-        return null;
-    });
-}, [docSection, tableModeGroupedByCustomer, sortedGroupedByCustomer]);
-
-useEffect(() => {
-    if (docSection !== 'УПД' || !tableModeGroupedByCustomer || sortedGroupedActsByCustomer.length === 0) return;
-    setExpandedTableActCustomer((prev) => {
-        if (prev && sortedGroupedActsByCustomer.some((row) => row.customer === prev)) return prev;
-        return null;
-    });
-}, [docSection, tableModeGroupedByCustomer, sortedGroupedActsByCustomer]);
-
-    const groupedOrdersByCustomer = useMemo(() => {
-        const map = new Map<string, { customer: string; items: any[]; sum: number }>();
-        filteredOrders.forEach((order: any) => {
-            const key = (order.Customer ?? order.customer ?? order.Контрагент ?? order.Contractor ?? order.Organization ?? '').trim() || '—';
-            const v = order.Sum ?? order.sum ?? order.Сумма ?? order.Amount ?? 0;
-            const sum = typeof v === 'string' ? parseFloat(v) || 0 : (v || 0);
-            const existing = map.get(key);
-            if (existing) {
-                existing.items.push(order);
-                existing.sum += sum;
-            } else map.set(key, { customer: key, items: [order], sum });
-        });
-        return Array.from(map.entries()).map(([, v]) => v);
-    }, [filteredOrders]);
-    const sortedGroupedOrdersByCustomer = useMemo(() => {
-        const key = (row: { customer: string; sum: number; items: any[] }) =>
-            tableSortColumn === 'customer' ? (stripOoo(row.customer) || '').toLowerCase() : tableSortColumn === 'sum' ? row.sum : row.items.length;
-        return [...groupedOrdersByCustomer].sort((a, b) => {
-            const va = key(a);
-            const vb = key(b);
-            const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb));
-            return tableSortOrder === 'asc' ? cmp : -cmp;
-        });
-    }, [groupedOrdersByCustomer, tableSortColumn, tableSortOrder]);
-    const groupedSendingsByCustomer = useMemo(() => {
-        const map = new Map<string, { customer: string; items: any[]; sum: number }>();
-        filteredSendings.forEach((sending: any) => {
-            const key = (sending.Customer ?? sending.customer ?? sending.Контрагент ?? sending.Contractor ?? sending.Organization ?? '').trim() || '—';
-            const v = sending.Sum ?? sending.sum ?? sending.Сумма ?? sending.Amount ?? 0;
-            const sum = typeof v === 'string' ? parseFloat(v) || 0 : (v || 0);
-            const existing = map.get(key);
-            if (existing) {
-                existing.items.push(sending);
-                existing.sum += sum;
-            } else map.set(key, { customer: key, items: [sending], sum });
-        });
-        return Array.from(map.entries()).map(([, v]) => v);
-    }, [filteredSendings]);
-    const sortedGroupedSendingsByCustomer = useMemo(() => {
-        const key = (row: { customer: string; sum: number; items: any[] }) =>
-            tableSortColumn === 'customer' ? (stripOoo(row.customer) || '').toLowerCase() : tableSortColumn === 'sum' ? row.sum : row.items.length;
-        return [...groupedSendingsByCustomer].sort((a, b) => {
-            const va = key(a);
-            const vb = key(b);
-            const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb));
-            return tableSortOrder === 'asc' ? cmp : -cmp;
-        });
-    }, [groupedSendingsByCustomer, tableSortColumn, tableSortOrder]);
 
     const handleTableSort = (column: 'customer' | 'sum' | 'count') => {
         if (tableSortColumn === column) setTableSortOrder(o => o === 'asc' ? 'desc' : 'asc');
@@ -1803,198 +1050,7 @@ useEffect(() => {
         else { setInnerTableSortColumn(column); setInnerTableSortOrder(column === 'date' ? 'desc' : 'asc'); }
     };
 
-    const handleInnerTableActSort = (column: 'number' | 'date' | 'status' | 'sum' | 'deliveryStatus' | 'route') => {
-        if (innerTableActSortColumn === column) setInnerTableActSortOrder(o => o === 'asc' ? 'desc' : 'asc');
-        else { setInnerTableActSortColumn(column); setInnerTableActSortOrder(column === 'date' ? 'desc' : 'asc'); }
-    };
-
-    const sortActs = useCallback((acts: any[]) => {
-        const getNum = (a: any) => (a.Number ?? a.number ?? '').toString().replace(/^0000-/, '');
-        const getDate = (a: any) => (a.DateDoc ?? a.Date ?? a.date ?? '').toString();
-        const getSum = (a: any) => {
-            const linkedInv = findInvoiceLinkedToAct(a, items);
-            const fromInv = linkedInv ? invoiceDocSum(linkedInv) : 0;
-            if (fromInv > 0) return fromInv;
-            return invoiceDocSum(a);
-        };
-        const getLinkedInv = (a: any) => findInvoiceLinkedToAct(a, items);
-        const getStatus = (a: any) => {
-            const inv = getLinkedInv(a);
-            return normalizeInvoiceStatus(inv?.Status ?? inv?.State ?? inv?.state ?? inv?.Статус ?? inv?.status ?? inv?.PaymentStatus ?? '');
-        };
-        const getDeliveryState = (a: any) => {
-            const inv = getLinkedInv(a) ?? a;
-            const num = getFirstCargoNumberFromInvoice(inv);
-            return (num ? cargoStateByNumber.get(normCargoKey(num)) : undefined) ?? '';
-        };
-        const getRoute = (a: any) => {
-            const inv = getLinkedInv(a) ?? a;
-            const num = getFirstCargoNumberFromInvoice(inv);
-            const route = num ? cargoRouteByNumber.get(normCargoKey(num)) : undefined;
-            if (route) return route;
-            const ainv = a.Invoice ?? a.invoice ?? a.Счёт ?? '';
-            return ainv ? `Сч. ${formatInvoiceNumber(String(ainv))}` : '';
-        };
-        return [...acts].sort((a, b) => {
-            let cmp = 0;
-            switch (innerTableActSortColumn) {
-                case 'number': cmp = (getNum(a) || '').localeCompare(getNum(b) || '', undefined, { numeric: true }); break;
-                case 'date': cmp = (getDate(a) || '').localeCompare(getDate(b) || ''); break;
-                case 'status': cmp = (getStatus(a) || '').localeCompare(getStatus(b) || ''); break;
-                case 'sum': cmp = getSum(a) - getSum(b); break;
-                case 'deliveryStatus': cmp = (getDeliveryState(a) || '').localeCompare(getDeliveryState(b) || ''); break;
-                case 'route': cmp = (getRoute(a) || '').localeCompare(getRoute(b) || ''); break;
-            }
-            return innerTableActSortOrder === 'asc' ? cmp : -cmp;
-        });
-    }, [innerTableActSortColumn, innerTableActSortOrder, items, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, normCargoKey]);
-
-    const renderActInnerTableRow = useCallback((act: any, rowKey: string | number, cellPad: string) => {
-        const linkedInv = findInvoiceLinkedToAct(act, items);
-        const invSource = linkedInv ?? act;
-        const anum = act.Number ?? act.number ?? '';
-        const adt = act.DateDoc ?? act.Date ?? act.date ?? '';
-        const ainv = act.Invoice ?? act.invoice ?? act.Счёт ?? '';
-        const asum = linkedInv ? invoiceDocSum(linkedInv) : invoiceDocSum(act);
-        const ist = normalizeInvoiceStatus(linkedInv?.Status ?? linkedInv?.State ?? linkedInv?.state ?? linkedInv?.Статус ?? linkedInv?.status ?? linkedInv?.PaymentStatus ?? '');
-        const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
-        const firstCargoNum = getFirstCargoNumberFromInvoice(invSource);
-        const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
-        const routeFromCargo = firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null;
-        const routeLabel = routeFromCargo || (ainv ? `Сч. ${formatInvoiceNumber(String(ainv))}` : null);
-        return (
-            <tr key={rowKey} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={(ev) => { ev.stopPropagation(); setSelectedAct(act); }} title="Открыть УПД">
-                <td className="cargo-inner-table__col-number" style={{ padding: cellPad }}><span className="cargo-inner-table__number">{formatInvoiceNumber(String(anum))}</span></td>
-                <td className="cargo-inner-table__col-date doc-inner-table-date" style={{ padding: cellPad }}><DateText value={typeof adt === 'string' ? adt : adt ? String(adt) : undefined} omitYear /></td>
-                <td className="cargo-inner-table__col-status doc-inner-table-status" style={{ padding: cellPad }}>
-                    <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile documents-invoices-inner-table__badges">
-                        {ist ? <AppBadge tone="neutral" className="documents-invoice-inner-badge" style={{ background: istBadgeStyle.bg, color: istBadgeStyle.color }}>{ist}</AppBadge> : null}
-                        <span className="cargo-inner-table__delivery-inline documents-invoice-inner-badge-wrap">
-                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
-                        </span>
-                        <span className="cargo-inner-table__route-inline documents-invoice-inner-badge-wrap">
-                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : routeLabel ? <DocumentsRouteBadge className="documents-invoice-inner-badge">{routeLabel}</DocumentsRouteBadge> : null}
-                        </span>
-                        {!ist && !deliveryState && !routeLabel ? '—' : null}
-                    </div>
-                </td>
-                <td className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: cellPad }}>
-                    {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
-                </td>
-                <td className="cargo-inner-table__col-route doc-inner-table-route cargo-inner-table__col-route--desktop" style={{ padding: cellPad }}>
-                    {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : routeLabel ? <DocumentsRouteBadge>{routeLabel}</DocumentsRouteBadge> : '—'}
-                </td>
-                {showSums && <td className="cargo-inner-table__col-sum documents-invoices-inner-table__sum" style={{ padding: cellPad, textAlign: 'right', verticalAlign: 'middle' }}><span className="documents-invoices-inner-table__sum-value">{asum != null ? formatCurrency(asum, true) : '—'}</span></td>}
-            </tr>
-        );
-    }, [items, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, normCargoKey, perevozkiLoading, showSums]);
-
-    const sortInvoices = useCallback((items: any[]) => {
-        const getNum = (inv: any) => (inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '').toString().replace(/^0000-/, '');
-        const getDate = (inv: any) => (inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '').toString();
-        const getStatus = (inv: any) => normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
-        const getSum = (inv: any) => invoiceDocSum(inv);
-        const getPaid = (inv: any) => invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
-        const getBalance = (inv: any) => invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
-        const getDeliveryState = (inv: any) => {
-            const num = getFirstCargoNumberFromInvoice(inv);
-            return (num ? cargoStateByNumber.get(normCargoKey(num)) : undefined) ?? '';
-        };
-        const getRoute = (inv: any) => {
-            const num = getFirstCargoNumberFromInvoice(inv);
-            return (num ? cargoRouteByNumber.get(normCargoKey(num)) : undefined) ?? '';
-        };
-        return [...items].sort((a, b) => {
-            let cmp = 0;
-            switch (innerTableSortColumn) {
-                case 'number': cmp = (getNum(a) || '').localeCompare(getNum(b) || '', undefined, { numeric: true }); break;
-                case 'date': cmp = (getDate(a) || '').localeCompare(getDate(b) || ''); break;
-                case 'status': cmp = (getStatus(a) || '').localeCompare(getStatus(b) || ''); break;
-                case 'sum': cmp = getSum(a) - getSum(b); break;
-                case 'paid': cmp = getPaid(a) - getPaid(b); break;
-                case 'balance': cmp = getBalance(a) - getBalance(b); break;
-                case 'deliveryStatus': cmp = (getDeliveryState(a) || '').localeCompare(getDeliveryState(b) || ''); break;
-                case 'route': cmp = (getRoute(a) || '').localeCompare(getRoute(b) || ''); break;
-            }
-            return innerTableSortOrder === 'asc' ? cmp : -cmp;
-        });
-    }, [innerTableSortColumn, innerTableSortOrder, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, cargoSumPaidByNumber, normCargoKey]);
-    const sortOrders = useCallback((items: any[]) => {
-        const getNum = (row: any) => (row.Number ?? row.number ?? row.Номер ?? row.N ?? '').toString().replace(/^0000-/, '');
-        const getDate = (row: any) => (row.DateZayavki ?? row.DateOtpr ?? row.DateSend ?? row.DatePrih ?? row.DateVr ?? row.DateDoc ?? row.Date ?? row.date ?? '').toString();
-        const getStatus = (row: any) => normalizeStatus(row.State ?? row.state ?? row.Статус ?? '');
-        const getSum = (row: any) => Number(row.Sum ?? row.sum ?? row.Сумма ?? row.Amount ?? 0) || 0;
-        const getRoute = (row: any) => [cityToCode(row.CitySender), cityToCode(row.CityReceiver)].filter(Boolean).join(' – ') || '';
-        return [...items].sort((a, b) => {
-            let cmp = 0;
-            switch (innerTableSortColumn) {
-                case 'number': cmp = (getNum(a) || '').localeCompare(getNum(b) || '', undefined, { numeric: true }); break;
-                case 'date': cmp = (getDate(a) || '').localeCompare(getDate(b) || ''); break;
-                case 'status':
-                case 'deliveryStatus': cmp = (getStatus(a) || '').localeCompare(getStatus(b) || ''); break;
-                case 'sum': cmp = getSum(a) - getSum(b); break;
-                case 'route': cmp = (getRoute(a) || '').localeCompare(getRoute(b) || ''); break;
-            }
-            return innerTableSortOrder === 'asc' ? cmp : -cmp;
-        });
-    }, [innerTableSortColumn, innerTableSortOrder]);
     const tableModeEffective = tableModeByCustomer;
-    const orderRowsSorted = useMemo(() => {
-        const getDate = (row: any) => String(row?.Дата ?? row?.DateZayavki ?? row?.Date ?? row?.date ?? "");
-        const getNumber = (row: any) => String(row?.НомерЗаявки ?? row?.Номер ?? row?.Number ?? row?.number ?? row?.N ?? "");
-        const getClientNumber = (row: any) => String(row?.НомерЗаявкиКлиента ?? row?.ClientRequestNumber ?? "");
-        const getPickupDate = (row: any) => String(row?.ДатаЗабораПлан ?? row?.PickupDatePlan ?? "");
-        const getSender = (row: any) => String(row?.ОтправительНаименование ?? row?.Отправитель ?? row?.ГрузоотправительНаименование ?? row?.Грузоотправитель ?? row?.Sender ?? row?.sender ?? row?.Shipper ?? row?.Consignor ?? "");
-        const getReceiver = (row: any) => String(row?.ПолучательНаименование ?? row?.Получатель ?? row?.ГрузополучательНаименование ?? row?.Грузополучатель ?? row?.Receiver ?? row?.receiver ?? row?.Consignee ?? "");
-        const getCustomer = (row: any) => String(row?.ЗаказчикНаименование ?? row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? row?.ПлательщикНаименование ?? row?.PayerName ?? "");
-        const getComment = (row: any) => String(row?.Комментарий ?? row?.Comment ?? row?.Примечание ?? row?.Note ?? "");
-        const getCargo = (row: any) => {
-            const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
-            const firstParcel = Array.isArray(rawParcels)
-                ? rawParcels[0]
-                : (rawParcels && typeof rawParcels === 'object'
-                    ? Object.values(rawParcels as Record<string, any>)[0]
-                    : undefined);
-            return String(row?.НомерПеревозки ?? row?.Перевозка ?? row?.CargoNumber ?? row?.NumberPerevozki ?? (firstParcel as any)?.Перевозка ?? "");
-        };
-        const getRoute = (row: any) => {
-            const from = String(row?.ПунктОтправкиНаименование ?? row?.ПунктОтправленияНаименование ?? row?.ПунктОтправки ?? row?.ПунктОтправления ?? row?.CitySender ?? '').trim();
-            const to = String(row?.ПунктНазначенияНаименование ?? row?.ПунктПолученияНаименование ?? row?.ПунктНазначения ?? row?.ПунктДоставки ?? row?.CityReceiver ?? '').trim();
-            return [cityToCode(from) || from, cityToCode(to) || to].filter(Boolean).join(' – ');
-        };
-        return [...filteredOrders].sort((a, b) => {
-            let cmp = 0;
-            switch (ordersSortColumn) {
-                case 'date': cmp = getDate(a).localeCompare(getDate(b)); break;
-                case 'number': cmp = getNumber(a).localeCompare(getNumber(b), undefined, { numeric: true }); break;
-                case 'clientNumber': cmp = getClientNumber(a).localeCompare(getClientNumber(b), undefined, { numeric: true }); break;
-                case 'pickupDate': cmp = getPickupDate(a).localeCompare(getPickupDate(b)); break;
-                case 'cargo': cmp = getCargo(a).localeCompare(getCargo(b), undefined, { numeric: true }); break;
-                case 'sender': cmp = getSender(a).localeCompare(getSender(b)); break;
-                case 'receiver': cmp = getReceiver(a).localeCompare(getReceiver(b)); break;
-                case 'route': cmp = getRoute(a).localeCompare(getRoute(b)); break;
-                case 'customer': cmp = getCustomer(a).localeCompare(getCustomer(b)); break;
-                case 'comment': cmp = getComment(a).localeCompare(getComment(b)); break;
-            }
-            return ordersSortOrder === 'asc' ? cmp : -cmp;
-        });
-    }, [filteredOrders, ordersSortColumn, ordersSortOrder]);
-    const handleOrdersSort = useCallback((column: 'date' | 'number' | 'clientNumber' | 'pickupDate' | 'cargo' | 'sender' | 'receiver' | 'route' | 'customer' | 'comment') => {
-        if (ordersSortColumn === column) {
-            setOrdersSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-            return;
-        }
-        setOrdersSortColumn(column);
-        setOrdersSortOrder(column === 'date' || column === 'pickupDate' ? 'desc' : 'asc');
-    }, [ordersSortColumn]);
-    const handleOrdersParcelsSort = useCallback((column: 'parcel' | 'cargo' | 'tmc' | 'consolidation' | 'count' | 'cost') => {
-        if (ordersParcelsSortColumn === column) {
-            setOrdersParcelsSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-            return;
-        }
-        setOrdersParcelsSortColumn(column);
-        setOrdersParcelsSortOrder('asc');
-    }, [ordersParcelsSortColumn]);
     const visibleSendingMeta = useSendingsVisibleMeta(sendingRowsSorted);
     const {
         selectedSendingRowKeys,
@@ -2069,48 +1125,43 @@ useEffect(() => {
     const closeDocumentsToolbarDropdownsExceptSendings = useCallback(() => {
         setIsDateDropdownOpen(false);
         setIsCustomerDropdownOpen(false);
-        setIsReceiverDropdownOpen(false);
-        setIsOrderSenderDropdownOpen(false);
-        setIsOrderRouteDropdownOpen(false);
+        ordersCatalog.setIsReceiverDropdownOpen(false);
+        ordersCatalog.setIsOrderSenderDropdownOpen(false);
+        ordersCatalog.setIsOrderRouteDropdownOpen(false);
         setIsActCustomerDropdownOpen(false);
         setIsBillStatusDropdownOpen(false);
         setIsRouteDropdownOpen(false);
         setIsEdoStatusDropdownOpen(false);
         setIsTransportDropdownOpen(false);
-        setIsEdoCounterpartyDropdownOpen(false);
-        setIsSverkiCustomerDropdownOpen(false);
-        setIsDogovorsCustomerDropdownOpen(false);
-        setIsClaimsCustomerDropdownOpen(false);
-        setIsClaimsStatusDropdownOpen(false);
-        setIsTariffsCustomerDropdownOpen(false);
-        setIsTariffsRouteDropdownOpen(false);
-        setIsTariffsTypeDropdownOpen(false);
-    }, []);
+        edoCatalog.setIsEdoCounterpartyDropdownOpen(false);
+        claimsCatalog.closeClaimsDropdowns();
+        tariffsCatalog.closeTariffsDropdowns();
+        sverkiCatalog.closeSverkiDropdowns();
+        dogovorsCatalog.closeDogovorsDropdowns();
+    }, [ordersCatalog, edoCatalog, claimsCatalog, tariffsCatalog, sverkiCatalog, dogovorsCatalog]);
     const closeDocumentsToolbarDropdownsForTransport = useCallback(() => {
         setIsDateDropdownOpen(false);
         setIsCustomerDropdownOpen(false);
-        setIsReceiverDropdownOpen(false);
+        ordersCatalog.setIsReceiverDropdownOpen(false);
         setIsActCustomerDropdownOpen(false);
         setIsTypeDropdownOpen(false);
         setIsRouteDropdownOpen(false);
         setIsDeliveryStatusDropdownOpen(false);
         setIsRouteCargoDropdownOpen(false);
         setIsEdoStatusDropdownOpen(false);
-    }, []);
+    }, [ordersCatalog]);
     const closeDocumentsToolbarDropdownsForClaims = useCallback(() => {
         setIsDateDropdownOpen(false);
         setIsCustomerDropdownOpen(false);
-        setIsReceiverDropdownOpen(false);
+        ordersCatalog.setIsReceiverDropdownOpen(false);
         setIsActCustomerDropdownOpen(false);
-        setIsSverkiCustomerDropdownOpen(false);
-        setIsDogovorsCustomerDropdownOpen(false);
         setIsTypeDropdownOpen(false);
         setIsRouteDropdownOpen(false);
         setIsDeliveryStatusDropdownOpen(false);
         setIsRouteCargoDropdownOpen(false);
         setIsEdoStatusDropdownOpen(false);
         setIsTransportDropdownOpen(false);
-    }, []);
+    }, [ordersCatalog]);
 
     const sendingsSectionProps = useSendingsSectionProps({
         tableModeEffective: tableModeEffective,
@@ -2251,7 +1302,7 @@ useEffect(() => {
                         {docSection !== 'Договоры' ? (
                         <>
                         <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsSverkiCustomerDropdownOpen(false); setIsDogovorsCustomerDropdownOpen(false); setIsClaimsCustomerDropdownOpen(false); setIsClaimsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); setIsTariffsCustomerDropdownOpen(false); setIsTariffsRouteDropdownOpen(false); setIsTariffsTypeDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); ordersCatalog.setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); sverkiCatalog.closeSverkiDropdowns(); dogovorsCatalog.closeDogovorsDropdowns(); claimsCatalog.closeClaimsDropdowns(); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); tariffsCatalog.closeTariffsDropdowns(); }}>
                                 Дата: {formatDateFilterButtonLabel({
                                     dateFilter,
                                     apiDateRange,
@@ -2338,139 +1389,64 @@ useEffect(() => {
                         </>
                         ) : null}
                         {docSection === 'Тарифы' && (
-                            <>
-                                {effectiveServiceMode ? (
-                                    <>
-                                        <div ref={tariffsCustomerButtonRef} style={{ display: 'inline-flex' }}>
-                                            <Button className="filter-button" onClick={() => {
-                                                setIsTariffsCustomerDropdownOpen(!isTariffsCustomerDropdownOpen);
-                                                setIsTariffsRouteDropdownOpen(false);
-                                                setIsTariffsTypeDropdownOpen(false);
-                                                setIsDateDropdownOpen(false);
-                                            }}>
-                                                Заказчик: {tariffsCustomerFilter ? stripOoo(tariffsCustomerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
-                                            </Button>
-                                        </div>
-                                        <FilterDropdownPortal triggerRef={tariffsCustomerButtonRef} isOpen={isTariffsCustomerDropdownOpen} onClose={() => { setIsTariffsCustomerDropdownOpen(false); setTariffsCustomerSearchQuery(''); }}>
-                                            <div className="dropdown-item" style={{ padding: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
-                                                <input
-                                                    type="text"
-                                                    placeholder="Поиск заказчика..."
-                                                    value={tariffsCustomerSearchQuery}
-                                                    onChange={(e) => setTariffsCustomerSearchQuery(e.target.value)}
-                                                    className="filter-search-input"
-                                                    style={{ width: '100%', padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid var(--color-border)', fontSize: '0.875rem', outline: 'none' }}
-                                                />
-                                            </div>
-                                            <div className="dropdown-item" onClick={() => { setTariffsCustomerFilter(''); setIsTariffsCustomerDropdownOpen(false); setTariffsCustomerSearchQuery(''); }}><Typography.Body>Все</Typography.Body></div>
-                                            {uniqueTariffsCustomers
-                                                .filter((c) => !tariffsCustomerSearchQuery.trim() || c.toLowerCase().includes(tariffsCustomerSearchQuery.trim().toLowerCase()))
-                                                .map((customer) => (
-                                                    <div key={customer} className="dropdown-item" onClick={() => { setTariffsCustomerFilter(customer); setIsTariffsCustomerDropdownOpen(false); setTariffsCustomerSearchQuery(''); }}>
-                                                        <Typography.Body>{stripOoo(customer)}</Typography.Body>
-                                                    </div>
-                                                ))}
-                                        </FilterDropdownPortal>
-                                    </>
-                                ) : null}
-                                <div ref={tariffsRouteButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => {
-                                        setIsTariffsRouteDropdownOpen(!isTariffsRouteDropdownOpen);
-                                        setIsTariffsCustomerDropdownOpen(false);
-                                        setIsTariffsTypeDropdownOpen(false);
-                                        setIsDateDropdownOpen(false);
-                                    }}>
-                                        Маршрут: {tariffsRouteFilter === 'all' ? 'Все' : tariffsRouteFilter} <ChevronDown className="w-4 h-4"/>
-                                    </Button>
-                                </div>
-                                <FilterDropdownPortal triggerRef={tariffsRouteButtonRef} isOpen={isTariffsRouteDropdownOpen} onClose={() => setIsTariffsRouteDropdownOpen(false)}>
-                                    <div className="dropdown-item" onClick={() => { setTariffsRouteFilter('all'); setIsTariffsRouteDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                                    {uniqueTariffsRoutes.map((route) => (
-                                        <div key={route} className="dropdown-item" onClick={() => { setTariffsRouteFilter(route); setIsTariffsRouteDropdownOpen(false); }}>
-                                            <Typography.Body>{route}</Typography.Body>
-                                        </div>
-                                    ))}
-                                </FilterDropdownPortal>
-                                <div ref={tariffsTypeButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => {
-                                        setIsTariffsTypeDropdownOpen(!isTariffsTypeDropdownOpen);
-                                        setIsTariffsCustomerDropdownOpen(false);
-                                        setIsTariffsRouteDropdownOpen(false);
-                                        setIsDateDropdownOpen(false);
-                                    }}>
-                                        Тип: {tariffsTypeFilter === 'all' ? 'Все' : tariffsTypeFilter} <ChevronDown className="w-4 h-4"/>
-                                    </Button>
-                                </div>
-                                <FilterDropdownPortal triggerRef={tariffsTypeButtonRef} isOpen={isTariffsTypeDropdownOpen} onClose={() => setIsTariffsTypeDropdownOpen(false)}>
-                                    <div className="dropdown-item" onClick={() => { setTariffsTypeFilter('all'); setIsTariffsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                                    {uniqueTariffsTypes.map((type) => (
-                                        <div key={type} className="dropdown-item" onClick={() => { setTariffsTypeFilter(type); setIsTariffsTypeDropdownOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                            <TariffTransportTypeIcon transportType={type} size={18} />
-                                            <Typography.Body>{type}</Typography.Body>
-                                        </div>
-                                    ))}
-                                </FilterDropdownPortal>
-                            </>
+                            <DocumentsTariffsToolbarFilters
+                                effectiveServiceMode={effectiveServiceMode}
+                                tariffsCustomerFilter={tariffsCatalog.tariffsCustomerFilter}
+                                setTariffsCustomerFilter={tariffsCatalog.setTariffsCustomerFilter}
+                                tariffsCustomerSearchQuery={tariffsCatalog.tariffsCustomerSearchQuery}
+                                setTariffsCustomerSearchQuery={tariffsCatalog.setTariffsCustomerSearchQuery}
+                                tariffsRouteFilter={tariffsCatalog.tariffsRouteFilter}
+                                setTariffsRouteFilter={tariffsCatalog.setTariffsRouteFilter}
+                                tariffsTypeFilter={tariffsCatalog.tariffsTypeFilter}
+                                setTariffsTypeFilter={tariffsCatalog.setTariffsTypeFilter}
+                                uniqueTariffsCustomers={tariffsCatalog.uniqueTariffsCustomers}
+                                uniqueTariffsRoutes={tariffsCatalog.uniqueTariffsRoutes}
+                                uniqueTariffsTypes={tariffsCatalog.uniqueTariffsTypes}
+                                isTariffsCustomerDropdownOpen={tariffsCatalog.isTariffsCustomerDropdownOpen}
+                                setIsTariffsCustomerDropdownOpen={tariffsCatalog.setIsTariffsCustomerDropdownOpen}
+                                isTariffsRouteDropdownOpen={tariffsCatalog.isTariffsRouteDropdownOpen}
+                                setIsTariffsRouteDropdownOpen={tariffsCatalog.setIsTariffsRouteDropdownOpen}
+                                isTariffsTypeDropdownOpen={tariffsCatalog.isTariffsTypeDropdownOpen}
+                                setIsTariffsTypeDropdownOpen={tariffsCatalog.setIsTariffsTypeDropdownOpen}
+                                onCloseOtherDropdowns={closeDocumentsToolbarDropdownsExceptSendings}
+                            />
                         )}
-                        {(docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'Заявки') && effectiveServiceMode && (
+                        {(docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'Заявки') && effectiveServiceMode && (                        {(docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'Заявки') && effectiveServiceMode && (
                             <>
                                 <div ref={customerButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsOrderSenderDropdownOpen(false); setIsOrderRouteDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                    <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                         Заказчик: {customerFilter ? stripOoo(customerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                                     </Button>
                                 </div>
                                 <FilterDropdownPortal triggerRef={customerButtonRef} isOpen={isCustomerDropdownOpen} onClose={() => setIsCustomerDropdownOpen(false)}>
                                     <div className="dropdown-item" onClick={() => { setCustomerFilter(''); setIsCustomerDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                                    {(docSection === 'Заявки' ? uniqueOrderCustomers : docSection === 'Отправки' ? uniqueSendingCustomers : uniqueCustomers).map(c => (
+                                    {(docSection === 'Заявки' ? ordersCatalog.uniqueOrderCustomers : docSection === 'Отправки' ? uniqueSendingCustomers : uniqueCustomers).map(c => (
                                         <div key={c} className="dropdown-item" onClick={() => { setCustomerFilter(c); setIsCustomerDropdownOpen(false); }}><Typography.Body>{stripOoo(c)}</Typography.Body></div>
                                     ))}
                                 </FilterDropdownPortal>
                             </>
                         )}
                         {docSection === 'Заявки' && (
-                            <>
-                                <div ref={receiverButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsOrderSenderDropdownOpen(false); setIsOrderRouteDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
-                                        Получатель: {orderReceiverFilter ? stripOoo(orderReceiverFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
-                                    </Button>
-                                </div>
-                                <FilterDropdownPortal triggerRef={receiverButtonRef} isOpen={isReceiverDropdownOpen} onClose={() => setIsReceiverDropdownOpen(false)}>
-                                    <div className="dropdown-item" onClick={() => { setOrderReceiverFilter(''); setIsReceiverDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                                    {uniqueOrderReceivers.map((receiver) => (
-                                        <div key={receiver} className="dropdown-item" onClick={() => { setOrderReceiverFilter(receiver); setIsReceiverDropdownOpen(false); }}>
-                                            <Typography.Body>{stripOoo(receiver)}</Typography.Body>
-                                        </div>
-                                    ))}
-                                </FilterDropdownPortal>
-                                <div ref={orderSenderButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsOrderSenderDropdownOpen(!isOrderSenderDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsOrderRouteDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
-                                        Отправитель: {orderSenderFilter ? stripOoo(orderSenderFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
-                                    </Button>
-                                </div>
-                                <FilterDropdownPortal triggerRef={orderSenderButtonRef} isOpen={isOrderSenderDropdownOpen} onClose={() => setIsOrderSenderDropdownOpen(false)}>
-                                    <div className="dropdown-item" onClick={() => { setOrderSenderFilter(''); setIsOrderSenderDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                                    {uniqueOrderSenders.map((sender) => (
-                                        <div key={sender} className="dropdown-item" onClick={() => { setOrderSenderFilter(sender); setIsOrderSenderDropdownOpen(false); }}>
-                                            <Typography.Body>{stripOoo(sender)}</Typography.Body>
-                                        </div>
-                                    ))}
-                                </FilterDropdownPortal>
-                                <div ref={orderRouteButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsOrderRouteDropdownOpen(!isOrderRouteDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsOrderSenderDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
-                                        Маршрут: {orderRouteFilter === 'all' ? 'Все' : orderRouteFilter} <ChevronDown className="w-4 h-4"/>
-                                    </Button>
-                                </div>
-                                <FilterDropdownPortal triggerRef={orderRouteButtonRef} isOpen={isOrderRouteDropdownOpen} onClose={() => setIsOrderRouteDropdownOpen(false)}>
-                                    <div className="dropdown-item" onClick={() => { setOrderRouteFilter('all'); setIsOrderRouteDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                                    {uniqueOrderRoutes.map((route) => (
-                                        <div key={route} className="dropdown-item" onClick={() => { setOrderRouteFilter(route); setIsOrderRouteDropdownOpen(false); }}>
-                                            <Typography.Body>{route}</Typography.Body>
-                                        </div>
-                                    ))}
-                                </FilterDropdownPortal>
-                            </>
+                            <DocumentsOrdersToolbarFilters
+                                orderReceiverFilter={ordersCatalog.orderReceiverFilter}
+                                setOrderReceiverFilter={ordersCatalog.setOrderReceiverFilter}
+                                orderSenderFilter={ordersCatalog.orderSenderFilter}
+                                setOrderSenderFilter={ordersCatalog.setOrderSenderFilter}
+                                orderRouteFilter={ordersCatalog.orderRouteFilter}
+                                setOrderRouteFilter={ordersCatalog.setOrderRouteFilter}
+                                uniqueOrderReceivers={ordersCatalog.uniqueOrderReceivers}
+                                uniqueOrderSenders={ordersCatalog.uniqueOrderSenders}
+                                uniqueOrderRoutes={ordersCatalog.uniqueOrderRoutes}
+                                isReceiverDropdownOpen={ordersCatalog.isReceiverDropdownOpen}
+                                setIsReceiverDropdownOpen={ordersCatalog.setIsReceiverDropdownOpen}
+                                isOrderSenderDropdownOpen={ordersCatalog.isOrderSenderDropdownOpen}
+                                setIsOrderSenderDropdownOpen={ordersCatalog.setIsOrderSenderDropdownOpen}
+                                isOrderRouteDropdownOpen={ordersCatalog.isOrderRouteDropdownOpen}
+                                setIsOrderRouteDropdownOpen={ordersCatalog.setIsOrderRouteDropdownOpen}
+                                onCloseOtherDropdowns={closeDocumentsToolbarDropdownsExceptSendings}
+                            />
                         )}
-                        {docSection === 'Отправки' && (
+                        {docSection === 'Отправки' && (                        {docSection === 'Отправки' && (
                             <SendingsToolbarFilters
                                 transportFilter={transportFilter}
                                 setTransportFilter={setTransportFilter}
@@ -2490,70 +1466,58 @@ useEffect(() => {
                                 closeOtherDropdowns={closeDocumentsToolbarDropdownsExceptSendings}
                             />
                         )}
-                        {docSection === 'УПД' && effectiveServiceMode && (
-                            <>
-                                <div ref={actCustomerButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsActCustomerDropdownOpen(!isActCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
-                                        Заказчик: {actCustomerFilter ? stripOoo(actCustomerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
-                                    </Button>
-                                </div>
-                                <FilterDropdownPortal triggerRef={actCustomerButtonRef} isOpen={isActCustomerDropdownOpen} onClose={() => setIsActCustomerDropdownOpen(false)}>
-                                    <div className="dropdown-item" onClick={() => { setActCustomerFilter(''); setIsActCustomerDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                                    {uniqueActCustomers.map(c => (
-                                        <div key={c} className="dropdown-item" onClick={() => { setActCustomerFilter(c); setIsActCustomerDropdownOpen(false); }}><Typography.Body>{stripOoo(c)}</Typography.Body></div>
-                                    ))}
-                                </FilterDropdownPortal>
-                            </>
+                        {docSection === 'УПД' && (
+                            <DocumentsActsToolbarFilters
+                                effectiveServiceMode={effectiveServiceMode}
+                                actCustomerFilter={actCustomerFilter}
+                                setActCustomerFilter={setActCustomerFilter}
+                                uniqueActCustomers={actsCatalog.uniqueActCustomers}
+                                isActCustomerDropdownOpen={isActCustomerDropdownOpen}
+                                setIsActCustomerDropdownOpen={setIsActCustomerDropdownOpen}
+                                onCloseOtherDropdowns={closeDocumentsToolbarDropdownsExceptSendings}
+                            />
                         )}
-                        {docSection === 'Акты сверок' && effectiveServiceMode && (
-                            <>
-                                <div ref={sverkiCustomerButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsSverkiCustomerDropdownOpen(!isSverkiCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
-                                        Заказчик: {sverkiCustomerFilter ? stripOoo(sverkiCustomerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
-                                    </Button>
-                                </div>
-                                <FilterDropdownPortal triggerRef={sverkiCustomerButtonRef} isOpen={isSverkiCustomerDropdownOpen} onClose={() => setIsSverkiCustomerDropdownOpen(false)}>
-                                    <div className="dropdown-item" onClick={() => { setSverkiCustomerFilter(''); setIsSverkiCustomerDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                                    {uniqueSverkiCustomers.map(c => (
-                                        <div key={c} className="dropdown-item" onClick={() => { setSverkiCustomerFilter(c); setIsSverkiCustomerDropdownOpen(false); }}><Typography.Body>{stripOoo(c)}</Typography.Body></div>
-                                    ))}
-                                </FilterDropdownPortal>
-                            </>
+                        {docSection === 'Акты сверок' && (
+                            <DocumentsSverkiToolbarFilters
+                                effectiveServiceMode={effectiveServiceMode}
+                                sverkiCustomerFilter={sverkiCatalog.sverkiCustomerFilter}
+                                setSverkiCustomerFilter={sverkiCatalog.setSverkiCustomerFilter}
+                                uniqueSverkiCustomers={sverkiCatalog.uniqueSverkiCustomers}
+                                isSverkiCustomerDropdownOpen={sverkiCatalog.isSverkiCustomerDropdownOpen}
+                                setIsSverkiCustomerDropdownOpen={sverkiCatalog.setIsSverkiCustomerDropdownOpen}
+                                onCloseOtherDropdowns={closeDocumentsToolbarDropdownsExceptSendings}
+                            />
                         )}
-                        {docSection === 'Договоры' && effectiveServiceMode && (
-                            <>
-                                <div ref={dogovorsCustomerButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsDogovorsCustomerDropdownOpen(!isDogovorsCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsSverkiCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
-                                        Заказчик: {dogovorsCustomerFilter ? stripOoo(dogovorsCustomerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
-                                    </Button>
-                                </div>
-                                <FilterDropdownPortal triggerRef={dogovorsCustomerButtonRef} isOpen={isDogovorsCustomerDropdownOpen} onClose={() => setIsDogovorsCustomerDropdownOpen(false)}>
-                                    <div className="dropdown-item" onClick={() => { setDogovorsCustomerFilter(''); setIsDogovorsCustomerDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                                    {uniqueDogovorsCustomers.map(c => (
-                                        <div key={c} className="dropdown-item" onClick={() => { setDogovorsCustomerFilter(c); setIsDogovorsCustomerDropdownOpen(false); }}><Typography.Body>{stripOoo(c)}</Typography.Body></div>
-                                    ))}
-                                </FilterDropdownPortal>
-                            </>
+                        {docSection === 'Договоры' && (
+                            <DocumentsDogovorsToolbarFilters
+                                effectiveServiceMode={effectiveServiceMode}
+                                dogovorsCustomerFilter={dogovorsCatalog.dogovorsCustomerFilter}
+                                setDogovorsCustomerFilter={dogovorsCatalog.setDogovorsCustomerFilter}
+                                uniqueDogovorsCustomers={dogovorsCatalog.uniqueDogovorsCustomers}
+                                isDogovorsCustomerDropdownOpen={dogovorsCatalog.isDogovorsCustomerDropdownOpen}
+                                setIsDogovorsCustomerDropdownOpen={dogovorsCatalog.setIsDogovorsCustomerDropdownOpen}
+                                onCloseOtherDropdowns={closeDocumentsToolbarDropdownsExceptSendings}
+                            />
                         )}
-                        {docSection === 'Претензии' && (
+                        {docSection === 'Претензии' && (                        {docSection === 'Претензии' && (
                             <ClaimsToolbarFilters
                                 effectiveServiceMode={effectiveServiceMode}
-                                claimsStatusFilter={claimsStatusFilter}
-                                setClaimsStatusFilter={setClaimsStatusFilter}
-                                claimsCustomerFilter={claimsCustomerFilter}
-                                setClaimsCustomerFilter={setClaimsCustomerFilter}
-                                uniqueClaimsCustomers={uniqueClaimsCustomers}
-                                isClaimsStatusDropdownOpen={isClaimsStatusDropdownOpen}
-                                setIsClaimsStatusDropdownOpen={setIsClaimsStatusDropdownOpen}
-                                isClaimsCustomerDropdownOpen={isClaimsCustomerDropdownOpen}
-                                setIsClaimsCustomerDropdownOpen={setIsClaimsCustomerDropdownOpen}
-                                closeOtherDropdowns={closeDocumentsToolbarDropdownsForClaims}
+                                claimsStatusFilter={claimsCatalog.claimsStatusFilter}
+                                setClaimsStatusFilter={claimsCatalog.setClaimsStatusFilter}
+                                claimsCustomerFilter={claimsCatalog.claimsCustomerFilter}
+                                setClaimsCustomerFilter={claimsCatalog.setClaimsCustomerFilter}
+                                uniqueClaimsCustomers={claimsCatalog.uniqueClaimsCustomers}
+                                isClaimsStatusDropdownOpen={claimsCatalog.isClaimsStatusDropdownOpen}
+                                setIsClaimsStatusDropdownOpen={claimsCatalog.setIsClaimsStatusDropdownOpen}
+                                isClaimsCustomerDropdownOpen={claimsCatalog.isClaimsCustomerDropdownOpen}
+                                setIsClaimsCustomerDropdownOpen={claimsCatalog.setIsClaimsCustomerDropdownOpen}
+                                closeOtherDropdowns={claimsCatalog.closeClaimsDropdowns}
                             />
                         )}
                         {(docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'УПД' || docSection === 'Договоры' || docSection === 'Акты сверок') && (
                         <>
                         <div ref={edoStatusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsEdoStatusDropdownOpen(!isEdoStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsTransportDropdownOpen(false); setIsEdoCounterpartyDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsEdoStatusDropdownOpen(!isEdoStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsTransportDropdownOpen(false); edoCatalog.setIsEdoCounterpartyDropdownOpen(false); }}>
                                 Статус ЭДО: {edoStatusFilterSet.size === 0 ? 'Все' : edoStatusFilterSet.size === 1 ? [...edoStatusFilterSet][0] : `Выбрано: ${edoStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -2568,20 +1532,16 @@ useEffect(() => {
                         </>
                         )}
                         {docSection === 'ЭДО' && (
-                        <>
-                        <div ref={edoCounterpartyButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsEdoCounterpartyDropdownOpen(!isEdoCounterpartyDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsTransportDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
-                                Контрагент: {edoCounterpartyFilterLabel} <ChevronDown className="w-4 h-4"/>
-                            </Button>
-                        </div>
-                        <FilterDropdownPortal triggerRef={edoCounterpartyButtonRef} isOpen={isEdoCounterpartyDropdownOpen} onClose={() => setIsEdoCounterpartyDropdownOpen(false)}>
-                            <div className="dropdown-item" onClick={() => { setEdoCounterpartyFilter('all'); setIsEdoCounterpartyDropdownOpen(false); }} style={{ background: edoCounterpartyFilter === 'all' ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Все {edoCounterpartyFilter === 'all' ? '✓' : ''}</Typography.Body></div>
-                            <div className="dropdown-item" onClick={() => { setEdoCounterpartyFilter('with'); setIsEdoCounterpartyDropdownOpen(false); }} style={{ background: edoCounterpartyFilter === 'with' ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>С ЭДО {edoCounterpartyFilter === 'with' ? '✓' : ''}</Typography.Body></div>
-                            <div className="dropdown-item" onClick={() => { setEdoCounterpartyFilter('without'); setIsEdoCounterpartyDropdownOpen(false); }} style={{ background: edoCounterpartyFilter === 'without' ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Без ЭДО {edoCounterpartyFilter === 'without' ? '✓' : ''}</Typography.Body></div>
-                        </FilterDropdownPortal>
-                        </>
+                            <DocumentsEdoToolbarFilters
+                                edoCounterpartyFilter={edoCatalog.edoCounterpartyFilter}
+                                setEdoCounterpartyFilter={edoCatalog.setEdoCounterpartyFilter}
+                                edoCounterpartyFilterLabel={edoCatalog.edoCounterpartyFilterLabel}
+                                isEdoCounterpartyDropdownOpen={edoCatalog.isEdoCounterpartyDropdownOpen}
+                                setIsEdoCounterpartyDropdownOpen={edoCatalog.setIsEdoCounterpartyDropdownOpen}
+                                onCloseOtherDropdowns={closeDocumentsToolbarDropdownsExceptSendings}
+                            />
                         )}
-                        {isDocumentsTransportFilterVisible(docSection, effectiveServiceMode) && (
+                        {isDocumentsTransportFilterVisible                        {isDocumentsTransportFilterVisible(docSection, effectiveServiceMode) && (
                             <DocumentsTransportFilter
                                 transportFilter={transportFilter}
                                 setTransportFilter={setTransportFilter}
@@ -2651,10 +1611,10 @@ useEffect(() => {
                 )}
                 {(docSection === 'Счета' || docSection === 'УПД') && (
                     <div className="documents-sticky-summary-wrap">
-                        {docSection === 'Счета' && !loading && !error && filteredItems.length > 0 && (
+                        {docSection === 'Счета' && !loading && !error && invoicesCatalog.filteredInvoiceItems.length > 0 && (
                             <motion.div {...(docsMotionEnabled ? cargoSummaryMotion : { initial: false })}>
                                 <DocumentsSummaryCard
-                                    summary={documentsSummary}
+                                    summary={invoicesCatalog.documentsSummary}
                                     showSums={showSums}
                                     useServiceRequest={effectiveServiceMode}
                                     saasAnalytics={documentsServiceSaasUi}
@@ -2662,10 +1622,10 @@ useEffect(() => {
                                 />
                             </motion.div>
                         )}
-                        {docSection === 'УПД' && !actsLoading && !actsError && filteredActs.length > 0 && (
+                        {docSection === 'УПД' && !actsLoading && !actsError && actsCatalog.filteredActs.length > 0 && (
                             <motion.div {...(docsMotionEnabled ? cargoSummaryMotion : { initial: false })}>
                                 <DocumentsSummaryCard
-                                    summary={actsSummary}
+                                    summary={actsCatalog.actsSummary}
                                     showSums={showSums}
                                     useServiceRequest={effectiveServiceMode}
                                     saasAnalytics={documentsServiceSaasUi}
@@ -2688,591 +1648,122 @@ useEffect(() => {
                     </div>
                 )}
                 {docSection === 'Претензии' && (
-                    <div className="documents-new-order-bar documents-new-order-bar--in-sticky">
-                        <Button
-                            className="button-primary doc-section-action-btn"
-                            onClick={() => openClaimsCreateModal()}
-                            disabled={!auth?.login || !auth?.password}
-                        >
-                            + Создать претензию
-                        </Button>
-                    </div>
+                    <ClaimsCreateActionButton auth={auth} onOpen={() => claimsCatalog.openClaimsCreateModal()} />
                 )}
                 {docSection === 'Акты сверок' && (
-                    <div className="documents-new-order-bar documents-new-order-bar--in-sticky">
-                        <Button
-                            className="button-primary doc-section-action-btn"
-                            disabled={!effectiveActiveInn || !auth?.login || !auth?.password}
-                            onClick={() => {
-                                setSverkiOrderError(null);
-                                setSverkiOrderContract('');
-                                setSverkiOrderContractOptions([]);
-                                const now = new Date();
-                                const year = now.getFullYear();
-                                const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
-                                const quarterEndMonth = quarterStartMonth + 2;
-                                const pad = (n: number) => String(n).padStart(2, '0');
-                                const quarterLastDay = new Date(year, quarterEndMonth + 1, 0).getDate();
-                                setSverkiOrderPeriodFrom(`${year}-${pad(quarterStartMonth + 1)}-01`);
-                                setSverkiOrderPeriodTo(`${year}-${pad(quarterEndMonth + 1)}-${pad(quarterLastDay)}`);
-                                setSverkiOrderModalOpen(true);
-                                loadSverkiOrderContracts();
-                            }}
-                        >
-                            Заказать Акт сверки
-                        </Button>
-                    </div>
+                    <SverkiOrderActionButton
+                        disabled={!effectiveActiveInn || !auth?.login || !auth?.password}
+                        onOpen={sverkiCatalog.openSverkiOrderModal}
+                    />
                 )}
                 </div>
             </div>
-            {docSection === 'Счета' && (
-            <motion.div className="documents-summary-section-body">
-            {(loading || !!error) && <DocumentsStateBlocks loading={loading} error={error} emptyText="" />}
-            <AnimatePresence mode="wait">
-            {!loading && !error && tableModeGroupedByCustomer && sortedGroupedByCustomer.length > 0 ? (
-                <motion.div key="docs-inv-g" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                <div className="cargo-card cargo-customer-table-wrap" style={{ marginBottom: '1rem' }}>
-                    <table className="cargo-customer-table documents-grouped-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                        <thead>
-                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                {showCustomerColumn && <th className="cargo-customer-table__col-customer customer-col" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка">Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
-                                {showSums && <th className="cargo-customer-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка">Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
-                                <th className="cargo-customer-table__col-count" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('count')} title="Сортировка"><span className="cargo-customer-table__head-long">Счетов</span><span className="cargo-customer-table__head-short">Сч.</span> {tableSortColumn === 'count' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {sortedGroupedByCustomer.map((row, i) => {
-                                return (
-                                <React.Fragment key={i}>
-                                    <motion.tr
-                                        custom={i}
-                                        variants={docsMotionEnabled ? cargoTableGroupRowVariants : undefined}
-                                        initial={docsMotionEnabled ? "initial" : false}
-                                        animate={docsMotionEnabled ? "animate" : undefined}
-                                        style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expandedTableCustomer === row.customer ? 'var(--color-bg-hover)' : undefined }}
-                                        onClick={() => setExpandedTableCustomer(prev => prev === row.customer ? null : row.customer)}
-                                        title={expandedTableCustomer === row.customer ? 'Свернуть' : 'Показать счета'}
-                                    >
-                                        {showCustomerColumn && <td className="cargo-customer-table__col-customer customer-col" style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>}
-                                        {showSums && <td className="cargo-customer-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum, true)}</td>}
-                                        <td className="cargo-customer-table__col-count" style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
-                                    </motion.tr>
-                                    {expandedTableCustomer === row.customer && (
-                                        <tr key={`${i}-detail`}>
-                                            <td colSpan={groupedCustomerTableColSpan} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
-                                                <motion.div {...(docsMotionEnabled ? cargoExpandMotionProps : { initial: false })} className="cargo-inner-table-wrap doc-inner-table-wrap" style={{ padding: '0.5rem' }}>
-                                                    <table className="doc-inner-table cargo-inner-table documents-invoices-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                                                        <thead>
-                                                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                                                <th className="cargo-inner-table__col-number" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('number'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Номер</span><span className="cargo-inner-table__head-short">№</span> {innerTableSortColumn === 'number' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th className="cargo-inner-table__col-date doc-inner-table-date" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('date'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Дата</span><span className="cargo-inner-table__head-short">Дата</span> {innerTableSortColumn === 'date' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th className="cargo-inner-table__col-status doc-inner-table-status" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('status'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Статус</span><span className="cargo-inner-table__head-short">Ст.</span> {innerTableSortColumn === 'status' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('deliveryStatus'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span> {innerTableSortColumn === 'deliveryStatus' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th className="cargo-inner-table__col-route doc-inner-table-route cargo-inner-table__col-route--desktop" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('route'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span> {innerTableSortColumn === 'route' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                {showSums && (
-                                                                    <DocumentsInvoiceFinanceHeadCells
-                                                                        withSort
-                                                                        sortColumn={innerTableSortColumn}
-                                                                        sortOrder={innerTableSortOrder}
-                                                                        onSort={handleInnerTableSort}
-                                                                    />
-                                                                )}
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {sortInvoices(row.items).map((inv: any, j: number) => {
-                                                                const inum = inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '';
-                                                                const idt = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '';
-                                                                const isum = invoiceDocSum(inv);
-                                                                const ipaid = invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
-                                                                const ibalance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
-                                                                const ipayState = String(inv.StateBill ?? inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
-                                                                const ist = normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
-                                                                const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
-                                                                const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
-                                                                const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
-                                                                return (
-                                                                    <tr key={inum || j} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={(ev) => { ev.stopPropagation(); setSelectedInvoice(inv); }} title="Открыть счёт">
-                                                                        <td className="cargo-inner-table__col-number" style={{ padding: '0.35rem 0.3rem' }}><span className="cargo-inner-table__number">{formatInvoiceNumber(inum)}</span></td>
-                                                                        <td className="cargo-inner-table__col-date doc-inner-table-date" style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} omitYear /></td>
-                                                                        <td className="cargo-inner-table__col-status doc-inner-table-status" style={{ padding: '0.35rem 0.3rem' }}>
-                                                                            <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile documents-invoices-inner-table__badges">
-                                                                                {ist ? <AppBadge tone="neutral" className="documents-invoice-inner-badge" style={{ background: istBadgeStyle.bg, color: istBadgeStyle.color }}>{ist}</AppBadge> : null}
-                                                                                <span className="cargo-inner-table__delivery-inline documents-invoice-inner-badge-wrap">
-                                                                                    {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
-                                                                                </span>
-                                                                                <span className="cargo-inner-table__route-inline documents-invoice-inner-badge-wrap">
-                                                                                    {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge className="documents-invoice-inner-badge">{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
-                                                                                </span>
-                                                                                {!ist && !deliveryState && !(firstCargoNum && cargoRouteByNumber.get(normCargoKey(firstCargoNum))) ? '—' : null}
-                                                                            </div>
-                                                                        </td>
-                                                                        <td className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.35rem 0.3rem' }}>
-                                                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
-                                                                        </td>
-                                                                        <td className="cargo-inner-table__col-route doc-inner-table-route cargo-inner-table__col-route--desktop" style={{ padding: '0.35rem 0.3rem' }}>
-                                                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
-                                                                        </td>
-                                                                        {showSums && (
-                                                                            <DocumentsInvoiceFinanceCells
-                                                                                sum={isum}
-                                                                                paid={ipaid}
-                                                                                balance={ibalance}
-                                                                                payState={ipayState}
-                                                                            />
-                                                                        )}
-                                                                    </tr>
-                                                                );
-                                                            })}
-                                                        </tbody>
-                                                    </table>
-                                                </motion.div>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </React.Fragment>
-                            );})}
-                        </tbody>
-                        <tfoot>
-                            <tr style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                {showCustomerColumn ? (
-                                    <td className="cargo-customer-table__col-customer customer-col" style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
-                                ) : (
-                                    <td style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
-                                )}
-                                {showSums && <td className="cargo-customer-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrency(documentsSummary.sum, true)}</td>}
-                                <td className="cargo-customer-table__col-count" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700 }}>{documentsSummary.count}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-                </motion.div>
-            ) : !loading && !error && tableModeFlatDirect && filteredItems.length > 0 ? (
-                <motion.div key="docs-inv-flat-direct" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                <div className="cargo-card cargo-customer-table-wrap" style={{ marginBottom: '1rem' }}>
-                    <table className="cargo-inner-table documents-invoices-inner-table documents-invoices-flat-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                        <thead>
-                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <th className="cargo-inner-table__col-number" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Номер</span><span className="cargo-inner-table__head-short">№</span></th>
-                                <th className="cargo-inner-table__col-date" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
-                                <th className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус</span><span className="cargo-inner-table__head-short">Ст.</span></th>
-                                <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span></th>
-                                <th className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span></th>
-                                {showSums && <DocumentsInvoiceFinanceHeadCells padding="0.5rem 0.4rem" />}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {sortInvoices(filteredItems).map((inv: any, i: number) => {
-                                const inum = inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '';
-                                const idt = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '';
-                                const isum = invoiceDocSum(inv);
-                                const ipaid = invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
-                                const ibalance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
-                                const ipayState = String(inv.StateBill ?? inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
-                                const ist = normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
-                                const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
-                                const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
-                                const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
-                                return (
-                                    <tr key={inum || i} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={() => setSelectedInvoice(inv)} title="Открыть счёт">
-                                        <td className="cargo-inner-table__col-number" style={{ padding: '0.5rem 0.4rem' }}>
-                                            <ClickableInvoiceNumber number={String(inum)} invoice={inv} onOpen={setSelectedInvoice} />
-                                        </td>
-                                        <td className="cargo-inner-table__col-date" style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} omitYear /></td>
-                                        <td className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem' }}>
-                                            <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile documents-invoices-inner-table__badges">
-                                                {ist ? <AppBadge tone="neutral" className="documents-invoice-inner-badge" style={{ background: istBadgeStyle.bg, color: istBadgeStyle.color }}>{ist}</AppBadge> : null}
-                                                <span className="cargo-inner-table__delivery-inline documents-invoice-inner-badge-wrap">
-                                                    {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
-                                                </span>
-                                                <span className="cargo-inner-table__route-inline documents-invoice-inner-badge-wrap">
-                                                    {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge className="documents-invoice-inner-badge">{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
-                                                </span>
-                                                {!ist && !deliveryState && !(firstCargoNum && cargoRouteByNumber.get(normCargoKey(firstCargoNum))) ? '—' : null}
-                                            </div>
-                                        </td>
-                                        <td className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.5rem 0.4rem' }}>
-                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
-                                        </td>
-                                        <td className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem' }}>
-                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
-                                        </td>
-                                        {showSums && (
-                                            <DocumentsInvoiceFinanceCells
-                                                sum={isum}
-                                                paid={ipaid}
-                                                balance={ibalance}
-                                                payState={ipayState}
-                                                padding="0.5rem 0.4rem"
-                                            />
-                                        )}
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-                </motion.div>
-            ) : !loading && !error && tableModeEffective && effectiveServiceMode && filteredItems.length > 0 && sortedGroupedByCustomer.length === 0 ? (
-                <motion.div key="docs-inv-f" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                <div className="cargo-card cargo-customer-table-wrap" style={{ marginBottom: '1rem' }}>
-                    <table className="cargo-inner-table documents-invoices-inner-table documents-invoices-flat-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                        <thead>
-                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <th className="cargo-inner-table__col-number" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Номер</span><span className="cargo-inner-table__head-short">№</span></th>
-                                <th className="cargo-inner-table__col-date" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
-                                <th className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус</span><span className="cargo-inner-table__head-short">Ст.</span></th>
-                                <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span></th>
-                                <th className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span></th>
-                                {showSums && <DocumentsInvoiceFinanceHeadCells padding="0.5rem 0.4rem" />}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {sortInvoices(filteredItems).map((inv: any, i: number) => {
-                                const inum = inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '';
-                                const idt = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '';
-                                const isum = invoiceDocSum(inv);
-                                const ipaid = invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
-                                const ibalance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
-                                const ipayState = String(inv.StateBill ?? inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
-                                const ist = normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
-                                const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
-                                const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
-                                const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
-                                return (
-                                    <tr key={inum || i} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={() => setSelectedInvoice(inv)} title="Открыть счёт">
-                                        <td className="cargo-inner-table__col-number" style={{ padding: '0.5rem 0.4rem' }}>
-                                            <ClickableInvoiceNumber number={String(inum)} invoice={inv} onOpen={setSelectedInvoice} />
-                                        </td>
-                                        <td className="cargo-inner-table__col-date" style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} omitYear /></td>
-                                        <td className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem' }}>
-                                            <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile documents-invoices-inner-table__badges">
-                                                {ist ? <AppBadge tone="neutral" className="documents-invoice-inner-badge" style={{ background: istBadgeStyle.bg, color: istBadgeStyle.color }}>{ist}</AppBadge> : null}
-                                                <span className="cargo-inner-table__delivery-inline documents-invoice-inner-badge-wrap">
-                                                    {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
-                                                </span>
-                                                <span className="cargo-inner-table__route-inline documents-invoice-inner-badge-wrap">
-                                                    {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge className="documents-invoice-inner-badge">{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
-                                                </span>
-                                                {!ist && !deliveryState && !(firstCargoNum && cargoRouteByNumber.get(normCargoKey(firstCargoNum))) ? '—' : null}
-                                            </div>
-                                        </td>
-                                        <td className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.5rem 0.4rem' }}>
-                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
-                                        </td>
-                                        <td className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem' }}>
-                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
-                                        </td>
-                                        {showSums && (
-                                            <DocumentsInvoiceFinanceCells
-                                                sum={isum}
-                                                paid={ipaid}
-                                                balance={ibalance}
-                                                payState={ipayState}
-                                                padding="0.5rem 0.4rem"
-                                            />
-                                        )}
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                        <tfoot>
-                            <tr style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <td colSpan={showSums ? 5 : 4} style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
-                                {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrency(documentsSummary.sum)}</td>}
-                                {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>—</td>}
-                                {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>—</td>}
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-                </motion.div>
-            ) : !loading && !error && filteredItems.length > 0 && !tableModeEffective ? (
-                <motion.div key="docs-inv-c" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                    <DocumentsInvoiceCardsList
-                        items={filteredItems}
-                        onOpenInvoice={setSelectedInvoice}
-                        isInvoiceFavorite={isInvoiceFavorite}
-                        onToggleInvoiceFavorite={toggleInvoiceFavorite}
-                        docsMotionEnabled={docsMotionEnabled}
-                        showEdoCornerBadges
-                    />
-                </motion.div>
-            ) : null}
-            </AnimatePresence>
-            {selectedInvoice && (
-                <InvoiceDetailModal
-                    item={selectedInvoice}
-                    isOpen={!!selectedInvoice}
-                    onClose={() => setSelectedInvoice(null)}
-                    onOpenCargo={(cargoNumber) => onOpenCargo?.(cargoNumber)}
-                    auth={auth}
-                    cargoStateByNumber={cargoStateByNumber}
-                    cargoRouteByNumber={cargoRouteByNumber}
-                    cargoSumPaidByNumber={cargoSumPaidByNumber}
-                    perevozkiLoading={perevozkiLoading}
-                    isFavorite={isInvoiceFavorite(String(selectedInvoice?.Number ?? selectedInvoice?.number ?? ""))}
-                    onToggleFavorite={() =>
-                        toggleInvoiceFavorite(String(selectedInvoice?.Number ?? selectedInvoice?.number ?? ""))
-                    }
-                />
-            )}
-            {!loading && !error && filteredItems.length === 0 && (
-                <Typography.Body className="text-empty-state documents-summary-empty-state">Нет счетов за выбранный период</Typography.Body>
-            )}
-            </motion.div>
-            )}
-            {docSection === 'ЭДО' && (
-            <motion.div className="documents-summary-section-body">
-            {(loading || !!error) && <DocumentsStateBlocks loading={loading} error={error} emptyText="" />}
-            <AnimatePresence mode="wait">
-            {!loading && !error && (edoCargoCardItems.length > 0 || filteredItems.length > 0) ? (
-                tableModeFlatDirect && filteredItems.length > 0 ? (
-                <motion.div key="docs-edo-monitor-flat" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                    <DocumentsEdoMonitorSummaryTiles
-                        totals={mergedInvoicesEdoTotals}
-                        invoicesCount={documentsSummary.count}
-                        saasAnalytics={documentsServiceSaasUi}
-                    />
-                    <DocumentsEdoMonitorGroupedTable
-                        flatDirectItems={filteredItems}
-                        rows={[]}
-                        totals={mergedInvoicesEdoTotals}
-                        invoicesCount={documentsSummary.count}
-                        expandedCustomer={null}
-                        onToggleCustomer={() => {}}
-                        onOpenInvoice={(inv) => setSelectedInvoice(inv)}
-                        sortColumn="count"
-                        sortOrder={tableSortOrder}
-                        onSort={handleTableSort}
-                        docsMotionEnabled={docsMotionEnabled}
-                        showCustomerColumn={false}
-                        edoPartnerInns={edoPartnerInns}
-                    />
-                </motion.div>
-                ) : tableModeEffective ? (
-                <motion.div key="docs-edo-monitor-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                    <DocumentsEdoMonitorSummaryTiles
-                        className="documents-edo-summary-tiles--table-companion"
-                        totals={mergedInvoicesEdoTotals}
-                        invoicesCount={documentsSummary.count}
-                        saasAnalytics={documentsServiceSaasUi}
-                    />
-                    <DocumentsEdoMonitorGroupedTable
-                        rows={sortedGroupedByCustomer.length > 0 ? sortedGroupedByCustomer : [{ customer: '—', items: filteredItems, sum: documentsSummary.sum }]}
-                        totals={mergedInvoicesEdoTotals}
-                        invoicesCount={documentsSummary.count}
-                        expandedCustomer={expandedTableCustomer}
-                        onToggleCustomer={(customer) => setExpandedTableCustomer((prev) => (prev === customer ? null : customer))}
-                        onOpenInvoice={(inv) => setSelectedInvoice(inv)}
-                        sortColumn={tableSortColumn === 'sum' ? 'sum' : tableSortColumn === 'count' ? 'count' : 'customer'}
-                        sortOrder={tableSortOrder}
-                        onSort={handleTableSort}
-                        docsMotionEnabled={docsMotionEnabled}
-                        showCustomerColumn={showCustomerColumn}
-                        edoPartnerInns={edoPartnerInns}
-                    />
-                </motion.div>
-                ) : edoCargoCardItems.length > 0 ? (
-                <motion.div key="docs-edo-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                    <DocumentsEdoCardsList
-                        items={edoCargoCardItems}
-                        onOpenInvoice={(inv) => setSelectedInvoice(inv)}
-                        onOpenCargo={onOpenCargo}
-                        isInvoiceFavorite={isInvoiceFavorite}
-                        onToggleInvoiceFavorite={toggleInvoiceFavorite}
-                        docsMotionEnabled={docsMotionEnabled}
-                        edoPartnerInns={edoPartnerInns}
-                    />
-                </motion.div>
-                ) : (
-                <motion.div key="docs-edo-invoice-fallback" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                    <DocumentsInvoiceCardsList
-                        items={filteredItems}
-                        onOpenInvoice={setSelectedInvoice}
-                        isInvoiceFavorite={isInvoiceFavorite}
-                        onToggleInvoiceFavorite={toggleInvoiceFavorite}
-                        docsMotionEnabled={docsMotionEnabled}
-                        showEdoCornerBadges
-                        edoPartnerInns={edoPartnerInns}
-                    />
-                </motion.div>
-                )
-            ) : null}
-            </AnimatePresence>
-            {selectedInvoice && (
-                <InvoiceDetailModal
-                    item={selectedInvoice}
-                    isOpen={!!selectedInvoice}
-                    onClose={() => setSelectedInvoice(null)}
-                    onOpenCargo={(cargoNumber) => onOpenCargo?.(cargoNumber)}
-                    auth={auth}
-                    cargoStateByNumber={cargoStateByNumber}
-                    cargoRouteByNumber={cargoRouteByNumber}
-                    cargoSumPaidByNumber={cargoSumPaidByNumber}
-                    perevozkiLoading={perevozkiLoading}
-                    isFavorite={isInvoiceFavorite(String(selectedInvoice?.Number ?? selectedInvoice?.number ?? ""))}
-                    onToggleFavorite={() =>
-                        toggleInvoiceFavorite(String(selectedInvoice?.Number ?? selectedInvoice?.number ?? ""))
-                    }
-                />
-            )}
-            {!loading && !error && filteredItems.length === 0 && (
-                <Typography.Body className="text-empty-state documents-summary-empty-state">Нет счетов за выбранный период</Typography.Body>
-            )}
-            </motion.div>
-            )}
-            {docSection === 'УПД' && (
-            <motion.div className="documents-summary-section-body">
-            {(actsLoading || !!actsError) && <DocumentsStateBlocks loading={actsLoading} error={actsError} emptyText="" />}
-            <AnimatePresence mode="wait">
-            {!actsLoading && !actsError && tableModeGroupedByCustomer && sortedGroupedActsByCustomer.length > 0 ? (
-                <motion.div key="docs-act-g" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                <div className="cargo-card cargo-customer-table-wrap" style={{ marginBottom: '1rem' }}>
-                    <table className="cargo-customer-table documents-grouped-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                        <thead>
-                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                {showCustomerColumn && <th className="cargo-customer-table__col-customer customer-col" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка">Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
-                                {showSums && <th className="cargo-customer-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка">Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
-                                <th className="cargo-customer-table__col-count" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('count')} title="Сортировка"><span className="cargo-customer-table__head-long">УПД</span><span className="cargo-customer-table__head-short">УПД</span> {tableSortColumn === 'count' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {sortedGroupedActsByCustomer.map((row, i) => {
-                                return (
-                                <React.Fragment key={i}>
-                                    <motion.tr
-                                        custom={i}
-                                        variants={docsMotionEnabled ? cargoTableGroupRowVariants : undefined}
-                                        initial={docsMotionEnabled ? "initial" : false}
-                                        animate={docsMotionEnabled ? "animate" : undefined}
-                                        style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expandedTableActCustomer === row.customer ? 'var(--color-bg-hover)' : undefined }}
-                                        onClick={() => setExpandedTableActCustomer(prev => prev === row.customer ? null : row.customer)}
-                                        title={expandedTableActCustomer === row.customer ? 'Свернуть' : 'Показать УПД'}
-                                    >
-                                        {showCustomerColumn && <td className="cargo-customer-table__col-customer customer-col" style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>}
-                                        {showSums && <td className="cargo-customer-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum, true)}</td>}
-                                        <td className="cargo-customer-table__col-count" style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
-                                    </motion.tr>
-                                    {expandedTableActCustomer === row.customer && (
-                                        <tr key={`${i}-detail`}>
-                                            <td colSpan={groupedCustomerTableColSpan} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
-                                                <motion.div {...(docsMotionEnabled ? cargoExpandMotionProps : { initial: false })} className="cargo-inner-table-wrap doc-inner-table-wrap" style={{ padding: '0.5rem' }}>
-                                                    <table className="doc-inner-table cargo-inner-table documents-invoices-inner-table documents-acts-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                                                        <thead>
-                                                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                                                <th className="cargo-inner-table__col-number" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('number'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Номер</span><span className="cargo-inner-table__head-short">№</span> {innerTableActSortColumn === 'number' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th className="cargo-inner-table__col-date doc-inner-table-date" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('date'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Дата</span><span className="cargo-inner-table__head-short">Дата</span> {innerTableActSortColumn === 'date' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th className="cargo-inner-table__col-status doc-inner-table-status" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('status'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Статус</span><span className="cargo-inner-table__head-short">Ст.</span> {innerTableActSortColumn === 'status' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('deliveryStatus'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span> {innerTableActSortColumn === 'deliveryStatus' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th className="cargo-inner-table__col-route doc-inner-table-route cargo-inner-table__col-route--desktop" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('route'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span> {innerTableActSortColumn === 'route' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                {showSums && <th className="cargo-inner-table__col-sum" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('sum'); }} title="Сортировка"><span className="cargo-inner-table__head-long">Сумма</span><span className="cargo-inner-table__head-short">Сум.</span> {innerTableActSortColumn === 'sum' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {sortActs(row.items).map((act: any, j: number) => renderActInnerTableRow(act, act.Number ?? act.number ?? j, '0.35rem 0.3rem'))}
-                                                        </tbody>
-                                                    </table>
-                                                </motion.div>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </React.Fragment>
-                            );})}
-                        </tbody>
-                        <tfoot>
-                            <tr style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                {showCustomerColumn ? (
-                                    <td className="cargo-customer-table__col-customer customer-col" style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
-                                ) : (
-                                    <td style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
-                                )}
-                                {showSums && <td className="cargo-customer-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrency(actsSummary.sum, true)}</td>}
-                                <td className="cargo-customer-table__col-count" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700 }}>{actsSummary.count}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-                </motion.div>
-            ) : !actsLoading && !actsError && tableModeFlatDirect && filteredActs.length > 0 ? (
-                <motion.div key="docs-act-flat-direct" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                <div className="cargo-card cargo-inner-table-wrap" style={{ marginBottom: '1rem' }}>
-                    <table className="cargo-inner-table documents-invoices-inner-table documents-acts-inner-table documents-invoices-flat-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                        <thead>
-                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <th className="cargo-inner-table__col-number" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Номер</span><span className="cargo-inner-table__head-short">№</span></th>
-                                <th className="cargo-inner-table__col-date" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
-                                <th className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус</span><span className="cargo-inner-table__head-short">Ст.</span></th>
-                                <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span></th>
-                                <th className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span></th>
-                                {showSums && <th className="cargo-inner-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Сумма</span><span className="cargo-inner-table__head-short">Сум.</span></th>}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {sortActs(filteredActs).map((act: any, i: number) => renderActInnerTableRow(act, act.Number ?? act.number ?? i, '0.5rem 0.4rem'))}
-                        </tbody>
-                    </table>
-                </div>
-                </motion.div>
-            ) : !actsLoading && !actsError && tableModeEffective && effectiveServiceMode && filteredActs.length > 0 && sortedGroupedActsByCustomer.length === 0 ? (
-                <motion.div key="docs-act-f" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                <div className="cargo-card cargo-inner-table-wrap" style={{ marginBottom: '1rem' }}>
-                    <table className="cargo-inner-table documents-invoices-inner-table documents-acts-inner-table documents-invoices-flat-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                        <thead>
-                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <th className="cargo-inner-table__col-number" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Номер</span><span className="cargo-inner-table__head-short">№</span></th>
-                                <th className="cargo-inner-table__col-date" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
-                                <th className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус</span><span className="cargo-inner-table__head-short">Ст.</span></th>
-                                <th className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Статус перевозки</span><span className="cargo-inner-table__head-short">Пер.</span></th>
-                                <th className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Маршрут</span><span className="cargo-inner-table__head-short">Мар.</span></th>
-                                {showSums && <th className="cargo-inner-table__col-sum" style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}><span className="cargo-inner-table__head-long">Сумма</span><span className="cargo-inner-table__head-short">Сум.</span></th>}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {sortActs(filteredActs).map((act: any, i: number) => renderActInnerTableRow(act, act.Number ?? act.number ?? i, '0.5rem 0.4rem'))}
-                        </tbody>
-                    </table>
-                </div>
-                </motion.div>
-            ) : !actsLoading && !actsError && filteredActs.length > 0 && !tableModeEffective ? (
-                <motion.div key="docs-act-c" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                    <DocumentsActCardsList
-                        acts={filteredActs}
-                        invoices={items}
-                        onOpenAct={setSelectedAct}
-                        isActFavorite={isInvoiceFavorite}
-                        onToggleActFavorite={toggleInvoiceFavorite}
-                        docsMotionEnabled={docsMotionEnabled}
-                        showSums={showSums}
-                        showEdoBadges
-                    />
-                </motion.div>
-            ) : null}
-            </AnimatePresence>
-            {!actsLoading && !actsError && filteredActs.length === 0 && (
-                <Typography.Body className="text-empty-state documents-summary-empty-state">Нет УПД за выбранный период</Typography.Body>
-            )}
-            {selectedAct && (
-                <ActDetailModal
-                    item={selectedAct}
-                    isOpen={!!selectedAct}
-                    onClose={() => setSelectedAct(null)}
-                    onOpenInvoice={(inv) => {
-                        setSelectedAct(null);
-                        setDocSection('Счета');
-                        setSelectedInvoice(inv);
-                    }}
-                    invoices={items}
-                    onOpenCargo={(cargoNumber) => onOpenCargo?.(cargoNumber)}
-                    auth={auth}
-                    cargoStateByNumber={cargoStateByNumber}
-                    cargoRouteByNumber={cargoRouteByNumber}
-                    perevozkiLoading={perevozkiLoading}
-                />
-            )}
-            </motion.div>
-            )}
-            {docSection === 'Заявки' && (
+            <DocumentsInvoicesSection
+                active={docSection === 'Счета'}
+                auth={auth}
+                loading={loading}
+                error={error}
+                perevozkiLoading={perevozkiLoading}
+                effectiveServiceMode={effectiveServiceMode}
+                tableModeGroupedByCustomer={tableModeGroupedByCustomer}
+                tableModeFlatDirect={tableModeFlatDirect}
+                tableModeEffective={tableModeEffective}
+                docsMotionEnabled={docsMotionEnabled}
+                showCustomerColumn={showCustomerColumn}
+                showSums={showSums}
+                groupedCustomerTableColSpan={groupedCustomerTableColSpan}
+                filteredItems={invoicesCatalog.filteredInvoiceItems}
+                documentsSummary={invoicesCatalog.documentsSummary}
+                sortedGroupedByCustomer={invoicesCatalog.sortedGroupedByCustomer}
+                expandedTableCustomer={invoicesCatalog.expandedTableCustomer}
+                setExpandedTableCustomer={invoicesCatalog.setExpandedTableCustomer}
+                tableSortColumn={tableSortColumn}
+                tableSortOrder={tableSortOrder}
+                handleTableSort={handleTableSort}
+                innerTableSortColumn={innerTableSortColumn}
+                innerTableSortOrder={innerTableSortOrder}
+                handleInnerTableSort={handleInnerTableSort}
+                sortInvoices={invoicesCatalog.sortInvoices}
+                cargoStateByNumber={cargoStateByNumber}
+                cargoRouteByNumber={cargoRouteByNumber}
+                cargoSumPaidByNumber={cargoSumPaidByNumber}
+                normCargoKey={normCargoKey}
+                isInvoiceFavorite={invoicesCatalog.isInvoiceFavorite}
+                toggleInvoiceFavorite={invoicesCatalog.toggleInvoiceFavorite}
+                selectedInvoice={invoicesCatalog.selectedInvoice}
+                setSelectedInvoice={invoicesCatalog.setSelectedInvoice}
+                onOpenCargo={onOpenCargo}
+            />
+            {docSection === 'ЭДО' && (<DocumentsEdoSection
+                active={docSection === 'ЭДО'}
+                auth={auth}
+                loading={loading}
+                error={error}
+                perevozkiLoading={perevozkiLoading}
+                documentsServiceSaasUi={documentsServiceSaasUi}
+                tableModeFlatDirect={tableModeFlatDirect}
+                tableModeEffective={tableModeEffective}
+                docsMotionEnabled={docsMotionEnabled}
+                showCustomerColumn={showCustomerColumn}
+                filteredEdoItems={edoCatalog.filteredEdoItems}
+                edoCargoCardItems={edoCatalog.edoCargoCardItems}
+                mergedInvoicesEdoTotals={edoCatalog.mergedInvoicesEdoTotals}
+                documentsSummary={edoDocumentsSummary}
+                sortedGroupedByCustomer={edoCatalog.sortedGroupedByCustomer}
+                expandedTableCustomer={edoCatalog.expandedTableCustomer}
+                setExpandedTableCustomer={edoCatalog.setExpandedTableCustomer}
+                tableSortColumn={tableSortColumn}
+                tableSortOrder={tableSortOrder}
+                handleTableSort={handleTableSort}
+                edoPartnerInns={edoCatalog.edoPartnerInns}
+                selectedInvoice={invoicesCatalog.selectedInvoice}
+                setSelectedInvoice={invoicesCatalog.setSelectedInvoice}
+                isInvoiceFavorite={invoicesCatalog.isInvoiceFavorite}
+                toggleInvoiceFavorite={invoicesCatalog.toggleInvoiceFavorite}
+                cargoStateByNumber={cargoStateByNumber}
+                cargoRouteByNumber={cargoRouteByNumber}
+                cargoSumPaidByNumber={cargoSumPaidByNumber}
+                onOpenCargo={onOpenCargo}
+            />
+            {docSection === 'УПД' && (<DocumentsActsSection
+                active={docSection === 'УПД'}
+                auth={auth}
+                actsLoading={actsLoading}
+                actsError={actsError}
+                perevozkiLoading={perevozkiLoading}
+                effectiveServiceMode={effectiveServiceMode}
+                tableModeGroupedByCustomer={tableModeGroupedByCustomer}
+                tableModeFlatDirect={tableModeFlatDirect}
+                tableModeEffective={tableModeEffective}
+                docsMotionEnabled={docsMotionEnabled}
+                showCustomerColumn={showCustomerColumn}
+                showSums={showSums}
+                groupedCustomerTableColSpan={groupedCustomerTableColSpan}
+                filteredActs={actsCatalog.filteredActs}
+                actsSummary={actsCatalog.actsSummary}
+                sortedGroupedActsByCustomer={actsCatalog.sortedGroupedActsByCustomer}
+                expandedTableActCustomer={actsCatalog.expandedTableActCustomer}
+                setExpandedTableActCustomer={actsCatalog.setExpandedTableActCustomer}
+                tableSortColumn={tableSortColumn}
+                tableSortOrder={tableSortOrder}
+                handleTableSort={handleTableSort}
+                innerTableActSortColumn={actsCatalog.innerTableActSortColumn}
+                innerTableActSortOrder={actsCatalog.innerTableActSortOrder}
+                handleInnerTableActSort={actsCatalog.handleInnerTableActSort}
+                sortActs={actsCatalog.sortActs}
+                items={items}
+                cargoStateByNumber={cargoStateByNumber}
+                cargoRouteByNumber={cargoRouteByNumber}
+                normCargoKey={normCargoKey}
+                isInvoiceFavorite={invoicesCatalog.isInvoiceFavorite}
+                toggleInvoiceFavorite={invoicesCatalog.toggleInvoiceFavorite}
+                selectedAct={actsCatalog.selectedAct}
+                setSelectedAct={actsCatalog.setSelectedAct}
+                onOpenInvoice={(inv) => { actsCatalog.setSelectedAct(null); setDocSection('Счета'); invoicesCatalog.setSelectedInvoice(inv); }}
+                onNavigateToInvoices={() => setDocSection('Счета')}
+                onOpenCargo={onOpenCargo}
+            />
+            {docSection === 'Заявки' && ({docSection === 'Заявки' && (
             <>
             {documentsOrderFormOpen && effectiveActiveInn ? (
                 <DocumentsOrderForm
@@ -3287,383 +1778,26 @@ useEffect(() => {
                 />
             ) : (
             <>
-            {(ordersLoading || !!ordersError) && <DocumentsStateBlocks loading={ordersLoading} error={ordersError} emptyText="" />}
-            <AnimatePresence mode="wait">
-            {!ordersLoading && !ordersError && tableModeEffective && orderRowsSorted.length > 0 ? (
-                <motion.div key="docs-orders-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                <div className="cargo-card documents-zayavki-below-new-order" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                        <thead>
-                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('date')} title="Сортировка">Дата {ordersSortColumn === 'date' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('pickupDate')} title="Сортировка">Дата забора план {ordersSortColumn === 'pickupDate' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('number')} title="Сортировка">Номер заявки {ordersSortColumn === 'number' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('clientNumber')} title="Сортировка">Номер заявки заказчика {ordersSortColumn === 'clientNumber' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                {effectiveServiceMode && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('customer')} title="Сортировка">Заказчик {ordersSortColumn === 'customer' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('sender')} title="Сортировка">Отправитель {ordersSortColumn === 'sender' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('receiver')} title="Сортировка">Получатель {ordersSortColumn === 'receiver' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('route')} title="Сортировка">Маршрут {ordersSortColumn === 'route' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                {effectiveServiceMode && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('comment')} title="Сортировка">Комментарий {ordersSortColumn === 'comment' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {orderRowsSorted.map((row: any, idx: number) => {
-                                const rawDate = row?.Дата ?? row?.DateZayavki ?? row?.Date ?? row?.date ?? '';
-                                const requestNumber = String(row?.НомерЗаявки ?? row?.Номер ?? row?.Number ?? row?.number ?? row?.N ?? '');
-                                const parcels = getRequestParcels(row);
-                                const searchLower = effectiveSearchText.trim().toLowerCase();
-                                const parcelMatches = searchLower ? parcels.filter((parcel: any) => getParcelSearchText(parcel).includes(searchLower)) : [];
-                                const hasParcelSearchMatches = !!searchLower && parcelMatches.length > 0;
-                                const parcelsToRender = hasParcelSearchMatches ? parcelMatches : parcels;
-                                const sortedParcelsToRender = [...parcelsToRender].sort((a: any, b: any) => {
-                                    const goodsA = Array.isArray(a?.Товары) ? (a.Товары[0] ?? {}) : (a?.Товары && typeof a.Товары === 'object' ? a.Товары : a);
-                                    const goodsB = Array.isArray(b?.Товары) ? (b.Товары[0] ?? {}) : (b?.Товары && typeof b.Товары === 'object' ? b.Товары : b);
-                                    const toNumber = (v: unknown) => {
-                                        const n = Number(String(v ?? '').replace(',', '.'));
-                                        return Number.isFinite(n) ? n : 0;
-                                    };
-                                    let cmp = 0;
-                                    switch (ordersParcelsSortColumn) {
-                                        case 'parcel':
-                                            cmp = String(a?.ПосылкаНаименование ?? a?.Посылка ?? a?.ИДОтправления ?? '').localeCompare(String(b?.ПосылкаНаименование ?? b?.Посылка ?? b?.ИДОтправления ?? ''), undefined, { numeric: true });
-                                            break;
-                                        case 'cargo':
-                                            cmp = String(a?.Перевозка ?? '').localeCompare(String(b?.Перевозка ?? ''), undefined, { numeric: true });
-                                            break;
-                                        case 'tmc':
-                                            cmp = String(goodsA?.ТМЦ ?? '').localeCompare(String(goodsB?.ТМЦ ?? ''));
-                                            break;
-                                        case 'consolidation':
-                                            cmp = String(goodsA?.ИДОтправления ?? '').localeCompare(String(goodsB?.ИДОтправления ?? ''), undefined, { numeric: true });
-                                            break;
-                                        case 'count':
-                                            cmp = toNumber(goodsA?.Количество) - toNumber(goodsB?.Количество);
-                                            break;
-                                        case 'cost':
-                                            cmp = toNumber(goodsA?.ОбъявленнаяСтоимостьТовараДляПечати ?? goodsA?.ОбъявленнаяСтоимостьТовара) - toNumber(goodsB?.ОбъявленнаяСтоимостьТовараДляПечати ?? goodsB?.ОбъявленнаяСтоимостьТовара);
-                                            break;
-                                    }
-                                    return ordersParcelsSortOrder === 'asc' ? cmp : -cmp;
-                                });
-                                const cargoNumber = String(
-                                    row?.НомерПеревозки ??
-                                    row?.Перевозка ??
-                                    row?.CargoNumber ??
-                                    row?.NumberPerevozki ??
-                                    parcels?.[0]?.Перевозка ??
-                                    ''
-                                );
-                                const customer = String(row?.ЗаказчикНаименование ?? row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? row?.ПлательщикНаименование ?? row?.PayerName ?? '');
-                                const receiver = String(row?.ПолучательНаименование ?? row?.Получатель ?? row?.ГрузополучательНаименование ?? row?.Грузополучатель ?? row?.Receiver ?? row?.receiver ?? row?.Consignee ?? '');
-                                const sender = String(row?.ОтправительНаименование ?? row?.Отправитель ?? row?.ГрузоотправительНаименование ?? row?.Грузоотправитель ?? row?.Sender ?? row?.sender ?? row?.Shipper ?? row?.Consignor ?? '');
-                                const comment = String(row?.Комментарий ?? row?.Comment ?? row?.Примечание ?? row?.Note ?? '');
-                                const customerRequestNumber = String(row?.НомерЗаявкиКлиента ?? row?.ClientRequestNumber ?? '');
-                                const pickupDate = String(row?.ДатаЗабораПлан ?? row?.PickupDatePlan ?? '');
-                                const rowKey = `${requestNumber || 'row'}-${cargoNumber || idx}`;
-                                const expanded = expandedOrderRow === rowKey;
-                                const senderPoint = String(row?.ПунктОтправкиНаименование ?? row?.ПунктОтправки ?? row?.ПунктОтправления ?? row?.АдресОтправки ?? row?.SenderPoint ?? '');
-                                const destinationPoint = String(row?.ПунктНазначенияНаименование ?? row?.ПунктНазначения ?? row?.ПунктДоставки ?? row?.ReceiverPoint ?? row?.DestinationPoint ?? '');
-                                const route = [cityToCode(senderPoint) || senderPoint, cityToCode(destinationPoint) || destinationPoint].filter(Boolean).join(' – ') || '—';
-                                return (
-                                    <React.Fragment key={rowKey}>
-                                        <tr
-                                            style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expanded ? 'var(--color-bg-hover)' : undefined }}
-                                            onClick={() => setExpandedOrderRow((prev) => (prev === rowKey ? null : rowKey))}
-                                            title={expanded ? 'Свернуть' : 'Показать детали заявки'}
-                                        >
-                                            <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}><DateText value={rawDate ? String(rawDate) : undefined} /></td>
-                                            <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}><DateText value={pickupDate || undefined} /></td>
-                                            <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>{requestNumber ? formatInvoiceNumber(requestNumber) : '—'}</td>
-                                            <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>{customerRequestNumber || '—'}</td>
-                                            {effectiveServiceMode && (
-                                                <td
-                                                    style={{
-                                                        padding: '0.5rem 0.4rem',
-                                                        maxWidth: 220,
-                                                        verticalAlign: 'top',
-                                                    }}
-                                                    title={stripOoo(customer) || '—'}
-                                                >
-                                                    <div
-                                                        style={{
-                                                            overflow: 'hidden',
-                                                            display: '-webkit-box',
-                                                            WebkitLineClamp: 2,
-                                                            WebkitBoxOrient: 'vertical',
-                                                        }}
-                                                    >
-                                                        {stripOoo(customer) || '—'}
-                                                    </div>
-                                                </td>
-                                            )}
-                                            <td
-                                                style={{
-                                                    padding: '0.5rem 0.4rem',
-                                                    maxWidth: 220,
-                                                    verticalAlign: 'top',
-                                                }}
-                                                title={stripOoo(sender) || '—'}
-                                            >
-                                                <div
-                                                    style={{
-                                                        overflow: 'hidden',
-                                                        display: '-webkit-box',
-                                                        WebkitLineClamp: 2,
-                                                        WebkitBoxOrient: 'vertical',
-                                                    }}
-                                                >
-                                                    {stripOoo(sender) || '—'}
-                                                </div>
-                                            </td>
-                                            <td
-                                                style={{
-                                                    padding: '0.5rem 0.4rem',
-                                                    maxWidth: 220,
-                                                    verticalAlign: 'top',
-                                                }}
-                                                title={stripOoo(receiver) || '—'}
-                                            >
-                                                <div
-                                                    style={{
-                                                        overflow: 'hidden',
-                                                        display: '-webkit-box',
-                                                        WebkitLineClamp: 2,
-                                                        WebkitBoxOrient: 'vertical',
-                                                    }}
-                                                >
-                                                    {stripOoo(receiver) || '—'}
-                                                </div>
-                                            </td>
-                                            <td style={{ padding: '0.5rem 0.4rem' }}>
-                                                <DocumentsRouteBadge>
-                                                    {route}
-                                                </DocumentsRouteBadge>
-                                            </td>
-                                            {effectiveServiceMode && <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>}
-                                        </tr>
-                                        {expanded && (
-                                            <tr>
-                                                <td colSpan={effectiveServiceMode ? 9 : 7} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
-                                                    <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--color-border)' }}>
-                                                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(170px, 220px) 1fr', gap: '0.35rem 0.75rem', fontSize: '0.85rem' }}>
-                                                            <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Заказчик:</Typography.Body>
-                                                            <Typography.Body>{customer || '—'}</Typography.Body>
-                                                            <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Пункт отправки:</Typography.Body>
-                                                            <Typography.Body>{senderPoint || '—'}</Typography.Body>
-                                                            <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Отправитель:</Typography.Body>
-                                                            <Typography.Body>{sender || '—'}</Typography.Body>
-                                                            <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Пункт назначения:</Typography.Body>
-                                                            <Typography.Body>{destinationPoint || '—'}</Typography.Body>
-                                                            <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Получатель:</Typography.Body>
-                                                            <Typography.Body>{receiver || '—'}</Typography.Body>
-                                                        </div>
-                                                    </div>
-                                                    <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
-                                                        {parcelsToRender.length === 0 ? (
-                                                            <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '0.5rem 0.25rem' }}>Нет данных по посылкам</Typography.Body>
-                                                        ) : (
-                                                            <>
-                                                            <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                                                                <thead>
-                                                                    <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleOrdersParcelsSort('parcel'); }} title="Сортировка">Посылка {ordersParcelsSortColumn === 'parcel' && (ordersParcelsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleOrdersParcelsSort('cargo'); }} title="Сортировка">Консолидация {ordersParcelsSortColumn === 'cargo' && (ordersParcelsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleOrdersParcelsSort('tmc'); }} title="Сортировка">Номенклатура {ordersParcelsSortColumn === 'tmc' && (ordersParcelsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleOrdersParcelsSort('consolidation'); }} title="Сортировка">Консолидация {ordersParcelsSortColumn === 'consolidation' && (ordersParcelsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleOrdersParcelsSort('count'); }} title="Сортировка">Кол-во {ordersParcelsSortColumn === 'count' && (ordersParcelsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleOrdersParcelsSort('cost'); }} title="Сортировка">Стоимость {ordersParcelsSortColumn === 'cost' && (ordersParcelsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {sortedParcelsToRender.map((parcel: any, parcelIdx: number) => {
-                                                                        const goodsRaw = parcel?.Товары;
-                                                                        const goods = Array.isArray(goodsRaw)
-                                                                            ? (goodsRaw[0] ?? {})
-                                                                            : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : parcel);
-                                                                        return (
-                                                                            <tr
-                                                                                key={`${rowKey}-parcel-${parcel?.Посылка ?? parcelIdx}`}
-                                                                                style={{
-                                                                                    borderBottom: '1px solid var(--color-border)',
-                                                                                    background: hasParcelSearchMatches ? 'rgba(37, 99, 235, 0.08)' : undefined,
-                                                                                }}
-                                                                            >
-                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.ПосылкаНаименование ?? parcel?.Посылка ?? parcel?.ИДОтправления ?? '—'}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}><ClickableCargoNumber number={parcel?.Перевозка} onOpen={onOpenCargo} /></td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem' }}>{goods?.ТМЦ ?? '—'}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{goods?.ИДОтправления ?? '—'}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.ОбъявленнаяСтоимостьТовараДляПечати ?? goods?.ОбъявленнаяСтоимостьТовара ?? '—'}</td>
-                                                                            </tr>
-                                                                        );
-                                                                    })}
-                                                                </tbody>
-                                                            </table>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                            </td>
-                                        </tr>
-                                    )}
-                                    </React.Fragment>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-                </motion.div>
-            ) : !ordersLoading && !ordersError && !tableModeEffective && orderRowsSorted.length > 0 ? (
-                <motion.div key="docs-orders-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                <motion.div
-                    className="cargo-list documents-zayavki-below-new-order"
-                    variants={docsMotionEnabled ? cargoListContainerVariants : undefined}
-                    initial={docsMotionEnabled ? "hidden" : false}
-                    animate={docsMotionEnabled ? "visible" : undefined}
-                >
-                    {orderRowsSorted.map((row: any, idx: number) => {
-                        const rawDate = row?.Дата ?? row?.DateZayavki ?? row?.Date ?? row?.date ?? '';
-                        const requestNumber = String(row?.НомерЗаявки ?? row?.Номер ?? row?.Number ?? row?.number ?? row?.N ?? '');
-                        const customerRequestNumber = String(row?.НомерЗаявкиКлиента ?? row?.ClientRequestNumber ?? '');
-                        const pickupDate = String(row?.ДатаЗабораПлан ?? row?.PickupDatePlan ?? '');
-                        const parcels = getRequestParcels(row);
-                        const searchLower = effectiveSearchText.trim().toLowerCase();
-                        const parcelMatches = searchLower ? parcels.filter((parcel: any) => getParcelSearchText(parcel).includes(searchLower)) : [];
-                        const hasParcelSearchMatches = !!searchLower && parcelMatches.length > 0;
-                        const parcelsToRender = hasParcelSearchMatches ? parcelMatches : parcels;
-                        const cargoNumber = String(
-                            row?.НомерПеревозки ??
-                            row?.Перевозка ??
-                            row?.CargoNumber ??
-                            row?.NumberPerevozki ??
-                            parcels?.[0]?.Перевозка ??
-                            ''
-                        );
-                        const customer = String(row?.ЗаказчикНаименование ?? row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? row?.ПлательщикНаименование ?? row?.PayerName ?? '');
-                        const receiver = String(row?.ПолучательНаименование ?? row?.Получатель ?? row?.ГрузополучательНаименование ?? row?.Грузополучатель ?? row?.Receiver ?? row?.receiver ?? row?.Consignee ?? '');
-                        const sender = String(row?.ОтправительНаименование ?? row?.Отправитель ?? row?.ГрузоотправительНаименование ?? row?.Грузоотправитель ?? row?.Sender ?? row?.sender ?? row?.Shipper ?? row?.Consignor ?? '');
-                        const comment = String(row?.Комментарий ?? row?.Comment ?? row?.Примечание ?? row?.Note ?? '');
-                        const senderPoint = String(row?.ПунктОтправкиНаименование ?? row?.ПунктОтправки ?? row?.ПунктОтправления ?? row?.АдресОтправки ?? row?.SenderPoint ?? '');
-                        const destinationPoint = String(row?.ПунктНазначенияНаименование ?? row?.ПунктНазначения ?? row?.ПунктДоставки ?? row?.ReceiverPoint ?? row?.DestinationPoint ?? '');
-                        const route = [cityToCode(senderPoint) || senderPoint, cityToCode(destinationPoint) || destinationPoint].filter(Boolean).join(' – ') || '—';
-                        const rowKey = `${requestNumber || 'row'}-${cargoNumber || idx}`;
-                        const expanded = expandedOrderRow === rowKey;
-                        return (
-                            <motion.div
-                                key={rowKey}
-                                variants={docsMotionEnabled ? documentsListItemVariants : undefined}
-                                initial={docsMotionEnabled ? "hidden" : false}
-                                animate={docsMotionEnabled ? "visible" : undefined}
-                            >
-                            <Panel
-                                className="cargo-card"
-                                onClick={() => setExpandedOrderRow((prev) => (prev === rowKey ? null : rowKey))}
-                                style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}
-                                title={expanded ? 'Свернуть детали заявки' : 'Показать детали заявки'}
-                            >
-                                <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'visible' }}>
-                                    <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '65%' }}>
-                                        <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>
-                                            {requestNumber ? formatInvoiceNumber(requestNumber) : '—'}
-                                        </Typography.Body>
-                                        {customerRequestNumber && (
-                                            <AppBadge tone="purple">
-                                                № клиента {customerRequestNumber}
-                                            </AppBadge>
-                                        )}
-                                    </Flex>
-                                    <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem', flexShrink: 0 }}>
-                                        <DateText value={rawDate ? String(rawDate) : undefined} />
-                                    </Typography.Label>
-                                </Flex>
-                                <Flex justify="space-between" align="center" style={{ marginBottom: '0.45rem' }}>
-                                    <DocumentsRouteBadge>
-                                        {route}
-                                    </DocumentsRouteBadge>
-                                    <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                        Забор: <DateText value={pickupDate || undefined} />
-                                    </Typography.Label>
-                                </Flex>
-                                <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                    <Typography.Label style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '48%' }} title={stripOoo(String(sender || ''))}>
-                                        {stripOoo(String(sender || '—'))}
-                                    </Typography.Label>
-                                    <Typography.Label style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '48%', textAlign: 'right' }} title={stripOoo(String(receiver || ''))}>
-                                        {stripOoo(String(receiver || '—'))}
-                                    </Typography.Label>
-                                </Flex>
-                                {effectiveServiceMode && (
-                                    <Typography.Label style={{ marginTop: '0.3rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(customer) || '—'}>
-                                        Заказчик: {stripOoo(customer) || '—'}
-                                    </Typography.Label>
-                                )}
-                                {expanded && (
-                                    <div style={{ marginTop: '0.6rem', borderTop: '1px solid var(--color-border)', paddingTop: '0.55rem' }} onClick={(ev) => ev.stopPropagation()}>
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(130px, 180px) 1fr', gap: '0.3rem 0.7rem', fontSize: '0.82rem', marginBottom: '0.5rem' }}>
-                                            <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Пункт отправки:</Typography.Body>
-                                            <Typography.Body>{senderPoint || '—'}</Typography.Body>
-                                            <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Пункт назначения:</Typography.Body>
-                                            <Typography.Body>{destinationPoint || '—'}</Typography.Body>
-                                            {effectiveServiceMode && (
-                                                <>
-                                                    <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Комментарий:</Typography.Body>
-                                                    <Typography.Body>{comment || '—'}</Typography.Body>
-                                                </>
-                                            )}
-                                        </div>
-                                        {parcelsToRender.length === 0 ? (
-                                            <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '0.35rem 0.2rem', fontSize: '0.8rem' }}>
-                                                Нет данных по посылкам
-                                            </Typography.Body>
-                                        ) : (
-                                            <div style={{ overflowX: 'auto' }}>
-                                                <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                                                    <thead>
-                                                        <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                                            <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Посылка</th>
-                                                            <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Консолидация</th>
-                                                            <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Номенклатура</th>
-                                                            <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Кол-во</th>
-                                                            <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Стоимость</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {parcelsToRender.map((parcel: any, parcelIdx: number) => {
-                                                            const goodsRaw = parcel?.Товары;
-                                                            const goods = Array.isArray(goodsRaw)
-                                                                ? (goodsRaw[0] ?? {})
-                                                                : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : parcel);
-                                                            return (
-                                                                <tr key={`${rowKey}-card-parcel-${parcel?.Посылка ?? parcelIdx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                                    <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.ПосылкаНаименование ?? parcel?.Посылка ?? parcel?.ИДОтправления ?? '—'}</td>
-                                                                    <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}><ClickableCargoNumber number={parcel?.Перевозка} onOpen={onOpenCargo} /></td>
-                                                                    <td style={{ padding: '0.35rem 0.3rem' }}>{goods?.ТМЦ ?? '—'}</td>
-                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
-                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.ОбъявленнаяСтоимостьТовараДляПечати ?? goods?.ОбъявленнаяСтоимостьТовара ?? '—'}</td>
-                                                                </tr>
-                                                            );
-                                                        })}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </Panel>
-                            </motion.div>
-                        );
-                    })}
-                </motion.div>
-                </motion.div>
-            ) : null}
-            </AnimatePresence>
-            {!ordersLoading && !ordersError && orderRowsSorted.length === 0 && (
-                <Typography.Body className="text-empty-state" style={{ padding: '2rem 0' }}>Нет заявок за выбранный период</Typography.Body>
-            )}
-            </>
-            )}
-            </>
-            )}
-            {docSection === 'Отправки' && (
+            <DocumentsOrdersSection
+                active={docSection === 'Заявки' && !documentsOrderFormOpen}
+                ordersLoading={ordersLoading}
+                ordersError={ordersError}
+                tableModeEffective={tableModeEffective}
+                docsMotionEnabled={docsMotionEnabled}
+                effectiveServiceMode={effectiveServiceMode}
+                effectiveSearchText={effectiveSearchText}
+                orderRowsSorted={ordersCatalog.orderRowsSorted}
+                ordersSortColumn={ordersCatalog.ordersSortColumn}
+                ordersSortOrder={ordersCatalog.ordersSortOrder}
+                ordersParcelsSortColumn={ordersCatalog.ordersParcelsSortColumn}
+                ordersParcelsSortOrder={ordersCatalog.ordersParcelsSortOrder}
+                handleOrdersSort={ordersCatalog.handleOrdersSort}
+                handleOrdersParcelsSort={ordersCatalog.handleOrdersParcelsSort}
+                expandedOrderRow={ordersCatalog.expandedOrderRow}
+                setExpandedOrderRow={ordersCatalog.setExpandedOrderRow}
+                onOpenCargo={onOpenCargo}
+            />
+            {docSection === 'Отправки' && ({docSection === 'Отправки' && (
             <>
             {(sendingsInitialLoading || !!sendingsError) && <DocumentsStateBlocks loading={sendingsInitialLoading} error={sendingsError} emptyText="" />}
             {!sendingsLoading && !sendingsError && sendingRowsSorted.length > 0 && (
@@ -3709,1221 +1843,117 @@ useEffect(() => {
             )}
             </>
             )}
-            {docSection === 'Тарифы' && (
-                <DocumentsToolbarBelowSticky>
-                    {tariffsLoading ? (
-                        <Flex align="center" gap="0.5rem" className="documents-section-empty-state documents-tariffs-empty-state">
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            <Typography.Body>Загрузка тарифов...</Typography.Body>
-                        </Flex>
-                    ) : filteredTariffs.length === 0 ? (
-                        <Typography.Body className="text-empty-state documents-section-empty-state documents-tariffs-empty-state">Нет данных по тарифам</Typography.Body>
-                    ) : (
-                        <AnimatePresence mode="wait">
-                        {tableModeEffective ? (
-                        <motion.div key="docs-tariffs-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                        <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
-                            <table className="doc-tariffs-table doc-table-header-inline" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                                <thead>
-                                    <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
-                                        <th
-                                            style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer' }}
-                                            onClick={() => { setTariffsSortColumn('docDate'); setTariffsSortOrder((o) => tariffsSortColumn === 'docDate' ? (o === 'asc' ? 'desc' : 'asc') : 'desc'); }}
-                                        >
-                                            Дата {tariffsSortColumn === 'docDate' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
-                                        </th>
-                                        <th
-                                            style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer' }}
-                                            onClick={() => { setTariffsSortColumn('docNumber'); setTariffsSortOrder((o) => tariffsSortColumn === 'docNumber' ? (o === 'asc' ? 'desc' : 'asc') : 'asc'); }}
-                                        >
-                                            Номер {tariffsSortColumn === 'docNumber' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
-                                        </th>
-                                        {effectiveServiceMode ? (
-                                            <th
-                                                style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer' }}
-                                                onClick={() => { setTariffsSortColumn('customerName'); setTariffsSortOrder((o) => tariffsSortColumn === 'customerName' ? (o === 'asc' ? 'desc' : 'asc') : 'asc'); }}
-                                            >
-                                                Заказчик {tariffsSortColumn === 'customerName' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
-                                            </th>
-                                        ) : null}
-                                        <th
-                                            style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer' }}
-                                            onClick={() => { setTariffsSortColumn('route'); setTariffsSortOrder((o) => tariffsSortColumn === 'route' ? (o === 'asc' ? 'desc' : 'asc') : 'asc'); }}
-                                        >
-                                            Маршрут {tariffsSortColumn === 'route' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
-                                        </th>
-                                        <th
-                                            style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer' }}
-                                            onClick={() => { setTariffsSortColumn('transportType'); setTariffsSortOrder((o) => tariffsSortColumn === 'transportType' ? (o === 'asc' ? 'desc' : 'asc') : 'asc'); }}
-                                        >
-                                            Тип {tariffsSortColumn === 'transportType' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
-                                        </th>
-                                        <th
-                                            style={{ padding: '0.5rem 0.75rem', textAlign: 'center', fontWeight: 600, cursor: 'pointer' }}
-                                            onClick={() => { setTariffsSortColumn('dangerous'); setTariffsSortOrder((o) => tariffsSortColumn === 'dangerous' ? (o === 'asc' ? 'desc' : 'asc') : 'asc'); }}
-                                        >
-                                            Опасный груз {tariffsSortColumn === 'dangerous' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
-                                        </th>
-                                        <th
-                                            style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer' }}
-                                            onClick={() => { setTariffsSortColumn('tariff'); setTariffsSortOrder((o) => tariffsSortColumn === 'tariff' ? (o === 'asc' ? 'desc' : 'asc') : 'desc'); }}
-                                        >
-                                            Тариф {tariffsSortColumn === 'tariff' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredTariffs.map((t) => (
-                                        <tr key={t.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                            <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={t.docDate || undefined} /></td>
-                                            <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{t.docNumber || '—'}</td>
-                                            {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{stripOoo(t.customerName) || '—'}</td> : null}
-                                            <td style={{ padding: '0.5rem 0.75rem' }}>
-                                                {(() => {
-                                                    const route = formatTariffRouteLabel(t.cityFrom, t.cityTo);
-                                                    return route ? (
-                                                        <DocumentsRouteBadge>{route}</DocumentsRouteBadge>
-                                                    ) : '—';
-                                                })()}
-                                            </td>
-                                            <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>
-                                                <TariffTransportTypeIcon transportType={t.transportType} />
-                                            </td>
-                                            <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>{t.isDangerous ? 'Да' : 'Нет'}</td>
-                                            <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                {t.tariff != null ? formatCurrency(Number(t.tariff)) : '—'}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                        </motion.div>
-                        ) : (
-                        <motion.div key="docs-tariffs-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                        <div className="cargo-list">
-                            {filteredTariffs.map((t) => {
-                                const favorite = isDocFavorite('tariffs', t.id);
-                                const route = formatTariffRouteLabel(t.cityFrom, t.cityTo) || '—';
-                                const shareLines = [
-                                    `Тариф: ${t.docNumber || '—'}`,
-                                    t.docDate ? `Дата: ${t.docDate}` : '',
-                                    effectiveServiceMode ? `Заказчик: ${stripOoo(t.customerName) || '—'}` : '',
-                                    `Маршрут: ${route}`,
-                                    `Тип: ${t.transportType || '—'}`,
-                                    `Опасный груз: ${t.isDangerous ? 'Да' : 'Нет'}`,
-                                    t.tariff != null ? `Тариф: ${formatCurrency(Number(t.tariff))}` : '',
-                                ].filter(Boolean);
-                                return (
-                                    <Panel key={t.id} className="cargo-card" style={{ marginBottom: '0.75rem' }}>
-                                        <Flex justify="space-between" align="start" style={{ marginBottom: '0.45rem' }}>
-                                            <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>{t.docNumber || '—'}</Typography.Body>
-                                            <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
-                                                <Button
-                                                    style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                                                    onClick={() => {
-                                                        const text = shareLines.join('\n');
-                                                        if (typeof navigator !== 'undefined' && (navigator as any).share) {
-                                                            (navigator as any).share({ title: `Тариф ${t.docNumber || ''}`, text }).catch(() => {});
-                                                        } else {
-                                                            try { navigator.clipboard?.writeText(text); } catch {}
-                                                        }
-                                                    }}
-                                                    title="Поделиться"
-                                                >
-                                                    <Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
-                                                </Button>
-                                                <Button
-                                                    style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                                                    onClick={() => toggleDocFavorite('tariffs', t.id)}
-                                                    title={favorite ? 'Удалить из избранного' : 'В избранное'}
-                                                >
-                                                    <Heart className="w-4 h-4" style={{ fill: favorite ? '#ef4444' : 'transparent', color: favorite ? '#ef4444' : 'var(--color-text-secondary)' }} />
-                                                </Button>
-                                                <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
-                                                    <DateText value={t.docDate || undefined} />
-                                                </Typography.Label>
-                                            </Flex>
-                                        </Flex>
-                                        <Flex justify="space-between" align="center" style={{ marginBottom: '0.35rem' }}>
-                                            <DocumentsRouteBadge>
-                                                {route}
-                                            </DocumentsRouteBadge>
-                                            <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
-                                                {t.tariff != null ? formatCurrency(Number(t.tariff)) : '—'}
-                                            </Typography.Body>
-                                        </Flex>
-                                        <Flex justify="space-between" align="center" style={{ fontSize: '0.84rem', color: 'var(--color-text-secondary)' }}>
-                                            <TariffTransportTypeIcon transportType={t.transportType} size={18} />
-                                            <Typography.Label>{t.isDangerous ? 'Опасный груз' : 'Не опасный'}</Typography.Label>
-                                        </Flex>
-                                        {effectiveServiceMode && (
-                                            <Typography.Label style={{ marginTop: '0.25rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                                Заказчик: {stripOoo(t.customerName) || '—'}
-                                            </Typography.Label>
-                                        )}
-                                    </Panel>
-                                );
-                            })}
-                        </div>
-                        </motion.div>
-                        )}
-                        </AnimatePresence>
-                    )}
-                </DocumentsToolbarBelowSticky>
-            )}
-            {docSection === 'Акты сверок' && (
-                <>
-                {effectiveServiceMode && (
-                    <div className="doc-section-content documents-debug-section">
-                        <DocumentsApiDebugPanel
-                            title="GET /api/sverki"
-                            loading={sverkiLoading}
-                            snapshot={
-                                sverkiApiDebug
-                                    ? { ...sverkiApiDebug, filteredLength: filteredSverki.length }
-                                    : null
-                            }
-                        />
-                    </div>
-                )}
-                <DocumentsToolbarBelowSticky>
-                    <div>
-                        {sverkiRequestsLoading ? (
-                            <Typography.Body className="text-empty-state documents-section-empty-state documents-sverki-empty-state" style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
-                                Загрузка заявок...
-                            </Typography.Body>
-                        ) : sverkiRequests.length === 0 ? (
-                            <Typography.Body className="text-empty-state documents-section-empty-state documents-sverki-empty-state" style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
-                                Заявок пока нет
-                            </Typography.Body>
-                        ) : (
-                            <AnimatePresence mode="wait">
-                            {tableModeEffective ? (
-                            <motion.div key="docs-sverki-req-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                            <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
-                                <table className="doc-section-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                                    <thead>
-                                        <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
-                                            <th style={{ padding: '0.45rem 0.65rem', textAlign: 'left', fontWeight: 600 }}>Договор</th>
-                                            <th style={{ padding: '0.45rem 0.65rem', textAlign: 'left', fontWeight: 600 }}>Период с</th>
-                                            <th style={{ padding: '0.45rem 0.65rem', textAlign: 'left', fontWeight: 600 }}>Период по</th>
-                                            <th style={{ padding: '0.45rem 0.65rem', textAlign: 'left', fontWeight: 600 }}>Создана</th>
-                                            <th style={{ padding: '0.45rem 0.65rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {sverkiRequests.map((req) => {
-                                            const sent = req.status === 'edo_sent';
-                                            return (
-                                                <tr key={req.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                    <td style={{ padding: '0.45rem 0.65rem' }}>{req.contract || '—'}</td>
-                                                    <td style={{ padding: '0.45rem 0.65rem', whiteSpace: 'nowrap' }}><DateText value={req.periodFrom || undefined} /></td>
-                                                    <td style={{ padding: '0.45rem 0.65rem', whiteSpace: 'nowrap' }}><DateText value={req.periodTo || undefined} /></td>
-                                                    <td style={{ padding: '0.45rem 0.65rem', whiteSpace: 'nowrap' }}><DateText value={req.createdAt || undefined} /></td>
-                                                    <td style={{ padding: '0.45rem 0.65rem' }}>
-                                                        <span style={{
-                                                            fontSize: '0.74rem',
-                                                            padding: '0.14rem 0.45rem',
-                                                            borderRadius: 999,
-                                                            fontWeight: 600,
-                                                            background: sent ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)',
-                                                            color: sent ? '#10b981' : '#3b82f6',
-                                                            whiteSpace: 'nowrap',
-                                                        }}>
-                                                            {sent ? 'Отправлена в ЭДО' : 'Ожидает формирования'}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                            </motion.div>
-                        ) : (
-                            <motion.div key="docs-sverki-req-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                            <div className="cargo-list">
-                                {sverkiRequests.map((req) => {
-                                    const sent = req.status === 'edo_sent';
-                                    const favorite = isDocFavorite('reconciliation', `request-${req.id}`);
-                                    const shareLines = [
-                                        `Заявка на акт сверки #${req.id}`,
-                                        `Договор: ${req.contract || '—'}`,
-                                        req.periodFrom ? `Период с: ${req.periodFrom}` : '',
-                                        req.periodTo ? `Период по: ${req.periodTo}` : '',
-                                        req.createdAt ? `Создана: ${req.createdAt}` : '',
-                                        `Статус: ${sent ? 'Отправлена в ЭДО' : 'Ожидает формирования'}`,
-                                    ].filter(Boolean);
-                                    return (
-                                        <Panel key={req.id} className="cargo-card" style={{ marginBottom: '0.6rem' }}>
-                                            <Flex justify="space-between" align="start" style={{ marginBottom: '0.4rem' }}>
-                                                <Typography.Body style={{ fontWeight: 600, fontSize: '0.95rem' }}>
-                                                    Договор: {req.contract || '—'}
-                                                </Typography.Body>
-                                                <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
-                                                    <Button
-                                                        style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                                                        onClick={() => {
-                                                            const text = shareLines.join('\n');
-                                                            if (typeof navigator !== 'undefined' && (navigator as any).share) {
-                                                                (navigator as any).share({ title: `Акт сверки #${req.id}`, text }).catch(() => {});
-                                                            } else {
-                                                                try { navigator.clipboard?.writeText(text); } catch {}
-                                                            }
-                                                        }}
-                                                        title="Поделиться"
-                                                    >
-                                                        <Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
-                                                    </Button>
-                                                    <Button
-                                                        style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                                                        onClick={() => toggleDocFavorite('reconciliation', `request-${req.id}`)}
-                                                        title={favorite ? 'Удалить из избранного' : 'В избранное'}
-                                                    >
-                                                        <Heart className="w-4 h-4" style={{ fill: favorite ? '#ef4444' : 'transparent', color: favorite ? '#ef4444' : 'var(--color-text-secondary)' }} />
-                                                    </Button>
-                                                </Flex>
-                                            </Flex>
-                                            <Flex justify="space-between" align="center" style={{ marginBottom: '0.35rem', fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
-                                                <Typography.Label>С: <DateText value={req.periodFrom || undefined} /></Typography.Label>
-                                                <Typography.Label>По: <DateText value={req.periodTo || undefined} /></Typography.Label>
-                                            </Flex>
-                                            <Flex justify="space-between" align="center">
-                                                <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                                    <DateText value={req.createdAt || undefined} />
-                                                </Typography.Label>
-                                                <span style={{ fontSize: '0.74rem', padding: '0.14rem 0.45rem', borderRadius: 999, fontWeight: 600, background: sent ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)', color: sent ? '#10b981' : '#3b82f6', whiteSpace: 'nowrap' }}>
-                                                    {sent ? 'Отправлена в ЭДО' : 'Ожидает формирования'}
-                                                </span>
-                                            </Flex>
-                                        </Panel>
-                                    );
-                                })}
-                            </div>
-                            </motion.div>
-                            )}
-                            </AnimatePresence>
-                        )}
-                    </div>
-                    {sverkiLoading ? (
-                        <Flex align="center" gap="0.5rem" className="documents-section-empty-state documents-sverki-empty-state">
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            <Typography.Body>Загрузка актов сверок...</Typography.Body>
-                        </Flex>
-                    ) : filteredSverki.length === 0 ? (
-                        <Typography.Body className="text-empty-state documents-section-empty-state documents-sverki-empty-state" style={{ color: 'var(--color-text-secondary)' }}>Нет данных по актам сверок</Typography.Body>
-                    ) : (
-                        <AnimatePresence mode="wait">
-                        {tableModeEffective ? (
-                        <motion.div key="docs-sverki-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                        <div className="doc-contracts-table-offset-desktop">
-                            <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
-                            <table className="doc-section-table doc-table-header-inline" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                                <thead>
-                                    <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Период с</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Период по</th>
-                                        {effectiveServiceMode ? <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Контрагент</th> : null}
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>ЭДО</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600 }}></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredSverki.map((row) => {
-                                        const number = String(row.docNumber || '').trim();
-                                        const hasDownload = number && row.docDate;
-                                        const isDownloading = sverkiDownloadingId === row.id;
-                                        const edoInfo = getCachedDocumentEdoInfo(row);
-                                        return (
-                                            <tr key={row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{row.docNumber || '—'}</td>
-                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.docDate || undefined} /></td>
-                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.periodFrom || undefined} /></td>
-                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.periodTo || undefined} /></td>
-                                                {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{stripOoo(row.customerName) || '—'}</td> : null}
-                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DocumentsEdoTableStatus info={edoInfo} /></td>
-                                                <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>
-                                                    {hasDownload ? (
-                                                        <button
-                                                            type="button"
-                                                            className="button-primary"
-                                                            style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                                                            disabled={isDownloading}
-                                                            onClick={() => downloadSverkaFile(row)}
-                                                        >
-                                                            {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                                                            Скачать
-                                                        </button>
-                                                    ) : (
-                                                        '—'
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                            </div>
-                        </div>
-                        </motion.div>
-                    ) : (
-                        <motion.div key="docs-sverki-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                        <div className="cargo-list">
-                            {filteredSverki.map((row) => {
-                                const number = String(row.docNumber || '').trim();
-                                const hasDownload = number && row.docDate;
-                                const isDownloading = sverkiDownloadingId === row.id;
-                                const edoInfo = getCachedDocumentEdoInfo(row);
-                                const favorite = isDocFavorite('reconciliation', `act-${row.id}`);
-                                const shareLines = [
-                                    `Акт сверки: ${row.docNumber || '—'}`,
-                                    row.docDate ? `Дата: ${row.docDate}` : '',
-                                    row.periodFrom ? `Период с: ${row.periodFrom}` : '',
-                                    row.periodTo ? `Период по: ${row.periodTo}` : '',
-                                    effectiveServiceMode ? `Контрагент: ${stripOoo(row.customerName) || '—'}` : '',
-                                    edoInfo.raw ? `ЭДО: ${edoInfo.label}` : '',
-                                ].filter(Boolean);
-                                return (
-                                    <Panel key={row.id} className="cargo-card" style={{ marginBottom: '0.75rem' }}>
-                                        <Flex justify="space-between" align="start" style={{ marginBottom: '0.45rem' }}>
-                                            <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
-                                                {row.docNumber || '—'}
-                                            </Typography.Body>
-                                            <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
-                                                <DocumentsEdoCardBadge info={edoInfo} />
-                                                <Button
-                                                    style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                                                    onClick={() => {
-                                                        const text = shareLines.join('\n');
-                                                        if (typeof navigator !== 'undefined' && (navigator as any).share) {
-                                                            (navigator as any).share({ title: `Акт сверки ${row.docNumber || ''}`, text }).catch(() => {});
-                                                        } else {
-                                                            try { navigator.clipboard?.writeText(text); } catch {}
-                                                        }
-                                                    }}
-                                                    title="Поделиться"
-                                                >
-                                                    <Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
-                                                </Button>
-                                                <Button
-                                                    style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                                                    onClick={() => toggleDocFavorite('reconciliation', `act-${row.id}`)}
-                                                    title={favorite ? 'Удалить из избранного' : 'В избранное'}
-                                                >
-                                                    <Heart className="w-4 h-4" style={{ fill: favorite ? '#ef4444' : 'transparent', color: favorite ? '#ef4444' : 'var(--color-text-secondary)' }} />
-                                                </Button>
-                                                <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
-                                                    <DateText value={row.docDate || undefined} />
-                                                </Typography.Label>
-                                            </Flex>
-                                        </Flex>
-                                        <Flex justify="space-between" align="center" style={{ fontSize: '0.84rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>
-                                            <Typography.Label>С: <DateText value={row.periodFrom || undefined} /></Typography.Label>
-                                            <Typography.Label>По: <DateText value={row.periodTo || undefined} /></Typography.Label>
-                                        </Flex>
-                                        {effectiveServiceMode && (
-                                            <Typography.Label style={{ marginBottom: '0.45rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                                Контрагент: {stripOoo(row.customerName) || '—'}
-                                            </Typography.Label>
-                                        )}
-                                        <Flex justify="flex-end">
-                                            {hasDownload ? (
-                                                <button
-                                                    type="button"
-                                                    className="button-primary"
-                                                    style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                                                    disabled={isDownloading}
-                                                    onClick={() => downloadSverkaFile(row)}
-                                                >
-                                                    {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                                                    Скачать
-                                                </button>
-                                            ) : (
-                                                <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>—</Typography.Label>
-                                            )}
-                                        </Flex>
-                                    </Panel>
-                                );
-                            })}
-                        </div>
-                        </motion.div>
-                        )}
-                        </AnimatePresence>
-                    )}
-                    {sverkiDownloadError && (
-                        <Typography.Body style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: '#ef4444' }}>
-                            {sverkiDownloadError}
-                        </Typography.Body>
-                    )}
-                </DocumentsToolbarBelowSticky>
-                </>
-            )}
-            {docSection === 'Договоры' && (
-                <div className="doc-section-content">
-                <DocumentsToolbarBelowSticky>
-                    {dogovorsLoading ? (
-                        <Flex align="center" gap="0.5rem" className="documents-section-empty-state documents-contracts-empty-state">
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            <Typography.Body>Загрузка договоров...</Typography.Body>
-                        </Flex>
-                    ) : filteredDogovors.length === 0 ? (
-                        <Typography.Body className="text-empty-state documents-section-empty-state documents-contracts-empty-state" style={{ color: 'var(--color-text-secondary)' }}>Нет данных по договорам</Typography.Body>
-                    ) : (
-                        <AnimatePresence mode="wait">
-                        {tableModeEffective ? (
-                        <motion.div key="docs-dog-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                        <div className="doc-contracts-table-offset-desktop">
-                            <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
-                                <table className="doc-section-table doc-table-header-inline" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                                <thead>
-                                    <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
-                                        {effectiveServiceMode ? <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Контрагент</th> : null}
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Наименование</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>ЭДО</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600 }}></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredDogovors.map((row) => {
-                                        const hasDownload = row.docNumber && row.docDate && row.customerInn;
-                                        const isDownloading = dogovorsDownloadingId === row.id;
-                                        const edoInfo = getCachedDocumentEdoInfo(row);
-                                        return (
-                                            <tr key={row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{row.docNumber || '—'}</td>
-                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.docDate || undefined} /></td>
-                                                {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{stripOoo(row.customerName) || '—'}</td> : null}
-                                                <td style={{ padding: '0.5rem 0.75rem' }}>{row.title || '—'}</td>
-                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DocumentsEdoTableStatus info={edoInfo} /></td>
-                                                <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>
-                                                    {hasDownload ? (
-                                                        <button
-                                                            type="button"
-                                                            className="button-primary"
-                                                            style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                                                            disabled={isDownloading}
-                                                            onClick={() => downloadDogovorFile(row)}
-                                                        >
-                                                            {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                                                            Скачать
-                                                        </button>
-                                                    ) : (
-                                                        '—'
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                                </table>
-                            </div>
-                        </div>
-                        </motion.div>
-                    ) : (
-                        <motion.div key="docs-dog-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                        <div className="cargo-list">
-                            {filteredDogovors.map((row) => {
-                                const hasDownload = row.docNumber && row.docDate && row.customerInn;
-                                const isDownloading = dogovorsDownloadingId === row.id;
-                                const edoInfo = getCachedDocumentEdoInfo(row);
-                                const favorite = isDocFavorite('contracts', row.id);
-                                const shareLines = [
-                                    `Договор: ${row.docNumber || '—'}`,
-                                    row.docDate ? `Дата: ${row.docDate}` : '',
-                                    effectiveServiceMode ? `Контрагент: ${stripOoo(row.customerName) || '—'}` : '',
-                                    `Наименование: ${row.title || '—'}`,
-                                    edoInfo.raw ? `ЭДО: ${edoInfo.label}` : '',
-                                ].filter(Boolean);
-                                return (
-                                    <Panel key={row.id} className="cargo-card" style={{ marginBottom: '0.75rem' }}>
-                                        <Flex justify="space-between" align="start" style={{ marginBottom: '0.45rem' }}>
-                                            <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
-                                                {row.docNumber || '—'}
-                                            </Typography.Body>
-                                            <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
-                                                <DocumentsEdoCardBadge info={edoInfo} />
-                                                <Button
-                                                    style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                                                    onClick={() => {
-                                                        const text = shareLines.join('\n');
-                                                        if (typeof navigator !== 'undefined' && (navigator as any).share) {
-                                                            (navigator as any).share({ title: `Договор ${row.docNumber || ''}`, text }).catch(() => {});
-                                                        } else {
-                                                            try { navigator.clipboard?.writeText(text); } catch {}
-                                                        }
-                                                    }}
-                                                    title="Поделиться"
-                                                >
-                                                    <Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
-                                                </Button>
-                                                <Button
-                                                    style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                                                    onClick={() => toggleDocFavorite('contracts', row.id)}
-                                                    title={favorite ? 'Удалить из избранного' : 'В избранное'}
-                                                >
-                                                    <Heart className="w-4 h-4" style={{ fill: favorite ? '#ef4444' : 'transparent', color: favorite ? '#ef4444' : 'var(--color-text-secondary)' }} />
-                                                </Button>
-                                                <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
-                                                    <DateText value={row.docDate || undefined} />
-                                                </Typography.Label>
-                                            </Flex>
-                                        </Flex>
-                                        {effectiveServiceMode && (
-                                            <Typography.Label style={{ marginBottom: '0.35rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                                Контрагент: {stripOoo(row.customerName) || '—'}
-                                            </Typography.Label>
-                                        )}
-                                        <Typography.Body style={{ marginBottom: '0.45rem', fontSize: '0.9rem' }}>
-                                            {row.title || '—'}
-                                        </Typography.Body>
-                                        <Flex justify="flex-end">
-                                            {hasDownload ? (
-                                                <button
-                                                    type="button"
-                                                    className="button-primary"
-                                                    style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                                                    disabled={isDownloading}
-                                                    onClick={() => downloadDogovorFile(row)}
-                                                >
-                                                    {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                                                    Скачать
-                                                </button>
-                                            ) : (
-                                                <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>—</Typography.Label>
-                                            )}
-                                        </Flex>
-                                    </Panel>
-                                );
-                            })}
-                        </div>
-                        </motion.div>
-                        )}
-                        </AnimatePresence>
-                    )}
-                    {dogovorsDownloadError && (
-                        <Typography.Body style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: '#ef4444' }}>
-                            {dogovorsDownloadError}
-                        </Typography.Body>
-                    )}
-                </DocumentsToolbarBelowSticky>
-                </div>
-            )}
-            {docSection === 'Претензии' && (
-                <DocumentsToolbarBelowSticky>
-                    {claimsLoading ? (
-                        <Flex align="center" gap="0.5rem" className="documents-section-empty-state">
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            <Typography.Body>Загрузка претензий...</Typography.Body>
-                        </Flex>
-                    ) : filteredClaims.length === 0 ? (
-                        <Typography.Body className="text-empty-state documents-section-empty-state documents-claims-empty-state" style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>Претензий пока нет</Typography.Body>
-                    ) : (
-                        <AnimatePresence mode="wait">
-                        {tableModeEffective ? (
-                        <motion.div key="docs-claims-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                        <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
-                            <table className="doc-section-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
-                                <thead>
-                                    <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Суть</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600 }}>Действия</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredClaims.map((row) => {
-                                        const status = (row.status || 'new') as ClaimStatusKey;
-                                        const statusStyle = CLAIM_STATUS_BADGE[status] || CLAIM_STATUS_BADGE.new;
-                                        return (
-                                            <tr key={row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{row.claimNumber || `#${row.id}`}</td>
-                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.createdAt || undefined} /></td>
-                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><ClickableCargoNumber number={row.cargoNumber} onOpen={onOpenCargo} /></td>
-                                                <td style={{ padding: '0.5rem 0.75rem' }}>
-                                                    <span style={{ fontSize: '0.75rem', padding: '0.18rem 0.45rem', borderRadius: 999, fontWeight: 600, background: statusStyle.bg, color: statusStyle.color, whiteSpace: 'nowrap' }}>
-                                                        {CLAIM_STATUS_LABELS[status] || status}
-                                                    </span>
-                                                </td>
-                                                <td style={{ padding: '0.5rem 0.75rem' }}>{row.description || '—'}</td>
-                                                <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                    {row.requestedAmount != null ? formatCurrency(Number(row.requestedAmount)) : '—'}
-                                                </td>
-                                                <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                    <Flex gap="0.35rem" justify="flex-end" wrap="wrap">
-                                                        <Button
-                                                            type="button"
-                                                            className="filter-button"
-                                                            onClick={() => openClaimDetailModal(row.id)}
-                                                            disabled={claimsActionLoadingId === row.id || claimsModalBusy}
-                                                            style={CLAIM_ROW_ACTION_BUTTON_STYLE}
-                                                        >
-                                                            Открыть
-                                                        </Button>
-                                                        {status === 'draft' ? (
-                                                            <>
-                                                                <Button
-                                                                    type="button"
-                                                                    className="filter-button"
-                                                                    onClick={() => openDraftEditor(row.id)}
-                                                                    disabled={claimsActionLoadingId === row.id || claimsModalBusy}
-                                                                    style={CLAIM_ROW_ACTION_BUTTON_STYLE}
-                                                                >
-                                                                    Изменить
-                                                                </Button>
-                                                                <Button
-                                                                    type="button"
-                                                                    className="button-primary"
-                                                                    onClick={() => runClaimAction(row.id, 'submit')}
-                                                                    disabled={claimsActionLoadingId === row.id}
-                                                                    style={CLAIM_ROW_ACTION_BUTTON_STYLE}
-                                                                >
-                                                                    {claimsActionLoadingId === row.id ? '...' : 'Отправить'}
-                                                                </Button>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                {status === 'waiting_docs' && (
-                                                                    <Button
-                                                                        type="button"
-                                                                        className="button-primary"
-                                                                        onClick={() => openClaimReplyModal(row.id)}
-                                                                        disabled={claimsActionLoadingId === row.id || claimsReplySubmitting}
-                                                                        style={{ minWidth: 170, height: 36 }}
-                                                                    >
-                                                                        Ответить документами
-                                                                    </Button>
-                                                                )}
-                                                                <Button
-                                                                    type="button"
-                                                                    className="filter-button"
-                                                                    onClick={() => runClaimAction(row.id, 'withdraw')}
-                                                                    disabled={
-                                                                        claimsActionLoadingId === row.id
-                                                                        || ['paid', 'offset', 'closed'].includes(status)
-                                                                    }
-                                                                    style={CLAIM_ROW_ACTION_BUTTON_STYLE}
-                                                                >
-                                                                    {claimsActionLoadingId === row.id ? '...' : 'Отозвать'}
-                                                                </Button>
-                                                            </>
-                                                        )}
-                                                    </Flex>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                        </motion.div>
-                    ) : (
-                        <motion.div key="docs-claims-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                        <div className="cargo-list">
-                            {filteredClaims.map((row) => {
-                                const status = (row.status || 'new') as ClaimStatusKey;
-                                const statusStyle = CLAIM_STATUS_BADGE[status] || CLAIM_STATUS_BADGE.new;
-                                const favorite = isDocFavorite('claims', row.id);
-                                const shareLines = [
-                                    `Претензия: ${row.claimNumber || `#${row.id}`}`,
-                                    row.createdAt ? `Дата: ${row.createdAt}` : '',
-                                    `Перевозка: ${row.cargoNumber || '—'}`,
-                                    `Статус: ${CLAIM_STATUS_LABELS[status] || status}`,
-                                    `Суть: ${row.description || '—'}`,
-                                    row.requestedAmount != null ? `Сумма: ${formatCurrency(Number(row.requestedAmount))}` : '',
-                                ].filter(Boolean);
-                                return (
-                                    <Panel key={row.id} className="cargo-card" style={{ marginBottom: '0.75rem' }}>
-                                        <Flex justify="space-between" align="start" style={{ marginBottom: '0.45rem' }}>
-                                            <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
-                                                {row.claimNumber || `#${row.id}`}
-                                            </Typography.Body>
-                                            <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
-                                                <Button
-                                                    style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                                                    onClick={() => {
-                                                        const text = shareLines.join('\n');
-                                                        if (typeof navigator !== 'undefined' && (navigator as any).share) {
-                                                            (navigator as any).share({ title: `Претензия ${row.claimNumber || `#${row.id}`}`, text }).catch(() => {});
-                                                        } else {
-                                                            try { navigator.clipboard?.writeText(text); } catch {}
-                                                        }
-                                                    }}
-                                                    title="Поделиться"
-                                                >
-                                                    <Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
-                                                </Button>
-                                                <Button
-                                                    style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
-                                                    onClick={() => toggleDocFavorite('claims', row.id)}
-                                                    title={favorite ? 'Удалить из избранного' : 'В избранное'}
-                                                >
-                                                    <Heart className="w-4 h-4" style={{ fill: favorite ? '#ef4444' : 'transparent', color: favorite ? '#ef4444' : 'var(--color-text-secondary)' }} />
-                                                </Button>
-                                                <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
-                                                    <DateText value={row.createdAt || undefined} />
-                                                </Typography.Label>
-                                            </Flex>
-                                        </Flex>
-                                        <Flex justify="space-between" align="center" style={{ marginBottom: '0.4rem' }}>
-                                            <Typography.Label style={{ fontSize: '0.84rem', color: 'var(--color-text-secondary)' }}>
-                                                Перевозка: {row.cargoNumber || '—'}
-                                            </Typography.Label>
-                                            <span style={{ fontSize: '0.75rem', padding: '0.18rem 0.45rem', borderRadius: 999, fontWeight: 600, background: statusStyle.bg, color: statusStyle.color, whiteSpace: 'nowrap' }}>
-                                                {CLAIM_STATUS_LABELS[status] || status}
-                                            </span>
-                                        </Flex>
-                                        <Typography.Body style={{ fontSize: '0.86rem', marginBottom: '0.45rem' }}>{row.description || '—'}</Typography.Body>
-                                        <Flex justify="space-between" align="center" style={{ marginBottom: '0.55rem' }}>
-                                            <Typography.Label style={{ color: 'var(--color-text-secondary)', fontSize: '0.82rem' }}>Сумма</Typography.Label>
-                                            <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
-                                                {row.requestedAmount != null ? formatCurrency(Number(row.requestedAmount)) : '—'}
-                                            </Typography.Body>
-                                        </Flex>
-                                        <Flex gap="0.35rem" justify="flex-end" wrap="wrap">
-                                            <Button
-                                                type="button"
-                                                className="filter-button"
-                                                onClick={() => openClaimDetailModal(row.id)}
-                                                disabled={claimsActionLoadingId === row.id || claimsModalBusy}
-                                                style={CLAIM_ROW_ACTION_BUTTON_STYLE}
-                                            >
-                                                Открыть
-                                            </Button>
-                                            {status === 'draft' ? (
-                                                <>
-                                                    <Button
-                                                        type="button"
-                                                        className="filter-button"
-                                                        onClick={() => openDraftEditor(row.id)}
-                                                        disabled={claimsActionLoadingId === row.id || claimsModalBusy}
-                                                        style={CLAIM_ROW_ACTION_BUTTON_STYLE}
-                                                    >
-                                                        Изменить
-                                                    </Button>
-                                                    <Button
-                                                        type="button"
-                                                        className="button-primary"
-                                                        onClick={() => runClaimAction(row.id, 'submit')}
-                                                        disabled={claimsActionLoadingId === row.id}
-                                                        style={CLAIM_ROW_ACTION_BUTTON_STYLE}
-                                                    >
-                                                        {claimsActionLoadingId === row.id ? '...' : 'Отправить'}
-                                                    </Button>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    {status === 'waiting_docs' && (
-                                                        <Button
-                                                            type="button"
-                                                            className="button-primary"
-                                                            onClick={() => openClaimReplyModal(row.id)}
-                                                            disabled={claimsActionLoadingId === row.id || claimsReplySubmitting}
-                                                            style={{ minWidth: 170, height: 36 }}
-                                                        >
-                                                            Ответить документами
-                                                        </Button>
-                                                    )}
-                                                    <Button
-                                                        type="button"
-                                                        className="filter-button"
-                                                        onClick={() => runClaimAction(row.id, 'withdraw')}
-                                                        disabled={
-                                                            claimsActionLoadingId === row.id
-                                                            || ['paid', 'offset', 'closed'].includes(status)
-                                                        }
-                                                        style={CLAIM_ROW_ACTION_BUTTON_STYLE}
-                                                    >
-                                                        {claimsActionLoadingId === row.id ? '...' : 'Отозвать'}
-                                                    </Button>
-                                                </>
-                                            )}
-                                        </Flex>
-                                    </Panel>
-                                );
-                            })}
-                        </div>
-                        </motion.div>
-                        )}
-                        </AnimatePresence>
-                    )}
-                </DocumentsToolbarBelowSticky>
-            )}
+            <DocumentsTariffsSection
+                active={docSection === 'Тарифы'}
+                effectiveServiceMode={effectiveServiceMode}
+                tableModeEffective={tableModeEffective}
+                docsMotionEnabled={docsMotionEnabled}
+                cargoModeSwitchMotion={cargoModeSwitchMotion}
+                tariffsLoading={tariffsCatalog.tariffsLoading}
+                filteredTariffs={tariffsCatalog.filteredTariffs}
+                tariffsSortColumn={tariffsCatalog.tariffsSortColumn}
+                tariffsSortOrder={tariffsCatalog.tariffsSortOrder}
+                setTariffsSortColumn={tariffsCatalog.setTariffsSortColumn}
+                setTariffsSortOrder={tariffsCatalog.setTariffsSortOrder}
+                isDocFavorite={isDocFavorite}
+                toggleDocFavorite={toggleDocFavorite}
+            />
+            <DocumentsSverkiSection
+                active={docSection === 'Акты сверок'}
+                effectiveServiceMode={effectiveServiceMode}
+                tableModeEffective={tableModeEffective}
+                docsMotionEnabled={docsMotionEnabled}
+                cargoModeSwitchMotion={cargoModeSwitchMotion}
+                sverkiRequestsLoading={sverkiCatalog.sverkiRequestsLoading}
+                sverkiRequests={sverkiCatalog.sverkiRequests}
+                sverkiLoading={sverkiCatalog.sverkiLoading}
+                filteredSverki={sverkiCatalog.filteredSverki}
+                sverkiDownloadingId={sverkiCatalog.sverkiDownloadingId}
+                sverkiDownloadError={sverkiCatalog.sverkiDownloadError}
+                downloadSverkaFile={sverkiCatalog.downloadSverkaFile}
+                isDocFavorite={isDocFavorite}
+                toggleDocFavorite={toggleDocFavorite}
+                sverkiOrderModalOpen={sverkiCatalog.sverkiOrderModalOpen}
+                setSverkiOrderModalOpen={sverkiCatalog.setSverkiOrderModalOpen}
+                sverkiOrderContract={sverkiCatalog.sverkiOrderContract}
+                setSverkiOrderContract={sverkiCatalog.setSverkiOrderContract}
+                sverkiOrderContractOptions={sverkiCatalog.sverkiOrderContractOptions}
+                sverkiOrderContractsLoading={sverkiCatalog.sverkiOrderContractsLoading}
+                sverkiOrderPeriodFrom={sverkiCatalog.sverkiOrderPeriodFrom}
+                setSverkiOrderPeriodFrom={sverkiCatalog.setSverkiOrderPeriodFrom}
+                sverkiOrderPeriodTo={sverkiCatalog.sverkiOrderPeriodTo}
+                setSverkiOrderPeriodTo={sverkiCatalog.setSverkiOrderPeriodTo}
+                sverkiOrderSubmitting={sverkiCatalog.sverkiOrderSubmitting}
+                sverkiOrderError={sverkiCatalog.sverkiOrderError}
+                submitSverkiOrder={sverkiCatalog.submitSverkiOrder}
+            />
+            <DocumentsDogovorsSection
+                active={docSection === 'Договоры'}
+                effectiveServiceMode={effectiveServiceMode}
+                tableModeEffective={tableModeEffective}
+                docsMotionEnabled={docsMotionEnabled}
+                cargoModeSwitchMotion={cargoModeSwitchMotion}
+                dogovorsLoading={dogovorsCatalog.dogovorsLoading}
+                filteredDogovors={dogovorsCatalog.filteredDogovors}
+                dogovorsDownloadingId={dogovorsCatalog.dogovorsDownloadingId}
+                dogovorsDownloadError={dogovorsCatalog.dogovorsDownloadError}
+                downloadDogovorFile={dogovorsCatalog.downloadDogovorFile}
+                isDocFavorite={isDocFavorite}
+                toggleDocFavorite={toggleDocFavorite}
+            />
+            <DocumentsClaimsSection
+                active={docSection === 'Претензии'}
+                auth={auth}
+                effectiveActiveInn={effectiveActiveInn}
+                effectiveServiceMode={effectiveServiceMode}
+                tableModeEffective={tableModeEffective}
+                docsMotionEnabled={docsMotionEnabled}
+                cargoModeSwitchMotion={cargoModeSwitchMotion}
+                claimsLoading={claimsCatalog.claimsLoading}
+                filteredClaims={claimsCatalog.filteredClaims}
+                claimsActionLoadingId={claimsCatalog.claimsActionLoadingId}
+                claimsModalBusy={claimsCatalog.claimsModalBusy}
+                claimsReplySubmitting={claimsCatalog.claimsReplySubmitting}
+                onOpenCargo={onOpenCargo}
+                openClaimDetailModal={claimsCatalog.openClaimDetailModal}
+                openDraftEditor={claimsCatalog.openDraftEditor}
+                runClaimAction={claimsCatalog.runClaimAction}
+                openClaimReplyModal={claimsCatalog.openClaimReplyModal}
+                isDocFavorite={isDocFavorite}
+                toggleDocFavorite={toggleDocFavorite}
+                claimsCreateOpen={claimsCatalog.claimsCreateOpen}
+                setClaimsCreateOpen={claimsCatalog.setClaimsCreateOpen}
+                claimsEditingId={claimsCatalog.claimsEditingId}
+                setClaimsEditingId={claimsCatalog.setClaimsEditingId}
+                claimsCreatePrefill={claimsCatalog.claimsCreatePrefill}
+                setClaimsModalBusy={claimsCatalog.setClaimsModalBusy}
+                reloadClaims={claimsCatalog.reloadClaims}
+                claimCargoOptions={claimsCatalog.claimCargoOptions}
+                perevozkiItems={perevozkiItems}
+                normCargoKey={normCargoKey}
+                claimsDetailOpen={claimsCatalog.claimsDetailOpen}
+                setClaimsDetailOpen={claimsCatalog.setClaimsDetailOpen}
+                claimsDetailLoading={claimsCatalog.claimsDetailLoading}
+                claimsDetailError={claimsCatalog.claimsDetailError}
+                claimsDetailData={claimsCatalog.claimsDetailData}
+                claimDetailStatusKey={claimsCatalog.claimDetailStatusKey}
+                claimDetailStatusStyle={claimsCatalog.claimDetailStatusStyle}
+                claimCustomerPayload={claimsCatalog.claimCustomerPayload}
+                claimsReplyOpen={claimsCatalog.claimsReplyOpen}
+                setClaimsReplyOpen={claimsCatalog.setClaimsReplyOpen}
+                claimsReplyPhotoFiles={claimsCatalog.claimsReplyPhotoFiles}
+                setClaimsReplyPhotoFiles={claimsCatalog.setClaimsReplyPhotoFiles}
+                claimsReplyDocumentFiles={claimsCatalog.claimsReplyDocumentFiles}
+                setClaimsReplyDocumentFiles={claimsCatalog.setClaimsReplyDocumentFiles}
+                claimsReplyVideoLink={claimsCatalog.claimsReplyVideoLink}
+                setClaimsReplyVideoLink={claimsCatalog.setClaimsReplyVideoLink}
+                claimsReplyError={claimsCatalog.claimsReplyError}
+                submitClaimReplyDocuments={claimsCatalog.submitClaimReplyDocuments}
+            />
             {docSection !== 'Счета' && docSection !== 'ЭДО' && docSection !== 'УПД' && docSection !== 'Заявки' && docSection !== 'Отправки' && docSection !== 'Тарифы' && docSection !== 'Акты сверок' && docSection !== 'Договоры' && docSection !== 'Претензии' && (
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0', fontSize: '0.9rem' }}>
                     Раздел «{docSection}» в разработке.
                 </Typography.Body>
-            )}
-            {claimsDetailOpen && (
-                <div
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    onClick={() => !claimsDetailLoading && setClaimsDetailOpen(false)}
-                >
-                    <div
-                        style={{ width: 'min(94vw, 760px)', maxHeight: '90vh', overflowY: 'auto', borderRadius: 12, background: 'var(--color-bg-card, #fff)', padding: '1rem' }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <Flex align="center" justify="space-between" style={{ marginBottom: '0.6rem' }}>
-                            <Typography.Body style={{ fontWeight: 700 }}>
-                                {claimsDetailData?.claim?.claimNumber ? `Претензия ${claimsDetailData.claim.claimNumber}` : 'Карточка претензии'}
-                            </Typography.Body>
-                            <Button type="button" className="filter-button" onClick={() => setClaimsDetailOpen(false)}>Закрыть</Button>
-                        </Flex>
-                        {claimsDetailLoading ? (
-                            <Flex align="center" gap="0.45rem" style={{ padding: '1rem 0' }}>
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                <Typography.Body>Загрузка карточки...</Typography.Body>
-                            </Flex>
-                        ) : claimsDetailError ? (
-                            <Typography.Body style={{ color: '#ef4444', fontSize: '0.84rem' }}>{claimsDetailError}</Typography.Body>
-                        ) : !claimsDetailData?.claim ? (
-                            <Typography.Body style={{ color: 'var(--color-text-secondary)', fontSize: '0.84rem' }}>Данные претензии не найдены</Typography.Body>
-                        ) : (
-                            <div style={{ display: 'grid', gap: '0.55rem' }}>
-                                <div style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: '0.6rem' }}>
-                                    <Typography.Body style={{ fontWeight: 600, marginBottom: '0.35rem' }}>Данные заказчика и претензии</Typography.Body>
-                                    <div style={{ display: 'grid', gap: '0.25rem' }}>
-                                        <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Перевозка:</strong> {String(claimsDetailData.claim.cargoNumber || '—')}</Typography.Body>
-                                        <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Тип претензии:</strong> {String(claimsDetailData.claim.claimType || '—')}</Typography.Body>
-                                        <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Описание:</strong> {String(claimsDetailData.claim.description || '—')}</Typography.Body>
-                                        <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Сумма требования:</strong> {claimsDetailData.claim.requestedAmount != null ? formatCurrency(Number(claimsDetailData.claim.requestedAmount)) : '—'}</Typography.Body>
-                                        <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Контактное лицо:</strong> {claimCustomerPayload.contactName || '—'}</Typography.Body>
-                                        <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Телефон:</strong> {String(claimsDetailData.claim.customerPhone || '—')}</Typography.Body>
-                                        <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Email:</strong> {String(claimsDetailData.claim.customerEmail || '—')}</Typography.Body>
-                                        <Typography.Body style={{ fontSize: '0.82rem' }}>
-                                            <strong>Номера мест:</strong> {claimCustomerPayload.selectedPlaces.length > 0 ? claimCustomerPayload.selectedPlaces.join(', ') : '—'}
-                                        </Typography.Body>
-                                        <Typography.Body style={{ fontSize: '0.82rem' }}>
-                                            <strong>Манипуляционные знаки:</strong> {claimCustomerPayload.manipulationSigns.length > 0 ? mapClaimEnumToRu(claimCustomerPayload.manipulationSigns, MANIPULATION_SIGN_LABELS_RU).join(', ') : '—'}
-                                        </Typography.Body>
-                                        <Typography.Body style={{ fontSize: '0.82rem' }}>
-                                            <strong>Упаковка:</strong> {claimCustomerPayload.packagingTypes.length > 0 ? mapClaimEnumToRu(claimCustomerPayload.packagingTypes, PACKAGING_TYPE_LABELS_RU).join(', ') : '—'}
-                                        </Typography.Body>
-                                    </div>
-                                </div>
-                                <div style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: '0.6rem' }}>
-                                    <Typography.Body style={{ fontWeight: 600, marginBottom: '0.4rem' }}>Ответ HAULZ</Typography.Body>
-                                    <div style={{ display: 'grid', gap: '0.25rem' }}>
-                                        <Typography.Body style={{ fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                                            <strong>Статус:</strong>
-                                            <span style={{ fontSize: '0.74rem', padding: '0.16rem 0.45rem', borderRadius: 999, fontWeight: 600, background: claimDetailStatusStyle.bg, color: claimDetailStatusStyle.color, whiteSpace: 'nowrap' }}>
-                                                {CLAIM_STATUS_LABELS[claimDetailStatusKey] || String(claimsDetailData.claim.status || '—')}
-                                            </span>
-                                        </Typography.Body>
-                                        <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Ответ менеджера:</strong> {String(claimsDetailData.claim.managerNote || '—')}</Typography.Body>
-                                        <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Ответ руководителя:</strong> {String(claimsDetailData.claim.leaderComment || '—')}</Typography.Body>
-                                        <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Комментарий бухгалтерии:</strong> {String(claimsDetailData.claim.accountingNote || '—')}</Typography.Body>
-                                    </div>
-
-                                    <div style={{ marginTop: '0.55rem' }}>
-                                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.25rem', display: 'block' }}>Прикрепленные файлы</Typography.Body>
-                                        <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                            Фото: {Array.isArray(claimsDetailData.photos) ? claimsDetailData.photos.length : 0} | PDF: {Array.isArray(claimsDetailData.documents) ? claimsDetailData.documents.length : 0} | Видео: {Array.isArray(claimsDetailData.videoLinks) ? claimsDetailData.videoLinks.length : 0}
-                                        </Typography.Body>
-                                        {Array.isArray(claimsDetailData.photos) && claimsDetailData.photos.length > 0 && (
-                                            <div style={{ marginTop: '0.45rem' }}>
-                                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Фото</Typography.Body>
-                                                <Flex gap="0.45rem" wrap="wrap">
-                                                    {claimsDetailData.photos.slice(0, 16).map((p: any) => {
-                                                        const mime = String(p?.mimeType || 'image/jpeg');
-                                                        const src = p?.base64 ? `data:${mime};base64,${p.base64}` : '';
-                                                        const fileName = String(p?.fileName || p?.caption || `photo-${p?.id || 'file'}.jpg`);
-                                                        return (
-                                                            <div key={p.id} style={{ display: 'grid', gap: '0.2rem', width: 90 }}>
-                                                                <a href={src || '#'} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
-                                                                    <img
-                                                                        src={src}
-                                                                        alt={String(p?.caption || p?.fileName || 'Фото')}
-                                                                        style={{ width: 86, height: 86, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--color-border)' }}
-                                                                    />
-                                                                </a>
-                                                                <a href={src || '#'} download={fileName} style={{ fontSize: '0.68rem', color: 'var(--color-primary-blue)', textDecoration: 'none' }}>Скачать</a>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </Flex>
-                                            </div>
-                                        )}
-                                        {Array.isArray(claimsDetailData.documents) && claimsDetailData.documents.length > 0 && (
-                                            <div style={{ marginTop: '0.45rem' }}>
-                                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>PDF</Typography.Body>
-                                                <Flex gap="0.35rem" wrap="wrap">
-                                                    {claimsDetailData.documents.map((d: any) => {
-                                                        const mime = String(d?.mimeType || 'application/pdf');
-                                                        const href = d?.base64 ? `data:${mime};base64,${d.base64}` : '#';
-                                                        return (
-                                                            <a
-                                                                key={d.id}
-                                                                href={href}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                style={{ border: '1px solid var(--color-border)', borderRadius: 999, padding: '0.14rem 0.45rem', textDecoration: 'none', fontSize: '0.74rem', color: 'var(--color-primary-blue)' }}
-                                                            >
-                                                                {String(d?.fileName || `Документ #${d.id}`)}
-                                                            </a>
-                                                        );
-                                                    })}
-                                                </Flex>
-                                            </div>
-                                        )}
-                                        {Array.isArray(claimsDetailData.videoLinks) && claimsDetailData.videoLinks.length > 0 && (
-                                            <div style={{ marginTop: '0.45rem' }}>
-                                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Видео-ссылки</Typography.Body>
-                                                <div style={{ display: 'grid', gap: '0.25rem' }}>
-                                                    {claimsDetailData.videoLinks.map((v: any) => (
-                                                        <a key={v.id} href={String(v?.url || '#')} target="_blank" rel="noreferrer" style={{ fontSize: '0.78rem', color: 'var(--color-primary-blue)' }}>
-                                                            {String(v?.title || 'Видео')}
-                                                        </a>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div style={{ marginTop: '0.55rem' }}>
-                                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.25rem', display: 'block' }}>Дополнительные ответы менеджера и руководителя</Typography.Body>
-                                        {Array.isArray(claimsDetailData.comments) && claimsDetailData.comments.filter((c: any) => ['manager', 'leader'].includes(String(c?.authorRole || ''))).length > 0 ? (
-                                            <div style={{ display: 'grid', gap: '0.3rem' }}>
-                                                {claimsDetailData.comments
-                                                    .filter((c: any) => ['manager', 'leader'].includes(String(c?.authorRole || '')))
-                                                    .map((c: any) => (
-                                                        <div key={c.id} style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.35rem 0.45rem' }}>
-                                                            <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>
-                                                                {String(c?.authorRole || '') === 'leader' ? 'Руководитель' : 'Менеджер'} · <DateText value={c?.createdAt || undefined} />
-                                                            </Typography.Body>
-                                                            <Typography.Body style={{ fontSize: '0.82rem' }}>{String(c?.commentText || '')}</Typography.Body>
-                                                        </div>
-                                                    ))}
-                                            </div>
-                                        ) : (
-                                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Дополнительных комментариев от менеджера/руководителя пока нет.</Typography.Body>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-            {claimsReplyOpen && (
-                <div
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    onClick={() => !claimsReplySubmitting && setClaimsReplyOpen(false)}
-                >
-                    <div
-                        style={{ width: 'min(92vw, 640px)', maxHeight: '90vh', overflowY: 'auto', borderRadius: 12, background: 'var(--color-bg-card, #fff)', padding: '1rem' }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <Typography.Body style={{ fontWeight: 700, marginBottom: '0.55rem' }}>
-                            Ответ на запрос документов
-                        </Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem' }}>
-                            Приложите документы и/или фото по запросу менеджера.
-                        </Typography.Body>
-                        <div style={{ display: 'grid', gap: '0.55rem' }}>
-                            <div>
-                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>
-                                    Фото (до 10 файлов, до 5MB каждый)
-                                </Typography.Body>
-                                <input
-                                    id="claims-reply-photos"
-                                    type="file"
-                                    accept="image/*"
-                                    multiple
-                                    onChange={(e) => setClaimsReplyPhotoFiles(Array.from(e.target.files || []))}
-                                    style={{ display: 'none' }}
-                                />
-                                <Flex align="center" gap="0.45rem" wrap="wrap">
-                                    <label htmlFor="claims-reply-photos" style={FILE_PICKER_BUTTON_STYLE}>Выбрать фото</label>
-                                    <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                                        {claimsReplyPhotoFiles.length > 0 ? `Выбрано: ${claimsReplyPhotoFiles.length}` : 'Файлы не выбраны'}
-                                    </Typography.Body>
-                                </Flex>
-                            </div>
-                            <div>
-                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>
-                                    PDF документы (до 5MB каждый)
-                                </Typography.Body>
-                                <input
-                                    id="claims-reply-documents"
-                                    type="file"
-                                    accept="application/pdf"
-                                    multiple
-                                    onChange={(e) => setClaimsReplyDocumentFiles(Array.from(e.target.files || []))}
-                                    style={{ display: 'none' }}
-                                />
-                                <Flex align="center" gap="0.45rem" wrap="wrap">
-                                    <label htmlFor="claims-reply-documents" style={FILE_PICKER_BUTTON_STYLE}>Выбрать PDF</label>
-                                    <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                                        {claimsReplyDocumentFiles.length > 0 ? `Выбрано: ${claimsReplyDocumentFiles.length}` : 'Файлы не выбраны'}
-                                    </Typography.Body>
-                                </Flex>
-                            </div>
-                            <div>
-                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>
-                                    Видео-ссылка (опционально)
-                                </Typography.Body>
-                                <input
-                                    type="url"
-                                    className="admin-form-input"
-                                    placeholder="https://..."
-                                    value={claimsReplyVideoLink}
-                                    onChange={(e) => setClaimsReplyVideoLink(e.target.value)}
-                                    style={{ width: '100%', padding: '0.45rem' }}
-                                />
-                            </div>
-                        </div>
-                        {claimsReplyError ? (
-                            <Typography.Body style={{ color: '#ef4444', fontSize: '0.78rem', marginTop: '0.6rem' }}>
-                                {claimsReplyError}
-                            </Typography.Body>
-                        ) : null}
-                        <Flex justify="flex-end" gap="0.45rem" wrap="nowrap" style={{ marginTop: '0.7rem', flexWrap: 'nowrap' }}>
-                            <Button className="filter-button" disabled={claimsReplySubmitting} onClick={() => setClaimsReplyOpen(false)} style={{ flexShrink: 0 }}>
-                                Отмена
-                            </Button>
-                            <Button className="button-primary" disabled={claimsReplySubmitting} onClick={submitClaimReplyDocuments} style={{ flexShrink: 0 }}>
-                                {claimsReplySubmitting ? 'Отправка...' : 'Отправить документы'}
-                            </Button>
-                        </Flex>
-                    </div>
-                </div>
-            )}
-            <ClaimsCreateModal
-                isOpen={claimsCreateOpen}
-                editingId={claimsEditingId}
-                prefillCargoNumber={claimsCreatePrefill}
-                onClose={() => {
-                        setClaimsCreateOpen(false);
-                        setClaimsEditingId(null);
-                    }}
-                onSaved={reloadClaims}
-                onBusyChange={setClaimsModalBusy}
-                auth={auth!}
-                effectiveActiveInn={effectiveActiveInn}
-                claimCargoOptions={claimCargoOptions}
-                perevozkiItems={perevozkiItems}
-                normCargoKey={normCargoKey}
-            />
-            {sverkiOrderModalOpen && (
-                <div
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    onClick={() => !sverkiOrderSubmitting && setSverkiOrderModalOpen(false)}
-                >
-                    <div
-                        style={{ width: '92%', maxWidth: 460, borderRadius: 12, background: 'var(--color-bg-card, #fff)', padding: '1rem' }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <Typography.Body style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Заказать Акт сверки</Typography.Body>
-                        <div style={{ display: 'grid', gap: '0.55rem', marginBottom: '0.75rem' }}>
-                            <div>
-                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Период с</Typography.Body>
-                                <input
-                                    type="date"
-                                    className="admin-form-input"
-                                    value={sverkiOrderPeriodFrom}
-                                    onChange={(e) => setSverkiOrderPeriodFrom(e.target.value)}
-                                    style={{ width: '100%', padding: '0.45rem' }}
-                                />
-                            </div>
-                            <div>
-                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Период по</Typography.Body>
-                                <input
-                                    type="date"
-                                    className="admin-form-input"
-                                    value={sverkiOrderPeriodTo}
-                                    onChange={(e) => setSverkiOrderPeriodTo(e.target.value)}
-                                    style={{ width: '100%', padding: '0.45rem' }}
-                                />
-                            </div>
-                            <div>
-                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Договор</Typography.Body>
-                                <select
-                                    className="admin-form-input"
-                                    value={sverkiOrderContract}
-                                    onChange={(e) => setSverkiOrderContract(e.target.value)}
-                                    style={{ width: '100%', padding: '0.45rem' }}
-                                    disabled={sverkiOrderContractsLoading || sverkiOrderContractOptions.length === 0}
-                                >
-                                    {sverkiOrderContractsLoading ? (
-                                        <option value="">Загрузка договоров...</option>
-                                    ) : sverkiOrderContractOptions.length === 0 ? (
-                                        <option value="">Нет договоров для выбранного заказчика</option>
-                                    ) : (
-                                        sverkiOrderContractOptions.map((contract) => (
-                                            <option key={contract} value={contract}>
-                                                {contract}
-                                            </option>
-                                        ))
-                                    )}
-                                </select>
-                            </div>
-                        </div>
-                        {sverkiOrderError ? (
-                            <Typography.Body style={{ color: '#ef4444', fontSize: '0.78rem', marginBottom: '0.6rem' }}>
-                                {sverkiOrderError}
-                            </Typography.Body>
-                        ) : null}
-                        <Flex justify="flex-end" gap="0.45rem" wrap="nowrap" style={{ flexWrap: 'nowrap' }}>
-                            <Button
-                                className="filter-button"
-                                disabled={sverkiOrderSubmitting}
-                                onClick={() => setSverkiOrderModalOpen(false)}
-                                style={{ flex: 1, height: '3rem', marginTop: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                            >
-                                Отмена
-                            </Button>
-                            <Button
-                                className="button-primary"
-                                disabled={sverkiOrderSubmitting}
-                                style={{ flex: 1, height: '3rem', marginTop: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                                onClick={async () => {
-                                    if (!effectiveActiveInn || !auth?.login || !auth?.password) {
-                                        setSverkiOrderError('Не удалось определить ИНН или авторизацию');
-                                        return;
-                                    }
-                                    if (!sverkiOrderPeriodFrom || !sverkiOrderPeriodTo || !sverkiOrderContract.trim()) {
-                                        setSverkiOrderError('Заполните период и выберите договор');
-                                        return;
-                                    }
-                                    setSverkiOrderSubmitting(true);
-                                    setSverkiOrderError(null);
-                                    try {
-                                        await postSverkiRequest(
-                                            { login: auth.login, password: auth.password },
-                                            {
-                                                customerInn: effectiveActiveInn,
-                                                periodFrom: sverkiOrderPeriodFrom,
-                                                periodTo: sverkiOrderPeriodTo,
-                                                contract: sverkiOrderContract.trim(),
-                                            }
-                                        );
-                                        setSverkiOrderModalOpen(false);
-                                        setSverkiRequests((prev) => {
-                                            const row = data?.request;
-                                            if (!row) return prev;
-                                            return [row, ...prev];
-                                        });
-                                    } catch (e: any) {
-                                        setSverkiOrderError(e?.message || 'Не удалось создать заявку');
-                                    } finally {
-                                        setSverkiOrderSubmitting(false);
-                                    }
-                                }}
-                            >
-                                {sverkiOrderSubmitting ? 'Заказываем...' : 'Заказать'}
-                            </Button>
-                        </Flex>
-                    </div>
-                </div>
             )}
         </div>
     );

@@ -1,5 +1,7 @@
 import type React from "react";
 
+export const CLAIMS_PREFILL_CARGO_KEY = "haulz.docs.claims.prefillCargoNumber";
+
 export const MAX_CLAIM_FILE_BYTES = 5 * 1024 * 1024;
 
 export const MANIPULATION_SIGN_OPTIONS = [

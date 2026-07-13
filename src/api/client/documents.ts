@@ -181,13 +181,17 @@ export async function postSverkiRequest(
     periodTo: string;
     contract: string;
   }
-): Promise<void> {
-  const { ok, data } = await documentsFetchJson<{ error?: string }>("/api/sverki-requests", {
-    method: "POST",
-    headers: documentsAuthHeaders(auth, { "Content-Type": "application/json" }),
-    body: JSON.stringify(body),
-  });
+): Promise<{ request?: SverkiRequestRow }> {
+  const { ok, data } = await documentsFetchJson<{ error?: string; request?: SverkiRequestRow }>(
+    "/api/sverki-requests",
+    {
+      method: "POST",
+      headers: documentsAuthHeaders(auth, { "Content-Type": "application/json" }),
+      body: JSON.stringify(body),
+    }
+  );
   if (!ok) throw new Error(data?.error || "Не удалось создать заявку");
+  return data ?? {};
 }
 
 /** Подписи договоров для заказа акта сверки */
