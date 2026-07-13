@@ -10,7 +10,7 @@ import {
 } from "../../lib/buildApiRequestSnippet";
 import { resolveApiOrigin } from "../../lib/resolveApiOrigin";
 
-export type ProfileTryAuth = { inn?: string } | null;
+export type ProfileTryAuth = { inn?: string; login?: string; password?: string } | null;
 
 type ParamRow = { enabled: boolean; key: string; value: string };
 
@@ -23,17 +23,19 @@ function parseMethods(raw: string): string[] {
         .filter(Boolean);
 }
 
-function injectInnPlaceholder(obj: unknown, auth: ProfileTryAuth): unknown {
-    if (!auth?.inn?.trim()) return obj;
+function injectAuthPlaceholders(obj: unknown, auth: ProfileTryAuth): unknown {
+    if (!auth) return obj;
     if (typeof obj === "string") {
-        if (obj === "{{INN}}") return auth.inn.trim();
+        if (obj === "{{INN}}" && auth.inn?.trim()) return auth.inn.trim();
+        if (obj === "{{LOGIN}}" && auth.login?.trim()) return auth.login.trim();
+        if (obj === "{{PASSWORD}}" && auth.password) return auth.password;
         return obj;
     }
-    if (Array.isArray(obj)) return obj.map((x) => injectInnPlaceholder(x, auth));
+    if (Array.isArray(obj)) return obj.map((x) => injectAuthPlaceholders(x, auth));
     if (obj && typeof obj === "object") {
         const o: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-            o[k] = injectInnPlaceholder(v, auth);
+            o[k] = injectAuthPlaceholders(v, auth);
         }
         return o;
     }
@@ -227,7 +229,7 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
         const ex = examples.find((e) => e.id === exampleId) ?? examples[0];
         if (!ex) return;
         setParamRows(queryToRows(ex.query));
-        const bodyWithAuth = ex.body != null ? injectInnPlaceholder(ex.body, tryAuth) : null;
+        const bodyWithAuth = ex.body != null ? injectAuthPlaceholders(ex.body, tryAuth) : null;
         setBodyJson(bodyWithAuth != null ? JSON.stringify(bodyWithAuth, null, 2) : "");
         setHeadersJson(ex.headers && Object.keys(ex.headers).length > 0 ? JSON.stringify(ex.headers, null, 2) : "{}");
     }, [exampleId, examples, tryAuth]);
@@ -235,6 +237,8 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
     const origin = apiOrigin;
     const fullUrl = `${origin}${pathField.startsWith("/") ? pathField : `/${pathField}`}`;
     const isPartnerV1 = pathField.includes("/api/partner/v1/");
+    const isLoginPasswordAuth = item.authMode === "loginPassword";
+    const needsBearer = isPartnerV1 && !isLoginPasswordAuth;
 
     const collectRequestParts = useCallback((forSnippet = false): { parts: ApiRequestParts | null; error?: string } => {
         const method = methodSel.toUpperCase();
@@ -260,7 +264,7 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
         }
 
         const bearerRaw = bearer.trim();
-        const bearerForRequest = bearerRaw || (forSnippet && isPartnerV1 ? "haulz_YOUR_FULL_API_KEY" : "");
+        const bearerForRequest = bearerRaw || (forSnippet && needsBearer ? "haulz_YOUR_FULL_API_KEY" : "");
         if (bearerForRequest) {
             headers.Authorization = bearerForRequest.startsWith("Bearer ") ? bearerForRequest : `Bearer ${bearerForRequest}`;
         }
@@ -271,7 +275,7 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
             if (raw) {
                 try {
                     const parsed = JSON.parse(raw) as unknown;
-                    const injected = injectInnPlaceholder(parsed, tryAuth);
+                    const injected = injectAuthPlaceholders(parsed, tryAuth);
                     body = JSON.stringify(injected, null, forSnippet ? 2 : 0);
                     headers["Content-Type"] = headers["Content-Type"] || "application/json";
                 } catch {
@@ -281,7 +285,7 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
         }
 
         return { parts: { method, url, headers, body } };
-    }, [bearer, bodyJson, headersJson, isPartnerV1, item.path, methodSel, origin, paramRows, pathField, tryAuth]);
+    }, [bearer, bodyJson, headersJson, needsBearer, item.path, methodSel, origin, paramRows, pathField, tryAuth]);
 
     const requestParts = useMemo(() => collectRequestParts(true).parts, [collectRequestParts]);
     const snippetText = useMemo(
@@ -293,11 +297,13 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
         setSendErr(null);
         setResp(null);
 
-        const bearerErr = validatePartnerBearer(bearer, pathField);
-        if (bearerErr) {
-            setSendErr(bearerErr);
-            setTab("auth");
-            return;
+        if (needsBearer) {
+            const bearerErr = validatePartnerBearer(bearer, pathField);
+            if (bearerErr) {
+                setSendErr(bearerErr);
+                setTab("auth");
+                return;
+            }
         }
 
         const collected = collectRequestParts(false);
@@ -324,7 +330,7 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
         } finally {
             setLoading(false);
         }
-    }, [bearer, collectRequestParts, pathField]);
+    }, [bearer, collectRequestParts, needsBearer, pathField]);
 
     const copySnippet = useCallback(() => {
         if (!snippetText) return;
@@ -566,7 +572,7 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
                             ))}
                             <p className="profile-api-try__hint">
                                 Поля JSON-тела запроса. Для Partner API: <code>dateFrom</code>, <code>dateTo</code>, <code>inn</code>,{" "}
-                                <code>serviceMode</code>.
+                                <code>serviceMode</code>. Для Getcustomers: <code>login</code>, <code>password</code>.
                             </p>
                         </>
                     ) : (
@@ -590,35 +596,60 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
                         />
                     ) : null}
                     <p className="profile-api-try__hint">
-                        Плейсхолдер <code>{"{{INN}}"}</code> подставляется автоматически, если у аккаунта один доступный ИНН.
+                        Плейсholders <code>{"{{INN}}"}</code>, <code>{"{{LOGIN}}"}</code>, <code>{"{{PASSWORD}}"}</code> подставляются из
+                        текущего аккаунта, если доступны.
                     </p>
                 </div>
             ) : null}
 
             {tab === "auth" ? (
                 <div className="profile-api-try__panel">
-                    <label className="profile-api-try__auth-label" htmlFor="profile-api-bearer">
-                        Bearer-токен (полный API-ключ haulz_…)
-                    </label>
-                    <textarea
-                        id="profile-api-bearer"
-                        className="profile-api-try__textarea profile-api-try__textarea--mono"
-                        value={bearer}
-                        onChange={(e) => setBearer(e.target.value)}
-                        rows={3}
-                        placeholder="haulz_… или Bearer haulz_…"
-                    />
-                    <p className="profile-api-try__hint">
-                        Укажите полный ключ из Профиль → API. Авторизация только через Bearer — login/password в запросах не используются.
-                    </p>
-                    {bearer.trim() && validatePartnerBearer(bearer, pathField) ? (
-                        <p className="profile-api-try__warn">{validatePartnerBearer(bearer, pathField)}</p>
-                    ) : null}
-                    {!bearer.trim() && !pathField.includes("/health") ? (
-                        <p className="profile-api-try__warn">
-                            Префикс ключа из списка (haulz_…_) не подходит — нужен полный токен, показанный один раз при создании ключа.
-                        </p>
-                    ) : null}
+                    {isLoginPasswordAuth ? (
+                        <>
+                            <p className="profile-api-try__hint">
+                                Авторизация через <code>login</code> и <code>password</code> в теле запроса (вкладка Body). Bearer не
+                                требуется.
+                            </p>
+                            {tryAuth?.login ? (
+                                <p className="profile-api-try__hint">
+                                    Логин текущего аккаунта подставлен в пример (<code>{tryAuth.login}</code>). Пароль — из сессии, если
+                                    указан; иначе введите вручную во вкладке Body.
+                                </p>
+                            ) : (
+                                <p className="profile-api-try__hint">
+                                    Укажите <code>login</code> и <code>password</code> во вкладке Body или используйте плейсholders{" "}
+                                    <code>{"{{LOGIN}}"}</code> / <code>{"{{PASSWORD}}"}</code> при активном аккаунте.
+                                </p>
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <label className="profile-api-try__auth-label" htmlFor="profile-api-bearer">
+                                Bearer-токен (полный API-ключ haulz_…)
+                            </label>
+                            <textarea
+                                id="profile-api-bearer"
+                                className="profile-api-try__textarea profile-api-try__textarea--mono"
+                                value={bearer}
+                                onChange={(e) => setBearer(e.target.value)}
+                                rows={3}
+                                placeholder="haulz_… или Bearer haulz_…"
+                            />
+                            <p className="profile-api-try__hint">
+                                Укажите полный ключ из Профиль → API. Авторизация через Bearer — login/password в Partner API не
+                                используются.
+                            </p>
+                            {bearer.trim() && validatePartnerBearer(bearer, pathField) ? (
+                                <p className="profile-api-try__warn">{validatePartnerBearer(bearer, pathField)}</p>
+                            ) : null}
+                            {!bearer.trim() && needsBearer && !pathField.includes("/health") ? (
+                                <p className="profile-api-try__warn">
+                                    Префикс ключа из списка (haulz_…_) не подходит — нужен полный токен, показанный один раз при создании
+                                    ключа.
+                                </p>
+                            ) : null}
+                        </>
+                    )}
                 </div>
             ) : null}
 
@@ -663,7 +694,7 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
                     </div>
                 </div>
                 <pre className="profile-api-try__snippet-pre">{snippetText || "—"}</pre>
-                {isPartnerV1 && !bearer.trim() && !pathField.includes("/health") ? (
+                {needsBearer && !bearer.trim() && !pathField.includes("/health") ? (
                     <p className="profile-api-try__hint">
                         В примере подставлен плейсхолдер <code>haulz_YOUR_FULL_API_KEY</code> — замените на полный ключ из вкладки Authorization.
                     </p>

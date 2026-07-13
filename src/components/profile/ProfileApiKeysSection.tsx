@@ -623,7 +623,17 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                 {catalogOpen ? (
                     <div style={{ padding: "0 0 1rem" }}>
                         <ProfileApiCatalogPostman
-                            tryAuth={autoTestInn ? { inn: autoTestInn } : null}
+                            tryAuth={
+                                login
+                                    ? {
+                                          inn: autoTestInn ?? undefined,
+                                          login,
+                                          password: password || undefined,
+                                      }
+                                    : autoTestInn
+                                      ? { inn: autoTestInn }
+                                      : null
+                            }
                             defaultBearer={autoTestBearer}
                             autoTestPrefill={autoTestPrefill}
                         />
