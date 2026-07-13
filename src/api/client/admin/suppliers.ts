@@ -24,3 +24,22 @@ export async function searchAdminSuppliers(
   if (!res.ok) throw new Error(data.error || "Ошибка запроса");
   return data.suppliers || [];
 }
+
+export async function postAdminRefreshSuppliersCache(
+  adminToken: string,
+): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; text: string }> {
+  const res = await fetch("/api/admin-refresh-suppliers-cache", {
+    method: "POST",
+    headers: adminAuthHeaders(adminToken),
+  });
+  const text = await res.text().catch(() => "");
+  let data: Record<string, unknown> = {};
+  if (text) {
+    try {
+      data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      data = {};
+    }
+  }
+  return { ok: res.ok, status: res.status, data, text };
+}

@@ -24,3 +24,32 @@ export async function searchAdminCustomers(
   if (!res.ok) throw new Error(data.error || "Ошибка запроса");
   return data.customers || [];
 }
+
+export type AdminCustomersCacheRefreshResult = {
+  customers_count?: number;
+  upstream_curl?: string;
+  upstream_url?: string;
+  error?: string;
+};
+
+export async function postAdminRefreshCustomersCache(
+  adminToken: string,
+  options?: { dryRun?: boolean },
+): Promise<{ ok: boolean; status: number; data: AdminCustomersCacheRefreshResult; text: string }> {
+  const body = options?.dryRun ? { dryRun: true } : {};
+  const res = await fetch("/api/admin-refresh-customers-cache", {
+    method: "POST",
+    headers: adminAuthHeaders(adminToken, { "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+  });
+  const text = await res.text().catch(() => "");
+  let data: AdminCustomersCacheRefreshResult = {};
+  if (text) {
+    try {
+      data = JSON.parse(text) as AdminCustomersCacheRefreshResult;
+    } catch {
+      data = {};
+    }
+  }
+  return { ok: res.ok, status: res.status, data, text };
+}
