@@ -46,6 +46,8 @@ import { EdoHealthMonitor } from "../components/EdoHealthMonitor";
 import { UnpaidInvoicesPlanMonitor } from "../components/UnpaidInvoicesPlanMonitor";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
 import { getWebApp, isMaxWebApp } from "../webApp";
+import { sendMaxTestMessage } from "../api/client/dashboard";
+import { fetchCustomerWorkSchedules, fetchMyPaymentCalendar } from "../api/client/scheduling";
 import type { AuthData, CargoItem, DateFilter, PerevozkaTimelineStep, StatusFilter } from "../types";
 import { cargoSummaryMotion } from "./cargoMotion";
 
@@ -522,16 +524,8 @@ export function DashboardPage({
             if (chatId) {
                 try {
                     logs.push("Sending test message...");
-                    const res = await fetch('/api/max-send-message', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            chatId, 
-                            text: `🛠 ТЕСТ ИЗ ДАШБОРДА\nChatID: ${chatId}\nTime: ${new Date().toLocaleTimeString()}` 
-                        })
-                    });
-                    const resData = await res.json().catch(() => ({}));
-                    logs.push(`Response status: ${res.status}`);
+                    const { ok, data: resData } = await sendMaxTestMessage(chatId, `🛠 ТЕСТ ИЗ ДАШБОРДА\nChatID: ${chatId}\nTime: ${new Date().toLocaleTimeString()}`);
+                    logs.push(`Response status: ${ok ? 200 : "error"}`);
                     logs.push(`Response data: ${JSON.stringify(resData)}`);
                 } catch (e: any) {
                     logs.push(`Error: ${e.message}`);
@@ -697,16 +691,11 @@ export function DashboardPage({
         if (!showPaymentCalendar || !auth?.login || !auth?.password) return;
         let cancelled = false;
         setPaymentCalendarLoading(true);
-        fetch('/api/my-payment-calendar', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ login: auth.login, password: auth.password }),
-        })
-            .then((r) => r.json())
-            .then((data: { items?: { inn: string; days_to_pay: number; payment_weekdays?: number[] }[]; work_schedules?: { inn: string; days_of_week: number[]; work_start: string; work_end: string }[] }) => {
+        fetchMyPaymentCalendar({ login: auth.login, password: auth.password })
+            .then((data) => {
                 if (cancelled) return;
                 const map: Record<string, { days_to_pay: number; payment_weekdays: number[] }> = {};
-                (data?.items ?? []).forEach((row) => {
+                (data.items ?? []).forEach((row) => {
                     if (row?.inn == null) return;
                     const inn = String(row.inn).trim();
                     const days = Math.max(0, Number(row.days_to_pay) || 0);
@@ -715,7 +704,7 @@ export function DashboardPage({
                 });
                 setPaymentCalendarByInn(map);
                 const ws: Record<string, WorkSchedule> = {};
-                (data?.work_schedules ?? []).forEach((r) => {
+                (data.work_schedules ?? []).forEach((r) => {
                     if (r?.inn) ws[r.inn.trim()] = { days_of_week: r.days_of_week ?? [1, 2, 3, 4, 5], work_start: r.work_start || '09:00', work_end: r.work_end || '18:00' };
                 });
                 if (!cancelled) setWorkScheduleByInn((prev) => ({ ...prev, ...ws }));
@@ -1057,16 +1046,11 @@ export function DashboardPage({
         const inns = [...new Set(dashboardTotalItems.map((i) => getInnFromCargo(i)).filter((x): x is string => !!x))];
         if (inns.length === 0) return;
         let cancelled = false;
-        fetch('/api/customer-work-schedules', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ login: auth.login, password: auth.password, inns }),
-        })
-            .then((r) => r.json())
-            .then((data: { items?: { inn: string; days_of_week: number[]; work_start: string; work_end: string }[] }) => {
+        fetchCustomerWorkSchedules({ login: auth.login, password: auth.password }, inns)
+            .then(({ items }) => {
                 if (cancelled) return;
                 const ws: Record<string, WorkSchedule> = {};
-                (data?.items ?? []).forEach((r) => {
+                items.forEach((r) => {
                     if (r?.inn) ws[r.inn.trim()] = { days_of_week: r.days_of_week ?? [1, 2, 3, 4, 5], work_start: r.work_start || '09:00', work_end: r.work_end || '18:00' };
                 });
                 if (!cancelled) setWorkScheduleByInn((prev) => ({ ...prev, ...ws }));

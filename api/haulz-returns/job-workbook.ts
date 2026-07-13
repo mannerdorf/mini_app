@@ -39,18 +39,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const bodyBytes = JSON.stringify(req.body ?? {}).length;
-    // #region agent log
-    console.log(
-      JSON.stringify({
-        sessionId: "e39252",
-        location: "job-workbook.ts:handler",
-        message: "patch_received",
-        hypothesisId: "F",
-        data: { jobId, bodyBytes },
-        timestamp: Date.now(),
-      }),
-    );
-    // #endregion
     if (bodyBytes > 4_000_000) {
       return res.status(413).json({
         error: `Тело запроса слишком большое (${Math.round(bodyBytes / 1024)} КБ). Используйте «Обработать» — сервер соберёт результат из файлов в БД.`,

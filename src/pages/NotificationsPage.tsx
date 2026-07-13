@@ -3,6 +3,17 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import type { Account } from "../types";
 import { urlBase64ToUint8Array } from "../utils";
+import {
+    fetchTwoFaSettingsWithSignal,
+    fetchWebpushPreferences,
+    fetchWebpushVapid,
+    saveWebpushPreferences,
+    saveWebpushPreferencesKeepalive,
+    subscribeWebpush,
+    unlinkTelegram,
+    unlinkTelegramVia2fa,
+    unsubscribeWebpush,
+} from "../api/client/notifications";
 import { TapSwitch } from "../components/TapSwitch";
 
 const NOTIF_PEREVOZKI: { id: string; label: string }[] = [
@@ -79,17 +90,12 @@ export function NotificationsPage({
     const checkTelegramLinked = useCallback(async () => {
         if (!login) return false;
         try {
-            const res = await withTimeout(
-                (signal) => fetch(`/api/2fa?login=${encodeURIComponent(login)}`, { signal }),
-                FETCH_TIMEOUT_MS
-            );
-            if (!res.ok) return false;
-            const data = await res.json();
-            const linked = !!data?.settings?.telegramLinked;
-            setTelegramLinkedFromApi(linked);
-            setMaxLinkedFromApi(!!data?.settings?.maxLinked);
-            if (linked && activeAccountId && onUpdateAccount) onUpdateAccount(activeAccountId, { twoFactorTelegramLinked: true });
-            return linked;
+            const linked = await withTimeout((signal) => fetchTwoFaSettingsWithSignal(login, signal));
+            if (!linked) return false;
+            setTelegramLinkedFromApi(linked.telegramLinked);
+            setMaxLinkedFromApi(linked.maxLinked);
+            if (linked.telegramLinked && activeAccountId && onUpdateAccount) onUpdateAccount(activeAccountId, { twoFactorTelegramLinked: true });
+            return linked.telegramLinked;
         } catch {
             return false;
         }
@@ -109,18 +115,17 @@ export function NotificationsPage({
         }, FETCH_TIMEOUT_MS + 2000);
         (async () => {
             try {
-                const prefsRes = await withTimeout(
-                    (signal) => fetch(`/api/webpush-preferences?login=${encodeURIComponent(login)}`, { signal }),
-                    FETCH_TIMEOUT_MS
+                const prefsData = await withTimeout(
+                    (signal) => fetchWebpushPreferences(login, signal),
+                    FETCH_TIMEOUT_MS,
                 ).catch(() => null);
                 checkTelegramLinked().catch(() => {});
                 if (cancelled) return;
-                if (prefsRes?.ok) {
-                    const data = await prefsRes.json();
+                if (prefsData) {
                     if (!cancelled) setPrefs({
-                        telegram: data.telegram || {},
-                        webpush: data.webpush || {},
-                        email: data.email || {},
+                        telegram: prefsData.telegram || {},
+                        webpush: prefsData.webpush || {},
+                        email: prefsData.email || {},
                     });
                 } else {
                     if (!cancelled) setPrefs({ telegram: {}, webpush: {}, email: {} });
@@ -170,13 +175,7 @@ export function NotificationsPage({
         nextPrefs: { telegram: Record<string, boolean>; webpush: Record<string, boolean>; email: Record<string, boolean> }
     ) => {
         if (!login) return false;
-        const res = await fetch("/api/webpush-preferences", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ login, preferences: nextPrefs }),
-        });
-        if (!res.ok) return false;
-        return true;
+        return saveWebpushPreferences(login, nextPrefs);
     }, [login]);
 
     const savePrefs = useCallback(
@@ -234,20 +233,15 @@ export function NotificationsPage({
             const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
             await reg.update();
             const existing = await reg.pushManager.getSubscription();
-            const res = await fetch("/api/webpush-vapid");
-            if (!res.ok) throw new Error("VAPID not configured");
-            const { publicKey } = await res.json();
+            const vapidData = await fetchWebpushVapid();
+            const publicKey = vapidData.publicKey as string | undefined;
             if (!publicKey) throw new Error("No public key");
             const sub = existing || await reg.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: urlBase64ToUint8Array(publicKey),
             });
-            const subRes = await fetch("/api/webpush-subscribe", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ login, subscription: sub.toJSON() }),
-            });
-            if (!subRes.ok) throw new Error("Failed to save subscription");
+            const { ok: subOk } = await subscribeWebpush({ login, subscription: sub.toJSON() });
+            if (!subOk) throw new Error("Failed to save subscription");
             setWebPushSubscribed(true);
         } catch (e: unknown) {
             setWebPushError((e as { message?: string })?.message || "Не удалось включить уведомления.");
@@ -274,11 +268,7 @@ export function NotificationsPage({
                 setWebPushSubscribed(false);
                 return;
             }
-            await fetch("/api/webpush-unsubscribe", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ login, endpoint: sub.endpoint }),
-            }).catch(() => null);
+            await unsubscribeWebpush({ login, endpoint: sub.endpoint }).catch(() => null);
             await sub.unsubscribe().catch(() => false);
             setWebPushSubscribed(false);
         } catch (e: unknown) {
@@ -293,25 +283,12 @@ export function NotificationsPage({
         setTgLinkError(null);
         setTgUnlinkLoading(true);
         try {
-            const res = await fetch("/api/telegram-unlink", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ login }),
-            });
-            let ok = false;
-            if (res.ok) {
-                const data = await res.json().catch(() => ({}));
-                ok = !!data?.ok;
-            }
-            if (!ok) {
-                const fallbackRes = await fetch("/api/2fa-telegram", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ login, action: "unlink" }),
-                });
-                const fallbackData = await fallbackRes.json().catch(() => ({}));
-                if (!fallbackRes.ok || !fallbackData?.ok) {
-                    throw new Error(fallbackData?.error || "Не удалось отключить Telegram.");
+            const { ok, data } = await unlinkTelegram(login);
+            let unlinkOk = ok && !!(data as { ok?: boolean }).ok;
+            if (!unlinkOk) {
+                const fallback = await unlinkTelegramVia2fa(login);
+                if (!fallback.ok) {
+                    throw new Error(fallback.error || "Не удалось отключить Telegram.");
                 }
             }
 
@@ -325,11 +302,7 @@ export function NotificationsPage({
             };
             const nextPrefs = { ...prefs, telegram: { ...prefs.telegram, ...telegramOff } };
             setPrefs(nextPrefs);
-            await fetch("/api/webpush-preferences", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ login, preferences: nextPrefs }),
-            }).catch(() => {});
+            await saveWebpushPreferences(login, nextPrefs).catch(() => {});
 
             setTelegramLinkedFromApi(false);
             if (activeAccountId && onUpdateAccount) onUpdateAccount(activeAccountId, { twoFactorTelegramLinked: false });
@@ -359,12 +332,7 @@ export function NotificationsPage({
         } catch {
             // fallback below
         }
-        fetch("/api/webpush-preferences", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: payload,
-            keepalive: true,
-        }).then(() => {
+        void saveWebpushPreferencesKeepalive(login, prefsRef.current).then(() => {
             prefsDirtyRef.current = false;
         }).catch(() => {});
     }, [login]);

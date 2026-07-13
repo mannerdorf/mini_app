@@ -8,6 +8,15 @@ import { coerceStatusDisplay } from "../lib/statusUtils";
 import { normalizeWbPerevozkaHaulzDigits } from "../lib/wbPerevozkaNumber";
 import { downloadBase64File } from "../utils";
 import { getDateInfo, parseDateOnly } from "../lib/dateUtils";
+import {
+  wbApiError,
+  wbFetchBlob,
+  wbFetchPerevozkaSteps,
+  wbFetchPosilka,
+  wbGet,
+  wbPost,
+  wbPostForm,
+} from "../api/client/wb";
 
 type WbTab = "inbound" | "returned" | "claims" | "summary";
 type ImportMode = "append" | "upsert";
@@ -488,17 +497,11 @@ function fetchWbPosilkaOnce(code: string, authHeaders: Record<string, string>): 
   if (!wbPosilkaInflight.has(key)) {
     const p = (async () => {
       try {
-        const u = `/api/wb/postb-getapi?kind=posilka&code=${encodeURIComponent(key)}`;
-        const res = await fetch(u, { headers: authHeaders });
-        const d = (await res.json().catch(() => ({}))) as {
-          lastStatus?: string;
-          perevozka?: string;
-          posilkaSteps?: Array<{ title: string; date: string }>;
-        };
+        const d = await wbFetchPosilka(key, authHeaders);
         const entry: WbPosilkaCached = {
-          lastStatus: String(d?.lastStatus ?? "").trim(),
-          perevozka: normalizeWbPerevozkaHaulzDigits(String(d?.perevozka ?? "").trim()),
-          posilkaSteps: Array.isArray(d?.posilkaSteps) ? d.posilkaSteps : [],
+          lastStatus: d.lastStatus,
+          perevozka: normalizeWbPerevozkaHaulzDigits(d.perevozka),
+          posilkaSteps: d.posilkaSteps,
         };
         wbPosilkaResolved.set(key, entry);
         return entry;
@@ -518,17 +521,11 @@ function fetchWbPosilkaOnce(code: string, authHeaders: Record<string, string>): 
 async function fetchWbPosilkaForce(code: string, authHeaders: Record<string, string>): Promise<WbPosilkaCached> {
   const key = code.trim();
   if (!key) return { lastStatus: "", perevozka: "", posilkaSteps: [] };
-  const u = `/api/wb/postb-getapi?kind=posilka&refresh=1&code=${encodeURIComponent(key)}`;
-  const res = await fetch(u, { headers: authHeaders });
-  const d = (await res.json().catch(() => ({}))) as {
-    lastStatus?: string;
-    perevozka?: string;
-    posilkaSteps?: Array<{ title: string; date: string }>;
-  };
+  const d = await wbFetchPosilka(key, authHeaders, { refresh: true });
   const entry: WbPosilkaCached = {
-    lastStatus: String(d?.lastStatus ?? "").trim(),
-    perevozka: normalizeWbPerevozkaHaulzDigits(String(d?.perevozka ?? "").trim()),
-    posilkaSteps: Array.isArray(d?.posilkaSteps) ? d.posilkaSteps : [],
+    lastStatus: d.lastStatus,
+    perevozka: normalizeWbPerevozkaHaulzDigits(d.perevozka),
+    posilkaSteps: d.posilkaSteps,
   };
   wbPosilkaResolved.set(key, entry);
   return entry;
@@ -612,10 +609,8 @@ function WbPerevozkaTimelineModal(props: {
     setSteps([]);
     void (async () => {
       try {
-        const u = `/api/wb/postb-getapi?kind=perevozka&number=${encodeURIComponent(number)}`;
-        const res = await fetch(u, { headers: authHeaders });
-        const d = (await res.json().catch(() => ({}))) as { steps?: Array<{ title: string; date: string }> };
-        if (!cancelled) setSteps(Array.isArray(d?.steps) ? d.steps : []);
+        const steps = await wbFetchPerevozkaSteps(number, authHeaders);
+        if (!cancelled) setSteps(steps);
       } catch {
         if (!cancelled) setSteps([]);
       } finally {
@@ -1075,10 +1070,9 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
             : {}),
         ...(activeTab === "summary" && summaryFilterStatus ? { filterLogisticsStatus: summaryFilterStatus } : {}),
       });
-      const res = await fetch(`${dataEndpoint}?${query}`, { headers: authHeaders });
-      const data = await res.json().catch(() => ({}));
+      const { ok, data } = await wbGet<Record<string, unknown>>(dataEndpoint, query, authHeaders);
       if (gen !== wbLoadGenRef.current) return;
-      if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка загрузки");
+      if (!ok) throw new Error(wbApiError(data, "Ошибка загрузки"));
       setItems(Array.isArray(data?.items) ? data.items : []);
       setTotal(Number(data?.total || 0));
       if (activeTab === "summary") {
@@ -1245,9 +1239,8 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
           limit: 15000,
           page: 1,
         });
-        const res = await fetch(`/api/wb/inbound?${query}`, { headers: authHeaders });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка загрузки строк");
+        const { ok, data } = await wbGet<Record<string, unknown>>("/api/wb/inbound", query, authHeaders);
+        if (!ok) throw new Error(wbApiError(data, "Ошибка загрузки строк"));
         const rows = Array.isArray(data?.items) ? data.items : [];
         setInboundDetailsCache((prev) => ({ ...prev, [cacheKey]: rows }));
       } catch {
@@ -1278,13 +1271,8 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
       setUploadError(null);
       setDeletingInventory(inv);
       try {
-        const res = await fetch("/api/wb/inbound/delete-inventory", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders },
-          body: JSON.stringify({ inventoryNumber: inv }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка удаления");
+        const { ok, data } = await wbPost("/api/wb/inbound/delete-inventory", authHeaders, { inventoryNumber: inv });
+        if (!ok) throw new Error(wbApiError(data, "Ошибка удаления"));
         setExpandedInboundInv((prev) => (prev === inv ? null : prev));
         setInboundDetailsCache((prev) => {
           const next = { ...prev };
@@ -1322,9 +1310,8 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
         if (filters.dateTo) params.set("dateTo", filters.dateTo);
         if (filters.boxId.trim()) params.set("boxId", filters.boxId.trim());
         if (filters.q.trim()) params.set("q", filters.q.trim());
-        const res = await fetch(`/api/wb/returned?${params.toString()}`, { headers: authHeaders });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка загрузки строк");
+        const { ok, data } = await wbGet<Record<string, unknown>>("/api/wb/returned", params.toString(), authHeaders);
+        if (!ok) throw new Error(wbApiError(data, "Ошибка загрузки строк"));
         const rows = Array.isArray(data?.items) ? data.items : [];
         setReturnedDetailsCache((prev) => ({ ...prev, [cacheKey]: rows }));
       } catch {
@@ -1357,13 +1344,11 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
       setUploadError(null);
       setDeletingReturnedGroup(cacheKey);
       try {
-        const res = await fetch("/api/wb/returned/delete-group", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders },
-          body: JSON.stringify({ documentNumber: g.documentNumber ?? "", batchId: g.batchId }),
+        const { ok, data } = await wbPost("/api/wb/returned/delete-group", authHeaders, {
+          documentNumber: g.documentNumber ?? "",
+          batchId: g.batchId,
         });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка удаления");
+        if (!ok) throw new Error(wbApiError(data, "Ошибка удаления"));
         setExpandedReturnedGroup((prev) => (prev && returnedGroupCacheKey(prev) === cacheKey ? null : prev));
         setReturnedDetailsCache((prev) => {
           const next = { ...prev };
@@ -1401,9 +1386,8 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
         if (filters.boxId.trim()) params.set("boxId", filters.boxId.trim());
         if (filters.q.trim()) params.set("q", filters.q.trim());
         params.set("history", "true");
-        const res = await fetch(`/api/wb/claims?${params.toString()}`, { headers: authHeaders });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка загрузки строк");
+        const { ok, data } = await wbGet<Record<string, unknown>>("/api/wb/claims", params.toString(), authHeaders);
+        if (!ok) throw new Error(wbApiError(data, "Ошибка загрузки строк"));
         const rows = Array.isArray(data?.items) ? data.items : [];
         setClaimsDetailsCache((prev) => ({ ...prev, [key]: rows }));
       } catch {
@@ -1436,13 +1420,8 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
       setUploadError(null);
       setDeletingClaimsRevisionId(revisionId);
       try {
-        const res = await fetch("/api/wb/claims/delete-revision", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders },
-          body: JSON.stringify({ revisionId }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка удаления");
+        const { ok, data } = await wbPost("/api/wb/claims/delete-revision", authHeaders, { revisionId });
+        if (!ok) throw new Error(wbApiError(data, "Ошибка удаления"));
         setExpandedClaimsRevisionId((prev) => (prev === revisionId ? null : prev));
         setClaimsDetailsCache((prev) => {
           const next = { ...prev };
@@ -1465,7 +1444,7 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
   /** Сводная пересобирается на сервере после импорта в фоне — на serverless это часто обрывается; ждём явный POST refresh. */
   const triggerWbSummaryRefresh = useCallback(async () => {
     try {
-      await fetch("/api/wb/summary/refresh", { method: "POST", headers: authHeaders });
+      await wbPost("/api/wb/summary/refresh", authHeaders);
     } catch {
       // сеть / 401 при праве только чтения
     }
@@ -1487,13 +1466,8 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
     setBoxShkApplying(true);
     setUploadError(null);
     try {
-      const res = await fetch("/api/wb/inbound/box-shk-upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify({ text }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка применения ШК коробов");
+      const { ok, data } = await wbPost("/api/wb/inbound/box-shk-upload", authHeaders, { text });
+      if (!ok) throw new Error(wbApiError(data, "Ошибка применения ШК коробов"));
       const n = Number(data?.rowsUpdated ?? 0);
       const p = Number(data?.pairsInFile ?? 0);
       setInboundDetailsCache({});
@@ -1587,13 +1561,8 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
     setUploadError(null);
     setClearingSummary(true);
     try {
-      const res = await fetch("/api/wb/summary/clear", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        body: "{}",
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка очистки");
+      const { ok, data } = await wbPost("/api/wb/summary/clear", authHeaders, {});
+      if (!ok) throw new Error(wbApiError(data, "Ошибка очистки"));
       await loadData();
     } catch (e: unknown) {
       setUploadError((e as Error)?.message || "Ошибка очистки сводной");
@@ -1627,26 +1596,13 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
           const fd = new FormData();
           fd.append("file", file);
           fd.append("mode", importMode);
-          const res = await fetch(endpoint, {
-            method: "POST",
-            headers: authHeaders,
-            body: fd,
-          });
-          const rawText = await res.text();
-          let data: Record<string, unknown> = {};
-          if (rawText) {
-            try {
-              data = JSON.parse(rawText) as Record<string, unknown>;
-            } catch {
-              data = {};
-            }
-          }
-          if (!res.ok) {
+          const { ok, status, data, rawText } = await wbPostForm(endpoint, authHeaders, fd);
+          if (!ok) {
             const apiErr = typeof data.error === "string" ? data.error.trim() : "";
             const reqId = typeof data.request_id === "string" ? data.request_id : "";
             const idSuffix = reqId ? ` [${reqId}]` : "";
             let msg: string;
-            if (res.status === 413) {
+            if (status === 413) {
               msg = `«${file.name}»: 413 — тело запроса слишком большое (лимит хостинга Vercel ~4.5 МБ на один POST). Уменьшите файл или используйте свой сервер без этого ограничения.`;
             } else if (apiErr) {
               msg = `«${file.name}»: ${apiErr}${idSuffix}`;
@@ -1655,7 +1611,7 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
               msg =
                 snippet && !snippet.startsWith("{")
                   ? `«${file.name}»: ${snippet}${idSuffix}`
-                  : `«${file.name}»: HTTP ${res.status}${idSuffix}`;
+                  : `«${file.name}»: HTTP ${status}${idSuffix}`;
             }
             errors.push(msg);
             continue;
@@ -1699,25 +1655,12 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
       try {
         const fd = new FormData();
         fd.append("file", file);
-        const res = await fetch("/api/wb/logistics-import", {
-          method: "POST",
-          headers: authHeaders,
-          body: fd,
-        });
-        const rawText = await res.text();
-        let data: Record<string, unknown> = {};
-        if (rawText) {
-          try {
-            data = JSON.parse(rawText) as Record<string, unknown>;
-          } catch {
-            data = {};
-          }
-        }
-        if (!res.ok) {
+        const { ok, status, data, rawText } = await wbPostForm("/api/wb/logistics-import", authHeaders, fd);
+        if (!ok) {
           const apiErr = typeof data.error === "string" ? data.error.trim() : "";
           const reqId = typeof data.request_id === "string" ? data.request_id : "";
           const idSuffix = reqId ? ` [${reqId}]` : "";
-          throw new Error(apiErr ? `${apiErr}${idSuffix}` : `HTTP ${res.status}${idSuffix}`);
+          throw new Error(apiErr ? `${apiErr}${idSuffix}` : `HTTP ${status}${idSuffix}`);
         }
         await loadData();
       } catch (e: unknown) {
@@ -1737,7 +1680,7 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
         q: filters.q,
         ...(activeTab === "summary" && summaryFilterStatus ? { filterLogisticsStatus: summaryFilterStatus } : {}),
       });
-      const res = await fetch(`/api/wb/export?${query}`, { headers: authHeaders });
+      const res = await wbFetchBlob("/api/wb/export", query, authHeaders);
       if (!res.ok) return;
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -1753,16 +1696,11 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
   const handleManualReturnedSubmit = useCallback(async () => {
     setUploadError(null);
     try {
-      const res = await fetch("/api/wb/returned/manual", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify({
-          ...manualReturned,
-          amountRub: manualReturned.amountRub ? Number(manualReturned.amountRub) : undefined,
-        }),
+      const { ok, data } = await wbPost("/api/wb/returned/manual", authHeaders, {
+        ...manualReturned,
+        amountRub: manualReturned.amountRub ? Number(manualReturned.amountRub) : undefined,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка сохранения");
+      if (!ok) throw new Error(wbApiError(data, "Ошибка сохранения"));
       setManualReturned({
         boxId: "",
         cargoNumber: "",

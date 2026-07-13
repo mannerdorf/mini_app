@@ -3,6 +3,7 @@ import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { stripOoo } from "../lib/formatUtils";
 import { dedupeCompaniesByName } from "../utils";
+import { fetchCompanies } from "../api/client/companiesList";
 import type { Account, CompanyRow } from "../types";
 
 type CompaniesListPageProps = {
@@ -46,12 +47,8 @@ export function CompaniesListPage({
       logins.map((l) => `login=${encodeURIComponent(l)}`).join("&") +
       (accessAllLogins.length ? "&" + accessAllLogins.map((l) => `access_all=${encodeURIComponent(l)}`).join("&") : "");
     setLoading(true);
-    fetch(`/api/companies?${query}`)
-      .then((r) => r.json())
-      .then((data) => {
-        const list = Array.isArray(data?.companies) ? data.companies : [];
-        setCompanies(dedupeCompaniesByName(list));
-      })
+    fetchCompanies(query)
+      .then((list) => setCompanies(dedupeCompaniesByName(list)))
       .catch(() => setCompanies([]))
       .finally(() => setLoading(false));
   }, [accountsKey]);

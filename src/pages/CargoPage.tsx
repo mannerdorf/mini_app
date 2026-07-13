@@ -8,6 +8,7 @@ import { FilterDialog } from "../components/shared/FilterDialog";
 import { normalizeStatus, getFilterKeyByStatus, BILL_STATUS_MAP, STATUS_MAP } from "../lib/statusUtils";
 import type { BillStatusFilterKey } from "../lib/statusUtils";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
+import { fetchCustomerWorkSchedules } from "../api/client/scheduling";
 import * as dateUtils from "../lib/dateUtils";
 import { formatCurrency, stripOoo, cityToCode } from "../lib/formatUtils";
 import type { AuthData, CargoItem, DateFilter, StatusFilter } from "../types";
@@ -434,16 +435,14 @@ export function CargoPage({
         }).filter((x): x is string => !!x))];
         if (inns.length === 0) return;
         let cancelled = false;
-        fetch('/api/customer-work-schedules', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ login: primaryAuth.login, password: primaryAuth.password, inns }),
-        })
-            .then((r) => r.json())
-            .then((data: { items?: { inn: string; days_of_week: number[]; work_start: string; work_end: string }[] }) => {
+        fetchCustomerWorkSchedules(
+            { login: primaryAuth.login, password: primaryAuth.password },
+            inns,
+        )
+            .then(({ items }) => {
                 if (cancelled) return;
                 const ws: Record<string, WorkSchedule> = {};
-                (data?.items ?? []).forEach((r) => {
+                items.forEach((r) => {
                     if (r?.inn) ws[r.inn.trim()] = { days_of_week: r.days_of_week ?? [1, 2, 3, 4, 5], work_start: r.work_start || '09:00', work_end: r.work_end || '18:00' };
                 });
                 if (!cancelled) setWorkScheduleByInn((prev) => ({ ...prev, ...ws }));

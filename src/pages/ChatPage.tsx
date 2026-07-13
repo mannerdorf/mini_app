@@ -9,6 +9,7 @@ import { cityToCode } from "../lib/formatUtils";
 import { normalizeStatus, getFilterKeyByStatus, getPaymentFilterKey } from "../lib/statusUtils";
 import { isFerry } from "../lib/cargoUtils";
 import { formatDisplayDate, getTodayDate } from "../lib/dateUtils";
+import { fetchChatHistory, fetchChatPerevozkiContext, resetChatSession, sendChatMessage } from "../api/client/chat";
 export function ChatPage({ 
     prefillMessage, 
     onClearPrefill,
@@ -422,20 +423,10 @@ export function ChatPage({
         const loadHistory = async () => {
             if (!sessionId) return;
             try {
-                const res = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sessionId, action: "history" })
-                });
-                if (!res.ok) return;
-                const data = await res.json().catch(() => ({}));
+                const history = await fetchChatHistory(sessionId);
                 if (!isActive) return;
-                if (Array.isArray(data?.history)) {
-                    setMessages(
-                        data.history
-                            .filter((item: any) => item?.role === "user" || item?.role === "assistant")
-                            .map((item: any) => ({ role: item.role, content: String(item.content || ""), emotion: item.emotion }))
-                    );
+                if (history.length > 0) {
+                    setMessages(history.map((item) => ({ role: item.role, content: item.content, emotion: item.emotion })));
                 }
             } finally {
                 if (isActive) setHasLoadedHistory(true);
@@ -459,11 +450,7 @@ export function ChatPage({
 
     const clearChat = useCallback(async () => {
         try {
-            await fetch('/api/chat-reset', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId }),
-            });
+            await resetChatSession(sessionId);
         } catch {
             // ignore
         }
@@ -519,17 +506,13 @@ export function ChatPage({
                     from.setDate(from.getDate() - 30);
                     dateFrom = from.toISOString().split('T')[0];
                 }
-                const perevozkiRes = await fetch('/api/perevozki', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        login: auth.login,
-                        password: auth.password,
-                        dateFrom,
-                        dateTo,
-                        ...(customerOverride ? { customer: customerOverride } : {}),
-                        ...(auth.inn ? { inn: auth.inn } : {}),
-                    }),
+                const perevozkiRes = await fetchChatPerevozkiContext({
+                    login: auth.login,
+                    password: auth.password,
+                    dateFrom,
+                    dateTo,
+                    ...(customerOverride ? { customer: customerOverride } : {}),
+                    ...(auth.inn ? { inn: auth.inn } : {}),
                 });
                 if (perevozkiRes.ok) {
                     const data = await perevozkiRes.json().catch(() => ({}));
@@ -620,28 +603,20 @@ export function ChatPage({
                     }
                 } catch (_) {}
             }
-            const res = await fetch('/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    sessionId,
-                    userId: userIdOverride || auth?.login,
-                    message: messageText,
-                    context: { ...context, customer: effectiveCustomer },
-                    customer: effectiveCustomer,
-                    ...(preloadedCargo != null ? { preloadedCargo } : {}),
-                    auth: auth?.login && auth?.password ? { login: auth.login, password: auth.password, ...(auth.inn ? { inn: auth.inn } : {}), ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}) } : undefined
-                }),
+            const { ok: chatOk, status, data } = await sendChatMessage({
+                sessionId,
+                userId: userIdOverride || auth?.login,
+                message: messageText,
+                context: { ...context, customer: effectiveCustomer },
+                customer: effectiveCustomer,
+                ...(preloadedCargo != null ? { preloadedCargo } : {}),
+                auth: auth?.login && auth?.password ? { login: auth.login, password: auth.password, ...(auth.inn ? { inn: auth.inn } : {}), ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}) } : undefined,
             });
-            const data = await res.json().catch((parseErr) => {
-                if (CHAT_DEBUG) console.warn('[chat] response json parse failed', parseErr);
-                return {};
-            });
-            if (CHAT_DEBUG) console.log('[chat] response', { status: res.status, ok: res.ok, hasReply: !!data?.reply, replyLen: data?.reply?.length });
-            if (!res.ok) {
-                const msg = data?.reply || data?.error || data?.message || `Код ${res.status}`;
-                setChatStatus({ status: res.status, error: msg });
-                setApiRequestInfo(prev => ({ ...prev, chat: `POST /api/chat (${res.status})` }));
+            if (CHAT_DEBUG) console.log('[chat] response', { status, ok: chatOk, hasReply: !!data?.reply, replyLen: (data?.reply as string | undefined)?.length });
+            if (!chatOk) {
+                const msg = (data?.reply as string) || (data?.error as string) || (data?.message as string) || `Код ${status}`;
+                setChatStatus({ status, error: msg });
+                setApiRequestInfo(prev => ({ ...prev, chat: `POST /api/chat (${status})` }));
                 throw new Error(msg);
             }
             setChatStatus({ status: 200 });

@@ -35,6 +35,26 @@ import { ProfileApiKeysSection } from "../components/profile/ProfileApiKeysSecti
 import { cargoListContainerVariants, cargoListItemVariants, cargoSummaryMotion } from "./cargoMotion";
 import { fetchLegalStatus, type LegalStatusResponse } from "../api/client/legal";
 import {
+    deleteMyEmployee,
+    fetchRolePresets,
+    inviteMyEmployee,
+    listMyEmployees,
+    patchMyEmployee,
+} from "../api/client/profile/employees";
+import {
+    deleteAccountingSverkiRequest,
+    deleteMyDepartmentTimesheet,
+    fetchAccountingExpenseRequests,
+    fetchAccountingExpenseAttachmentBlob,
+    fetchAccountingSverkiRequests,
+    fetchProfileClaims,
+    patchAccountingExpenseRequestStatus,
+    patchMyDepartmentTimesheet,
+    postAccountingSverkiRequests,
+    postMyDepartmentTimesheet,
+    putMyDepartmentTimesheet,
+} from "../api/client/profile/accounting";
+import {
   persistProfileNavigation,
   readStoredHaulzCalcBackView,
   readStoredHaulzCalcDraftId,
@@ -348,29 +368,17 @@ export function ProfilePage({
         if (!activeAccount?.login) return;
         setEmployeesLoading(true);
         setEmployeesError(null);
-        const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
         try {
-            // Пресеты ролей — без авторизации, загружаем всегда (чтобы выпадающий список ролей появлялся)
-            const presetsRes = await fetch(`${origin}/api/role-presets`);
-            const presetsData = await presetsRes.json().catch(() => ({}));
-            if (presetsRes.ok && Array.isArray(presetsData.presets)) {
-                setRolePresets(presetsData.presets.map((p: { id: string; label: string }) => ({ id: String(p.id), label: p.label || '' })));
-            }
-
+            const presets = await fetchRolePresets();
+            setRolePresets(presets);
             if (!activeAccount?.password) {
                 setEmployeesList([]);
                 return;
             }
-            const listRes = await fetch(`${origin}/api/my-employees`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password }),
-            });
-            const listData = await listRes.json().catch(() => ({}));
-            if (listRes.ok && listData.employees) setEmployeesList(listData.employees);
-            else setEmployeesError(listData.error || 'Ошибка загрузки');
-        } catch {
-            setEmployeesError('Ошибка сети');
+            const { employees } = await listMyEmployees({ login: activeAccount.login, password: activeAccount.password });
+            setEmployeesList(employees as any);
+        } catch (e) {
+            setEmployeesError((e as Error)?.message || 'Ошибка загрузки');
         } finally {
             setEmployeesLoading(false);
         }
@@ -535,27 +543,9 @@ export function ProfilePage({
         if (!/^\d{4}-\d{2}$/.test(departmentTimesheetMonth)) return;
         setDepartmentTimesheetLoading(true);
         setDepartmentTimesheetError(null);
-        const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+        const auth = { login: activeAccount.login, password: activeAccount.password };
         try {
-            const res = await fetch(`${origin}/api/my-department-timesheet`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password, month: departmentTimesheetMonth }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                setDepartmentTimesheetError(data.error || "Ошибка загрузки табеля");
-                setDepartmentTimesheetAllDepartments(false);
-                setDepartmentTimesheetEmployees([]);
-                setDepartmentTimesheetAvailableEmployees([]);
-                setDepartmentTimesheetHours({});
-                setDepartmentTimesheetPayoutsByEmployee({});
-                setDepartmentTimesheetPayoutsDetailByEmployee({});
-                setDepartmentTimesheetExpandedEmployeeId(null);
-                setDepartmentTimesheetPaidDayMarks({});
-                setDepartmentTimesheetShiftRateOverrides({});
-                return;
-            }
+            const data = await postMyDepartmentTimesheet(auth, { month: departmentTimesheetMonth });
             setDepartmentTimesheetDepartment(typeof data.department === "string" ? data.department : "");
             setDepartmentTimesheetAllDepartments(data?.allDepartments === true);
             setDepartmentTimesheetEmployees(Array.isArray(data.employees) ? data.employees : []);
@@ -634,8 +624,8 @@ export function ProfilePage({
                 }
             }
             setDepartmentTimesheetShiftRateOverrides(loadedShiftRateOverrides);
-        } catch {
-            setDepartmentTimesheetError("Ошибка сети");
+        } catch (e) {
+            setDepartmentTimesheetError((e as Error)?.message || "Ошибка загрузки табеля");
             setDepartmentTimesheetAllDepartments(false);
             setDepartmentTimesheetEmployees([]);
             setDepartmentTimesheetAvailableEmployees([]);
@@ -654,21 +644,9 @@ export function ProfilePage({
         if (!activeAccount?.login || !activeAccount?.password || activeAccount?.permissions?.accounting !== true) return;
         setAccountingRequestsLoading(true);
         setAccountingRequestsError(null);
-        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+        const auth = { login: activeAccount.login, password: activeAccount.password };
         try {
-            const res = await fetch(`${origin}/api/accounting-expense-requests`, {
-                method: "GET",
-                headers: {
-                    "x-login": activeAccount.login,
-                    "x-password": activeAccount.password,
-                },
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                setAccountingRequestsError(data.error || "Ошибка загрузки заявок");
-                setAccountingRequestsItems([]);
-                return;
-            }
+            const data = await fetchAccountingExpenseRequests(auth);
             const items = Array.isArray(data.items)
                 ? data.items.map((r: any) => ({
                     id: String(r.id ?? ""),
@@ -687,8 +665,8 @@ export function ProfilePage({
                 }))
                 : [];
             setAccountingRequestsItems(items);
-        } catch {
-            setAccountingRequestsError("Ошибка сети");
+        } catch (e) {
+            setAccountingRequestsError((e as Error)?.message || "Ошибка сети");
             setAccountingRequestsItems([]);
         } finally {
             setAccountingRequestsLoading(false);
@@ -698,13 +676,9 @@ export function ProfilePage({
     const fetchSverkiRequests = useCallback(async () => {
         if (!activeAccount?.login || !activeAccount?.password || activeAccount?.permissions?.accounting !== true) return;
         setSverkiRequestsLoading(true);
-        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+        const auth = { login: activeAccount.login, password: activeAccount.password };
         try {
-            const res = await fetch(`${origin}/api/accounting-sverki-requests`, {
-                method: "GET",
-                headers: { "x-login": activeAccount.login, "x-password": activeAccount.password },
-            });
-            const data = await res.json().catch(() => ({}));
+            const data = await fetchAccountingSverkiRequests(auth);
             setSverkiRequests(Array.isArray(data?.requests) ? data.requests : []);
         } catch {
             setSverkiRequests([]);
@@ -716,16 +690,10 @@ export function ProfilePage({
     const markSverkiRequestAsSent = useCallback(async (id: number) => {
         if (!activeAccount?.login || !activeAccount?.password) return;
         setSverkiRequestsUpdatingId(id);
-        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+        const auth = { login: activeAccount.login, password: activeAccount.password };
         try {
-            const res = await fetch(`${origin}/api/accounting-sverki-requests`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "x-login": activeAccount.login, "x-password": activeAccount.password },
-                body: JSON.stringify({ id, status: "edo_sent" }),
-            });
-            if (res.ok) {
-                setSverkiRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: "edo_sent", updatedAt: new Date().toISOString() } as any : r));
-            }
+            await postAccountingSverkiRequests(auth, { id, status: "edo_sent" });
+            setSverkiRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: "edo_sent", updatedAt: new Date().toISOString() } as any : r));
         } finally {
             setSverkiRequestsUpdatingId(null);
         }
@@ -735,13 +703,10 @@ export function ProfilePage({
         if (!window.confirm("Удалить заявку акта сверки? Действие нельзя отменить.")) return;
         if (!activeAccount?.login || !activeAccount?.password) return;
         setSverkiRequestsUpdatingId(id);
-        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+        const auth = { login: activeAccount.login, password: activeAccount.password };
         try {
-            const res = await fetch(`${origin}/api/accounting-sverki-requests?id=${id}`, {
-                method: "DELETE",
-                headers: { "x-login": activeAccount.login, "x-password": activeAccount.password },
-            });
-            if (res.ok) setSverkiRequests((prev) => prev.filter((r) => r.id !== id));
+            await deleteAccountingSverkiRequest(auth, id);
+            setSverkiRequests((prev) => prev.filter((r) => r.id !== id));
         } finally {
             setSverkiRequestsUpdatingId(null);
         }
@@ -789,27 +754,14 @@ export function ProfilePage({
         }
         const selectedInn = String(activeAccount.activeCustomerInn || activeAccount.inn || "").trim();
         if (selectedInn) params.set("inn", selectedInn);
-        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+        const auth = { login: activeAccount.login, password: activeAccount.password };
         try {
-            const res = await fetch(`${origin}/api/claims${params.toString() ? `?${params.toString()}` : ""}`, {
-                method: "GET",
-                headers: {
-                    "x-login": activeAccount.login,
-                    "x-password": activeAccount.password,
-                    "x-inn": selectedInn,
-                },
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                setAccountingClaimsItems([]);
-                setAccountingClaimsError(data?.error || "Ошибка загрузки претензий");
-                return;
-            }
+            const data = await fetchProfileClaims(auth, params, { inn: selectedInn });
             const items = Array.isArray(data?.claims) ? data.claims : [];
             setAccountingClaimsItems(items);
-        } catch {
+        } catch (e) {
             setAccountingClaimsItems([]);
-            setAccountingClaimsError("Ошибка сети");
+            setAccountingClaimsError((e as Error)?.message || "Ошибка сети");
         } finally {
             setAccountingClaimsLoading(false);
         }
@@ -850,22 +802,14 @@ export function ProfilePage({
         }
         const dayNormalized = String(day).padStart(2, "0");
         const dateIso = `${departmentTimesheetMonth}-${dayNormalized}`;
-        const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+        const auth = { login: activeAccount.login, password: activeAccount.password };
         try {
-            const res = await fetch(`${origin}/api/my-department-timesheet`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    login: activeAccount.login,
-                    password: activeAccount.password,
-                    month: departmentTimesheetMonth,
-                    employeeId,
-                    date: dateIso,
-                    value,
-                }),
+            await patchMyDepartmentTimesheet(auth, {
+                month: departmentTimesheetMonth,
+                employeeId,
+                date: dateIso,
+                value,
             });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error || "Ошибка сохранения табеля");
         } catch (e) {
             setDepartmentTimesheetError((e as Error)?.message || "Ошибка сохранения табеля");
         }
@@ -879,22 +823,14 @@ export function ProfilePage({
         }
         const dayNormalized = String(day).padStart(2, "0");
         const dateIso = `${departmentTimesheetMonth}-${dayNormalized}`;
-        const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+        const auth = { login: activeAccount.login, password: activeAccount.password };
         try {
-            const res = await fetch(`${origin}/api/my-department-timesheet`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    login: activeAccount.login,
-                    password: activeAccount.password,
-                    month: departmentTimesheetMonth,
-                    employeeId,
-                    date: dateIso,
-                    shiftRate: shiftRate.trim() === '' ? null : Number(shiftRate),
-                }),
+            await patchMyDepartmentTimesheet(auth, {
+                month: departmentTimesheetMonth,
+                employeeId,
+                date: dateIso,
+                shiftRate: shiftRate.trim() === '' ? null : Number(shiftRate),
             });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error || "Ошибка сохранения стоимости смены");
         } catch (e) {
             setDepartmentTimesheetError((e as Error)?.message || "Ошибка сохранения стоимости смены");
             await fetchDepartmentTimesheet();
@@ -907,22 +843,14 @@ export function ProfilePage({
             setDepartmentTimesheetError('Редактирование доступно только для текущего, предыдущего месяца и декабря 2025.');
             return;
         }
-        const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+        const auth = { login: activeAccount.login, password: activeAccount.password };
         const confirmed = typeof window !== 'undefined' ? window.confirm('Удалить сотрудника из табеля выбранного месяца?') : true;
         if (!confirmed) return;
         try {
-            const res = await fetch(`${origin}/api/my-department-timesheet`, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    login: activeAccount.login,
-                    password: activeAccount.password,
-                    month: departmentTimesheetMonth,
-                    employeeId,
-                }),
+            await deleteMyDepartmentTimesheet(auth, {
+                month: departmentTimesheetMonth,
+                employeeId,
             });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error || 'Ошибка удаления сотрудника из месяца');
             await fetchDepartmentTimesheet();
         } catch (e) {
             setDepartmentTimesheetError((e as Error)?.message || 'Ошибка удаления сотрудника из месяца');
@@ -940,22 +868,14 @@ export function ProfilePage({
             setDepartmentTimesheetError('Выберите сотрудника из списка');
             return;
         }
-        const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+        const auth = { login: activeAccount.login, password: activeAccount.password };
         setDepartmentTimesheetEmployeeSaving(true);
         setDepartmentTimesheetError(null);
         try {
-            const res = await fetch(`${origin}/api/my-department-timesheet`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    login: activeAccount.login,
-                    password: activeAccount.password,
-                    month: departmentTimesheetMonth,
-                    existingEmployeeId: selectedId,
-                }),
+            await putMyDepartmentTimesheet(auth, {
+                month: departmentTimesheetMonth,
+                existingEmployeeId: selectedId,
             });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error || 'Ошибка добавления сотрудника');
             setDepartmentTimesheetSelectedEmployeeId("");
             await fetchDepartmentTimesheet();
         } catch (e) {
@@ -980,28 +900,20 @@ export function ProfilePage({
             setDepartmentTimesheetError('Укажите корректную ставку');
             return;
         }
-        const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+        const auth = { login: activeAccount.login, password: activeAccount.password };
         setDepartmentTimesheetEmployeeSaving(true);
         setDepartmentTimesheetError(null);
         try {
-            const res = await fetch(`${origin}/api/my-department-timesheet`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    login: activeAccount.login,
-                    password: activeAccount.password,
-                    month: departmentTimesheetMonth,
-                    fullName: departmentTimesheetEmployeeFullName.trim(),
-                    department: departmentTimesheetDepartment,
-                    position: departmentTimesheetEmployeePosition.trim(),
-                    accrualType: departmentTimesheetEmployeeAccrualType,
-                    accrualRate: rate,
-                    cooperationType: departmentTimesheetEmployeeCooperationType,
-                    employeeRole: 'employee',
-                }),
+            await putMyDepartmentTimesheet(auth, {
+                month: departmentTimesheetMonth,
+                fullName: departmentTimesheetEmployeeFullName.trim(),
+                department: departmentTimesheetDepartment,
+                position: departmentTimesheetEmployeePosition.trim(),
+                accrualType: departmentTimesheetEmployeeAccrualType,
+                accrualRate: rate,
+                cooperationType: departmentTimesheetEmployeeCooperationType,
+                employeeRole: 'employee',
             });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.error || 'Ошибка добавления сотрудника');
             setDepartmentTimesheetEmployeeFullName("");
             setDepartmentTimesheetEmployeePosition("");
             setDepartmentTimesheetEmployeeAccrualType("hour");
@@ -1310,21 +1222,12 @@ export function ProfilePage({
     if (currentView === 'accounting') {
         const patchStatus = async (itemId: string, status: "sent" | "paid") => {
             if (!activeAccount?.login || !activeAccount?.password) return;
-            const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+            const auth = { login: activeAccount.login, password: activeAccount.password };
             try {
-                const res = await fetch(`${origin}/api/accounting-expense-requests`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json", "x-login": activeAccount.login, "x-password": activeAccount.password },
-                    body: JSON.stringify({ uid: itemId, status }),
-                });
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok) {
-                    setAccountingRequestsError(data.error || "Ошибка обновления статуса");
-                    return;
-                }
+                await patchAccountingExpenseRequestStatus(auth, itemId, status);
                 void fetchAccountingRequests();
-            } catch {
-                setAccountingRequestsError("Ошибка сети");
+            } catch (e) {
+                setAccountingRequestsError((e as Error)?.message || "Ошибка сети");
             }
         };
         const markAwaitingPayment = (itemId: string) => { void patchStatus(itemId, "sent"); };
@@ -1717,14 +1620,10 @@ export function ProfilePage({
                                                 <Flex gap="0.25rem">
                                                     <Button type="button" className="filter-button" style={{ fontSize: "0.72rem", padding: "0.2rem 0.5rem" }} onClick={async () => {
                                                         if (!activeAccount?.login || !activeAccount?.password) return;
-                                                        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+                                                        const auth = { login: activeAccount.login, password: activeAccount.password };
                                                         try {
-                                                            const res = await fetch(
-                                                                `${origin}/api/accounting-expense-attachment?requestUid=${encodeURIComponent(selectedAccountingRequest.id)}&attachmentId=${att.id}`,
-                                                                { headers: { "x-login": activeAccount.login, "x-password": activeAccount.password } }
-                                                            );
-                                                            if (!res.ok) return;
-                                                            const blob = await res.blob();
+                                                            const blob = await fetchAccountingExpenseAttachmentBlob(auth, selectedAccountingRequest.id, att.id);
+                                                            if (!blob) return;
                                                             const url = URL.createObjectURL(blob);
                                                             window.open(url, "_blank", "noopener");
                                                             setTimeout(() => URL.revokeObjectURL(url), 60000);
@@ -1732,14 +1631,10 @@ export function ProfilePage({
                                                     }}>Открыть</Button>
                                                     <Button type="button" className="filter-button" style={{ fontSize: "0.72rem", padding: "0.2rem 0.5rem" }} onClick={async () => {
                                                         if (!activeAccount?.login || !activeAccount?.password) return;
-                                                        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+                                                        const auth = { login: activeAccount.login, password: activeAccount.password };
                                                         try {
-                                                            const res = await fetch(
-                                                                `${origin}/api/accounting-expense-attachment?requestUid=${encodeURIComponent(selectedAccountingRequest.id)}&attachmentId=${att.id}`,
-                                                                { headers: { "x-login": activeAccount.login, "x-password": activeAccount.password } }
-                                                            );
-                                                            if (!res.ok) return;
-                                                            const blob = await res.blob();
+                                                            const blob = await fetchAccountingExpenseAttachmentBlob(auth, selectedAccountingRequest.id, att.id);
+                                                            if (!blob) return;
                                                             const url = URL.createObjectURL(blob);
                                                             const a = document.createElement("a");
                                                             a.href = url;
@@ -2752,13 +2647,11 @@ export function ProfilePage({
                                                         setEmployeePresetLoadingId(emp.id);
                                                         setEmployeesError(null);
                                                         try {
-                                                            const res = await fetch(`/api/my-employees?id=${emp.id}`, {
-                                                                method: 'PATCH',
-                                                                headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password, presetId }),
-                                                            });
-                                                            const data = await res.json().catch(() => ({}));
-                                                            if (!res.ok) throw new Error(data.error || 'Ошибка');
+                                                            await patchMyEmployee(
+                                                                { login: activeAccount.login, password: activeAccount.password },
+                                                                emp.id,
+                                                                { presetId },
+                                                            );
                                                             const newLabel = rolePresets.find((p) => p.id === presetId)?.label ?? emp.presetLabel;
                                                             setEmployeesList((prev) => prev.map((e) => e.id === emp.id ? { ...e, presetLabel: newLabel } : e));
                                                         } catch (e) {
@@ -2779,12 +2672,11 @@ export function ProfilePage({
                                                     onToggle={async () => {
                                                         setEmployeesError(null);
                                                         try {
-                                                            const res = await fetch(`/api/my-employees?id=${emp.id}`, {
-                                                                method: 'PATCH',
-                                                                headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password, active: !emp.active }),
-                                                            });
-                                                            if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Не удалось изменить доступ');
+                                                            await patchMyEmployee(
+                                                                { login: activeAccount.login, password: activeAccount.password },
+                                                                emp.id,
+                                                                { active: !emp.active },
+                                                            );
                                                             setEmployeesList((prev) => prev.map((e) => e.id === emp.id ? { ...e, active: !e.active } : e));
                                                         } catch (e) {
                                                             setEmployeesError((e as Error)?.message || 'Не удалось изменить доступ');
@@ -2823,12 +2715,10 @@ export function ProfilePage({
                                                             if (!activeAccount?.login || !activeAccount?.password || employeeDeleteLoading) return;
                                                             setEmployeeDeleteLoading(true);
                                                             try {
-                                                                const res = await fetch(`${origin}/api/my-employees?id=${encodeURIComponent(employeeDeleteId)}`, {
-                                                                    method: 'DELETE',
-                                                                    headers: { 'Content-Type': 'application/json' },
-                                                                    body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password }),
-                                                                });
-                                                                if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error);
+                                                                await deleteMyEmployee(
+                                                                    { login: activeAccount.login, password: activeAccount.password },
+                                                                    employeeDeleteId,
+                                                                );
                                                                 setEmployeesList((prev) => prev.filter((e) => e.id !== employeeDeleteId));
                                                                 setEmployeeDeleteId(null);
                                                             } finally {
@@ -2892,21 +2782,10 @@ export function ProfilePage({
                                     onClick={async () => {
                                         setInviteError(null); setInviteSuccess(null); setInviteLoading(true);
                                         try {
-                                            const res = await fetch('/api/my-employees', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({
-                                                    login: activeAccount.login,
-                                                    password: activeAccount.password,
-                                                    email: inviteEmail.trim(),
-                                                    fullName: inviteFullName.trim(),
-                                                    department: '',
-                                                    employeeRole: 'employee',
-                                                    presetId: invitePresetId
-                                                }),
-                                            });
-                                            const data = await res.json().catch(() => ({}));
-                                            if (!res.ok) throw new Error(data.error || 'Ошибка');
+                                            const data = await inviteMyEmployee(
+                                                { login: activeAccount.login, password: activeAccount.password },
+                                                { email: inviteEmail.trim(), fullName: inviteFullName.trim(), presetId: invitePresetId },
+                                            );
                                             setInviteSuccess(data.message || 'Готово');
                                             setInviteEmail(''); setInviteFullName(''); setInvitePresetId('');
                                             fetchEmployeesAndPresets();
@@ -2958,13 +2837,11 @@ export function ProfilePage({
                                                         setEmployeePresetLoadingId(emp.id);
                                                         setEmployeesError(null);
                                                         try {
-                                                            const res = await fetch(`/api/my-employees?id=${emp.id}`, {
-                                                                method: 'PATCH',
-                                                                headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password, presetId }),
-                                                            });
-                                                            const data = await res.json().catch(() => ({}));
-                                                            if (!res.ok) throw new Error(data.error || 'Ошибка');
+                                                            await patchMyEmployee(
+                                                                { login: activeAccount.login, password: activeAccount.password },
+                                                                emp.id,
+                                                                { presetId },
+                                                            );
                                                             const newLabel = rolePresets.find((p) => p.id === presetId)?.label ?? emp.presetLabel;
                                                             setEmployeesList((prev) => prev.map((e) => e.id === emp.id ? { ...e, presetLabel: newLabel } : e));
                                                         } catch (e) {
@@ -2985,12 +2862,11 @@ export function ProfilePage({
                                                     onToggle={async () => {
                                                         setEmployeesError(null);
                                                         try {
-                                                            const res = await fetch(`/api/my-employees?id=${emp.id}`, {
-                                                                method: 'PATCH',
-                                                                headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password, active: !emp.active }),
-                                                            });
-                                                            if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Не удалось изменить доступ');
+                                                            await patchMyEmployee(
+                                                                { login: activeAccount.login, password: activeAccount.password },
+                                                                emp.id,
+                                                                { active: !emp.active },
+                                                            );
                                                             setEmployeesList((prev) => prev.map((e) => e.id === emp.id ? { ...e, active: !e.active } : e));
                                                         } catch (e) {
                                                             setEmployeesError((e as Error)?.message || 'Не удалось изменить доступ');
@@ -3029,13 +2905,10 @@ export function ProfilePage({
                                                             if (!activeAccount?.login || !activeAccount?.password || employeeDeleteLoading) return;
                                                             setEmployeeDeleteLoading(true);
                                                             try {
-                                                                const res = await fetch(`${origin}/api/my-employees?id=${encodeURIComponent(employeeDeleteId)}`, {
-                                                                    method: 'DELETE',
-                                                                    headers: { 'Content-Type': 'application/json' },
-                                                                    body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password }),
-                                                                });
-                                                                const data = await res.json().catch(() => ({}));
-                                                                if (!res.ok) throw new Error(data?.error || 'Ошибка удаления');
+                                                                await deleteMyEmployee(
+                                                                    { login: activeAccount.login, password: activeAccount.password },
+                                                                    employeeDeleteId,
+                                                                );
                                                                 setEmployeesList((prev) => prev.filter((e) => e.id !== employeeDeleteId));
                                                                 setEmployeeDeleteId(null);
                                                             } catch (e) {

@@ -46,6 +46,7 @@ const NAV_STATUS_LABELS: Record<number, string> = {
 };
 import { ArrowLeft, Loader2, MapPin } from "lucide-react";
 import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
+import { fetchFerriesList, fetchMarinesiaShip } from "../api/client/ais";
 
 export function AisStreamPage({ onBack, initialMmsi, onConsumedInitialMmsi }: { onBack: () => void; initialMmsi?: string; onConsumedInitialMmsi?: () => void }) {
   const [ferries, setFerries] = useState<{ id: number; name: string; mmsi: string }[]>([]);
@@ -68,14 +69,13 @@ export function AisStreamPage({ onBack, initialMmsi, onConsumedInitialMmsi }: { 
     setVesselInfo(null);
     setLoading(true);
     try {
-      const res = await fetch(`/api/marinesia-ship?mmsi=${mmsiTrimmed}`);
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data?.error || "Ошибка Marinesia");
+      const { ok, vessel, error: apiError } = await fetchMarinesiaShip(mmsiTrimmed);
+      if (!ok) {
+        setError(apiError || "Ошибка Marinesia");
         return;
       }
-      if (data?.vessel) {
-        setVesselInfo(data.vessel);
+      if (vessel) {
+        setVesselInfo(vessel);
       } else {
         setError("Судно не найдено");
       }
@@ -87,10 +87,7 @@ export function AisStreamPage({ onBack, initialMmsi, onConsumedInitialMmsi }: { 
   }, [mmsi]);
 
   useEffect(() => {
-    fetch("/api/ferries-list")
-      .then((res) => res.json())
-      .then((data: { ferries?: { id: number; name: string; mmsi: string }[] }) => setFerries(data.ferries || []))
-      .catch(() => setFerries([]));
+    fetchFerriesList().then(setFerries).catch(() => setFerries([]));
   }, []);
 
   useEffect(() => {
@@ -102,11 +99,10 @@ export function AisStreamPage({ onBack, initialMmsi, onConsumedInitialMmsi }: { 
     setMmsi(trimmed);
     setError(null);
     setLoading(true);
-    fetch(`/api/marinesia-ship?mmsi=${encodeURIComponent(trimmed)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.vessel) {
-          setVesselInfo(data.vessel);
+    fetchMarinesiaShip(trimmed)
+      .then(({ vessel }) => {
+        if (vessel) {
+          setVesselInfo(vessel);
         } else {
           setError("Судно не найдено");
         }

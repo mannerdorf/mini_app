@@ -11,6 +11,15 @@ import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 import { EXPENSE_REQUESTS_WEBHOOK_URL, PROXY_API_BASE_URL } from "../constants/config";
 import type { AuthData } from "../types";
 import { formatDisplayDate } from "../lib/dateUtils";
+import {
+    deleteMyExpenseRequest,
+    fetchExpenseRequestCategories,
+    fetchExpenseRequestSuppliers,
+    fetchMyExpenseRequests,
+    patchMyExpenseRequest,
+    postMyDepartmentTimesheetForExpense,
+    postMyExpenseRequest,
+} from "../api/client/expenseRequestsUser";
 
 const VAT_RATES = [
     { value: "", label: "Без НДС" },
@@ -162,17 +171,8 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     const fetchExpenseRequests = useCallback(async () => {
         if (!auth?.login || !auth?.password) return;
         setListLoading(true);
-        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
         try {
-            const r = await fetch(`${origin}/api/my-expense-requests`, {
-                method: "GET",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-login": auth.login,
-                    "x-password": auth.password,
-                },
-            });
-            const data = await (r.ok ? r.json() : Promise.resolve({ items: [] })) as { items?: Array<{ id: string; createdAt?: string; department?: string; docNumber?: string; docDate?: string; period?: string; categoryId?: string; categoryName?: string; amount?: number; vatRate?: string; comment?: string; vehicleOrEmployee?: string; transportType?: string; employeeName?: string; supplierName?: string; supplierInn?: string; status: string; rejectionReason?: string }> };
+            const data = await fetchMyExpenseRequests({ login: auth.login, password: auth.password });
             const apiItems = Array.isArray(data?.items) ? data.items : [];
             const mapped: ExpenseRequestItem[] = apiItems.map((api) => ({
                 id: api.id,
@@ -209,15 +209,9 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     useEffect(() => {
         if (!auth?.login || !auth?.password) return;
         setDepartmentLoading(true);
-        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
         const now = new Date();
         const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-        fetch(`${origin}/api/my-department-timesheet`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ login: auth.login, password: auth.password, month }),
-        })
-            .then((r) => (r.ok ? r.json() : Promise.reject()))
+        postMyDepartmentTimesheetForExpense({ login: auth.login, password: auth.password }, month)
             .then((data: any) => {
                 const departmentsFromProfile = parseDepartmentList(data?.department);
                 const departmentsFromEmployees = Array.isArray(data?.employees)
@@ -264,13 +258,11 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
 
     // --- Справочник статей расходов (единый с PNL) ---
     useEffect(() => {
-        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
         const params = new URLSearchParams();
         if (department) params.set("department", department);
         params.set("transportType", transportType);
-        fetch(`${origin}/api/expense-request-categories${params.toString() ? `?${params.toString()}` : ""}`)
-            .then((r) => (r.ok ? r.json() : Promise.reject()))
-            .then((data: any[]) => {
+        fetchExpenseRequestCategories(params)
+            .then((data) => {
                 if (!Array.isArray(data)) return;
                 const mapped = data.map((c: any) => ({ id: c.id ?? "", name: c.name ?? "" })).filter((c) => c.id && c.name);
                 setCategories(mapped);
@@ -289,19 +281,8 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     useEffect(() => {
         if (!auth?.login || !auth?.password) return;
         setSuppliersLoading(true);
-        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
-        fetch(`${origin}/api/expense-request-suppliers`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                login: auth.login,
-                password: auth.password,
-                limit: 10000,
-            }),
-        })
-            .then((r) => (r.ok ? r.json() : Promise.reject()))
-            .then((data: any) => {
-                const list = Array.isArray(data?.suppliers) ? data.suppliers : [];
+        fetchExpenseRequestSuppliers({ login: auth.login, password: auth.password })
+            .then((list) => {
                 setSuppliers(list
                     .map((s: any) => ({
                         inn: String(s?.inn ?? "").trim(),
@@ -599,18 +580,9 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     const deleteRequest = useCallback(async (itemId: string) => {
         if (!window.confirm("Удалить заявку? Действие нельзя отменить.")) return;
         if (!auth?.login || !auth?.password) return;
-        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
         try {
-            const res = await fetch(`${origin}/api/my-expense-requests?uid=${encodeURIComponent(itemId)}`, {
-                method: "DELETE",
-                headers: { "x-login": auth.login, "x-password": auth.password },
-            });
-            if (res.ok) {
-                fetchExpenseRequests();
-            } else {
-                const err = await res.json().catch(() => ({}));
-                setSyncError(String(err?.error || "Ошибка удаления"));
-            }
+            await deleteMyExpenseRequest({ login: auth.login, password: auth.password }, itemId);
+            fetchExpenseRequests();
         } catch (e) {
             setSyncError((e as Error)?.message || "Ошибка удаления заявки");
         }
@@ -618,18 +590,12 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
 
     const recallRequest = useCallback(async (itemId: string) => {
         if (!auth?.login || !auth?.password) return;
-        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
         try {
-            const res = await fetch(`${origin}/api/my-expense-requests`, {
-                method: "PATCH",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-login": auth.login,
-                    "x-password": auth.password,
-                },
-                body: JSON.stringify({ uid: itemId, status: "draft" }),
-            });
-            if (res.ok) fetchExpenseRequests();
+            const { ok } = await patchMyExpenseRequest(
+                { login: auth.login, password: auth.password },
+                { uid: itemId, status: "draft" },
+            );
+            if (ok) fetchExpenseRequests();
         } catch { /* ignore */ }
     }, [auth?.login, auth?.password, fetchExpenseRequests]);
 
