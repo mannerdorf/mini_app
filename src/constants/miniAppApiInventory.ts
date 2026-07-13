@@ -18,8 +18,6 @@ export type ApiInventoryItem = {
     /** Короткая подпись в боковом меню каталога */
     navLabel: string;
     note: string;
-    /** Partner API — Bearer (по умолчанию); loginPassword — login и password в JSON-теле */
-    authMode?: "bearer" | "loginPassword";
     examples?: ApiTryExample[];
 };
 
@@ -171,28 +169,6 @@ export const MINI_APP_API_INVENTORY: ApiInventorySection[] = [
                 navLabel: "Скачать УПД",
                 note: "Скачать УПД (PDF). Scope: documents:read. metod=Акт (не слово «УПД»), number — номер перевозки.",
                 examples: [{ id: "dl-upd", label: "УПД (metod Акт)", body: DOWNLOAD_BODY("Акт") }],
-            },
-        ],
-    },
-    {
-        group: "Авторизация 1С (login/password)",
-        items: [
-            {
-                method: "POST",
-                path: "/api/getcustomers",
-                navLabel: "Getcustomers",
-                authMode: "loginPassword",
-                note:
-                    "Список заказчиков пользователя 1С (ИНН и название). Серверный прокси к GETAPI?metod=Getcustomers. " +
-                    "Тело: login, password. Успех: { customers: [{ name, inn }, ...], request_id }. " +
-                    "Ошибка авторизации: { error, request_id } (401).",
-                examples: [
-                    {
-                        id: "1c-auth",
-                        label: "Логин и пароль 1С",
-                        body: { login: "{{LOGIN}}", password: "{{PASSWORD}}" },
-                    },
-                ],
             },
         ],
     },

@@ -757,6 +757,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [customersSortOrder, setCustomersSortOrder] = useState<"asc" | "desc">("asc");
   const [customersLoading, setCustomersLoading] = useState(false);
   const [customersFetchTrigger, setCustomersFetchTrigger] = useState(0);
+  const [customersSyncLoading, setCustomersSyncLoading] = useState(false);
+  const [customersSyncMessage, setCustomersSyncMessage] = useState<string | null>(null);
+  const [customersSyncDebugRequest, setCustomersSyncDebugRequest] = useState<string>("");
+  const [customersSyncDebugResponse, setCustomersSyncDebugResponse] = useState<string>("");
   const [suppliersList, setSuppliersList] = useState<{ inn: string; supplier_name: string; email: string }[]>([]);
   const [suppliersSearch, setSuppliersSearch] = useState("");
   const [suppliersShowOnlyWithoutEmail, setSuppliersShowOnlyWithoutEmail] = useState(false);
@@ -5116,6 +5120,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       {tab === "customers" && (
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник заказчиков</Typography.Body>
+          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+            Данные из <code style={{ fontSize: "0.75rem" }}>GETAPI?metod=Getcustomers</code> (сервисный логин 1С), кэш обновляется кроном каждые 15 минут.
+          </Typography.Body>
           <Flex gap="var(--element-gap, 0.75rem)" align="center" wrap="wrap" style={{ marginBottom: "var(--space-3, 0.75rem)" }}>
             <label htmlFor="customers-search" className="visually-hidden">Поиск заказчиков по ИНН или наименованию</label>
             <Input
@@ -5141,12 +5148,132 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               type="button"
               className="filter-button"
               disabled={customersLoading}
-              onClick={() => setCustomersFetchTrigger((n) => n + 1)}
+              onClick={() => {
+                setCustomersSyncMessage(null);
+                setCustomersFetchTrigger((n) => n + 1);
+              }}
               style={{ marginLeft: "auto" }}
             >
               {customersLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> : null}
               Обновить
             </Button>
+            {isSuperAdmin && (
+              <>
+                <Button
+                  type="button"
+                  className="filter-button"
+                  disabled={customersSyncLoading}
+                  onClick={async () => {
+                    setCustomersSyncLoading(true);
+                    setCustomersSyncMessage(null);
+                    setCustomersSyncDebugRequest("");
+                    setCustomersSyncDebugResponse("");
+                    const endpoint = "/api/admin-refresh-customers-cache";
+                    const base = typeof window !== "undefined" ? window.location.origin : "";
+                    const internalCurl = `curl -X POST "${base}${endpoint}" -H "Authorization: Bearer <adminToken>" -H "Content-Type: application/json" -d '{"dryRun":true}'`;
+                    let gotHttpResponse = false;
+                    try {
+                      const res = await fetch(endpoint, {
+                        method: "POST",
+                        headers: {
+                          Authorization: `Bearer ${adminToken}`,
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ dryRun: true }),
+                      });
+                      const text = await res.text().catch(() => "");
+                      const data = (() => {
+                        try {
+                          return text ? JSON.parse(text) : {};
+                        } catch {
+                          return {};
+                        }
+                      })();
+                      const upstreamCurl = typeof data?.upstream_curl === "string" ? data.upstream_curl : "";
+                      const upstreamUrl = typeof data?.upstream_url === "string" ? data.upstream_url : "";
+                      setCustomersSyncDebugRequest(
+                        upstreamCurl || (upstreamUrl ? `curl --location '${upstreamUrl}'` : internalCurl),
+                      );
+                      setCustomersSyncDebugResponse(
+                        `HTTP ${res.status}\n${text ? (typeof data === "object" && Object.keys(data).length > 0 ? JSON.stringify(data, null, 2) : text) : "{}"}`,
+                      );
+                      gotHttpResponse = true;
+                      if (!res.ok) throw new Error(data?.error || "Не удалось выполнить Getcustomers");
+                      setCustomersSyncMessage(
+                        `Getcustomers (dry-run): ${Number(data?.customers_count || 0)} записей, кэш не изменён`,
+                      );
+                    } catch (e: unknown) {
+                      setCustomersSyncMessage((e as Error)?.message || "Не удалось выполнить Getcustomers");
+                      if (!gotHttpResponse) {
+                        setCustomersSyncDebugRequest(internalCurl);
+                        setCustomersSyncDebugResponse(`Ошибка: ${(e as Error)?.message || "Неизвестная ошибка"}`);
+                      }
+                    } finally {
+                      setCustomersSyncLoading(false);
+                    }
+                  }}
+                >
+                  {customersSyncLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> : null}
+                  Тест Getcustomers
+                </Button>
+                <Button
+                  type="button"
+                  className="button-primary"
+                  disabled={customersSyncLoading}
+                  onClick={async () => {
+                    setCustomersSyncLoading(true);
+                    setCustomersSyncMessage(null);
+                    setCustomersSyncDebugRequest("");
+                    setCustomersSyncDebugResponse("");
+                    const endpoint = "/api/admin-refresh-customers-cache";
+                    const base = typeof window !== "undefined" ? window.location.origin : "";
+                    const internalCurl = `curl -X POST "${base}${endpoint}" -H "Authorization: Bearer <adminToken>" -H "Content-Type: application/json" -d '{}'`;
+                    let gotHttpResponse = false;
+                    try {
+                      const res = await fetch(endpoint, {
+                        method: "POST",
+                        headers: {
+                          Authorization: `Bearer ${adminToken}`,
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({}),
+                      });
+                      const text = await res.text().catch(() => "");
+                      const data = (() => {
+                        try {
+                          return text ? JSON.parse(text) : {};
+                        } catch {
+                          return {};
+                        }
+                      })();
+                      const upstreamCurl = typeof data?.upstream_curl === "string" ? data.upstream_curl : "";
+                      const upstreamUrl = typeof data?.upstream_url === "string" ? data.upstream_url : "";
+                      setCustomersSyncDebugRequest(
+                        upstreamCurl || (upstreamUrl ? `curl --location '${upstreamUrl}'` : internalCurl),
+                      );
+                      setCustomersSyncDebugResponse(
+                        `HTTP ${res.status}\n${text ? (typeof data === "object" && Object.keys(data).length > 0 ? JSON.stringify(data, null, 2) : text) : "{}"}`,
+                      );
+                      gotHttpResponse = true;
+                      if (!res.ok) throw new Error(data?.error || "Не удалось обновить справочник заказчиков");
+                      setCustomersSyncMessage(`Обновлено: ${Number(data?.customers_count || 0)} записей`);
+                      setCustomersFetchTrigger((n) => n + 1);
+                    } catch (e: unknown) {
+                      setCustomersSyncMessage((e as Error)?.message || "Не удалось обновить справочник заказчиков");
+                      if (!gotHttpResponse) {
+                        setCustomersSyncDebugRequest(internalCurl);
+                        setCustomersSyncDebugResponse(`Ошибка: ${(e as Error)?.message || "Неизвестная ошибка"}`);
+                      }
+                    } finally {
+                      setCustomersSyncLoading(false);
+                    }
+                  }}
+                >
+                  {customersSyncLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> : null}
+                  Обновить из 1С
+                </Button>
+              </>
+            )}
             {isSuperAdmin && (
               <Button
                 type="button"
@@ -5160,6 +5287,27 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               </Button>
             )}
           </Flex>
+          {customersSyncMessage && (
+            <Typography.Body style={{ marginBottom: "0.65rem", fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
+              {customersSyncMessage}
+            </Typography.Body>
+          )}
+          {(customersSyncDebugRequest || customersSyncDebugResponse) && (
+            <div style={{ marginBottom: "0.75rem", padding: "0.55rem 0.65rem", borderRadius: 8, border: "1px dashed var(--color-border)", background: "var(--color-bg-hover)" }}>
+              {customersSyncDebugRequest ? (
+                <Typography.Body style={{ fontSize: "0.78rem", marginBottom: "0.35rem" }}>
+                  <strong>Запрос:</strong>
+                  <pre style={{ margin: "0.25rem 0 0", whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "0.75rem" }}>{customersSyncDebugRequest}</pre>
+                </Typography.Body>
+              ) : null}
+              {customersSyncDebugResponse ? (
+                <Typography.Body style={{ fontSize: "0.78rem" }}>
+                  <strong>Ответ:</strong>
+                  <pre style={{ margin: "0.25rem 0 0", whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "0.75rem" }}>{customersSyncDebugResponse}</pre>
+                </Typography.Body>
+              ) : null}
+            </div>
+          )}
           <Panel className="cargo-card" style={{ padding: "0.75rem", marginBottom: "0.75rem", border: "1px dashed var(--color-border)" }}>
             <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem" style={{ marginBottom: "0.5rem" }}>
               <Typography.Body style={{ fontWeight: 600 }}>Dry-run: кандидаты на автосоздание</Typography.Body>
