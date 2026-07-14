@@ -9,3 +9,13 @@ export * from "./lib/documentsPipeline";
 export { DocumentsTransportFilter } from "./DocumentsTransportFilter";
 export type { DocumentsTransportFilterProps } from "./DocumentsTransportFilter";
 export { isDocumentsTransportFilterVisible } from "./documentsTransportFilterVisible";
+export { DOC_SECTIONS, DOC_SECTION_TO_PERMISSION } from "./documentsSectionConstants";
+export type { DocSectionKey } from "./documentsSectionConstants";
+export { DocumentsPageToolbar } from "./DocumentsPageToolbar";
+export type {
+  DocumentsPageToolbarProps,
+  DocumentsPageToolbarDateFilterProps,
+  DocumentsPageToolbarCatalogToolbars,
+  DocumentsPageToolbarSummaryProps,
+  DocumentsPageToolbarActionBars,
+} from "./DocumentsPageToolbar";

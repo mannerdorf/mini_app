@@ -2,7 +2,7 @@
  * Секретный дашборд: виджеты перевозок, SLA, платёжный календарь, таймшит.
  */
 import React, { useState, useCallback, useMemo, useEffect, useLayoutEffect, useRef } from "react";
-import { motion, MotionConfig, useReducedMotion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import {
     Loader2, X, ChevronDown, Calendar, Filter, Package, Scale, Weight, Maximize, CreditCard, Check,
     AlertTriangle, Info, Ship, Truck, ArrowDown, ArrowUp, ArrowLeft, TrendingUp, TrendingDown, Minus, RussianRuble, List, RefreshCw,
@@ -50,6 +50,22 @@ import { sendMaxTestMessage } from "../api/client/dashboard";
 import { fetchCustomerWorkSchedules, fetchMyPaymentCalendar } from "../api/client/scheduling";
 import type { AuthData, CargoItem, DateFilter, PerevozkaTimelineStep, StatusFilter } from "../types";
 import { cargoSummaryMotion } from "./cargoMotion";
+import {
+    DASH_ROLE_FILTER_KEY,
+    DASH_PLAN_FACT_TYPO,
+    loadDashboardRoleFilter,
+    DashboardMotionGroup,
+    DashboardMotionItem,
+    DashboardChartBarH,
+    DashboardChartBarPixelHeight,
+    calcStripDynamics,
+    StripDynamicsBadge,
+    DashboardMainChart,
+    cargoFlowSelectionEqual,
+    type CargoFlowTableSelection,
+    type CombinedLogisticsBucketKey,
+    type DashboardChartPoint,
+} from "../features/dashboard";
 
 const {
     DEFAULT_DATE_FROM,
@@ -68,196 +84,6 @@ const {
     isDateInRange,
 } = dateUtils;
 const MONTH_NAMES = dateUtils.MONTH_NAMES;
-
-const DASH_ROLE_FILTER_KEY = "haulz.dashboard.roleFilter";
-
-function loadDashboardRoleFilter(): CargoRoleFilterKey {
-    try {
-        const v = localStorage.getItem(DASH_ROLE_FILTER_KEY);
-        if (v === "customer" || v === "sender" || v === "receiver" || v === "all") return v;
-    } catch { /* ignore */ }
-    return "all";
-}
-
-/** Единая типографика панелей «План-Факт», «Грузовой поток» и аналогичных блоков */
-const DASH_PLAN_FACT_TYPO = {
-    title: { fontSize: "var(--dash-section-title-size)", fontWeight: 600, marginBottom: "0.25rem" } as const,
-    desc: { fontSize: "var(--dash-section-desc-size)", color: "var(--color-text-secondary)", marginBottom: "0.75rem" } as const,
-    badge: {
-        fontSize: "var(--dash-badge-size)",
-        padding: "var(--control-padding-badge-y) var(--control-padding-badge-x)",
-        borderRadius: "999px",
-        minHeight: "var(--control-height-badge)",
-        display: "inline-flex",
-        alignItems: "center",
-        boxSizing: "border-box",
-        lineHeight: 1,
-    } as const,
-    subhead: { fontSize: "var(--dash-subhead-size)", fontWeight: 600, marginBottom: "0.35rem" } as const,
-    meta: { fontSize: "var(--dash-meta-size)", color: "var(--color-text-secondary)" } as const,
-    tile: {
-        border: "1px solid var(--color-border)",
-        borderRadius: 8,
-        padding: "0.38rem 0.42rem",
-        background: "var(--color-bg-hover)",
-    } as const,
-    tileDate: { fontSize: "var(--dash-tile-date-size)", color: "var(--color-text-secondary)", marginBottom: "0.18rem" } as const,
-    tileLine: { fontSize: "var(--dash-tile-line-size)", display: "block" as const },
-    table: { fontSize: "var(--dash-table-size)" } as const,
-    tableTh: { padding: "0.4rem 0.45rem", fontWeight: 600 } as const,
-    statusPill: {
-        fontSize: "var(--dash-status-pill-size)",
-        padding: "var(--control-padding-badge-y) var(--control-padding-badge-x)",
-        borderRadius: 999,
-        fontWeight: 600,
-        whiteSpace: "nowrap" as const,
-        minHeight: "var(--control-height-badge)",
-        display: "inline-flex",
-        alignItems: "center",
-        boxSizing: "border-box",
-        lineHeight: 1,
-    },
-};
-
-const DASHBOARD_MOTION_CONTAINER = {
-    hidden: {},
-    visible: {
-        transition: { staggerChildren: 0.055, delayChildren: 0.05 },
-    },
-};
-
-const DASHBOARD_MOTION_ITEM = {
-    hidden: { opacity: 0, y: 14 },
-    visible: {
-        opacity: 1,
-        y: 0,
-        transition: { type: "spring", stiffness: 380, damping: 30 },
-    },
-};
-
-type CargoFlowTableSelection =
-    | { kind: 'badge'; badge: 'withPlan' | 'withoutPlan' | 'overdue' | 'dueToday' | 'dueTomorrow' | 'dueNext7' }
-    | { kind: 'tile'; dateKey: string };
-
-type CombinedLogisticsBucketKey =
-    | 'terminalToSelfPickup'
-    | 'terminalToDelivery'
-    | 'pickupSelfPickup'
-    | 'pickupDelivery';
-
-function cargoFlowSelectionEqual(a: CargoFlowTableSelection | null, b: CargoFlowTableSelection | null): boolean {
-    if (!a || !b) return false;
-    if (a.kind !== b.kind) return false;
-    if (a.kind === 'tile') return a.dateKey === b.dateKey;
-    return a.badge === b.badge;
-}
-
-function DashboardMotionGroup({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
-    if (!enabled) return <>{children}</>;
-    return (
-        <MotionConfig reduced="user">
-            <motion.div
-                variants={DASHBOARD_MOTION_CONTAINER}
-                initial="hidden"
-                animate="visible"
-                style={{ display: "flex", flexDirection: "column", width: "100%", gap: 0 }}
-            >
-                {children}
-            </motion.div>
-        </MotionConfig>
-    );
-}
-
-function DashboardMotionItem({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
-    if (!enabled) return <>{children}</>;
-    return (
-        <motion.div variants={DASHBOARD_MOTION_ITEM} style={{ width: "100%" }}>
-            {children}
-        </motion.div>
-    );
-}
-
-const CHART_BAR_FILL_DURATION = 0.72;
-const CHART_BAR_FILL_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
-
-/** Горизонтальная полоса: ширина 0% → целевая (наполнение при монтировании). */
-function DashboardChartBarH({
-    enabled,
-    widthPercent,
-    delay = 0,
-    style,
-    title,
-}: {
-    enabled: boolean;
-    widthPercent: number;
-    delay?: number;
-    style?: React.CSSProperties;
-    title?: string;
-}) {
-    const w = Math.max(0, Math.min(100, Number.isFinite(widthPercent) ? widthPercent : 0));
-    if (!enabled) {
-        return <div title={title} style={{ height: "100%", width: `${w}%`, boxSizing: "border-box", ...style }} />;
-    }
-    return (
-        <motion.div
-            title={title}
-            initial={{ width: "0%" }}
-            animate={{ width: `${w}%` }}
-            transition={{ duration: CHART_BAR_FILL_DURATION, ease: CHART_BAR_FILL_EASE, delay }}
-            style={{ height: "100%", boxSizing: "border-box", ...style }}
-        />
-    );
-}
-
-/** Высота столбца в px (мини-графики). */
-function DashboardChartBarPixelHeight({
-    enabled,
-    heightPx,
-    delay = 0,
-    style,
-}: {
-    enabled: boolean;
-    heightPx: number;
-    delay?: number;
-    style?: React.CSSProperties;
-}) {
-    const h = Math.max(0, Math.round(heightPx));
-    if (!enabled) {
-        return <div style={{ width: "100%", height: Math.max(h, 2), ...style }} />;
-    }
-    return (
-        <motion.div
-            initial={{ height: 0 }}
-            animate={{ height: Math.max(h, 2) }}
-            transition={{ duration: CHART_BAR_FILL_DURATION, ease: CHART_BAR_FILL_EASE, delay }}
-            style={{ width: "100%", boxSizing: "border-box", overflow: "hidden", ...style }}
-        />
-    );
-}
-
-type StripDynamics = { percent: number; delta: number };
-
-function calcStripDynamics(cur: number, prev: number, hasPrev: boolean): StripDynamics | null {
-    if (!hasPrev) return null;
-    const delta = cur - prev;
-    if (prev === 0) return cur > 0 ? { percent: 100, delta } : null;
-    return { percent: Math.round((delta / prev) * 100), delta };
-}
-
-function StripDynamicsBadge({ dynamics, formatDelta }: { dynamics: StripDynamics; formatDelta: (delta: number) => string }) {
-    const { percent, delta } = dynamics;
-    const color = percent > 0 ? 'var(--color-success-status)' : percent < 0 ? '#ef4444' : 'var(--color-text-secondary)';
-    return (
-        <Flex align="center" gap="0.2rem" style={{ flexShrink: 0 }}>
-            {percent > 0 && <TrendingUp className="w-4 h-4" style={{ color: 'var(--color-success-status)' }} />}
-            {percent < 0 && <TrendingDown className="w-4 h-4" style={{ color: '#ef4444' }} />}
-            {percent === 0 && <Minus className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />}
-            <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, color, whiteSpace: 'nowrap' }}>
-                {percent > 0 ? '+' : ''}{percent}% ({formatDelta(delta)})
-            </Typography.Body>
-        </Flex>
-    );
-}
 
 export type DashboardPageProps = {
     auth: AuthData;
@@ -1587,188 +1413,6 @@ export function DashboardPage({
         const maxY = Math.max(1, ...series.flatMap((line) => line.values));
         return { dates, series, maxY };
     }, [showSums, stripTab, dashboardTotalItems, stripDiagramBySender, stripDiagramByReceiver, stripDiagramByCustomer]);
-
-    type DashboardChartPoint = { date: string; value: number; dateKey?: string };
-    type MainChartVariant = 'area';
-
-    // Функция для создания SVG графика
-    const renderChart = (
-        data: DashboardChartPoint[],
-        title: string,
-        color: string,
-        formatValue: (val: number) => string,
-        variant: MainChartVariant,
-        outerWidthPx: number,
-    ) => {
-        if (data.length === 0) {
-            return (
-                <Panel className="cargo-card" style={{ marginBottom: '1rem' }}>
-                    <Typography.Headline style={{ marginBottom: '1rem', fontSize: '1rem' }}>{title}</Typography.Headline>
-                    <Typography.Body className="text-theme-secondary">Нет данных для отображения</Typography.Body>
-                    <Flex style={{ gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
-                        <Button className="filter-button" type="button" onClick={() => setDateFilter("месяц")} style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}>
-                            За месяц
-                        </Button>
-                        <Button className="filter-button" type="button" onClick={() => setDateFilter("все")} style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}>
-                            За всё время
-                        </Button>
-                    </Flex>
-                </Panel>
-            );
-        }
-        
-        // Округляем значения до целых и нормализуем дату, чтобы график не падал на пустых значениях
-        const roundedData = data.map((d) => {
-            const numericValue = Number(d?.value);
-            const normalizedValue = Number.isFinite(numericValue) ? Math.round(numericValue) : 0;
-            const rawDate = String(d?.date ?? d?.dateKey ?? "").trim();
-            return {
-                ...d,
-                value: normalizedValue,
-                date: rawDate || "—",
-            };
-        });
-        const maxValue = Math.max(...roundedData.map(d => d.value), 1);
-        const scaleMax = maxValue * 1.1; // Максимум шкалы = max + 10%
-        
-        const chartHeight = 125;
-        const paddingLeft = 60;
-        const paddingRight = 30;
-        const paddingTop = 16;
-        const paddingBottom = 45;
-        const chartWidth = Math.max(280, Math.floor(outerWidthPx));
-        const innerPlotW = Math.max(80, chartWidth - paddingLeft - paddingRight);
-        const n = roundedData.length;
-        const barSpacing = 6;
-        const barWidth = n > 0
-            ? Math.max(4, (innerPlotW - Math.max(0, n - 1) * barSpacing) / n)
-            : 12;
-        const availableHeight = chartHeight - paddingTop - paddingBottom;
-        const points = roundedData.map((d, idx) => {
-            const barHeight = (d.value / scaleMax) * availableHeight;
-            const x = paddingLeft + idx * (barWidth + barSpacing);
-            const y = chartHeight - paddingBottom - barHeight;
-            return { x, y, barHeight, value: d.value };
-        });
-        const linePoints = points.map((p) => `${p.x + barWidth / 2},${p.y}`).join(' ');
-        const areaPath = points.length > 1
-            ? `M ${points[0].x + barWidth / 2} ${chartHeight - paddingBottom} L ${points.map((p) => `${p.x + barWidth / 2} ${p.y}`).join(' L ')} L ${points[points.length - 1].x + barWidth / 2} ${chartHeight - paddingBottom} Z`
-            : '';
-        
-        // Градиенты для столбцов (полутона, сложные)
-        const gradientId = `gradient-${color.replace('#', '')}`;
-        // Создаем более светлый и темный оттенки для градиента
-        const hexToRgb = (hex: string) => {
-            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-            return result ? {
-                r: parseInt(result[1], 16),
-                g: parseInt(result[2], 16),
-                b: parseInt(result[3], 16)
-            } : null;
-        };
-        const rgb = hexToRgb(color);
-        const lightColor = rgb ? `rgb(${Math.min(255, rgb.r + 40)}, ${Math.min(255, rgb.g + 40)}, ${Math.min(255, rgb.b + 40)})` : color;
-        const darkColor = rgb ? `rgb(${Math.max(0, rgb.r - 30)}, ${Math.max(0, rgb.g - 30)}, ${Math.max(0, rgb.b - 30)})` : color;
-        
-        return (
-            <div>
-                <div style={{ overflowX: 'auto', width: '100%', minWidth: 0 }}>
-                    <svg
-                        viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-                        width="100%"
-                        height={chartHeight}
-                        preserveAspectRatio="xMinYMid meet"
-                        style={{ display: 'block', maxWidth: '100%' }}
-                    >
-                        {/* Определение градиента */}
-                        <defs>
-                            <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-                                <stop offset="0%" stopColor={lightColor} stopOpacity="0.9" />
-                                <stop offset="100%" stopColor={darkColor} stopOpacity="0.6" />
-                            </linearGradient>
-                        </defs>
-                        
-                        {/* Горизонтальная ось */}
-                        <line 
-                            x1={paddingLeft} 
-                            y1={chartHeight - paddingBottom} 
-                            x2={chartWidth - paddingRight} 
-                            y2={chartHeight - paddingBottom} 
-                            stroke="var(--color-border)" 
-                            strokeWidth="1.5" 
-                            opacity="0.5"
-                        />
-                        
-                        {/* Вертикальная ось */}
-                        <line 
-                            x1={paddingLeft} 
-                            y1={paddingTop} 
-                            x2={paddingLeft} 
-                            y2={chartHeight - paddingBottom} 
-                            stroke="var(--color-border)" 
-                            strokeWidth="1.5" 
-                            opacity="0.5"
-                        />
-                        
-                        {/* Основной график по выбранному стилю */}
-                        {(variant === 'columns' || variant === 'combo') && points.map((p, idx) => (
-                                    <rect
-                                key={`bar-${idx}`}
-                                x={p.x}
-                                y={p.y}
-                                        width={barWidth}
-                                height={p.barHeight}
-                                        fill={`url(#${gradientId})`}
-                                opacity={variant === 'combo' ? 0.38 : 1}
-                                        rx="4"
-                                        style={{ transition: 'all 0.3s ease' }}
-                                    />
-                        ))}
-                        {variant === 'area' && areaPath && (
-                            <>
-                                <path d={areaPath} fill={lightColor} opacity="0.22" />
-                                <polyline points={linePoints} fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                            </>
-                        )}
-                        {(variant === 'line' || variant === 'combo') && (
-                            <polyline points={linePoints} fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                        )}
-                        {variant === 'dot' && points.map((p, idx) => (
-                            <circle key={`dot-main-${idx}`} cx={p.x + barWidth / 2} cy={p.y} r="4" fill={color} opacity="0.9" />
-                        ))}
-
-                        {/* Подписи дат под столбцами (без значений на столбцах) */}
-                        {roundedData.map((d, idx) => {
-                            const { x, y, barHeight } = points[idx];
-                            
-                            return (
-                                <g key={idx}>
-                                    {/* Дата вертикально под столбцом: день 1 раз, выходные/праздники — красным */}
-                                    <text
-                                        x={x + barWidth / 2}
-                                        y={chartHeight - paddingBottom + 20}
-                                        fontSize="10"
-                                        fill={getDateTextColor((d as { dateKey?: string }).dateKey || d.date)}
-                                        textAnchor="middle"
-                                        transform={`rotate(-45 ${x + barWidth / 2} ${chartHeight - paddingBottom + 20})`}
-                                    >
-                                        {(() => {
-                                            const raw = String(d?.date ?? "").trim();
-                                            if (!raw || raw === "—") return "—";
-                                            if (raw.includes(".")) return raw.split(".").slice(0, 2).join(".");
-                                            if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw.slice(8, 10) + "." + raw.slice(5, 7);
-                                            return raw;
-                                        })()}
-                                    </text>
-                                </g>
-                            );
-                        })}
-                    </svg>
-                </div>
-            </div>
-        );
-    };
-
 
     const selectedChartConfig = useMemo(() => {
         let data: DashboardChartPoint[] = [];
@@ -3112,7 +2756,15 @@ export function DashboardPage({
                         Динамика показателя по дням за выбранный период.
                     </Typography.Body>
                     <div ref={mainChartWrapRef} style={{ width: '100%', minWidth: 0 }}>
-                        {renderChart(selectedChartConfig.data, selectedChartConfig.title, selectedChartConfig.color, selectedChartConfig.formatValue, 'area', mainChartOuterWidthPx)}
+                        <DashboardMainChart
+                            data={selectedChartConfig.data}
+                            title={selectedChartConfig.title}
+                            color={selectedChartConfig.color}
+                            formatValue={selectedChartConfig.formatValue}
+                            variant="area"
+                            outerWidthPx={mainChartOuterWidthPx}
+                            onQuickDateFilter={setDateFilter}
+                        />
                     </div>
                 </Panel>
             )}
