@@ -75,6 +75,3 @@ export { useSendingsBaseFilter } from "./useSendingsBaseFilter";
 export { useDocumentsSendingsPage } from "./useDocumentsSendingsPage";
 export type { UseDocumentsSendingsPageInput } from "./useDocumentsSendingsPage";
 export { DocumentsSendingsSection } from "./DocumentsSendingsSection";
-export { useDocumentsSendingsPage } from "./useDocumentsSendingsPage";
-export type { UseDocumentsSendingsPageInput } from "./useDocumentsSendingsPage";
-export { DocumentsSendingsSection } from "./DocumentsSendingsSection";
