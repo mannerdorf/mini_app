@@ -1,4 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { getPool } from "./_db.js";
+import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import { respondCorsPreflight } from "./_lib/cors.js";
 
@@ -42,6 +44,35 @@ function normalizeCustomers(raw: unknown): CustomerItem[] {
     .filter((x): x is CustomerItem => x != null && x.inn.length > 0);
 }
 
+async function readRegisteredUserCustomers(
+  login: string,
+  accessAllInns: boolean,
+): Promise<CustomerItem[]> {
+  const pool = getPool();
+  const loginKey = String(login).trim().toLowerCase();
+  if (accessAllInns) {
+    const { rows } = await pool.query<{ inn: string; customer_name: string }>(
+      "SELECT inn, customer_name FROM cache_customers ORDER BY customer_name, inn",
+    );
+    return rows
+      .map((r) => ({
+        inn: String(r.inn ?? "").trim(),
+        name: String(r.customer_name ?? "").trim() || String(r.inn ?? "").trim(),
+      }))
+      .filter((c) => c.inn.length > 0);
+  }
+  const { rows } = await pool.query<{ inn: string; name: string }>(
+    "SELECT inn, name FROM account_companies WHERE login = $1 ORDER BY name, inn",
+    [loginKey],
+  );
+  return rows
+    .map((r) => ({
+      inn: String(r.inn ?? "").trim(),
+      name: String(r.name ?? "").trim() || String(r.inn ?? "").trim(),
+    }))
+    .filter((c) => c.inn.length > 0);
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -62,11 +93,34 @@ export default async function handler(
     }
   }
 
-  const { login, password } = body || {};
+  const { login, password, isRegisteredUser } = body || {};
   if (!login || !password) {
     return res
       .status(400)
       .json({ error: "login and password are required", request_id: ctx.requestId });
+  }
+
+  if (isRegisteredUser) {
+    try {
+      const pool = getPool();
+      const verified = await verifyRegisteredUser(pool, login, password);
+      if (!verified) {
+        return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
+      }
+      const customers = await readRegisteredUserCustomers(login, verified.accessAllInns);
+      return res.status(200).json({
+        customers,
+        source: verified.accessAllInns ? "cache_customers" : "account_companies",
+        request_id: ctx.requestId,
+      });
+    } catch (e: unknown) {
+      logError(ctx, "getcustomers_registered_user_failed", e);
+      return res.status(500).json({
+        error: "Database error",
+        details: e instanceof Error ? e.message : String(e),
+        request_id: ctx.requestId,
+      });
+    }
   }
 
   const url = new URL(GETAPI_BASE);
@@ -117,7 +171,7 @@ export default async function handler(
     }
     const customers = normalizeCustomers(payload);
 
-    return res.status(200).json({ customers, request_id: ctx.requestId });
+    return res.status(200).json({ customers, source: "1c_getcustomers", request_id: ctx.requestId });
   } catch (e: any) {
     logError(ctx, "getcustomers_proxy_failed", e);
     return res

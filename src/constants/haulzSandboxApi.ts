@@ -41,12 +41,17 @@ export const HAULZ_GETCUSTOMERS_SANDBOX_API: ApiInventoryItem = {
     method: "POST",
     path: "/api/getcustomers",
     navLabel: "Getcustomers (заказчики)",
-    note: "Прокси к 1С GETAPI?metod=Getcustomers — список заказчиков (ИНН, наименование) для логина. Тело JSON: login, password. Ответ: { customers: [{ inn, name }] }.",
+    note: "Прокси к 1С GETAPI?metod=Getcustomers. Тело: login, password. Для CMS-пользователей добавьте isRegisteredUser: true — тогда вернутся компании из БД (account_companies / cache_customers), без вызова 1С. Ответ: { customers, source }.",
     examples: [
         {
-            id: "auth",
-            label: "Логин и пароль",
-            body: { ...AUTH_BODY },
+            id: "registered",
+            label: "CMS-пользователь (из БД)",
+            body: { ...AUTH_BODY, isRegisteredUser: true },
+        },
+        {
+            id: "1c",
+            label: "Прямой запрос 1С (учётка PostB)",
+            body: { ...AUTH_BODY, isRegisteredUser: false },
         },
     ],
 };
