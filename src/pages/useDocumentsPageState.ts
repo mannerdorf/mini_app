@@ -24,40 +24,27 @@ import {
 import {
     useDocumentsClaims,
 } from "../features/documents/claims";
+import { useDocumentsCargoContext } from "../features/documents/hooks/useDocumentsCargoContext";
+import { useDocumentsPageNavigation } from "../features/documents/hooks/useDocumentsPageNavigation";
+import { useDocumentsPageFilters } from "../features/documents/hooks/useDocumentsPageFilters";
 import {
     collectUniqueCachedDocumentEdoLabels,
     collectUniqueInvoiceEdoTableLabels,
 } from "../lib/edoStatus";
-import {
-    initSharedFilterSets,
-    saveSharedListFilters,
-    sharedFromFilterSets,
-    type CargoStatusFilterKey,
-    type RouteFilterKey,
-    type SharedBillStatusKey,
-    type TypeFilterKey,
-} from "../lib/sharedListFilters";
 import { usePersistedDateFilter } from "../features/listWorkspace";
 import type { AccountPermissions, AuthData, CargoItem } from "../types";
 import { useDocumentsDateRange } from "./useDocumentsDateRange";
 import { useDocumentsDataLoad } from "./useDocumentsDataLoad";
 import { buildDocumentsPageToolbarProps } from "./useDocumentsPageToolbarProps";
-import { useCargoTransportFilter, usePerevozki } from "../hooks/useApi";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import {
     buildCargoRouteByNumber,
     buildCargoStateByNumber,
     buildCargoSumByNumber,
-    buildCargoTransportByNumber,
     buildInvoicesSummary,
-    buildTransportLinkedCargoNumbersInPeriod,
     getActUpdEdoInfo,
 } from "../features/documents/lib/documentsPipeline";
-import { buildCargoSumPaidByNumber } from "../../lib/invoiceAmounts.js";
 import {
-    DOC_SECTIONS,
-    DOC_SECTION_TO_PERMISSION,
-    type DocSectionKey,
 } from "../features/documents";
 import { cargoModeSwitchMotion } from "./cargoMotion";
 
@@ -116,137 +103,88 @@ export function useDocumentsPageState({
         selectedWeekForFilter,
         setSelectedWeekForFilter,
     } = usePersistedDateFilter();
-    const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
-    const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
-    const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
-    const [customerFilter, setCustomerFilter] = useState<string>('');
-    const [actCustomerFilter, setActCustomerFilter] = useState<string>('');
-    const [edoStatusFilterSet, setEdoStatusFilterSet] = useState<Set<string>>(() => new Set());
-    const sharedFiltersInit = initSharedFilterSets();
-    const [deliveryStatusFilterSet, setDeliveryStatusFilterSet] = useState<Set<CargoStatusFilterKey>>(() => sharedFiltersInit.statusFilterSet);
-    const [billStatusFilterSet, setBillStatusFilterSet] = useState<Set<SharedBillStatusKey>>(() => sharedFiltersInit.billStatusFilterSet);
-    const [typeFilterSet, setTypeFilterSet] = useState<Set<TypeFilterKey>>(() => sharedFiltersInit.typeFilterSet);
-    const [routeFilterSet, setRouteFilterSet] = useState<Set<RouteFilterKey>>(() => sharedFiltersInit.routeFilterSet);
-    const [invoiceFavoritesOnly, setInvoiceFavoritesOnly] = useState(false);
-    const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
-    const [isBillStatusDropdownOpen, setIsBillStatusDropdownOpen] = useState(false);
-    const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
-    const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
-    const [sortBy, setSortBy] = useState<'date' | null>('date');
-    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-    const DOCS_TABLE_MODE_KEY = 'haulz.docs.tableMode';
-    const DOCS_SECTION_KEY = 'haulz.docs.section';
-    const DOCS_NEW_ORDER_KEY = 'haulz.docs.orders.newFormOpen';
-
-    const readDocumentsNewOrderOpen = useCallback((): boolean => {
-        try {
-            const url = new URL(window.location.href);
-            if (url.searchParams.get('newOrder') === '1') return true;
-            return window.localStorage.getItem(DOCS_NEW_ORDER_KEY) === '1';
-        } catch {
-            return false;
-        }
-    }, []);
-
-    const persistDocumentsNewOrderOpen = useCallback((open: boolean) => {
-        try {
-            const url = new URL(window.location.href);
-            if (open) {
-                url.searchParams.set('newOrder', '1');
-                url.searchParams.set('section', 'Заявки');
-                window.localStorage.setItem(DOCS_NEW_ORDER_KEY, '1');
-                window.localStorage.setItem(DOCS_SECTION_KEY, 'Заявки');
-            } else {
-                url.searchParams.delete('newOrder');
-                window.localStorage.removeItem(DOCS_NEW_ORDER_KEY);
-            }
-            window.history.replaceState(null, '', url.toString());
-        } catch {
-            /* ignore */
-        }
-    }, []);
-    const [tableModeByCustomer, setTableModeByCustomer] = useState<boolean>(() => {
-        try {
-            const v = localStorage.getItem(DOCS_TABLE_MODE_KEY);
-            return v === 'true';
-        } catch { return false; }
+    const navigation = useDocumentsPageNavigation({
+        permissions,
+        showCustomerColumn,
+        effectiveServiceMode,
     });
-    useEffect(() => {
-        try { localStorage.setItem(DOCS_TABLE_MODE_KEY, String(tableModeByCustomer)); } catch { /* ignore */ }
-    }, [tableModeByCustomer]);
-    const tableModeGroupedByCustomer = tableModeByCustomer && showCustomerColumn && effectiveServiceMode;
-    const tableModeFlatDirect = tableModeByCustomer && !tableModeGroupedByCustomer;
+    const {
+        docSection,
+        setDocSection,
+        allowedDocSections,
+        tableModeByCustomer,
+        setTableModeByCustomer,
+        tableModeGroupedByCustomer,
+        tableModeFlatDirect,
+        tableModeEffective,
+        documentsOrderFormOpen,
+        setDocumentsOrderFormOpenPersist,
+        serviceModeForCurrentDocSection,
+    } = navigation;
+
     const groupedCustomerTableColSpan = useMemo(
         () => (showCustomerColumn ? 1 : 0) + (showSums ? 1 : 0) + 1,
         [showCustomerColumn, showSums],
     );
     const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
-    const [documentsOrderFormOpen, setDocumentsOrderFormOpen] = useState(() => readDocumentsNewOrderOpen());
-    const setDocumentsOrderFormOpenPersist = useCallback((open: boolean) => {
-        setDocumentsOrderFormOpen(open);
-        persistDocumentsNewOrderOpen(open);
-    }, [persistDocumentsNewOrderOpen]);
-    const allowedDocSections = useMemo(() => {
-        if (!permissions) return DOC_SECTIONS;
-        return DOC_SECTIONS.filter(({ key }) => {
-            if (key === 'ЭДО') return true;
-            if (key === 'Отправки') return permissions.doc_sendings === true && permissions.haulz === true;
-            if (key === 'Претензии') return permissions.doc_claims === true;
-            return permissions[DOC_SECTION_TO_PERMISSION[key]] !== false;
-        });
-    }, [permissions]);
-    const defaultDocSection = allowedDocSections[0]?.key ?? 'ЭДО';
-    const [docSection, setDocSection] = useState<DocSectionKey>(() => {
-        try {
-            const url = new URL(window.location.href);
-            const fromUrl = url.searchParams.get('section')?.trim();
-            if (fromUrl && DOC_SECTIONS.some(({ key }) => key === fromUrl)) {
-                return fromUrl as DocSectionKey;
-            }
-            const v = localStorage.getItem(DOCS_SECTION_KEY) as DocSectionKey | null;
-            if (v && DOC_SECTIONS.some(({ key }) => key === v)) return v;
-        } catch { /* ignore */ }
-        return defaultDocSection;
-    });
-    useEffect(() => {
-        if (!documentsOrderFormOpen || docSection === 'Заявки') return;
-        setDocSection('Заявки');
-        try {
-            localStorage.setItem(DOCS_SECTION_KEY, 'Заявки');
-        } catch {
-            /* ignore */
-        }
-    }, [documentsOrderFormOpen, docSection]);
-    useEffect(() => {
-        const isAllowed = allowedDocSections.some(({ key }) => key === docSection);
-        if (!isAllowed && allowedDocSections.length > 0) {
-            setDocSection(defaultDocSection);
-            try { localStorage.setItem(DOCS_SECTION_KEY, defaultDocSection); } catch { /* ignore */ }
-        } else {
-            try { localStorage.setItem(DOCS_SECTION_KEY, docSection); } catch { /* ignore */ }
-        }
-    }, [allowedDocSections, docSection, defaultDocSection]);
-    const serviceModeForCurrentDocSection = effectiveServiceMode || docSection === 'Отправки';
-    const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'count'>('customer');
-    const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
-    const [innerTableSortColumn, setInnerTableSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'paid' | 'balance' | 'deliveryStatus' | 'route'>('date');
-    const [innerTableSortOrder, setInnerTableSortOrder] = useState<'asc' | 'desc'>('desc');
-    const [transportFilter, setTransportFilter] = useState<string>('');
-    const [transportSearchQuery, setTransportSearchQuery] = useState<string>('');
-    const [isDeliveryStatusDropdownOpen, setIsDeliveryStatusDropdownOpen] = useState(false);
-    const [isRouteCargoDropdownOpen, setIsRouteCargoDropdownOpen] = useState(false);
-    const [isTransportDropdownOpen, setIsTransportDropdownOpen] = useState(false);
-    const [isEdoStatusDropdownOpen, setIsEdoStatusDropdownOpen] = useState(false);
-    const [isActCustomerDropdownOpen, setIsActCustomerDropdownOpen] = useState(false);
 
-    useEffect(() => {
-        saveSharedListFilters(sharedFromFilterSets({
-            statusFilterSet: deliveryStatusFilterSet,
-            billStatusFilterSet,
-            typeFilterSet,
-            routeFilterSet,
-        }));
-    }, [deliveryStatusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet]);
+    const filters = useDocumentsPageFilters(effectiveServiceMode);
+    const {
+        customerFilter,
+        setCustomerFilter,
+        actCustomerFilter,
+        setActCustomerFilter,
+        edoStatusFilterSet,
+        setEdoStatusFilterSet,
+        deliveryStatusFilterSet,
+        setDeliveryStatusFilterSet,
+        billStatusFilterSet,
+        setBillStatusFilterSet,
+        typeFilterSet,
+        setTypeFilterSet,
+        routeFilterSet,
+        setRouteFilterSet,
+        invoiceFavoritesOnly,
+        setInvoiceFavoritesOnly,
+        isCustomerDropdownOpen,
+        setIsCustomerDropdownOpen,
+        isBillStatusDropdownOpen,
+        setIsBillStatusDropdownOpen,
+        isTypeDropdownOpen,
+        setIsTypeDropdownOpen,
+        isRouteDropdownOpen,
+        setIsRouteDropdownOpen,
+        sortBy,
+        sortOrder,
+        setSortBy,
+        setSortOrder,
+        tableSortColumn,
+        tableSortOrder,
+        innerTableSortColumn,
+        innerTableSortOrder,
+        transportFilter,
+        setTransportFilter,
+        transportSearchQuery,
+        setTransportSearchQuery,
+        isDeliveryStatusDropdownOpen,
+        setIsDeliveryStatusDropdownOpen,
+        isRouteCargoDropdownOpen,
+        setIsRouteCargoDropdownOpen,
+        isTransportDropdownOpen,
+        setIsTransportDropdownOpen,
+        isEdoStatusDropdownOpen,
+        setIsEdoStatusDropdownOpen,
+        isActCustomerDropdownOpen,
+        setIsActCustomerDropdownOpen,
+        isDateDropdownOpen,
+        setIsDateDropdownOpen,
+        dateDropdownMode,
+        setDateDropdownMode,
+        isCustomModalOpen,
+        setIsCustomModalOpen,
+        handleTableSort,
+        handleInnerTableSort,
+    } = filters;
 
     const { apiDateRange, perevozkiDateRange } = useDocumentsDateRange({
         dateFilter,
@@ -286,156 +224,29 @@ export function useDocumentsPageState({
         docSection,
     });
 
-    // При выходе из служебного режима прячем и сбрасываем "компанийные" фильтры.
-    useEffect(() => {
-        if (effectiveServiceMode) return;
-        setCustomerFilter('');
-        setActCustomerFilter('');
-        setTransportFilter('');
-        setIsCustomerDropdownOpen(false);
-        setIsActCustomerDropdownOpen(false);
-        setIsTransportDropdownOpen(false);
-    }, [effectiveServiceMode]);
 
-    /** Канонический ключ для сопоставления номера перевозки (с/без ведущих нулей) */
-    const normCargoKey = useCallback((num: string | null | undefined): string => {
-        if (num == null) return '';
-        const s = String(num).replace(/^0000-/, '').trim().replace(/^0+/, '') || '0';
-        return s;
-    }, []);
 
-    const { cargoNumbers: dbTransportCargoNumbers, loading: dbTransportLoading } = useCargoTransportFilter({
+    const cargo = useDocumentsCargoContext({
         auth,
-        vehicle: transportFilter,
-        dateFrom: apiDateRange.dateFrom,
-        dateTo: apiDateRange.dateTo,
-        useServiceRequest: serviceModeForCurrentDocSection,
-        enabled: !!serviceModeForCurrentDocSection && !!transportFilter,
-    });
-
-    const transportLinkedCargoNumbers = useMemo(() => {
-        if (!serviceModeForCurrentDocSection || !transportFilter || dbTransportLoading) return undefined;
-        if (dbTransportCargoNumbers.length > 0) {
-            return new Set(dbTransportCargoNumbers.map((n) => normCargoKey(n)).filter(Boolean));
-        }
-        return buildTransportLinkedCargoNumbersInPeriod(
-            sendingsItems,
-            apiDateRange.dateFrom,
-            apiDateRange.dateTo,
-            transportFilter,
-        );
-    }, [
+        effectiveActiveInn,
         serviceModeForCurrentDocSection,
         transportFilter,
-        dbTransportCargoNumbers,
-        dbTransportLoading,
-        sendingsItems,
-        apiDateRange.dateFrom,
-        apiDateRange.dateTo,
-        normCargoKey,
-    ]);
-
-    const includeCargoNumbersForTransport = useMemo(() => {
-        if (!transportLinkedCargoNumbers?.size) return [];
-        const existing = new Set(
-            (perevozkiItemsBase || []).map((i: any) => normCargoKey(String(i?.Number ?? i?.number ?? ""))).filter(Boolean),
-        );
-        return [...transportLinkedCargoNumbers].filter((n) => !existing.has(n));
-    }, [transportLinkedCargoNumbers, perevozkiItemsBase, normCargoKey]);
-
-    const { items: transportLinkedPerevozkiItems } = usePerevozki({
-        auth,
-        dateFrom: perevozkiDateRange.dateFrom,
-        dateTo: perevozkiDateRange.dateTo,
-        inn: effectiveActiveInn || undefined,
-        useServiceRequest: serviceModeForCurrentDocSection,
-        includeCargoNumbers: includeCargoNumbersForTransport,
-        enabled: !!serviceModeForCurrentDocSection && !!transportFilter && includeCargoNumbersForTransport.length > 0,
+        apiDateRange,
+        perevozkiDateRange,
+        perevozkiItemsBase,
+        sendingsItems: sendingsItems || [],
     });
+    const {
+        normCargoKey,
+        perevozkiItems,
+        transportLinkedCargoNumbers,
+        cargoStateByNumber,
+        cargoRouteByNumber,
+        cargoSumByNumber,
+        cargoSumPaidByNumber,
+        cargoTransportByNumber,
+    } = cargo;
 
-    const perevozkiItems = useMemo(() => {
-        if (!transportFilter || !transportLinkedPerevozkiItems.length) return perevozkiItemsBase || [];
-        const byNumber = new Map<string, any>();
-        for (const item of perevozkiItemsBase || []) {
-            const key = normCargoKey(String(item?.Number ?? item?.number ?? ""));
-            if (key) byNumber.set(key, item);
-        }
-        for (const item of transportLinkedPerevozkiItems) {
-            const key = normCargoKey(String(item?.Number ?? item?.number ?? ""));
-            if (key && !byNumber.has(key)) byNumber.set(key, item);
-        }
-        return Array.from(byNumber.values());
-    }, [perevozkiItemsBase, transportLinkedPerevozkiItems, transportFilter, normCargoKey]);
-
-    const cargoStateByNumber = useMemo(
-        () => buildCargoStateByNumber(perevozkiItems || []),
-        [perevozkiItems]
-    );
-
-    const cargoRouteByNumber = useMemo(
-        () => buildCargoRouteByNumber(perevozkiItems || []),
-        [perevozkiItems]
-    );
-
-    const cargoSumByNumber = useMemo(
-        () => buildCargoSumByNumber(perevozkiItems || []),
-        [perevozkiItems]
-    );
-    const cargoSumPaidByNumber = useMemo(
-        () => buildCargoSumPaidByNumber((perevozkiItems || []) as Record<string, unknown>[]),
-        [perevozkiItems],
-    );
-
-    const cargoTransportByNumber = useMemo(() => {
-        const base = buildCargoTransportByNumber(perevozkiItems || []);
-        (sendingsItems || []).forEach((row: any) => {
-            const transport = String(
-                row?.АвтомобильCMRНаименование
-                ?? row?.AutoReg
-                ?? row?.autoReg
-                ?? row?.AutoType
-                ?? ''
-            ).trim();
-            if (!transport) return;
-            const numbers: string[] = [];
-            const addNumber = (value: unknown) => {
-                const v = String(value ?? '').trim();
-                if (v) numbers.push(v);
-            };
-            addNumber(row?.НомерПеревозки);
-            addNumber(row?.CargoNumber);
-            addNumber(row?.NumberPerevozki);
-            addNumber(row?.ИДОтправления);
-            const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
-            const parcels = Array.isArray(rawParcels)
-                ? rawParcels
-                : (rawParcels && typeof rawParcels === 'object'
-                    ? Object.values(rawParcels as Record<string, any>)
-                    : []);
-            parcels.forEach((parcel: any) => {
-                addNumber(parcel?.ИДОтправления);
-                addNumber(parcel?.НомерПеревозки);
-                addNumber(parcel?.CargoNumber);
-                addNumber(parcel?.NumberPerevozki);
-                const goodsRaw = parcel?.Товары;
-                const goods = Array.isArray(goodsRaw)
-                    ? (goodsRaw[0] ?? {})
-                    : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : null);
-                if (goods && typeof goods === 'object') {
-                    addNumber((goods as any)?.ИДОтправления);
-                    addNumber((goods as any)?.НомерПеревозки);
-                    addNumber((goods as any)?.CargoNumber);
-                    addNumber((goods as any)?.NumberPerevozki);
-                }
-            });
-            Array.from(new Set(numbers)).forEach((raw) => {
-                const key = normCargoKey(raw);
-                base.set(key, transport);
-                if (key !== raw) base.set(raw, transport);
-            });
-        });
-        return base;
-    }, [perevozkiItems, sendingsItems, normCargoKey]);
 
     const { isDocFavorite, toggleDocFavorite } = useDocFavorites();
 
@@ -614,8 +425,6 @@ export function useDocumentsPageState({
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
     }, [docSection, items, actsItems, dogovorsCatalog.dogovorsList, sverkiCatalog.sverkiList]);
 
-    const tableModeEffective = tableModeByCustomer;
-
     const sendingsPage = useDocumentsSendingsPage({
         active: docSection === "Отправки",
         auth,
@@ -656,16 +465,6 @@ export function useDocumentsPageState({
         selectedYearForFilter,
         selectedWeekForFilter,
     });
-
-    const handleTableSort = (column: 'customer' | 'sum' | 'count') => {
-        if (tableSortColumn === column) setTableSortOrder(o => o === 'asc' ? 'desc' : 'asc');
-        else { setTableSortColumn(column); setTableSortOrder('asc'); }
-    };
-
-    const handleInnerTableSort = (column: 'number' | 'date' | 'status' | 'sum' | 'paid' | 'balance' | 'deliveryStatus' | 'route') => {
-        if (innerTableSortColumn === column) setInnerTableSortOrder(o => o === 'asc' ? 'desc' : 'asc');
-        else { setInnerTableSortColumn(column); setInnerTableSortOrder(column === 'date' ? 'desc' : 'asc'); }
-    };
 
     const closeDocumentsToolbarDropdownsExceptSendings = useCallback(() => {
         setIsDateDropdownOpen(false);

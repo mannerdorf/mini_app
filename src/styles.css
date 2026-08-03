@@ -4248,67 +4248,6 @@ body {
     }
 }
 
-/* Главная: баланс по субконто GetCustomer */
-.customer-balance-monitor {
-    width: 100%;
-    min-width: 0;
-    padding: 0.65rem 0.75rem !important;
-    margin-top: 0.75rem;
-    margin-bottom: 0.75rem !important;
-    border-radius: 12px !important;
-    border: 1px solid rgba(148, 163, 184, 0.22) !important;
-    background: var(--color-bg-card) !important;
-    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05) !important;
-}
-
-.customer-balance-monitor--alert {
-    border-color: rgba(220, 38, 38, 0.25) !important;
-    background: linear-gradient(135deg, rgba(254, 242, 242, 0.6), var(--color-bg-card)) !important;
-}
-
-.customer-balance-monitor--ok {
-    border-color: rgba(16, 185, 129, 0.2) !important;
-}
-
-.customer-balance-monitor__head {
-    width: 100%;
-}
-
-.customer-balance-monitor__table-wrap {
-    margin-top: 0.55rem;
-    overflow-x: auto;
-}
-
-.customer-balance-monitor__table-wrap--scroll {
-    max-height: 220px;
-    overflow-y: auto;
-}
-
-.customer-balance-monitor__table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.85rem;
-}
-
-.customer-balance-monitor__table th,
-.customer-balance-monitor__table td {
-    padding: 0.35rem 0.25rem;
-    border-bottom: 1px solid var(--color-border);
-    vertical-align: top;
-}
-
-.customer-balance-monitor__table th {
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-}
-
-.customer-balance-monitor__row--active td {
-    background: rgba(59, 130, 246, 0.06);
-}
-
 /* Главная: компактный монитор здоровья ЭДО */
 .edo-health-monitor {
     display: flex;

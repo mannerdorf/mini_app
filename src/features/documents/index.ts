@@ -12,6 +12,9 @@ export { isDocumentsTransportFilterVisible } from "./documentsTransportFilterVis
 export { DOC_SECTIONS, DOC_SECTION_TO_PERMISSION } from "./documentsSectionConstants";
 export type { DocSectionKey } from "./documentsSectionConstants";
 export { DocumentsPageToolbar } from "./DocumentsPageToolbar";
+export { useDocumentsCargoContext } from "./hooks/useDocumentsCargoContext";
+export { useDocumentsPageNavigation } from "./hooks/useDocumentsPageNavigation";
+export { useDocumentsPageFilters } from "./hooks/useDocumentsPageFilters";
 export type {
   DocumentsPageToolbarProps,
   DocumentsPageToolbarDateFilterProps,

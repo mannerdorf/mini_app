@@ -11,7 +11,6 @@ import { sendMaxTestMessage } from "../api/client/dashboard";
 import { fetchMyPaymentCalendar } from "../api/client/scheduling";
 import { useDashboardFilters } from "../features/dashboard/hooks/useDashboardFilters";
 import { useDashboardMonitors } from "../features/dashboard/hooks/useDashboardMonitors";
-import { useDashboardCustomerBalances } from "../features/dashboard/hooks/useDashboardCustomerBalances";
 import { useDashboardCargoMetrics } from "../features/dashboard/hooks/useDashboardCargoMetrics";
 import { useDashboardSlaMetrics } from "../features/dashboard/hooks/useDashboardSlaMetrics";
 import { useDashboardLogisticsMetrics } from "../features/dashboard/hooks/useDashboardLogisticsMetrics";
@@ -33,9 +32,7 @@ export function useDashboardPageState({
     useServiceRequest = false,
     hasAnalytics = false,
     hasDashboard = true,
-    hasHaulz = false,
     saasDashboardMotion = false,
-    customers = [],
     onOpenCargo,
     onOpenInvoice,
     onOpenDocumentsEdo,
@@ -155,18 +152,6 @@ export function useDashboardPageState({
         activeInn,
         runtimeActiveInn,
         activeCustomerName,
-    });
-
-    const {
-        balances: customerBalances,
-        totalBalance: customerTotalBalance,
-        loading: customerBalancesLoading,
-        error: customerBalancesError,
-    } = useDashboardCustomerBalances({
-        auth,
-        customers,
-        showSums,
-        enabled: hasHaulz,
     });
 
     const { items: calendarInvoiceItems, mutate: mutateCalendarInvoices } = useInvoices({
@@ -317,7 +302,6 @@ export function useDashboardPageState({
         useServiceRequest,
         hasAnalytics,
         hasDashboard,
-        hasHaulz,
         saasDashboardMotion,
         onOpenCargo,
         onOpenInvoice,
@@ -327,10 +311,6 @@ export function useDashboardPageState({
         mutateCalendarInvoices,
         prevPeriodLoading,
         showCustomerColumn,
-        customerBalances,
-        customerTotalBalance,
-        customerBalancesLoading,
-        customerBalancesError,
         getLastStatusDateKey,
         ...monitors,
         ...cargoMetrics,

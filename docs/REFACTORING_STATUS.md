@@ -9,10 +9,10 @@
 | **0** Гигиена | ✅ Выполнено | `dist/` в `.gitignore`, убран из git index; `ENV.md`, `API_CORS_CHECKLIST.md`, CORS VPS |
 | **1** API client | 🟡 Частично | `api/client/documents*`, `admin/index`; Documents без raw `fetch`; Admin ~97 `fetch` |
 | **2** List workspace | ✅ Выполнено | `features/listWorkspace/`, 3 страницы |
-| **3** Документы | 🟡 В процессе | invoices, lib/pipeline, views; `DocumentsPage` ~8k строк |
+| **3** Документы | 🟡 В процессе | acts/invoices/edo вынесены; `useDocumentsPageState` **~655** строк (3 хука) |
 | **4** Admin | 🟡 Начато | 5 секций в `features/admin/sections/`; `AdminPage` ~11k |
 | **4b** Dashboard PR4 | ✅ Выполнено | `useDashboardPageState` **365** строк; 10 хуков в `features/dashboard/hooks/` |
-| **4c** Profile PR1 | 🟡 Начато | `features/profile/` — employees (~380 строк вынесено из ProfilePage) |
+| **4c** Profile PR1–PR4 | ✅ Выполнено | employees + timesheet + accounting + main; ProfilePage **~412** строк |
 | **5** App shell | ⏳ Не начато | KPI `App.tsx` < 1200; есть `AppRuntimeContext` |
 | **6** Shared lib | ⏳ Не начато | `lib/*.js` из `src/` остаётся |
 | **7** CSS | ⏳ Не начато | `styles.css` ~8k, монолит |
@@ -27,11 +27,12 @@
 |---------|--------------|--------|
 | `DocumentsPage.tsx` fetch | ~24+ | **0** |
 | `AdminPage.tsx` fetch | ~97 | ~97 |
-| `DocumentsPage.tsx` строк | ~8000 | ~8000 |
+| `DocumentsPage.tsx` строк | ~8000 | **342** |
+| `useDocumentsPageState.ts` строк | — | **~655** |
 | `AdminPage.tsx` строк | ~11000 | ~11000 |
 | `App.tsx` строк | ~2400 | ~2400 |
 | `useDashboardPageState.ts` строк | ~2186 | **365** |
-| `ProfilePage.tsx` строк | ~3205 | **~2828** |
+| `ProfilePage.tsx` строк | ~3205 | **~412** |
 | Unit-тесты | 0 | 5+ |
 
 ## Структура `features/`
@@ -43,8 +44,10 @@ src/features/
 │   ├── hooks/         # filters, cargo, strip, sla, logistics, invoice, analytics, …
 │   └── sections/      # Dashboard*Section (10 файлов)
 ├── profile/
-│   ├── hooks/         # useProfileEmployees, …
-│   └── sections/      # ProfileEmployeesSection, …
+│   ├── hooks/         # useProfileEmployees, useDepartmentTimesheet, useProfileAccounting, useProfileMain
+│   ├── sections/      # Profile*Section (5 файлов)
+│   ├── departmentTimesheetHelpers.ts
+│   └── profileAccountingHelpers.ts
 ├── documents/
 │   ├── invoices/      # модалка, QR, банки
 │   ├── lib/           # documentsPipeline + tests
@@ -55,9 +58,7 @@ src/features/
 
 ## Следующие срезы (без участия пользователя)
 
-1. **ProfilePage** (~3200 строк) — следующий god-компонент после дашборда
-2. **3.3** — `features/documents/acts/` (UI актов из DocumentsPage)
-2. **3.4** — `features/documents/sendings/`
+1. **DocumentsPage** — compositor: каталоги + toolbar props (~655 → <500)
 3. **4.x** — вынос вкладок Admin + `api/client/admin/*` (пакетами fetch)
 4. **5** — `AuthContext` / `AppShellContext`
 5. **7** — разбиение `styles.css` на `src/styles/*.css`
