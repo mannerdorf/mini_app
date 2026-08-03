@@ -63,16 +63,6 @@ export function useDashboardStripMetrics({
     });
     return { sum, pw, w, vol, mest };
 }, [dashboardTotalItems]);
-const {
-    lastMileTerminalLoad,
-    pickupLogisticsLoad,
-    pickupByLastMileLoad,
-    selectedCombinedLogisticsBucket,
-    combinedLogisticsCustomerRows,
-} = useDashboardLogisticsMetrics({
-    dashboardTotalItems,
-    selectedCombinedLogisticsKey,
-});
 
 const getValForChart = useCallback((item: CargoItem) => {
     if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
