@@ -17,9 +17,8 @@ import {
     STATUS_MAP,
 } from "../lib/statusUtils";
 import {
-    initDashboardFilterSets,
-    saveDashboardListFilters,
-    dashboardFromFilterSets,
+    initSharedFilterSets,
+    saveSharedVisibleListFilters,
     routeKeyToCargoLabel,
     type CargoStatusFilterKey,
     type RouteFilterKey,
@@ -27,7 +26,6 @@ import {
     type TypeFilterKey,
 } from "../lib/sharedListFilters";
 import { formatDateFilterButtonLabel, useListDateRange, usePersistedDateFilter } from "../features/listWorkspace";
-import { DASHBOARD_DATE_FILTER_STORAGE_KEY } from "../lib/dateUtils";
 import { normalizeStatus } from "../lib/statusUtils";
 import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "../lib/slaWorkSchedule";
 import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry, getSlaPlanDeadlineMs, cargoLastMileIsSelfPickup, cargoPickupLogisticsIsTerminalTo, CARGO_ROLE_FILTER_LABELS, type CargoRoleFilterKey } from "../lib/cargoUtils";
@@ -162,8 +160,8 @@ export function DashboardPage({
         setSelectedYearForFilter,
         selectedWeekForFilter,
         setSelectedWeekForFilter,
-    } = usePersistedDateFilter({ storageKey: DASHBOARD_DATE_FILTER_STORAGE_KEY });
-    const sharedFiltersInit = initDashboardFilterSets();
+    } = usePersistedDateFilter();
+    const sharedFiltersInit = initSharedFilterSets();
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
     const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
@@ -178,7 +176,7 @@ export function DashboardPage({
     const [routeFilterSet, setRouteFilterSet] = useState<Set<RouteFilterKey>>(() => sharedFiltersInit.routeFilterSet);
     const [roleFilter, setRoleFilter] = useState<CargoRoleFilterKey>(() => loadDashboardRoleFilter());
     useEffect(() => {
-        saveDashboardListFilters(dashboardFromFilterSets({ billStatusFilterSet, typeFilterSet, routeFilterSet }));
+        saveSharedVisibleListFilters({ billStatusFilterSet, typeFilterSet, routeFilterSet });
     }, [billStatusFilterSet, typeFilterSet, routeFilterSet]);
     useEffect(() => {
         if (!useServiceRequest) return;

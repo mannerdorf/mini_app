@@ -9,7 +9,6 @@ export type RouteFilterKey = "MSK-KGD" | "KGD-MSK";
 export type SharedBillStatusKey = Exclude<BillStatusFilterKey, "all">;
 
 export const SHARED_LIST_FILTERS_STORAGE_KEY = "haulz.sharedListFilters";
-export const DASHBOARD_LIST_FILTERS_STORAGE_KEY = "haulz.dashboard.listFilters";
 export const LEGACY_DASHBOARD_DATE_KEY = "haulz.dashboard.dateFilterState";
 
 export type SharedListFiltersState = {
@@ -18,11 +17,6 @@ export type SharedListFiltersState = {
   typeKeys: TypeFilterKey[];
   routeKeys: RouteFilterKey[];
 };
-
-export type DashboardListFiltersState = Pick<
-  SharedListFiltersState,
-  "billStatusKeys" | "typeKeys" | "routeKeys"
->;
 
 const EMPTY_SHARED: SharedListFiltersState = {
   cargoStatusKeys: [],
@@ -77,51 +71,19 @@ export function saveSharedListFilters(state: SharedListFiltersState) {
   }
 }
 
-function loadDashboardListFiltersRaw(): DashboardListFiltersState {
-  try {
-    const raw =
-      typeof localStorage !== "undefined"
-        ? localStorage.getItem(DASHBOARD_LIST_FILTERS_STORAGE_KEY)
-        : null;
-    if (!raw) return { billStatusKeys: [], typeKeys: [], routeKeys: [] };
-    const parsed = JSON.parse(raw) as Partial<DashboardListFiltersState>;
-    return {
-      billStatusKeys: Array.isArray(parsed.billStatusKeys)
-        ? parsed.billStatusKeys.filter(isBillStatusKey)
-        : [],
-      typeKeys: Array.isArray(parsed.typeKeys) ? parsed.typeKeys.filter(isTypeKey) : [],
-      routeKeys: Array.isArray(parsed.routeKeys) ? parsed.routeKeys.filter(isRouteKey) : [],
-    };
-  } catch {
-    return { billStatusKeys: [], typeKeys: [], routeKeys: [] };
-  }
-}
-
-export function loadDashboardListFilters(): DashboardListFiltersState {
-  const dashboard = loadDashboardListFiltersRaw();
-  if (
-    dashboard.billStatusKeys.length > 0 ||
-    dashboard.typeKeys.length > 0 ||
-    dashboard.routeKeys.length > 0
-  ) {
-    return dashboard;
-  }
-  // Однократная миграция: если у дашборда ещё нет своих фильтров, берём только видимые на главной.
-  const shared = loadSharedListFilters();
-  return {
-    billStatusKeys: shared.billStatusKeys,
-    typeKeys: shared.typeKeys,
-    routeKeys: shared.routeKeys,
-  };
-}
-
-export function saveDashboardListFilters(state: DashboardListFiltersState) {
-  try {
-    typeof localStorage !== "undefined" &&
-      localStorage.setItem(DASHBOARD_LIST_FILTERS_STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    /* ignore */
-  }
+/** Сквозные фильтры главной/грузов/документов: дата отдельно, здесь — счёт, тип, маршрут без сброса статуса перевозки. */
+export function saveSharedVisibleListFilters(params: {
+  billStatusFilterSet: Set<SharedBillStatusKey>;
+  typeFilterSet: Set<TypeFilterKey>;
+  routeFilterSet: Set<RouteFilterKey>;
+}) {
+  const existing = loadSharedListFilters();
+  saveSharedListFilters({
+    ...existing,
+    billStatusKeys: setToKeys(params.billStatusFilterSet),
+    typeKeys: setToKeys(params.typeFilterSet),
+    routeKeys: setToKeys(params.routeFilterSet),
+  });
 }
 
 export function loadSharedDateFilterState(): DateFilterState {
@@ -195,31 +157,6 @@ export function initSharedFilterSets(): {
     billStatusFilterSet: keysToSet(shared.billStatusKeys),
     typeFilterSet: keysToSet(shared.typeKeys),
     routeFilterSet: keysToSet(shared.routeKeys),
-  };
-}
-
-export function initDashboardFilterSets(): {
-  billStatusFilterSet: Set<SharedBillStatusKey>;
-  typeFilterSet: Set<TypeFilterKey>;
-  routeFilterSet: Set<RouteFilterKey>;
-} {
-  const dashboard = loadDashboardListFilters();
-  return {
-    billStatusFilterSet: keysToSet(dashboard.billStatusKeys),
-    typeFilterSet: keysToSet(dashboard.typeKeys),
-    routeFilterSet: keysToSet(dashboard.routeKeys),
-  };
-}
-
-export function dashboardFromFilterSets(params: {
-  billStatusFilterSet: Set<SharedBillStatusKey>;
-  typeFilterSet: Set<TypeFilterKey>;
-  routeFilterSet: Set<RouteFilterKey>;
-}): DashboardListFiltersState {
-  return {
-    billStatusKeys: setToKeys(params.billStatusFilterSet),
-    typeKeys: setToKeys(params.typeFilterSet),
-    routeKeys: setToKeys(params.routeFilterSet),
   };
 }
 

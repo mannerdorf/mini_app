@@ -29,7 +29,6 @@ export const getSixMonthsAgoDate = () => {
 export const DEFAULT_DATE_FROM = getSixMonthsAgoDate();
 export const DEFAULT_DATE_TO = getTodayDate();
 export const DATE_FILTER_STORAGE_KEY = 'haulz.dateFilterState';
-export const DASHBOARD_DATE_FILTER_STORAGE_KEY = 'haulz.dashboard.dateFilterState';
 
 export type DateFilterState = {
     dateFilter: DateFilter;
@@ -111,7 +110,7 @@ export const loadDateFilterState = (storageKey: string = DATE_FILTER_STORAGE_KEY
         const s = typeof localStorage !== 'undefined' && localStorage.getItem(storageKey);
         if (s) return normalizeDateFilterState(JSON.parse(s) as Partial<DateFilterState>);
         if (storageKey === DATE_FILTER_STORAGE_KEY) {
-            const legacy = typeof localStorage !== 'undefined' && localStorage.getItem(DASHBOARD_DATE_FILTER_STORAGE_KEY);
+            const legacy = typeof localStorage !== 'undefined' && localStorage.getItem('haulz.dashboard.dateFilterState');
             if (legacy) {
                 const parsed = JSON.parse(legacy) as Partial<DateFilterState>;
                 const normalized = normalizeDateFilterState(parsed);
@@ -119,12 +118,6 @@ export const loadDateFilterState = (storageKey: string = DATE_FILTER_STORAGE_KEY
                     saveDateFilterState(normalized);
                 }
                 return normalized;
-            }
-        }
-        if (storageKey === DASHBOARD_DATE_FILTER_STORAGE_KEY) {
-            const shared = typeof localStorage !== 'undefined' && localStorage.getItem(DATE_FILTER_STORAGE_KEY);
-            if (shared) {
-                return normalizeDateFilterState(JSON.parse(shared) as Partial<DateFilterState>);
             }
         }
     } catch {}
