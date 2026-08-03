@@ -132,3 +132,5 @@ export function useDocumentsPageFilters(effectiveServiceMode: boolean) {
         handleInnerTableSort,
     };
 }
+
+export type DocumentsPageFiltersState = ReturnType<typeof useDocumentsPageFilters>;

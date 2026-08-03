@@ -182,3 +182,5 @@ export function useDocumentsCargoContext({
         cargoTransportByNumber,
     };
 }
+
+export type DocumentsCargoContextState = ReturnType<typeof useDocumentsCargoContext>;

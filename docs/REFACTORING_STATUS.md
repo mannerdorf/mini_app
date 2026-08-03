@@ -9,8 +9,8 @@
 | **0** Гигиена | ✅ Выполнено | `dist/` в `.gitignore`, убран из git index; `ENV.md`, `API_CORS_CHECKLIST.md`, CORS VPS |
 | **1** API client | 🟡 Частично | `api/client/documents*`, `admin/index`; Documents без raw `fetch`; Admin ~97 `fetch` |
 | **2** List workspace | ✅ Выполнено | `features/listWorkspace/`, 3 страницы |
-| **3** Документы | 🟡 В процессе | acts/invoices/edo вынесены; `useDocumentsPageState` **~655** строк (3 хука) |
-| **4** Admin | 🟡 Начато | 5 секций в `features/admin/sections/`; `AdminPage` ~11k |
+| **3** Документы | 🟡 В процессе | acts/invoices/edo вынесены; `useDocumentsPageState` **~467** строк (6 хуков) |
+| **4** Admin | 🟡 В процессе | Users **888**; Timesheet PR1 **999**; Claims PR1–PR2 tab **285** + hook **475** + panel **551** |
 | **4b** Dashboard PR4 | ✅ Выполнено | `useDashboardPageState` **365** строк; 10 хуков в `features/dashboard/hooks/` |
 | **4c** Profile PR1–PR4 | ✅ Выполнено | employees + timesheet + accounting + main; ProfilePage **~412** строк |
 | **5** App shell | ⏳ Не начато | KPI `App.tsx` < 1200; есть `AppRuntimeContext` |
@@ -28,7 +28,7 @@
 | `DocumentsPage.tsx` fetch | ~24+ | **0** |
 | `AdminPage.tsx` fetch | ~97 | ~97 |
 | `DocumentsPage.tsx` строк | ~8000 | **342** |
-| `useDocumentsPageState.ts` строк | — | **~655** |
+| `useDocumentsPageState.ts` строк | — | **~467** |
 | `AdminPage.tsx` строк | ~11000 | ~11000 |
 | `App.tsx` строк | ~2400 | ~2400 |
 | `useDashboardPageState.ts` строк | ~2186 | **365** |
@@ -49,6 +49,7 @@ src/features/
 │   ├── departmentTimesheetHelpers.ts
 │   └── profileAccountingHelpers.ts
 ├── documents/
+│   ├── hooks/         # cargo, navigation, filters, catalogs, toolbar dropdowns
 │   ├── invoices/      # модалка, QR, банки
 │   ├── lib/           # documentsPipeline + tests
 │   └── views/         # documentsViewBlocks
@@ -58,7 +59,7 @@ src/features/
 
 ## Следующие срезы (без участия пользователя)
 
-1. **DocumentsPage** — compositor: каталоги + toolbar props (~655 → <500)
+1. **DocumentsPage** — compositor KPI ✅ (~467 строк); дальше: `useDocumentsToolbarProps` или sendings wiring
 3. **4.x** — вынос вкладок Admin + `api/client/admin/*` (пакетами fetch)
 4. **5** — `AuthContext` / `AppShellContext`
 5. **7** — разбиение `styles.css` на `src/styles/*.css`

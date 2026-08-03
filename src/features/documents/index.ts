@@ -15,6 +15,9 @@ export { DocumentsPageToolbar } from "./DocumentsPageToolbar";
 export { useDocumentsCargoContext } from "./hooks/useDocumentsCargoContext";
 export { useDocumentsPageNavigation } from "./hooks/useDocumentsPageNavigation";
 export { useDocumentsPageFilters } from "./hooks/useDocumentsPageFilters";
+export { useDocumentsCatalogs } from "./hooks/useDocumentsCatalogs";
+export { useDocumentsToolbarDropdowns } from "./hooks/useDocumentsToolbarDropdowns";
+export { useDocumentsUniqueFilterOptions } from "./hooks/useDocumentsUniqueFilterOptions";
 export type {
   DocumentsPageToolbarProps,
   DocumentsPageToolbarDateFilterProps,
