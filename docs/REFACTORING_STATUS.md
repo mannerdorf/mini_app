@@ -31,6 +31,7 @@
 | `AdminPage.tsx` строк | ~11000 | ~11000 |
 | `App.tsx` строк | ~2400 | ~2400 |
 | `useDashboardPageState.ts` строк | ~2186 | **365** |
+| `ProfilePage.tsx` строк | ~3205 | **~2828** |
 | Unit-тесты | 0 | 5+ |
 
 ## Структура `features/`
@@ -41,6 +42,9 @@ src/features/
 ├── dashboard/
 │   ├── hooks/         # filters, cargo, strip, sla, logistics, invoice, analytics, …
 │   └── sections/      # Dashboard*Section (10 файлов)
+├── profile/
+│   ├── hooks/         # useProfileEmployees, …
+│   └── sections/      # ProfileEmployeesSection, …
 ├── documents/
 │   ├── invoices/      # модалка, QR, банки
 │   ├── lib/           # documentsPipeline + tests
