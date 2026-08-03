@@ -58,6 +58,8 @@ import {
     DashboardMotionItem,
     DashboardChartBarH,
     DashboardChartBarPixelHeight,
+    CHART_BAR_FILL_DURATION,
+    CHART_BAR_FILL_EASE,
     calcStripDynamics,
     StripDynamicsBadge,
     DashboardMainChart,
