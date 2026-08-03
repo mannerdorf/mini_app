@@ -8,6 +8,7 @@ import { RouteBadge, CargoTransportTypeIcon, getCargoItemRouteLabel } from "../.
 import { DateText } from "../../../components/ui/DateText";
 import {
     DashboardChartBarH,
+    DashboardChartBarPixelHeight,
     CHART_BAR_FILL_DURATION,
     CHART_BAR_FILL_EASE,
 } from "../index";

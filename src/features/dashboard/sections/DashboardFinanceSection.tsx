@@ -3,7 +3,9 @@ import { Loader2, RefreshCw, ArrowDown, ArrowUp, TrendingUp, TrendingDown } from
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { formatCurrency, stripOoo, normalizeInvoiceStatus } from "../../../lib/formatUtils";
 import { ClickableCargoNumber } from "../../../components/ui/EntityLinks";
+import { RouteBadge } from "../../../components/shared/CargoTableDisplay";
 import { DateText } from "../../../components/ui/DateText";
+import { DashboardChartBarH } from "../index";
 import type { DashboardPageState } from "../../../pages/useDashboardPageState";
 
 type Props = { page: DashboardPageState };

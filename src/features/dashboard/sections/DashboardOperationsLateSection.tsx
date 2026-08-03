@@ -19,6 +19,7 @@ import {
     CHART_BAR_FILL_DURATION,
     CHART_BAR_FILL_EASE,
 } from "../index";
+import type { CargoItem } from "../../../types";
 import type { DashboardPageState } from "../../../pages/useDashboardPageState";
 
 const { formatDate } = dateUtils;

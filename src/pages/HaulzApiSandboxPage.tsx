@@ -1,17 +1,20 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import type { Account } from "../types";
 import { ProfileApiTryConsole } from "../components/profile/ProfileApiTryConsole";
-import { HAULZ_INVOICES_SANDBOX_API } from "../constants/haulzSandboxApi";
+import { HAULZ_SANDBOX_APIS, getHaulzSandboxApi } from "../constants/haulzSandboxApi";
 
 type Props = {
     activeAccount: Account | null;
     onBack: () => void;
 };
 
-/** Профиль → HAULZ → Песочница: тест POST /api/invoices (GetIinvoices). */
+/** Профиль → HAULZ → Песочница: тест внутренних прокси 1С. */
 export function HaulzApiSandboxPage({ activeAccount, onBack }: Props) {
+    const [selectedPath, setSelectedPath] = useState(HAULZ_SANDBOX_APIS[0].path);
+    const selectedApi = useMemo(() => getHaulzSandboxApi(selectedPath), [selectedPath]);
+
     const tryAuth = useMemo(
         () =>
             activeAccount?.login && activeAccount.password
@@ -45,14 +48,33 @@ export function HaulzApiSandboxPage({ activeAccount, onBack }: Props) {
                 <Typography.Headline className="text-page-title">Песочница</Typography.Headline>
             </Flex>
 
-            <Typography.Body style={{ fontSize: "0.88rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
-                Тестовый запрос к прокси <code>POST /api/invoices</code> (1С{" "}
-                <code>DeliveryWebService/GetIinvoices</code>). Логин, пароль и ИНН подставляются из текущей сессии.
-                Измените период и флаги во вкладке Body, нажмите Send — ответ появится ниже.
+            <Typography.Body style={{ fontSize: "0.88rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+                Тестовые запросы к прокси 1С. Логин и пароль подставляются из текущей сессии. Выберите метод, при необходимости
+                измените тело во вкладке Body и нажмите Send.
             </Typography.Body>
 
+            <label style={{ display: "flex", flexDirection: "column", gap: "0.35rem", marginBottom: "0.75rem" }}>
+                <Typography.Body style={{ fontSize: "0.82rem", fontWeight: 600 }}>Метод</Typography.Body>
+                <select
+                    className="admin-form-input"
+                    value={selectedPath}
+                    onChange={(e) => setSelectedPath(e.target.value)}
+                >
+                    {HAULZ_SANDBOX_APIS.map((api) => (
+                        <option key={api.path} value={api.path}>
+                            {api.navLabel} — {api.path}
+                        </option>
+                    ))}
+                </select>
+            </label>
+
             <Panel className="cargo-card haulz-summary-sandbox" style={{ padding: "var(--pad-card, 1rem)" }}>
-                <ProfileApiTryConsole item={HAULZ_INVOICES_SANDBOX_API} tryAuth={tryAuth} autoTestPrefill />
+                <ProfileApiTryConsole
+                    key={selectedPath}
+                    item={selectedApi}
+                    tryAuth={tryAuth}
+                    autoTestPrefill
+                />
             </Panel>
         </div>
     );
