@@ -11,6 +11,7 @@
 | **2** List workspace | ✅ Выполнено | `features/listWorkspace/`, 3 страницы |
 | **3** Документы | 🟡 В процессе | invoices, lib/pipeline, views; `DocumentsPage` ~8k строк |
 | **4** Admin | 🟡 Начато | 5 секций в `features/admin/sections/`; `AdminPage` ~11k |
+| **4b** Dashboard PR4 | ✅ Выполнено | `useDashboardPageState` **365** строк; 10 хуков в `features/dashboard/hooks/` |
 | **5** App shell | ⏳ Не начато | KPI `App.tsx` < 1200; есть `AppRuntimeContext` |
 | **6** Shared lib | ⏳ Не начато | `lib/*.js` из `src/` остаётся |
 | **7** CSS | ⏳ Не начато | `styles.css` ~8k, монолит |
@@ -28,6 +29,7 @@
 | `DocumentsPage.tsx` строк | ~8000 | ~8000 |
 | `AdminPage.tsx` строк | ~11000 | ~11000 |
 | `App.tsx` строк | ~2400 | ~2400 |
+| `useDashboardPageState.ts` строк | ~2186 | **365** |
 | Unit-тесты | 0 | 5+ |
 
 ## Структура `features/`
@@ -35,6 +37,9 @@
 ```
 src/features/
 ├── listWorkspace/     # даты, подписи фильтра
+├── dashboard/
+│   ├── hooks/         # filters, cargo, strip, sla, logistics, invoice, analytics, …
+│   └── sections/      # Dashboard*Section (10 файлов)
 ├── documents/
 │   ├── invoices/      # модалка, QR, банки
 │   ├── lib/           # documentsPipeline + tests
@@ -45,7 +50,8 @@ src/features/
 
 ## Следующие срезы (без участия пользователя)
 
-1. **3.3** — `features/documents/acts/` (UI актов из DocumentsPage)
+1. **ProfilePage** (~3200 строк) — следующий god-компонент после дашборда
+2. **3.3** — `features/documents/acts/` (UI актов из DocumentsPage)
 2. **3.4** — `features/documents/sendings/`
 3. **4.x** — вынос вкладок Admin + `api/client/admin/*` (пакетами fetch)
 4. **5** — `AuthContext` / `AppShellContext`

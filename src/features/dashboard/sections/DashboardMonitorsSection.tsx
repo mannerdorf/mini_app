@@ -9,7 +9,7 @@ type Props = { page: DashboardPageState };
 export function DashboardMonitorsSection({ page }: Props) {
     return (
         <>
-            {!page.showOnlySla && page.showSums && (
+            {!page.showOnlySla && page.showSums && page.hasHaulz && (
                 <CustomerBalanceMonitor
                     balances={page.customerBalances}
                     totalBalance={page.customerTotalBalance}

@@ -196,6 +196,7 @@ export function AppMainContent({
             useServiceRequest={useServiceRequest}
             hasAnalytics={true}
             hasDashboard={true}
+            hasHaulz={!!(activeAccount?.isSuperAdmin || activeAccount?.permissions?.haulz === true)}
             saasDashboardMotion={profileSaasShellActive}
             onOpenCargo={openCargoInPlace}
             onOpenInvoice={openInvoiceInPlace}
@@ -330,6 +331,7 @@ export function AppMainContent({
             useServiceRequest={useServiceRequest}
             hasAnalytics={activeAccount?.permissions?.analytics === true}
             hasDashboard={true}
+            hasHaulz={!!(activeAccount?.isSuperAdmin || activeAccount?.permissions?.haulz === true)}
             saasDashboardMotion={profileSaasShellActive}
             onOpenCargo={openCargoInPlace}
             onOpenInvoice={openInvoiceInPlace}

@@ -28,6 +28,14 @@ export { DashboardDialogsSection } from "./sections/DashboardDialogsSection";
 export type { DashboardPageState } from "../../pages/useDashboardPageState";
 export { useDashboardFilters, type DashboardFiltersState } from "./hooks/useDashboardFilters";
 export { useDashboardMonitors, type DashboardMonitorsState } from "./hooks/useDashboardMonitors";
+export { useDashboardCargoMetrics, type DashboardCargoMetricsState } from "./hooks/useDashboardCargoMetrics";
+export { useDashboardSlaMetrics, type DashboardSlaMetricsState } from "./hooks/useDashboardSlaMetrics";
+export { useDashboardLogisticsMetrics, type DashboardLogisticsMetricsState } from "./hooks/useDashboardLogisticsMetrics";
+export { useDashboardStripMetrics, type DashboardStripMetricsState } from "./hooks/useDashboardStripMetrics";
+export { useDashboardInvoiceData, type DashboardInvoiceDataState, type AgingInvoice } from "./hooks/useDashboardInvoiceData";
+export { useDashboardAnalytics, type DashboardAnalyticsState } from "./hooks/useDashboardAnalytics";
+export { useDashboardMaChartLayout } from "./hooks/useDashboardMaChartLayout";
+export { useDashboardCustomerBalances } from "./hooks/useDashboardCustomerBalances";
 export type { DashboardPageProps } from "./hooks/dashboardPageTypes";
 export {
     parseDashboardDateOnly,

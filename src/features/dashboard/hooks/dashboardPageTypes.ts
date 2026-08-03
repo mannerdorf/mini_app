@@ -8,6 +8,8 @@ export type DashboardPageProps = {
     useServiceRequest?: boolean;
     hasAnalytics?: boolean;
     hasDashboard?: boolean;
+    /** Доступ к разделу HAULZ в профиле — виджет «Баланс по субконто». */
+    hasHaulz?: boolean;
     /** Компании аккаунта — для баланса по субконто на главной. */
     customers?: CustomerOption[];
     /** Stagger + spring по блокам (только при глобальном SaaS-стиле). */
