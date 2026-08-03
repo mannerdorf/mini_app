@@ -18,14 +18,13 @@ import {
 } from "./sendingsMetrics";
 import { normCargoKey } from "../lib/documentsPipeline";
 import { pickNomenclatureText } from "../../../lib/sanctions";
+import type { SanctionCheckResult } from "../../../lib/sanctions";
 import {
   getRequestParcels,
   getParcelTnvedCode,
-  getParcelSanctionResult,
   getParcelSearchText,
 } from "./sendingsParcelHelpers";
 import { getSendingRowTransportMode } from "./sendingsTransportHelpers";
-import { SendingsSanctionBadge } from "./SendingsSanctionBadge";
 import {
   getSendingRowKey,
   getSendingsAnalyticsExtraColCount,
@@ -142,7 +141,6 @@ export function SendingsSection({
   expandedSendingRow,
   setExpandedSendingRow,
   cargoSumByNumber,
-  sendingSanctionMap,
   eorStatusMap,
   ferriesList,
   sendingsFerryMap,
@@ -266,9 +264,6 @@ export function SendingsSection({
                                 {hasAnalytics && showSums && (
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, lineHeight: 1.15, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('declaredCost')} title="Объявленная стоимость товара">Объявл.<br />стоимость {sendingsSortColumn === 'declaredCost' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 )}
-                                {hasAnalytics && (
-                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Санкции</th>
-                                )}
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('comment')} title="Сортировка">Комментарий {sendingsSortColumn === 'comment' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                             </tr>
                         </thead>
@@ -296,7 +291,6 @@ export function SendingsSection({
                                 const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
                                 const expanded = expandedSendingRow === rowKey;
                                 const sendingParcelMetrics = getSendingRowParcelMetrics(row, cargoSumByNumber);
-                                const rowSanctionResult = sendingSanctionMap[rowKey];
                                 return (
                                     <React.Fragment key={rowKey}>
                                         <tr
@@ -368,11 +362,6 @@ export function SendingsSection({
                                                     {formatCurrency(sendingParcelMetrics.declaredCost, true)}
                                                 </td>
                                             )}
-                                            {hasAnalytics && (
-                                                <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>
-                                                    <SendingsSanctionBadge result={rowSanctionResult} />
-                                                </td>
-                                            )}
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>
                                         </tr>
                                         {expanded && (
@@ -436,7 +425,6 @@ export function SendingsSection({
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Платный вес</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Номенклатура</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>ТН ВЭД</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Санкции</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Кол-во</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }} title="Сумма за перевозку">Стоимость</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Объявл. стоимость</th>
@@ -447,7 +435,6 @@ export function SendingsSection({
                                                                         const goodsRaw = parcel?.Товары;
                                                                         const goods = Array.isArray(goodsRaw) ? goodsRaw[0] : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : {});
                                                                         const parcelNomenclature = pickNomenclatureText(parcel) || String(goods?.ТМЦ ?? '');
-                                                                        const parcelSanctionResult = getParcelSanctionResult(parcel);
                                                                         return (
                                                                             <tr
                                                                                 key={`${rowKey}-parcel-${parcel?.Посылка ?? parcelIdx}`}
@@ -473,7 +460,6 @@ export function SendingsSection({
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const w = parseSendingMetricNumber(parcel?.ПлатныйВес); return w > 0 ? formatSendingMetricNum(w) : '—'; })()}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem' }}>{parcelNomenclature || '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{getParcelTnvedCode(parcel) || '—'}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}><SendingsSanctionBadge result={rowSanctionResult ? parcelSanctionResult : null} /></td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const sum = getParcelFreightSum(parcel, cargoSumByNumber); return sum > 0 ? formatCurrency(sum, true) : '—'; })()}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{(() => { const sum = getParcelDeclaredCost(parcel); return sum > 0 ? formatCurrency(sum, true) : '—'; })()}</td>
@@ -1135,7 +1121,6 @@ export function SendingsSection({
                             const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
                             const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
                             const expanded = expandedSendingRow === rowKey;
-                            const rowSanctionResult = sendingSanctionMap[rowKey];
                             return (
                                 <Panel
                                     key={rowKey}
@@ -1196,11 +1181,6 @@ export function SendingsSection({
                                             План: {plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : 'нет'}
                                         </Typography.Label>
                                     </Flex>
-                                    {hasAnalytics && (
-                                        <div style={{ marginBottom: '0.35rem' }}>
-                                            <SendingsSanctionBadge result={rowSanctionResult} />
-                                        </div>
-                                    )}
                                     <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={vehicle || '—'}>
                                         ТС: {vehicle || '—'}
                                     </Typography.Label>
@@ -1227,7 +1207,6 @@ export function SendingsSection({
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Номенклатура</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>ТН ВЭД</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Санкции</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Кол-во</th>
                                                             </tr>
                                                         </thead>
@@ -1236,7 +1215,6 @@ export function SendingsSection({
                                                                 const goodsRaw = parcel?.Товары;
                                                                 const goods = Array.isArray(goodsRaw) ? goodsRaw[0] : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : {});
                                                                 const parcelNomenclature = pickNomenclatureText(parcel) || String(goods?.ТМЦ ?? '');
-                                                                const parcelSanctionResult = getParcelSanctionResult(parcel);
                                                                 return (
                                                                     <tr
                                                                         key={`${rowKey}-card-parcel-${parcel?.Посылка ?? parcelIdx}`}
@@ -1257,7 +1235,6 @@ export function SendingsSection({
                                                                         })} /></td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{parcelNomenclature || '—'}</td>
                                                                         <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{getParcelTnvedCode(parcel) || '—'}</td>
-                                                                        <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}><SendingsSanctionBadge result={rowSanctionResult ? parcelSanctionResult : null} /></td>
                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
                                                                     </tr>
                                                                 );
