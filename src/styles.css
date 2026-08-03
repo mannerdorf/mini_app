@@ -2017,6 +2017,14 @@ body {
     display: none !important;
 }
 
+/* На телефоне без служебного режима «Заказчик» скрыт (даже при нескольких компаниях). */
+@media (max-width: 768px) {
+    .app-container:not(.app-service-mode) .cargo-customer-table__col-customer,
+    .app-container:not(.app-service-mode) .customer-col {
+        display: none !important;
+    }
+}
+
 .haulz-dispatch-stat-tile__metrics {
     min-height: 2.45rem;
     align-content: flex-start;

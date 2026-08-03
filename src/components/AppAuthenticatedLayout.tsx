@@ -75,7 +75,7 @@ export function AppAuthenticatedLayout({
 
   return (
     <Container
-      className={`app-container${profileSaasShellActive ? " profile-saas-shell" : ""}${showCustomerColumn ? "" : " app-hide-customer-column"}`}
+      className={`app-container${profileSaasShellActive ? " profile-saas-shell" : ""}${useServiceRequest ? " app-service-mode" : ""}${showCustomerColumn ? "" : " app-hide-customer-column"}`}
     >
       <AppHeader
         searchText={searchText}

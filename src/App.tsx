@@ -16,6 +16,7 @@ import { isRedReturnsOnlyAccount, RED_RETURNS_LABEL, syncRedReturnsUrl } from ".
 import { HaulzReturnsPage } from "./pages/HaulzReturnsPage";
 import { useLegalCompliance } from "./hooks/useLegalCompliance";
 import { useShowCustomerColumn } from "./hooks/useShowCustomerColumn";
+import { useMobileLayout } from "./hooks/useMobileLayout";
 import { useRegisteredAccountSync } from "./hooks/useRegisteredAccountSync";
 import { useSecretDashboard } from "./hooks/useSecretDashboard";
 import { useTelegramWebAppInit } from "./hooks/useTelegramWebAppInit";
@@ -41,7 +42,10 @@ function AppRoot() {
 
     const legalCompliance = useLegalCompliance(activeAccount);
 
-    const showCustomerColumn = useShowCustomerColumn(activeAccount, useServiceRequest);
+    const showCustomerColumnBase = useShowCustomerColumn(activeAccount, useServiceRequest);
+    const isMobileLayout = useMobileLayout();
+    /** На телефоне столбец «Заказчик» только в служебном режиме; на десктопе — как раньше (несколько компаний). */
+    const showCustomerColumn = showCustomerColumnBase && (!isMobileLayout || useServiceRequest);
 
     /** Оболочка HAULZ Analytics (CSS-токены, motion на главных экранах) — для всех пользователей. */
     const profileSaasShellActive = true;

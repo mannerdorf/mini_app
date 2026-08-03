@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { Account } from "../types";
 import { dedupeCompaniesByName, dedupeCustomersByInn } from "../utils";
 
-/** Нужен ли столбец «Заказчик» в таблицах (больше одной компании у логина или служебный режим). */
+/** Нужен ли столбец «Заказчик» в таблицах (больше одной компании у логина или служебный режим). На мобильном без служебного режима скрывается в App.tsx. */
 export function showCustomerColumnSync(
   account: Account | null | undefined,
   useServiceRequest: boolean,
