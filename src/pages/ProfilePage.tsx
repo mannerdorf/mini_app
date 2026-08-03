@@ -36,13 +36,6 @@ import { ProfileApiKeysSection } from "../components/profile/ProfileApiKeysSecti
 import { cargoListContainerVariants, cargoListItemVariants, cargoSummaryMotion } from "./cargoMotion";
 import { fetchLegalStatus, type LegalStatusResponse } from "../api/client/legal";
 import {
-    deleteMyEmployee,
-    fetchRolePresets,
-    inviteMyEmployee,
-    listMyEmployees,
-    patchMyEmployee,
-} from "../api/client/profile/employees";
-import {
     deleteAccountingSverkiRequest,
     deleteMyDepartmentTimesheet,
     fetchAccountingExpenseRequests,
@@ -62,6 +55,7 @@ import {
   readStoredProfileView,
 } from "../lib/profileViewPersist";
 import { useAppShell } from "../contexts/AppShellContext";
+import { useProfileEmployees, ProfileEmployeesSection } from "../features/profile";
 
 export function ProfilePage({
     accounts,
@@ -101,6 +95,11 @@ export function ProfilePage({
     /** Активна оболочка «мягкая панель» (суперадмин или право haulz). */
     profileSaasShellActive?: boolean;
 }) {
+    const profileEmployees = useProfileEmployees({
+        activeAccount,
+        fetchEnabled: currentView === "employees" || currentView === "haulz",
+    });
+
     const { profileRootRequest } = useAppShell();
     const [currentView, setCurrentView] = useState<ProfileView>(() => readStoredProfileView());
     const [haulzCalcRestoreDraftId, setHaulzCalcRestoreDraftId] = useState<number | null>(() =>
@@ -136,19 +135,6 @@ export function ProfilePage({
         setHaulzCalcRestoreDraftId(null);
         setCurrentView("main");
     }, [profileRootRequest]);
-    const [employeesList, setEmployeesList] = useState<{ id: number; login: string; active: boolean; createdAt: string; presetLabel: string; fullName?: string; department?: string; employeeRole?: "employee" | "department_head" }[]>([]);
-    const [employeesLoading, setEmployeesLoading] = useState(false);
-    const [employeesError, setEmployeesError] = useState<string | null>(null);
-    const [rolePresets, setRolePresets] = useState<{ id: string; label: string }[]>([]);
-    const [inviteEmail, setInviteEmail] = useState('');
-    const [inviteFullName, setInviteFullName] = useState('');
-    const [invitePresetId, setInvitePresetId] = useState('');
-    const [inviteLoading, setInviteLoading] = useState(false);
-    const [inviteError, setInviteError] = useState<string | null>(null);
-    const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
-    const [employeeDeleteId, setEmployeeDeleteId] = useState<number | null>(null);
-    const [employeeDeleteLoading, setEmployeeDeleteLoading] = useState(false);
-    const [employeePresetLoadingId, setEmployeePresetLoadingId] = useState<number | null>(null);
     const [departmentTimesheetDepartment, setDepartmentTimesheetDepartment] = useState("");
     const [departmentTimesheetAllDepartments, setDepartmentTimesheetAllDepartments] = useState(false);
     const [departmentTimesheetDepartmentFilter, setDepartmentTimesheetDepartmentFilter] = useState<string>("all");
@@ -364,26 +350,6 @@ export function ProfilePage({
         if (value === "ip") return "ИП";
         return "Штатный сотрудник";
     };
-
-    const fetchEmployeesAndPresets = useCallback(async () => {
-        if (!activeAccount?.login) return;
-        setEmployeesLoading(true);
-        setEmployeesError(null);
-        try {
-            const presets = await fetchRolePresets();
-            setRolePresets(presets);
-            if (!activeAccount?.password) {
-                setEmployeesList([]);
-                return;
-            }
-            const { employees } = await listMyEmployees({ login: activeAccount.login, password: activeAccount.password });
-            setEmployeesList(employees as any);
-        } catch (e) {
-            setEmployeesError((e as Error)?.message || 'Ошибка загрузки');
-        } finally {
-            setEmployeesLoading(false);
-        }
-    }, [activeAccount?.login, activeAccount?.password]);
 
     const departmentTimesheetDays = useMemo(() => {
         if (!/^\d{4}-\d{2}$/.test(departmentTimesheetMonth)) return [];
@@ -939,10 +905,6 @@ export function ProfilePage({
         departmentTimesheetEmployeeCooperationType,
         fetchDepartmentTimesheet,
     ]);
-
-    useEffect(() => {
-        if ((currentView === 'employees' || currentView === 'haulz') && activeAccount?.login) void fetchEmployeesAndPresets();
-    }, [currentView, activeAccount?.login, fetchEmployeesAndPresets]);
 
     useEffect(() => {
         if (currentView === 'departmentTimesheet' && activeAccount?.login) void fetchDepartmentTimesheet();
@@ -2600,354 +2562,14 @@ export function ProfilePage({
 
     if (currentView === 'employees') {
         return (
-            <div className="w-full">
-                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
-                    <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
-                        <ArrowLeft className="w-4 h-4" />
-                    </Button>
-                    <Typography.Headline className="text-page-title">Справочник сотрудников</Typography.Headline>
-                </Flex>
-                <Typography.Body style={{ marginBottom: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
-                    Регистрируйте сотрудников компании: укажите ФИО и пресет роли. Пароль для входа отправляется на email.
-                </Typography.Body>
-                {!activeAccount?.isRegisteredUser ? (
-                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
-                        <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Доступно только зарегистрированным пользователям (вход по email и паролю).</Typography.Body>
-                    </Panel>
-                ) : !activeAccount?.login || !activeAccount?.password ? (
-                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
-                        <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Нужны логин и пароль текущего аккаунта для управления сотрудниками.</Typography.Body>
-                    </Panel>
-                ) : activeAccount.permissions?.supervisor !== true ? (
-                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
-                        <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Раздел «Сотрудники» доступен только при включённом праве «Руководитель» в админке.</Typography.Body>
-                    </Panel>
-                ) : activeAccount.inCustomerDirectory === false ? (
-                    <>
-                        <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
-                            <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Приглашать сотрудников могут только пользователи, чья компания есть в справочнике заказчиков.</Typography.Body>
-                        </Panel>
-                        <div style={{ marginTop: '1rem' }}>
-                            <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>Справочник сотрудников</Typography.Body>
-                            {employeesLoading ? (
-                                <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка...</Typography.Body></Flex>
-                            ) : employeesError ? (
-                                <Typography.Body style={{ color: 'var(--color-error)' }}>{employeesError}</Typography.Body>
-                            ) : employeesList.length === 0 ? (
-                                <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Пока никого не приглашали.</Typography.Body>
-                            ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                {employeesList.map((emp) => (
-                                    <Panel key={emp.id} className="cargo-card" style={{ padding: '0.75rem' }}>
-                                        <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem">
-                                            <div>
-                                                <Typography.Body style={{ fontWeight: 600 }}>{emp.fullName || emp.login}</Typography.Body>
-                                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                                    {emp.department ? `${emp.department} · ` : ''}{emp.presetLabel} · {emp.active ? 'Доступ включён' : 'Отключён'}
-                                                </Typography.Body>
-                                            </div>
-                                            <Flex align="center" gap="0.5rem" wrap="wrap">
-                                                <select
-                                                    className="admin-form-input invite-role-select"
-                                                    value={rolePresets.find((p) => p.label === emp.presetLabel)?.id ?? rolePresets[0]?.id ?? ''}
-                                                    disabled={rolePresets.length === 0 || employeePresetLoadingId === emp.id}
-                                                    onChange={async (e) => {
-                                                        const presetId = e.target.value;
-                                                        if (!presetId || !activeAccount?.login || !activeAccount?.password) return;
-                                                        setEmployeePresetLoadingId(emp.id);
-                                                        setEmployeesError(null);
-                                                        try {
-                                                            await patchMyEmployee(
-                                                                { login: activeAccount.login, password: activeAccount.password },
-                                                                emp.id,
-                                                                { presetId },
-                                                            );
-                                                            const newLabel = rolePresets.find((p) => p.id === presetId)?.label ?? emp.presetLabel;
-                                                            setEmployeesList((prev) => prev.map((e) => e.id === emp.id ? { ...e, presetLabel: newLabel } : e));
-                                                        } catch (e) {
-                                                            setEmployeesError((e as Error)?.message || 'Не удалось изменить роль');
-                                                        } finally {
-                                                            setEmployeePresetLoadingId(null);
-                                                        }
-                                                    }}
-                                                    style={{ padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.85rem', minWidth: '8rem' }}
-                                                    aria-label="Роль (пресет)"
-                                                    title="Изменить роль"
-                                                >
-                                                    {rolePresets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-                                                </select>
-                                                <Typography.Body style={{ fontSize: '0.85rem' }}>{emp.active ? 'Вкл' : 'Выкл'}</Typography.Body>
-                                                <TapSwitch
-                                                    checked={emp.active}
-                                                    onToggle={async () => {
-                                                        setEmployeesError(null);
-                                                        try {
-                                                            await patchMyEmployee(
-                                                                { login: activeAccount.login, password: activeAccount.password },
-                                                                emp.id,
-                                                                { active: !emp.active },
-                                                            );
-                                                            setEmployeesList((prev) => prev.map((e) => e.id === emp.id ? { ...e, active: !e.active } : e));
-                                                        } catch (e) {
-                                                            setEmployeesError((e as Error)?.message || 'Не удалось изменить доступ');
-                                                        }
-                                                    }}
-                                                />
-                                                <Button
-                                                    type="button"
-                                                    className="filter-button"
-                                                    style={{ padding: '0.35rem' }}
-                                                    aria-label="Удалить сотрудника"
-                                                    onClick={() => setEmployeeDeleteId(emp.id)}
-                                                >
-                                                    <Trash2 className="w-4 h-4" style={{ color: 'var(--color-error)' }} />
-                                                </Button>
-                                            </Flex>
-                                        </Flex>
-                                    </Panel>
-                                ))}
-                                {employeeDeleteId != null && (() => {
-                                    const emp = employeesList.find((e) => e.id === employeeDeleteId);
-                                    const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
-                                    return (
-                                        <div className="modal-overlay" style={{ zIndex: 10000 }} role="dialog" aria-modal="true" aria-labelledby="employee-delete-title" onClick={() => !employeeDeleteLoading && setEmployeeDeleteId(null)}>
-                                            <div className="modal-content" style={{ maxWidth: '22rem', padding: '1.25rem' }} onClick={(e) => e.stopPropagation()}>
-                                                <Typography.Body id="employee-delete-title" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Удалить сотрудника?</Typography.Body>
-                                                <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
-                                                    {(emp?.fullName || emp?.login || '')} будет удалён из списка и не сможет войти в приложение.
-                                                </Typography.Body>
-                                                <Flex gap="0.5rem" wrap="wrap">
-                                                    <Button
-                                                        type="button"
-                                                        disabled={employeeDeleteLoading}
-                                                        style={{ background: 'var(--color-error)', color: '#fff', border: 'none' }}
-                                                        onClick={async () => {
-                                                            if (!activeAccount?.login || !activeAccount?.password || employeeDeleteLoading) return;
-                                                            setEmployeeDeleteLoading(true);
-                                                            try {
-                                                                await deleteMyEmployee(
-                                                                    { login: activeAccount.login, password: activeAccount.password },
-                                                                    employeeDeleteId,
-                                                                );
-                                                                setEmployeesList((prev) => prev.filter((e) => e.id !== employeeDeleteId));
-                                                                setEmployeeDeleteId(null);
-                                                            } finally {
-                                                                setEmployeeDeleteLoading(false);
-                                                            }
-                                                        }}
-                                                    >
-                                                        {employeeDeleteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Удалить'}
-                                                    </Button>
-                                                    <Button type="button" className="filter-button" onClick={() => !employeeDeleteLoading && setEmployeeDeleteId(null)}>Отмена</Button>
-                                                </Flex>
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-                            )}
-                        </div>
-                    </>
-                ) : (
-                    <>
-                        <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
-                            <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Регистрация сотрудника</Typography.Body>
-                            <Flex className="form-row-same-height invite-form-row" gap="0.5rem" wrap="wrap" align="center" style={{ marginBottom: '0.5rem' }}>
-                                <input
-                                    type="text"
-                                    placeholder="Email сотрудника"
-                                    value={inviteEmail}
-                                    onChange={(e) => { setInviteEmail(e.target.value); setInviteError(null); setInviteSuccess(null); }}
-                                    style={{ width: '12rem', minWidth: '10rem', height: '2.5rem', boxSizing: 'border-box' }}
-                                    className="admin-form-input"
-                                    autoComplete="off"
-                                />
-                                <Input
-                                    type="text"
-                                    placeholder="ФИО"
-                                    value={inviteFullName}
-                                    onChange={(e) => { setInviteFullName(e.target.value); setInviteError(null); setInviteSuccess(null); }}
-                                    style={{ width: '14rem', minWidth: '12rem', height: '2.5rem', boxSizing: 'border-box' }}
-                                    className="admin-form-input"
-                                />
-                                <select
-                                    className="admin-form-input invite-role-select"
-                                    value={invitePresetId}
-                                    onChange={(e) => { setInvitePresetId(e.target.value); setInviteError(null); }}
-                                    style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.5rem', boxSizing: 'border-box', minWidth: '10rem' }}
-                                    aria-label="Выберите роль"
-                                    title={rolePresets.length === 0 ? 'Роли загружаются или не настроены' : undefined}
-                                >
-                                    <option value="">{rolePresets.length === 0 ? 'Нет ролей' : 'Выберите роль'}</option>
-                                    {rolePresets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-                                </select>
-                                <Button type="button" className="filter-button" onClick={() => void fetchEmployeesAndPresets()} disabled={employeesLoading} title="Обновить список ролей и сотрудников" style={{ height: '2.5rem', padding: '0 1rem', boxSizing: 'border-box' }}>
-                                    Обновить
-                                </Button>
-                                <Button
-                                    type="button"
-                                    className="button-primary"
-                                    style={{ height: '2.5rem', padding: '0 1rem', boxSizing: 'border-box' }}
-                                    disabled={inviteLoading || !inviteEmail.trim() || !inviteFullName.trim() || !invitePresetId}
-                                    onClick={async () => {
-                                        setInviteError(null); setInviteSuccess(null); setInviteLoading(true);
-                                        try {
-                                            const data = await inviteMyEmployee(
-                                                { login: activeAccount.login, password: activeAccount.password },
-                                                { email: inviteEmail.trim(), fullName: inviteFullName.trim(), presetId: invitePresetId },
-                                            );
-                                            setInviteSuccess(data.message || 'Готово');
-                                            setInviteEmail(''); setInviteFullName(''); setInvitePresetId('');
-                                            fetchEmployeesAndPresets();
-                                        } catch (e) {
-                                            setInviteError((e as Error)?.message || 'Ошибка приглашения');
-                                        } finally {
-                                            setInviteLoading(false);
-                                        }
-                                    }}
-                                >
-                                    {inviteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Пригласить'}
-                                </Button>
-                            </Flex>
-                            {rolePresets.length === 0 && (
-                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
-                                    Роли не загружены. Создайте пресеты в админ-панели (раздел «Пресеты ролей») или нажмите «Обновить».
-                                </Typography.Body>
-                            )}
-                            {inviteError && <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem' }}>{inviteError}</Typography.Body>}
-                            {inviteSuccess && <Typography.Body style={{ color: 'var(--color-success-status)', fontSize: '0.85rem' }}>{inviteSuccess}</Typography.Body>}
-                        </Panel>
-                        <div style={{ marginTop: '1rem' }}>
-                            <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>Справочник сотрудников</Typography.Body>
-                            {employeesLoading ? (
-                                <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка...</Typography.Body></Flex>
-                            ) : employeesError ? (
-                                <Typography.Body style={{ color: 'var(--color-error)' }}>{employeesError}</Typography.Body>
-                            ) : employeesList.length === 0 ? (
-                                <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Пока никого не приглашали.</Typography.Body>
-                            ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                {employeesList.map((emp) => (
-                                    <Panel key={emp.id} className="cargo-card" style={{ padding: '0.75rem' }}>
-                                        <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem">
-                                            <div>
-                                                <Typography.Body style={{ fontWeight: 600 }}>{emp.fullName || emp.login}</Typography.Body>
-                                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                                    {emp.department ? `${emp.department} · ` : ''}{emp.presetLabel} · {emp.active ? 'Доступ включён' : 'Отключён'}
-                                                </Typography.Body>
-                                            </div>
-                                            <Flex align="center" gap="0.5rem" wrap="wrap">
-                                                <select
-                                                    className="admin-form-input invite-role-select"
-                                                    value={rolePresets.find((p) => p.label === emp.presetLabel)?.id ?? rolePresets[0]?.id ?? ''}
-                                                    disabled={rolePresets.length === 0 || employeePresetLoadingId === emp.id}
-                                                    onChange={async (e) => {
-                                                        const presetId = e.target.value;
-                                                        if (!presetId || !activeAccount?.login || !activeAccount?.password) return;
-                                                        setEmployeePresetLoadingId(emp.id);
-                                                        setEmployeesError(null);
-                                                        try {
-                                                            await patchMyEmployee(
-                                                                { login: activeAccount.login, password: activeAccount.password },
-                                                                emp.id,
-                                                                { presetId },
-                                                            );
-                                                            const newLabel = rolePresets.find((p) => p.id === presetId)?.label ?? emp.presetLabel;
-                                                            setEmployeesList((prev) => prev.map((e) => e.id === emp.id ? { ...e, presetLabel: newLabel } : e));
-                                                        } catch (e) {
-                                                            setEmployeesError((e as Error)?.message || 'Не удалось изменить роль');
-                                                        } finally {
-                                                            setEmployeePresetLoadingId(null);
-                                                        }
-                                                    }}
-                                                    style={{ padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.85rem', minWidth: '8rem' }}
-                                                    aria-label="Роль (пресет)"
-                                                    title="Изменить роль"
-                                                >
-                                                    {rolePresets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-                                                </select>
-                                                <Typography.Body style={{ fontSize: '0.85rem' }}>{emp.active ? 'Вкл' : 'Выкл'}</Typography.Body>
-                                                <TapSwitch
-                                                    checked={emp.active}
-                                                    onToggle={async () => {
-                                                        setEmployeesError(null);
-                                                        try {
-                                                            await patchMyEmployee(
-                                                                { login: activeAccount.login, password: activeAccount.password },
-                                                                emp.id,
-                                                                { active: !emp.active },
-                                                            );
-                                                            setEmployeesList((prev) => prev.map((e) => e.id === emp.id ? { ...e, active: !e.active } : e));
-                                                        } catch (e) {
-                                                            setEmployeesError((e as Error)?.message || 'Не удалось изменить доступ');
-                                                        }
-                                                    }}
-                                                />
-                                                <Button
-                                                    type="button"
-                                                    className="filter-button"
-                                                    style={{ padding: '0.35rem' }}
-                                                    aria-label="Удалить сотрудника"
-                                                    onClick={() => setEmployeeDeleteId(emp.id)}
-                                                >
-                                                    <Trash2 className="w-4 h-4" style={{ color: 'var(--color-error)' }} />
-                                                </Button>
-                                            </Flex>
-                                        </Flex>
-                                    </Panel>
-                                    ))}
-                                {employeeDeleteId != null && (() => {
-                                    const emp = employeesList.find((e) => e.id === employeeDeleteId);
-                                    const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
-                                    return (
-                                        <div className="modal-overlay" style={{ zIndex: 10000 }} role="dialog" aria-modal="true" aria-labelledby="employee-delete-title" onClick={() => !employeeDeleteLoading && setEmployeeDeleteId(null)}>
-                                            <div className="modal-content" style={{ maxWidth: '22rem', padding: '1.25rem' }} onClick={(e) => e.stopPropagation()}>
-                                                <Typography.Body id="employee-delete-title" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Удалить сотрудника?</Typography.Body>
-                                                <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
-                                                    {(emp?.fullName || emp?.login || '')} будет удалён из списка и не сможет войти в приложение.
-                                                </Typography.Body>
-                                                <Flex gap="0.5rem" wrap="wrap">
-                                                    <Button
-                                                        type="button"
-                                                        disabled={employeeDeleteLoading}
-                                                        style={{ background: 'var(--color-error)', color: '#fff', border: 'none' }}
-                                                        onClick={async () => {
-                                                            if (!activeAccount?.login || !activeAccount?.password || employeeDeleteLoading) return;
-                                                            setEmployeeDeleteLoading(true);
-                                                            try {
-                                                                await deleteMyEmployee(
-                                                                    { login: activeAccount.login, password: activeAccount.password },
-                                                                    employeeDeleteId,
-                                                                );
-                                                                setEmployeesList((prev) => prev.filter((e) => e.id !== employeeDeleteId));
-                                                                setEmployeeDeleteId(null);
-                                                            } catch (e) {
-                                                                setEmployeesError((e as Error)?.message ?? 'Ошибка удаления');
-                                                            } finally {
-                                                                setEmployeeDeleteLoading(false);
-                                                            }
-                                                        }}
-                                                    >
-                                                        {employeeDeleteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                                                        {employeeDeleteLoading ? ' Удаление…' : 'Удалить'}
-                                                    </Button>
-                                                    <Button type="button" className="filter-button" disabled={employeeDeleteLoading} onClick={() => setEmployeeDeleteId(null)}>
-                                                        Отмена
-                                                    </Button>
-                                                </Flex>
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
-                                </div>
-                            )}
-                        </div>
-                    </>
-                )}
-            </div>
+            <ProfileEmployeesSection
+                activeAccount={activeAccount}
+                onBack={() => setCurrentView('main')}
+                employees={profileEmployees}
+            />
         );
     }
-    
+
     if (currentView === 'addCompanyMethod') {
         return <CompaniesPage onBack={() => setCurrentView('companies')} onSelectMethod={(method) => {
             if (method === 'inn') {

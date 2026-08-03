@@ -12,6 +12,7 @@
 | **3** Документы | 🟡 В процессе | invoices, lib/pipeline, views; `DocumentsPage` ~8k строк |
 | **4** Admin | 🟡 Начато | 5 секций в `features/admin/sections/`; `AdminPage` ~11k |
 | **4b** Dashboard PR4 | ✅ Выполнено | `useDashboardPageState` **365** строк; 10 хуков в `features/dashboard/hooks/` |
+| **4c** Profile PR1 | 🟡 Начато | `features/profile/` — employees (~380 строк вынесено из ProfilePage) |
 | **5** App shell | ⏳ Не начато | KPI `App.tsx` < 1200; есть `AppRuntimeContext` |
 | **6** Shared lib | ⏳ Не начато | `lib/*.js` из `src/` остаётся |
 | **7** CSS | ⏳ Не начато | `styles.css` ~8k, монолит |
