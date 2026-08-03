@@ -129,6 +129,24 @@ export function useDepartmentTimesheet({ activeAccount, fetchEnabled }: UseDepar
     const [departmentShiftPicker, setDepartmentShiftPicker] = useState<{ key: string; employeeId: number; day: number; x: number; y: number; isShift: boolean } | null>(null);
     const departmentShiftHoldTimerRef = useRef<number | null>(null);
     const departmentShiftHoldTriggeredRef = useRef(false);
+    const departmentTimesheetMonthlyEstimate = useMemo(() => {
+        const rate = Number(String(departmentTimesheetEmployeeAccrualRate || "").replace(",", "."));
+        if (!Number.isFinite(rate) || rate < 0) return 0;
+        if (departmentTimesheetEmployeeAccrualType === "month") return rate;
+        return departmentTimesheetEmployeeAccrualType === "shift"
+            ? rate * WORK_DAYS_IN_MONTH
+            : rate * 8 * WORK_DAYS_IN_MONTH;
+    }, [departmentTimesheetEmployeeAccrualRate, departmentTimesheetEmployeeAccrualType]);
+    const departmentTimesheetHalfHourOptions = useMemo(
+        () =>
+            Array.from({ length: 49 }, (_, idx) => {
+                const hours = Math.floor(idx / 2);
+                const mins = idx % 2 === 0 ? "00" : "30";
+                const value = (idx * 0.5).toFixed(1);
+                return { value, label: `${hours}:${mins}` };
+            }),
+        [],
+    );
     const departmentTimesheetDays = useMemo(() => {
         if (!/^\d{4}-\d{2}$/.test(departmentTimesheetMonth)) return [];
         const [yearRaw, monthRaw] = departmentTimesheetMonth.split("-");
