@@ -26,3 +26,13 @@ export { DashboardFinanceSection } from "./sections/DashboardFinanceSection";
 export { DashboardClientAnalyticsSection } from "./sections/DashboardClientAnalyticsSection";
 export { DashboardDialogsSection } from "./sections/DashboardDialogsSection";
 export type { DashboardPageState } from "../../pages/useDashboardPageState";
+export { useDashboardFilters, type DashboardFiltersState } from "./hooks/useDashboardFilters";
+export { useDashboardMonitors, type DashboardMonitorsState } from "./hooks/useDashboardMonitors";
+export type { DashboardPageProps } from "./hooks/dashboardPageTypes";
+export {
+    parseDashboardDateOnly,
+    getManualPlannedDate,
+    getSendingStartDate,
+    getActualDeliveryDate,
+    getLastStatusDateKey,
+} from "./hooks/dashboardCargoDateHelpers";

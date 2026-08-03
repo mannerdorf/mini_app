@@ -189,6 +189,7 @@ export function AppMainContent({
         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
           <DashboardPage
             auth={auth}
+            customers={activeAccount?.customers ?? []}
             onClose={() => {}}
             onOpenCargoFilters={openCargoWithFilters}
             showSums={activeAccount?.financialAccess ?? true}
@@ -322,6 +323,7 @@ export function AppMainContent({
         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
           <DashboardPage
             auth={auth}
+            customers={activeAccount?.customers ?? []}
             onClose={() => {}}
             onOpenCargoFilters={openCargoWithFilters}
             showSums={activeAccount?.financialAccess ?? true}

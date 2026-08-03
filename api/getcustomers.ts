@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { balanceFromDebts } from "../lib/customerSubcontoBalance.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import { respondCorsPreflight } from "./_lib/cors.js";
 
@@ -9,7 +10,7 @@ const GETAPI_BASE =
 
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
-export type CustomerItem = { name: string; inn: string };
+export type CustomerItem = { name: string; inn: string; balance?: number; debtsCount?: number };
 
 function normalizeCustomers(raw: unknown): CustomerItem[] {
   if (!raw || typeof raw !== "object") return [];
@@ -39,7 +40,14 @@ function normalizeCustomers(raw: unknown): CustomerItem[] {
         el?.name ?? el?.Name ?? el?.Customer ?? el?.customer ?? "";
       const inn = String(el?.Inn ?? el?.INN ?? el?.inn ?? "").trim();
       if (!inn) return null;
-      return { name: String(name).trim() || inn, inn };
+      const debts = el?.debts ?? el?.Debts;
+      const balance = Array.isArray(debts) ? balanceFromDebts(debts) : undefined;
+      const debtsCount = Array.isArray(debts) ? debts.length : undefined;
+      return {
+        name: String(name).trim() || inn,
+        inn,
+        ...(balance !== undefined ? { balance, debtsCount } : {}),
+      };
     })
     .filter((x): x is CustomerItem => x != null && x.inn.length > 0);
 }

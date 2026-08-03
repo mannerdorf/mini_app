@@ -3,10 +3,6 @@
  */
 import { useState, useCallback, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { useReducedMotion } from "motion/react";
-import {
-    Loader2, X, ChevronDown, Calendar, Filter, Package, Scale, Weight, Maximize, CreditCard, Check,
-    AlertTriangle, Info, Ship, Truck, ArrowDown, ArrowUp, ArrowLeft, TrendingUp, TrendingDown, Minus, RussianRuble, List, RefreshCw,
-} from "lucide-react";
 import * as dateUtils from "../lib/dateUtils";
 import {
     getFilterKeyByStatus,
@@ -16,21 +12,16 @@ import {
     STATUS_MAP,
 } from "../lib/statusUtils";
 import {
-    initSharedFilterSets,
-    saveSharedVisibleListFilters,
     routeKeyToCargoLabel,
     type CargoStatusFilterKey,
-    type RouteFilterKey,
-    type SharedBillStatusKey,
-    type TypeFilterKey,
 } from "../lib/sharedListFilters";
-import { formatDateFilterButtonLabel, useListDateRange, usePersistedDateFilter } from "../features/listWorkspace";
+import { formatDateFilterButtonLabel } from "../features/listWorkspace";
 import { normalizeStatus } from "../lib/statusUtils";
 import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "../lib/slaWorkSchedule";
-import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry, getSlaPlanDeadlineMs, cargoLastMileIsSelfPickup, cargoPickupLogisticsIsTerminalTo, CARGO_ROLE_FILTER_LABELS, type CargoRoleFilterKey } from "../lib/cargoUtils";
+import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry, getSlaPlanDeadlineMs, cargoLastMileIsSelfPickup, cargoPickupLogisticsIsTerminalTo, CARGO_ROLE_FILTER_LABELS } from "../lib/cargoUtils";
 import { buildFilteredCargoItems } from "./cargoPipeline";
 import { formatCurrency, formatInvoiceNumber, stripOoo, cityToCode, normalizeInvoiceStatus } from "../lib/formatUtils";
-import { getFirstCargoNumberFromInvoice, buildCargoStateByNumber, filterCargoItemsForHeaderCustomer, filterItemsForHeaderCustomer } from "../features/documents/lib/documentsPipeline";
+import { getFirstCargoNumberFromInvoice, buildCargoStateByNumber, filterCargoItemsForHeaderCustomer } from "../features/documents/lib/documentsPipeline";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import { usePerevozki, usePrevPeriodPerevozki, useInvoices } from "../hooks/useApi";
 import { getWebApp, isMaxWebApp } from "../webApp";
@@ -38,20 +29,24 @@ import { sendMaxTestMessage } from "../api/client/dashboard";
 import { fetchCustomerWorkSchedules, fetchMyPaymentCalendar } from "../api/client/scheduling";
 import type { AuthData, CargoItem, DateFilter, PerevozkaTimelineStep, StatusFilter } from "../types";
 import {
-    DASH_ROLE_FILTER_KEY,
     DASH_PLAN_FACT_TYPO,
-    loadDashboardRoleFilter,
-    DashboardChartBarH,
-    DashboardChartBarPixelHeight,
-    CHART_BAR_FILL_DURATION,
-    CHART_BAR_FILL_EASE,
-    calcStripDynamics,
-    StripDynamicsBadge,
     cargoFlowSelectionEqual,
     type CargoFlowTableSelection,
     type CombinedLogisticsBucketKey,
     type DashboardChartPoint,
 } from "../features/dashboard";
+import { useDashboardFilters } from "../features/dashboard/hooks/useDashboardFilters";
+import { useDashboardMonitors } from "../features/dashboard/hooks/useDashboardMonitors";
+import { useDashboardCustomerBalances } from "../features/dashboard/hooks/useDashboardCustomerBalances";
+import {
+    parseDashboardDateOnly,
+    getManualPlannedDate,
+    getSendingStartDate,
+    getActualDeliveryDate,
+    getLastStatusDateKey,
+} from "../features/dashboard/hooks/dashboardCargoDateHelpers";
+export type { DashboardPageProps } from "../features/dashboard/hooks/dashboardPageTypes";
+import type { DashboardPageProps } from "../features/dashboard/hooks/dashboardPageTypes";
 
 const {
     DEFAULT_DATE_FROM,
@@ -71,22 +66,6 @@ const {
 } = dateUtils;
 const MONTH_NAMES = dateUtils.MONTH_NAMES;
 
-export type DashboardPageProps = {
-    auth: AuthData;
-    onClose: () => void;
-    onOpenCargoFilters: (filters: { status?: StatusFilter; search?: string }) => void;
-    showSums?: boolean;
-    useServiceRequest?: boolean;
-    hasAnalytics?: boolean;
-    hasDashboard?: boolean;
-    /** Stagger + spring по блокам (только при глобальном SaaS-стиле). */
-    saasDashboardMotion?: boolean;
-    onOpenCargo?: (cargoNumber: string, prefetchedItem?: CargoItem) => void;
-    onOpenInvoice?: (invoice: Record<string, unknown>) => void;
-    onOpenDocumentsEdo?: () => void;
-    onOpenDocumentsInvoices?: () => void;
-};
-
 
 export type DashboardPageState = ReturnType<typeof useDashboardPageState>;
 
@@ -99,12 +78,13 @@ export function useDashboardPageState({
     hasAnalytics = false,
     hasDashboard = true,
     saasDashboardMotion = false,
+    customers = [],
     onOpenCargo,
     onOpenInvoice,
     onOpenDocumentsEdo,
     onOpenDocumentsInvoices,
 }: DashboardPageProps) {
-    const { activeInn: runtimeActiveInn, activeCustomerName } = useAppRuntime();
+    const { activeInn: runtimeActiveInn, activeCustomerName, showCustomerColumn } = useAppRuntime();
     const activeInn = auth?.inn ?? runtimeActiveInn;
     const prefersReducedMotion = useReducedMotion();
     const dashboardMotionEnabled = !!saasDashboardMotion && prefersReducedMotion !== true;
@@ -128,15 +108,14 @@ export function useDashboardPageState({
     // Сводный календарь по всей компании (service mode) — только при analytics=true.
     const showPaymentCalendar = false;
     const [debugInfo, setDebugInfo] = useState<string>("");
-    // Если отключены дашборды правом dashboard — оставляем только SLA.
-    const showOnlySla = !hasDashboard;
-    const WIDGET_1_FILTERS = !showOnlySla;
-    const WIDGET_2_STRIP = !showOnlySla;
-    const WIDGET_3_CHART = !showOnlySla;
-    const WIDGET_4_SLA = true;
-    const WIDGET_5_PAYMENT_CALENDAR = false;
-
     const {
+        sharedFiltersInit,
+        showOnlySla,
+        WIDGET_1_FILTERS,
+        WIDGET_2_STRIP,
+        WIDGET_3_CHART,
+        WIDGET_4_SLA,
+        WIDGET_5_PAYMENT_CALENDAR,
         dateFilter,
         setDateFilter,
         customDateFrom,
@@ -149,60 +128,73 @@ export function useDashboardPageState({
         setSelectedYearForFilter,
         selectedWeekForFilter,
         setSelectedWeekForFilter,
-    } = usePersistedDateFilter();
-    const sharedFiltersInit = initSharedFilterSets();
-    const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
-    const [billStatusFilterSet, setBillStatusFilterSet] = useState<Set<SharedBillStatusKey>>(() => sharedFiltersInit.billStatusFilterSet);
-    const [typeFilterSet, setTypeFilterSet] = useState<Set<TypeFilterKey>>(() => sharedFiltersInit.typeFilterSet);
-    const [routeFilterSet, setRouteFilterSet] = useState<Set<RouteFilterKey>>(() => sharedFiltersInit.routeFilterSet);
-    const [roleFilter, setRoleFilter] = useState<CargoRoleFilterKey>(() => loadDashboardRoleFilter());
-    useEffect(() => {
-        saveSharedVisibleListFilters({ billStatusFilterSet, typeFilterSet, routeFilterSet });
-    }, [billStatusFilterSet, typeFilterSet, routeFilterSet]);
-    useEffect(() => {
-        if (!useServiceRequest) return;
-        try { localStorage.setItem(DASH_ROLE_FILTER_KEY, roleFilter); } catch { /* ignore */ }
-    }, [roleFilter, useServiceRequest]);
-    useEffect(() => {
-        if (roleFilter !== "all") setRoleFilter("all");
-    }, [roleFilter]);
-    const mainChartWrapRef = useRef<HTMLDivElement | null>(null);
-    const [mainChartOuterWidthPx, setMainChartOuterWidthPx] = useState(800);
-    const maChartWrapRef = useRef<HTMLDivElement | null>(null);
-    const [maChartOuterWidthPx, setMaChartOuterWidthPx] = useState(800);
-    
-    // Chart type selector: деньги / вес / объём (при !showSums доступны только вес и объём)
-    const [chartType, setChartType] = useState<'money' | 'paidWeight' | 'weight' | 'volume' | 'pieces'>(() => (showSums ? 'money' : 'paidWeight'));
-    const [stripTab, setStripTab] = useState<'type' | 'sender' | 'receiver' | 'customer'>('type');
-    const [deliveryStripTab, setDeliveryStripTab] = useState<'type' | 'sender' | 'receiver'>('type');
-    /** true = показывать проценты, false = показывать в рублях/кг/м³/шт (по типу графика) */
-    const [stripShowAsPercent, setStripShowAsPercent] = useState(true);
-    const [deliveryStripShowAsPercent, setDeliveryStripShowAsPercent] = useState(true);
-    /** Раскрытая строка в таблице «Перевозки вне SLA»: по клику показываем статусы в виде таблицы */
-    const [expandedAgingBucket, setExpandedAgingBucket] = useState<string | null>(null);
-    const [agingSortCol, setAgingSortCol] = useState<'number' | 'customer' | 'status' | 'shipmentStatus' | 'sum' | 'days'>('sum');
-    const [agingSortAsc, setAgingSortAsc] = useState(false);
-    /** Раскрытый сегмент RFM: при клике показываем список заказчиков */
-    const [expandedRfmSegment, setExpandedRfmSegment] = useState<string | null>(null);
-    /** Список заказчиков для виджета "Повторные клиенты" */
-    const [repeatCustomersListMode, setRepeatCustomersListMode] = useState<'all' | 'repeat' | 'new' | null>(null);
-    /** Выбранная строка воронки статусов для показа заказчиков */
-    const [selectedFunnelStatusKey, setSelectedFunnelStatusKey] = useState<string | null>(null);
-    /** Раскрытый заказчик в таблице «Заказчики по статусу» — показываем перевозки и даты */
-    const [expandedFunnelCustomer, setExpandedFunnelCustomer] = useState<string | null>(null);
-    /** Грузовой поток: таблица по клику на бейдж или плитку; по умолчанию свёрнута */
-    const [cargoFlowTableExpanded, setCargoFlowTableExpanded] = useState(false);
-    const [cargoFlowTableSelection, setCargoFlowTableSelection] = useState<CargoFlowTableSelection | null>(null);
-    /** Комбинированный блок логистики: таблица заказчиков раскрывается только по клику на карточку. */
-    const [selectedCombinedLogisticsKey, setSelectedCombinedLogisticsKey] = useState<CombinedLogisticsBucketKey | null>(null);
-    const [expandedCombinedLogisticsCustomer, setExpandedCombinedLogisticsCustomer] = useState<string | null>(null);
-    /** Сортировка таблицы «Платёжная дисциплина» */
-    const [paymentDisciplineSortCol, setPaymentDisciplineSortCol] = useState<'name' | 'count' | 'paid' | 'unpaid' | 'paidRate'>('paidRate');
-    const [paymentDisciplineSortAsc, setPaymentDisciplineSortAsc] = useState(true);
-    const [maChartType, setMaChartType] = useState<'money' | 'paidWeight' | 'weight' | 'volume' | 'pieces'>('paidWeight');
-    /** Виджет «Загрузка по дням недели»: приход (DatePrih) или факт выдачи/доставки */
-    const [weekdayDistributionMode, setWeekdayDistributionMode] = useState<"received" | "issued">("received");
-    /** Сортировка таблицы «Перевозки вне SLA»: колонка и направление */
+        isCustomModalOpen,
+        setIsCustomModalOpen,
+        billStatusFilterSet,
+        setBillStatusFilterSet,
+        typeFilterSet,
+        setTypeFilterSet,
+        routeFilterSet,
+        setRouteFilterSet,
+        roleFilter,
+        setRoleFilter,
+        mainChartWrapRef,
+        mainChartOuterWidthPx,
+        setMainChartOuterWidthPx,
+        maChartWrapRef,
+        maChartOuterWidthPx,
+        setMaChartOuterWidthPx,
+        chartType,
+        setChartType,
+        stripTab,
+        setStripTab,
+        deliveryStripTab,
+        setDeliveryStripTab,
+        stripShowAsPercent,
+        setStripShowAsPercent,
+        deliveryStripShowAsPercent,
+        setDeliveryStripShowAsPercent,
+        expandedAgingBucket,
+        setExpandedAgingBucket,
+        agingSortCol,
+        setAgingSortCol,
+        agingSortAsc,
+        setAgingSortAsc,
+        expandedRfmSegment,
+        setExpandedRfmSegment,
+        repeatCustomersListMode,
+        setRepeatCustomersListMode,
+        selectedFunnelStatusKey,
+        setSelectedFunnelStatusKey,
+        expandedFunnelCustomer,
+        setExpandedFunnelCustomer,
+        cargoFlowTableExpanded,
+        setCargoFlowTableExpanded,
+        cargoFlowTableSelection,
+        setCargoFlowTableSelection,
+        selectedCombinedLogisticsKey,
+        setSelectedCombinedLogisticsKey,
+        expandedCombinedLogisticsCustomer,
+        setExpandedCombinedLogisticsCustomer,
+        paymentDisciplineSortCol,
+        setPaymentDisciplineSortCol,
+        paymentDisciplineSortAsc,
+        setPaymentDisciplineSortAsc,
+        maChartType,
+        setMaChartType,
+        weekdayDistributionMode,
+        setWeekdayDistributionMode,
+        heatmapMonth,
+        setHeatmapMonth,
+        apiDateRange,
+        prevRange,
+        comparePeriodOverride,
+        setComparePeriodOverride,
+        isComparePeriodDialogOpen,
+        setIsComparePeriodDialogOpen,
+        comparePeriodRange,
+    } = useDashboardFilters({ showSums, useServiceRequest, hasDashboard });
+
     /** Платёжный календарь: дни на оплату по ИНН (для hasAnalytics) */
     const [paymentCalendarByInn, setPaymentCalendarByInn] = useState<Record<string, { days_to_pay: number; payment_weekdays: number[] }>>({});
     /** Рабочие графики заказчиков (для SLA при статусах «Готов к выдаче» / «На доставке») */
@@ -213,33 +205,6 @@ export function useDashboardPageState({
         return { year: n.getFullYear(), month: n.getMonth() + 1 };
     });
     const [paymentCalendarSelectedDate, setPaymentCalendarSelectedDate] = useState<string | null>(null);
-    const [heatmapMonth, setHeatmapMonth] = useState<{ year: number; month: number }>(() => {
-        const n = new Date();
-        return { year: n.getFullYear(), month: n.getMonth() + 1 };
-    });
-
-
-
-    // При отключении раздела сумм (роль отправитель/получатель) переключаем тип графика с денег на вес
-    useEffect(() => {
-        if (!showSums && chartType === 'money') setChartType('paidWeight');
-    }, [showSums]);
-    useEffect(() => {
-        if (!showSums) {
-            setStripShowAsPercent(true);
-            setDeliveryStripShowAsPercent(true);
-        }
-    }, [showSums]);
-
-    // При выключении служебного режима сбрасываем вкладку «Заказчик»
-    useEffect(() => {
-        if (!useServiceRequest && stripTab === 'customer') setStripTab('type');
-    }, [useServiceRequest, stripTab]);
-
-    useEffect(() => {
-        setExpandedCombinedLogisticsCustomer(null);
-    }, [selectedCombinedLogisticsKey]);
-
 
     const testMaxMessage = async () => {
         const webApp = getWebApp();
@@ -283,40 +248,6 @@ export function useDashboardPageState({
         console.log("[testMaxMessage]", logs);
     };
 
-    const { apiDateRange, prevRange } = useListDateRange({
-        dateFilter,
-        customDateFrom,
-        customDateTo,
-        selectedMonthForFilter,
-        selectedYearForFilter,
-        selectedWeekForFilter,
-    });
-
-    const [comparePeriodOverride, setComparePeriodOverride] = useState<{ dateFrom: string; dateTo: string } | null>(null);
-    const [isComparePeriodDialogOpen, setIsComparePeriodDialogOpen] = useState(false);
-
-    const comparePeriodRange = useMemo(
-        () => comparePeriodOverride ?? prevRange,
-        [comparePeriodOverride, prevRange],
-    );
-
-    useEffect(() => {
-        setComparePeriodOverride(null);
-    }, [
-        dateFilter,
-        customDateFrom,
-        customDateTo,
-        selectedMonthForFilter?.year,
-        selectedMonthForFilter?.month,
-        selectedYearForFilter,
-        selectedWeekForFilter,
-    ]);
-
-    useEffect(() => {
-        const d = dateUtils.parseDateOnly(apiDateRange.dateFrom);
-        if (d) setHeatmapMonth({ year: d.getFullYear(), month: d.getMonth() + 1 });
-    }, [apiDateRange.dateFrom]);
-
     const { items, error, loading, mutate: mutatePerevozki } = usePerevozki({
         auth,
         dateFrom: apiDateRange.dateFrom,
@@ -346,72 +277,33 @@ export function useDashboardPageState({
         enabled: !!useServiceRequest && !!comparePeriodRange,
     });
 
-    const filterInvoicesForHeaderCustomer = useCallback(
-        (source: unknown[]) => {
-            if (useServiceRequest) return source;
-            return filterItemsForHeaderCustomer(source as Record<string, unknown>[], {
-                activeInn: auth?.inn ?? runtimeActiveInn,
-                activeCustomerName,
-            });
-        },
-        [useServiceRequest, auth?.inn, runtimeActiveInn, activeCustomerName],
-    );
-
-    const calendarYear = new Date().getFullYear();
-    const calendarDateFrom = `${calendarYear - 1}-01-01`;
-    const calendarDateTo = new Date().toISOString().slice(0, 10);
-
-    const unpaidMonitorDateFrom = useMemo(() => {
-        const d = new Date();
-        d.setMonth(d.getMonth() - 3);
-        return d.toISOString().slice(0, 10);
-    }, []);
-
-    /** Счета для монитора ЭДО — широкий период, не зависит от фильтра «Дата». */
-    const monitorFetchEnabled = !!(auth?.login && auth?.password);
-    const { items: monitorInvoiceItems, loading: monitorInvoicesLoading } = useInvoices({
+    const {
+        calendarDateFrom,
+        calendarDateTo,
+        monitorInvoicesLoading,
+        edoMonitorInvoices,
+        unpaidPlanInvoicesLoading,
+        unpaidPlanMonitorInvoices,
+        unpaidPlanCargoLoading,
+        unpaidPlanMonitorCargo,
+    } = useDashboardMonitors({
         auth,
-        dateFrom: calendarDateFrom,
-        dateTo: calendarDateTo,
-        activeInn: auth?.inn || undefined,
         useServiceRequest,
-        enabled: monitorFetchEnabled,
+        activeInn,
+        runtimeActiveInn,
+        activeCustomerName,
     });
-    const monitorInvoicesFiltered = useMemo(
-        () => filterInvoicesForHeaderCustomer(monitorInvoiceItems),
-        [monitorInvoiceItems, filterInvoicesForHeaderCustomer],
-    );
 
-    const edoMonitorInvoices = monitorInvoicesFiltered;
-
-    /** Монитор задолженности — только последние 3 месяца. */
-    const { items: unpaidPlanInvoiceItems, loading: unpaidPlanInvoicesLoading } = useInvoices({
+    const {
+        balances: customerBalances,
+        totalBalance: customerTotalBalance,
+        loading: customerBalancesLoading,
+        error: customerBalancesError,
+    } = useDashboardCustomerBalances({
         auth,
-        dateFrom: unpaidMonitorDateFrom,
-        dateTo: calendarDateTo,
-        activeInn: auth?.inn || undefined,
-        useServiceRequest,
-        enabled: monitorFetchEnabled,
+        customers,
+        showSums,
     });
-    const unpaidPlanMonitorInvoices = useMemo(
-        () => filterInvoicesForHeaderCustomer(unpaidPlanInvoiceItems),
-        [unpaidPlanInvoiceItems, filterInvoicesForHeaderCustomer],
-    );
-    const { items: unpaidPlanCargoItems, loading: unpaidPlanCargoLoading } = usePerevozki({
-        auth,
-        dateFrom: unpaidMonitorDateFrom,
-        dateTo: calendarDateTo,
-        useServiceRequest,
-        inn: !useServiceRequest ? auth?.inn : undefined,
-        enabled: monitorFetchEnabled,
-    });
-    const unpaidPlanMonitorCargo = useMemo(() => {
-        if (useServiceRequest) return unpaidPlanCargoItems;
-        return filterCargoItemsForHeaderCustomer(unpaidPlanCargoItems, {
-            activeInn: auth?.inn ?? runtimeActiveInn,
-            activeCustomerName,
-        });
-    }, [unpaidPlanCargoItems, useServiceRequest, auth?.inn, runtimeActiveInn, activeCustomerName]);
 
     const { items: calendarInvoiceItems, mutate: mutateCalendarInvoices } = useInvoices({
         // Тяжёлый 3-летний диапазон не грузим на первом рендере дашборда.
@@ -509,87 +401,6 @@ export function useDashboardPageState({
         );
     }, [deliveryFactItems, apiDateRange.dateFrom, apiDateRange.dateTo]);
 
-    const parseDashboardDateOnly = useCallback((value: unknown): Date | null => {
-        const raw = String(value ?? '').trim();
-        if (!raw) return null;
-        if (/^0?1[./-]0?1[./-](1900|1901|0001)$/.test(raw)) return null;
-        const parsed = dateUtils.parseDateOnly(raw) ?? new Date(raw);
-        if (!Number.isFinite(parsed.getTime()) || parsed.getFullYear() <= 1901) return null;
-        return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
-    }, []);
-    const getManualPlannedDate = useCallback((item: CargoItem): Date | null => {
-        const candidates = [
-            (item as any).DateArrival,
-            (item as any).PlannedDeliveryDate,
-            (item as any).PlanDeliveryDate,
-            (item as any).DateDeliveryPlan,
-            (item as any).ПлановаяДатаДоставки,
-            (item as any).ПланДатаДоставки,
-            (item as any).ПлановаяДата,
-            (item as any).PlanDate,
-        ];
-        for (const candidate of candidates) {
-            const parsed = parseDashboardDateOnly(candidate);
-            if (parsed) return parsed;
-        }
-        return null;
-    }, [parseDashboardDateOnly]);
-    const getSendingStartDate = useCallback((item: CargoItem): Date | null => {
-        const candidates = [
-            (item as any).DateOtpr,
-            (item as any).DateSend,
-            (item as any).DateShipment,
-            (item as any).ShipmentDate,
-            (item as any).ДатаОтправки,
-            (item as any).ДатаОтгрузки,
-            (item as any).DateDoc,
-            (item as any).DatePrih,
-            (item as any).Date,
-            (item as any).date,
-            (item as any).Дата,
-        ];
-        for (const candidate of candidates) {
-            const parsed = parseDashboardDateOnly(candidate);
-            if (parsed) return parsed;
-        }
-        return null;
-    }, [parseDashboardDateOnly]);
-    const getActualDeliveryDate = useCallback((item: CargoItem): Date | null => {
-        const candidates = [
-            (item as any).DateVr,
-            (item as any).DateDeliveryFact,
-            (item as any).FactDeliveryDate,
-            (item as any).ДатаФактическойДоставки,
-            (item as any).ДатаВручения,
-            (item as any).DateDelivery,
-            (item as any).DeliveryDate,
-        ];
-        for (const candidate of candidates) {
-            const parsed = parseDashboardDateOnly(candidate);
-            if (parsed) return parsed;
-        }
-        return null;
-    }, [parseDashboardDateOnly]);
-    const getLastStatusDateKey = useCallback((item: CargoItem): string => {
-        const candidates = [
-            (item as any).StatusDate,
-            (item as any).DateStatus,
-            (item as any).DateState,
-            (item as any).UpdatedAt,
-            (item as any).updated_at,
-            (item as any).ДатаСтатуса,
-            (item as any).ДатаИзменения,
-            (item as any).DateVr,
-            (item as any).DatePrih,
-        ];
-        for (const candidate of candidates) {
-            const parsed = parseDashboardDateOnly(candidate);
-            if (parsed) {
-                return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
-            }
-        }
-        return '';
-    }, [parseDashboardDateOnly]);
     const getRouteTypePlanDays = useMemo(() => {
         const dayMs = 24 * 60 * 60 * 1000;
         const byBucket = new Map<string, Array<{ actualMs: number; days: number }>>();
@@ -2129,6 +1940,11 @@ export function useDashboardPageState({
         edoMonitorInvoices,
         unpaidPlanMonitorInvoices,
         unpaidPlanMonitorCargo,
+        customerBalances,
+        customerTotalBalance,
+        customerBalancesLoading,
+        customerBalancesError,
+        showCustomerColumn,
         filterCargoItems,
         dashboardTotalItems,
         deliveryFactItems,
