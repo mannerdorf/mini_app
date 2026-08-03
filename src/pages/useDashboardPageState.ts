@@ -30,6 +30,7 @@ import { fetchCustomerWorkSchedules, fetchMyPaymentCalendar } from "../api/clien
 import type { AuthData, CargoItem, DateFilter, PerevozkaTimelineStep, StatusFilter } from "../types";
 import {
     DASH_PLAN_FACT_TYPO,
+    calcStripDynamics,
     cargoFlowSelectionEqual,
     type CargoFlowTableSelection,
     type CombinedLogisticsBucketKey,
