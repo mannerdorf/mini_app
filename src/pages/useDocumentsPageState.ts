@@ -174,8 +174,8 @@ export function useDocumentsPageState({
     useEffect(() => {
         try { localStorage.setItem(DOCS_TABLE_MODE_KEY, String(tableModeByCustomer)); } catch { /* ignore */ }
     }, [tableModeByCustomer]);
-    const tableModeGroupedByCustomer = tableModeByCustomer && showCustomerColumn;
-    const tableModeFlatDirect = tableModeByCustomer && !showCustomerColumn;
+    const tableModeGroupedByCustomer = tableModeByCustomer && showCustomerColumn && effectiveServiceMode;
+    const tableModeFlatDirect = tableModeByCustomer && !tableModeGroupedByCustomer;
     const groupedCustomerTableColSpan = useMemo(
         () => (showCustomerColumn ? 1 : 0) + (showSums ? 1 : 0) + 1,
         [showCustomerColumn, showSums],

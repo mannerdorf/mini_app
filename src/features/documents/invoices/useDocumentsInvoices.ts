@@ -261,5 +261,6 @@ export function useDocumentsInvoices({
     selectedInvoice,
     setSelectedInvoice,
     expandedTableCustomer,
+    setExpandedTableCustomer,
   };
 }

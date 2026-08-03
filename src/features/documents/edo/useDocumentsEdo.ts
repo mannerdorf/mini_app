@@ -186,5 +186,7 @@ export function useDocumentsEdo({
     edoCounterpartyFilterLabel,
     isEdoCounterpartyDropdownOpen,
     setIsEdoCounterpartyDropdownOpen,
+    expandedTableCustomer,
+    setExpandedTableCustomer,
   };
 }
