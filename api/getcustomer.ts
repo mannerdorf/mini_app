@@ -1,13 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
-import { parseCustomerSubcontoPayload } from "../lib/customerSubcontoBalance.js";
+import { fetchCustomerSubcontoFrom1C } from "../lib/getcustomersSubconto1c.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import { respondCorsPreflight } from "./_lib/cors.js";
-
-const GETAPI_BASE =
-  "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
-const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
 async function assertRegisteredInnAccess(
   login: string,
@@ -37,32 +33,6 @@ async function assertRegisteredInnAccess(
     }
   }
   return { ok: true, serviceLogin, servicePassword };
-}
-
-async function fetchGetCustomerFrom1C(
-  authLogin: string,
-  authPassword: string,
-  inn: string,
-): Promise<{ ok: boolean; status: number; data: unknown; text: string }> {
-  const url = new URL(GETAPI_BASE);
-  url.searchParams.set("metod", "GetCustomer");
-  url.searchParams.set("Inn", inn.trim());
-
-  const upstream = await fetch(url.toString(), {
-    method: "GET",
-    headers: {
-      Auth: `Basic ${authLogin}:${authPassword}`,
-      Authorization: SERVICE_AUTH,
-    },
-  });
-  const text = await upstream.text();
-  let data: unknown = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
-  }
-  return { ok: upstream.ok, status: upstream.status, data, text };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -113,38 +83,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const upstream = await fetchGetCustomerFrom1C(authLogin, authPassword, innStr);
-    if (!upstream.ok) {
-      if (upstream.data && typeof upstream.data === "object") {
-        const o = upstream.data as Record<string, unknown>;
-        const message = (o.Error ?? o.error ?? o.message) as string | undefined;
-        if (typeof message === "string" && message.trim()) {
-          return res.status(upstream.status).json({ error: message.trim(), request_id: ctx.requestId });
-        }
-      }
-      return res.status(upstream.status).json({
-        error: typeof upstream.text === "string" && upstream.text.trim() ? upstream.text.trim() : "Upstream error",
+    const { parsed, error } = await fetchCustomerSubcontoFrom1C(authLogin, authPassword, innStr);
+    if (!parsed) {
+      return res.status(502).json({
+        error: error ?? "Unexpected Getcustomers response",
         request_id: ctx.requestId,
       });
     }
 
-    if (upstream.data && typeof upstream.data === "object" && !Array.isArray(upstream.data)) {
-      const o = upstream.data as Record<string, unknown>;
-      if (o.Success === false) {
-        const message = (o.Error ?? o.error ?? o.message) as string | undefined;
-        return res.status(401).json({
-          error: typeof message === "string" && message.trim() ? message.trim() : "Ошибка 1С",
-          request_id: ctx.requestId,
-        });
-      }
-    }
-
-    const parsed = parseCustomerSubcontoPayload(upstream.data);
-    if (!parsed) {
-      return res.status(502).json({ error: "Unexpected GetCustomer response", request_id: ctx.requestId });
-    }
-
-    return res.status(200).json({ customer: parsed, request_id: ctx.requestId });
+    return res.status(200).json({ customer: parsed, source: "1c_getcustomers", request_id: ctx.requestId });
   } catch (e: unknown) {
     logError(ctx, "getcustomer_proxy_failed", e);
     return res.status(500).json({

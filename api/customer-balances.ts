@@ -1,13 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
-import { parseCustomerSubcontoPayload } from "../lib/customerSubcontoBalance.js";
+import { fetchCustomerSubcontoFrom1C } from "../lib/getcustomersSubconto1c.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import { respondCorsPreflight } from "./_lib/cors.js";
 
-const GETAPI_BASE =
-  "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
-const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 const MAX_INNS = 40;
 
 type BalanceRow = {
@@ -63,55 +60,6 @@ async function resolveInns(
   return { inns: filtered, authLogin: serviceLogin, authPassword: servicePassword };
 }
 
-async function fetchGetCustomerFrom1C(
-  authLogin: string,
-  authPassword: string,
-  inn: string,
-): Promise<{ parsed: ReturnType<typeof parseCustomerSubcontoPayload>; error?: string }> {
-  const url = new URL(GETAPI_BASE);
-  url.searchParams.set("metod", "GetCustomer");
-  url.searchParams.set("Inn", inn.trim());
-
-  try {
-    const upstream = await fetch(url.toString(), {
-      method: "GET",
-      headers: {
-        Auth: `Basic ${authLogin}:${authPassword}`,
-        Authorization: SERVICE_AUTH,
-      },
-    });
-    const text = await upstream.text();
-    let data: unknown = null;
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch {
-      return { parsed: null, error: "Invalid JSON from 1C" };
-    }
-    if (!upstream.ok) {
-      if (data && typeof data === "object") {
-        const o = data as Record<string, unknown>;
-        const message = (o.Error ?? o.error ?? o.message) as string | undefined;
-        if (typeof message === "string" && message.trim()) {
-          return { parsed: null, error: message.trim() };
-        }
-      }
-      return { parsed: null, error: text.trim() || `HTTP ${upstream.status}` };
-    }
-    if (data && typeof data === "object" && !Array.isArray(data)) {
-      const o = data as Record<string, unknown>;
-      if (o.Success === false) {
-        const message = (o.Error ?? o.error ?? o.message) as string | undefined;
-        return { parsed: null, error: typeof message === "string" && message.trim() ? message.trim() : "Ошибка 1С" };
-      }
-    }
-    const parsed = parseCustomerSubcontoPayload(data);
-    if (!parsed) return { parsed: null, error: "Unexpected response" };
-    return { parsed };
-  } catch (e: unknown) {
-    return { parsed: null, error: e instanceof Error ? e.message : String(e) };
-  }
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (respondCorsPreflight(req, res)) return;
   const ctx = initRequestContext(req, res, "customer-balances");
@@ -160,7 +108,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const results = await Promise.all(
       resolved.inns.map(async (inn): Promise<BalanceRow> => {
-        const { parsed, error } = await fetchGetCustomerFrom1C(resolved.authLogin, resolved.authPassword, inn);
+        const { parsed, error } = await fetchCustomerSubcontoFrom1C(
+          resolved.authLogin,
+          resolved.authPassword,
+          inn,
+        );
         if (!parsed) {
           return {
             inn,

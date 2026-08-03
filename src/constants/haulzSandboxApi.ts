@@ -56,12 +56,12 @@ export const HAULZ_GETCUSTOMERS_SANDBOX_API: ApiInventoryItem = {
     ],
 };
 
-/** POST /api/getcustomer — прокси GETAPI?metod=GetCustomer&Inn=… (субконто, баланс). */
+/** POST /api/getcustomer — прокси GETAPI?metod=Getcustomers&Inn=… (субконто, баланс). */
 export const HAULZ_GETCUSTOMER_SANDBOX_API: ApiInventoryItem = {
     method: "POST",
     path: "/api/getcustomer",
-    navLabel: "GetCustomer (субконто)",
-    note: "Прокси к 1С GETAPI?metod=GetCustomer&Inn=…. Тело: login, password, inn. Для CMS: isRegisteredUser: true (вызов через сервисную учётку). Ответ: { customer: { inn, name, balance, debtsCount, debts? } }, balance = ΣДТ − ΣКт.",
+    navLabel: "Getcustomers + Inn (субконто)",
+    note: "Прокси к 1С GETAPI?metod=Getcustomers&Inn=…. Тело: login, password, inn. Для CMS: isRegisteredUser: true. Ответ: { customer: { inn, name, balance, debtsCount, debts? } }, balance = ΣДТ − ΣКт.",
     examples: [
         {
             id: "inn",
@@ -76,7 +76,7 @@ export const HAULZ_CUSTOMER_BALANCES_SANDBOX_API: ApiInventoryItem = {
     method: "POST",
     path: "/api/customer-balances",
     navLabel: "Customer balances (главная)",
-    note: "Пакетный GetCustomer по массиву inns. Тело: login, password, inns: string[], namesByInn?: Record<string,string>, isRegisteredUser?. Ответ: { balances, totalBalance }.",
+    note: "Пакетный Getcustomers по массиву inns. Тело: login, password, inns: string[], namesByInn?: Record<string,string>, isRegisteredUser?. Ответ: { balances, totalBalance }.",
     examples: [
         {
             id: "batch",

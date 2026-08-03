@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { Flex, Typography } from "@maxhub/max-ui";
 import { ChevronRight, Loader2, Wallet } from "lucide-react";
 import { formatCurrency, stripOoo } from "../lib/formatUtils";
+import { shorten1cError } from "../lib/format1cError";
 import type { CustomerBalanceRow } from "../api/client/customerBalanceClient";
 
 type Props = {
@@ -46,7 +47,7 @@ export function CustomerBalanceMonitor({
               Баланс по субконто (1С)
             </Typography.Body>
             <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>
-              Σ ДТ − Σ Кт по GetCustomer
+              Σ ДТ − Σ Кт по Getcustomers
             </Typography.Body>
           </div>
         </Flex>
@@ -92,7 +93,9 @@ export function CustomerBalanceMonitor({
                         {stripOoo(row.name)}
                       </Typography.Body>
                       {row.error && (
-                        <Typography.Body style={{ fontSize: "0.7rem", color: "#dc2626" }}>{row.error}</Typography.Body>
+                        <Typography.Body style={{ fontSize: "0.7rem", color: "#dc2626" }}>
+                          {shorten1cError(row.error)}
+                        </Typography.Body>
                       )}
                     </td>
                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>

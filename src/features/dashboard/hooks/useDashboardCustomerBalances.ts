@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AuthData, CustomerOption } from "../../types";
 import { postCustomerBalances, type CustomerBalanceRow } from "../../../api/client/customerBalanceClient";
+import { shorten1cError } from "../../../lib/format1cError";
 
 export type UseDashboardCustomerBalancesParams = {
   auth: AuthData;
@@ -64,7 +65,7 @@ export function useDashboardCustomerBalances({
         if (!ok) {
           setBalances([]);
           setTotalBalance(0);
-          setError(data.error ?? "Не удалось загрузить балансы");
+          setError(shorten1cError(data.error ?? "Не удалось загрузить балансы"));
           return;
         }
         setBalances(data.balances ?? []);
