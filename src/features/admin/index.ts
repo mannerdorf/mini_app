@@ -32,6 +32,7 @@ export { useAdminUserRegistration } from "./hooks/useAdminUserRegistration";
 export { useAdminTimesheet } from "./hooks/useAdminTimesheet";
 export { useAdminClaims } from "./hooks/useAdminClaims";
 export { useAdminEmployeeDirectory } from "./hooks/useAdminEmployeeDirectory";
+export { useAdminEmployeeDirectoryMutations } from "./hooks/useAdminEmployeeDirectoryMutations";
 export { useAdminTab, ADMIN_TABS, ADMIN_TAB_KEY } from "./hooks/useAdminTab";
 export type { AdminTab } from "./hooks/useAdminTab";
 export { AdminPageNav } from "./components/AdminPageNav";
@@ -40,5 +41,10 @@ export { AdminUserPermissionsEditorPanel } from "./components/AdminUserPermissio
 export { AdminUsersBulkPermissionsPanel } from "./components/AdminUsersBulkPermissionsPanel";
 export { AdminUserAddFormPanel } from "./components/AdminUserAddFormPanel";
 export { AdminClaimDetailPanel } from "./components/AdminClaimDetailPanel";
+export { AdminTimesheetToolbar } from "./components/AdminTimesheetToolbar";
+export { AdminTimesheetGroupsPanel } from "./components/AdminTimesheetGroupsPanel";
+export { AdminTimesheetShiftPicker } from "./components/AdminTimesheetShiftPicker";
+export { AdminEmployeeAddFormPanel } from "./components/AdminEmployeeAddFormPanel";
+export { AdminEmployeeDirectoryRow } from "./components/AdminEmployeeDirectoryRow";
 export type { PermissionPreset } from "./lib/permissions";
 export type { User, EmployeeDirectoryRow, EmployeeRateHistoryRow } from "./types/adminUsers";

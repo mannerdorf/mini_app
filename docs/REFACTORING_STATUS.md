@@ -10,7 +10,7 @@
 | **1** API client | 🟡 Частично | `api/client/documents*`, `admin/index`; Documents без raw `fetch`; Admin ~97 `fetch` |
 | **2** List workspace | ✅ Выполнено | `features/listWorkspace/`, 3 страницы |
 | **3** Документы | 🟡 В процессе | acts/invoices/edo вынесены; `useDocumentsPageState` **~467** строк (6 хуков) |
-| **4** Admin | 🟡 В процессе | Users **888**; Timesheet PR1 **999**; Claims PR1–PR2 tab **285** + hook **475** + panel **551** |
+| **4** Admin | 🟡 В процессе | Users **888**; Timesheet tab **45**; Claims tab **285**; EmployeeDirectory tab **43** |
 | **4b** Dashboard PR4 | ✅ Выполнено | `useDashboardPageState` **365** строк; 10 хуков в `features/dashboard/hooks/` |
 | **4c** Profile PR1–PR4 | ✅ Выполнено | employees + timesheet + accounting + main; ProfilePage **~412** строк |
 | **5** App shell | ⏳ Не начато | KPI `App.tsx` < 1200; есть `AppRuntimeContext` |
