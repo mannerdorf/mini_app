@@ -105,6 +105,7 @@ export function useDashboardPageState({
     onOpenDocumentsInvoices,
 }: DashboardPageProps) {
     const { activeInn: runtimeActiveInn, activeCustomerName } = useAppRuntime();
+    const activeInn = auth?.inn ?? runtimeActiveInn;
     const prefersReducedMotion = useReducedMotion();
     const dashboardMotionEnabled = !!saasDashboardMotion && prefersReducedMotion !== true;
     /** Наполнение полос графиков — для всех, кроме prefers-reduced-motion. */

@@ -21,7 +21,7 @@ import {
     sortGroupedByCustomer,
 } from "./cargoPipeline";
 import { initSharedFilterSets, saveSharedListFilters, sharedFromFilterSets } from "../lib/sharedListFilters";
-import { buildTransportOptionsFromSendingsInPeriod, buildTransportLinkedCargoNumbersInPeriod, collectSendingFreightCargoNumbers, normCargoKey } from "../features/documents/lib/documentsPipeline";
+import { buildTransportOptionsFromSendingsInPeriod, buildTransportLinkedCargoNumbersInPeriod, collectSendingFreightCargoNumbers, filterItemsForHeaderCustomer, normCargoKey } from "../features/documents/lib/documentsPipeline";
 import { useCargoTransportFilter, usePerevozkiMultiAccounts, useSendings } from "../hooks/useApi";
 import { useCargoNomenclatureSearch } from "../hooks/useCargoNomenclatureSearch";
 import { CARGO_ROLE_FILTER_LABELS, pickupLogisticsFilterLabel, type CargoRoleFilterKey } from "../lib/cargoUtils";
@@ -229,8 +229,8 @@ export function CargoPage({
     useEffect(() => {
         try { localStorage.setItem(CARGO_TABLE_MODE_KEY, String(tableModeByCustomer)); } catch { /* ignore */ }
     }, [tableModeByCustomer]);
-    const tableModeGroupedByCustomer = tableModeByCustomer && showCustomerColumn;
-    const tableModeFlatDirect = tableModeByCustomer && !showCustomerColumn;
+    const tableModeGroupedByCustomer = tableModeByCustomer && showCustomerColumn && effectiveServiceMode;
+    const tableModeFlatDirect = tableModeByCustomer && !tableModeGroupedByCustomer;
     /** Сортировка таблицы по заказчику: столбец и направление (а-я / я-а) */
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'mest' | 'pw' | 'w' | 'vol' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -399,10 +399,18 @@ export function CargoPage({
         enabled: !!effectiveServiceMode && !!transportFilter && includeCargoNumbersForTransport.length > 0,
     });
 
+    const itemsScopedToHeaderCustomer = useMemo(() => {
+        if (effectiveServiceMode) return items;
+        return filterItemsForHeaderCustomer(items, {
+            activeInn: runtime.activeInn,
+            activeCustomerName: runtime.activeCustomerName,
+        });
+    }, [items, effectiveServiceMode, runtime.activeInn, runtime.activeCustomerName]);
+
     const itemsForFiltering = useMemo(() => {
-        if (!effectiveServiceMode || !transportFilter) return items;
-        return mergeCargoItemsByNumber(items, transportLinkedItems);
-    }, [items, transportLinkedItems, effectiveServiceMode, transportFilter]);
+        if (!effectiveServiceMode || !transportFilter) return itemsScopedToHeaderCustomer;
+        return mergeCargoItemsByNumber(itemsScopedToHeaderCustomer, transportLinkedItems);
+    }, [itemsScopedToHeaderCustomer, transportLinkedItems, effectiveServiceMode, transportFilter]);
 
     const { searchByNumber: nomenclatureSearchByNumber, loading: nomenclatureSearchLoading } = useCargoNomenclatureSearch({
         items: itemsForFiltering,
