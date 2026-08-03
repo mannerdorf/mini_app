@@ -145,10 +145,6 @@ const stripDiagramByType = useMemo(() => {
         { label: 'Паром', value: ferryVal, percent: Math.round((ferryVal / total) * 100), color: DIAGRAM_COLORS[1], dynamics: calcStripDynamics(ferryVal, ferryPrev, hasPrev) },
     ];
 }, [dashboardTotalItems, dashboardTotalPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
-const { slaStats, slaStatsByType, outOfSlaByType, slaTrend } = useDashboardSlaMetrics({
-    slaMonitorFilteredItems,
-    workScheduleByInn,
-});
 
 const stripDiagramBySender = useMemo(() => {
     const map = new Map<string, number>();
