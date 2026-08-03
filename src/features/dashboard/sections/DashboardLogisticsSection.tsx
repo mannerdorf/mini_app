@@ -9,15 +9,15 @@ export function DashboardLogisticsSection({ page }: Props) {
     return (
         <DashboardMotionItem enabled={page.dashboardMotionEnabled}>
 {/* === ВИДЖЕТ 4: Монитор SLA            {/* === ВИДЖЕТ 4: Монитор SLA (включить: page.WIDGET_4_SLA = true); в режиме "только SLA" показываем даже при 0 перевозок === */}
-                        {page.WIDGET_4_SLA && !page.loading && !page.error && (slaStats.total > 0 || page.showOnlySla) && (
+                        {page.WIDGET_4_SLA && !page.loading && !page.error && (page.slaStats.total > 0 || page.showOnlySla) && (
                 <DashboardSlaMonitor
                     auth={page.auth}
                     useServiceRequest={page.useServiceRequest}
                     chartBarFillEnabled={page.chartBarFillEnabled}
-                    slaStats={slaStats}
-                    slaStatsByType={slaStatsByType}
-                    slaTrend={slaTrend}
-                    outOfSlaByType={outOfSlaByType}
+                    slaStats={page.slaStats}
+                    slaStatsByType={page.slaStatsByType}
+                    slaTrend={page.slaTrend}
+                    outOfSlaByType={page.outOfSlaByType}
                     onOpenCargo={page.onOpenCargo}
                     normalizeTimelineErrorMessage={page.normalizeTimelineErrorMessage}
                 />

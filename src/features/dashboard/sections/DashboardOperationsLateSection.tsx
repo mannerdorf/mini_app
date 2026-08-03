@@ -29,7 +29,7 @@ export function DashboardOperationsLateSection({ page }: Props) {
     return (
         <>
 {/* 6. Календарь загрузки (heatmap) */}
-            {page.useServiceRequest && !page.loading && !page.error && loadHeatmap.cells.length > 0 && (
+            {page.useServiceRequest && !page.loading && !page.error && page.loadHeatmap.cells.length > 0 && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Flex align="center" justify="space-between" style={{ marginBottom: '0.15rem' }}>
                         <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600 }}>
@@ -37,13 +37,13 @@ export function DashboardOperationsLateSection({ page }: Props) {
                         </Typography.Headline>
                         <Flex align="center" gap="0.4rem">
                             {(() => {
-                                const canPrev = heatmapMonth.year > heatmapRange.minYear || (heatmapMonth.year === heatmapRange.minYear && heatmapMonth.month > heatmapRange.minMonth);
-                                const canNext = heatmapMonth.year < heatmapRange.maxYear || (heatmapMonth.year === heatmapRange.maxYear && heatmapMonth.month < heatmapRange.maxMonth);
+                                const canPrev = page.heatmapMonth.year > heatmapRange.minYear || (page.heatmapMonth.year === heatmapRange.minYear && page.heatmapMonth.month > heatmapRange.minMonth);
+                                const canNext = page.heatmapMonth.year < heatmapRange.maxYear || (page.heatmapMonth.year === heatmapRange.maxYear && page.heatmapMonth.month < heatmapRange.maxMonth);
                                 return (
                                     <>
                                         <Button className="filter-button" style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem', opacity: canPrev ? 1 : 0.3 }} disabled={!canPrev} onClick={() => canPrev && page.setHeatmapMonth((m) => (m.month === 1 ? { year: m.year - 1, month: 12 } : { year: m.year, month: m.month - 1 }))}>←</Button>
                                         <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', minWidth: '8rem', textAlign: 'center' }}>
-                                            {['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'][loadHeatmap.month - 1]} {loadHeatmap.year}
+                                            {['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'][page.loadHeatmap.month - 1]} {page.loadHeatmap.year}
                                         </Typography.Body>
                                         <Button className="filter-button" style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem', opacity: canNext ? 1 : 0.3 }} disabled={!canNext} onClick={() => canNext && page.setHeatmapMonth((m) => (m.month === 12 ? { year: m.year + 1, month: 1 } : { year: m.year, month: m.month + 1 }))}>→</Button>
                                     </>
@@ -59,13 +59,13 @@ export function DashboardOperationsLateSection({ page }: Props) {
                             <div key={`hm-h-${wd}`} style={{ textAlign: 'center', fontSize: '0.7rem', color: 'var(--color-text-secondary)', fontWeight: 600, padding: '0.15rem' }}>{wd}</div>
                         ))}
                         {(() => {
-                            const first = new Date(loadHeatmap.year, loadHeatmap.month - 1, 1);
+                            const first = new Date(page.loadHeatmap.year, page.loadHeatmap.month - 1, 1);
                             const offset = (first.getDay() + 6) % 7;
                             const blanks = Array.from({ length: offset }, (_, i) => (
                                 <div key={`hm-blank-${i}`} />
                             ));
-                            const days = loadHeatmap.cells.map((cell) => {
-                                const intensity = cell.count / loadHeatmap.maxCount;
+                            const days = page.loadHeatmap.cells.map((cell) => {
+                                const intensity = cell.count / page.loadHeatmap.maxCount;
                                 return (
                                     <div key={`hm-${cell.key}`} title={`${cell.key}: ${cell.count} грузов, ${Math.round(cell.pw)} кг`} style={{ textAlign: 'center', borderRadius: 5, padding: '0.3rem 0.15rem', fontSize: '0.72rem', fontWeight: cell.count > 0 ? 600 : 400, background: cell.count > 0 ? `rgba(37,99,235,${0.12 + intensity * 0.55})` : 'var(--color-bg-hover)', color: intensity > 0.5 ? 'white' : 'var(--color-text-primary)', cursor: 'default' }}>
                                         {cell.day}
@@ -80,7 +80,7 @@ export function DashboardOperationsLateSection({ page }: Props) {
             )}
 
             {/* 1. Воронка статусов */}
-            {page.useServiceRequest && !page.loading && !page.error && statusFunnel.length > 0 && (
+            {page.useServiceRequest && !page.loading && !page.error && page.statusFunnel.length > 0 && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>
                         Воронка статусов
@@ -90,9 +90,9 @@ export function DashboardOperationsLateSection({ page }: Props) {
                     </Typography.Body>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                         {(() => {
-                            const maxC = Math.max(...statusFunnel.map((s) => s.count), 1);
-                            const totalC = statusFunnel.reduce((a, s) => a + s.count, 0) || 1;
-                            return statusFunnel.map((stage, fi) => {
+                            const maxC = Math.max(...page.statusFunnel.map((s) => s.count), 1);
+                            const totalC = page.statusFunnel.reduce((a, s) => a + s.count, 0) || 1;
+                            return page.statusFunnel.map((stage, fi) => {
                                 const isActive = page.selectedFunnelStatusKey === stage.key;
                                 return (
                                     <button
@@ -116,7 +116,7 @@ export function DashboardOperationsLateSection({ page }: Props) {
                     {page.selectedFunnelStatusKey && (
                         <div style={{ marginTop: '0.55rem', border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.55rem', background: 'var(--color-bg-hover)' }}>
                             <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                                Заказчики по статусу: {statusFunnel.find((s) => s.key === page.selectedFunnelStatusKey)?.label || page.selectedFunnelStatusKey}. Нажмите на заказчика — перевозки и даты.
+                                Заказчики по статусу: {page.statusFunnel.find((s) => s.key === page.selectedFunnelStatusKey)?.label || page.selectedFunnelStatusKey}. Нажмите на заказчика — перевозки и даты.
                             </Typography.Body>
                             <div style={{ overflowX: 'auto', maxHeight: 400, overflowY: 'auto' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
@@ -129,7 +129,7 @@ export function DashboardOperationsLateSection({ page }: Props) {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {(statusFunnelCustomersTable[page.selectedFunnelStatusKey] ?? []).map((row, idx) => {
+                                        {(page.statusFunnelCustomersTable[page.selectedFunnelStatusKey] ?? []).map((row, idx) => {
                                             const isExpanded = page.expandedFunnelCustomer === row.customer;
                                             const items = (page.statusFunnelItemsByCustomer[page.selectedFunnelStatusKey] ?? {})[row.customer] ?? [];
                                             const sortedItems = [...items].sort((a, b) => {
@@ -168,7 +168,7 @@ export function DashboardOperationsLateSection({ page }: Props) {
                                                                         <tbody>
                                                                             {sortedItems.map((it, i) => {
                                                                                 const cargoNum = String(it?.Number ?? it?.Номер ?? '').trim();
-                                                                                const plannedDate = getEffectivePlannedDate(it);
+                                                                                const plannedDate = page.getEffectivePlannedDate(it);
                                                                                 const plannedDateValue = plannedDate
                                                                                     ? `${plannedDate.getFullYear()}-${String(plannedDate.getMonth() + 1).padStart(2, '0')}-${String(plannedDate.getDate()).padStart(2, '0')}`
                                                                                     : '';
@@ -214,17 +214,17 @@ export function DashboardOperationsLateSection({ page }: Props) {
 
                         {!page.showOnlySla && !page.loading && !page.error && (
                 <DashboardCargoFlowWidget
-                    cargoFlowByPlan={cargoFlowByPlan}
+                    cargoFlowByPlan={page.cargoFlowByPlan}
                     cargoFlowTableExpanded={page.cargoFlowTableExpanded}
                     cargoFlowTableSelection={page.cargoFlowTableSelection}
-                    onCargoFlowPick={onCargoFlowPick}
+                    onCargoFlowPick={page.onCargoFlowPick}
                     onCollapseCargoFlow={() => { page.setCargoFlowTableExpanded(false); page.setCargoFlowTableSelection(null); }}
-                    cargoFlowDetailSorted={cargoFlowDetailSorted}
+                    cargoFlowDetailSorted={page.cargoFlowDetailSorted}
                     showSums={page.showSums}
                     onOpenCargo={page.onOpenCargo}
-                    getItemSum={getItemSum}
-                    getEffectivePlannedDate={getEffectivePlannedDate}
-                    getLastStatusDateKey={getLastStatusDateKey}
+                    getItemSum={page.getItemSum}
+                    getEffectivePlannedDate={page.getEffectivePlannedDate}
+                    getLastStatusDateKey={page.getLastStatusDateKey}
                 />
             )}
         </>

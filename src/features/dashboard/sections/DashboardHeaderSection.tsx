@@ -49,10 +49,10 @@ export function DashboardHeaderSection({ page }: Props) {
                         auth={page.auth}
                         useServiceRequest={page.useServiceRequest}
                         onOpenCargo={page.onOpenCargo}
-                        perevozkiItems={filteredCargoItems}
+                        perevozkiItems={page.filteredCargoItems}
                         perevozkiLoading={page.loading}
                         perevozkiError={page.error}
-                        perevozkiMutate={mutatePerevozki}
+                        perevozkiMutate={page.mutatePerevozki}
                         showSums={page.showSums}
                     />
                 </div>

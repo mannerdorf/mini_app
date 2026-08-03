@@ -30,7 +30,7 @@ export function DashboardOperationsEarlySection({ page }: Props) {
 {/* ═══════ ГРУППА 2: ОПЕРАЦИОННАЯ НАГРУЗКА ═══════ */}
 
             {/* 10. Распределение по дням недели */}
-            {page.useServiceRequest && !weekdayDistributionLoading && !page.error && weekdayDistribution.length > 0 && (
+            {page.useServiceRequest && !page.weekdayDistributionLoading && !page.error && page.weekdayDistribution.length > 0 && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem" style={{ marginBottom: '0.25rem' }}>
                         <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600 }}>
@@ -77,7 +77,7 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                             : "Количество выдач и платный вес по дню недели фактической даты доставки / вручения (в периоде фильтра)."}
                     </Typography.Body>
                     <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'flex-end', height: 100, marginBottom: '0.4rem' }}>
-                        {weekdayDistribution.map((d, idx) => {
+                        {page.weekdayDistribution.map((d, idx) => {
                             const colH = d.count === 0 ? 0 : Math.max(d.percent, 4);
                             return (
                             <div key={d.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
@@ -96,7 +96,7 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                         })}
                     </div>
                     <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.35rem' }}>
-                        {weekdayDistribution.map((d) => (
+                        {page.weekdayDistribution.map((d) => (
                             <div key={`lbl-${d.label}`} style={{ flex: 1, textAlign: 'center' }}>
                                 <Typography.Body style={{ fontSize: '0.72rem', color: d.label === 'Сб' || d.label === 'Вс' ? '#ef4444' : 'var(--color-text-secondary)', fontWeight: 600, display: 'block', lineHeight: '1.2' }}>{d.label}</Typography.Body>
                                 <Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)', display: 'block', lineHeight: '1.2', marginTop: '0.1rem' }}>{d.count} шт</Typography.Body>
@@ -111,7 +111,7 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                 </Panel>
             )}
 
-            {page.useServiceRequest && !page.loading && !page.error && lastMileTerminalLoad.totals.count > 0 && (
+            {page.useServiceRequest && !page.loading && !page.error && page.lastMileTerminalLoad.totals.count > 0 && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>
                         Загрузка терминалов: самовывоз / доставка
@@ -120,16 +120,16 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                         Разбивка текущего периода по последней миле. Проценты считаются от общего итога по каждой метрике.
                     </Typography.Body>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
-                        {lastMileTerminalLoad.rows.map((row, rowIndex) => {
+                        {page.lastMileTerminalLoad.rows.map((row, rowIndex) => {
                             const pct = (value: number, total: number) => total > 0 ? Math.round((value / total) * 100) : 0;
                             const metrics = [
-                                { key: 'w', label: 'Кг', value: row.w, total: lastMileTerminalLoad.totals.w, suffix: 'кг' },
-                                { key: 'vol', label: 'Объём', value: row.vol, total: lastMileTerminalLoad.totals.vol, suffix: 'м³', digits: 2 },
-                                { key: 'pw', label: 'Платный вес', value: row.pw, total: lastMileTerminalLoad.totals.pw, suffix: 'кг' },
-                                { key: 'mest', label: 'Шт / мест', value: row.mest, total: lastMileTerminalLoad.totals.mest, suffix: 'шт' },
-                                ...(page.showSums ? [{ key: 'sum', label: 'Рубли', value: row.sum, total: lastMileTerminalLoad.totals.sum, suffix: '₽', money: true }] : []),
+                                { key: 'w', label: 'Кг', value: row.w, total: page.lastMileTerminalLoad.totals.w, suffix: 'кг' },
+                                { key: 'vol', label: 'Объём', value: row.vol, total: page.lastMileTerminalLoad.totals.vol, suffix: 'м³', digits: 2 },
+                                { key: 'pw', label: 'Платный вес', value: row.pw, total: page.lastMileTerminalLoad.totals.pw, suffix: 'кг' },
+                                { key: 'mest', label: 'Шт / мест', value: row.mest, total: page.lastMileTerminalLoad.totals.mest, suffix: 'шт' },
+                                ...(page.showSums ? [{ key: 'sum', label: 'Рубли', value: row.sum, total: page.lastMileTerminalLoad.totals.sum, suffix: '₽', money: true }] : []),
                             ];
-                            const countPct = pct(row.count, lastMileTerminalLoad.totals.count);
+                            const countPct = pct(row.count, page.lastMileTerminalLoad.totals.count);
                             return (
                                 <div key={row.key} style={{ border: '1px solid var(--color-border)', borderRadius: 12, padding: '0.75rem', background: 'var(--color-bg-hover)' }}>
                                     <Flex align="center" justify="space-between" style={{ gap: '0.5rem', marginBottom: '0.6rem' }}>
@@ -187,7 +187,7 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                 </Panel>
             )}
 
-            {page.useServiceRequest && !page.loading && !page.error && pickupLogisticsLoad.totals.count > 0 && (
+            {page.useServiceRequest && !page.loading && !page.error && page.pickupLogisticsLoad.totals.count > 0 && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>
                         Загрузка заборной логистики: PickUP / terminal-to
@@ -196,16 +196,16 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                         Разбивка текущего периода по месту старта груза. Проценты считаются от общего итога по каждой метрике.
                     </Typography.Body>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
-                        {pickupLogisticsLoad.rows.map((row, rowIndex) => {
+                        {page.pickupLogisticsLoad.rows.map((row, rowIndex) => {
                             const pct = (value: number, total: number) => total > 0 ? Math.round((value / total) * 100) : 0;
                             const metrics = [
-                                { key: 'w', label: 'Кг', value: row.w, total: pickupLogisticsLoad.totals.w, suffix: 'кг' },
-                                { key: 'vol', label: 'Объём', value: row.vol, total: pickupLogisticsLoad.totals.vol, suffix: 'м³', digits: 2 },
-                                { key: 'pw', label: 'Платный вес', value: row.pw, total: pickupLogisticsLoad.totals.pw, suffix: 'кг' },
-                                { key: 'mest', label: 'Шт / мест', value: row.mest, total: pickupLogisticsLoad.totals.mest, suffix: 'шт' },
-                                ...(page.showSums ? [{ key: 'sum', label: 'Рубли', value: row.sum, total: pickupLogisticsLoad.totals.sum, suffix: '₽', money: true }] : []),
+                                { key: 'w', label: 'Кг', value: row.w, total: page.pickupLogisticsLoad.totals.w, suffix: 'кг' },
+                                { key: 'vol', label: 'Объём', value: row.vol, total: page.pickupLogisticsLoad.totals.vol, suffix: 'м³', digits: 2 },
+                                { key: 'pw', label: 'Платный вес', value: row.pw, total: page.pickupLogisticsLoad.totals.pw, suffix: 'кг' },
+                                { key: 'mest', label: 'Шт / мест', value: row.mest, total: page.pickupLogisticsLoad.totals.mest, suffix: 'шт' },
+                                ...(page.showSums ? [{ key: 'sum', label: 'Рубли', value: row.sum, total: page.pickupLogisticsLoad.totals.sum, suffix: '₽', money: true }] : []),
                             ];
-                            const countPct = pct(row.count, pickupLogisticsLoad.totals.count);
+                            const countPct = pct(row.count, page.pickupLogisticsLoad.totals.count);
                             return (
                                 <div key={row.key} style={{ border: '1px solid var(--color-border)', borderRadius: 12, padding: '0.75rem', background: 'var(--color-bg-hover)' }}>
                                     <Flex align="center" justify="space-between" style={{ gap: '0.5rem', marginBottom: '0.6rem' }}>
@@ -263,7 +263,7 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                 </Panel>
             )}
 
-            {page.useServiceRequest && !page.loading && !page.error && pickupByLastMileLoad.totals.count > 0 && (
+            {page.useServiceRequest && !page.loading && !page.error && page.pickupByLastMileLoad.totals.count > 0 && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>
                         Загрузка: заборная логистика / терминалы
@@ -272,16 +272,16 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                         Сводная разбивка текущего периода по заборной логистике и последней миле. Нажмите на блок, чтобы открыть таблицу.
                     </Typography.Body>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
-                        {pickupByLastMileLoad.rows.map((row, rowIndex) => {
+                        {page.pickupByLastMileLoad.rows.map((row, rowIndex) => {
                             const pct = (value: number, total: number) => total > 0 ? Math.round((value / total) * 100) : 0;
                             const metrics = [
-                                { key: 'w', label: 'Кг', value: row.w, total: pickupByLastMileLoad.totals.w, suffix: 'кг' },
-                                { key: 'vol', label: 'Объём', value: row.vol, total: pickupByLastMileLoad.totals.vol, suffix: 'м³', digits: 2 },
-                                { key: 'pw', label: 'Платный вес', value: row.pw, total: pickupByLastMileLoad.totals.pw, suffix: 'кг' },
-                                { key: 'mest', label: 'Шт / мест', value: row.mest, total: pickupByLastMileLoad.totals.mest, suffix: 'шт' },
-                                ...(page.showSums ? [{ key: 'sum', label: 'Рубли', value: row.sum, total: pickupByLastMileLoad.totals.sum, suffix: '₽', money: true }] : []),
+                                { key: 'w', label: 'Кг', value: row.w, total: page.pickupByLastMileLoad.totals.w, suffix: 'кг' },
+                                { key: 'vol', label: 'Объём', value: row.vol, total: page.pickupByLastMileLoad.totals.vol, suffix: 'м³', digits: 2 },
+                                { key: 'pw', label: 'Платный вес', value: row.pw, total: page.pickupByLastMileLoad.totals.pw, suffix: 'кг' },
+                                { key: 'mest', label: 'Шт / мест', value: row.mest, total: page.pickupByLastMileLoad.totals.mest, suffix: 'шт' },
+                                ...(page.showSums ? [{ key: 'sum', label: 'Рубли', value: row.sum, total: page.pickupByLastMileLoad.totals.sum, suffix: '₽', money: true }] : []),
                             ];
-                            const countPct = pct(row.count, pickupByLastMileLoad.totals.count);
+                            const countPct = pct(row.count, page.pickupByLastMileLoad.totals.count);
                             const selected = page.selectedCombinedLogisticsKey === row.key;
                             return (
                                 <div
@@ -357,11 +357,11 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                             );
                         })}
                     </div>
-                    {selectedCombinedLogisticsBucket && (
+                    {page.selectedCombinedLogisticsBucket && (
                         <div style={{ marginTop: '0.85rem', border: '1px solid var(--color-border)', borderRadius: 12, padding: '0.75rem', background: 'var(--color-bg-hover)' }}>
                             <Flex align="center" justify="space-between" gap="0.5rem" style={{ marginBottom: '0.55rem' }}>
                                 <Typography.Body style={{ fontSize: '0.82rem', fontWeight: 700 }}>
-                                    Заказчики: {selectedCombinedLogisticsBucket.label}
+                                    Заказчики: {page.selectedCombinedLogisticsBucket.label}
                                 </Typography.Body>
                                 <Button
                                     type="button"
@@ -387,7 +387,7 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {combinedLogisticsCustomerRows.map((customerRow, idx) => {
+                                        {page.combinedLogisticsCustomerRows.map((customerRow, idx) => {
                                             const expanded = page.expandedCombinedLogisticsCustomer === customerRow.customer;
                                             const sortedItems = [...customerRow.items].sort((a, b) => {
                                                 const da = dateUtils.parseDateOnly(String(a?.DatePrih ?? ''))?.getTime() ?? 0;

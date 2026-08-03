@@ -27,7 +27,7 @@ export function DashboardFinanceSection({ page }: Props) {
                             <Flex align="center" gap="0.5rem" style={{ marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                                 <Button className="filter-button" style={{ padding: '0.35rem 0.5rem' }} onClick={() => page.setPaymentCalendarMonth((m) => (m.month === 1 ? { year: m.year - 1, month: 12 } : { year: m.year, month: m.month - 1 }))}>←</Button>
                                 <Typography.Body style={{ fontWeight: 600, minWidth: '10rem', textAlign: 'center' }}>
-                                    {['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'][paymentCalendarMonth.month - 1]} {paymentCalendarMonth.year}
+                                    {['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'][page.paymentCalendarMonth.month - 1]} {page.paymentCalendarMonth.year}
                                 </Typography.Body>
                                 <Button className="filter-button" style={{ padding: '0.35rem 0.5rem' }} onClick={() => page.setPaymentCalendarMonth((m) => (m.month === 12 ? { year: m.year + 1, month: 1 } : { year: m.year, month: m.month + 1 }))}>→</Button>
                                 <Button
@@ -42,7 +42,7 @@ export function DashboardFinanceSection({ page }: Props) {
                                 >
                                     Сегодня
                                 </Button>
-                                <Button className="filter-button" style={{ padding: '0.35rem 0.5rem', marginLeft: '0.25rem' }} onClick={() => mutateCalendarInvoices()} title="Обновить счета с начала текущего года" aria-label="Обновить счета">
+                                <Button className="filter-button" style={{ padding: '0.35rem 0.5rem', marginLeft: '0.25rem' }} onClick={() => page.mutateCalendarInvoices()} title="Обновить счета с начала текущего года" aria-label="Обновить счета">
                                     <RefreshCw className="w-4 h-4" />
                                 </Button>
                             </Flex>
@@ -75,13 +75,13 @@ export function DashboardFinanceSection({ page }: Props) {
                                             for (let i = 0; i < 7; i++) {
                                                 const c = weekCells[i];
                                                 if (c?.key) {
-                                                    const e = plannedByDate.get(c.key);
+                                                    const e = page.plannedByDate.get(c.key);
                                                     if (e?.total) weekSum += e.total;
                                                 }
                                             }
                                             const monFri = weekCells.slice(0, 5);
                                             const row: React.ReactNode[] = monFri.map((c, i) => {
-                                                const entry = c.key ? plannedByDate.get(c.key) : undefined;
+                                                const entry = c.key ? page.plannedByDate.get(c.key) : undefined;
                                                 const sum = entry?.total;
                                                 const hasSum = sum != null && sum > 0;
                                                 return (
@@ -138,7 +138,7 @@ export function DashboardFinanceSection({ page }: Props) {
                                     })()}
                                 </div>
                             </div>
-                            {page.paymentCalendarSelectedDate && plannedByDate.get(page.paymentCalendarSelectedDate) && (
+                            {page.paymentCalendarSelectedDate && page.plannedByDate.get(page.paymentCalendarSelectedDate) && (
                                 <div className="modal-overlay" style={{ zIndex: 10000 }} role="dialog" aria-modal="true" aria-labelledby="payment-calendar-day-title" onClick={() => page.setPaymentCalendarSelectedDate(null)}>
                                     <div className="modal-content" style={{ maxWidth: '22rem', padding: '1rem', maxHeight: '80vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
                                         <Typography.Body id="payment-calendar-day-title" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>
@@ -148,7 +148,7 @@ export function DashboardFinanceSection({ page }: Props) {
                                             Заказчики и суммы:
                                         </Typography.Body>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                            {plannedByDate.get(page.paymentCalendarSelectedDate)!.items.map((row, idx) => (
+                                            {page.plannedByDate.get(page.paymentCalendarSelectedDate)!.items.map((row, idx) => (
                                                 <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0', borderBottom: '1px solid var(--color-border)' }}>
                                                     <Typography.Body style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.customer}>{row.customer}</Typography.Body>
                                                     <Typography.Body style={{ fontWeight: 600, flexShrink: 0 }}>{formatCurrency(row.sum, true)}</Typography.Body>
@@ -157,13 +157,13 @@ export function DashboardFinanceSection({ page }: Props) {
                                         </div>
                                         <Flex justify="space-between" align="center" style={{ marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid var(--color-border)', fontWeight: 600 }}>
                                             <Typography.Body>Итого:</Typography.Body>
-                                            <Typography.Body>{formatCurrency(plannedByDate.get(page.paymentCalendarSelectedDate)!.total, true)}</Typography.Body>
+                                            <Typography.Body>{formatCurrency(page.plannedByDate.get(page.paymentCalendarSelectedDate)!.total, true)}</Typography.Body>
                                         </Flex>
                                         <Button type="button" className="filter-button" style={{ marginTop: '0.75rem', width: '100%' }} onClick={() => page.setPaymentCalendarSelectedDate(null)}>Закрыть</Button>
                                     </div>
                                 </div>
                             )}
-                            {plannedByDate.size === 0 && !page.paymentCalendarLoading && (
+                            {page.plannedByDate.size === 0 && !page.paymentCalendarLoading && (
                                 <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.5rem' }}>
                                     Нет данных за выбранный период или условия оплаты не заданы в справочнике.
                                 </Typography.Body>
@@ -174,7 +174,7 @@ export function DashboardFinanceSection({ page }: Props) {
             )}
 
             {/* 4. Старение дебиторки */}
-            {page.useServiceRequest && !page.loading && !page.error && invoiceAging.total > 0 && page.showSums && (
+            {page.useServiceRequest && !page.loading && !page.error && page.invoiceAging.total > 0 && page.showSums && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
                         Старение дебиторки
@@ -183,7 +183,7 @@ export function DashboardFinanceSection({ page }: Props) {
                         Неоплаченные счета по давности выставления
                     </Typography.Body>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                        {invoiceAging.buckets.map((b) => (
+                        {page.invoiceAging.buckets.map((b) => (
                             <div
                                 key={b.label}
                                 onClick={() => b.count > 0 && page.setExpandedAgingBucket(page.expandedAgingBucket === b.label ? null : b.label)}
@@ -203,11 +203,11 @@ export function DashboardFinanceSection({ page }: Props) {
                         ))}
                     </div>
                     <div style={{ height: 10, borderRadius: 5, background: 'var(--color-bg-hover)', overflow: 'hidden', display: 'flex' }}>
-                        {invoiceAging.buckets.map((b, bi) => (
+                        {page.invoiceAging.buckets.map((b, bi) => (
                             <DashboardChartBarH
                                 key={`aging-bar-${b.label}`}
                                 enabled={page.chartBarFillEnabled}
-                                widthPercent={invoiceAging.total > 0 ? (b.sum / invoiceAging.total) * 100 : 0}
+                                widthPercent={page.invoiceAging.total > 0 ? (b.sum / page.invoiceAging.total) * 100 : 0}
                                 delay={bi * 0.06}
                                 style={{ background: b.color }}
                                 title={`${b.label}: ${formatCurrency(b.sum, true)}`}
@@ -215,7 +215,7 @@ export function DashboardFinanceSection({ page }: Props) {
                         ))}
                     </div>
                     {page.expandedAgingBucket && (() => {
-                        const bucket = invoiceAging.buckets.find((b) => b.label === page.expandedAgingBucket);
+                        const bucket = page.invoiceAging.buckets.find((b) => b.label === page.expandedAgingBucket);
                         if (!bucket || bucket.items.length === 0) return null;
                         const sorted = [...bucket.items].sort((a, b2) => {
                             let cmp = 0;
@@ -295,7 +295,7 @@ export function DashboardFinanceSection({ page }: Props) {
             )}
 
             {/* 3. Pareto / ABC-анализ клиентов */}
-            {page.useServiceRequest && !page.loading && !page.error && paretoByCustomer.rows.length > 0 && page.showSums && (
+            {page.useServiceRequest && !page.loading && !page.error && page.paretoByCustomer.rows.length > 0 && page.showSums && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
                         ABC-анализ клиентов
@@ -307,7 +307,7 @@ export function DashboardFinanceSection({ page }: Props) {
                         % после суммы — кумулятивная доля: сколько от общей выручки дают все клиенты от первого до текущего. A (≤80%) — ключевые, B (≤95%) — средние, C — остальные.
                     </Typography.Body>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', maxHeight: 280, overflowY: 'auto' }}>
-                        {paretoByCustomer.rows.slice(0, 15).map((row, i) => {
+                        {page.paretoByCustomer.rows.slice(0, 15).map((row, i) => {
                             const zone = row.cumPercent <= 80 ? 'A' : row.cumPercent <= 95 ? 'B' : 'C';
                             const zoneColor = zone === 'A' ? '#10b981' : zone === 'B' ? '#f59e0b' : '#94a3b8';
                             return (
@@ -321,13 +321,13 @@ export function DashboardFinanceSection({ page }: Props) {
                         })}
                     </div>
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: '0.45rem' }}>
-                        Всего клиентов: {paretoByCustomer.rows.length} · A (80%): {paretoByCustomer.rows.filter((r) => r.cumPercent <= 80).length} · B (95%): {paretoByCustomer.rows.filter((r) => r.cumPercent > 80 && r.cumPercent <= 95).length} · C: {paretoByCustomer.rows.filter((r) => r.cumPercent > 95).length}
+                        Всего клиентов: {page.paretoByCustomer.rows.length} · A (80%): {page.paretoByCustomer.rows.filter((r) => r.cumPercent <= 80).length} · B (95%): {page.paretoByCustomer.rows.filter((r) => r.cumPercent > 80 && r.cumPercent <= 95).length} · C: {page.paretoByCustomer.rows.filter((r) => r.cumPercent > 95).length}
                     </Typography.Body>
                 </Panel>
             )}
 
             {/* 9. Доля повторных клиентов */}
-            {page.useServiceRequest && !page.loading && !page.error && repeatCustomers && (
+            {page.useServiceRequest && !page.loading && !page.error && page.repeatCustomers && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
                         Повторные клиенты
@@ -337,7 +337,7 @@ export function DashboardFinanceSection({ page }: Props) {
                     </Typography.Body>
                     <Flex gap="1rem" wrap="wrap" style={{ marginBottom: '0.5rem' }}>
                         <div style={{ textAlign: 'center' }}>
-                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#10b981' }}>{repeatCustomers.repeatPercent}%</Typography.Body>
+                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#10b981' }}>{page.repeatCustomers.repeatPercent}%</Typography.Body>
                             <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>повторных</Typography.Body>
                         </div>
                         <div style={{ textAlign: 'center' }}>
@@ -347,7 +347,7 @@ export function DashboardFinanceSection({ page }: Props) {
                                 style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit' }}
                                 title="Показать список всех заказчиков"
                             >
-                                <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', textDecoration: page.repeatCustomersListMode === 'all' ? 'underline' : 'none' }}>{repeatCustomers.total}</Typography.Body>
+                                <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', textDecoration: page.repeatCustomersListMode === 'all' ? 'underline' : 'none' }}>{page.repeatCustomers.total}</Typography.Body>
                             </button>
                             <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>всего клиентов</Typography.Body>
                         </div>
@@ -358,7 +358,7 @@ export function DashboardFinanceSection({ page }: Props) {
                                 style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit' }}
                                 title="Показать список повторных заказчиков"
                             >
-                                <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#3b82f6', textDecoration: page.repeatCustomersListMode === 'repeat' ? 'underline' : 'none' }}>{repeatCustomers.repeat}</Typography.Body>
+                                <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#3b82f6', textDecoration: page.repeatCustomersListMode === 'repeat' ? 'underline' : 'none' }}>{page.repeatCustomers.repeat}</Typography.Body>
                             </button>
                             <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>повторных</Typography.Body>
                         </div>
@@ -369,14 +369,14 @@ export function DashboardFinanceSection({ page }: Props) {
                                 style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit' }}
                                 title="Показать список новых заказчиков"
                             >
-                                <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#f59e0b', textDecoration: page.repeatCustomersListMode === 'new' ? 'underline' : 'none' }}>{repeatCustomers.new}</Typography.Body>
+                                <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#f59e0b', textDecoration: page.repeatCustomersListMode === 'new' ? 'underline' : 'none' }}>{page.repeatCustomers.new}</Typography.Body>
                             </button>
                             <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>новых</Typography.Body>
                         </div>
                     </Flex>
                     <div style={{ height: 12, borderRadius: 6, background: 'var(--color-bg-hover)', overflow: 'hidden', display: 'flex' }}>
-                        <DashboardChartBarH enabled={page.chartBarFillEnabled} widthPercent={repeatCustomers.repeatPercent} delay={0.05} style={{ background: '#10b981', borderRadius: '6px 0 0 6px' }} />
-                        <DashboardChartBarH enabled={page.chartBarFillEnabled} widthPercent={100 - repeatCustomers.repeatPercent} delay={0.12} style={{ background: '#f59e0b', borderRadius: '0 6px 6px 0' }} />
+                        <DashboardChartBarH enabled={page.chartBarFillEnabled} widthPercent={page.repeatCustomers.repeatPercent} delay={0.05} style={{ background: '#10b981', borderRadius: '6px 0 0 6px' }} />
+                        <DashboardChartBarH enabled={page.chartBarFillEnabled} widthPercent={100 - page.repeatCustomers.repeatPercent} delay={0.12} style={{ background: '#f59e0b', borderRadius: '0 6px 6px 0' }} />
                     </div>
                     <Flex gap="0.75rem" style={{ marginTop: '0.3rem' }}>
                         <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }} /><Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Повторные</Typography.Body></Flex>
@@ -386,17 +386,17 @@ export function DashboardFinanceSection({ page }: Props) {
                         <div style={{ marginTop: '0.6rem', padding: '0.55rem', borderRadius: 8, border: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                             <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                                 {page.repeatCustomersListMode === 'all'
-                                    ? `Все заказчики (${repeatCustomers.allList.length})`
+                                    ? `Все заказчики (${page.repeatCustomers.allList.length})`
                                     : page.repeatCustomersListMode === 'repeat'
-                                        ? `Повторные заказчики (${repeatCustomers.repeatList.length})`
-                                        : `Новые заказчики (${repeatCustomers.newList.length})`}
+                                        ? `Повторные заказчики (${page.repeatCustomers.repeatList.length})`
+                                        : `Новые заказчики (${page.repeatCustomers.newList.length})`}
                             </Typography.Body>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
                                 {(page.repeatCustomersListMode === 'all'
-                                    ? repeatCustomers.allList
+                                    ? page.repeatCustomers.allList
                                     : page.repeatCustomersListMode === 'repeat'
-                                        ? repeatCustomers.repeatList
-                                        : repeatCustomers.newList
+                                        ? page.repeatCustomers.repeatList
+                                        : page.repeatCustomers.newList
                                 ).map((name) => (
                                     <span key={name} style={{ fontSize: '0.72rem', padding: '0.2rem 0.45rem', borderRadius: 999, border: '1px solid var(--color-border)', background: 'var(--color-bg-card)' }}>
                                         {stripOoo(name)}

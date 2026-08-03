@@ -19,27 +19,27 @@ export function DashboardStripSection({ page }: Props) {
                 showSums={page.showSums}
                 useServiceRequest={page.useServiceRequest}
                 apiDateRange={page.apiDateRange}
-                comparePeriodRange={comparePeriodRange}
-                comparePeriodOverride={!!comparePeriodOverride}
-                prevPeriodLoading={prevPeriodLoading}
-                onOpenComparePeriod={() => setIsComparePeriodDialogOpen(true)}
+                comparePeriodRange={page.comparePeriodRange}
+                comparePeriodOverride={!!page.comparePeriodOverride}
+                prevPeriodLoading={page.prevPeriodLoading}
+                onOpenComparePeriod={() => page.setIsComparePeriodDialogOpen(true)}
                 chartType={page.chartType}
                 setChartType={page.setChartType}
                 dateFilter={page.dateFilter}
-                stripValueLabel={formatStripValue()}
-                periodToPeriodTrend={periodToPeriodTrend}
-                stripTrend={stripTrend}
-                chartDataLength={chartData.length}
+                stripValueLabel={page.formatStripValue()}
+                periodToPeriodTrend={page.periodToPeriodTrend}
+                stripTrend={page.stripTrend}
+                chartDataLength={page.chartData.length}
                 stripTab={page.stripTab}
                 setStripTab={page.setStripTab}
-                stripDiagramByType={stripDiagramByType}
-                stripDiagramBySender={stripDiagramBySender}
-                stripDiagramByReceiver={stripDiagramByReceiver}
-                stripDiagramByCustomer={stripDiagramByCustomer}
+                stripDiagramByType={page.stripDiagramByType}
+                stripDiagramBySender={page.stripDiagramBySender}
+                stripDiagramByReceiver={page.stripDiagramByReceiver}
+                stripDiagramByCustomer={page.stripDiagramByCustomer}
                 stripShowAsPercent={page.stripShowAsPercent}
                 setStripShowAsPercent={page.setStripShowAsPercent}
-                formatStripDelta={formatStripDelta}
-                stripLineChartData={stripLineChartData}
+                formatStripDelta={page.formatStripDelta}
+                stripLineChartData={page.stripLineChartData}
                 chartBarFillEnabled={page.chartBarFillEnabled}
             />
 
@@ -50,7 +50,7 @@ export function DashboardStripSection({ page }: Props) {
             <div className="home-strip" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', borderRadius: '12px', marginBottom: '1rem', overflow: 'hidden' }}>
                 <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', padding: '0.75rem 1rem', minWidth: 0 }}>
                     <Typography.Body style={{ color: 'var(--color-primary-blue)', fontWeight: 600, fontSize: '0.6rem' }}>
-                        <DateText value={apiDateRange.dateFrom} /> – <DateText value={apiDateRange.dateTo} /> — Доставлено
+                        <DateText value={page.apiDateRange.dateFrom} /> – <DateText value={page.apiDateRange.dateTo} /> — Доставлено
                     </Typography.Body>
                     <Flex gap="0.25rem" align="center" style={{ flexShrink: 0 }}>
                         <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: page.chartType === 'money' ? 'var(--color-primary-blue)' : 'transparent', border: 'none' }} onClick={() => page.setChartType('money')} title="Рубли"><RussianRuble className="w-4 h-4" style={{ color: page.chartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
@@ -63,7 +63,7 @@ export function DashboardStripSection({ page }: Props) {
                 <div style={{ padding: '1.25rem 1rem 1rem', borderTop: '1px solid var(--color-border)' }}>
                     <Flex align="center" gap="0.5rem" style={{ marginBottom: '1.25rem', flexWrap: 'wrap' }}>
                         <Typography.Body style={{ fontWeight: 600, fontSize: '0.6rem' }}>
-                            {page.chartType === 'money' ? `${Math.round(deliveryStripTotals.sum || 0).toLocaleString('ru-RU')} ₽` : page.chartType === 'paidWeight' || page.chartType === 'weight' ? `${Math.round(deliveryStripTotals.pw || 0).toLocaleString('ru-RU')} кг` : page.chartType === 'pieces' ? `${Math.round(deliveryStripTotals.mest || 0).toLocaleString('ru-RU')} шт` : `${(deliveryStripTotals.vol || 0).toFixed(2).replace('.', ',')} м³`}
+                            {page.chartType === 'money' ? `${Math.round(page.deliveryStripTotals.sum || 0).toLocaleString('ru-RU')} ₽` : page.chartType === 'paidWeight' || page.chartType === 'weight' ? `${Math.round(page.deliveryStripTotals.pw || 0).toLocaleString('ru-RU')} кг` : page.chartType === 'pieces' ? `${Math.round(page.deliveryStripTotals.mest || 0).toLocaleString('ru-RU')} шт` : `${(page.deliveryStripTotals.vol || 0).toFixed(2).replace('.', ',')} м³`}
                         </Typography.Body>
                     </Flex>
                     <div style={{ marginBottom: '0.75rem' }}>
@@ -76,7 +76,7 @@ export function DashboardStripSection({ page }: Props) {
                         </Flex>
                     </div>
                     <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
-                        {page.deliveryStripTab === 'type' && deliveryStripDiagramByType.map((row, i) => (
+                        {page.deliveryStripTab === 'type' && page.deliveryStripDiagramByType.map((row, i) => (
                             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: row.color, flexShrink: 0 }} />
                                 <Typography.Body style={{ flexShrink: 0, width: 140 }}>{row.label}</Typography.Body>
@@ -90,7 +90,7 @@ export function DashboardStripSection({ page }: Props) {
                                 </Typography.Body>
                             </div>
                         ))}
-                        {page.deliveryStripTab === 'sender' && deliveryStripDiagramBySender.map((row, i) => (
+                        {page.deliveryStripTab === 'sender' && page.deliveryStripDiagramBySender.map((row, i) => (
                             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: row.color, flexShrink: 0 }} />
                                 <Typography.Body style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }} title={row.name}>{row.name}</Typography.Body>
@@ -104,7 +104,7 @@ export function DashboardStripSection({ page }: Props) {
                                 </Typography.Body>
                             </div>
                         ))}
-                        {page.deliveryStripTab === 'receiver' && deliveryStripDiagramByReceiver.map((row, i) => (
+                        {page.deliveryStripTab === 'receiver' && page.deliveryStripDiagramByReceiver.map((row, i) => (
                             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: row.color, flexShrink: 0 }} />
                                 <Typography.Body style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }} title={row.name}>{row.name}</Typography.Body>

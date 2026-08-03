@@ -29,7 +29,7 @@ export function DashboardTrendsSection({ page }: Props) {
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1.5rem' }}>
                     <Flex align="center" justify="space-between" style={{ marginBottom: '0.15rem' }}>
                         <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600 }}>
-                            {selectedChartConfig.title}
+                            {page.selectedChartConfig.title}
                         </Typography.Headline>
                         <Flex gap="0.2rem" align="center">
                             {page.showSums && (
@@ -46,10 +46,10 @@ export function DashboardTrendsSection({ page }: Props) {
                     </Typography.Body>
                     <div ref={page.mainChartWrapRef} style={{ width: '100%', minWidth: 0 }}>
                         <DashboardMainChart
-                            data={selectedChartConfig.data}
-                            title={selectedChartConfig.title}
-                            color={selectedChartConfig.color}
-                            formatValue={selectedChartConfig.formatValue}
+                            data={page.selectedChartConfig.data}
+                            title={page.selectedChartConfig.title}
+                            color={page.selectedChartConfig.color}
+                            formatValue={page.selectedChartConfig.formatValue}
                             variant="area"
                             outerWidthPx={page.mainChartOuterWidthPx}
                             onQuickDateFilter={page.setDateFilter}
@@ -59,7 +59,7 @@ export function DashboardTrendsSection({ page }: Props) {
             )}
 
             {/* 7. Скользящая средняя (overlay на основной график) */}
-            {page.useServiceRequest && !page.loading && !page.error && movingAverage7 && movingAverage7.length > 2 && !page.showOnlySla && (
+            {page.useServiceRequest && !page.loading && !page.error && page.movingAverage7 && page.movingAverage7.length > 2 && !page.showOnlySla && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Flex align="center" justify="space-between" style={{ marginBottom: '0.25rem' }}>
                         <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600 }}>
@@ -79,7 +79,7 @@ export function DashboardTrendsSection({ page }: Props) {
                         Тренд без дневных колебаний — {page.maChartType === 'money' ? 'выручка (₽)' : page.maChartType === 'paidWeight' ? 'платный вес (кг)' : page.maChartType === 'weight' ? 'вес (кг)' : page.maChartType === 'pieces' ? 'места (шт)' : 'объём (м³)'}
                     </Typography.Body>
                     {(() => {
-                        const pts = movingAverage7;
+                        const pts = page.movingAverage7;
                         const maxVal = Math.max(...pts.map((p) => p.value), 1);
                         const w = Math.max(280, Math.floor(page.maChartOuterWidthPx));
                         const h = 100;

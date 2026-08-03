@@ -10,18 +10,18 @@ export function DashboardMonitorsSection({ page }: Props) {
         <>
 {!page.showOnlySla && (
                 <EdoHealthMonitor
-                    invoices={edoMonitorInvoices}
-                    loading={monitorInvoicesLoading}
+                    invoices={page.edoMonitorInvoices}
+                    loading={page.monitorInvoicesLoading}
                     onOpen={page.onOpenDocumentsEdo}
                 />
             )}
 
             {!page.showOnlySla && (
                 <UnpaidInvoicesPlanMonitor
-                    invoices={unpaidPlanMonitorInvoices as Record<string, unknown>[]}
-                    cargoItems={unpaidPlanMonitorCargo}
-                    loading={unpaidPlanInvoicesLoading}
-                    cargoLoading={unpaidPlanCargoLoading}
+                    invoices={page.unpaidPlanMonitorInvoices as Record<string, unknown>[]}
+                    cargoItems={page.unpaidPlanMonitorCargo}
+                    loading={page.unpaidPlanInvoicesLoading}
+                    cargoLoading={page.unpaidPlanCargoLoading}
                     showSums={page.showSums}
                     onOpen={page.onOpenDocumentsInvoices}
                     onOpenInvoice={page.onOpenInvoice}

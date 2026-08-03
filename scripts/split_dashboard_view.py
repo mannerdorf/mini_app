@@ -114,7 +114,7 @@ def collect_exports(logic: str) -> list[str]:
 def patch_hook_return(exports: list[str]) -> None:
     text = HOOK.read_text()
     start = text.index("\n    return {")
-    end = text.index("\n    };\n}", start)
+    end = text.index("\n    };\n\n}", start)
     new_return = "\n    return {\n" + "".join(f"        {n},\n" for n in exports) + "    };\n"
     text = text[:start] + new_return + text[end + len("\n    };") :]
     if "export type DashboardPageState" not in text:
