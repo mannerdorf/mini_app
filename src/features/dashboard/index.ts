@@ -35,6 +35,7 @@ export { useDashboardStripMetrics, type DashboardStripMetricsState } from "./hoo
 export { useDashboardInvoiceData, type DashboardInvoiceDataState, type AgingInvoice } from "./hooks/useDashboardInvoiceData";
 export { useDashboardAnalytics, type DashboardAnalyticsState } from "./hooks/useDashboardAnalytics";
 export { useDashboardMaChartLayout } from "./hooks/useDashboardMaChartLayout";
+export { useDashboardMainChartLayout } from "./hooks/useDashboardMainChartLayout";
 export type { DashboardPageProps } from "./hooks/dashboardPageTypes";
 export {
     parseDashboardDateOnly,

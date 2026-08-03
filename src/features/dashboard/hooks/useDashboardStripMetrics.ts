@@ -306,20 +306,6 @@ const selectedChartConfig = useMemo(() => {
     return { data, title, color, formatValue };
 }, [chartData, chartType]);
 
-useLayoutEffect(() => {
-    if (!WIDGET_3_CHART || showOnlySla || !showSums) return;
-    const el = mainChartWrapRef.current;
-    if (!el) return;
-    const measure = () => {
-        const w = el.getBoundingClientRect().width;
-        if (w > 0) setMainChartOuterWidthPx(Math.max(280, Math.floor(w)));
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-}, [WIDGET_3_CHART, showOnlySla, showSums, loading, error, chartData.length, chartType]);
-
 const formatStripValue = (): string => {
     if (chartType === 'money') return `${Math.round(stripTotals.sum || 0).toLocaleString('ru-RU')} ₽`;
     if (chartType === 'paidWeight') return `${Math.round(stripTotals.pw || 0).toLocaleString('ru-RU')} кг`;

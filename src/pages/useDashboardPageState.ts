@@ -18,6 +18,7 @@ import { useDashboardStripMetrics } from "../features/dashboard/hooks/useDashboa
 import { useDashboardInvoiceData } from "../features/dashboard/hooks/useDashboardInvoiceData";
 import { useDashboardAnalytics } from "../features/dashboard/hooks/useDashboardAnalytics";
 import { useDashboardMaChartLayout } from "../features/dashboard/hooks/useDashboardMaChartLayout";
+import { useDashboardMainChartLayout } from "../features/dashboard/hooks/useDashboardMainChartLayout";
 import { getLastStatusDateKey } from "../features/dashboard/hooks/dashboardCargoDateHelpers";
 export type { DashboardPageProps } from "../features/dashboard/hooks/dashboardPageTypes";
 import type { DashboardPageProps } from "../features/dashboard/hooks/dashboardPageTypes";
@@ -244,6 +245,18 @@ export function useDashboardPageState({
         showSums,
         useServiceRequest,
         apiDateRange: filters.apiDateRange,
+    });
+
+    useDashboardMainChartLayout({
+        widget3Chart: filters.WIDGET_3_CHART,
+        showOnlySla: filters.showOnlySla,
+        showSums,
+        loading,
+        error,
+        chartDataLength: stripMetrics.chartData.length,
+        chartType: filters.chartType,
+        mainChartWrapRef: filters.mainChartWrapRef,
+        setMainChartOuterWidthPx: filters.setMainChartOuterWidthPx,
     });
 
     const analytics = useDashboardAnalytics({
