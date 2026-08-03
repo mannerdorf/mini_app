@@ -15,6 +15,7 @@ import "./design-tokens.css";
 import "./styles.css";
 import "./components/shipment-status.css";
 import "./styles/haulz-calculator.css";
+import { clearChunkReloadState, reloadForStaleChunks } from "./lib/chunkLoadRecovery";
 
 const swrConfig = {
     revalidateOnFocus: false,
@@ -212,6 +213,13 @@ if (typeof window !== "undefined") {
   if (apiOrigin !== pageOrigin) {
     installFetchRewrite(apiOrigin);
   }
+
+  clearChunkReloadState();
+
+  window.addEventListener("vite:preloadError", (event) => {
+    event.preventDefault();
+    reloadForStaleChunks("vite:preloadError");
+  });
 }
 
 /** Дождаться условной загрузки Telegram/MAX SDK из index.html, затем монтировать React. */

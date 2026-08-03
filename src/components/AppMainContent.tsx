@@ -11,6 +11,7 @@ import { useAccountActions } from "../hooks/useAccountActions";
 import { useSupportBotLinks } from "../hooks/useSupportBotLinks";
 import { WB_TAB } from "../wb/appWb";
 import type { Account, Tab } from "../types";
+import { isChunkLoadError, reloadForStaleChunks } from "../lib/chunkLoadRecovery";
 
 const ExpenseRequestsPage = lazy(() =>
   import("../pages/ExpenseRequestsPage").then((m) => ({ default: m.ExpenseRequestsPage })),
@@ -93,13 +94,29 @@ function SectionBoundary({ section, children }: { section: string; children: Rea
     })();
   return (
     <ErrorBoundary
-      fallback={(err) => (
+      fallback={(err) => {
+        if (isChunkLoadError(err)) {
+          reloadForStaleChunks(`section:${section}`);
+        }
+        return (
         <div style={{ padding: "1.5rem", textAlign: "center" }}>
           <p style={{ marginBottom: "0.5rem" }}>Ошибка в разделе ({section}).</p>
-          {err.message ? (
+          {isChunkLoadError(err) ? (
+            <p style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+              Вышло обновление приложения. Страница перезагрузится автоматически…
+            </p>
+          ) : err.message ? (
             <p style={{ fontSize: "0.85rem", color: "#b91c1c", marginBottom: "0.75rem", wordBreak: "break-word" }}>{err.message}</p>
           ) : null}
-          <button type="button" onClick={() => window.location.reload()} style={{ padding: "0.5rem 1rem", cursor: "pointer" }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (!reloadForStaleChunks(`section-manual:${section}`)) {
+                window.location.reload();
+              }
+            }}
+            style={{ padding: "0.5rem 1rem", cursor: "pointer" }}
+          >
             Обновить страницу
           </button>
           {docsDebugEnabled ? (
@@ -133,7 +150,8 @@ function SectionBoundary({ section, children }: { section: string; children: Rea
             </details>
           ) : null}
         </div>
-      )}
+        );
+      }}
     >
       {children}
     </ErrorBoundary>

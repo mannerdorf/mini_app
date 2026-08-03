@@ -43,6 +43,26 @@
     "api/service-refresh-from-1c.ts": {"maxDuration": 300},
     "api/admin-document-cache-backfill.ts": {"maxDuration": 300}
   },
+  "headers": [
+    {
+      "source": "/",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/index.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ],
   "rewrites": [
     {"source": "/admin", "destination": "/"},
     {"source": "/admin/:path*", "destination": "/"},
