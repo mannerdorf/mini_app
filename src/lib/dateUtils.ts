@@ -29,6 +29,7 @@ export const getSixMonthsAgoDate = () => {
 export const DEFAULT_DATE_FROM = getSixMonthsAgoDate();
 export const DEFAULT_DATE_TO = getTodayDate();
 export const DATE_FILTER_STORAGE_KEY = 'haulz.dateFilterState';
+export const DASHBOARD_DATE_FILTER_STORAGE_KEY = 'haulz.dashboard.dateFilterState';
 
 export type DateFilterState = {
     dateFilter: DateFilter;
@@ -99,24 +100,32 @@ export function normalizeDateFilterState(partial: Partial<DateFilterState> | nul
     return state;
 }
 
-export const saveDateFilterState = (state: DateFilterState) => {
+export const saveDateFilterState = (state: DateFilterState, storageKey: string = DATE_FILTER_STORAGE_KEY) => {
     try {
-        typeof localStorage !== 'undefined' && localStorage.setItem(DATE_FILTER_STORAGE_KEY, JSON.stringify(state));
+        typeof localStorage !== 'undefined' && localStorage.setItem(storageKey, JSON.stringify(state));
     } catch {}
 };
 
-export const loadDateFilterState = (): DateFilterState => {
+export const loadDateFilterState = (storageKey: string = DATE_FILTER_STORAGE_KEY): DateFilterState => {
     try {
-        const s = typeof localStorage !== 'undefined' && localStorage.getItem(DATE_FILTER_STORAGE_KEY);
+        const s = typeof localStorage !== 'undefined' && localStorage.getItem(storageKey);
         if (s) return normalizeDateFilterState(JSON.parse(s) as Partial<DateFilterState>);
-        const legacy = typeof localStorage !== 'undefined' && localStorage.getItem('haulz.dashboard.dateFilterState');
-        if (legacy) {
-            const parsed = JSON.parse(legacy) as Partial<DateFilterState>;
-            const normalized = normalizeDateFilterState(parsed);
-            if (parsed?.dateFilter) {
-                saveDateFilterState(normalized);
+        if (storageKey === DATE_FILTER_STORAGE_KEY) {
+            const legacy = typeof localStorage !== 'undefined' && localStorage.getItem(DASHBOARD_DATE_FILTER_STORAGE_KEY);
+            if (legacy) {
+                const parsed = JSON.parse(legacy) as Partial<DateFilterState>;
+                const normalized = normalizeDateFilterState(parsed);
+                if (parsed?.dateFilter) {
+                    saveDateFilterState(normalized);
+                }
+                return normalized;
             }
-            return normalized;
+        }
+        if (storageKey === DASHBOARD_DATE_FILTER_STORAGE_KEY) {
+            const shared = typeof localStorage !== 'undefined' && localStorage.getItem(DATE_FILTER_STORAGE_KEY);
+            if (shared) {
+                return normalizeDateFilterState(JSON.parse(shared) as Partial<DateFilterState>);
+            }
         }
     } catch {}
     return normalizeDateFilterState(null);

@@ -3,6 +3,7 @@ import type { DateFilter } from "../../types";
 import {
   loadDateFilterState,
   saveDateFilterState,
+  DATE_FILTER_STORAGE_KEY,
   type DateFilterState,
 } from "../../lib/dateUtils";
 
@@ -15,19 +16,24 @@ export type PersistedDateFilterControls = DateFilterState & {
   setSelectedWeekForFilter: (value: string | null) => void;
 };
 
-/** Общий фильтр даты для Грузы / Документы / Дашборд + persist в localStorage. */
-export function usePersistedDateFilter(): PersistedDateFilterControls {
-  const [dateFilter, setDateFilter] = useState<DateFilter>(() => loadDateFilterState().dateFilter);
-  const [customDateFrom, setCustomDateFrom] = useState(() => loadDateFilterState().customDateFrom);
-  const [customDateTo, setCustomDateTo] = useState(() => loadDateFilterState().customDateTo);
+export type PersistedDateFilterOptions = {
+  storageKey?: string;
+};
+
+/** Persist фильтра даты в localStorage (по умолчанию — общий для Грузы / Документы). */
+export function usePersistedDateFilter(options?: PersistedDateFilterOptions): PersistedDateFilterControls {
+  const storageKey = options?.storageKey ?? DATE_FILTER_STORAGE_KEY;
+  const [dateFilter, setDateFilter] = useState<DateFilter>(() => loadDateFilterState(storageKey).dateFilter);
+  const [customDateFrom, setCustomDateFrom] = useState(() => loadDateFilterState(storageKey).customDateFrom);
+  const [customDateTo, setCustomDateTo] = useState(() => loadDateFilterState(storageKey).customDateTo);
   const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(
-    () => loadDateFilterState().selectedMonthForFilter
+    () => loadDateFilterState(storageKey).selectedMonthForFilter
   );
   const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(
-    () => loadDateFilterState().selectedYearForFilter
+    () => loadDateFilterState(storageKey).selectedYearForFilter
   );
   const [selectedWeekForFilter, setSelectedWeekForFilter] = useState<string | null>(
-    () => loadDateFilterState().selectedWeekForFilter
+    () => loadDateFilterState(storageKey).selectedWeekForFilter
   );
 
   useEffect(() => {
@@ -38,8 +44,9 @@ export function usePersistedDateFilter(): PersistedDateFilterControls {
       selectedMonthForFilter,
       selectedYearForFilter,
       selectedWeekForFilter,
-    });
+    }, storageKey);
   }, [
+    storageKey,
     dateFilter,
     customDateFrom,
     customDateTo,
