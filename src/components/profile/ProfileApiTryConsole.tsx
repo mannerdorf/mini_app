@@ -10,7 +10,12 @@ import {
 } from "../../lib/buildApiRequestSnippet";
 import { resolveApiOrigin } from "../../lib/resolveApiOrigin";
 
-export type ProfileTryAuth = { inn?: string } | null;
+export type ProfileTryAuth = {
+    inn?: string;
+    login?: string;
+    password?: string;
+    isRegisteredUser?: boolean;
+} | null;
 
 type ParamRow = { enabled: boolean; key: string; value: string };
 
@@ -23,17 +28,22 @@ function parseMethods(raw: string): string[] {
         .filter(Boolean);
 }
 
-function injectInnPlaceholder(obj: unknown, auth: ProfileTryAuth): unknown {
-    if (!auth?.inn?.trim()) return obj;
+function injectAuthPlaceholders(obj: unknown, auth: ProfileTryAuth): unknown {
+    if (!auth) return obj;
     if (typeof obj === "string") {
-        if (obj === "{{INN}}") return auth.inn.trim();
+        if (obj === "{{INN}}") return auth.inn?.trim() || obj;
+        if (obj === "{{LOGIN}}") return auth.login?.trim() || obj;
+        if (obj === "{{PASSWORD}}") return auth.password ?? obj;
         return obj;
     }
-    if (Array.isArray(obj)) return obj.map((x) => injectInnPlaceholder(x, auth));
+    if (Array.isArray(obj)) return obj.map((x) => injectAuthPlaceholders(x, auth));
     if (obj && typeof obj === "object") {
         const o: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-            o[k] = injectInnPlaceholder(v, auth);
+            o[k] = injectAuthPlaceholders(v, auth);
+        }
+        if (auth.isRegisteredUser === true && !("isRegisteredUser" in o)) {
+            o.isRegisteredUser = true;
         }
         return o;
     }
@@ -72,6 +82,10 @@ const STRING_BODY_KEYS = new Set([
     "Номер",
     "metod",
     "Metod",
+    "login",
+    "Login",
+    "password",
+    "Password",
     "inn",
     "Inn",
     "INN",
@@ -165,7 +179,7 @@ type Props = {
     tryAuth: ProfileTryAuth;
     defaultBearer?: string | null;
     autoTestPrefill?: boolean;
-    onClose: () => void;
+    onClose?: () => void;
 };
 
 /**
@@ -227,7 +241,7 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
         const ex = examples.find((e) => e.id === exampleId) ?? examples[0];
         if (!ex) return;
         setParamRows(queryToRows(ex.query));
-        const bodyWithAuth = ex.body != null ? injectInnPlaceholder(ex.body, tryAuth) : null;
+        const bodyWithAuth = ex.body != null ? injectAuthPlaceholders(ex.body, tryAuth) : null;
         setBodyJson(bodyWithAuth != null ? JSON.stringify(bodyWithAuth, null, 2) : "");
         setHeadersJson(ex.headers && Object.keys(ex.headers).length > 0 ? JSON.stringify(ex.headers, null, 2) : "{}");
     }, [exampleId, examples, tryAuth]);
@@ -271,7 +285,7 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
             if (raw) {
                 try {
                     const parsed = JSON.parse(raw) as unknown;
-                    const injected = injectInnPlaceholder(parsed, tryAuth);
+                    const injected = injectAuthPlaceholders(parsed, tryAuth);
                     body = JSON.stringify(injected, null, forSnippet ? 2 : 0);
                     headers["Content-Type"] = headers["Content-Type"] || "application/json";
                 } catch {
@@ -357,9 +371,11 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
                         </select>
                     ) : null}
                 </div>
-                <button type="button" className="profile-api-try__close" onClick={onClose} title="Закрыть консоль" aria-label="Закрыть">
-                    <X className="w-4 h-4" />
-                </button>
+                {onClose ? (
+                    <button type="button" className="profile-api-try__close" onClick={onClose} title="Закрыть консоль" aria-label="Закрыть">
+                        <X className="w-4 h-4" />
+                    </button>
+                ) : null}
             </div>
 
             <div className="profile-api-try__url-row">
@@ -415,8 +431,19 @@ export function ProfileApiTryConsole({ item, tryAuth, defaultBearer, autoTestPre
 
             {autoTestPrefill ? (
                 <p className="profile-api-try__hint profile-api-try__hint--autofill">
-                    Один активный ключ и один ИНН — Bearer и <code>inn</code> в теле подставлены автоматически.
-                    {!defaultBearer?.trim() ? " Полный токен не сохранён в сессии — вставьте его на вкладке Authorization." : null}
+                    {pathField.includes("/api/partner/v1/")
+                        ? (
+                            <>
+                                Один активный ключ и один ИНН — Bearer и <code>inn</code> в теле подставлены автоматически.
+                                {!defaultBearer?.trim() ? " Полный токен не сохранён в сессии — вставьте его на вкладке Authorization." : null}
+                            </>
+                        )
+                        : (
+                            <>
+                                Логин, пароль и ИНН подставлены из текущей сессии (<code>{'{{LOGIN}}'}</code>,{" "}
+                                <code>{'{{PASSWORD}}'}</code>, <code>{'{{INN}}'}</code> во вкладке Body).
+                            </>
+                        )}
                 </p>
             ) : null}
 

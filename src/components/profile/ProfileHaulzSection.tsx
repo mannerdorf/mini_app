@@ -79,6 +79,11 @@ export function ProfileHaulzSection({
                     </Button>
                 )}
                 {activeAccount?.permissions?.haulz === true && activeAccount?.permissions?.service_mode === true && (
+                    <Button type="button" className="button-primary" onClick={() => navigateTo("haulzSandbox")}>
+                        Песочница
+                    </Button>
+                )}
+                {activeAccount?.permissions?.haulz === true && activeAccount?.permissions?.service_mode === true && (
                     <Button type="button" className="button-primary" onClick={() => navigateTo("haulzSummary")}>
                         Отчёт
                     </Button>

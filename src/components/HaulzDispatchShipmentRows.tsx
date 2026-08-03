@@ -93,7 +93,7 @@ export function HaulzDispatchShipmentRows({
                                     {cust}
                                 </td>
                             )}
-                            <td className="haulz-dispatch-table__cell haulz-dispatch-table__cell--muted">
+                            <td className="haulz-dispatch-table__cell haulz-dispatch-table__cell--muted status-date-col">
                                 {statusDateIso ? <DateText value={statusDateIso} /> : "—"}
                             </td>
                             <td className="haulz-dispatch-table__cell">

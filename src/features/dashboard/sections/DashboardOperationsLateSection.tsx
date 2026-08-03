@@ -37,8 +37,8 @@ export function DashboardOperationsLateSection({ page }: Props) {
                         </Typography.Headline>
                         <Flex align="center" gap="0.4rem">
                             {(() => {
-                                const canPrev = page.heatmapMonth.year > heatmapRange.minYear || (page.heatmapMonth.year === heatmapRange.minYear && page.heatmapMonth.month > heatmapRange.minMonth);
-                                const canNext = page.heatmapMonth.year < heatmapRange.maxYear || (page.heatmapMonth.year === heatmapRange.maxYear && page.heatmapMonth.month < heatmapRange.maxMonth);
+                                const canPrev = page.heatmapMonth.year > page.heatmapRange.minYear || (page.heatmapMonth.year === page.heatmapRange.minYear && page.heatmapMonth.month > page.heatmapRange.minMonth);
+                                const canNext = page.heatmapMonth.year < page.heatmapRange.maxYear || (page.heatmapMonth.year === page.heatmapRange.maxYear && page.heatmapMonth.month < page.heatmapRange.maxMonth);
                                 return (
                                     <>
                                         <Button className="filter-button" style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem', opacity: canPrev ? 1 : 0.3 }} disabled={!canPrev} onClick={() => canPrev && page.setHeatmapMonth((m) => (m.month === 1 ? { year: m.year - 1, month: 12 } : { year: m.year, month: m.month - 1 }))}>←</Button>

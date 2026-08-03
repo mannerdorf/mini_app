@@ -132,6 +132,7 @@ export type ProfileView =
     | "accounting"
     | "ais"
     | "haulzSummary"
+    | "haulzSandbox"
     | "haulzReturns"
     | "haulzCalculator"
     | "haulzCalcRequests"

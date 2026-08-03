@@ -607,14 +607,14 @@ export function HaulzDispatchSummary({
                                                     ...(showCustomerColumn
                                                         ? [{ col: "customer" as const, label: "Заказчик", align: "left" as const }]
                                                         : []),
-                                                    { col: "statusDate" as const, label: "Дата статуса", align: "left" as const },
+                                                    { col: "statusDate" as const, label: "Дата статуса", align: "left" as const, className: "status-date-col" },
                                                     { col: "datePrih" as const, label: "Приход", align: "left" as const },
                                                     { col: null, label: "Маршрут", align: "left" as const, title: "Маршрут" },
                                                     { col: null, label: "", align: "center" as const, title: "Тип перевозки" },
                                                     { col: "pw" as const, label: "Плат. вес", align: "right" as const },
                                                     { col: "sum" as const, label: "Сумма", align: "right" as const },
                                                 ] as const
-                                            ).map(({ col, label, align, title: thTitle }) => {
+                                            ).map(({ col, label, align, title: thTitle, className: thClassName }) => {
                                                 const active = col != null && dispatchTableSort.column === col;
                                                 const SortIcon = dispatchTableSort.order === "asc" ? ArrowUp : ArrowDown;
                                                 return (
@@ -633,7 +633,7 @@ export function HaulzDispatchSummary({
                                                                 : undefined
                                                         }
                                                         title={col ? "Сортировка по столбцу" : thTitle}
-                                                        className="haulz-dispatch-table__th"
+                                                        className={`haulz-dispatch-table__th${thClassName ? ` ${thClassName}` : ""}`}
                                                         style={{
                                                             textAlign: align,
                                                             cursor: col ? "pointer" : "default",
@@ -743,7 +743,7 @@ export function HaulzDispatchSummary({
                                                             {customerKey}
                                                         </td>
                                                         )}
-                                                        <td style={{ padding: "0.35rem", fontSize: "0.72rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>
+                                                        <td style={{ padding: "0.35rem", fontSize: "0.72rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }} className="status-date-col">
                                                             —
                                                         </td>
                                                         <td style={{ padding: "0.35rem", whiteSpace: "nowrap", color: "var(--color-text-secondary)" }}>—</td>

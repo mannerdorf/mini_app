@@ -2093,6 +2093,7 @@ export function useDashboardPageState({
         setPaymentCalendarSelectedDate,
         heatmapMonth,
         setHeatmapMonth,
+        heatmapRange,
         apiDateRange,
         prevRange,
         items,

@@ -27,6 +27,7 @@ const PROFILE_VIEWS = new Set<ProfileView>([
   "accounting",
   "ais",
   "haulzSummary",
+  "haulzSandbox",
   "haulzReturns",
   "haulzCalculator",
   "haulzCalcRequests",
