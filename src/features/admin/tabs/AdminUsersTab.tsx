@@ -1808,6 +1808,7 @@ export function AdminUsersTab({
           </Panel>
         </>
 
+        {showAddUserForm && (
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)", marginBottom: "var(--element-gap, 1rem)" }}>
           <Flex align="center" justify="space-between" style={{ marginBottom: "1rem" }}>
             <Typography.Body style={{ fontWeight: 600 }}>Регистрация пользователя</Typography.Body>

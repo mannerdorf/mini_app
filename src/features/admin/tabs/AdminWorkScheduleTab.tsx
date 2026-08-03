@@ -346,8 +346,6 @@ export function AdminWorkScheduleTab({ adminToken, onError }: AdminWorkScheduleT
               </div>
             </>
           )}
-        </Panel>
-
     </Panel>
   );
 }

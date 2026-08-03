@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { ArrowLeft, LogOut } from "lucide-react";
-import { PnlSection } from "../../pnl/PnlSection";
-import { RefSubdivisionsView } from "../../pnl/RefSubdivisionsView";
+import { PnlSection } from "../pnl/PnlSection";
+import { RefSubdivisionsView } from "../pnl/RefSubdivisionsView";
 import {
   AdminAuditTab,
   AdminAccountingTab,
