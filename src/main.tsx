@@ -112,8 +112,8 @@ const setupDebugOverlay = () => {
 
 setupDebugOverlay();
 
-/** API по умолчанию (Vercel); нативное приложение и статика haulz.ru / Layero. */
-const FALLBACK_API_ORIGIN = "https://mini-app-lake-phi.vercel.app";
+/** API по умолчанию (VPS api.haulz.ru); нативное приложение и статика haulz.ru / Layero. */
+const FALLBACK_API_ORIGIN = "https://api.haulz.ru";
 
 /** Статика на haulz.ru / Layero (nginx); POST /api/* на этом хосте даёт 405 — API на Vercel. */
 const HAULZ_STATIC_ORIGINS = new Set([
@@ -204,7 +204,7 @@ const isLikelyLocalDev = (): boolean => {
 /**
  * /api/* → serverless functions в api/*.ts (Vercel) на том же origin, что и фронт.
  * Переписываем fetch только если API на другом хосте: VITE_API_ORIGIN, Capacitor → FALLBACK/VITE.
- * Статика на haulz.ru / Layero без VITE_API_ORIGIN → FALLBACK (mini-app-lake-phi.vercel.app).
+ * Статика на haulz.ru / Layero без VITE_API_ORIGIN → FALLBACK (api.haulz.ru).
  */
 if (typeof window !== "undefined") {
   const apiOrigin = resolveApiOrigin();
