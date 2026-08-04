@@ -1,0 +1,223 @@
+/**
+ * Документы — визуал «SaaS analytics» (как у «Грузов»); класс включается из App для всех.
+ */
+.documents-page--saas-analytics {
+    margin-top: 0;
+    padding-top: var(--documents-page-top-gap, 0.85rem);
+    padding-bottom: 0.35rem;
+    border-radius: 0;
+    background: transparent;
+}
+
+.dark-mode .documents-page--saas-analytics {
+    background: transparent;
+}
+
+.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
+    background: var(--color-bg-card);
+    border-radius: 14px;
+    padding: var(--documents-sticky-pad-top, 0.85rem) 0.75rem 0.55rem;
+    margin-top: 0 !important;
+    margin-bottom: var(--documents-sticky-bottom-gap, 1rem) !important;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.05),
+        0 12px 40px rgba(15, 23, 42, 0.06);
+    overflow: visible;
+}
+
+/* Мобильный: карточка «Документы» — зазор под app-header, интервалы между строками, компактные action-кнопки */
+@media (max-width: 768px) {
+    .documents-page--saas-analytics {
+        min-width: 0;
+    }
+
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
+        padding-top: var(--documents-sticky-pad-top, 0.85rem) !important;
+        padding-bottom: 0.55rem !important;
+        margin-top: 0 !important;
+    }
+
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header > :first-child {
+        margin-bottom: 0.85rem !important;
+    }
+
+    .documents-page--saas-analytics .doc-sections-row {
+        margin-bottom: 0.75rem !important;
+    }
+
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .documents-sticky-body .filters-container.filters-row-scroll {
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+    }
+
+    .documents-page--saas-analytics .documents-toolbar-below-sticky {
+        padding-top: 0.55rem;
+    }
+
+    .documents-page--saas-analytics.documents-page--with-sverki-section .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics.documents-page--with-contracts-section .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics.documents-page--with-tariffs-section .documents-toolbar-below-sticky {
+        padding-top: 1rem;
+    }
+}
+
+/* Счета/УПД: контент под липким блоком (empty state, loader) — базовый зазор */
+.documents-page--with-summary-sections .documents-summary-empty-state {
+    display: block;
+    margin-top: 0.85rem;
+    padding-top: 1.5rem !important;
+    padding-bottom: 2rem !important;
+    scroll-margin-top: 220px;
+}
+
+.documents-page--with-summary-sections .documents-summary-section-body > .py-8 {
+    margin-top: 0.75rem;
+    padding-top: 1.25rem;
+}
+
+/* Под строкой фильтров — зазор до KPI; сверху — отступ от вкладок разделов */
+.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .documents-sticky-body .filters-container.filters-row-scroll {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .filters-container.filters-row-scroll {
+    margin-top: 0;
+    margin-bottom: 0.55rem;
+}
+.documents-page .cargo-page-sticky-header.documents-page-sticky-header .filters-container.filters-row-scroll {
+    margin-top: 0.3rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Узкий холст / миниапп: до 1024px ловим WebView с шириной > 768 */
+@media (max-width: 1024px) {
+    .documents-page {
+        --documents-page-top-gap: 0.85rem;
+        padding-top: var(--documents-page-top-gap);
+    }
+    .documents-page-sticky-header,
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
+        padding-top: var(--documents-sticky-pad-top, 0.85rem) !important;
+    }
+    /* Договоры / Тарифы / Акты сверок: контент ниже липкого блока */
+    .documents-page .doc-section-content {
+        padding-top: 0.75rem;
+    }
+    .documents-page .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics .documents-toolbar-below-sticky {
+        padding-top: 0.35rem;
+    }
+    .documents-page--with-contracts-section .documents-toolbar-below-sticky,
+    .documents-page--with-tariffs-section .documents-toolbar-below-sticky,
+    .documents-page--with-sverki-section .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics.documents-page--with-contracts-section .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics.documents-page--with-tariffs-section .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics.documents-page--with-sverki-section .documents-toolbar-below-sticky {
+        padding-top: 1rem;
+    }
+}
+
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi.documents-summary-card.cargo-card,
+.documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi.cargo-card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0.35rem 0 0.45rem !important;
+    margin-bottom: 0.35rem !important;
+}
+
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics,
+.documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi .summary-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+    gap: 0.55rem;
+    max-width: 100%;
+    width: 100%;
+    align-items: stretch;
+}
+
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div,
+.documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi .summary-metrics > div {
+    position: relative;
+    padding: 0.62rem 0.45rem;
+    border-radius: 12px;
+    background: var(--color-bg-card);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+}
+
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div::before,
+.documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi .summary-metrics > div::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #2563eb, #6366f1, #0ea5e9);
+    opacity: 0.88;
+}
+
+.documents-sendings-table-summary.documents-summary-card.cargo-card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0.35rem 0 0.45rem !important;
+    margin-bottom: 0.65rem !important;
+}
+
+.documents-sendings-table-summary .summary-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+    gap: 0.55rem;
+    max-width: 100%;
+    width: 100%;
+    align-items: stretch;
+}
+
+.documents-sendings-table-summary .summary-metrics > div {
+    position: relative;
+    min-height: 58px;
+    padding: 0.62rem 0.45rem;
+    border-radius: 12px;
+    background: var(--color-bg-card);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+}
+
+.documents-sendings-table-summary .summary-metrics > div::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #2563eb, #6366f1, #0ea5e9);
+    opacity: 0.88;
+}
+
+.documents-sendings-table-summary .summary-metrics > div > :first-child {
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs, 0.6875rem);
+    font-weight: 600;
+    line-height: 1.15;
+    text-align: center;
+}
+
+.documents-sendings-table-summary .summary-metrics > div > :last-child {
+    color: var(--color-text-primary);
+    font-size: var(--text-lg, 1rem);
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+}
+
+.documents-page--saas-analytics .documents-table-offset-desktop > .cargo-card,
+.documents-page--saas-analytics .documents-cards-offset-desktop .cargo-list .cargo-card {
+    border-radius: 14px !important;
+    border: 1px solid rgba(148, 163, 184, 0.2) !important;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
+}

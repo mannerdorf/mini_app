@@ -1,0 +1,57 @@
+/* ЭДО: плитки итогов на мобиле (как у «Счета») */
+@media (max-width: 768px) {
+    .documents-page--with-edo-section .documents-edo-summary-tiles .summary-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.55rem;
+        max-width: 100%;
+        width: 100%;
+        align-items: stretch;
+    }
+
+    .documents-page--with-edo-section .documents-edo-summary-tiles .summary-metrics > div {
+        position: relative;
+        padding: 0.62rem 0.45rem;
+        border-radius: 12px;
+        background: var(--color-bg-card);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+        overflow: hidden;
+    }
+
+    .documents-page--with-edo-section .documents-edo-summary-tiles .summary-metrics > div::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #2563eb, #6366f1, #0ea5e9);
+        opacity: 0.88;
+    }
+
+    .documents-page--with-edo-section .documents-edo-summary-tiles:not(.documents-summary-totals--saas-kpi).cargo-card {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0.35rem 0 0.45rem !important;
+    }
+
+    .documents-edo-summary-tiles--table-companion + .documents-edo-monitor-table tfoot {
+        display: none;
+    }
+}
+
+@media (min-width: 769px) {
+    .documents-edo-summary-tiles--table-companion {
+        display: none !important;
+    }
+}
+
+@media (min-width: 1025px) {
+    /* Немного больше воздуха под липким блоком в SaaS-оболочке (кроме Счета/УПД с KPI) */
+    .documents-page--saas-analytics:not(.documents-page--with-summary-sections):not(.documents-page--with-edo-section):not(.documents-page--with-tariffs-section):not(.documents-page--with-orders-section):not(.documents-page--with-sendings-section):not(.documents-page--with-contracts-section) .documents-table-offset-desktop,
+    .documents-page--saas-analytics:not(.documents-page--with-summary-sections):not(.documents-page--with-edo-section):not(.documents-page--with-tariffs-section):not(.documents-page--with-orders-section):not(.documents-page--with-sendings-section):not(.documents-page--with-contracts-section) .documents-cards-offset-desktop {
+        margin-top: 0.65rem;
+    }
+}

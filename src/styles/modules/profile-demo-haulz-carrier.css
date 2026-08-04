@@ -1,0 +1,148 @@
+.hr-carrier-panel {
+    margin-bottom: 0.75rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 12px;
+    background: var(--color-bg-secondary, #f8f9fa);
+}
+.hr-carrier-panel__select-wrap {
+    flex: 1 1 280px;
+    display: flex;
+    flex-direction: column;
+}
+.hr-carrier-panel__select {
+    width: 100%;
+    max-width: 420px;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    background: var(--color-bg, #fff);
+    color: var(--color-text-primary, #111);
+}
+.hr-carrier-card {
+    margin: 0;
+    padding: 0.75rem 0.85rem;
+    border-radius: 8px;
+    background: var(--color-bg, #fff);
+    border: 1px solid var(--color-border, #e5e7eb);
+    font-family: inherit;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    color: var(--color-text-primary, #111);
+}
+.hr-carrier-modal {
+    max-width: 560px;
+    width: calc(100% - 2rem);
+}
+.hr-carrier-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0 1rem 1rem;
+}
+.hr-carrier-form__row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+.hr-carrier-form__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+}
+.hr-carrier-form__field span {
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+.hr-carrier-form__field input,
+.hr-carrier-form__field textarea {
+    width: 100%;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-family: inherit;
+    background: var(--color-bg, #fff);
+    color: var(--color-text-primary, #111);
+    resize: vertical;
+}
+.hr-carrier-form__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0 1rem 1rem;
+}
+@media (max-width: 560px) {
+    .hr-carrier-form__row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.hr-ul-meta-panels {
+    display: grid;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+.hr-td-field {
+    margin-bottom: 0.75rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid rgba(139, 92, 246, 0.35);
+    border-radius: 12px;
+    background: rgba(139, 92, 246, 0.06);
+}
+.hr-td-field__title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #6d28d9;
+}
+.dark-mode .hr-td-field {
+    border-color: rgba(139, 92, 246, 0.45);
+    background: rgba(139, 92, 246, 0.1);
+}
+.dark-mode .hr-td-field__title,
+.dark-mode .hr-td-field__cell-label {
+    color: #ddd6fe;
+}
+.hr-td-field__grid {
+    display: grid;
+    grid-template-columns: minmax(7rem, 0.75fr) minmax(10rem, 1.5fr) minmax(8rem, 0.85fr);
+    gap: 0.65rem;
+    align-items: end;
+}
+@media (max-width: 640px) {
+    .hr-td-field__grid {
+        grid-template-columns: 1fr;
+    }
+}
+.hr-td-field__cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+}
+.hr-td-field__cell-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #7c3aed;
+}
+.hr-td-field__label {
+    display: flex;
+    flex-direction: column;
+}
+.hr-td-field__input {
+    width: 100%;
+    max-width: 100%;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    background: var(--color-bg, #fff);
+    color: var(--color-text-primary, #111);
+    box-sizing: border-box;
+}
+.hr-td-field__input--date {
+    min-height: 2.15rem;
+}

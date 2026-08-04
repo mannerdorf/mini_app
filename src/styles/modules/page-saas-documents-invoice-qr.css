@@ -1,0 +1,4 @@
+/* Invoice QR / bank pay — split into submodules */
+@import "./page-saas-documents-invoice-qr-block.css";
+@import "./page-saas-documents-bank-pay.css";
+@import "./page-saas-documents-unpaid-plan.css";

@@ -1,0 +1,105 @@
+.hr-sessions-panel {
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 10px;
+    background: var(--color-bg-secondary, #f8f9fa);
+}
+.hr-sessions-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+.hr-sessions-list__item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 8px;
+    border: 1px solid transparent;
+}
+.hr-sessions-list__item--active {
+    border-color: var(--color-primary-blue, #0071e3);
+    background: rgba(0, 113, 227, 0.06);
+}
+.hr-sessions-list__open {
+    flex: 1;
+    text-align: left;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 0.45rem 0.5rem;
+}
+.hr-sessions-list__title {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.hr-sessions-list__meta {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+}
+.hr-sessions-list__rename {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.5rem;
+}
+.hr-sessions-list__rename-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    background: var(--color-bg, #fff);
+    color: var(--color-text-primary);
+}
+.hr-stored-files {
+    margin-top: 0.75rem;
+}
+.hr-stored-files-collapsed {
+    margin-top: 0.75rem;
+}
+.hr-file-download {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--color-primary-blue, #0071e3);
+    padding: 0.2rem;
+}
+.hr-stop-add {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.hr-stop-add__input {
+    min-width: 220px;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    background: var(--color-bg, #fff);
+    color: var(--color-text-primary, #111);
+}
+.hr-stop-match-select {
+    min-width: 180px;
+    max-width: 100%;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    background: var(--color-bg, #fff);
+    color: var(--color-text-primary, #111);
+}
+.hr-stop-add__select {
+    min-width: 200px;
+}
+.hr-table .hr-stop-match-select {
+    width: 100%;
+}

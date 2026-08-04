@@ -1,0 +1,125 @@
+.bank-business-pay-row {
+    margin-top: 0.25rem;
+    padding-top: 0.65rem;
+    border-top: 1px dashed var(--color-border);
+}
+
+.bank-business-pay-row__label {
+    display: block;
+    margin: 0 0 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    letter-spacing: 0.02em;
+}
+
+.bank-business-pay-card {
+    display: block;
+    flex: 1 1 0;
+    min-width: 0;
+    width: 100%;
+    max-width: 168px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    border-radius: 10px;
+    background: #ffffff !important;
+    cursor: pointer;
+    overflow: hidden;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+
+.dark-mode .bank-business-pay-card {
+    background: #ffffff !important;
+}
+
+.bank-business-pay-card:hover {
+    border-color: rgba(37, 99, 235, 0.4);
+    box-shadow: 0 2px 10px rgba(37, 99, 235, 0.1);
+    transform: translateY(-1px);
+}
+
+.bank-business-pay-card--sber {
+    border-color: rgba(33, 160, 56, 0.45);
+}
+
+.bank-business-pay-card--tbank {
+    border-color: rgba(255, 193, 7, 0.65);
+}
+
+.bank-business-pay-card--alfa {
+    border-color: rgba(239, 49, 36, 0.45);
+}
+
+.bank-business-pay-card--vtb {
+    border-color: rgba(0, 70, 187, 0.45);
+}
+
+.bank-business-pay-card--tbank:hover {
+    border-color: rgba(255, 193, 7, 0.9);
+    box-shadow: 0 2px 10px rgba(255, 193, 7, 0.25);
+}
+
+.bank-business-pay-card--sber:hover {
+    border-color: rgba(33, 160, 56, 0.65);
+    box-shadow: 0 2px 10px rgba(33, 160, 56, 0.15);
+}
+
+.bank-business-pay-card--alfa:hover {
+    border-color: rgba(239, 49, 36, 0.65);
+    box-shadow: 0 2px 10px rgba(239, 49, 36, 0.15);
+}
+
+.bank-business-pay-card--vtb:hover {
+    border-color: rgba(0, 70, 187, 0.65);
+    box-shadow: 0 2px 10px rgba(0, 70, 187, 0.15);
+}
+
+.bank-business-pay-card__label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    padding: 0 0.35rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1.15;
+    text-align: center;
+    letter-spacing: -0.02em;
+}
+
+.bank-business-pay-card--sber .bank-business-pay-card__label {
+    color: #21a038;
+}
+
+.bank-business-pay-card--tbank .bank-business-pay-card__label {
+    color: #1a1a1a;
+}
+
+.bank-business-pay-card--alfa .bank-business-pay-card__label {
+    color: #ef3124;
+}
+
+.bank-business-pay-card--vtb .bank-business-pay-card__label {
+    color: #0046bb;
+}
+
+.bank-business-pay-row__buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    align-items: stretch;
+    margin-bottom: 0.45rem;
+    max-width: 100%;
+}
+
+.bank-business-pay-row__hint {
+    display: block !important;
+    margin: 0 !important;
+    font-size: 0.68rem !important;
+    color: var(--color-text-secondary) !important;
+    line-height: 1.5 !important;
+    word-spacing: normal !important;
+    white-space: normal !important;
+}

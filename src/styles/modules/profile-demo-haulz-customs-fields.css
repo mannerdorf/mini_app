@@ -1,0 +1,125 @@
+.hr-td-inline-field {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    width: 100%;
+    min-width: 0;
+    min-height: 1.85rem;
+    padding: 0.2rem 0.4rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 6px;
+    background: var(--color-bg, #fff);
+}
+.hr-td-inline-field--wide {
+    width: 100%;
+}
+.hr-td-inline-field__label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--color-text-secondary, #666);
+    white-space: nowrap;
+    flex-shrink: 0;
+    letter-spacing: 0.01em;
+}
+.hr-td-inline-field__sep {
+    font-size: 0.68rem;
+    color: var(--color-text-secondary, #888);
+    flex-shrink: 0;
+}
+.hr-td-inline-field__input,
+.hr-td-inline-field__date {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    font-size: 0.78rem;
+    color: var(--color-text-primary, #111);
+}
+.hr-td-inline-field__date {
+    width: auto;
+}
+.hr-td-inline-field__suffix {
+    font-size: 0.72rem;
+    color: var(--color-text-secondary, #666);
+    white-space: nowrap;
+}
+.hr-td-date-field {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.5rem;
+}
+.hr-td-date-field--boxed {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.25rem 0.35rem;
+    width: 100%;
+    min-width: 0;
+    padding: 0.28rem 0.45rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 6px;
+    background: var(--color-bg, #fff);
+}
+.hr-td-date-field__inline-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-text-primary, #111);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.hr-td-date-field__prefix,
+.hr-td-date-field__suffix {
+    color: var(--color-text-secondary, #666);
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+}
+.hr-td-date-field--fts {
+    width: 100%;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 8px;
+    background: var(--color-bg, #fff);
+}
+.hr-td-date-field__fts-num {
+    font-size: 0.85rem;
+    color: var(--color-text-primary, #111);
+}
+.hr-td-date-field__ot {
+    font-size: 0.72rem;
+    color: var(--color-text-secondary, #666);
+    flex-shrink: 0;
+}
+.hr-td-date-field__hint {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.75rem;
+    color: var(--color-text-secondary, #666);
+}
+.hr-td-date-field__picker {
+    min-width: 10.5rem;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid var(--color-border, #ddd);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    background: var(--color-bg, #fff);
+    color: var(--color-text-primary, #111);
+}
+.hr-td-date-field__picker--inline {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    font-size: 0.78rem;
+}
+.hr-customs-list {
+    margin: 0;
+    padding-left: 1.1rem;
+    line-height: 1.5;
+    font-size: 0.9rem;
+}

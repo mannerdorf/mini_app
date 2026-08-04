@@ -1,0 +1,48 @@
+/* Документы — табличные разделы (тарифы, акты сверок, договоры, претензии и т.д.) */
+.documents-page .doc-section-content {
+    padding-top: 0.9rem;
+}
+.documents-page--saas-analytics .doc-section-content {
+    padding-top: 1rem;
+    padding-left: 0.15rem;
+    padding-right: 0.15rem;
+}
+
+.documents-page--saas-analytics .doc-section-table-wrap {
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+    background: var(--color-bg-card);
+}
+
+.documents-page--saas-analytics .doc-contracts-table-offset-desktop .doc-section-table-wrap {
+    border-radius: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .documents-page--saas-analytics .doc-section-table-wrap {
+        box-shadow: none;
+    }
+}
+
+/* Заявки на расходы и Wildberries — без промежуточного холста, только фон страницы и карточки */
+.profile-saas-shell .expense-requests-shell {
+    padding: 0.85rem 1rem 1.25rem;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.profile-saas-shell .wb-page.wb-page--saas-analytics-shell {
+    padding: 0.85rem 1rem 1.25rem;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .profile-saas-shell .expense-requests-shell,
+    .profile-saas-shell .wb-page.wb-page--saas-analytics-shell {
+        box-shadow: none;
+    }
+}

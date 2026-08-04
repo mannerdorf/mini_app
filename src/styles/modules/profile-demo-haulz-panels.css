@@ -1,0 +1,4 @@
+/* HAULZ panels — split into submodules */
+@import "./profile-demo-haulz-sessions.css";
+@import "./profile-demo-haulz-carrier.css";
+@import "./profile-demo-haulz-customs.css";

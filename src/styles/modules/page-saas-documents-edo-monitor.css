@@ -1,0 +1,245 @@
+/* ЭДО — монитор: не обрезать бейджи и счётчики в правом углу */
+.documents-edo-monitor-table.cargo-card,
+.documents-edo-monitor-card.cargo-card {
+    overflow: visible;
+}
+
+.documents-edo-monitor-card__header {
+    flex-wrap: wrap;
+}
+
+.documents-edo-monitor-card__customer {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.documents-edo-monitor-card__header-actions {
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+.documents-edo-monitor-card__edo-badges {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* ЭДО — плитки монитора (режим без таблицы) */
+.documents-edo-monitor-cards__intro {
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    margin-bottom: 0.55rem;
+}
+
+.documents-edo-monitor-card__stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+}
+
+@media (min-width: 480px) {
+    .documents-edo-monitor-card__stats {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+.documents-edo-monitor-card__stat {
+    min-width: 0;
+    padding: 0.45rem 0.5rem;
+    border-radius: 10px;
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+}
+
+.documents-edo-monitor-card__stat-label {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--color-text-secondary);
+    margin-bottom: 0.2rem;
+}
+
+.documents-edo-monitor-card__stat-value {
+    font-size: 0.9rem !important;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+}
+
+.documents-edo-monitor-card__invoices {
+    margin-top: 0.65rem;
+    padding-top: 0.65rem;
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.documents-edo-monitor-card__invoice-row {
+    width: 100%;
+    text-align: left;
+    padding: 0.55rem 0.6rem;
+    border-radius: 10px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-primary);
+    cursor: pointer;
+    overflow: visible;
+    box-sizing: border-box;
+}
+
+.documents-edo-monitor-card__invoice-row:hover {
+    background: var(--color-bg-hover);
+}
+
+.documents-edo-monitor-card--totals {
+    cursor: default;
+}
+
+.documents-edo-card-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.15rem;
+    padding: 0.14rem 0.38rem;
+    border-radius: 999px;
+    font-size: 0.58rem;
+    font-weight: 600;
+    line-height: 1.15;
+    white-space: nowrap;
+    flex-shrink: 0;
+    box-sizing: border-box;
+}
+
+.documents-edo-inn-cell__copy {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    padding: 0;
+    margin: 0;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: none;
+    cursor: pointer;
+    border-radius: 0;
+    line-height: 0;
+    color: var(--color-text-secondary);
+    opacity: 0.55;
+    transition: opacity 0.12s ease, color 0.12s ease;
+}
+
+.documents-edo-inn-cell__copy:hover {
+    background: transparent !important;
+    opacity: 1;
+    color: var(--color-text-primary);
+}
+
+.documents-edo-inn-cell__copy:focus-visible {
+    outline: 1px solid var(--color-primary-blue, #0071e3);
+    outline-offset: 1px;
+    opacity: 1;
+}
+
+.documents-edo-inn-cell__copy svg {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+}
+
+.documents-edo-inn-cell__copy--copied {
+    opacity: 1;
+    color: var(--color-success, #22c55e);
+}
+
+@media (max-width: 768px) {
+    .documents-edo-monitor-table.cargo-card,
+    .documents-edo-monitor-card.cargo-card {
+        padding-left: 0.65rem;
+        padding-right: 0.65rem;
+    }
+
+    .documents-edo-monitor-card__header {
+        row-gap: 0.35rem;
+    }
+
+.documents-edo-monitor-card__header-actions {
+    flex-shrink: 0;
+}
+
+    .documents-edo-monitor-table__grid {
+        table-layout: fixed;
+        width: 100%;
+        font-size: 0.64rem !important;
+    }
+
+    .documents-edo-monitor-table__grid thead th {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        white-space: nowrap;
+        font-size: 0.56rem !important;
+        font-weight: 600;
+        line-height: 1.05;
+        padding: 0.22rem 0.1rem !important;
+        height: 3.1rem;
+        vertical-align: bottom;
+        text-align: left;
+    }
+
+    .documents-edo-monitor-table__grid td,
+    .documents-edo-monitor-table__grid th {
+        padding: 0.3rem 0.12rem !important;
+        vertical-align: middle;
+    }
+
+    .documents-edo-monitor-table__grid th:first-child,
+    .documents-edo-monitor-table__grid td:first-child {
+        writing-mode: horizontal-tb;
+        transform: none;
+        height: auto;
+        width: 28%;
+        max-width: 28%;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .documents-edo-monitor-table__grid th:nth-child(2),
+    .documents-edo-monitor-table__grid td:nth-child(2) {
+        writing-mode: horizontal-tb;
+        transform: none;
+        height: auto;
+        width: 18%;
+        max-width: 18%;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .documents-edo-monitor-table__grid th:nth-child(3),
+    .documents-edo-monitor-table__grid td:nth-child(3) {
+        width: 10%;
+        writing-mode: horizontal-tb;
+        transform: none;
+        height: auto;
+        text-align: right;
+    }
+
+    .documents-edo-monitor-table__grid th:nth-child(n + 4),
+    .documents-edo-monitor-table__grid td:nth-child(n + 4) {
+        width: 11%;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .documents-edo-monitor-table__grid .cargo-inner-table__sort-icon,
+    .documents-edo-monitor-table__grid thead th svg {
+        display: none !important;
+    }
+}

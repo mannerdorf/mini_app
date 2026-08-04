@@ -9,14 +9,14 @@
 | **0** Гигиена | ✅ Выполнено | `dist/` в `.gitignore`, убран из git index; `ENV.md`, `API_CORS_CHECKLIST.md`, CORS VPS |
 | **1** API client | 🟡 Частично | Documents без raw `fetch`; admin features без raw `fetch` (→ `api/client/admin/*`) |
 | **2** List workspace | ✅ Выполнено | `features/listWorkspace/`, 3 страницы |
-| **3** Документы | 🟡 В процессе | SendingsSection **57** + table/cards views; viewBlocks ~1563 |
+| **3** Документы | 🟡 В процессе | `documentsViewBlocks` split; SendingsTable expanded + byCustomer helpers ✅ |
 | **4** Admin | 🟡 В процессе | `useAdminUsers` **25** + data/list; AddForm **46** + sections; Claims/Timesheet split ✅ |
 | **4b** Dashboard PR4 | ✅ Выполнено | `useDashboardPageState` **365** строк; 10 хуков в `features/dashboard/hooks/` |
 | **4c** Profile PR1–PR4 | ✅ Выполнено | employees + timesheet + accounting + main; ProfilePage **~412** строк |
 | **5** App shell | ⏳ Не начато | KPI `App.tsx` < 1200; есть `AppRuntimeContext` |
 | **6** Shared lib | ⏳ Не начато | `lib/*.js` из `src/` остаётся |
-| **7** CSS | 🟡 В процессе | `modal.css` → 5 модулей; всего **23** CSS-модуля в `styles/modules/` |
-| **8** Тесты | 🟡 Старт | Vitest + 5 unit-тестов pipeline/labels |
+| **7** CSS | 🟡 В процессе | haulz-customs → panel+fields; всего **42** CSS-модуля |
+| **8** Тесты | 🟡 В процессе | Vitest **173** теста (+18 sendings summary helpers) |
 | **9** API backend | 🟡 Старт | `withApiHandler`, пример `ferries-list` |
 
 **Важно:** целевые KPI (AdminPage < 400 строк, DocumentsPage < 500) — **многоспринтовая** работа. Автономный прогон заложил **структуру и гигиену**, не полный распил god-компонентов.
@@ -29,11 +29,14 @@
 | `AdminPage.tsx` fetch | ~97 | ~97 |
 | `DocumentsPage.tsx` строк | ~8000 | **342** |
 | `useDocumentsPageState.ts` строк | — | **~230** |
-| `AdminPage.tsx` строк | ~11000 | ~11000 |
-| `App.tsx` строк | ~2400 | ~2400 |
+| `AdminPage.tsx` строк | ~11000 | **263** |
+| `App.tsx` строк | ~2400 | **228** |
+| `SendingsTableView.tsx` строк | ~965 | **~264** |
+| `SendingsTableExpandedByCustomerView.tsx` | ~493 | **~290** (+ helpers/bulk/cargo) |
+| `SendingsTableExpandedByCargoView.tsx` | ~183 | **~130** |
 | `useDashboardPageState.ts` строк | ~2186 | **365** |
 | `ProfilePage.tsx` строк | ~3205 | **~412** |
-| Unit-тесты | 0 | 5+ |
+| Unit-тесты | 0 | **173** |
 
 ## Структура `features/`
 
@@ -66,9 +69,9 @@ src/features/
 5. **Admin Ferries** — `useAdminFerries` + toolbar/table/modal ✅
 6. **4.x** — `styles.css`, App shell, крупные Documents modules (Sendings, viewBlocks)
 7. **5** — `AuthContext` / `AppShellContext`
-8. **7** — дальше: распил `modal.css` (~2.8k), `profile-demo.css` (~1.3k)
+8. **7** — Vitest для `sendingsByCustomerSummaryHelpers`; **коммит** накопленного на staging
 9. **8** — расширить Vitest (cargoPipeline, clientPlatform)
-10. **9** — миграция лёгких `api/*` на `withApiHandler`
+10. **коммит** — documentsViewBlocks + SendingsTable + CSS splits + tests на `staging`
 
 ## Коммиты автономного прогона (staging)
 

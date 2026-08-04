@@ -1,0 +1,151 @@
+button.unpaid-plan-monitor {
+    appearance: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+button.unpaid-plan-monitor:hover {
+    border-color: rgba(59, 130, 246, 0.35) !important;
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.08) !important;
+}
+
+.unpaid-plan-monitor--alert {
+    background: var(--color-bg-card) !important;
+}
+
+.unpaid-plan-monitor__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.unpaid-plan-monitor__title {
+    font-size: 0.88rem !important;
+    font-weight: 600 !important;
+    line-height: 1.25;
+}
+
+.unpaid-plan-monitor__subtitle {
+    display: block;
+    font-size: 0.72rem !important;
+    color: var(--color-text-secondary) !important;
+    margin-top: 0.12rem;
+    line-height: 1.35;
+}
+
+.unpaid-plan-monitor__chevron {
+    flex-shrink: 0;
+    margin-top: 0.15rem;
+    color: var(--color-text-secondary);
+    opacity: 0.65;
+}
+
+.unpaid-plan-monitor__loading {
+    min-height: 2rem;
+    justify-content: center;
+}
+
+.unpaid-plan-monitor__table-wrap {
+    overflow-x: auto;
+    overflow-y: auto;
+}
+
+.unpaid-plan-monitor__table-wrap--scroll {
+    max-height: min(22rem, 55vh);
+}
+
+.unpaid-plan-monitor__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+}
+
+.unpaid-plan-monitor__table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--color-bg-hover);
+    padding: 0.35rem 0.4rem;
+    text-align: left;
+    font-weight: 600;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.unpaid-plan-monitor__table td {
+    padding: 0.35rem 0.4rem;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+    max-width: 10rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.unpaid-plan-monitor__col-status {
+    white-space: normal;
+    max-width: 7.5rem;
+}
+
+.unpaid-plan-monitor__col-status .app-badge {
+    white-space: normal;
+    line-height: 1.25;
+}
+
+.unpaid-plan-monitor__col-cargo {
+    white-space: nowrap;
+    max-width: 6.5rem;
+}
+
+.unpaid-plan-monitor__col-plan-arrival {
+    white-space: nowrap;
+    max-width: 9rem;
+}
+
+@media (max-width: 768px) {
+    .unpaid-plan-monitor__col-plan-arrival {
+        display: none;
+    }
+
+    .unpaid-plan-monitor__table th.unpaid-plan-monitor__col-plan-arrival,
+    .unpaid-plan-monitor__table td.unpaid-plan-monitor__col-plan-arrival {
+        display: none;
+    }
+}
+
+.unpaid-plan-monitor__more {
+    display: block;
+    width: 100%;
+    margin-top: 0.35rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--color-primary-blue);
+    text-align: left;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.unpaid-plan-monitor__more:hover {
+    opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .edo-health-monitor__ring--alert svg circle:last-child {
+        animation: none;
+    }
+
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header,
+    .documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div,
+    .documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi .summary-metrics > div {
+        box-shadow: none;
+    }
+}

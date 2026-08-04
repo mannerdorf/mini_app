@@ -1,0 +1,220 @@
+/* Главная: компактный монитор здоровья ЭДО */
+.edo-health-monitor {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    width: 100%;
+    min-width: 0;
+    padding: 0.55rem 0.65rem !important;
+    margin-top: 0.75rem;
+    margin-bottom: 0.75rem !important;
+    border-radius: 12px !important;
+    text-align: left;
+    cursor: pointer;
+    border: 1px solid rgba(148, 163, 184, 0.22) !important;
+    background: var(--color-bg-card) !important;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05) !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+button.edo-health-monitor {
+    appearance: none;
+    font: inherit;
+    color: inherit;
+}
+
+.edo-health-monitor:hover {
+    border-color: rgba(59, 130, 246, 0.35) !important;
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.08) !important;
+}
+
+/* Предупреждение — только кольцо/текст, фон как у остальных карточек дашборда */
+.edo-health-monitor--alert {
+    background: var(--color-bg-card) !important;
+}
+
+.edo-health-monitor__loading {
+    width: 100%;
+    min-height: 2.25rem;
+    justify-content: center;
+}
+
+.edo-health-monitor__ring {
+    position: relative;
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
+}
+
+.edo-health-monitor__ring--alert svg circle:last-child {
+    animation: edo-health-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes edo-health-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.72; }
+}
+
+.edo-health-monitor__ring-value {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.58rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+.edo-health-monitor__meta {
+    flex: 0 0 auto;
+    min-width: 3.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+}
+
+.edo-health-monitor__title {
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    line-height: 1.1 !important;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary) !important;
+}
+
+.edo-health-monitor__status {
+    font-size: 0.78rem !important;
+    font-weight: 700 !important;
+    line-height: 1.15 !important;
+}
+
+.edo-health-monitor__hint {
+    font-size: 0.62rem !important;
+    color: var(--color-text-secondary) !important;
+    line-height: 1.1 !important;
+}
+
+.edo-health-monitor__bars {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.35rem;
+}
+
+.edo-health-monitor__micro {
+    min-width: 0;
+}
+
+.edo-health-monitor__micro-label {
+    display: block;
+    font-size: 0.58rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    margin-bottom: 0.12rem;
+    line-height: 1;
+}
+
+.edo-health-monitor__micro-track {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--color-border);
+    overflow: hidden;
+}
+
+.edo-health-monitor__micro-fill {
+    height: 100%;
+    border-radius: 999px;
+    min-width: 0;
+    transition: width 0.35s ease;
+}
+
+.edo-health-monitor__chevron {
+    flex: 0 0 auto;
+    width: 1rem;
+    height: 1rem;
+    color: var(--color-text-secondary);
+    opacity: 0.65;
+}
+
+@media (max-width: 420px) {
+    .edo-health-monitor {
+        flex-wrap: wrap;
+        padding: 0.5rem 0.55rem !important;
+    }
+
+    .edo-health-monitor__bars {
+        flex: 1 1 100%;
+        order: 3;
+    }
+
+    .edo-health-monitor__chevron {
+        margin-left: auto;
+    }
+}
+
+/* Главная: неоплаченные счета × план прибытия на терминал */
+.unpaid-plan-monitor {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    padding: 0.65rem 0.75rem !important;
+    margin-top: 0;
+    margin-bottom: 0.75rem !important;
+    border-radius: 12px !important;
+    text-align: left;
+    cursor: default;
+    border: 1px solid rgba(148, 163, 184, 0.22) !important;
+    background: var(--color-bg-card) !important;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05) !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.unpaid-plan-monitor--ok {
+    border-color: rgba(16, 185, 129, 0.35) !important;
+    background: rgba(16, 185, 129, 0.06) !important;
+}
+
+.unpaid-plan-monitor__empty-title {
+    font-size: 0.92rem !important;
+    font-weight: 600 !important;
+    color: #10b981 !important;
+    margin: 0.15rem 0 0.25rem !important;
+}
+
+.unpaid-plan-monitor__empty-hint {
+    display: block;
+    font-size: 0.78rem !important;
+    color: var(--color-text-secondary) !important;
+    line-height: 1.4;
+    margin-bottom: 0.35rem;
+}
+
+.unpaid-plan-monitor__head-btn {
+    display: block;
+    width: 100%;
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+}
+
+.unpaid-plan-monitor__head-btn:disabled {
+    cursor: default;
+}
+
+.unpaid-plan-monitor__head-btn:not(:disabled):hover .unpaid-plan-monitor__chevron {
+    color: var(--color-primary-blue);
+}
+
+.entity-link-button:hover {
+    color: var(--color-primary-blue);
+    opacity: 0.9;
+}
