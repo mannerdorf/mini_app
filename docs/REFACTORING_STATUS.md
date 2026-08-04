@@ -1,78 +1,108 @@
 # Статус программы рефакторинга
 
-Обновлено автоматическим прогоном `haulz-refactor`. Источник: [REFACTORING_PROGRAM.md](./REFACTORING_PROGRAM.md).
+Обновлено: **2026-08-04**. Источник: [REFACTORING_PROGRAM.md](./REFACTORING_PROGRAM.md).
 
 ## Сводка
 
 | Фаза | Статус | Комментарий |
 |------|--------|-------------|
-| **0** Гигиена | ✅ Выполнено | `dist/` в `.gitignore`, убран из git index; `ENV.md`, `API_CORS_CHECKLIST.md`, CORS VPS |
-| **1** API client | 🟡 Частично | Documents без raw `fetch`; admin features без raw `fetch` (→ `api/client/admin/*`) |
-| **2** List workspace | ✅ Выполнено | `features/listWorkspace/`, 3 страницы |
-| **3** Документы | 🟡 В процессе | `documentsViewBlocks` split; SendingsTable expanded + byCustomer helpers ✅ |
-| **4** Admin | 🟡 В процессе | `useAdminUsers` **25** + data/list; AddForm **46** + sections; Claims/Timesheet split ✅ |
-| **4b** Dashboard PR4 | ✅ Выполнено | `useDashboardPageState` **365** строк; 10 хуков в `features/dashboard/hooks/` |
-| **4c** Profile PR1–PR4 | ✅ Выполнено | employees + timesheet + accounting + main; ProfilePage **~412** строк |
-| **5** App shell | ⏳ Не начато | KPI `App.tsx` < 1200; есть `AppRuntimeContext` |
+| **0** Гигиена | ✅ Выполнено | `dist/` в `.gitignore`; `ENV.md`, `API_CORS_CHECKLIST.md`, CORS VPS |
+| **1** API client | 🟡 Частично | Documents + admin features без raw `fetch`; остатки в pages/hooks |
+| **2** List workspace | ✅ Выполнено | `features/listWorkspace/`, Cargo / Documents / Dashboard |
+| **3** Документы | ✅ KPI достигнут | `DocumentsPage` **342**; sendings, viewBlocks, pipeline tests |
+| **4** Admin / CMS | ✅ KPI достигнут | `AdminPage` **263**; hooks/components/tabs; `api/client/admin/*` |
+| **4b** Dashboard | ✅ Выполнено | `useDashboardPageState` **365**; `DashboardPage` compositor **12** |
+| **4c** Profile | ✅ Выполнено | `ProfilePage` **412**; employees, timesheet, accounting |
+| **5** App shell | ✅ KPI достигнут | `App.tsx` **228** (цель < 1200); `AppRuntimeContext` |
 | **6** Shared lib | ⏳ Не начато | `lib/*.js` из `src/` остаётся |
-| **7** CSS | 🟡 В процессе | haulz-customs → panel+fields; всего **42** CSS-модуля |
-| **8** Тесты | 🟡 В процессе | Vitest **173** теста (+18 sendings summary helpers) |
+| **7** CSS | 🟡 В процессе | `styles.css` → **42** модуля; modal, profile-demo, page-saas-documents |
+| **8** Тесты | 🟡 Частично | Vitest **173** (цель ≥30 unit ✅); Playwright e2e — нет |
 | **9** API backend | 🟡 Старт | `withApiHandler`, пример `ferries-list` |
 
-**Важно:** целевые KPI (AdminPage < 400 строк, DocumentsPage < 500) — **многоспринтовая** работа. Автономный прогон заложил **структуру и гигиену**, не полный распил god-компонентов.
+**Вне scope рефакторинга:** [Wildberries](#вне-scope-рефакторинга) — см. программу §7.
 
-## Метрики (после прогона)
+---
 
-| Метрика | Было (аудит) | Сейчас |
-|---------|--------------|--------|
+## Метрики
+
+| Метрика | Аудит (2026-05) | Сейчас (2026-08) |
+|---------|-----------------|------------------|
+| `AdminPage.tsx` строк | ~11 000 | **263** ✅ |
+| `DocumentsPage.tsx` строк | ~8 000 | **342** ✅ |
+| `App.tsx` строк | ~2 400 | **228** ✅ |
+| `ProfilePage.tsx` строк | ~3 205 | **412** ✅ |
+| `DashboardPage.tsx` строк | ~5 000 | **12** (compositor) ✅ |
+| `useDashboardPageState.ts` | ~2 186 | **365** |
 | `DocumentsPage.tsx` fetch | ~24+ | **0** |
-| `AdminPage.tsx` fetch | ~97 | ~97 |
-| `DocumentsPage.tsx` строк | ~8000 | **342** |
-| `useDocumentsPageState.ts` строк | — | **~230** |
-| `AdminPage.tsx` строк | ~11000 | **263** |
-| `App.tsx` строк | ~2400 | **228** |
-| `SendingsTableView.tsx` строк | ~965 | **~264** |
-| `SendingsTableExpandedByCustomerView.tsx` | ~493 | **~290** (+ helpers/bulk/cargo) |
-| `SendingsTableExpandedByCargoView.tsx` | ~183 | **~130** |
-| `useDashboardPageState.ts` строк | ~2186 | **365** |
-| `ProfilePage.tsx` строк | ~3205 | **~412** |
-| Unit-тесты | 0 | **173** |
+| `AdminPage.tsx` raw fetch | ~97 | **0** (остатки в `features/admin` hooks — фаза 1) |
+| `SendingsTableView.tsx` | ~965 | **264** |
+| Unit-тесты (Vitest) | 0 | **173** |
+| CSS-модули | 1 (`styles.css`) | **42** |
+| E2E (Playwright) | 0 specs | **0** specs |
 
-## Структура `features/`
+---
+
+## Структура `features/` (актуально)
 
 ```
 src/features/
-├── listWorkspace/     # даты, подписи фильтра
-├── dashboard/
-│   ├── hooks/         # filters, cargo, strip, sla, logistics, invoice, analytics, …
-│   └── sections/      # Dashboard*Section (10 файлов)
-├── profile/
-│   ├── hooks/         # useProfileEmployees, useDepartmentTimesheet, useProfileAccounting, useProfileMain
-│   ├── sections/      # Profile*Section (5 файлов)
-│   ├── departmentTimesheetHelpers.ts
-│   └── profileAccountingHelpers.ts
+├── listWorkspace/
+├── dashboard/          # hooks/ + sections/
+├── profile/            # hooks/ + sections/ + helpers
 ├── documents/
-│   ├── hooks/         # cargo, navigation, filters, catalogs, toolbar dropdowns
-│   ├── invoices/      # модалка, QR, банки
-│   ├── lib/           # documentsPipeline + tests
-│   └── views/         # documentsViewBlocks
-└── admin/
-    └── sections/      # Admin* панели (5 файлов)
+│   ├── hooks/
+│   ├── invoices/
+│   ├── orders/
+│   ├── edo/
+│   ├── sendings/       # Section, Table/Cards views, expanded row, helpers
+│   ├── lib/            # documentsPipeline + tests
+│   └── views/          # edo / invoice-act / shared (barrel documentsViewBlocks)
+├── admin/
+│   ├── hooks/          # claims, timesheet, users, ferries, …
+│   ├── components/
+│   ├── tabs/
+│   ├── sections/
+│   └── lib/
+├── haulzReturns/
+├── haulzCalculator/
+└── redReturns/
 ```
 
-## Следующие срезы (без участия пользователя)
+**Не входит в рефакторинг:** `src/pages/WildberriesPage.tsx`, `src/wb/` — поддержка as-is.
 
-1. **DocumentsPage** — compositor KPI ✅ (~266 строк); sendings + toolbar wiring ✅
-2. **Admin Timesheet** — GroupsPanel распилен; `useAdminTimesheet` → compositor + mutations + view + summaries lib
-3. **Admin Claims** — `useAdminClaims` → list + detail + `adminClaimMaxDamage`
-4. **Admin Users** — `useAdminUsers` → data + list state + filter pipeline; AddForm → customer/email/permissions/password sections
-5. **Admin Ferries** — `useAdminFerries` + toolbar/table/modal ✅
-6. **4.x** — `styles.css`, App shell, крупные Documents modules (Sendings, viewBlocks)
-7. **5** — `AuthContext` / `AppShellContext`
-8. **7** — Vitest для `sendingsByCustomerSummaryHelpers`; **коммит** накопленного на staging
-9. **8** — расширить Vitest (cargoPipeline, clientPlatform)
-10. **коммит** — documentsViewBlocks + SendingsTable + CSS splits + tests на `staging`
+---
 
-## Коммиты автономного прогона (staging)
+## Вне scope рефакторинга
 
-См. `git log origin/staging` — цепочка от `dba3bbdd` (фаза 0) через `2c346229` (dist + pipeline) и далее.
+| Область | Причина |
+|---------|---------|
+| **Wildberries** (`WildberriesPage`, `src/wb/`, `api/wb/*`, WB-вкладки admin) | Отдельный продуктовый контур; не трогаем при срезах программы |
+| Полный rewrite PnL | Lazy admin; отдельный эпик |
+| Next.js / monorepo | — |
+| Слияние Vercel + VPS runtime | — |
+
+Допустимо: точечные багфиксы и CORS/env для WB **без** структурного распила.
+
+---
+
+## Следующие срезы
+
+1. **Фаза 1** — raw `fetch`: `ExpenseRequestsPage`, остатки `features/admin` hooks, `ProfilePage` / `ChatPage` (не WB).
+2. **Фаза 8** — Playwright: 3 smoke (login → Грузы → документ/QR на staging).
+3. **Фаза 8** — Vitest: `cargoPipeline`, `clientPlatform`, расширение pipeline-тестов.
+4. **Фаза 6** — граница `src/` ↔ `lib/` (`edoStatus`, `invoiceAmounts`).
+5. **Фаза 9** — `withApiHandler` на новых и рефакторируемых `api/*`.
+6. **Фаза 7** — точечно: `WildberriesPage` CSS **не трогаем**; при необходимости — `page-saas-cargo`, modal leftovers.
+7. **Опционально** — `AGENTS.md` / intake для Cursor (по мотивам Vibe template).
+
+---
+
+## Коммиты (staging, август 2026)
+
+| Коммит | Описание |
+|--------|----------|
+| `8372051` | Admin splits, documents wiring, CSS modules, API client |
+| `4e0f7ee` | modal CSS + SendingsSection table/cards |
+| `6e89843` | documentsViewBlocks split, SendingsTable expanded row, CSS submodules, summary helpers tests |
+
+См. полную историю: `git log origin/staging`.

@@ -1,8 +1,8 @@
 # Программа рефакторинга HAULZ mini_app
 
-Документ фиксирует целевую архитектуру, боли, фазы и KPI. Дополняет [AUDIT_APP_REFACTORING.md](./AUDIT_APP_REFACTORING.md) и [IMPROVEMENTS.md](./IMPROVEMENTS.md).
+Документ фиксирует целевую архитектуру, фазы и KPI. Живой статус: [REFACTORING_STATUS.md](./REFACTORING_STATUS.md).
 
-**Дата:** 2026-05  
+**Дата программы:** 2026-05 · **Обновление:** 2026-08-04  
 **Охват:** `src/`, `api/`, `lib/`, `server/`, деплой Vercel + VPS + Layero/haulz.ru
 
 ---
@@ -11,224 +11,171 @@
 
 ```
 mini_app/
-├── src/                    # Vite + React 18 (Telegram/MAX/Capacitor/PWA)
-│   ├── App.tsx             # Shell: auth, tabs, modals (~2.4k строк)
-│   ├── pages/              # Documents, Cargo, Admin, Dashboard, WB, PnL…
-│   ├── components/         # UI, modals, admin/profile sections
-│   ├── hooks/              # useApi (SWR), auth, …
-│   ├── api/client/         # Частичный HTTP-клиент
-│   ├── lib/                # Клиентская доменная логика
-│   ├── pnl/                # Admin P&L (Tailwind)
-│   └── wb/                 # Wildberries
-├── api/                    # ~180 Vercel serverless (+ cron/, wb/, partner/)
-├── lib/                    # Shared server/domain
-├── server/                 # VPS mirror → те же handlers
-├── migrations/             # Postgres
-├── deploy/                 # nginx, env examples
-├── middleware.ts           # Edge CORS (лёгкие маршруты)
-└── vercel.json             # Crons, timeouts, rewrites
+├── src/
+│   ├── App.tsx                 # Shell (~228 строк после рефакторинга)
+│   ├── pages/                  # Compositors: Admin, Documents, Cargo, Dashboard…
+│   ├── features/               # Доменные модули (admin, documents, dashboard, profile…)
+│   ├── api/client/             # HTTP-клиент по доменам (~57 модулей)
+│   ├── components/
+│   ├── hooks/
+│   ├── lib/
+│   ├── pnl/                    # Admin P&L (lazy)
+│   └── wb/                     # Wildberries — вне scope рефакторинга
+├── api/                        # Vercel serverless (+ cron/, wb/, partner/)
+├── lib/                        # Shared server/domain
+├── server/                     # VPS mirror
+├── styles/modules/             # 42 CSS-модуля (бывший монолит styles.css)
+└── migrations/
 ```
-
-### Runtime
-
-| Слой | Vercel | haulz.ru / Layero | VPS |
-|------|--------|-------------------|-----|
-| Фронт | `*.vercel.app` | Static (Dockerfile/nginx) | — |
-| API | `api/*.ts` | `VITE_API_ORIGIN` → Vercel | `server/index.ts` |
-| БД | Postgres (`DATABASE_URL`) | То же | То же |
-| Кэш | Cron `refresh-cache` | — | systemd/curl |
 
 ### Стек
 
-- **Фронт:** Vite 5, React 18, `@maxhub/max-ui`, SWR, recharts, custom CSS (`styles.css` ~7.4k строк).
-- **API:** `@vercel/node`, `pg`, Redis, OpenAI, web-push, nodemailer, xlsx.
+- **Фронт:** Vite 5, React 18, `@maxhub/max-ui`, SWR, Vitest, Playwright (devDeps).
+- **API:** `@vercel/node`, `pg`, Redis.
 
 ---
 
-## 2. Метрики и боли (на момент аудита)
+## 2. Метрики и боли (аудит 2026-05)
 
-| Файл | ~Строк | Проблема |
-|------|-------:|----------|
-| `src/pages/AdminPage.tsx` | 11 000 | CMS целиком, ~97 `fetch` |
-| `src/pages/DocumentsPage.tsx` | 8 000 | Счета, акты, отправки, ЭДО, претензии |
-| `src/pages/DashboardPage.tsx` | 5 000 | Дубли фильтров с Грузами/Документами |
-| `src/App.tsx` | 2 400 | ~45 `useState`, координация всего |
-| `src/styles.css` | 7 400 | Монолит CSS |
-| `src/pages/documentsPipeline.ts` | 1 200 | Сложная логика в «страничном» слое |
+> Исторический снимок «до». Актуальные цифры — в [REFACTORING_STATUS.md](./REFACTORING_STATUS.md).
 
-**Уже хорошо:** lazy routes, `useApi` для core 1C, частичный `api/client`, вынос admin/profile секций, `lib/apiCorsHeaders.ts`, client platform detection.
+| Файл | ~Строк (аудит) | Проблема |
+|------|---------------:|----------|
+| `AdminPage.tsx` | 11 000 | CMS целиком |
+| `DocumentsPage.tsx` | 8 000 | Счета, акты, отправки, ЭДО |
+| `DashboardPage.tsx` | 5 000 | Дубли фильтров |
+| `App.tsx` | 2 400 | Монолит shell |
+| `styles.css` | 7 400 | Монолит CSS |
 
-**Техдолг:**
+**Закрыто с 2026-05:** dist/ в git, 0 unit-тестов → 173 Vitest; KPI страниц-оркестраторов.
 
-- `dist/` в git (нет в `.gitignore`).
-- Пароли 1С в `localStorage` (`haulz.accounts`).
-- Фронт импортирует `../../lib/*.js` (размыта граница client/server).
-- **0** unit/e2e тестов (Playwright в devDeps без specs).
-- Тройной деплой → рассинхрон CORS/env.
+**Открытый техдолг:** пароли 1С в `localStorage`; `src/` → `../../lib/*.js`; e2e specs; raw fetch в отдельных pages.
 
 ---
 
-## 3. Цели (ориентир 12 месяцев)
+## 3. Цели и статус (2026-08)
 
-1. Страница-оркестратор **< 800** строк; логика в `features/*`.
-2. Единый **API client** на фронте, без разбросанных `fetch`.
-3. Общий **list workspace** (период, маршрут, статус) для Грузы / Документы / Дашборд.
-4. Один каталог **env** и **CORS**.
-5. Минимальный контур **тестов** на pipeline и критичные API.
+| # | Цель | KPI | Статус |
+|---|------|-----|--------|
+| 1 | Оркестраторы в `features/*` | страница < 800 строк | ✅ Admin 263, Documents 342, App 228 |
+| 2 | Единый API client | без raw `fetch` в pages | 🟡 Documents/Admin ✅; WB, ExpenseRequests — вне/остаток |
+| 3 | List workspace | Cargo / Documents / Dashboard | ✅ |
+| 4 | Env + CORS | один справочник | ✅ фаза 0 |
+| 5 | Тесты | ≥30 unit; 3 e2e | 🟡 173 unit ✅; e2e — нет |
 
 ---
 
 ## 4. Фазы
 
-### Фаза 0 — Гигиена (1–2 недели)
+### Фаза 0 — Гигиена ✅
+
+`dist/`, `ENV.md`, CORS checklist, единый `lib/apiCorsHeaders.ts`.
+
+### Фаза 1 — API client + SWR 🟡
 
 | ID | Задача | KPI |
 |----|--------|-----|
-| 0.1 | `dist/` в `.gitignore`, убрать tracked assets | Нет churn в `dist/assets/` |
-| 0.2 | `docs/ENV.md` — все `VITE_*` + server env | Один справочник |
-| 0.3 | CORS только из `lib/apiCorsHeaders.ts` | Нет дублей в `server/cors.ts` |
-| 0.4 | Чеклист для новых `api/*`: OPTIONS, тяжёлые вне `middleware` | Нет CORS-регрессий с haulz.ru |
+| 1.1 | `src/api/client/{documents,admin,profile,…}/` | Модули по доменам |
+| 1.2 | Вызовы через `apiFetchJson` | raw `fetch` в **in-scope** pages ↓ |
+| 1.3 | SWR в Documents | Кэш вкладок |
+| 1.4 | Типы ответов | Меньше `any` |
 
-### Фаза 1 — API client + SWR (3–4 недели)
+**In scope:** Documents, Admin, Profile, Cargo, Dashboard, ExpenseRequests.  
+**Out of scope:** реструктуризация `WildberriesPage` / `src/wb/` (клиент `api/client/wb.ts` — только поддержка).
 
-| ID | Задача | KPI |
-|----|--------|-----|
-| 1.1 | `src/api/client/{documents,admin,profile,wb}/` | Модули по доменам |
-| 1.2 | Все вызовы через `apiFetchJson` | raw `fetch` в pages ↓ |
-| 1.3 | Подключить SWR в Documents (invoices, acts, orders, sendings) | Кэш при смене вкладок |
-| 1.4 | Минимальные типы ответов | Меньше `any` |
+**Цель:** raw `fetch` в in-scope `pages/` → < 20.
 
-**Цель:** raw `fetch` в `pages/` с ~150 до < 20.
+### Фаза 2 — List workspace ✅
 
-### Фаза 2 — List workspace (4–6 недель)
+`src/features/listWorkspace/` — Cargo, Documents, Dashboard.
 
-```
-src/features/listWorkspace/
-  useDateRangeFilter.ts
-  usePersistedFilters.ts
-  ListToolbar.tsx
-  SummaryMetricsRow.tsx
-```
-
-**Потребители:** `CargoPage`, `DocumentsPage`, `DashboardPage`.
-
-**Цель:** −50% дублирования date/filter; один фикс периода на все вкладки.
-
-### Фаза 3 — Документы (6–8 недель)
+### Фаза 3 — Документы ✅ (KPI)
 
 ```
 src/features/documents/
-  invoices/
-  acts/
-  orders/
-  sendings/
-  claims/
-  contracts/
-  edo/
-  DocumentsLayout.tsx    # бывший DocumentsPage < 500 строк
-  lib/                   # pipeline, pure functions
+  invoices/ acts/ orders/ sendings/ edo/ claims/ contracts/
+  hooks/ lib/ views/
 ```
 
-**Цель:** Vitest на `documentsPipeline` (10+ кейсов); вертикальные PR по одной вкладке.
+**KPI:** `DocumentsPage` < 500 строк → **342** ✅; Vitest на `documentsPipeline` ✅.
 
-### Фаза 4 — Admin / CMS (6–8 недель, параллельно с ф.3)
+### Фаза 4 — Admin / CMS ✅ (KPI)
 
 ```
 src/features/admin/
-  users/
-  timesheet/
-  expense-requests/
-  claims/
-  integration/
-  wb-admin/
-  pnl/                   # lazy
-  AdminRouter.tsx
+  hooks/ components/ tabs/ sections/ lib/
 ```
 
-**Цель:** `AdminPage.tsx` < 400 строк; `api/client/admin/*`.
+**KPI:** `AdminPage` < 400 строк → **263** ✅; `api/client/admin/*` ✅.
 
-### Фаза 5 — App shell (3–4 недели)
+> WB-admin UI в CMS **не входит** в программу распила (см. §7).
 
-- `AuthContext` — accounts, 2FA, service mode (`authState`, `api/client/auth`).
-- `AppShellContext` — theme, tab, overlays.
-- Урезать props в `AppMainContent.tsx`.
+### Фаза 5 — App shell ✅ (KPI)
 
-**Цель:** `App.tsx` < 1200 строк.
+`AppRuntimeContext`, lazy routes. **KPI:** `App.tsx` < 1200 → **228** ✅.
 
-### Фаза 6 — Shared lib (2–3 недели)
+### Фаза 6 — Shared lib ⏳
 
 | Проблема | Решение |
 |----------|---------|
-| `edoStatus` client/server | `lib/edo/` pure + React wrapper |
-| `invoiceAmounts` cross-import | `@haulz/shared` или `src/shared/` |
-| Дубли refresh/cors | Один модуль |
+| `edoStatus` client/server | `lib/edo/` pure + wrapper |
+| `invoiceAmounts` cross-import | `src/shared/` |
+| Дубли refresh/cors | один модуль |
 
-### Фаза 7 — CSS (4+ недели, потоком)
+### Фаза 7 — CSS 🟡
 
-- Разбить `styles.css` → `styles/{base,theme,tables,filters,modals,admin}.css`.
-- Расширить `design-tokens.css` (safe-area, z-index).
-- Не раздувать Tailwind и custom CSS параллельно без правил.
+- ✅ `styles.css` → `styles/index.css` + **42** модуля (modal, profile-demo, page-saas-documents, …).
+- ⏳ точечные крупные файлы (без WB-стилей).
 
-**UX-чеклист:** touch ≥ 44px, modal safe-area, loading/empty/error (см. `.cursor/agents/cm-ux-master.md`).
+### Фаза 8 — Тесты 🟡
 
-### Фаза 8 — Тесты (2–3 недели + поддержка)
+| Уровень | Объект | Статус |
+|---------|--------|--------|
+| Unit | pipeline, sendings helpers, haulzReturns, … | **173** ✅ |
+| Unit | `cargoPipeline`, `clientPlatform` | ⏳ |
+| E2E | login → Грузы → счёт/QR | ⏳ Playwright без specs |
 
-| Уровень | Объект |
-|---------|--------|
-| Unit | `cargoPipeline`, `documentsPipeline`, `invoiceAmounts`, `cargoDateFilter`, `clientPlatform` |
-| API smoke | auth, perevozki, invoice-payment-qr |
-| E2E | login → Грузы → счёт/QR (staging) |
+### Фаза 9 — API backend 🟡
 
-**Цель:** ≥ 30 unit; 3 e2e smoke перед релизом.
-
-### Фаза 9 — API backend (по мере сил)
-
-- Wrapper `withApiHandler({ cors, auth, method })`.
-- Redis только через `api/redis.ts`.
-- Единый реестр cron.
+`withApiHandler`, Redis через `api/redis.ts`, реестр cron.
 
 ---
 
-## 5. Приоритеты (impact × effort)
+## 5. Приоритеты (актуально)
 
 ```
-Высокий impact
+Высокий impact, in-scope
     │
-    │  [3] Documents      [2] List workspace
-    │  [4] Admin          [1] API client
+    │  [1] API client (остатки)    [8] E2E smoke
+    │  [6] Shared lib              [9] withApiHandler
+    │  [7] CSS (точечно)
     │
-    │  [5] App shell      [6] Shared lib
-    │  [7] CSS
-    │
-    │  [0] Hygiene        [8] Tests
     └────────────────────────────→ Effort
+
+Вне scope: Wildberries, PnL rewrite, Next.js
 ```
 
-**Порядок:** `0 → 1 → 2 → 3` (клиент), параллельно `4`, затем `5–8`.
+---
+
+## 6. Ближайшие срезы (2026-08)
+
+1. **Фаза 1** — `ExpenseRequestsPage`, admin hooks с raw fetch (не WB).
+2. **Фаза 8** — Playwright: login, список грузов, документ/QR.
+3. **Фаза 6** — вынести cross-imports `src/` ↔ `lib/`.
+4. **Фаза 9** — миграция очередных `api/*` на `withApiHandler`.
+5. **Фаза 7** — CSS только in-scope surfaces (cargo, admin modal leftovers).
 
 ---
 
-## 6. Ближайшие 3 спринта
+## 7. Вне scope
 
-### Спринт 1
-- Фаза 0 целиком.
-- Начало фазы 1: `api/client/documents`, 10 частых `fetch` из Documents.
-
-### Спринт 2
-- Фаза 2: `useDateRangeFilter` + общий toolbar.
-- Vitest на `cargoPipeline` / `documentsPipeline` (старт).
-
-### Спринт 3
-- Фаза 3.1: только **Счета** (`InvoiceDetailModal`, `InvoicePaymentQrBlock`) → `features/documents/invoices/`.
-
----
-
-## 7. Вне scope (пока)
-
-- Миграция на Next.js / monorepo.
-- Полный rewrite PnL / WB.
-- Слияние Vercel и VPS в один runtime.
-- Передача QR в банковские приложения без API банков.
+| Область | Примечание |
+|---------|------------|
+| **Wildberries** | `WildberriesPage.tsx` (~2.9k), `src/wb/`, `api/wb/*`, WB-разделы admin — **не распиливаем** по этой программе; только bugfix/CORS при необходимости |
+| Полный rewrite **PnL** | Lazy; отдельный эпик |
+| Миграция на Next.js / monorepo | — |
+| Слияние Vercel и VPS в один runtime | — |
+| QR deep-link в банки без API банков | — |
 
 ---
 
@@ -236,34 +183,30 @@ src/features/admin/
 
 | Риск | Митигация |
 |------|-----------|
-| Регрессии в Документах | Одна вкладка за PR; `SectionBoundary` |
-| CORS | Таблица в `middleware.ts` + `respondCorsPreflight` |
-| Большие PR | Лимит 400–600 строк |
-| Secrets в localStorage | Отдельный эпик: token-only для 1C |
+| Регрессии в Документах | Один срез за PR; build + test |
+| CORS | `API_CORS_CHECKLIST.md` |
+| Большие PR | Лимит 400–600 строк diff |
+| Secrets в localStorage | Отдельный эпик 1C tokens |
+| Случайный рефакторинг WB | Явный out-of-scope в STATUS и §7 |
 
 ---
 
 ## 9. Definition of Done (рефакторинг фичи)
 
-- [ ] Нет нового raw `fetch` в page (только `api/client`).
+- [ ] In-scope: нет нового raw `fetch` в page (только `api/client`).
 - [ ] Loading / empty / error states.
-- [ ] Mobile: touch targets, modal не под header.
-- [ ] CORS проверен для haulz.ru → Vercel (если новый API).
-- [ ] Unit-тесты на pure lib (если есть логика в pipeline).
-- [ ] Документация env обновлена (если новые переменные).
+- [ ] Mobile: touch ≥ 44px, modal safe-area.
+- [ ] CORS для haulz.ru (если новый API).
+- [ ] Unit-тесты на pure lib (если есть логика).
+- [ ] Env docs (если новые переменные).
+- [ ] **Не** затронуты файлы Wildberries без отдельного запроса.
 
 ---
 
 ## 10. Связанные документы
 
+- [REFACTORING_STATUS.md](./REFACTORING_STATUS.md) — текущий статус
 - [AUDIT_APP_REFACTORING.md](./AUDIT_APP_REFACTORING.md)
 - [IMPROVEMENTS.md](./IMPROVEMENTS.md)
-- [code-review-optimization.md](./code-review-optimization.md)
-- [deploy/README-vercel.md](../deploy/README-vercel.md)
-- [deploy/README-vps-api.md](../deploy/README-vps-api.md)
-- [ENV.md](./ENV.md) — справочник переменных окружения
-- [API_CORS_CHECKLIST.md](./API_CORS_CHECKLIST.md) — чеклист CORS для новых API
-- Субагент UX: `.cursor/agents/cm-ux-master.md`
-- Субагент рефакторинг: `.cursor/agents/haulz-refactor.md`
-- Общий фильтр дат: `src/features/listWorkspace/`
-- Счета (модалка, QR, банки): `src/features/documents/invoices/`
+- [ENV.md](./ENV.md) · [API_CORS_CHECKLIST.md](./API_CORS_CHECKLIST.md)
+- `.cursor/agents/haulz-refactor.md` · `.cursor/agents/cm-ux-master.md`
