@@ -1,0 +1,634 @@
+/* --- CHAT STYLES (MAX-LIKE) --- */
+.chat-shell {
+    background: var(--color-bg-primary);
+}
+.chat-messages {
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.06) 0%, rgba(15, 23, 42, 0) 100%);
+    min-height: 0;
+}
+.chat-bubble {
+    border-radius: 18px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+    backdrop-filter: blur(6px);
+}
+.chat-bubble-user {
+    background: linear-gradient(180deg, #0077ed 0%, #0071e3 100%);
+    color: #fff;
+}
+.chat-bubble-assistant {
+    background: var(--color-bg-card);
+}
+.chat-input-bar {
+    background: var(--color-bg-secondary);
+    width: 100%;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+.chat-input-bar form {
+    align-items: stretch;
+    display: flex;
+    width: 100%;
+    min-width: 0;
+}
+.chat-input {
+    flex: 1;
+    min-width: 0;
+    background-color: var(--color-bg-input) !important;
+    color: var(--color-text-primary) !important;
+    border: 1px solid var(--color-border) !important;
+    border-radius: 14px !important;
+    padding: 0.65rem 0.9rem !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+    height: 44px !important;
+}
+.chat-input input {
+    background-color: transparent !important;
+    color: inherit !important;
+    height: 44px !important;
+}
+.chat-input::placeholder,
+.chat-input input::placeholder {
+    color: var(--color-text-secondary);
+}
+.chat-action-button {
+    border-radius: 14px !important;
+    border: 1px solid rgba(15, 23, 42, 0.08) !important;
+    box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
+    background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
+    color: #111827;
+    height: 100%;
+}
+.chat-action-button:active {
+    transform: translateY(1px);
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+}
+.chat-send-button {
+    background: linear-gradient(180deg, #0077ed 0%, #0071e3 100%);
+    color: #fff !important;
+    border: 1px solid rgba(0, 113, 227, 0.5) !important;
+}
+.chat-action-button:disabled {
+    opacity: 0.6;
+    box-shadow: none;
+}
+.light-mode .chat-messages {
+    background: linear-gradient(180deg, rgba(148, 163, 184, 0.18) 0%, rgba(148, 163, 184, 0) 100%);
+}
+.light-mode .chat-input {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    border: 1px solid #e5e7eb !important;
+}
+.light-mode .chat-action-button {
+    background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
+    color: #111827;
+}
+.light-mode .chat-send-button {
+    background: linear-gradient(180deg, #0077ed 0%, #0071e3 100%) !important;
+    border: 1px solid rgba(0, 113, 227, 0.5) !important;
+    color: #fff !important;
+}
+
+/* Поля ввода в админке: в светлом режиме не чёрные, без внутреннего прямоугольника */
+.light-mode .admin-form-input {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+    border: 1px solid #d1d5db !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+.light-mode .admin-form-input input {
+    background: transparent !important;
+    color: #1f2937 !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+.admin-form-input,
+.admin-form-input input {
+    box-shadow: none !important;
+    outline: none !important;
+}
+.admin-form-input input {
+    border: none !important;
+    background: transparent !important;
+}
+.admin-form-input {
+    border-radius: var(--radius-sm, 8px);
+}
+.admin-form-section {
+    background: var(--color-bg-card);
+    padding: var(--pad-card, 24px);
+    border-radius: var(--radius-lg, 18px);
+    border: 1px solid var(--color-border);
+    margin-bottom: var(--element-gap, 16px);
+    box-shadow: var(--shadow-sm);
+}
+.admin-form-section-header {
+    font-weight: 600;
+    margin-bottom: var(--space-2, 8px);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-subhead, 14px);
+}
+
+/* Отчёт: как карточки в админке / документах, не тёмный Panel max-ui */
+.haulz-summary-sandbox,
+.haulz-summary-sandbox label,
+.haulz-summary-sandbox .Typography,
+.haulz-summary-sandbox [class*="Typography"] {
+    color: var(--color-text-primary);
+}
+
+.haulz-summary-sandbox select.admin-form-input,
+.haulz-summary-sandbox input.admin-form-input,
+.haulz-summary-sandbox input[type="date"].admin-form-input,
+.haulz-summary-sandbox input[type="search"].admin-form-input,
+.haulz-summary-sandbox input[type="number"].admin-form-input {
+    width: 100%;
+    background: var(--color-bg-primary, #fff);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+    padding: 0 0.65rem;
+}
+.admin-permissions-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--inline-gap, 12px);
+}
+.permission-button {
+    border-radius: var(--radius-pill, 980px);
+    border: 1px solid var(--color-border);
+    background: transparent;
+    color: var(--color-text-primary);
+    padding: var(--space-1, 4px) var(--space-3, 12px);
+    font-size: var(--font-size-subhead, 14px);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.permission-button:hover {
+    border-color: var(--color-primary-blue);
+}
+.permission-button.active {
+    background: var(--color-primary-blue);
+    color: white;
+    border-color: var(--color-primary-blue);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+.permission-button.active:hover {
+    border-color: var(--color-primary-blue);
+}
+.permission-button.active.active-danger {
+    background: var(--color-error-border, #dc2626);
+    color: white;
+    border-color: var(--color-error-border, #dc2626);
+    box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2);
+}
+.permission-button.active.active-danger:hover {
+    border-color: var(--color-error-border, #dc2626);
+}
+.permission-button.active.active-warning {
+    background: #f59e0b;
+    color: white;
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
+}
+.permission-button.active.active-warning:hover {
+    border-color: #f59e0b;
+}
+.permission-button.active.active-success {
+    background: #16a34a;
+    color: white;
+    border-color: #16a34a;
+    box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.22);
+}
+.permission-button.active.active-success:hover {
+    border-color: #16a34a;
+}
+.permission-button.active.active-eor {
+    background: #06b6d4;
+    color: white;
+    border-color: #06b6d4;
+    box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.3);
+}
+.permission-button.active.active-eor:hover {
+    border-color: #06b6d4;
+}
+.permission-button.active.active-purple {
+    background: #7c3aed;
+    color: white;
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.28);
+}
+.permission-button.active.active-purple:hover {
+    border-color: #7c3aed;
+}
+/* WB админ в CMS — тёмнее фиолетового «WB» (только просмотр) */
+.permission-button.active.active-wb-admin {
+    background: #5b21b6;
+    color: white;
+    border-color: #5b21b6;
+    box-shadow: 0 0 0 2px rgba(91, 33, 182, 0.35);
+}
+.permission-button.active.active-wb-admin:hover {
+    border-color: #5b21b6;
+}
+.light-mode .admin-form-input::placeholder,
+.light-mode .admin-form-input input::placeholder {
+    color: #9ca3af !important;
+}
+
+/* AIS: поле MMSI — убрать чёрную полоску max-ui Input в светлом режиме */
+.light-mode .ais-mmsi-input,
+.light-mode .ais-mmsi-input [class*="Input__body"],
+.light-mode .ais-mmsi-input label,
+.light-mode .ais-mmsi-input > div {
+    background-color: #ffffff !important;
+    border: 1px solid #d1d5db !important;
+    color: #1f2937 !important;
+}
+.light-mode .ais-mmsi-input input,
+.light-mode .ais-mmsi-input [class*="Input__body"] input {
+    background: transparent !important;
+    color: #1f2937 !important;
+    border: none !important;
+}
+
+/* Профиль → API: max-ui Input без оболочки profile-saas-shell — убрать «чёрную полосу» в светлой теме */
+.light-mode .profile-api-keys-root [class*="Input__body"],
+.light-mode .profile-api-keys-root label[class*="Input"],
+.light-mode .profile-api-keys-root [class*="ClearableInput"] {
+    background-color: #ffffff !important;
+    border: 1px solid #d1d5db !important;
+    color: #1f2937 !important;
+}
+.light-mode .profile-api-keys-root input,
+.light-mode .profile-api-keys-root [class*="Input__body"] input {
+    background: transparent !important;
+    color: #1f2937 !important;
+    border: none !important;
+}
+.light-mode .profile-api-keys-root input::placeholder,
+.light-mode .profile-api-keys-root [class*="Input__body"] input::placeholder {
+    color: #9ca3af !important;
+}
+
+/* Админка → Оферта / согласие: нативные поля (не max-ui Input), светлые в CMS */
+.admin-page-root .admin-legal-section .admin-legal-field {
+    display: block;
+    margin-bottom: 0.75rem;
+}
+.admin-page-root .admin-legal-section .admin-legal-field--body {
+    margin-bottom: 0.85rem;
+}
+.admin-page-root .admin-legal-section .admin-legal-field__label {
+    display: block;
+    margin: 0 0 0.25rem;
+    font-size: 0.8rem;
+    line-height: 1.35;
+    color: var(--color-text-secondary);
+}
+.admin-page-root .admin-legal-section .admin-legal-field-control {
+    display: block !important;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 2.25rem;
+    margin: 0;
+    padding: 0.5rem 0.65rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: #1f2937 !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 8px;
+    box-shadow: none !important;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.admin-page-root .admin-legal-section .admin-legal-field-control:focus {
+    border-color: var(--color-primary-blue, #2563eb) !important;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15) !important;
+}
+.admin-page-root .admin-legal-section .admin-legal-field-control::placeholder {
+    color: #9ca3af;
+}
+.admin-page-root .admin-legal-section .admin-legal-field-control--textarea {
+    min-height: 14rem;
+    max-height: min(50vh, 28rem);
+    font-size: 0.8rem;
+    resize: vertical;
+    overflow-y: auto;
+}
+.admin-legal-section .admin-legal-search-row {
+    gap: var(--inline-gap, 12px);
+}
+.admin-legal-section .admin-legal-search-wrap {
+    flex: 1 1 200px;
+    min-width: 180px;
+    display: flex;
+    align-items: stretch;
+    box-sizing: border-box;
+    min-height: 36px;
+    height: 36px;
+    background-color: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    overflow: hidden;
+}
+.admin-legal-section .admin-legal-search-row .filter-button {
+    height: 36px;
+    min-height: 36px;
+    box-sizing: border-box;
+}
+.admin-legal-section .admin-legal-search-wrap .admin-legal-field-control {
+    width: 100%;
+    min-height: 0;
+    height: 100%;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background-color: transparent !important;
+    background-image: none !important;
+}
+.light-mode .admin-legal-section .admin-legal-field-control,
+.light-mode .admin-legal-section .admin-legal-search-wrap {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+    border-color: #d1d5db !important;
+}
+.light-mode .admin-legal-section .admin-legal-search-wrap .admin-legal-field-control {
+    background-color: transparent !important;
+}
+.admin-page-root .admin-legal-section input[type="search"].admin-legal-field-control,
+.admin-legal-section input[type="search"].admin-legal-field-control {
+    -webkit-appearance: none;
+    appearance: none;
+    background-color: #ffffff !important;
+}
+/* На случай max-ui Input внутри секции */
+.admin-page-root .admin-legal-section label[class*="Input"],
+.admin-page-root .admin-legal-section [class*="Input__body"],
+.admin-page-root .admin-legal-section [class*="ClearableInput"] {
+    background-color: #ffffff !important;
+    border: 1px solid #d1d5db !important;
+    color: #1f2937 !important;
+}
+.admin-page-root .admin-legal-section label[class*="Input"] input,
+.admin-page-root .admin-legal-section [class*="Input__body"] input {
+    background: transparent !important;
+    color: #1f2937 !important;
+    border: none !important;
+}
+
+/* Профиль → API: строка префикса ключа + копирование */
+.profile-api-keys-active-card {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--color-border);
+}
+.profile-api-keys-active-card:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+.profile-api-keys-keyrow {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.45rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 8px;
+    background: var(--color-bg-hover);
+    border: 1px solid var(--color-border);
+}
+.light-mode .profile-api-keys-keyrow {
+    background: #f3f4f6;
+    border-color: #e5e7eb;
+}
+.profile-api-keys-keycode {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 0.8rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    color: var(--color-text-primary);
+    word-break: break-all;
+    line-height: 1.35;
+}
+.profile-api-keys-copy-inline {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-bg-card);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.profile-api-keys-copy-inline:hover {
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    border-color: var(--color-primary-blue, #0071e3);
+}
+.profile-api-keys-active-card--disabled {
+    opacity: 0.72;
+}
+.profile-api-keys-disabled-badge {
+    font-weight: 500;
+    font-size: 0.75rem;
+    color: #b45309;
+}
+.profile-api-keys-active-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+.profile-api-keys-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0;
+    cursor: pointer;
+    font-size: 0.72rem;
+    color: var(--color-text-secondary);
+}
+.profile-api-keys-toggle input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+.profile-api-keys-toggle-label {
+    min-width: 2.1rem;
+    text-align: right;
+    font-weight: 600;
+}
+.profile-api-keys-toggle-switch {
+    width: 34px;
+    height: 20px;
+}
+.profile-api-keys-toggle-switch .switch-knob {
+    width: 16px;
+    height: 16px;
+}
+.profile-api-keys-toggle-switch.checked .switch-knob {
+    transform: translateX(14px);
+}
+.profile-api-keys-icon-btn,
+.profile-api-keys-delete-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.profile-api-keys-icon-btn {
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-card);
+    color: var(--color-text-secondary);
+}
+.profile-api-keys-icon-btn:hover,
+.profile-api-keys-icon-btn.is-active {
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    border-color: var(--color-primary-blue, #0071e3);
+}
+.profile-api-keys-delete-btn {
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    background: transparent;
+    color: #b91c1c;
+}
+.profile-api-keys-delete-btn:hover {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.55);
+}
+.profile-api-keys-edit-panel {
+    margin-top: 0.65rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-hover);
+}
+.light-mode .profile-api-keys-edit-panel {
+    background: #f9fafb;
+    border-color: #e5e7eb;
+}
+.profile-api-keys-edit-panel .profile-api-keys-scope-list {
+    margin-bottom: 0.55rem;
+}
+.profile-api-keys-scope-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.12rem;
+}
+.profile-api-keys-scope-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.78rem;
+    line-height: 1.25;
+    cursor: pointer;
+    padding: 0.12rem 0;
+    margin: 0;
+}
+.profile-api-keys-scope-row input {
+    flex-shrink: 0;
+    margin: 0;
+}
+.profile-api-keys-scope-row__main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.45rem;
+}
+.profile-api-keys-scope-row__title {
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+.profile-api-keys-scope-row__hint {
+    font-size: 0.67rem;
+    color: var(--color-text-secondary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    word-break: break-all;
+}
+
+/* Профиль → API: описание Partner API */
+.profile-partner-api-guide__section {
+    margin: 0;
+}
+.profile-partner-api-guide__list {
+    margin: 0;
+    padding-left: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+.profile-partner-api-guide__code-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+    margin-bottom: 0.35rem;
+}
+.profile-partner-api-guide__code {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 0.55rem 0.65rem;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-hover);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.72rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-all;
+    overflow-x: auto;
+}
+.light-mode .profile-partner-api-guide__code {
+    background: #f3f4f6;
+    border-color: #e5e7eb;
+}
+.profile-partner-api-guide__table-wrap {
+    overflow-x: auto;
+    margin-top: 0.25rem;
+}
+.profile-partner-api-guide__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    min-width: 280px;
+}
+.profile-partner-api-guide__table th,
+.profile-partner-api-guide__table td {
+    padding: 0.35rem 0.45rem;
+    border-bottom: 1px solid var(--color-border);
+    text-align: left;
+    vertical-align: top;
+}
+.profile-partner-api-guide__table th {
+    font-weight: 600;
+    background: var(--color-bg-hover);
+    font-size: 0.72rem;
+}
+.profile-partner-api-guide__table code {
+    font-size: 0.68rem;
+    word-break: break-all;
+}

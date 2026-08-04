@@ -3,6 +3,7 @@ import {
   fetchAdminEmployeeDirectory,
   fetchAdminEmployeeRateHistory,
 } from "../../../api/client/admin/employees";
+import { fetchPnlSubdivisions } from "../../../api/client/admin/pnl";
 import {
   calcMonthlyByRate,
   type AccrualType,
@@ -102,9 +103,7 @@ export function useAdminEmployeeDirectory(
 
   const fetchDepartments = useCallback(async () => {
     try {
-      const res = await fetch("/api/pnl-subdivisions");
-      const data = await res.json().catch(() => []);
-      const names = Array.isArray(data) ? data.map((s: { name?: string }) => s?.name ?? "").filter(Boolean) : [];
+      const names = await fetchPnlSubdivisions();
       setDepartments(names);
       setDepartment((prev) => {
         if (prev && names.includes(prev)) return prev;

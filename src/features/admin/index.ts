@@ -46,6 +46,8 @@ export { useAdminIntegrations } from "./hooks/useAdminIntegrations";
 export type { AdminIntegrationsState } from "./hooks/useAdminIntegrations";
 export { useAdminExpenseRequests } from "./hooks/useAdminExpenseRequests";
 export type { AdminExpenseRequestsState, AdminExpenseSortCol } from "./hooks/useAdminExpenseRequests";
+export { useAdminFerries } from "./hooks/useAdminFerries";
+export type { AdminFerriesState } from "./hooks/useAdminFerries";
 export { useAdminTab, ADMIN_TABS, ADMIN_TAB_KEY } from "./hooks/useAdminTab";
 export type { AdminTab } from "./hooks/useAdminTab";
 export { AdminPageNav } from "./components/AdminPageNav";

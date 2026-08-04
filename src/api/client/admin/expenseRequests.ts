@@ -2,6 +2,7 @@
  * Admin API: заявки на расходы (список для суперадмина).
  */
 
+import { EXPENSE_REQUESTS_WEBHOOK_URL } from "../../../constants/config";
 import type { ExpenseRequestItem } from "../../../pages/ExpenseRequestsPage";
 import { adminAuthHeaders } from "./auth";
 
@@ -46,4 +47,29 @@ export async function updateAdminExpenseRequest(
   const errData = (await res.json().catch(() => ({}))) as { error?: string; details?: string };
   const detail = errData.details ? `: ${errData.details}` : "";
   return { ok: false, error: String(errData.error || "Ошибка сохранения заявки") + detail };
+}
+
+export async function postExpenseRequestsWebhook(payload: Record<string, unknown>): Promise<void> {
+  const res = await fetch(EXPENSE_REQUESTS_WEBHOOK_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const errData = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(errData.error || `Ошибка вебхука (${res.status})`);
+  }
+}
+
+export async function fetchAdminExpenseAttachmentBlob(
+  adminToken: string,
+  requestUid: string,
+  attachmentId: number,
+): Promise<Blob | null> {
+  const res = await fetch(
+    `/api/admin-expense-attachment?requestUid=${encodeURIComponent(requestUid)}&attachmentId=${attachmentId}`,
+    { headers: adminAuthHeaders(adminToken) },
+  );
+  if (!res.ok) return null;
+  return res.blob();
 }

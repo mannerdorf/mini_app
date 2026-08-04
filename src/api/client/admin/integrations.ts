@@ -127,3 +127,8 @@ export async function postDocumentCacheBackfill(
   }
   return data as DocumentCacheBackfillStatus & { steps?: unknown[]; message?: string };
 }
+
+export async function fetchPartnerApiHealth(): Promise<unknown> {
+  const res = await fetch("/api/partner/v1/health");
+  return res.json().catch(() => ({ error: "Не удалось загрузить /api/partner/v1/health" }));
+}

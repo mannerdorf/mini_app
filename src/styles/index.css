@@ -1,0 +1,20 @@
+/* Aggregated app styles — split from legacy styles.css */
+@import "./modules/00-preamble.css";
+@import "./modules/theme.css";
+@import "./modules/utilities.css";
+@import "./modules/layout.css";
+@import "./modules/header-search.css";
+@import "./modules/auth.css";
+@import "./modules/platform.css";
+@import "./modules/controls-cms.css";
+@import "./modules/cargo-list.css";
+@import "./modules/cargo-documents-sticky.css";
+@import "./modules/filters.css";
+@import "./modules/modal.css";
+@import "./modules/tabbar.css";
+@import "./modules/chat.css";
+@import "./modules/profile-api.css";
+@import "./modules/misc-widgets.css";
+@import "./modules/max-ui-overrides.css";
+@import "./modules/profile-saas.css";
+@import "./modules/profile-demo.css";

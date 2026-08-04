@@ -1,0 +1,295 @@
+/* --- CARGO LIST --- */
+.cargo-list { width: 100%; min-width: 0; overflow-x: hidden; }
+.cargo-card {
+    overflow-x: hidden;
+    min-width: 0;
+    background-color: var(--color-bg-card);
+    border-radius: var(--radius-lg, 18px);
+    padding: var(--pad-card, 24px);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.25s, border-color 0.25s, transform 0.2s;
+    cursor: pointer;
+}
+.cargo-card:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-primary-blue);
+}
+.light-mode .cargo-card:hover { box-shadow: 0 4px 16px rgba(0, 113, 227, 0.12); }
+
+/* Документы: явная верхняя граница суммирующего поля */
+.documents-summary-card {
+    position: relative;
+}
+.documents-summary-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 1px;
+    right: 1px;
+    height: 1px;
+    background: var(--color-border);
+    border-top-left-radius: var(--radius-lg, 18px);
+    border-top-right-radius: var(--radius-lg, 18px);
+    pointer-events: none;
+}
+
+/* У .cargo-card стоит overflow-x: hidden — по правилам overflow тогда перестраивается ось Y (часто в auto) и верх подписей вроде «Сумма» визуально подрезается */
+.documents-summary-card.cargo-card,
+.cargo-summary-totals.cargo-card {
+    overflow: visible;
+}
+
+/* Плитки в списках «Документы»: .cargo-card с overflow-x:hidden подрезает верх; дети списка — через motion, не только прямые > .cargo-card */
+.documents-page .cargo-list .cargo-card,
+.documents-page .documents-edo-monitor-card.cargo-card,
+.documents-page .documents-edo-monitor-table.cargo-card,
+.documents-page .documents-invoice-card.cargo-card {
+    overflow: visible;
+}
+
+.documents-invoice-card__edo-badges {
+    position: static;
+    width: 100%;
+    z-index: 1;
+}
+
+.documents-edo-cargo-card__edo-badges {
+    width: 100%;
+    margin-top: 0.1rem;
+}
+
+/* Доставлено (max-badge) и Оплачен (app-badge) — одна высота в карточках счетов/ЭДО */
+.documents-invoice-card__status-badges .max-badge,
+.documents-invoice-card__status-badges .app-badge {
+    min-height: var(--control-height-badge, 24px) !important;
+    height: var(--control-height-badge, 24px) !important;
+    max-height: var(--control-height-badge, 24px) !important;
+    box-sizing: border-box !important;
+    padding: 0 var(--control-padding-badge-x, 10px) !important;
+    font-size: var(--text-sm, 0.8125rem) !important;
+    line-height: 1 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.documents-invoice-card .documents-edo-card-badge,
+.documents-edo-cargo-card .documents-edo-card-badge {
+    flex-shrink: 0;
+}
+
+.documents-edo-card-badge--compact {
+    font-size: 0.58rem !important;
+    min-height: 1.15rem;
+    padding: 0.14rem 0.38rem !important;
+    line-height: 1.15 !important;
+    letter-spacing: -0.01em;
+}
+
+/* Глобально .cargo-list { overflow-x: hidden } даёт в браузерах усечение по Y — первая карточка в Документах «пропадала» при анимации */
+.documents-page .cargo-list {
+    overflow-x: visible;
+    overflow-y: visible;
+}
+
+/* Зазор таблицы / списка карточек от липкого блока (фильтры + KPI): без него верх первой плитки визуально подрезается тенью/краем блока, на ≤1024px ранее margin не задавался */
+.documents-page .documents-cards-offset-desktop,
+.documents-page .documents-table-offset-desktop {
+    margin-top: 0.5rem;
+    overflow: visible;
+}
+.documents-page .documents-cards-offset-desktop .cargo-list {
+    padding-top: 0.2rem;
+}
+
+/* Мобильная версия: карточка груза — номер, шеринг, сообщение, избранное и дата в одну строку; маршрут и заказчик в одну строку */
+@media (max-width: 768px) {
+    .cargo-list-item .cargo-item-row-1 {
+        flex-wrap: nowrap !important;
+        align-items: center;
+    }
+    .cargo-list-item .cargo-item-row-1 .cargo-item-number-wrap {
+        min-width: 0;
+        overflow: visible;
+    }
+    /* Бейдж роли (Заказчик / Отправитель / Получатель) */
+    .cargo-list-item .cargo-item-row-1 .role-badge,
+    .cargo-list-item .cargo-item-row-1 .cargo-role-badge,
+    .cargo-list-item .cargo-item-row-1 .app-badge {
+        font-size: 0.58rem !important;
+        padding: 2px 5px !important;
+        min-height: 1.1rem !important;
+        line-height: 1.15 !important;
+        letter-spacing: -0.02em;
+        white-space: nowrap;
+        box-sizing: border-box;
+        overflow: visible !important;
+        text-overflow: unset !important;
+    }
+    .modal-header .role-badge,
+    .modal-header .app-badge,
+    .modal-header-role-badge {
+        font-size: 0.58rem !important;
+        padding: 2px 5px !important;
+        min-height: 1.1rem !important;
+        line-height: 1.15 !important;
+        min-width: 0 !important;
+        max-width: none;
+        flex-shrink: 0;
+        overflow: visible !important;
+        text-overflow: unset !important;
+        letter-spacing: -0.02em;
+        white-space: nowrap;
+    }
+
+    .modal-header-main {
+        gap: 0.35rem;
+        overflow: visible;
+    }
+
+    .modal-header .modal-header-transport-icon {
+        width: 20px !important;
+        height: 20px !important;
+    }
+
+    .modal-header-actions {
+        gap: 0.15rem;
+    }
+
+    .modal-header-icon-btn {
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+    }
+    .cargo-list-item .cargo-item-row-1 .cargo-item-number {
+        word-break: break-all;
+    }
+    .cargo-list-item .cargo-item-route-customer {
+        flex-wrap: nowrap !important;
+        align-items: center;
+    }
+    .cargo-list-item .cargo-item-route-customer .cargo-item-route {
+        min-width: 0;
+        overflow: hidden;
+    }
+    .cargo-list-item .cargo-item-route-customer .cargo-item-route-text,
+    .cargo-list-item .cargo-item-route-customer .cargo-item-customer-text {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
+.cargo-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-3, 12px);
+}
+.order-number { color: var(--color-text-primary); font-size: var(--font-size-body, 17px); }
+.date { color: var(--color-text-secondary); display: flex; align-items: center; font-size: var(--font-size-subhead, 14px); }
+.date-weekend { color: #ef4444; }
+.date-holiday { color: #ef4444; font-weight: 600; }
+.cargo-details-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--inline-gap, 12px);
+    margin-bottom: var(--space-3, 12px);
+    padding-bottom: var(--space-3, 12px);
+    border-bottom: 1px solid var(--color-border);
+}
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: var(--space-1, 4px);
+    border-radius: var(--radius-sm, 8px);
+}
+.detail-item-label { color: var(--color-text-secondary); margin-bottom: var(--space-1, 4px); font-size: var(--font-size-footnote, 12px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.detail-item-value { display: flex; align-items: center; font-size: var(--font-size-subhead, 14px); }
+.cargo-footer { display: flex; justify-content: space-between; align-items: center; margin-top: var(--space-2, 8px); }
+.sum-label { color: var(--color-text-secondary); font-size: var(--font-size-footnote, 12px); }
+.sum-value { color: var(--color-success-status); font-size: var(--font-size-body, 17px); }
+
+/* --- STATUS BADGES --- */
+.status-value { padding: var(--space-1, 4px) var(--space-2, 8px); border-radius: var(--radius-md, 12px); font-size: var(--font-size-footnote, 12px); font-weight: 600; color: var(--color-text-primary); background-color: var(--color-bg-hover); }
+.status-value.success { background-color: rgba(52, 211, 153, 0.2); color: var(--color-success-status); } /* delivered, completed */
+.status-value.transit { background-color: rgba(250, 204, 21, 0.2); color: var(--color-transit-status); border: 1px solid rgba(250, 204, 21, 0.5); } /* В пути — жёлтый */
+.status-value.delivering { background-color: rgba(139, 92, 246, 0.2); color: #6d28d9; border: 1px solid rgba(139, 92, 246, 0.45); } /* На доставке — фиолетовый */
+.status-value.accepted { background-color: rgba(59, 130, 246, 0.2); color: var(--color-accepted-status); } /* accepted */
+.status-value.ready { background-color: rgba(16, 185, 129, 0.2); color: #059669; border: 1px solid rgba(16, 185, 129, 0.45); } /* Готов к выдаче — бирюзовый/изумрудный */
+
+/* Единая высота бейджей во всех разделах */
+.role-badge,
+.status-value,
+.app-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center;
+    min-height: var(--control-height-badge, 24px) !important;
+    box-sizing: border-box !important;
+    line-height: 1 !important;
+    padding: var(--control-padding-badge-y, 4px) var(--control-padding-badge-x, 10px) !important;
+    font-size: var(--text-sm, 0.8125rem) !important;
+    font-weight: 600;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.app-badge--default {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+}
+.app-badge--info {
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--color-primary-blue);
+    border: 1px solid rgba(59, 130, 246, 0.4);
+}
+.app-badge--success {
+    background: rgba(52, 211, 153, 0.2);
+    color: var(--color-success-status);
+    border: 1px solid rgba(52, 211, 153, 0.35);
+}
+.app-badge--warning {
+    background: rgba(250, 204, 21, 0.2);
+    color: var(--color-transit-status);
+    border: 1px solid rgba(250, 204, 21, 0.45);
+}
+.app-badge--danger {
+    background: rgba(239, 68, 68, 0.16);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+}
+.app-badge--purple {
+    background: rgba(139, 92, 246, 0.2);
+    color: #6d28d9;
+    border: 1px solid rgba(139, 92, 246, 0.45);
+}
+.app-badge--role {
+    background: var(--color-panel-secondary, var(--color-bg-hover));
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+}
+.app-badge--neutral {
+    background: var(--color-bg-hover);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+}
+
+/* Документы: внутренние таблицы счетов — на мобильной без горизонтального скролла (см. .cargo-inner-table) */
+@media (max-width: 768px) {
+    .documents-grouped-table.cargo-customer-table .cargo-customer-table__col-count {
+        width: 18%;
+    }
+}
+
+/* Модалка счёта: столбец «Маршрут» в таблице номенклатуры — на мобильной без переноса */
+@media (max-width: 768px) {
+    .invoice-detail-table .invoice-detail-table-route {
+        white-space: nowrap;
+        min-width: 6.5rem;
+    }
+}

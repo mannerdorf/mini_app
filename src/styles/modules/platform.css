@@ -1,0 +1,191 @@
+/* --- iOS/MAX: prevent viewport zoom ("jump") on input focus ---
+   iOS auto-zooms when input font-size < 16px. We keep compact sizes on desktop,
+   but force 16px on iOS so the screen doesn't zoom in/out when the cursor appears. */
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea,
+  select,
+  .login-input,
+  .search-input,
+  .modal-input,
+  .pin-input {
+    font-size: 16px !important;
+  }
+}
+.password-input-container { position: relative; }
+.password-input-container input { padding-right: 4.5rem; }
+.toggle-password-visibility { position: absolute; right: 2rem; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--color-text-secondary); cursor: pointer; padding: 0.35rem 0.5rem; margin: 0 0.25rem; display: inline-flex; align-items: center; justify-content: center; }
+.checkbox-row a { color: var(--color-primary-blue); text-decoration: none; }
+.checkbox-row a:hover { text-decoration: underline; }
+.button-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-height: var(--control-height-button, 40px);
+    padding: var(--control-padding-y-button, 10px) var(--control-padding-x-button, 18px);
+    background-color: var(--color-primary-blue);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-md, 12px);
+    font-weight: 500;
+    font-size: var(--text-md, 1rem);
+    line-height: 1.2;
+    cursor: pointer;
+    transition: background-color 0.2s, opacity 0.2s;
+    margin-top: var(--space-2, 8px);
+}
+.button-primary:hover:not(:disabled) { background-color: var(--color-primary-blue-hover, #1d4ed8); opacity: 0.95; }
+.button-primary:disabled { background-color: var(--color-text-secondary); cursor: not-allowed; opacity: 0.7; }
+.login-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-3, 12px) var(--space-4, 16px);
+    border-radius: var(--radius-md, 12px);
+    background-color: var(--color-error-bg);
+    border: 1px solid var(--color-error-border);
+    color: var(--color-error-text);
+    font-size: var(--font-size-subhead, 14px);
+    margin-top: var(--space-4, 16px);
+}
+.theme-toggle-button-login { background: none; border: none; cursor: pointer; color: var(--color-text-primary); display: inline-flex; align-items: center; justify-content: center; }
+
+/* Блокирующее окно новой редакции оферты / согласия */
+.legal-reaccept-overlay {
+    z-index: 12000;
+    align-items: center;
+    justify-content: center;
+    padding: max(var(--space-4, 16px), env(safe-area-inset-top)) var(--pad-page-h, 16px)
+        max(var(--space-4, 16px), env(safe-area-inset-bottom));
+}
+
+.legal-doc-modal-overlay--top {
+    z-index: 12100 !important;
+}
+
+.legal-doc-modal {
+    max-width: min(36rem, 94vw);
+    max-height: min(85vh, 720px);
+    overflow-y: auto;
+}
+
+.legal-reaccept-modal {
+    width: min(100%, 22rem);
+    max-width: 22rem;
+    margin: 0 auto;
+    padding: var(--pad-modal, 1.25rem) !important;
+    border-radius: var(--radius-lg, 18px);
+    box-sizing: border-box;
+}
+
+.legal-reaccept-modal__title {
+    display: block;
+    font-size: 1.15rem !important;
+    font-weight: 700 !important;
+    line-height: 1.35 !important;
+    margin: 0 0 0.65rem !important;
+    color: var(--color-text-primary) !important;
+}
+
+.legal-reaccept-modal__lead {
+    display: block;
+    font-size: 0.9rem !important;
+    line-height: 1.5 !important;
+    margin: 0 0 1.15rem !important;
+    color: var(--color-text-secondary) !important;
+}
+
+.legal-reaccept-modal__rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    margin-bottom: 1.15rem;
+}
+
+.legal-reaccept-modal__row.switch-wrapper {
+    justify-content: flex-start;
+    align-items: flex-start;
+    gap: 0.65rem;
+    width: 100%;
+    margin: 0;
+    cursor: pointer;
+    text-align: left;
+    color: var(--color-text-primary);
+}
+
+.legal-reaccept-modal__checkbox {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.legal-reaccept-modal__switch {
+    flex: 0 0 38px;
+    margin-top: 0.05rem;
+    pointer-events: none;
+}
+
+.legal-reaccept-modal__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    color: var(--color-text-primary);
+    margin: 0;
+}
+
+.legal-reaccept-modal__link {
+    display: inline;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: none;
+    color: var(--color-primary-blue);
+    font: inherit;
+    line-height: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.legal-reaccept-modal__link:hover {
+    color: var(--color-primary-blue-hover, #1d4ed8);
+}
+
+.legal-reaccept-modal__version {
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+.legal-reaccept-modal__error {
+    display: block;
+    margin: 0 0 0.85rem !important;
+    font-size: 0.85rem !important;
+    color: var(--color-error) !important;
+}
+
+.legal-reaccept-modal__submit {
+    width: 100%;
+    margin-top: 0 !important;
+}
+
+@media (max-width: 768px) {
+    .legal-reaccept-overlay {
+        align-items: center;
+        padding-top: max(var(--space-4, 16px), env(safe-area-inset-top));
+        padding-bottom: max(var(--space-4, 16px), env(safe-area-inset-bottom));
+    }
+
+    .legal-reaccept-modal {
+        width: 100%;
+        max-width: none;
+    }
+}

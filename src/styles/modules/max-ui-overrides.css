@@ -1,0 +1,973 @@
+/* --- MAX UI TABLE --- */
+.max-ui-table { 
+    width: 100%; 
+    border-collapse: collapse; 
+    background-color: var(--color-bg-card);
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+.max-ui-table thead {
+    background-color: var(--color-bg-secondary);
+}
+.max-ui-table th {
+    padding: 0.75rem;
+    text-align: left;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    border-bottom: 2px solid var(--color-border);
+}
+.max-ui-table td {
+    padding: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--color-text-primary);
+    border-bottom: 1px solid var(--color-border);
+}
+.max-ui-table tbody tr:hover {
+    background-color: var(--color-bg-hover);
+}
+.max-ui-table tbody tr:last-child td {
+    border-bottom: none;
+}
+@media (max-width: 768px) {
+    .max-ui-table {
+        font-size: 0.75rem;
+    }
+    .max-ui-table th,
+    .max-ui-table td {
+        padding: 0.5rem;
+    }
+}
+
+/* --- MAX UI BADGE --- */
+.max-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.max-badge-success {
+    background-color: rgba(52, 211, 153, 0.2);
+    color: var(--color-success-status);
+    border: 1px solid rgba(52, 211, 153, 0.5);
+}
+.max-badge-warning {
+    background-color: rgba(250, 204, 21, 0.2);
+    color: var(--color-pending-status);
+    border: 1px solid rgba(250, 204, 21, 0.5);
+}
+.max-badge-ready {
+    background-color: rgba(16, 185, 129, 0.2);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.45);
+}
+.max-badge-danger {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.5);
+}
+.max-badge-purple {
+    background-color: rgba(139, 92, 246, 0.2);
+    color: #6d28d9;
+    border: 1px solid rgba(139, 92, 246, 0.45);
+}
+.max-badge-default {
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+}
+
+/* Последняя миля: те же padding / font-size / radius, что у статуса (.max-badge) */
+.max-badge.cargo-last-mile-self {
+    background-color: rgba(13, 148, 136, 0.18);
+    color: #0f766e;
+    border: 1px solid rgba(13, 148, 136, 0.45);
+}
+.max-badge.cargo-last-mile-delivery {
+    background-color: rgba(37, 99, 235, 0.12);
+    color: #1d4ed8;
+    border: 1px solid rgba(37, 99, 235, 0.32);
+}
+.max-badge.cargo-pickup-pickup {
+    background-color: rgba(245, 158, 11, 0.14);
+    color: #b45309;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+}
+.max-badge.cargo-pickup-terminal-to {
+    background-color: rgba(124, 58, 237, 0.13);
+    color: #6d28d9;
+    border: 1px solid rgba(124, 58, 237, 0.36);
+}
+/* Улучшаем видимость границ бейджей в темном режиме */
+.dark-mode .max-badge-success {
+    border: 1px solid rgba(52, 211, 153, 0.6);
+}
+.dark-mode .max-badge-warning {
+    border: 1px solid rgba(250, 204, 21, 0.6);
+}
+.dark-mode .max-badge-ready {
+    border: 1px solid rgba(16, 185, 129, 0.6);
+}
+.dark-mode .max-badge-danger {
+    border: 1px solid rgba(239, 68, 68, 0.6);
+}
+.dark-mode .max-badge-purple {
+    border: 1px solid rgba(139, 92, 246, 0.6);
+}
+.dark-mode .max-badge-default {
+    border: 1px solid var(--color-border);
+}
+.dark-mode .max-badge.cargo-last-mile-self {
+    border: 1px solid rgba(13, 148, 136, 0.55);
+}
+.dark-mode .max-badge.cargo-last-mile-delivery {
+    border: 1px solid rgba(37, 99, 235, 0.45);
+}
+.dark-mode .max-badge.cargo-pickup-pickup {
+    border: 1px solid rgba(245, 158, 11, 0.5);
+}
+.dark-mode .max-badge.cargo-pickup-terminal-to {
+    border: 1px solid rgba(124, 58, 237, 0.48);
+}
+
+/* Вертикальный таймлайн статусов перевозки (объёмный, в стиле бейджей) */
+.perevozka-timeline-wrap {
+    width: 100%;
+}
+.perevozka-timeline {
+    position: relative;
+    padding-left: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.perevozka-timeline::before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--color-bg-hover);
+    border-radius: 4px;
+    z-index: 0;
+}
+.perevozka-timeline-track-fill {
+    position: absolute;
+    left: 5px;
+    top: 0;
+    width: 4px;
+    border-radius: 4px;
+    background: linear-gradient(180deg, var(--color-primary-blue) 0%, #10b981 50%, #34d399 100%);
+    z-index: 1;
+    transition: height 0.4s ease;
+    min-height: 4px;
+}
+.perevozka-timeline-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 14px;
+    position: relative;
+    z-index: 2;
+}
+.perevozka-timeline-item:last-child {
+    margin-bottom: 0;
+}
+.perevozka-timeline-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-left: -24px;
+    margin-top: 3px;
+    border: 2px solid var(--color-bg-card);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+.perevozka-timeline-dot-success {
+    background: #34d399;
+}
+.perevozka-timeline-dot-warning {
+    background: #facc15;
+}
+.perevozka-timeline-dot-danger {
+    background: #ef4444;
+}
+.perevozka-timeline-dot-purple {
+    background: #a855f7;
+}
+.perevozka-timeline-dot-default {
+    background: var(--color-text-secondary);
+}
+.perevozka-timeline-content {
+    flex: 1;
+    min-width: 0;
+}
+.dark-mode .perevozka-timeline-dot {
+    border-color: var(--color-bg-card);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* WB: бейдж статуса логистики, PostB 1С, модалка перевозки */
+.wb-log-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.12rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.35;
+    max-width: 100%;
+    word-break: break-word;
+}
+.wb-log-badge--muted {
+    background: rgba(100, 116, 139, 0.18);
+    color: var(--color-text-primary);
+}
+.wb-log-badge--ok {
+    background: rgba(16, 185, 129, 0.22);
+    color: #047857;
+}
+.wb-log-badge--warn {
+    background: rgba(250, 204, 21, 0.28);
+    color: #92400e;
+}
+.wb-postb-1c-badge {
+    border: 1px solid rgba(124, 58, 237, 0.45);
+    background: rgba(124, 58, 237, 0.12);
+    color: var(--color-text-primary);
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    max-width: 14rem;
+    text-align: left;
+    line-height: 1.3;
+}
+/* Как у грузов / max-badge-success */
+.wb-postb-1c-badge.wb-postb-1c-badge--delivered {
+    background-color: rgba(52, 211, 153, 0.2);
+    color: var(--color-success-status);
+    border: 1px solid rgba(52, 211, 153, 0.5);
+}
+.wb-postb-1c-badge.wb-postb-1c-badge--consolidation {
+    background-color: rgba(250, 204, 21, 0.2);
+    color: var(--color-pending-status);
+    border: 1px solid rgba(250, 204, 21, 0.5);
+}
+.wb-postb-1c-badge.wb-postb-1c-badge--transit {
+    background-color: rgba(59, 130, 246, 0.18);
+    color: #1d4ed8;
+    border: 1px solid rgba(59, 130, 246, 0.48);
+}
+.wb-postb-1c-badge.wb-postb-1c-badge--empty {
+    background-color: rgba(148, 163, 184, 0.18);
+    color: var(--color-text-secondary);
+    border: 1px solid rgba(148, 163, 184, 0.42);
+}
+.wb-postb-1c-badge.wb-postb-1c-badge--not-sent {
+    background-color: rgba(107, 114, 128, 0.16);
+    color: var(--color-text-secondary);
+    border: 1px solid rgba(107, 114, 128, 0.42);
+}
+.wb-postb-1c-badge.wb-postb-1c-badge--not-inbound {
+    background-color: rgba(239, 68, 68, 0.12);
+    color: #b91c1c;
+    border: 1px solid rgba(239, 68, 68, 0.42);
+}
+.dark-mode .wb-postb-1c-badge.wb-postb-1c-badge--delivered {
+    border-color: rgba(52, 211, 153, 0.6);
+}
+.dark-mode .wb-postb-1c-badge.wb-postb-1c-badge--consolidation {
+    border-color: rgba(250, 204, 21, 0.6);
+}
+.dark-mode .wb-postb-1c-badge.wb-postb-1c-badge--transit {
+    border-color: rgba(96, 165, 250, 0.62);
+}
+.dark-mode .wb-postb-1c-badge.wb-postb-1c-badge--empty,
+.dark-mode .wb-postb-1c-badge.wb-postb-1c-badge--not-sent {
+    border-color: rgba(148, 163, 184, 0.55);
+}
+.dark-mode .wb-postb-1c-badge.wb-postb-1c-badge--not-inbound {
+    border-color: rgba(248, 113, 113, 0.62);
+}
+/* АПП — тот же масштаб, что и бейдж статуса */
+.wb-postb-app-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.28rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.3;
+    border: 1px solid rgba(124, 58, 237, 0.45);
+    background: rgba(124, 58, 237, 0.1);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    font-family: inherit;
+}
+.wb-postb-app-badge-icon {
+    width: 0.95rem;
+    height: 0.95rem;
+    flex-shrink: 0;
+}
+.wb-postb-app-badge:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+.wb-postb-app-badge:not(:disabled):hover {
+    background: rgba(124, 58, 237, 0.18);
+}
+.wb-postb-app-badge--busy {
+    pointer-events: none;
+}
+.wb-postb-status-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: nowrap;
+}
+.wb-postb-refresh-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.95rem;
+    height: 1.95rem;
+    border-radius: 999px;
+    border: 1px solid rgba(124, 58, 237, 0.45);
+    background: rgba(124, 58, 237, 0.1);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    padding: 0;
+}
+.wb-postb-refresh-badge:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+.wb-postb-refresh-badge:not(:disabled):hover {
+    background: rgba(124, 58, 237, 0.18);
+}
+.wb-postb-refresh-badge--busy {
+    pointer-events: none;
+}
+.wb-postb-1c-badge:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+.wb-postb-1c-badge:not(:disabled):hover {
+    background: rgba(124, 58, 237, 0.2);
+}
+.wb-perevozka-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10050;
+    background: rgba(15, 23, 42, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    box-sizing: border-box;
+}
+.wb-perevozka-modal {
+    width: min(420px, 100%);
+    max-height: min(85vh, 640px);
+    overflow: auto;
+    background: var(--color-bg-card);
+    border-radius: 0.75rem;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+    padding: 1rem 1.1rem 1.1rem;
+    border: 1px solid var(--color-border);
+}
+.wb-perevozka-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+.wb-perevozka-modal-close {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    padding: 0.25rem;
+    border-radius: 0.35rem;
+}
+.wb-perevozka-modal-close:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+}
+.wb-timeline-wd {
+    color: #dc2626;
+    font-weight: 600;
+    text-transform: lowercase;
+}
+.wb-timeline-d {
+    color: var(--color-text-secondary);
+}
+.wb-timeline-date-muted {
+    color: var(--color-text-secondary);
+    font-size: 0.8rem;
+}
+.wb-timeline-date-line {
+    font-size: 0.8rem;
+}
+
+/* Wildberries module */
+.wb-page {
+    width: 100%;
+    height: calc(100dvh - 120px);
+    min-height: 560px;
+    overflow: hidden;
+}
+.wb-panel {
+    border: 1px solid rgba(124, 58, 237, 0.22);
+    background: linear-gradient(180deg, rgba(124, 58, 237, 0.08) 0%, rgba(124, 58, 237, 0.02) 100%);
+    /* ~0,5 см поля слева/справа от вкладок, фильтров и кнопок */
+    padding-left: clamp(0.75rem, 2.5vw, 1.35rem);
+    padding-right: clamp(0.75rem, 2.5vw, 1.35rem);
+    padding-bottom: 0.75rem;
+    box-sizing: border-box;
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.dark-mode .wb-panel {
+    border-color: rgba(124, 58, 237, 0.35);
+    background: linear-gradient(180deg, rgba(124, 58, 237, 0.16) 0%, rgba(16, 16, 22, 0.92) 100%);
+}
+.wb-panel-tabs-section {
+    padding: 0.75rem 0;
+}
+.wb-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin: 0;
+}
+.wb-tab-btn {
+    border: 1px solid rgba(124, 58, 237, 0.3);
+    border-radius: 999px;
+    background: rgba(124, 58, 237, 0.06);
+    color: var(--color-text-primary);
+    padding: 0.4rem 0.8rem;
+    font-size: 0.86rem;
+    cursor: pointer;
+}
+.dark-mode .wb-tab-btn {
+    background: rgba(124, 58, 237, 0.18);
+    border-color: rgba(124, 58, 237, 0.45);
+}
+.wb-tab-btn.active {
+    background: #7c3aed;
+    color: #ffffff;
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+}
+/* Одна строка фильтров WB (все вкладки); на узком экране — горизонтальный скролл */
+.wb-filters-grid {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 0.5rem;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px; /* тень скролла не режется */
+}
+.wb-filters-grid > * {
+    flex: 1 1 0;
+    min-width: 7.5rem;
+}
+/* Поле «Поиск по всем полям» — чуть шире остальных */
+.wb-filters-grid--main > *:last-child {
+    flex: 2 1 0;
+    min-width: 10rem;
+}
+.wb-filters-grid .admin-form-input {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* WB: высота полей на ~20% меньше (0.8 × база 2.5rem) */
+.wb-page {
+    --wb-input-height: calc(2.5rem * 0.8);
+    --wb-input-pad-y: calc(0.5rem * 0.8);
+    --wb-input-pad-x: calc(0.65rem * 0.8);
+}
+.wb-page .wb-panel .admin-form-input {
+    min-height: var(--wb-input-height) !important;
+    height: var(--wb-input-height) !important;
+    max-height: var(--wb-input-height) !important;
+    padding-top: var(--wb-input-pad-y) !important;
+    padding-bottom: var(--wb-input-pad-y) !important;
+    padding-left: var(--wb-input-pad-x) !important;
+    padding-right: var(--wb-input-pad-x) !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+}
+.wb-page .wb-panel select.admin-form-input {
+    display: inline-block !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    line-height: var(--wb-input-height) !important;
+    font-size: 0.8125rem !important;
+}
+.wb-page .wb-panel .admin-form-input input {
+    min-height: 0 !important;
+    height: auto !important;
+    line-height: 1.25 !important;
+    font-size: 0.8125rem !important;
+}
+.wb-upload-box {
+    margin-top: 0.75rem;
+    border: 1px dashed rgba(124, 58, 237, 0.42);
+    border-radius: 0.65rem;
+    padding: 0.65rem;
+    background: rgba(124, 58, 237, 0.04);
+}
+.dark-mode .wb-upload-box {
+    background: rgba(124, 58, 237, 0.12);
+    border-color: rgba(124, 58, 237, 0.48);
+}
+.wb-upload-drop {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.55rem;
+    cursor: pointer;
+    color: var(--color-text-secondary);
+}
+.wb-mode-btn {
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-text-primary);
+    padding: 0.25rem 0.6rem;
+    cursor: pointer;
+}
+.wb-mode-btn.active {
+    background: #7c3aed;
+    color: #fff;
+    border-color: #7c3aed;
+}
+.wb-manual-panel {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(124, 58, 237, 0.22);
+    background: rgba(124, 58, 237, 0.06);
+    color: var(--color-text-primary);
+}
+.dark-mode .wb-manual-panel {
+    background: rgba(124, 58, 237, 0.14);
+    border-color: rgba(124, 58, 237, 0.42);
+}
+.wb-manual-panel .admin-form-input,
+.wb-manual-panel .admin-form-input input {
+    background: var(--color-bg-primary, #fff);
+    color: var(--color-text-primary);
+}
+.wb-collapsible-block {
+    margin-top: 0.75rem;
+}
+.wb-collapsible-toggle {
+    width: 100%;
+    border: 1px solid var(--color-border);
+    border-radius: 0.6rem;
+    background: var(--color-bg-card);
+    color: var(--color-text-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.5rem 0.7rem;
+    font-size: 0.84rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.wb-collapsible-toggle:hover {
+    background: var(--color-bg-hover);
+}
+.wb-collapsible-toggle--inline {
+    width: auto;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.8rem;
+}
+.wb-collapsible-caret {
+    transition: transform 0.2s ease;
+}
+.wb-collapsible-caret.is-open {
+    transform: rotate(180deg);
+}
+
+.wb-summary-compact {
+    margin-top: 0.75rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.7rem;
+    background: var(--color-bg-card);
+    padding: 0.65rem 0.75rem;
+}
+.wb-summary-compact-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.wb-summary-compact-head-spacer {
+    flex: 1 1 12px;
+    min-width: 0;
+}
+.wb-summary-formed {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.05rem;
+    text-align: right;
+}
+.wb-summary-formed-label {
+    font-size: 0.72rem;
+    color: var(--color-text-secondary);
+    line-height: 1.2;
+}
+.wb-summary-formed-value {
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    line-height: 1.25;
+}
+.wb-summary-compact-grid {
+    margin-top: 0.55rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.45rem;
+}
+.wb-summary-metric-card {
+    border: 1px solid var(--color-border);
+    border-radius: 0.6rem;
+    padding: 0.45rem 0.55rem;
+    background: var(--color-bg-primary);
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+.wb-summary-metric-card--warn {
+    border-color: rgba(245, 158, 11, 0.42);
+    background: rgba(245, 158, 11, 0.08);
+}
+.wb-summary-metric-card--switch {
+    justify-content: space-between;
+}
+.wb-summary-metric-label {
+    font-size: 0.74rem;
+    color: var(--color-text-secondary);
+    line-height: 1.2;
+}
+.wb-summary-metric-value {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    line-height: 1.25;
+}
+.wb-summary-switch-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+.wb-summary-status-breakdown {
+    margin-top: 0.55rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed var(--color-border);
+}
+.wb-summary-status-list {
+    margin-top: 0.2rem;
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 0.35rem;
+    padding-bottom: 0.1rem;
+}
+.wb-summary-status-item {
+    border: 1px solid var(--color-border);
+    border-radius: 0.55rem;
+    background: var(--color-bg-primary);
+    padding: 0.35rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.22rem;
+    min-width: 248px;
+    flex: 0 0 248px;
+}
+.wb-summary-status-item--filter {
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    color: inherit;
+}
+.wb-summary-status-item--filter:hover {
+    background: var(--color-bg-hover);
+    border-color: rgba(124, 58, 237, 0.45);
+}
+.wb-summary-status-item--tone-inbound-gap {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.45);
+    color: #92400e;
+}
+.wb-summary-status-item--tone-inbound-gap.wb-summary-status-item--active {
+    border-color: rgba(217, 119, 6, 0.75);
+    box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.35);
+    background: rgba(245, 158, 11, 0.2);
+}
+.dark-mode .wb-summary-status-item--tone-inbound-gap {
+    color: #fcd34d;
+}
+.wb-summary-status-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.3rem 0.5rem;
+}
+.wb-summary-status-hint {
+    font-size: 0.74rem;
+    color: var(--color-text-secondary);
+    font-weight: 600;
+    white-space: nowrap;
+}
+.wb-summary-status-item--active {
+    border-color: rgba(124, 58, 237, 0.6);
+    box-shadow: inset 0 0 0 1px rgba(124, 58, 237, 0.28);
+    background: rgba(124, 58, 237, 0.08);
+}
+.wb-summary-status-item--tone-all {
+    background: rgba(124, 58, 237, 0.14);
+    border-color: rgba(124, 58, 237, 0.5);
+    color: #5b21b6;
+}
+.wb-summary-status-item--tone-delivered {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: rgba(5, 150, 105, 0.55);
+    color: #065f46;
+}
+.wb-summary-status-item--tone-not-sent {
+    background: rgba(107, 114, 128, 0.2);
+    border-color: rgba(75, 85, 99, 0.5);
+    color: #374151;
+}
+.wb-summary-status-item--tone-undelivered {
+    background: rgba(239, 68, 68, 0.16);
+    border-color: rgba(220, 38, 38, 0.55);
+    color: #991b1b;
+}
+.wb-summary-status-item--tone-neutral {
+    background: rgba(59, 130, 246, 0.18);
+    border-color: rgba(37, 99, 235, 0.55);
+    color: #1e3a8a;
+}
+.wb-summary-status-label {
+    font-size: 0.8rem;
+    color: inherit;
+    font-weight: 600;
+    min-width: 0;
+    white-space: normal;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+.wb-summary-status-value {
+    font-size: 0.83rem;
+    color: var(--color-text-primary);
+}
+.wb-summary-status-sums {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+}
+.wb-summary-status-sum-line {
+    font-size: 0.77rem;
+    color: var(--color-text-secondary);
+    white-space: normal;
+}
+.wb-summary-status-sum-line strong {
+    color: inherit;
+    font-weight: 700;
+}
+.dark-mode .wb-summary-status-item--tone-all { color: #c4b5fd; }
+.dark-mode .wb-summary-status-item--tone-delivered { color: #6ee7b7; }
+.dark-mode .wb-summary-status-item--tone-not-sent { color: #d1d5db; }
+.dark-mode .wb-summary-status-item--tone-undelivered { color: #fca5a5; }
+.dark-mode .wb-summary-status-item--tone-neutral { color: #93c5fd; }
+.wb-summary-status-meta {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+.wb-table-wrap {
+    margin-top: 0.75rem;
+    overflow: auto;
+    border: 1px solid var(--color-border);
+    border-radius: 0.5rem;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 100%;
+    overscroll-behavior: contain;
+}
+.wb-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.84rem;
+    min-width: max-content;
+}
+.wb-table th,
+.wb-table td {
+    border-bottom: 1px solid var(--color-border);
+    padding: 0.45rem 0.5rem;
+    text-align: left;
+    white-space: nowrap;
+}
+.wb-table th {
+    background: rgba(124, 58, 237, 0.1);
+    color: var(--color-text-primary);
+    position: sticky;
+    top: 0;
+    z-index: 3;
+}
+.dark-mode .wb-table th {
+    background: rgba(124, 58, 237, 0.22);
+}
+.wb-sort-th {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    font: inherit;
+    font-weight: 600;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+}
+.wb-sort-th:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.wb-sort-indicator {
+    font-size: 0.7em;
+    opacity: 0.85;
+}
+.wb-col-expand {
+    width: 2rem;
+    text-align: center;
+    color: var(--color-text-secondary);
+}
+.wb-col-actions {
+    width: 2.5rem;
+    text-align: center;
+    vertical-align: middle;
+}
+.wb-delete-inventory-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem;
+    border: none;
+    border-radius: 0.35rem;
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+}
+.wb-delete-inventory-btn:hover:not(:disabled) {
+    background: rgba(220, 38, 38, 0.12);
+    color: #dc2626;
+}
+.wb-delete-inventory-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.wb-inbound-summary-row {
+    cursor: pointer;
+}
+.wb-inbound-summary-row:hover {
+    background: rgba(124, 58, 237, 0.06);
+}
+.wb-inbound-summary-row--open {
+    background: rgba(124, 58, 237, 0.08);
+}
+.wb-inbound-summary-row--filter-hit {
+    box-shadow: inset 0 0 0 2px rgba(124, 58, 237, 0.55);
+    background: rgba(124, 58, 237, 0.12) !important;
+}
+/** Выделенные номера описей (список на фронте). */
+.wb-inbound-summary-row--inv-highlight {
+    background: rgba(139, 92, 246, 0.26) !important;
+    box-shadow: inset 0 0 0 1px rgba(109, 40, 217, 0.45);
+}
+.wb-inbound-summary-row--inv-highlight:hover {
+    background: rgba(139, 92, 246, 0.34) !important;
+}
+.wb-inbound-summary-row--inv-highlight.wb-inbound-summary-row--filter-hit {
+    box-shadow: inset 0 0 0 2px rgba(91, 33, 182, 0.75);
+    background: rgba(124, 58, 237, 0.22) !important;
+}
+.wb-inbound-detail-line--hit td {
+    background: rgba(250, 204, 21, 0.2);
+}
+.wb-inbound-detail-row td {
+    background: var(--color-bg-secondary, #f9fafb);
+    white-space: normal;
+    padding: 0.5rem;
+    vertical-align: top;
+}
+.wb-inbound-detail-wrap {
+    max-height: 70vh;
+    overflow: auto;
+}
+.wb-table.wb-table--nested {
+    font-size: 0.8rem;
+}
+.wb-table--nested th,
+.wb-table--nested td {
+    white-space: normal;
+    max-width: 16rem;
+}
+.wb-action-btn {
+    border-radius: 999px !important;
+    border: 1px solid #7c3aed !important;
+    background: rgba(124, 58, 237, 0.1) !important;
+    color: #6d28d9 !important;
+    box-shadow: none !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    min-width: 126px !important;
+    padding: 0 14px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    font-size: 16px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+}
+.wb-action-btn:hover {
+    background: rgba(124, 58, 237, 0.16) !important;
+    border-color: #6d28d9 !important;
+}
+.wb-action-btn:disabled {
+    opacity: 0.6;
+}

@@ -13,6 +13,18 @@ export async function postGetPerevozkaJson(body: Record<string, unknown>): Promi
     return res.json();
 }
 
+/** Перевозка по номеру с проверкой HTTP-статуса. */
+export async function fetchPerevozkaByNumber(number: string): Promise<unknown> {
+    const res = await fetch(PROXY_API_GETPEREVOZKA_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ number }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as { error?: string })?.error || `Ошибка ${res.status}`);
+    return data;
+}
+
 export async function postGetCustomers(login: string, password: string): Promise<{ ok: boolean; data: unknown }> {
     const res = await fetch(PROXY_API_GETCUSTOMERS_URL, {
         method: "POST",

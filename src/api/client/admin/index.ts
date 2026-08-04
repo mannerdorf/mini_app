@@ -21,4 +21,5 @@ export * from "./scheduling";
 export * from "./presets";
 export * from "./integrations";
 export * from "./journal";
+export * from "./pnl";
 export { postAuthRegisteredLogin } from "../auth";

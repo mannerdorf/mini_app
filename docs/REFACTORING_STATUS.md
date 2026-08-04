@@ -7,15 +7,15 @@
 | Фаза | Статус | Комментарий |
 |------|--------|-------------|
 | **0** Гигиена | ✅ Выполнено | `dist/` в `.gitignore`, убран из git index; `ENV.md`, `API_CORS_CHECKLIST.md`, CORS VPS |
-| **1** API client | 🟡 Частично | `api/client/documents*`, `admin/index`; Documents без raw `fetch`; Admin ~97 `fetch` |
+| **1** API client | 🟡 Частично | Documents без raw `fetch`; admin features без raw `fetch` (→ `api/client/admin/*`) |
 | **2** List workspace | ✅ Выполнено | `features/listWorkspace/`, 3 страницы |
-| **3** Документы | 🟡 В процессе | acts/invoices/edo вынесены; `useDocumentsPageState` **~467** строк (6 хуков) |
-| **4** Admin | 🟡 В процессе | Все tabs ≤285 строк; WorkSchedule **~52**; Presets **~45**; PaymentCalendar **~60** |
+| **3** Документы | 🟡 В процессе | `useDocumentsPageState` **~230**; sendings + toolbar wiring вынесены |
+| **4** Admin | 🟡 В процессе | `useAdminUsers` **25** + data/list; AddForm **46** + sections; Claims/Timesheet split ✅ |
 | **4b** Dashboard PR4 | ✅ Выполнено | `useDashboardPageState` **365** строк; 10 хуков в `features/dashboard/hooks/` |
 | **4c** Profile PR1–PR4 | ✅ Выполнено | employees + timesheet + accounting + main; ProfilePage **~412** строк |
 | **5** App shell | ⏳ Не начато | KPI `App.tsx` < 1200; есть `AppRuntimeContext` |
 | **6** Shared lib | ⏳ Не начато | `lib/*.js` из `src/` остаётся |
-| **7** CSS | ⏳ Не начато | `styles.css` ~8k, монолит |
+| **7** CSS | 🟡 В процессе | `styles.css` → `styles/index.css` + **19 модулей** в `styles/modules/` |
 | **8** Тесты | 🟡 Старт | Vitest + 5 unit-тестов pipeline/labels |
 | **9** API backend | 🟡 Старт | `withApiHandler`, пример `ferries-list` |
 
@@ -28,7 +28,7 @@
 | `DocumentsPage.tsx` fetch | ~24+ | **0** |
 | `AdminPage.tsx` fetch | ~97 | ~97 |
 | `DocumentsPage.tsx` строк | ~8000 | **342** |
-| `useDocumentsPageState.ts` строк | — | **~467** |
+| `useDocumentsPageState.ts` строк | — | **~230** |
 | `AdminPage.tsx` строк | ~11000 | ~11000 |
 | `App.tsx` строк | ~2400 | ~2400 |
 | `useDashboardPageState.ts` строк | ~2186 | **365** |
@@ -59,12 +59,16 @@ src/features/
 
 ## Следующие срезы (без участия пользователя)
 
-1. **DocumentsPage** — compositor KPI ✅ (~467 строк); дальше: `useDocumentsToolbarProps` или sendings wiring
-3. **4.x** — вынос вкладок Admin + `api/client/admin/*` (пакетами fetch)
-4. **5** — `AuthContext` / `AppShellContext`
-5. **7** — разбиение `styles.css` на `src/styles/*.css`
-6. **8** — расширить Vitest (cargoPipeline, clientPlatform)
-7. **9** — миграция лёгких `api/*` на `withApiHandler`
+1. **DocumentsPage** — compositor KPI ✅ (~266 строк); sendings + toolbar wiring ✅
+2. **Admin Timesheet** — GroupsPanel распилен; `useAdminTimesheet` → compositor + mutations + view + summaries lib
+3. **Admin Claims** — `useAdminClaims` → list + detail + `adminClaimMaxDamage`
+4. **Admin Users** — `useAdminUsers` → data + list state + filter pipeline; AddForm → customer/email/permissions/password sections
+5. **Admin Ferries** — `useAdminFerries` + toolbar/table/modal ✅
+6. **4.x** — `styles.css`, App shell, крупные Documents modules (Sendings, viewBlocks)
+7. **5** — `AuthContext` / `AppShellContext`
+8. **7** — дальше: распил `modal.css` (~2.8k), `profile-demo.css` (~1.3k)
+9. **8** — расширить Vitest (cargoPipeline, clientPlatform)
+10. **9** — миграция лёгких `api/*` на `withApiHandler`
 
 ## Коммиты автономного прогона (staging)
 

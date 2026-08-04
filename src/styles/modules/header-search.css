@@ -1,0 +1,236 @@
+/* --- HEADER --- */
+.app-header {
+    width: 100%;
+    max-width: 56rem;
+    padding: var(--space-4, 16px) var(--pad-page-h, 24px);
+    background-color: var(--color-bg-secondary);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: var(--space-1, 4px);
+    position: sticky;
+    top: 0;
+    z-index: 45;
+}
+
+/* Модалка создания претензии: прокрутка внутри контента */
+.claims-create-overlay {
+    overflow: hidden !important;
+}
+.claims-create-content {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
+
+/* Мобильная версия: хедер и таббар фиксированы, скролл только в контенте */
+@media (max-width: 768px) {
+    /**
+     * Отступ под фиксированный .app-header: совпадает с его разметкой.
+     * У хедера padding-top: max(16px, safe-area). Раньше в .app-main было «inner + safe-area» целиком — лишний кусок inset
+     * давал заметный зазор на Главной / Грузы / Документы. Формула: высота «тела» шапки + тот же верхний inset, что у хедера.
+     */
+    :root {
+        /* Высота «тела» шапки: переключатель компании + «Служ.» могут занимать 2 строки */
+        --app-mobile-header-inner-stack: 72px;
+        /* Просвет между fixed .app-header и первым блоком страницы (фон app-main) */
+        --app-mobile-content-below-header-gap: 0.85rem;
+        /* Зазор под fixed tabbar; «воздух» после последнего блока страницы */
+        --app-mobile-tabbar-clearance: 112px;
+        --app-mobile-scroll-bottom-air: 3cm;
+    }
+    .app-container {
+        padding-top: 0;
+        padding-bottom: 0;
+        min-height: 100vh;
+        min-height: 100dvh;
+        height: 100vh;
+        height: 100dvh;
+        overflow: hidden;
+    }
+    .app-container.profile-saas-shell {
+        padding-bottom: 0;
+        /* Поздний .profile-saas-shell { padding: 20px … } не должен верхний/боковой отступ на оболочке */
+        padding-top: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+    /* CMS/табель: горизонтальный скролл при широком контенте */
+    .app-container.app-container--allow-h-scroll {
+        overflow-x: auto;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .app-header {
+        position: fixed;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        margin-bottom: 0;
+        z-index: 50;
+        flex-shrink: 0;
+        padding-top: max(var(--space-4, 16px), env(safe-area-inset-top));
+        padding-bottom: var(--space-2, 8px);
+        padding-left: var(--space-3, 12px);
+        padding-right: var(--space-3, 12px);
+    }
+    .header-top-row {
+        margin-bottom: var(--space-1, 4px);
+    }
+    .app-main {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: auto; /* не обрезать табель и широкие таблицы слева */
+        -webkit-overflow-scrolling: touch;
+        padding-top: calc(
+            var(--app-mobile-header-inner-stack) + max(var(--space-4, 16px), env(safe-area-inset-top)) +
+                var(--app-mobile-content-below-header-gap)
+        );
+        padding-bottom: 0;
+        padding-left: max(var(--space-3, 12px), env(safe-area-inset-left));
+        padding-right: max(var(--space-3, 12px), env(safe-area-inset-right));
+    }
+    /* После последнего блока страницы: 3cm «воздуха» + высота tabbar (скролл до самого низа) */
+    .app-main > div::after {
+        content: "";
+        display: block;
+        width: 100%;
+        height: calc(
+            var(--app-mobile-tabbar-clearance) + var(--app-mobile-scroll-bottom-air) + env(safe-area-inset-bottom, 0px)
+        );
+        flex-shrink: 0;
+        pointer-events: none;
+    }
+    .cargo-page-sticky-header {
+        padding-top: 1rem;
+        padding-bottom: 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+    .cargo-page-sticky-header .filters-container,
+    .cargo-page-sticky-header .filters-row-scroll {
+        padding-right: 1rem;
+        margin-bottom: 0.75rem;
+    }
+    .cargo-page-sticky-header .doc-sections-row {
+        padding-right: 1rem;
+    }
+    /* Карточка перевозки: показываем окно ниже фиксированного хедера */
+    .modal-overlay {
+        z-index: 49;
+        align-items: flex-start;
+        padding-top: calc(
+            var(--app-mobile-header-inner-stack) + max(var(--space-4, 16px), env(safe-area-inset-top)) +
+                var(--space-2, 8px)
+        );
+        padding-bottom: calc(72px + env(safe-area-inset-bottom));
+    }
+    /* Перевозка: хедер приложения может быть выше 72px (переключатель компании в 2 строки) */
+    .modal-overlay--cargo-details {
+        padding-top: calc(
+            96px + max(var(--space-4, 16px), env(safe-area-inset-top)) + var(--space-2, 8px) + var(--space-2, 8px)
+        );
+    }
+    .modal-overlay--cargo-details .modal-content {
+        max-height: calc(
+            100dvh - 96px - max(var(--space-4, 16px), env(safe-area-inset-top)) - var(--space-2, 8px) - var(--space-2, 8px) -
+                72px - env(safe-area-inset-bottom)
+        );
+    }
+    .modal-content {
+        margin-bottom: 0;
+        width: 100%;
+        max-width: none;
+        padding: 1rem 0.85rem;
+        max-height: calc(
+            100dvh - var(--app-mobile-header-inner-stack) - max(var(--space-4, 16px), env(safe-area-inset-top)) - 72px -
+                env(safe-area-inset-bottom)
+        );
+    }
+    .tabbar-container {
+        transform: translateX(-50%) translateZ(0);
+        backface-visibility: hidden;
+        bottom: max(env(safe-area-inset-bottom), 8px);
+        padding-bottom: max(var(--space-2, 8px), calc(env(safe-area-inset-bottom) + 8px));
+    }
+    /* Форма создания претензии: на мобильном не перекрывать верхним хедером */
+    .claims-create-overlay {
+        padding-top: calc(var(--app-mobile-header-inner-stack) + max(var(--space-4, 16px), env(safe-area-inset-top))) !important;
+        padding-bottom: calc(72px + env(safe-area-inset-bottom)) !important;
+    }
+    .claims-create-content {
+        max-height: calc(
+                100vh - var(--app-mobile-header-inner-stack) - max(var(--space-4, 16px), env(safe-area-inset-top)) - 100px -
+                    env(safe-area-inset-bottom)
+            )
+            !important;
+        max-height: calc(
+                100dvh - var(--app-mobile-header-inner-stack) - max(var(--space-4, 16px), env(safe-area-inset-top)) - 100px -
+                    env(safe-area-inset-bottom)
+            )
+            !important;
+        padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+    }
+}
+
+/* Планшет / узкое окно: таббар fixed + паддинги оболочки */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .app-container.profile-saas-shell {
+        padding-bottom: calc(112px + env(safe-area-inset-bottom));
+        padding-top: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+}
+
+.light-mode .app-header {
+    border-bottom: 1px solid var(--color-border);
+}
+.header-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-1, 4px);
+}
+.header-auth-info {
+    display: flex;
+    align-items: center;
+    font-size: var(--font-size-subhead, 14px);
+    color: var(--color-text-secondary);
+    font-weight: 400;
+}
+
+/* --- SEARCH --- */
+.search-container {
+    display: flex;
+    align-items: center;
+    background-color: var(--color-bg-input);
+    border-radius: var(--radius-md, 12px);
+    padding: var(--space-2, 8px) var(--space-3, 12px);
+    transition: all 0.25s ease;
+    overflow: hidden;
+    height: 40px;
+}
+.search-container.collapsed { max-height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: 0; opacity: 0; visibility: hidden; }
+.search-container.expanded { max-height: 40px; padding: var(--space-2, 8px) var(--space-3, 12px); margin-bottom: var(--space-2, 8px); opacity: 1; visibility: visible; }
+
+.search-input {
+    flex-grow: 1;
+    background: transparent;
+    border: none;
+    color: var(--color-text-primary);
+    padding: 0 var(--space-2, 8px);
+    font-size: var(--font-size-subhead, 14px);
+    outline: none;
+}
+.search-container input::-webkit-search-cancel-button,
+.search-container input::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+    display: none;
+}
+.search-toggle-button {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: var(--space-1, 4px);
+}

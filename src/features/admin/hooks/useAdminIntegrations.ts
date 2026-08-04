@@ -3,6 +3,7 @@ import { fetchAdminIntegrationHealth, type AdminIntegrationHealth } from "../../
 import {
   fetchAdminZvonobotConfig,
   fetchDocumentCacheBackfillStatus,
+  fetchPartnerApiHealth,
   postAdminSendlkSync,
   postAdminZvonobotSandbox,
   postDocumentCacheBackfill,
@@ -138,8 +139,7 @@ export function useAdminIntegrations(adminToken: string | null) {
   }, [adminToken]);
 
   useEffect(() => {
-    fetch("/api/partner/v1/health")
-      .then((r) => r.json())
+    fetchPartnerApiHealth()
       .then((data) => setPartnerApiHealthJson(JSON.stringify(data, null, 2)))
       .catch(() => setPartnerApiHealthJson(JSON.stringify({ error: "Не удалось загрузить /api/partner/v1/health" }, null, 2)));
   }, [healthFetchTrigger]);

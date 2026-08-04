@@ -1,24 +1,22 @@
 import { useState, useMemo } from "react";
 import { useReducedMotion } from "motion/react";
 import { useDocFavorites } from "../features/documents/catalogs";
-import { useDocumentsSendingsPage } from "../features/documents/sendings";
 import { useDocumentsCargoContext } from "../features/documents/hooks/useDocumentsCargoContext";
 import { useDocumentsPageNavigation } from "../features/documents/hooks/useDocumentsPageNavigation";
 import { useDocumentsPageFilters } from "../features/documents/hooks/useDocumentsPageFilters";
 import { useDocumentsCatalogs } from "../features/documents/hooks/useDocumentsCatalogs";
-import { useDocumentsToolbarDropdowns } from "../features/documents/hooks/useDocumentsToolbarDropdowns";
 import { useDocumentsUniqueFilterOptions } from "../features/documents/hooks/useDocumentsUniqueFilterOptions";
 import { usePersistedDateFilter } from "../features/listWorkspace";
 import type { AccountPermissions, AuthData, CargoItem } from "../types";
 import { useDocumentsDateRange } from "./useDocumentsDateRange";
 import { useDocumentsDataLoad } from "./useDocumentsDataLoad";
-import { buildDocumentsPageToolbarProps } from "./useDocumentsPageToolbarProps";
+import { useDocumentsSendingsWiring } from "./useDocumentsSendingsWiring";
+import { useDocumentsToolbarWiring } from "./useDocumentsToolbarWiring";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import { cargoModeSwitchMotion } from "./cargoMotion";
 
 export type DocumentsPageProps = {
     auth: AuthData;
-    /** Визуал «SaaS analytics» для сводки и каркаса — как у «Грузов» (из App). */
     documentsServiceSaasUi?: boolean;
     useServiceRequest?: boolean;
     activeInn?: string;
@@ -26,13 +24,9 @@ export type DocumentsPageProps = {
     onOpenCargo?: (cargoNumber: string, prefetchedItem?: CargoItem) => void;
     onOpenAisWithMmsi?: (mmsi: string) => void;
     onOpenChat?: (context?: string) => void | Promise<void>;
-    /** Права доступа (для зарегистрированных пользователей) */
     permissions?: AccountPermissions | null;
-    /** Показывать суммы (финансовые показатели) */
     showSums?: boolean;
-    /** Право «Аналитика» — платный вес, стоимость и итоги по ТС в «Отправках» */
     hasAnalytics?: boolean;
-    /** Суперадминистратор (может менять EOR) */
     isSuperAdmin?: boolean;
 };
 
@@ -55,25 +49,9 @@ export function useDocumentsPageState({
     const effectiveSearchText = searchText ?? runtime.searchText;
     const showCustomerColumn = runtime.showCustomerColumn;
     const activeCustomerName = runtime.activeCustomerName;
-    const prefersReducedMotion = useReducedMotion();
-    const docsMotionEnabled = prefersReducedMotion !== true;
+    const docsMotionEnabled = useReducedMotion() !== true;
 
     const dateFilterState = usePersistedDateFilter();
-    const {
-        dateFilter,
-        setDateFilter,
-        customDateFrom,
-        setCustomDateFrom,
-        customDateTo,
-        setCustomDateTo,
-        selectedMonthForFilter,
-        setSelectedMonthForFilter,
-        selectedYearForFilter,
-        setSelectedYearForFilter,
-        selectedWeekForFilter,
-        setSelectedWeekForFilter,
-    } = dateFilterState;
-
     const navigation = useDocumentsPageNavigation({
         permissions,
         showCustomerColumn,
@@ -100,93 +78,16 @@ export function useDocumentsPageState({
     const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
 
     const filters = useDocumentsPageFilters(effectiveServiceMode);
-    const {
-        customerFilter,
-        setCustomerFilter,
-        actCustomerFilter,
-        setActCustomerFilter,
-        edoStatusFilterSet,
-        setEdoStatusFilterSet,
-        deliveryStatusFilterSet,
-        setDeliveryStatusFilterSet,
-        billStatusFilterSet,
-        setBillStatusFilterSet,
-        typeFilterSet,
-        setTypeFilterSet,
-        routeFilterSet,
-        setRouteFilterSet,
-        invoiceFavoritesOnly,
-        setInvoiceFavoritesOnly,
-        isCustomerDropdownOpen,
-        setIsCustomerDropdownOpen,
-        isBillStatusDropdownOpen,
-        setIsBillStatusDropdownOpen,
-        isTypeDropdownOpen,
-        setIsTypeDropdownOpen,
-        isRouteDropdownOpen,
-        setIsRouteDropdownOpen,
-        sortBy,
-        sortOrder,
-        setSortBy,
-        setSortOrder,
-        tableSortColumn,
-        tableSortOrder,
-        innerTableSortColumn,
-        innerTableSortOrder,
-        transportFilter,
-        setTransportFilter,
-        transportSearchQuery,
-        setTransportSearchQuery,
-        isDeliveryStatusDropdownOpen,
-        setIsDeliveryStatusDropdownOpen,
-        isRouteCargoDropdownOpen,
-        setIsRouteCargoDropdownOpen,
-        isTransportDropdownOpen,
-        setIsTransportDropdownOpen,
-        isEdoStatusDropdownOpen,
-        setIsEdoStatusDropdownOpen,
-        isActCustomerDropdownOpen,
-        setIsActCustomerDropdownOpen,
-        isDateDropdownOpen,
-        setIsDateDropdownOpen,
-        dateDropdownMode,
-        setDateDropdownMode,
-        isCustomModalOpen,
-        setIsCustomModalOpen,
-        handleTableSort,
-        handleInnerTableSort,
-    } = filters;
-
     const { apiDateRange, perevozkiDateRange } = useDocumentsDateRange({
-        dateFilter,
-        customDateFrom,
-        customDateTo,
-        selectedMonthForFilter,
-        selectedYearForFilter,
-        selectedWeekForFilter,
+        dateFilter: dateFilterState.dateFilter,
+        customDateFrom: dateFilterState.customDateFrom,
+        customDateTo: dateFilterState.customDateTo,
+        selectedMonthForFilter: dateFilterState.selectedMonthForFilter,
+        selectedYearForFilter: dateFilterState.selectedYearForFilter,
+        selectedWeekForFilter: dateFilterState.selectedWeekForFilter,
     });
 
-    const {
-        items,
-        error,
-        loading,
-        actsItems,
-        actsError,
-        actsLoading,
-        ordersItems,
-        ordersError,
-        ordersLoading,
-        mutateOrders,
-        sendingsItems,
-        sendingsError,
-        sendingsLoading,
-        perevozkiItems: perevozkiItemsBase,
-        perevozkiLoading,
-        mutateInvoices,
-        mutatePerevozki,
-        mutateActs,
-        mutateSendings,
-    } = useDocumentsDataLoad({
+    const dataLoad = useDocumentsDataLoad({
         auth,
         activeInn: effectiveActiveInn,
         useServiceRequest: serviceModeForCurrentDocSection,
@@ -199,22 +100,12 @@ export function useDocumentsPageState({
         auth,
         effectiveActiveInn,
         serviceModeForCurrentDocSection,
-        transportFilter,
+        transportFilter: filters.transportFilter,
         apiDateRange,
         perevozkiDateRange,
-        perevozkiItemsBase,
-        sendingsItems: sendingsItems || [],
+        perevozkiItemsBase: dataLoad.perevozkiItems,
+        sendingsItems: dataLoad.sendingsItems || [],
     });
-    const {
-        normCargoKey,
-        perevozkiItems,
-        transportLinkedCargoNumbers,
-        cargoStateByNumber,
-        cargoRouteByNumber,
-        cargoSumByNumber,
-        cargoSumPaidByNumber,
-        cargoTransportByNumber,
-    } = cargo;
 
     const { isDocFavorite, toggleDocFavorite } = useDocFavorites();
 
@@ -223,9 +114,9 @@ export function useDocumentsPageState({
         setDocSection,
         allowedDocSections,
         auth,
-        items,
-        actsItems,
-        ordersItems,
+        items: dataLoad.items,
+        actsItems: dataLoad.actsItems,
+        ordersItems: dataLoad.ordersItems,
         effectiveActiveInn,
         effectiveServiceMode,
         effectiveSearchText,
@@ -237,27 +128,16 @@ export function useDocumentsPageState({
         expandedTableCustomer,
         setExpandedTableCustomer,
     });
-    const {
-        invoicesCatalog,
-        actsCatalog,
-        edoCatalog,
-        ordersCatalog,
-        tariffsCatalog,
-        sverkiCatalog,
-        dogovorsCatalog,
-        claimsCatalog,
-        edoDocumentsSummary,
-    } = catalogs;
 
     const { uniqueCustomers, uniqueEdoStatuses } = useDocumentsUniqueFilterOptions({
         docSection,
-        items,
-        actsItems,
-        dogovorsList: dogovorsCatalog.dogovorsList,
-        sverkiList: sverkiCatalog.sverkiList,
+        items: dataLoad.items,
+        actsItems: dataLoad.actsItems,
+        dogovorsList: catalogs.dogovorsCatalog.dogovorsList,
+        sverkiList: catalogs.sverkiCatalog.sverkiList,
     });
 
-    const sendingsPage = useDocumentsSendingsPage({
+    const sendingsPage = useDocumentsSendingsWiring({
         active: docSection === "Отправки",
         auth,
         effectiveActiveInn,
@@ -267,124 +147,43 @@ export function useDocumentsPageState({
         hasAnalytics,
         isSuperAdmin,
         permissions,
-        sendingsItems: sendingsItems || [],
-        sendingsLoading,
-        sendingsError,
-        perevozkiItems: perevozkiItems || [],
-        cargoStateByNumber,
-        cargoSumByNumber,
-        normCargoKey,
+        sendingsItems: dataLoad.sendingsItems || [],
+        sendingsLoading: dataLoad.sendingsLoading,
+        sendingsError: dataLoad.sendingsError,
+        perevozkiItems: cargo.perevozkiItems || [],
+        cargo,
         apiDateRange,
-        customerFilter,
+        filters,
         effectiveSearchText,
-        sortBy,
-        sortOrder,
-        transportFilter,
-        setTransportFilter,
-        transportLinkedCargoNumbers,
-        typeFilterSet,
-        routeFilterSet,
-        deliveryStatusFilterSet,
         tableModeEffective,
         docsMotionEnabled,
-        cargoModeSwitchMotion,
         onOpenCargo,
         onOpenAisWithMmsi,
-        dateFilter,
-        customDateFrom,
-        customDateTo,
-        selectedMonthForFilter,
-        selectedYearForFilter,
-        selectedWeekForFilter,
+        dateFilter: dateFilterState.dateFilter,
+        customDateFrom: dateFilterState.customDateFrom,
+        customDateTo: dateFilterState.customDateTo,
+        selectedMonthForFilter: dateFilterState.selectedMonthForFilter,
+        selectedYearForFilter: dateFilterState.selectedYearForFilter,
+        selectedWeekForFilter: dateFilterState.selectedWeekForFilter,
     });
 
-    const { closeDocumentsToolbarDropdownsExceptSendings, closeDocumentsToolbarDropdownsForTransport } =
-        useDocumentsToolbarDropdowns({ filters, catalogs });
-
-    const toolbarProps = buildDocumentsPageToolbarProps({
-        effectiveServiceMode,
-        customerFilter,
-        setCustomerFilter,
-        uniqueCustomers,
-        uniqueOrderCustomers: ordersCatalog.uniqueOrderCustomers,
-        isCustomerDropdownOpen,
-        setIsCustomerDropdownOpen,
-        actCustomerFilter,
-        setActCustomerFilter,
-        uniqueActCustomers: actsCatalog.uniqueActCustomers,
-        isActCustomerDropdownOpen,
-        setIsActCustomerDropdownOpen,
-        edoStatusFilterSet,
-        setEdoStatusFilterSet,
-        uniqueEdoStatuses,
-        isEdoStatusDropdownOpen,
-        setIsEdoStatusDropdownOpen,
-        billStatusFilterSet,
-        setBillStatusFilterSet,
-        invoiceFavoritesOnly,
-        setInvoiceFavoritesOnly,
-        isBillStatusDropdownOpen,
-        setIsBillStatusDropdownOpen,
-        deliveryStatusFilterSet,
-        setDeliveryStatusFilterSet,
-        isDeliveryStatusDropdownOpen,
-        setIsDeliveryStatusDropdownOpen,
-        typeFilterSet,
-        setTypeFilterSet,
-        isTypeDropdownOpen,
-        setIsTypeDropdownOpen,
-        routeFilterSet,
-        setRouteFilterSet,
-        isRouteDropdownOpen,
-        setIsRouteDropdownOpen,
-        isRouteCargoDropdownOpen,
-        setIsRouteCargoDropdownOpen,
-        transportFilter,
-        setTransportFilter,
-        transportOptionsCurrentSection: sendingsPage.transportOptionsCurrentSection,
-        isTransportDropdownOpen,
-        setIsTransportDropdownOpen,
-        transportSearchQuery,
-        setTransportSearchQuery,
-        tariffsCatalog,
-        sverkiCatalog,
-        dogovorsCatalog,
-        claimsCatalog,
-        ordersCatalog,
-        actsCatalog,
-        edoCatalog,
+    const {
+        toolbarProps,
         closeDocumentsToolbarDropdownsExceptSendings,
-        dateFilterProps: {
-            sortOrder,
-            onToggleSort: () => { setSortBy('date'); setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); },
-            dateFilter,
-            setDateFilter,
-            apiDateRange,
-            customDateFrom,
-            setCustomDateFrom,
-            customDateTo,
-            setCustomDateTo,
-            selectedMonthForFilter,
-            setSelectedMonthForFilter,
-            selectedYearForFilter,
-            setSelectedYearForFilter,
-            selectedWeekForFilter,
-            setSelectedWeekForFilter,
-            isDateDropdownOpen,
-            setIsDateDropdownOpen,
-            dateDropdownMode,
-            setDateDropdownMode,
-            isCustomModalOpen,
-            setIsCustomModalOpen,
-        },
-        loading,
-        error,
-        actsLoading,
-        actsError,
-        invoicesSummary: invoicesCatalog.documentsSummary,
-        filteredInvoiceCount: invoicesCatalog.filteredInvoiceItems.length,
-        actsSummary: actsCatalog.actsSummary,
-        filteredActsCount: actsCatalog.filteredActs.length,
+        closeDocumentsToolbarDropdownsForTransport,
+    } = useDocumentsToolbarWiring({
+        filters,
+        catalogs,
+        uniqueCustomers,
+        uniqueEdoStatuses,
+        sendingsTransportOptions: sendingsPage.transportOptionsCurrentSection,
+        apiDateRange,
+        dateFilterState,
+        effectiveServiceMode,
+        loading: dataLoad.loading,
+        error: dataLoad.error,
+        actsLoading: dataLoad.actsLoading,
+        actsError: dataLoad.actsError,
         showSums,
         documentsServiceSaasUi,
         tableModeFlatDirect,
@@ -392,8 +191,8 @@ export function useDocumentsPageState({
         auth,
         effectiveActiveInn,
         onNewOrder: () => setDocumentsOrderFormOpenPersist(true),
-        onOpenClaimsCreate: () => claimsCatalog.openClaimsCreateModal(),
-        onOpenSverkiOrder: sverkiCatalog.openSverkiOrderModal,
+        onOpenClaimsCreate: () => catalogs.claimsCatalog.openClaimsCreateModal(),
+        onOpenSverkiOrder: catalogs.sverkiCatalog.openSverkiOrderModal,
         sverkiOrderDisabled: !effectiveActiveInn || !auth?.login || !auth?.password,
     });
 
@@ -421,46 +220,46 @@ export function useDocumentsPageState({
         showSums,
         hasAnalytics,
         groupedCustomerTableColSpan,
-        loading,
-        error,
-        perevozkiLoading,
-        actsLoading,
-        actsError,
-        ordersLoading,
-        ordersError,
-        mutateInvoices,
-        mutatePerevozki,
-        mutateActs,
-        mutateOrders,
-        mutateSendings,
-        items,
-        invoicesCatalog,
-        actsCatalog,
-        edoCatalog,
-        ordersCatalog,
-        tariffsCatalog,
-        sverkiCatalog,
-        dogovorsCatalog,
-        claimsCatalog,
+        loading: dataLoad.loading,
+        error: dataLoad.error,
+        perevozkiLoading: dataLoad.perevozkiLoading,
+        actsLoading: dataLoad.actsLoading,
+        actsError: dataLoad.actsError,
+        ordersLoading: dataLoad.ordersLoading,
+        ordersError: dataLoad.ordersError,
+        mutateInvoices: dataLoad.mutateInvoices,
+        mutatePerevozki: dataLoad.mutatePerevozki,
+        mutateActs: dataLoad.mutateActs,
+        mutateOrders: dataLoad.mutateOrders,
+        mutateSendings: dataLoad.mutateSendings,
+        items: dataLoad.items,
+        invoicesCatalog: catalogs.invoicesCatalog,
+        actsCatalog: catalogs.actsCatalog,
+        edoCatalog: catalogs.edoCatalog,
+        ordersCatalog: catalogs.ordersCatalog,
+        tariffsCatalog: catalogs.tariffsCatalog,
+        sverkiCatalog: catalogs.sverkiCatalog,
+        dogovorsCatalog: catalogs.dogovorsCatalog,
+        claimsCatalog: catalogs.claimsCatalog,
         sendingsPage,
         isDocFavorite,
         toggleDocFavorite,
         documentsOrderFormOpen,
         setDocumentsOrderFormOpenPersist,
-        deliveryStatusFilterSet,
-        setDeliveryStatusFilterSet,
-        tableSortColumn,
-        tableSortOrder,
-        handleTableSort,
-        innerTableSortColumn,
-        innerTableSortOrder,
-        handleInnerTableSort,
-        cargoStateByNumber,
-        cargoRouteByNumber,
-        cargoSumPaidByNumber,
-        normCargoKey,
-        perevozkiItems,
-        edoDocumentsSummary,
+        deliveryStatusFilterSet: filters.deliveryStatusFilterSet,
+        setDeliveryStatusFilterSet: filters.setDeliveryStatusFilterSet,
+        tableSortColumn: filters.tableSortColumn,
+        tableSortOrder: filters.tableSortOrder,
+        handleTableSort: filters.handleTableSort,
+        innerTableSortColumn: filters.innerTableSortColumn,
+        innerTableSortOrder: filters.innerTableSortOrder,
+        handleInnerTableSort: filters.handleInnerTableSort,
+        cargoStateByNumber: cargo.cargoStateByNumber,
+        cargoRouteByNumber: cargo.cargoRouteByNumber,
+        cargoSumPaidByNumber: cargo.cargoSumPaidByNumber,
+        normCargoKey: cargo.normCargoKey,
+        perevozkiItems: cargo.perevozkiItems,
+        edoDocumentsSummary: catalogs.edoDocumentsSummary,
         cargoModeSwitchMotion,
         onOpenCargo,
     };

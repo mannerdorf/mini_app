@@ -1,0 +1,982 @@
+/* --- CARGO PAGE STICKY HEADER --- */
+.cargo-page-sticky-header {
+    position: sticky;
+    /* Без зазора под app-header на desktop */
+    top: 64px;
+    z-index: 40;
+    background-color: var(--color-bg-primary);
+    min-width: 0;
+    overflow-x: hidden;
+    /* Не обрезать верх/низ внутренних карточек и таблиц */
+    overflow-y: visible;
+    padding-bottom: 0.5rem;
+    margin-bottom: 0.6rem;
+}
+
+@media (min-width: 769px) {
+    /* У .app-main задано padding-top: 0 — липкий блок заголовка/фильтров без зазора «подрезан» сверху */
+    .cargo-page-sticky-header {
+        padding-top: 0.65rem;
+    }
+}
+
+/* Грузы: смещаем таблицу и карточки ниже суммирующего блока на экранах больше телефона (липкий хедер не перекрывает первую строку / первую плитку при скролле) */
+.cargo-table-offset-desktop,
+.cargo-cards-offset-desktop {
+    margin-top: 0;
+}
+@media (min-width: 769px) {
+    .cargo-table-offset-desktop,
+    .cargo-cards-offset-desktop {
+        margin-top: 2cm;
+    }
+}
+
+/* Документы: единый зазор от app-header; липкая шапка не «подпрыгивает» при смене вкладок */
+.documents-page {
+    --documents-page-top-gap: 0.85rem;
+    --documents-sticky-pad-top: 0.85rem;
+    --documents-sticky-bottom-gap: 1rem;
+}
+
+/* Документы: зазор до таблиц; 1.5cm на широких экранах давал ощущение «дыры» под карточкой фильтров */
+.documents-page-sticky-header {
+    margin-top: 0 !important;
+    margin-bottom: var(--documents-sticky-bottom-gap) !important;
+    /* Не даём overflow-x: hidden «схлопнуть» overflow-y в auto — иначе обрезается контент у нижней границы блока */
+    overflow-y: visible;
+    /* Строка вкладок и фильтров скроллится в .doc-sections-row / .filters-container — родителю не нужен hidden по X, иначе подрезается верх текста */
+    overflow-x: visible;
+}
+
+.documents-sticky-body {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0.55rem;
+    overflow: visible;
+}
+
+.documents-sticky-body .doc-sections-row {
+    margin-bottom: 0 !important;
+}
+
+.documents-sticky-body .filters-container.filters-row-scroll {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+/* Вкладки разделов ↔ строка фильтров (вне sticky-body — fallback) */
+.documents-page .doc-sections-row {
+    margin-bottom: 0.55rem;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    min-width: 0;
+    /* Место под скругление и тень активной вкладки — иначе сверху «подрезает» */
+    padding-top: 4px;
+    padding-bottom: 6px;
+}
+
+/* Итоги счётов/УПД: внутри липкой шапки, под фильтрами — не прячутся под прокруткой контента */
+.documents-sticky-summary-wrap {
+    margin-top: 0.55rem;
+    width: 100%;
+    min-width: 0;
+    overflow: visible;
+}
+.documents-sticky-summary-wrap:empty {
+    display: none;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+.documents-page--saas-analytics .documents-sticky-summary-wrap {
+    margin-top: 0.28rem;
+}
+
+/* Надёжный отступ для секций с итогами (Счета/УПД), без зависимости от :has() */
+.documents-page--with-summary-sections .documents-table-offset-desktop,
+.documents-page--with-summary-sections .documents-cards-offset-desktop {
+    margin-top: calc(0.95rem + 0.5cm);
+}
+.documents-page--with-summary-sections.documents-page--saas-analytics .documents-table-offset-desktop,
+.documents-page--with-summary-sections.documents-page--saas-analytics .documents-cards-offset-desktop {
+    margin-top: calc(1.05rem + 0.5cm);
+}
+@media (min-width: 769px) {
+    /* Десктоп: таблица не заезжает под липкий блок фильтров + KPI (как 2cm у «Грузов») */
+    .documents-page--with-summary-sections .documents-table-offset-desktop,
+    .documents-page--with-summary-sections .documents-cards-offset-desktop {
+        margin-top: 2cm;
+    }
+    .documents-page--with-summary-sections.documents-page--saas-analytics .documents-table-offset-desktop,
+    .documents-page--with-summary-sections.documents-page--saas-analytics .documents-cards-offset-desktop {
+        margin-top: 2.5cm;
+    }
+    .documents-page--with-summary-sections .documents-table-offset-desktop .cargo-card thead th {
+        top: 300px;
+    }
+}
+
+/* Заявки: таблица/карточки не должны заезжать под липкий блок фильтров и панель «Новая заявка» */
+.documents-page--with-orders-section .documents-table-offset-desktop,
+.documents-page--with-orders-section .documents-cards-offset-desktop,
+.documents-page--with-orders-section .documents-zayavki-below-new-order {
+    margin-top: calc(0.95rem + 0.5cm);
+}
+.documents-page--with-orders-section.documents-page--saas-analytics .documents-table-offset-desktop,
+.documents-page--with-orders-section.documents-page--saas-analytics .documents-cards-offset-desktop,
+.documents-page--with-orders-section.documents-page--saas-analytics .documents-zayavki-below-new-order {
+    margin-top: calc(1.05rem + 0.5cm);
+}
+@media (min-width: 769px) {
+    /* Десктоп: таблица/карточки заявок ниже липких вкладок + фильтров; «Новая заявка» — под шапкой */
+    .documents-page--with-orders-section .documents-table-offset-desktop,
+    .documents-page--with-orders-section .documents-cards-offset-desktop {
+        margin-top: 2cm;
+    }
+    .documents-page--with-orders-section.documents-page--saas-analytics .documents-table-offset-desktop,
+    .documents-page--with-orders-section.documents-page--saas-analytics .documents-cards-offset-desktop {
+        margin-top: 2.5cm;
+    }
+    .documents-page--with-orders-section .documents-zayavki-below-new-order {
+        margin-top: 0.35rem;
+    }
+}
+
+/* Новая заявка: sticky summary в правой колонке grid */
+@media (min-width: 769px) {
+    .documents-page:has(.documents-order-form) {
+        overflow: visible;
+    }
+}
+
+/* ЭДО: монитор подписания по счетам */
+.documents-page--with-edo-section .documents-table-offset-desktop,
+.documents-page--with-edo-section .documents-cards-offset-desktop {
+    margin-top: calc(0.95rem + 0.5cm);
+}
+.documents-page--with-edo-section.documents-page--saas-analytics .documents-table-offset-desktop,
+.documents-page--with-edo-section.documents-page--saas-analytics .documents-cards-offset-desktop {
+    margin-top: calc(1.05rem + 0.55cm);
+}
+@media (min-width: 769px) {
+    .documents-page--with-edo-section .documents-table-offset-desktop,
+    .documents-page--with-edo-section .documents-cards-offset-desktop {
+        margin-top: 3.5cm;
+    }
+    .documents-page--with-edo-section.documents-page--saas-analytics .documents-table-offset-desktop,
+    .documents-page--with-edo-section.documents-page--saas-analytics .documents-cards-offset-desktop {
+        margin-top: 4cm;
+    }
+}
+
+/* Тарифы: таблица/карточки под липкой SaaS-шапкой (без отдельного KPI — базового margin недостаточно) */
+.documents-page--with-tariffs-section .documents-table-offset-desktop,
+.documents-page--with-tariffs-section .documents-cards-offset-desktop {
+    margin-top: calc(0.95rem + 0.5cm);
+}
+.documents-page--with-tariffs-section.documents-page--saas-analytics .documents-table-offset-desktop,
+.documents-page--with-tariffs-section.documents-page--saas-analytics .documents-cards-offset-desktop {
+    margin-top: calc(1.05rem + 0.55cm);
+}
+@media (min-width: 769px) {
+    /* Десктоп: первая карточка/таблица тарифов на 1 см ниже липких вкладок и фильтров */
+    .documents-page--with-tariffs-section .documents-table-offset-desktop,
+    .documents-page--with-tariffs-section .documents-cards-offset-desktop {
+        margin-top: calc(0.95rem + 1.5cm);
+    }
+    .documents-page--with-tariffs-section.documents-page--saas-analytics .documents-table-offset-desktop,
+    .documents-page--with-tariffs-section.documents-page--saas-analytics .documents-cards-offset-desktop {
+        margin-top: calc(1.05rem + 1.55cm);
+    }
+}
+.documents-page--with-tariffs-section .documents-toolbar-below-sticky {
+    padding-top: 0.85rem;
+}
+.documents-page--with-tariffs-section .documents-toolbar-below-sticky .documents-tariffs-empty-state {
+    display: block;
+    margin-top: 0.35rem;
+    padding-top: 1.5rem !important;
+    padding-bottom: 1.75rem !important;
+}
+@media (min-width: 769px) {
+    .documents-page--with-tariffs-section .documents-toolbar-below-sticky {
+        padding-top: 1.05rem;
+    }
+    .documents-page--with-tariffs-section .documents-toolbar-below-sticky .documents-tariffs-empty-state {
+        padding-top: 2rem !important;
+    }
+}
+
+/* Договоры: первая плитка/таблица под липкими вкладками и фильтрами */
+.documents-page--with-contracts-section .documents-table-offset-desktop,
+.documents-page--with-contracts-section .documents-cards-offset-desktop {
+    margin-top: calc(0.95rem + 0.5cm);
+}
+.documents-page--with-contracts-section.documents-page--saas-analytics .documents-table-offset-desktop,
+.documents-page--with-contracts-section.documents-page--saas-analytics .documents-cards-offset-desktop {
+    margin-top: calc(1.05rem + 0.55cm);
+}
+.documents-page--with-contracts-section .documents-toolbar-below-sticky {
+    padding-top: 0.85rem;
+}
+.documents-page--with-contracts-section .documents-toolbar-below-sticky .documents-contracts-empty-state {
+    display: block;
+    margin-top: 0.35rem;
+    padding-top: 1.5rem !important;
+    padding-bottom: 1.75rem !important;
+}
+.documents-page--with-contracts-section .documents-api-debug-panel,
+.documents-page--with-sverki-section .documents-api-debug-panel {
+    position: relative;
+    z-index: 2;
+    margin-top: 0.9rem;
+    margin-bottom: 0.35rem !important;
+}
+@media (min-width: 769px) {
+    .documents-page--with-contracts-section .documents-table-offset-desktop,
+    .documents-page--with-contracts-section .documents-cards-offset-desktop {
+        margin-top: calc(0.95rem + 1.5cm);
+    }
+    .documents-page--with-contracts-section.documents-page--saas-analytics .documents-table-offset-desktop,
+    .documents-page--with-contracts-section.documents-page--saas-analytics .documents-cards-offset-desktop {
+        margin-top: calc(1.05rem + 1.55cm);
+    }
+    .documents-page--with-contracts-section .documents-toolbar-below-sticky {
+        padding-top: 1.05rem;
+    }
+    .documents-page--with-contracts-section .documents-toolbar-below-sticky .documents-contracts-empty-state {
+        padding-top: 2rem !important;
+    }
+    .documents-page--with-contracts-section .documents-api-debug-panel,
+    .documents-page--with-sverki-section .documents-api-debug-panel {
+        margin-top: 1.1rem;
+    }
+    .documents-page--with-contracts-section .doc-contracts-table-offset-desktop {
+        margin-top: 0;
+    }
+}
+
+/* Акты сверок: липкий блок выше из-за кнопки «Заказать Акт сверки» — контент ниже карточки */
+.documents-page--with-sverki-section {
+    --documents-sticky-bottom-gap: 1.25rem;
+}
+.documents-page--with-sverki-section .documents-table-offset-desktop,
+.documents-page--with-sverki-section .documents-cards-offset-desktop {
+    margin-top: calc(0.95rem + 0.5cm);
+}
+.documents-page--with-sverki-section.documents-page--saas-analytics .documents-table-offset-desktop,
+.documents-page--with-sverki-section.documents-page--saas-analytics .documents-cards-offset-desktop {
+    margin-top: calc(1.05rem + 0.55cm);
+}
+.documents-page--with-sverki-section .documents-toolbar-below-sticky {
+    padding-top: 0.85rem;
+}
+.documents-page--with-sverki-section .documents-toolbar-below-sticky .documents-sverki-empty-state {
+    display: block;
+    margin-top: 0.35rem;
+    padding-top: 1.5rem !important;
+    padding-bottom: 1.75rem !important;
+}
+@media (min-width: 769px) {
+    .documents-page--with-sverki-section .documents-table-offset-desktop,
+    .documents-page--with-sverki-section .documents-cards-offset-desktop {
+        margin-top: calc(0.95rem + 1.5cm);
+    }
+    .documents-page--with-sverki-section.documents-page--saas-analytics .documents-table-offset-desktop,
+    .documents-page--with-sverki-section.documents-page--saas-analytics .documents-cards-offset-desktop {
+        margin-top: calc(1.05rem + 1.55cm);
+    }
+    .documents-page--with-sverki-section .documents-toolbar-below-sticky {
+        padding-top: 1.05rem;
+    }
+    .documents-page--with-sverki-section .documents-toolbar-below-sticky .documents-sverki-empty-state {
+        padding-top: 2rem !important;
+    }
+    .documents-page--with-sverki-section .doc-contracts-table-offset-desktop {
+        margin-top: 0;
+    }
+}
+
+/* Строка «Итого» у таблиц счётов/УПД не должна пропадать из разметки таблицы */
+.documents-page table tfoot {
+    display: table-footer-group;
+}
+
+/* У .button-primary задан margin-top для форм логина; в «Документах» верх кнопки (скругление) визуально подрезается у контейнеров с overflow */
+.documents-page .button-primary {
+    margin-top: 0;
+}
+
+.doc-contracts-table-offset-desktop {
+    margin-top: calc(0.95rem + 0.5cm);
+}
+@media (min-width: 769px) {
+    .doc-contracts-table-offset-desktop {
+        margin-top: calc(1.05rem + 0.5cm);
+    }
+}
+.documents-page--saas-analytics .doc-contracts-table-offset-desktop {
+    margin-top: calc(1.05rem + 0.55cm);
+}
+@media (min-width: 769px) {
+    .documents-page--saas-analytics .doc-contracts-table-offset-desktop {
+        margin-top: calc(1.1rem + 0.55cm);
+    }
+}
+
+/* Заявки: кнопка «Новая заявка» под липкой шапкой */
+.documents-new-order-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    position: relative;
+    z-index: 5;
+    overflow: visible;
+}
+.documents-sticky-body .documents-new-order-bar--in-sticky {
+    margin-top: 0;
+    padding-top: 0.15rem;
+    padding-bottom: 0.15rem;
+}
+.documents-toolbar-below-sticky .documents-new-order-bar {
+    margin-bottom: 0.15rem;
+}
+
+/* Контент заявок (таблица / карточки): зазор от кнопки «Новая заявка» */
+.documents-zayavki-below-new-order {
+    margin-top: 0.35rem;
+}
+
+/* Инструменты под липкой карточкой вкладок/фильтров (претензии, акты сверок и т.п.) — буфер, чтобы кнопки не подрезались тенью / краем блока */
+.documents-toolbar-below-sticky {
+    padding-top: 0.75rem;
+    overflow: visible;
+    position: relative;
+    z-index: 1;
+}
+@media (min-width: 769px) {
+    .documents-toolbar-below-sticky {
+        padding-top: 1rem;
+    }
+}
+.documents-page--saas-analytics .documents-toolbar-below-sticky {
+    padding-top: 0.85rem;
+}
+@media (min-width: 769px) {
+    .documents-page--saas-analytics .documents-toolbar-below-sticky {
+        padding-top: 1.05rem;
+    }
+}
+
+/* Пустое состояние / загрузка под липкой шапкой (претензии, акты сверок и т.п.) */
+.documents-toolbar-below-sticky .documents-section-empty-state {
+    margin-top: 0;
+    padding-top: 1rem !important;
+    padding-bottom: 1.5rem !important;
+}
+
+.documents-toolbar-below-sticky .documents-claims-empty-state {
+    display: block;
+    margin-top: 0.5rem;
+    padding-top: 2.25rem !important;
+    padding-bottom: 2rem !important;
+}
+
+@media (min-width: 769px) {
+    .documents-toolbar-below-sticky .documents-claims-empty-state {
+        padding-top: 2.75rem !important;
+    }
+}
+
+/* Панель bulk-действий в «Отправках» — в потоке документа, уезжает при скролле */
+.sendings-bulk-actions-bar {
+    padding: 0.6rem 0.75rem;
+    margin-bottom: 0.5rem;
+}
+.sendings-bulk-actions-bar__row {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+}
+.sendings-bulk-actions-bar__label {
+    font-size: 0.9rem;
+}
+@media (max-width: 768px) {
+    /* Мобильная «Отправки»: панель bulk — читаемые размеры, единая высота chip */
+    .sendings-bulk-actions-bar {
+        padding: 0.45rem 0.5rem !important;
+        margin-bottom: 0.35rem !important;
+        border-radius: 10px;
+    }
+    .sendings-bulk-actions-bar__row {
+        gap: 0.4rem !important;
+    }
+    .sendings-bulk-actions-bar__label {
+        font-size: var(--text-sm, 0.8125rem) !important;
+        line-height: 1.3;
+    }
+    .sendings-bulk-actions-bar .filter-button {
+        min-height: var(--control-height-chip, 36px) !important;
+        padding: var(--control-padding-y-chip, 8px) var(--control-padding-x-chip, 14px) !important;
+        font-size: var(--text-base, 0.875rem) !important;
+        border-radius: var(--radius-md, 12px);
+    }
+    .sendings-bulk-actions-bar .filter-button svg {
+        width: 0.875rem !important;
+        height: 0.875rem !important;
+    }
+    .sendings-bulk-actions-bar .button-primary {
+        min-height: var(--control-height-chip, 36px) !important;
+        padding: var(--control-padding-y-chip, 8px) var(--control-padding-x-chip, 14px) !important;
+        font-size: var(--text-base, 0.875rem) !important;
+        border-radius: var(--radius-md, 12px);
+    }
+    .sendings-bulk-actions-bar > p,
+    .sendings-bulk-actions-bar > span {
+        margin-top: 0.25rem !important;
+        font-size: var(--text-sm, 0.8125rem) !important;
+        line-height: 1.3;
+    }
+    .cargo-page-sticky-header,
+    .dashboard-sticky-filters {
+        /* В app-main sticky top:0 совпадает с верхом экрана — блок уезжает под fixed .app-header */
+        position: relative;
+        top: auto;
+    }
+    /* Просвет задаётся padding-top у .app-main — не дублируем на страницах */
+    .dashboard-page--saas-analytics,
+    .cargo-page-root--saas-analytics {
+        padding-top: 0;
+    }
+    .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters {
+        margin-top: 0;
+    }
+    .documents-page {
+        --documents-page-top-gap: 0;
+        --documents-sticky-pad-top: 0.85rem;
+        padding-top: 0;
+    }
+    .documents-page .cargo-page-sticky-header.documents-page-sticky-header,
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
+        padding-top: var(--documents-sticky-pad-top) !important;
+        margin-top: 0 !important;
+    }
+}
+
+/* Отправки: карточка с бейджами-инфографикой — зазор от липкой шапки с фильтрами */
+.documents-sendings-infographic {
+    margin-top: calc(0.5rem + 0.5cm);
+    position: relative;
+    z-index: 2;
+    overflow: visible;
+}
+.documents-page--with-sendings-section .documents-sendings-infographic {
+    margin-top: calc(0.85rem + 0.65cm);
+}
+.documents-page--with-sendings-section.documents-page--saas-analytics .documents-sendings-infographic {
+    margin-top: calc(0.95rem + 0.7cm);
+}
+.documents-sendings-infographic-row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.35rem;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+.documents-sendings-infographic-row .app-badge,
+.documents-sendings-infographic-row .documents-sendings-infographic-filter-badge {
+    flex: 0 0 auto;
+    min-height: var(--control-height-badge, 24px) !important;
+    padding: var(--control-padding-badge-y, 4px) var(--control-padding-badge-x, 10px) !important;
+    font-size: var(--text-sm, 0.8125rem) !important;
+    line-height: 1 !important;
+}
+@media (min-width: 769px) {
+    /* Десктоп: липкая шапка с фильтрами — зазор поднят на ~1 см */
+    .documents-page--with-sendings-section .documents-sendings-infographic {
+        margin-top: 1.75cm;
+    }
+    .documents-page--with-sendings-section.documents-page--saas-analytics .documents-sendings-infographic {
+        margin-top: 2.25cm;
+    }
+    .documents-page--with-sendings-section.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .filters-container.filters-row-scroll {
+        margin-bottom: 0.55rem;
+    }
+    .documents-page--with-sendings-section .documents-sendings-infographic {
+        padding-top: 0.35rem !important;
+    }
+}
+
+.dashboard-sticky-filters {
+    position: sticky;
+    top: 80px;
+    z-index: 40;
+    background-color: var(--color-bg-primary);
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+
+.dashboard-page-offset {
+    /* Раньше 2.5cm защищал от наложения на старый sticky-хедер; сейчас даёт пустую полосу между app-header и фильтрами на ширине >768px */
+    margin-top: 0;
+}
+
+/**
+ * Главная (дашборд) — визуал «SaaS analytics» при saasDashboardMotion (включён для всех).
+ */
+.dashboard-page--saas-analytics {
+    padding-bottom: 0.35rem;
+    border-radius: 0;
+    background: transparent;
+}
+
+.dark-mode .dashboard-page--saas-analytics {
+    background: transparent;
+}
+
+.dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters {
+    background: var(--color-bg-card);
+    border-radius: 14px;
+    padding: 0.85rem 0.95rem 0.95rem;
+    margin-bottom: 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.05),
+        0 12px 40px rgba(15, 23, 42, 0.06);
+}
+
+.dashboard-page--saas-analytics .home-strip {
+    border-radius: 14px !important;
+    border: 1px solid rgba(148, 163, 184, 0.2) !important;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
+}
+
+.dashboard-page--saas-analytics .cargo-card:not(.profile-saas-row-card):not(.haulz-dispatch-stat-tile) {
+    border-radius: 14px !important;
+    border: 1px solid rgba(148, 163, 184, 0.2) !important;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
+}
+
+/* HAULZ KPI-плитки: одна высота в ряду, место под 2 строки метрик */
+.haulz-dispatch-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.55rem;
+    align-items: stretch;
+    width: 100%;
+    min-width: 0;
+}
+
+.haulz-dispatch-stat-tile {
+    display: flex !important;
+    flex-direction: column;
+    height: 100%;
+    min-width: 0;
+}
+
+.haulz-dispatch-group-more {
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-primary-blue);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.haulz-dispatch-group-more:hover {
+    opacity: 0.85;
+}
+
+.haulz-dispatch-table-panel__title {
+    flex: 1;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--color-text-primary);
+}
+
+.haulz-dispatch-table-panel__meta {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+.haulz-dispatch-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-top: 0.75rem;
+}
+
+.haulz-dispatch-table-wrap--scroll {
+    max-height: 13.5rem;
+    overflow-y: auto;
+}
+
+.haulz-dispatch-table-wrap--scroll .haulz-dispatch-table__th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--color-bg-card);
+    box-shadow: 0 1px 0 var(--color-border);
+}
+
+.haulz-dispatch-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    line-height: 1.35;
+    color: var(--color-text-primary);
+}
+
+.haulz-dispatch-table__head-row {
+    border-bottom: 1px solid var(--color-border);
+    text-align: left;
+}
+
+.haulz-dispatch-table__th {
+    padding: 0.4rem 0.35rem;
+    font-size: inherit;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+.haulz-dispatch-table__cell {
+    padding: 0.4rem 0.35rem;
+    vertical-align: middle;
+    font-size: inherit;
+    font-weight: 400;
+    white-space: nowrap;
+}
+
+.haulz-dispatch-table__cell--num-nested {
+    padding-left: 1.25rem;
+}
+
+.haulz-dispatch-table__cell--muted {
+    color: var(--color-text-secondary);
+}
+
+.haulz-dispatch-table__cell--customer {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--color-text-secondary);
+}
+
+.haulz-dispatch-table__cell--icon {
+    text-align: center;
+}
+
+.haulz-dispatch-table__cell--num-value {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 768px) {
+    .haulz-dispatch-table .status-date-col {
+        display: none;
+    }
+}
+
+.haulz-dispatch-table__detail-cell {
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+    background: var(--color-bg-primary);
+}
+
+.haulz-dispatch-table__detail-title {
+    margin: 0 0 0.35rem;
+    font-size: inherit;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--color-text-primary);
+}
+
+.haulz-dispatch-table__detail-muted {
+    margin: 0;
+    font-size: inherit;
+    font-weight: 400;
+    line-height: 1.35;
+    color: var(--color-text-secondary);
+}
+
+.haulz-dispatch-table__detail-loading {
+    padding: 0.35rem 0;
+}
+
+.haulz-dispatch-table__detail-spinner {
+    color: var(--color-primary-blue);
+}
+
+.haulz-dispatch-table__detail-actions {
+    margin-top: 0.45rem;
+}
+
+.haulz-dispatch-table__detail-open-btn {
+    font-size: inherit;
+    padding: 0.35rem 0.65rem;
+}
+
+.haulz-dispatch-table__timeline {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: inherit;
+    line-height: inherit;
+}
+
+.haulz-dispatch-table__timeline thead tr {
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-hover);
+}
+
+.haulz-dispatch-table__timeline th,
+.haulz-dispatch-table__timeline td {
+    padding: 0.35rem 0.3rem;
+    font-size: inherit;
+    font-weight: 400;
+    text-align: left;
+}
+
+.haulz-dispatch-table__timeline th {
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
+.haulz-dispatch-table__timeline tbody tr {
+    border-bottom: 1px solid var(--color-border);
+}
+
+/* Одна компания у логина — столбец «Заказчик» в таблицах не показываем */
+.app-hide-customer-column .cargo-customer-table__col-customer,
+.app-hide-customer-column .customer-col {
+    display: none !important;
+}
+
+/* На телефоне без служебного режима «Заказчик» скрыт (даже при нескольких компаниях). */
+@media (max-width: 768px) {
+    .app-container:not(.app-service-mode) .cargo-customer-table__col-customer,
+    .app-container:not(.app-service-mode) .customer-col {
+        display: none !important;
+    }
+}
+
+.haulz-dispatch-stat-tile__metrics {
+    min-height: 2.45rem;
+    align-content: flex-start;
+    margin-top: auto;
+}
+
+/* Дашборд HAULZ: на телефоне плитки — резиновая сетка 2 колонки, без горизонтального сжатия. */
+@media (max-width: 768px) {
+    .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters {
+        overflow-x: visible;
+        overflow-y: visible;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters .filters-row-scroll {
+        overflow-x: auto;
+        overflow-y: visible;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    .dashboard-page--saas-analytics #haulz-dispatch-dashboard {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .haulz-dispatch-stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.5rem !important;
+        margin-bottom: 0.75rem !important;
+    }
+
+    .haulz-dispatch-stat-grid .haulz-dispatch-stat-tile:last-child:nth-child(odd):not(:only-child) {
+        grid-column: 1 / -1;
+    }
+
+    .haulz-dispatch-stat-tile {
+        flex: unset !important;
+        width: auto !important;
+        max-width: 100%;
+        padding: 0.65rem 0.75rem !important;
+        border-radius: 10px !important;
+        border-left-width: 3px !important;
+    }
+
+    .haulz-dispatch-stat-tile__metrics {
+        min-height: 2.35rem;
+    }
+
+    .haulz-dispatch-stat-tile > *:first-child {
+        font-size: 0.58rem !important;
+        margin-bottom: 0.2rem !important;
+        line-height: 1.2 !important;
+    }
+
+    .haulz-dispatch-stat-tile > *:nth-child(2) {
+        font-size: 1.05rem !important;
+        line-height: 1.15 !important;
+    }
+
+    .haulz-dispatch-stat-tile span,
+    .haulz-dispatch-stat-tile p {
+        font-size: 0.5rem !important;
+        line-height: 1.2 !important;
+    }
+
+    .haulz-dispatch-stat-tile svg {
+        width: 10px !important;
+        height: 10px !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters {
+        box-shadow: none;
+    }
+}
+
+/* Десктоп: зазоры app-header → фильтры → KPI-плитки (Главная, Грузы, Документы) */
+@media (min-width: 769px) {
+    .dashboard-page--saas-analytics,
+    .cargo-page-root--saas-analytics,
+    .documents-page--saas-analytics {
+        padding-top: 0.85rem;
+    }
+
+    .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters {
+        margin-bottom: 1rem;
+    }
+
+    .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters .filters-container,
+    .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters .filters-row-scroll {
+        margin-bottom: 0;
+    }
+
+    .dashboard-page--saas-analytics #haulz-dispatch-dashboard {
+        margin-top: 0.15rem;
+    }
+
+    .dashboard-page--saas-analytics #haulz-dispatch-dashboard .haulz-dispatch-stat-grid {
+        margin-top: 0;
+    }
+
+    .cargo-page-root--saas-analytics .cargo-page-sticky-header > :first-child {
+        margin-bottom: 0.85rem !important;
+    }
+
+    .cargo-page-root--saas-analytics .cargo-page-sticky-header .filters-container,
+    .cargo-page-root--saas-analytics .cargo-page-sticky-header .filters-row-scroll {
+        margin-bottom: 0.85rem;
+    }
+
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header > :first-child {
+        margin-bottom: 0.85rem !important;
+    }
+
+    .documents-page--saas-analytics .doc-sections-row {
+        margin-bottom: 0.75rem;
+    }
+
+    .documents-page--saas-analytics .documents-sticky-body .doc-sections-row {
+        margin-bottom: 0 !important;
+    }
+
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .documents-sticky-body .filters-container.filters-row-scroll {
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+    }
+
+    .documents-page--saas-analytics .documents-sticky-summary-wrap {
+        margin-top: 0.75rem;
+    }
+
+    .documents-page--saas-analytics .documents-sticky-body {
+        gap: 0.75rem;
+    }
+
+    /* Счета/УПД: контент под липким блоком (empty state, loader) */
+    .documents-page--with-summary-sections .documents-summary-section-body,
+    .documents-page--with-edo-section .documents-summary-section-body {
+        margin-top: 0.35rem;
+        padding-top: 0.25rem;
+    }
+
+    .documents-page--with-summary-sections .documents-summary-section-body:has(.documents-table-offset-desktop),
+    .documents-page--with-summary-sections .documents-summary-section-body:has(.documents-cards-offset-desktop),
+    .documents-page--with-edo-section .documents-summary-section-body:has(.documents-table-offset-desktop),
+    .documents-page--with-edo-section .documents-summary-section-body:has(.documents-cards-offset-desktop) {
+        margin-top: 0;
+        padding-top: 0;
+    }
+
+    .documents-page--with-summary-sections .documents-summary-empty-state,
+    .documents-page--with-edo-section .documents-summary-empty-state {
+        display: block;
+        margin-top: 1.25rem;
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
+        scroll-margin-top: 240px;
+    }
+
+    .documents-page--with-summary-sections .documents-summary-section-body > .py-8 {
+        margin-top: 1rem;
+        padding-top: 1.5rem;
+    }
+}
+
+/* Контент раздела Договоры/Тарифы (только DocumentsPage). Раньше 5rem давал пустую «полосу» между липким блоком фильтров и карточками на широких экранах. */
+.doc-section-content {
+    padding-top: 0.5rem;
+    padding-bottom: 1rem;
+    min-height: 2rem;
+}
+/* Обёртка таблиц в Документах — отступ, чтобы первая строка данных не обрезалась */
+.doc-section-table-wrap {
+    margin-top: 0.5rem;
+    scroll-margin-top: 160px;
+}
+
+/* Таблицы в Документах: шапка липкая, видна под cargo-page-sticky-header при скролле */
+.doc-section-table thead th,
+.doc-tariffs-table thead th {
+    position: sticky;
+    top: 200px; /* ниже заголовка (64px) + вкладок + фильтров */
+    background: var(--color-bg-hover);
+    z-index: 10;
+    box-shadow: 0 1px 0 var(--color-border);
+}
+@media (max-width: 768px) {
+    .doc-section-table thead th,
+    .doc-tariffs-table thead th {
+        top: 180px; /* мобильный: хедер + вкладки + фильтры */
+    }
+}
+
+/* Документы: шапка остаётся внутри таблицы (без sticky) для выбранных разделов */
+.doc-table-header-inline thead th {
+    position: static !important;
+    top: auto !important;
+    box-shadow: none;
+}
