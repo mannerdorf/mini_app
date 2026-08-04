@@ -1,0 +1,203 @@
+/* CMS /admin — без промежуточного холста (standalone, корень — .light-mode.admin-page-root) */
+.admin-page-root.admin-page-root--saas-analytics {
+    --saas-color-primary: #2563eb;
+    --saas-color-primary-soft: rgba(37, 99, 235, 0.12);
+    --radius-md: 16px;
+    --radius-lg: 18px;
+    box-sizing: border-box;
+    padding: 0.85rem 1rem 1.25rem;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.admin-page-root--saas-analytics .cargo-card {
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(15, 23, 42, 0.07);
+    box-shadow:
+        0 22px 50px -20px rgba(15, 23, 42, 0.12),
+        0 10px 24px -12px rgba(15, 23, 42, 0.08),
+        0 0 0 1px rgba(15, 23, 42, 0.03);
+    transition:
+        border-color 0.22s ease,
+        box-shadow 0.22s ease,
+        transform 0.18s ease;
+}
+
+.admin-page-root--saas-analytics .cargo-card:hover {
+    border-color: color-mix(in srgb, rgba(15, 23, 42, 0.07) 55%, var(--saas-color-primary) 45%);
+    box-shadow:
+        0 28px 64px -18px rgba(15, 23, 42, 0.16),
+        0 14px 32px -10px rgba(15, 23, 42, 0.1),
+        0 0 0 1px rgba(37, 99, 235, 0.06);
+    transform: translateY(-2px);
+}
+
+.admin-page-root--saas-analytics .button-primary {
+    background-color: var(--saas-color-primary);
+    border-radius: var(--radius-md);
+}
+
+.admin-page-root--saas-analytics .button-primary:hover:not(:disabled) {
+    background-color: #1d4ed8;
+    opacity: 1;
+}
+
+.admin-page-root--saas-analytics .filter-button {
+    border-radius: var(--radius-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .admin-page-root--saas-analytics .cargo-card {
+        transition: none;
+    }
+
+    .admin-page-root--saas-analytics .cargo-card:hover {
+        transform: none;
+    }
+
+    .admin-page-root.admin-page-root--saas-analytics {
+        box-shadow: none;
+    }
+}
+
+/* Монитор SLA — компактнее на телефоне */
+@media (max-width: 640px) {
+    .sla-monitor-panel {
+        padding: 0.75rem 1rem !important;
+        margin-bottom: 0.75rem !important;
+    }
+    .sla-monitor-header {
+        margin-bottom: 0.5rem !important;
+    }
+    .sla-monitor-metrics {
+        gap: 0.75rem 1.25rem !important;
+        margin-bottom: 0.75rem !important;
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+    }
+    .sla-monitor-metrics > div {
+        min-width: 0 !important;
+        font-size: 0.75rem;
+    }
+    .sla-monitor-metrics [style*="1.25rem"] {
+        font-size: 1rem !important;
+    }
+    .sla-monitor-details-toggle {
+        margin-bottom: 0.5rem !important;
+    }
+    .sla-monitor-details-toggle [style*="0.7rem"] {
+        font-size: 0.65rem !important;
+    }
+}
+
+/* Платёжный календарь — цифры компактнее на мобильном, чтобы влезали в ячейки дней */
+@media (max-width: 640px) {
+    .payment-calendar-grid {
+        font-size: 0.7rem !important;
+        min-width: 0 !important;
+        grid-template-columns: repeat(6, minmax(2rem, 1fr)) !important;
+    }
+    .payment-calendar-day-cell {
+        padding: 0.2rem 0.15rem !important;
+        min-height: 1.9rem !important;
+    }
+    .payment-calendar-day-amount {
+        font-size: 0.5rem !important;
+        line-height: 1.1 !important;
+        word-break: break-all;
+        max-width: 100%;
+    }
+    .payment-calendar-week-total {
+        font-size: 0.55rem !important;
+        padding: 0.2rem 0.15rem !important;
+        min-height: 1.9rem !important;
+        word-break: break-all;
+    }
+}
+
+.details-item-modal {
+    padding: var(--space-2, 8px);
+    background-color: var(--color-bg-hover);
+    border-radius: var(--radius-md, 12px);
+    min-width: 0;
+    overflow: hidden;
+}
+
+.details-item-modal .detail-item-label {
+    display: block;
+    font-size: var(--font-size-footnote, 12px);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.35;
+    margin-bottom: 0.2rem;
+}
+
+.details-item-modal .detail-item-value {
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    font-size: var(--font-size-subhead, 14px);
+    font-weight: 400;
+    line-height: 1.35;
+    color: var(--color-text-primary);
+}
+
+.details-item-modal .detail-item-value > * {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.detail-field-plain {
+    min-width: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+}
+
+.detail-field-plain .detail-item-label {
+    display: block;
+    font-size: var(--font-size-footnote, 12px);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    margin-bottom: 0.2rem;
+    line-height: 1.35;
+}
+
+.detail-field-plain .detail-item-value {
+    font-size: var(--font-size-subhead, 14px);
+    font-weight: 600;
+    line-height: 1.35;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-primary);
+}
+
+.cargo-details-modal-main .cargo-details-tiles-row .detail-field-plain {
+    min-height: 0;
+}
+
+.login-input.date-input { margin-bottom: 0; }
+
+/**
+ * Кнопка «Сегодня» у полей дат: на широком экране часто дублирует нативный picker;
+ * на мобильном (≤768px) нативный календарь без быстрого перехода — показываем явно.
+ */
+.calendar-quick-today-mobile-only {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+@media (min-width: 769px) {
+    .calendar-quick-today-mobile-only {
+        display: none !important;
+    }
+}
+.modal-button-container { margin-top: var(--element-gap, 16px); }

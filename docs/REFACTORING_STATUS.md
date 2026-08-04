@@ -9,13 +9,13 @@
 | **0** Гигиена | ✅ Выполнено | `dist/` в `.gitignore`, убран из git index; `ENV.md`, `API_CORS_CHECKLIST.md`, CORS VPS |
 | **1** API client | 🟡 Частично | Documents без raw `fetch`; admin features без raw `fetch` (→ `api/client/admin/*`) |
 | **2** List workspace | ✅ Выполнено | `features/listWorkspace/`, 3 страницы |
-| **3** Документы | 🟡 В процессе | `useDocumentsPageState` **~230**; sendings + toolbar wiring вынесены |
+| **3** Документы | 🟡 В процессе | SendingsSection **57** + table/cards views; viewBlocks ~1563 |
 | **4** Admin | 🟡 В процессе | `useAdminUsers` **25** + data/list; AddForm **46** + sections; Claims/Timesheet split ✅ |
 | **4b** Dashboard PR4 | ✅ Выполнено | `useDashboardPageState` **365** строк; 10 хуков в `features/dashboard/hooks/` |
 | **4c** Profile PR1–PR4 | ✅ Выполнено | employees + timesheet + accounting + main; ProfilePage **~412** строк |
 | **5** App shell | ⏳ Не начато | KPI `App.tsx` < 1200; есть `AppRuntimeContext` |
 | **6** Shared lib | ⏳ Не начато | `lib/*.js` из `src/` остаётся |
-| **7** CSS | 🟡 В процессе | `styles.css` → `styles/index.css` + **19 модулей** в `styles/modules/` |
+| **7** CSS | 🟡 В процессе | `modal.css` → 5 модулей; всего **23** CSS-модуля в `styles/modules/` |
 | **8** Тесты | 🟡 Старт | Vitest + 5 unit-тестов pipeline/labels |
 | **9** API backend | 🟡 Старт | `withApiHandler`, пример `ferries-list` |
 

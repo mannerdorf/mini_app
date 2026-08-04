@@ -10,7 +10,11 @@
 @import "./modules/cargo-list.css";
 @import "./modules/cargo-documents-sticky.css";
 @import "./modules/filters.css";
-@import "./modules/modal.css";
+@import "./modules/modal-core.css";
+@import "./modules/modal-cargo-details.css";
+@import "./modules/page-saas-cargo.css";
+@import "./modules/page-saas-documents.css";
+@import "./modules/page-saas-admin.css";
 @import "./modules/tabbar.css";
 @import "./modules/chat.css";
 @import "./modules/profile-api.css";

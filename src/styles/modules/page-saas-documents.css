@@ -1,0 +1,1216 @@
+/**
+ * Документы — визуал «SaaS analytics» (как у «Грузов»); класс включается из App для всех.
+ */
+.documents-page--saas-analytics {
+    margin-top: 0;
+    padding-top: var(--documents-page-top-gap, 0.85rem);
+    padding-bottom: 0.35rem;
+    border-radius: 0;
+    background: transparent;
+}
+
+.dark-mode .documents-page--saas-analytics {
+    background: transparent;
+}
+
+.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
+    background: var(--color-bg-card);
+    border-radius: 14px;
+    padding: var(--documents-sticky-pad-top, 0.85rem) 0.75rem 0.55rem;
+    margin-top: 0 !important;
+    margin-bottom: var(--documents-sticky-bottom-gap, 1rem) !important;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.05),
+        0 12px 40px rgba(15, 23, 42, 0.06);
+    overflow: visible;
+}
+
+/* Мобильный: карточка «Документы» — зазор под app-header, интервалы между строками, компактные action-кнопки */
+@media (max-width: 768px) {
+    .documents-page--saas-analytics {
+        min-width: 0;
+    }
+
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
+        padding-top: var(--documents-sticky-pad-top, 0.85rem) !important;
+        padding-bottom: 0.55rem !important;
+        margin-top: 0 !important;
+    }
+
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header > :first-child {
+        margin-bottom: 0.85rem !important;
+    }
+
+    .documents-page--saas-analytics .doc-sections-row {
+        margin-bottom: 0.75rem !important;
+    }
+
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .documents-sticky-body .filters-container.filters-row-scroll {
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+    }
+
+    .documents-page--saas-analytics .documents-toolbar-below-sticky {
+        padding-top: 0.55rem;
+    }
+
+    .documents-page--saas-analytics.documents-page--with-sverki-section .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics.documents-page--with-contracts-section .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics.documents-page--with-tariffs-section .documents-toolbar-below-sticky {
+        padding-top: 1rem;
+    }
+}
+
+/* Счета/УПД: контент под липким блоком (empty state, loader) — базовый зазор */
+.documents-page--with-summary-sections .documents-summary-empty-state {
+    display: block;
+    margin-top: 0.85rem;
+    padding-top: 1.5rem !important;
+    padding-bottom: 2rem !important;
+    scroll-margin-top: 220px;
+}
+
+.documents-page--with-summary-sections .documents-summary-section-body > .py-8 {
+    margin-top: 0.75rem;
+    padding-top: 1.25rem;
+}
+
+/* Под строкой фильтров — зазор до KPI; сверху — отступ от вкладок разделов */
+.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .documents-sticky-body .filters-container.filters-row-scroll {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+.documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header .filters-container.filters-row-scroll {
+    margin-top: 0;
+    margin-bottom: 0.55rem;
+}
+.documents-page .cargo-page-sticky-header.documents-page-sticky-header .filters-container.filters-row-scroll {
+    margin-top: 0.3rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Узкий холст / миниапп: до 1024px ловим WebView с шириной > 768 */
+@media (max-width: 1024px) {
+    .documents-page {
+        --documents-page-top-gap: 0.85rem;
+        padding-top: var(--documents-page-top-gap);
+    }
+    .documents-page-sticky-header,
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header {
+        padding-top: var(--documents-sticky-pad-top, 0.85rem) !important;
+    }
+    /* Договоры / Тарифы / Акты сверок: контент ниже липкого блока */
+    .documents-page .doc-section-content {
+        padding-top: 0.75rem;
+    }
+    .documents-page .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics .documents-toolbar-below-sticky {
+        padding-top: 0.35rem;
+    }
+    .documents-page--with-contracts-section .documents-toolbar-below-sticky,
+    .documents-page--with-tariffs-section .documents-toolbar-below-sticky,
+    .documents-page--with-sverki-section .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics.documents-page--with-contracts-section .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics.documents-page--with-tariffs-section .documents-toolbar-below-sticky,
+    .documents-page--saas-analytics.documents-page--with-sverki-section .documents-toolbar-below-sticky {
+        padding-top: 1rem;
+    }
+}
+
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi.documents-summary-card.cargo-card,
+.documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi.cargo-card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0.35rem 0 0.45rem !important;
+    margin-bottom: 0.35rem !important;
+}
+
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics,
+.documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi .summary-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+    gap: 0.55rem;
+    max-width: 100%;
+    width: 100%;
+    align-items: stretch;
+}
+
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div,
+.documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi .summary-metrics > div {
+    position: relative;
+    padding: 0.62rem 0.45rem;
+    border-radius: 12px;
+    background: var(--color-bg-card);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+}
+
+.documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div::before,
+.documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi .summary-metrics > div::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #2563eb, #6366f1, #0ea5e9);
+    opacity: 0.88;
+}
+
+.documents-sendings-table-summary.documents-summary-card.cargo-card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0.35rem 0 0.45rem !important;
+    margin-bottom: 0.65rem !important;
+}
+
+.documents-sendings-table-summary .summary-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+    gap: 0.55rem;
+    max-width: 100%;
+    width: 100%;
+    align-items: stretch;
+}
+
+.documents-sendings-table-summary .summary-metrics > div {
+    position: relative;
+    min-height: 58px;
+    padding: 0.62rem 0.45rem;
+    border-radius: 12px;
+    background: var(--color-bg-card);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+}
+
+.documents-sendings-table-summary .summary-metrics > div::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #2563eb, #6366f1, #0ea5e9);
+    opacity: 0.88;
+}
+
+.documents-sendings-table-summary .summary-metrics > div > :first-child {
+    color: var(--color-text-secondary);
+    font-size: var(--text-xs, 0.6875rem);
+    font-weight: 600;
+    line-height: 1.15;
+    text-align: center;
+}
+
+.documents-sendings-table-summary .summary-metrics > div > :last-child {
+    color: var(--color-text-primary);
+    font-size: var(--text-lg, 1rem);
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+}
+
+.documents-page--saas-analytics .documents-table-offset-desktop > .cargo-card,
+.documents-page--saas-analytics .documents-cards-offset-desktop .cargo-list .cargo-card {
+    border-radius: 14px !important;
+    border: 1px solid rgba(148, 163, 184, 0.2) !important;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
+}
+
+/* ЭДО — монитор: не обрезать бейджи и счётчики в правом углу */
+.documents-edo-monitor-table.cargo-card,
+.documents-edo-monitor-card.cargo-card {
+    overflow: visible;
+}
+
+.documents-edo-monitor-card__header {
+    flex-wrap: wrap;
+}
+
+.documents-edo-monitor-card__customer {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.documents-edo-monitor-card__header-actions {
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+.documents-edo-monitor-card__edo-badges {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* ЭДО — плитки монитора (режим без таблицы) */
+.documents-edo-monitor-cards__intro {
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    margin-bottom: 0.55rem;
+}
+
+.documents-edo-monitor-card__stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+}
+
+@media (min-width: 480px) {
+    .documents-edo-monitor-card__stats {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+.documents-edo-monitor-card__stat {
+    min-width: 0;
+    padding: 0.45rem 0.5rem;
+    border-radius: 10px;
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+}
+
+.documents-edo-monitor-card__stat-label {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--color-text-secondary);
+    margin-bottom: 0.2rem;
+}
+
+.documents-edo-monitor-card__stat-value {
+    font-size: 0.9rem !important;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+}
+
+.documents-edo-monitor-card__invoices {
+    margin-top: 0.65rem;
+    padding-top: 0.65rem;
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.documents-edo-monitor-card__invoice-row {
+    width: 100%;
+    text-align: left;
+    padding: 0.55rem 0.6rem;
+    border-radius: 10px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-primary);
+    cursor: pointer;
+    overflow: visible;
+    box-sizing: border-box;
+}
+
+.documents-edo-monitor-card__invoice-row:hover {
+    background: var(--color-bg-hover);
+}
+
+.documents-edo-monitor-card--totals {
+    cursor: default;
+}
+
+.documents-edo-card-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.15rem;
+    padding: 0.14rem 0.38rem;
+    border-radius: 999px;
+    font-size: 0.58rem;
+    font-weight: 600;
+    line-height: 1.15;
+    white-space: nowrap;
+    flex-shrink: 0;
+    box-sizing: border-box;
+}
+
+.documents-edo-inn-cell__copy {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    padding: 0;
+    margin: 0;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: none;
+    cursor: pointer;
+    border-radius: 0;
+    line-height: 0;
+    color: var(--color-text-secondary);
+    opacity: 0.55;
+    transition: opacity 0.12s ease, color 0.12s ease;
+}
+
+.documents-edo-inn-cell__copy:hover {
+    background: transparent !important;
+    opacity: 1;
+    color: var(--color-text-primary);
+}
+
+.documents-edo-inn-cell__copy:focus-visible {
+    outline: 1px solid var(--color-primary-blue, #0071e3);
+    outline-offset: 1px;
+    opacity: 1;
+}
+
+.documents-edo-inn-cell__copy svg {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+}
+
+.documents-edo-inn-cell__copy--copied {
+    opacity: 1;
+    color: var(--color-success, #22c55e);
+}
+
+@media (max-width: 768px) {
+    .documents-edo-monitor-table.cargo-card,
+    .documents-edo-monitor-card.cargo-card {
+        padding-left: 0.65rem;
+        padding-right: 0.65rem;
+    }
+
+    .documents-edo-monitor-card__header {
+        row-gap: 0.35rem;
+    }
+
+.documents-edo-monitor-card__header-actions {
+    flex-shrink: 0;
+}
+
+    .documents-edo-monitor-table__grid {
+        table-layout: fixed;
+        width: 100%;
+        font-size: 0.64rem !important;
+    }
+
+    .documents-edo-monitor-table__grid thead th {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        white-space: nowrap;
+        font-size: 0.56rem !important;
+        font-weight: 600;
+        line-height: 1.05;
+        padding: 0.22rem 0.1rem !important;
+        height: 3.1rem;
+        vertical-align: bottom;
+        text-align: left;
+    }
+
+    .documents-edo-monitor-table__grid td,
+    .documents-edo-monitor-table__grid th {
+        padding: 0.3rem 0.12rem !important;
+        vertical-align: middle;
+    }
+
+    .documents-edo-monitor-table__grid th:first-child,
+    .documents-edo-monitor-table__grid td:first-child {
+        writing-mode: horizontal-tb;
+        transform: none;
+        height: auto;
+        width: 28%;
+        max-width: 28%;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .documents-edo-monitor-table__grid th:nth-child(2),
+    .documents-edo-monitor-table__grid td:nth-child(2) {
+        writing-mode: horizontal-tb;
+        transform: none;
+        height: auto;
+        width: 18%;
+        max-width: 18%;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .documents-edo-monitor-table__grid th:nth-child(3),
+    .documents-edo-monitor-table__grid td:nth-child(3) {
+        width: 10%;
+        writing-mode: horizontal-tb;
+        transform: none;
+        height: auto;
+        text-align: right;
+    }
+
+    .documents-edo-monitor-table__grid th:nth-child(n + 4),
+    .documents-edo-monitor-table__grid td:nth-child(n + 4) {
+        width: 11%;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .documents-edo-monitor-table__grid .cargo-inner-table__sort-icon,
+    .documents-edo-monitor-table__grid thead th svg {
+        display: none !important;
+    }
+}
+
+/* Главная: компактный монитор здоровья ЭДО */
+.edo-health-monitor {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    width: 100%;
+    min-width: 0;
+    padding: 0.55rem 0.65rem !important;
+    margin-top: 0.75rem;
+    margin-bottom: 0.75rem !important;
+    border-radius: 12px !important;
+    text-align: left;
+    cursor: pointer;
+    border: 1px solid rgba(148, 163, 184, 0.22) !important;
+    background: var(--color-bg-card) !important;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05) !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+button.edo-health-monitor {
+    appearance: none;
+    font: inherit;
+    color: inherit;
+}
+
+.edo-health-monitor:hover {
+    border-color: rgba(59, 130, 246, 0.35) !important;
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.08) !important;
+}
+
+/* Предупреждение — только кольцо/текст, фон как у остальных карточек дашборда */
+.edo-health-monitor--alert {
+    background: var(--color-bg-card) !important;
+}
+
+.edo-health-monitor__loading {
+    width: 100%;
+    min-height: 2.25rem;
+    justify-content: center;
+}
+
+.edo-health-monitor__ring {
+    position: relative;
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
+}
+
+.edo-health-monitor__ring--alert svg circle:last-child {
+    animation: edo-health-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes edo-health-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.72; }
+}
+
+.edo-health-monitor__ring-value {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.58rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+.edo-health-monitor__meta {
+    flex: 0 0 auto;
+    min-width: 3.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+}
+
+.edo-health-monitor__title {
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    line-height: 1.1 !important;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary) !important;
+}
+
+.edo-health-monitor__status {
+    font-size: 0.78rem !important;
+    font-weight: 700 !important;
+    line-height: 1.15 !important;
+}
+
+.edo-health-monitor__hint {
+    font-size: 0.62rem !important;
+    color: var(--color-text-secondary) !important;
+    line-height: 1.1 !important;
+}
+
+.edo-health-monitor__bars {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.35rem;
+}
+
+.edo-health-monitor__micro {
+    min-width: 0;
+}
+
+.edo-health-monitor__micro-label {
+    display: block;
+    font-size: 0.58rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    margin-bottom: 0.12rem;
+    line-height: 1;
+}
+
+.edo-health-monitor__micro-track {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--color-border);
+    overflow: hidden;
+}
+
+.edo-health-monitor__micro-fill {
+    height: 100%;
+    border-radius: 999px;
+    min-width: 0;
+    transition: width 0.35s ease;
+}
+
+.edo-health-monitor__chevron {
+    flex: 0 0 auto;
+    width: 1rem;
+    height: 1rem;
+    color: var(--color-text-secondary);
+    opacity: 0.65;
+}
+
+@media (max-width: 420px) {
+    .edo-health-monitor {
+        flex-wrap: wrap;
+        padding: 0.5rem 0.55rem !important;
+    }
+
+    .edo-health-monitor__bars {
+        flex: 1 1 100%;
+        order: 3;
+    }
+
+    .edo-health-monitor__chevron {
+        margin-left: auto;
+    }
+}
+
+/* Главная: неоплаченные счета × план прибытия на терминал */
+.unpaid-plan-monitor {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    padding: 0.65rem 0.75rem !important;
+    margin-top: 0;
+    margin-bottom: 0.75rem !important;
+    border-radius: 12px !important;
+    text-align: left;
+    cursor: default;
+    border: 1px solid rgba(148, 163, 184, 0.22) !important;
+    background: var(--color-bg-card) !important;
+    box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05) !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.unpaid-plan-monitor--ok {
+    border-color: rgba(16, 185, 129, 0.35) !important;
+    background: rgba(16, 185, 129, 0.06) !important;
+}
+
+.unpaid-plan-monitor__empty-title {
+    font-size: 0.92rem !important;
+    font-weight: 600 !important;
+    color: #10b981 !important;
+    margin: 0.15rem 0 0.25rem !important;
+}
+
+.unpaid-plan-monitor__empty-hint {
+    display: block;
+    font-size: 0.78rem !important;
+    color: var(--color-text-secondary) !important;
+    line-height: 1.4;
+    margin-bottom: 0.35rem;
+}
+
+.unpaid-plan-monitor__head-btn {
+    display: block;
+    width: 100%;
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+}
+
+.unpaid-plan-monitor__head-btn:disabled {
+    cursor: default;
+}
+
+.unpaid-plan-monitor__head-btn:not(:disabled):hover .unpaid-plan-monitor__chevron {
+    color: var(--color-primary-blue);
+}
+
+.entity-link-button:hover {
+    color: var(--color-primary-blue);
+    opacity: 0.9;
+}
+
+/* Оплата счёта по QR */
+.invoice-payment-qr-block {
+    margin-bottom: 0.75rem;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-hover);
+    flex-shrink: 0;
+}
+
+.invoice-payment-qr-block__head {
+    margin-bottom: 0.65rem;
+}
+
+.invoice-payment-qr-block__title {
+    font-size: 0.95rem !important;
+    font-weight: 600 !important;
+    margin: 0 !important;
+}
+
+.invoice-payment-qr-block__loading {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+}
+
+.invoice-payment-qr-block__error {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--color-error);
+}
+
+.invoice-payment-qr-block__body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.invoice-payment-qr-block__qr-wrap {
+    flex-shrink: 0;
+    padding: 0.5rem;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+}
+
+.invoice-payment-qr-block__qr {
+    display: block;
+    width: 200px;
+    height: 200px;
+    max-width: 100%;
+    object-fit: contain;
+    border-radius: 6px;
+    background: #fff;
+}
+
+.invoice-payment-qr-block__details {
+    flex: 1;
+    min-width: min(100%, 14rem);
+}
+
+.invoice-payment-qr-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+    gap: 0.45rem;
+    margin-bottom: 0.65rem;
+}
+
+.invoice-payment-qr-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-card);
+}
+
+.invoice-payment-qr-tile--accent {
+    border-color: rgba(37, 99, 235, 0.35);
+    background: rgba(37, 99, 235, 0.06);
+}
+
+.invoice-payment-qr-tile__label {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--color-text-secondary);
+    line-height: 1.3;
+    word-spacing: normal;
+    white-space: normal;
+}
+
+.invoice-payment-qr-tile__value {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    line-height: 1.35;
+    word-spacing: normal;
+    white-space: normal;
+}
+
+.invoice-payment-qr-meta {
+    margin: 0 0 0.45rem;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--color-text-secondary);
+    word-spacing: normal;
+    white-space: normal;
+}
+
+.invoice-payment-qr-meta__label {
+    color: var(--color-text-secondary);
+}
+
+.invoice-payment-qr-meta__value {
+    color: var(--color-text-primary);
+    font-weight: 500;
+}
+
+.invoice-payment-qr-purpose {
+    margin: 0 0 0.5rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 8px;
+    border: 1px dashed var(--color-border);
+    font-size: 0.76rem;
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+    word-spacing: normal;
+    white-space: normal;
+}
+
+.invoice-payment-qr-hint {
+    margin: 0 0 0.65rem;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+    word-spacing: normal;
+    white-space: normal;
+}
+
+.bank-business-pay-row {
+    margin-top: 0.25rem;
+    padding-top: 0.65rem;
+    border-top: 1px dashed var(--color-border);
+}
+
+.bank-business-pay-row__label {
+    display: block;
+    margin: 0 0 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    letter-spacing: 0.02em;
+}
+
+.bank-business-pay-card {
+    display: block;
+    flex: 1 1 0;
+    min-width: 0;
+    width: 100%;
+    max-width: 168px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    border-radius: 10px;
+    background: #ffffff !important;
+    cursor: pointer;
+    overflow: hidden;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+
+.dark-mode .bank-business-pay-card {
+    background: #ffffff !important;
+}
+
+.bank-business-pay-card:hover {
+    border-color: rgba(37, 99, 235, 0.4);
+    box-shadow: 0 2px 10px rgba(37, 99, 235, 0.1);
+    transform: translateY(-1px);
+}
+
+.bank-business-pay-card--sber {
+    border-color: rgba(33, 160, 56, 0.45);
+}
+
+.bank-business-pay-card--tbank {
+    border-color: rgba(255, 193, 7, 0.65);
+}
+
+.bank-business-pay-card--alfa {
+    border-color: rgba(239, 49, 36, 0.45);
+}
+
+.bank-business-pay-card--vtb {
+    border-color: rgba(0, 70, 187, 0.45);
+}
+
+.bank-business-pay-card--tbank:hover {
+    border-color: rgba(255, 193, 7, 0.9);
+    box-shadow: 0 2px 10px rgba(255, 193, 7, 0.25);
+}
+
+.bank-business-pay-card--sber:hover {
+    border-color: rgba(33, 160, 56, 0.65);
+    box-shadow: 0 2px 10px rgba(33, 160, 56, 0.15);
+}
+
+.bank-business-pay-card--alfa:hover {
+    border-color: rgba(239, 49, 36, 0.65);
+    box-shadow: 0 2px 10px rgba(239, 49, 36, 0.15);
+}
+
+.bank-business-pay-card--vtb:hover {
+    border-color: rgba(0, 70, 187, 0.65);
+    box-shadow: 0 2px 10px rgba(0, 70, 187, 0.15);
+}
+
+.bank-business-pay-card__label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    padding: 0 0.35rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1.15;
+    text-align: center;
+    letter-spacing: -0.02em;
+}
+
+.bank-business-pay-card--sber .bank-business-pay-card__label {
+    color: #21a038;
+}
+
+.bank-business-pay-card--tbank .bank-business-pay-card__label {
+    color: #1a1a1a;
+}
+
+.bank-business-pay-card--alfa .bank-business-pay-card__label {
+    color: #ef3124;
+}
+
+.bank-business-pay-card--vtb .bank-business-pay-card__label {
+    color: #0046bb;
+}
+
+.bank-business-pay-row__buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    align-items: stretch;
+    margin-bottom: 0.45rem;
+    max-width: 100%;
+}
+
+.bank-business-pay-row__hint {
+    display: block !important;
+    margin: 0 !important;
+    font-size: 0.68rem !important;
+    color: var(--color-text-secondary) !important;
+    line-height: 1.5 !important;
+    word-spacing: normal !important;
+    white-space: normal !important;
+}
+
+button.unpaid-plan-monitor {
+    appearance: none;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+button.unpaid-plan-monitor:hover {
+    border-color: rgba(59, 130, 246, 0.35) !important;
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.08) !important;
+}
+
+.unpaid-plan-monitor--alert {
+    background: var(--color-bg-card) !important;
+}
+
+.unpaid-plan-monitor__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.unpaid-plan-monitor__title {
+    font-size: 0.88rem !important;
+    font-weight: 600 !important;
+    line-height: 1.25;
+}
+
+.unpaid-plan-monitor__subtitle {
+    display: block;
+    font-size: 0.72rem !important;
+    color: var(--color-text-secondary) !important;
+    margin-top: 0.12rem;
+    line-height: 1.35;
+}
+
+.unpaid-plan-monitor__chevron {
+    flex-shrink: 0;
+    margin-top: 0.15rem;
+    color: var(--color-text-secondary);
+    opacity: 0.65;
+}
+
+.unpaid-plan-monitor__loading {
+    min-height: 2rem;
+    justify-content: center;
+}
+
+.unpaid-plan-monitor__table-wrap {
+    overflow-x: auto;
+    overflow-y: auto;
+}
+
+.unpaid-plan-monitor__table-wrap--scroll {
+    max-height: min(22rem, 55vh);
+}
+
+.unpaid-plan-monitor__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+}
+
+.unpaid-plan-monitor__table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--color-bg-hover);
+    padding: 0.35rem 0.4rem;
+    text-align: left;
+    font-weight: 600;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.unpaid-plan-monitor__table td {
+    padding: 0.35rem 0.4rem;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: top;
+    max-width: 10rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.unpaid-plan-monitor__col-status {
+    white-space: normal;
+    max-width: 7.5rem;
+}
+
+.unpaid-plan-monitor__col-status .app-badge {
+    white-space: normal;
+    line-height: 1.25;
+}
+
+.unpaid-plan-monitor__col-cargo {
+    white-space: nowrap;
+    max-width: 6.5rem;
+}
+
+.unpaid-plan-monitor__col-plan-arrival {
+    white-space: nowrap;
+    max-width: 9rem;
+}
+
+@media (max-width: 768px) {
+    .unpaid-plan-monitor__col-plan-arrival {
+        display: none;
+    }
+
+    .unpaid-plan-monitor__table th.unpaid-plan-monitor__col-plan-arrival,
+    .unpaid-plan-monitor__table td.unpaid-plan-monitor__col-plan-arrival {
+        display: none;
+    }
+}
+
+.unpaid-plan-monitor__more {
+    display: block;
+    width: 100%;
+    margin-top: 0.35rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--color-primary-blue);
+    text-align: left;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.unpaid-plan-monitor__more:hover {
+    opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .edo-health-monitor__ring--alert svg circle:last-child {
+        animation: none;
+    }
+
+    .documents-page--saas-analytics .cargo-page-sticky-header.documents-page-sticky-header,
+    .documents-page--saas-analytics .documents-summary-totals--saas-kpi .summary-metrics > div,
+    .documents-page--saas-analytics .documents-edo-summary-tiles.documents-summary-totals--saas-kpi .summary-metrics > div {
+        box-shadow: none;
+    }
+}
+
+/* ЭДО: плитки итогов на мобиле (как у «Счета») */
+@media (max-width: 768px) {
+    .documents-page--with-edo-section .documents-edo-summary-tiles .summary-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.55rem;
+        max-width: 100%;
+        width: 100%;
+        align-items: stretch;
+    }
+
+    .documents-page--with-edo-section .documents-edo-summary-tiles .summary-metrics > div {
+        position: relative;
+        padding: 0.62rem 0.45rem;
+        border-radius: 12px;
+        background: var(--color-bg-card);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+        overflow: hidden;
+    }
+
+    .documents-page--with-edo-section .documents-edo-summary-tiles .summary-metrics > div::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #2563eb, #6366f1, #0ea5e9);
+        opacity: 0.88;
+    }
+
+    .documents-page--with-edo-section .documents-edo-summary-tiles:not(.documents-summary-totals--saas-kpi).cargo-card {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0.35rem 0 0.45rem !important;
+    }
+
+    .documents-edo-summary-tiles--table-companion + .documents-edo-monitor-table tfoot {
+        display: none;
+    }
+}
+
+@media (min-width: 769px) {
+    .documents-edo-summary-tiles--table-companion {
+        display: none !important;
+    }
+}
+
+@media (min-width: 1025px) {
+    /* Немного больше воздуха под липким блоком в SaaS-оболочке (кроме Счета/УПД с KPI) */
+    .documents-page--saas-analytics:not(.documents-page--with-summary-sections):not(.documents-page--with-edo-section):not(.documents-page--with-tariffs-section):not(.documents-page--with-orders-section):not(.documents-page--with-sendings-section):not(.documents-page--with-contracts-section) .documents-table-offset-desktop,
+    .documents-page--saas-analytics:not(.documents-page--with-summary-sections):not(.documents-page--with-edo-section):not(.documents-page--with-tariffs-section):not(.documents-page--with-orders-section):not(.documents-page--with-sendings-section):not(.documents-page--with-contracts-section) .documents-cards-offset-desktop {
+        margin-top: 0.65rem;
+    }
+}
+
+/* Документы — табличные разделы (тарифы, акты сверок, договоры, претензии и т.д.) */
+.documents-page .doc-section-content {
+    padding-top: 0.9rem;
+}
+.documents-page--saas-analytics .doc-section-content {
+    padding-top: 1rem;
+    padding-left: 0.15rem;
+    padding-right: 0.15rem;
+}
+
+.documents-page--saas-analytics .doc-section-table-wrap {
+    border-radius: 14px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+    background: var(--color-bg-card);
+}
+
+.documents-page--saas-analytics .doc-contracts-table-offset-desktop .doc-section-table-wrap {
+    border-radius: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .documents-page--saas-analytics .doc-section-table-wrap {
+        box-shadow: none;
+    }
+}
+
+/* Заявки на расходы и Wildberries — без промежуточного холста, только фон страницы и карточки */
+.profile-saas-shell .expense-requests-shell {
+    padding: 0.85rem 1rem 1.25rem;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.profile-saas-shell .wb-page.wb-page--saas-analytics-shell {
+    padding: 0.85rem 1rem 1.25rem;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .profile-saas-shell .expense-requests-shell,
+    .profile-saas-shell .wb-page.wb-page--saas-analytics-shell {
+        box-shadow: none;
+    }
+}
