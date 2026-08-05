@@ -28,6 +28,7 @@ import { getSumColorByPaymentStatus } from "../../../lib/statusUtils";
 import { cargoExpandMotionProps, cargoListContainerVariants, cargoTableGroupRowVariants, documentsListItemVariants } from "../../../pages/cargoMotion";
 import { findInvoiceLinkedToAct, getItemInn, type DocsSummaryTotals, type EdoCargoCardItem } from "../lib/documentsPipeline";
 import { innIsEdoPartner } from "../../../lib/edoCounterpartyStatus";
+import { DocumentsEdoCardBadge, DocumentsEdoPartnerBadge } from "./documentsEdoViewBlocks";
 function invoicePaymentBadgeStyle(st: string): { bg: string; color: string } {
   if (st === "Оплачен") return { bg: "rgba(34, 197, 94, 0.2)", color: "#22c55e" };
   if (st === "Оплачен частично") return { bg: "rgba(234, 179, 8, 0.2)", color: "#ca8a04" };
