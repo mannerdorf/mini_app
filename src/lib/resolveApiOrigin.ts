@@ -45,9 +45,7 @@ export function resolveApiOrigin(): string {
   const envOrigin = normalizeApiOrigin(String(import.meta.env.VITE_API_ORIGIN || ""));
   if (envOrigin) return envOrigin;
   if (typeof window !== "undefined" && !isCapacitorNative()) {
-    const pageOrigin = normalizeOrigin(window.location.origin);
-    if (isStaticFrontendOrigin(pageOrigin)) return FALLBACK_API_ORIGIN;
-    return pageOrigin;
+    return normalizeOrigin(window.location.origin);
   }
   return FALLBACK_API_ORIGIN;
 }

@@ -10,7 +10,9 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
-ARG VITE_API_ORIGIN=https://api.haulz.ru
+# Пусто = same-origin /api на haulz.ru (nginx в этом образе проксирует на VPS :80).
+# Не задавайте VITE_API_ORIGIN=https://api.haulz.ru в панели Timeweb — мобильный TLS к :443 флапает.
+ARG VITE_API_ORIGIN=
 ENV VITE_API_ORIGIN=$VITE_API_ORIGIN
 RUN npm run build
 

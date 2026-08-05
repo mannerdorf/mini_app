@@ -161,9 +161,9 @@ const resolveApiOrigin = (): string => {
   const envOrigin = normalizeApiOrigin(String(import.meta.env.VITE_API_ORIGIN || ""));
   if (envOrigin) return envOrigin;
   if (typeof window !== "undefined" && !isCapacitorNative()) {
-    const pageOrigin = normalizeOrigin(window.location.origin);
-    if (isStaticFrontendOrigin(pageOrigin)) return FALLBACK_API_ORIGIN;
-    return pageOrigin;
+    // Web (в т.ч. haulz.ru): same-origin /api. На Timeweb nginx проксирует /api → VPS :80
+    // и обходит флапающий TLS api.haulz.ru:443 (мобильный спиннер / ERR_TIMED_OUT).
+    return normalizeOrigin(window.location.origin);
   }
   return FALLBACK_API_ORIGIN;
 };
