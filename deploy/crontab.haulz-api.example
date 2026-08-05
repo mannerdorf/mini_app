@@ -1,21 +1,29 @@
 # Crontab для VPS (api.haulz.ru / localhost:3000)
 #
+# ВАЖНО: все cron-задачи идут в тот же Node-процесс, что и API.
+# Не запускайте refresh-cache каждые 5 минут параллельно — API «зависнет» на 1–3 минуты.
+#
 # 1. Скопировать скрипт:
 #    sudo cp /opt/haulz/app/deploy/cron-call.sh /opt/haulz/cron-call.sh
 #    sudo chmod +x /opt/haulz/cron-call.sh
 #
-# 2. Открыть crontab:
+# 2. В .env на VPS (рекомендуется после миграции normalized cache):
+#    CACHE_REFRESH_SKIP_BLOB=1
+#
+# 3. Открыть crontab:
 #    sudo crontab -e
 #
-# 3. Вставить блок ниже (nano: Ctrl+O, Enter, Ctrl+X)
+# 4. Вставить блок ниже (nano: Ctrl+O, Enter, Ctrl+X)
 
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-*/5 * * * * /opt/haulz/cron-call.sh /api/cron/refresh-cache
-0 1,7,13,19 * * * /opt/haulz/cron-call.sh /api/cron/refresh-cache-deep
-*/5 * * * * /opt/haulz/cron-call.sh /api/cron/backfill-sendings-metrics
-*/15 * * * * /opt/haulz/cron-call.sh /api/cron/refresh-orders-cache
+# refresh-cache: раз в 10 минут, сдвиг по минутам (не на :00/:05/:10)
+1,11,21,31,41,51 * * * * /opt/haulz/cron-call.sh /api/cron/refresh-cache
+0 2,8,14,20 * * * /opt/haulz/cron-call.sh /api/cron/refresh-cache-deep
+*/10 * * * * /opt/haulz/cron-call.sh /api/cron/backfill-sendings-metrics
+# refresh-orders-cache отключён — 1C часто не отвечает, блокирует API на 5+ минут
+# */15 * * * * /opt/haulz/cron-call.sh /api/cron/refresh-orders-cache
 */15 * * * * /opt/haulz/cron-call.sh /api/cron/refresh-suppliers-cache
 */5 * * * * /opt/haulz/cron-call.sh /api/cron/process-claim-push-queue
 0 * * * * /opt/haulz/cron-call.sh /api/notification-poll
