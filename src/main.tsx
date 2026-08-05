@@ -15,7 +15,7 @@ import "./design-tokens.css";
 import "./styles.css";
 import "./components/shipment-status.css";
 import "./styles/haulz-calculator.css";
-import { clearChunkReloadState, reloadForStaleChunks } from "./lib/chunkLoadRecovery";
+import { clearChunkReloadState, isChunkLoadError, reloadForStaleChunks } from "./lib/chunkLoadRecovery";
 import { PARTNER_API_PUBLIC_ORIGIN } from "./constants/partnerApi";
 
 const swrConfig = {
@@ -220,6 +220,13 @@ if (typeof window !== "undefined") {
   window.addEventListener("vite:preloadError", (event) => {
     event.preventDefault();
     reloadForStaleChunks("vite:preloadError");
+  });
+
+  window.addEventListener("unhandledrejection", (event) => {
+    if (isChunkLoadError(event.reason)) {
+      event.preventDefault();
+      reloadForStaleChunks("unhandledrejection");
+    }
   });
 }
 

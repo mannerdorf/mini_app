@@ -13,7 +13,9 @@ export function isChunkLoadError(error: unknown): boolean {
     /Failed to fetch dynamically imported module/i.test(message) ||
     /Importing a module script failed/i.test(message) ||
     /Loading chunk [\d]+ failed/i.test(message) ||
-    /error loading dynamically imported module/i.test(message)
+    /error loading dynamically imported module/i.test(message) ||
+    /not a valid JavaScript MIME type/i.test(message) ||
+    /expected a JavaScript module script/i.test(message)
   );
 }
 

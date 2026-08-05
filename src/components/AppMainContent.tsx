@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from "react";
+import React, { Suspense } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { Loader2, Package } from "lucide-react";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -12,12 +12,15 @@ import { useSupportBotLinks } from "../hooks/useSupportBotLinks";
 import { WB_TAB } from "../wb/appWb";
 import type { Account, Tab } from "../types";
 import { isChunkLoadError, reloadForStaleChunks } from "../lib/chunkLoadRecovery";
+import { lazyWithRetry } from "../lib/lazyWithRetry";
 
-const ExpenseRequestsPage = lazy(() =>
-  import("../pages/ExpenseRequestsPage").then((m) => ({ default: m.ExpenseRequestsPage })),
+const ExpenseRequestsPage = lazyWithRetry(
+  () => import("../pages/ExpenseRequestsPage").then((m) => ({ default: m.ExpenseRequestsPage })),
+  "ExpenseRequestsPage",
 );
-const WildberriesPage = lazy(() =>
-  import("../pages/WildberriesPage").then((m) => ({ default: m.WildberriesPage })),
+const WildberriesPage = lazyWithRetry(
+  () => import("../pages/WildberriesPage").then((m) => ({ default: m.WildberriesPage })),
+  "WildberriesPage",
 );
 
 type Props = {
