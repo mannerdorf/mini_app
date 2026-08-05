@@ -9,6 +9,7 @@ import {
 import { respondCorsPreflight } from "./_lib/cors.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import { liveInTransitHoursFromMetrics } from "../lib/transitDateTime.js";
+import { readDocumentsFromCacheByPeriod } from "../lib/documentCacheRead.js";
 
 const BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
@@ -243,27 +244,36 @@ export async function readRegisteredSendingsFromCache(
   serviceMode: unknown,
 ): Promise<any[]> {
   try {
-    let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-      "SELECT data, fetched_at FROM cache_sendings WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
-      [CACHE_FRESH_MINUTES],
-    );
-    if (cacheRow.rows.length === 0) {
-      cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-        "SELECT data, fetched_at FROM cache_sendings WHERE id = 1",
+    const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+    const isService = !!serviceMode;
+    let filterInns: Set<string> | null = null;
+    if (!isService && !verified.accessAllInns) {
+      const acRows = await pool.query<{ inn: string }>(
+        "SELECT inn FROM account_companies WHERE login = $1",
+        [String(login).trim().toLowerCase()],
       );
+      const allowed = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
+      if (verified.inn?.trim()) allowed.add(verified.inn.trim());
+      filterInns = allowed.size > 0 ? allowed : verified.inn ? new Set([verified.inn]) : null;
     }
-    if (cacheRow.rows.length === 0) return [];
-    const list = Array.isArray(cacheRow.rows[0].data) ? (cacheRow.rows[0].data as any[]) : [];
-    const filtered = await filterRegisteredSendingsList(
-      pool,
-      verified,
-      login,
-      dateFrom,
-      dateTo,
-      inn,
-      serviceMode,
-      list,
-    );
+    const finalInns = isService
+      ? null
+      : filterInns === null
+        ? requestedInn
+          ? new Set([requestedInn])
+          : null
+        : requestedInn
+          ? filterInns.has(requestedInn)
+            ? new Set([requestedInn])
+            : new Set<string>()
+          : filterInns;
+
+    const { items, fromNormalized } = await readDocumentsFromCacheByPeriod(pool, "sendings", dateFrom, dateTo, {
+      inns: finalInns,
+    });
+    const filtered = fromNormalized
+      ? items
+      : await filterRegisteredSendingsList(pool, verified, login, dateFrom, dateTo, inn, serviceMode, items);
     return attachMetricsToSendings(pool, filtered);
   } catch {
     return [];
@@ -359,35 +369,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (useDocumentCache) try {
     const pool = getPool();
-    let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-      "SELECT data, fetched_at FROM cache_sendings WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
-      [CACHE_FRESH_MINUTES]
-    );
-    if (cacheRow.rows.length === 0) {
-      cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-        "SELECT data, fetched_at FROM cache_sendings WHERE id = 1"
+    const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+    const isService = !!serviceMode;
+    let finalInns: Set<string> | null = null;
+    if (!isService) {
+      const userInnsRow = await pool.query<{ inn: string }>(
+        "SELECT inn FROM account_companies WHERE login = $1",
+        [String(login).trim().toLowerCase()],
       );
+      const allowed = new Set(userInnsRow.rows.map((r) => r.inn.trim()).filter(Boolean));
+      finalInns = requestedInn
+        ? allowed.has(requestedInn)
+          ? new Set([requestedInn])
+          : new Set<string>()
+        : allowed;
     }
-    if (cacheRow.rows.length > 0) {
-      const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
-      const isService = !!serviceMode;
-      let finalInns: Set<string> | null = null;
-      if (!isService) {
-        const userInnsRow = await pool.query<{ inn: string }>(
-          "SELECT inn FROM account_companies WHERE login = $1",
-          [String(login).trim().toLowerCase()]
-        );
-        const allowed = new Set(userInnsRow.rows.map((r) => r.inn.trim()).filter(Boolean));
-        finalInns = requestedInn
-          ? (allowed.has(requestedInn) ? new Set([requestedInn]) : new Set<string>())
-          : allowed;
-      }
-      const list = Array.isArray(cacheRow.rows[0].data) ? (cacheRow.rows[0].data as any[]) : [];
-      const filtered = filterCachedItems(list, finalInns);
-      const withMetrics = await attachMetricsToSendings(pool, filtered);
-      if (isService || (finalInns && finalInns.size > 0)) {
-        return res.status(200).json(withMetrics);
-      }
+    const { items, fromNormalized } = await readDocumentsFromCacheByPeriod(pool, "sendings", dateFrom, dateTo, {
+      inns: isService ? null : finalInns,
+    });
+    const filtered = fromNormalized ? items : filterCachedItems(items, finalInns);
+    const withMetrics = await attachMetricsToSendings(pool, filtered);
+    if (isService || (finalInns && finalInns.size > 0)) {
+      return res.status(200).json(withMetrics);
     }
   } catch {
     // Fallback to upstream

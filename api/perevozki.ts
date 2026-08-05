@@ -15,6 +15,11 @@ import { getAdminTokenFromRequest, getAdminTokenPayload, verifyAdminToken } from
 import { fetchWithTimeout, upstreamTimeoutMessage } from "../lib/fetchWithTimeout.js";
 import { preferCacheOnlyOnVercel } from "../lib/vercelRuntime.js";
 import { isCargoInDateRangeForField, type CargoDateField } from "../lib/cargoDateFilter.js";
+import {
+  innColumnForPerevozkiMode,
+  readDocumentsFromCacheByPeriod,
+  readPerevozkiByNumbersFromCache,
+} from "../lib/documentCacheRead.js";
 
 function parseCargoDateField(raw: unknown): CargoDateField {
   const v = String(raw ?? "").trim().toLowerCase();
@@ -139,19 +144,7 @@ export async function readPerevozkiFromCacheByNumbers(
   pool: Pool,
   numbers: string[],
 ): Promise<any[]> {
-  const wanted = new Set(
-    numbers
-      .map((n) => normalizeCargoNumberForLookup(n))
-      .filter(Boolean),
-  );
-  if (wanted.size === 0) return [];
-
-  let cacheRow = await pool.query<{ data: unknown[] }>(
-    "SELECT data FROM cache_perevozki WHERE id = 1",
-  );
-  if (cacheRow.rows.length === 0) return [];
-  const list = Array.isArray(cacheRow.rows[0].data) ? (cacheRow.rows[0].data as any[]) : [];
-  return list.filter((item) => wanted.has(perevozkiItemNumber(item)));
+  return readPerevozkiByNumbersFromCache(pool, numbers);
 }
 
 function mergePerevozkiByNumber(primary: any[], extra: any[]): any[] {
@@ -221,16 +214,6 @@ export async function readRegisteredPerevozkiFromCache(
   dateField: CargoDateField = "default",
 ): Promise<any[]> {
   try {
-    let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-      "SELECT data, fetched_at FROM cache_perevozki WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
-      [CACHE_FRESH_MINUTES],
-    );
-    if (cacheRow.rows.length === 0) {
-      cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-        "SELECT data, fetched_at FROM cache_perevozki WHERE id = 1",
-      );
-    }
-    if (cacheRow.rows.length === 0) return [];
     let allowedInnsFromDb: Set<string> | undefined;
     if (!serviceMode && !verified.accessAllInns) {
       const acRows = await pool.query<{ inn: string }>(
@@ -239,10 +222,35 @@ export async function readRegisteredPerevozkiFromCache(
       );
       allowedInnsFromDb = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
     }
-    const data = cacheRow.rows[0].data as any[];
-    const list = Array.isArray(data) ? data : [];
+    const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+    const isServiceMode = !!serviceMode;
+    let filterInns: Set<string> | null = null;
+    if (!isServiceMode && !verified.accessAllInns) {
+      const allowed = new Set(allowedInnsFromDb ?? []);
+      if (verified.inn?.trim()) allowed.add(verified.inn.trim());
+      filterInns = allowed.size > 0 ? allowed : verified.inn ? new Set([verified.inn]) : null;
+    }
+    const finalInns = isServiceMode
+      ? null
+      : filterInns === null
+        ? requestedInn
+          ? new Set([requestedInn])
+          : null
+        : requestedInn
+          ? filterInns.has(requestedInn)
+            ? new Set([requestedInn])
+            : new Set<string>()
+          : filterInns;
+
+    const { items, fromNormalized } = await readDocumentsFromCacheByPeriod(pool, "perevozki", dateFrom, dateTo, {
+      dateField,
+      inns: finalInns,
+      innColumn: innColumnForPerevozkiMode(mode),
+    });
+    if (fromNormalized) return items;
+
     return filterPerevozkiListForRegistered(
-      list,
+      items,
       verified,
       login,
       dateFrom,
@@ -316,21 +324,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   ) {
     try {
       const pool = getPool();
-      let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-        "SELECT data, fetched_at FROM cache_perevozki WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
-        [CACHE_FRESH_MINUTES]
-      );
-      if (cacheRow.rows.length === 0) {
-        cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-          "SELECT data, fetched_at FROM cache_perevozki WHERE id = 1"
-        );
-      }
-      if (cacheRow.rows.length === 0) {
-        return res.status(200).json([]);
-      }
-      const data = cacheRow.rows[0].data as any[];
-      const list = Array.isArray(data) ? data : [];
-      const filtered = list.filter((item) =>
+      const { items } = await readDocumentsFromCacheByPeriod(pool, "perevozki", dateFrom, dateTo, { dateField });
+      const filtered = items.filter((item) =>
         isCargoInDateRangeForField(item, dateFrom, dateTo, dateField),
       );
       return res.status(200).json(Array.isArray(filtered) ? filtered : []);
@@ -383,39 +378,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (useDocumentCache && (serviceMode || canUseRoleAgnosticCache)) {
     try {
       const pool = getPool();
-      let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-        "SELECT data, fetched_at FROM cache_perevozki WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
-        [CACHE_FRESH_MINUTES]
-      );
-      if (cacheRow.rows.length === 0) {
-        cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-          "SELECT data, fetched_at FROM cache_perevozki WHERE id = 1"
+      const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+      let filterInns: Set<string> | null = null;
+      if (!serviceMode) {
+        const userInnsRow = await pool.query<{ inn: string }>(
+          "SELECT inn FROM account_companies WHERE login = $1",
+          [String(login).trim().toLowerCase()],
         );
+        const allowedInns = new Set(userInnsRow.rows.map((r) => r.inn.trim()).filter(Boolean));
+        filterInns = requestedInn
+          ? allowedInns.has(requestedInn)
+            ? new Set([requestedInn])
+            : new Set<string>()
+          : allowedInns;
       }
-      if (cacheRow.rows.length > 0) {
-        const data = cacheRow.rows[0].data as any[];
-        const list = Array.isArray(data) ? data : [];
+      const { items, fromNormalized } = await readDocumentsFromCacheByPeriod(pool, "perevozki", dateFrom, dateTo, {
+        dateField,
+        inns: serviceMode ? null : filterInns,
+        innColumn: innColumnForPerevozkiMode(mode),
+      });
+      if (items.length > 0 || fromNormalized) {
         if (serviceMode) {
-          const filtered = list.filter((item) =>
+          const filtered = items.filter((item) =>
             isCargoInDateRangeForField(item, dateFrom, dateTo, dateField),
           );
           return res.status(200).json(Array.isArray(filtered) ? filtered : []);
         }
-        const userInnsRow = await pool.query<{ inn: string }>(
-          "SELECT inn FROM account_companies WHERE login = $1",
-          [String(login).trim().toLowerCase()]
-        );
-        const allowedInns = new Set(userInnsRow.rows.map((r) => r.inn.trim()).filter(Boolean));
-        const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
-        const filterInns = requestedInn
-          ? (allowedInns.has(requestedInn) ? new Set([requestedInn]) : new Set<string>())
-          : allowedInns;
-        if (filterInns.size > 0) {
-          const filtered = list.filter((item) => {
-            const itemInnVal = itemInn(item, mode);
-            if (!filterInns.has(itemInnVal)) return false;
-            return isCargoInDateRangeForField(item, dateFrom, dateTo, dateField);
-          });
+        if (filterInns && filterInns.size > 0) {
+          const filtered = fromNormalized
+            ? items
+            : items.filter((item) => {
+                const itemInnVal = itemInn(item, mode);
+                if (!filterInns!.has(itemInnVal)) return false;
+                return isCargoInDateRangeForField(item, dateFrom, dateTo, dateField);
+              });
           return res.status(200).json(Array.isArray(filtered) ? filtered : []);
         }
       }

@@ -10,6 +10,7 @@ import {
 import { handleHaulzSummarySandboxRequest, isHaulzSummarySandboxAction } from "../lib/haulzSummarySandboxApi.js";
 import { fetchWithTimeout, upstreamTimeoutMessage } from "../lib/fetchWithTimeout.js";
 import { preferCacheOnlyOnVercel } from "../lib/vercelRuntime.js";
+import { readDocumentsFromCacheByPeriod } from "../lib/documentCacheRead.js";
 
 /**
  * Прокси для GetIinvoices: счета.
@@ -103,19 +104,31 @@ export async function readRegisteredInvoicesFromCache(
   inn: unknown,
 ): Promise<any[]> {
   try {
-    let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-      "SELECT data, fetched_at FROM cache_invoices WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
-      [CACHE_FRESH_MINUTES],
-    );
-    if (cacheRow.rows.length === 0) {
-      cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-        "SELECT data, fetched_at FROM cache_invoices WHERE id = 1",
+    let filterInns: Set<string> | null = null;
+    if (!verified.accessAllInns) {
+      const acRows = await pool.query<{ inn: string }>(
+        "SELECT inn FROM account_companies WHERE login = $1",
+        [String(login).trim().toLowerCase()],
       );
+      const allowed = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
+      if (verified.inn?.trim()) allowed.add(verified.inn.trim());
+      filterInns = allowed.size > 0 ? allowed : verified.inn ? new Set([verified.inn]) : null;
     }
-    if (cacheRow.rows.length === 0) return [];
-    const data = cacheRow.rows[0].data as any[];
-    const list = Array.isArray(data) ? data : [];
-    return filterInvoicesForRegisteredUser(pool, verified, login, inn, dateFrom, dateTo, list);
+    const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+    const finalInns =
+      filterInns === null
+        ? null
+        : requestedInn
+          ? filterInns.has(requestedInn)
+            ? new Set([requestedInn])
+            : new Set<string>()
+          : filterInns;
+
+    const { items, fromNormalized } = await readDocumentsFromCacheByPeriod(pool, "invoices", dateFrom, dateTo, {
+      inns: finalInns,
+    });
+    if (fromNormalized) return items;
+    return filterInvoicesForRegisteredUser(pool, verified, login, inn, dateFrom, dateTo, items);
   } catch {
     return [];
   }
@@ -178,45 +191,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!useDocumentCache) {
         // Период старше окна кэша — ниже прямой запрос в 1С через сервисный аккаунт.
       } else {
-      let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-        "SELECT data, fetched_at FROM cache_invoices WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
-        [CACHE_FRESH_MINUTES]
-      );
-      if (cacheRow.rows.length === 0) {
-        cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-          "SELECT data, fetched_at FROM cache_invoices WHERE id = 1"
-        );
-      }
-      if (cacheRow.rows.length > 0) {
-        let filterInns: Set<string> | null = null;
-        if (!verified.accessAllInns) {
-          const acRows = await pool.query<{ inn: string }>(
-            "SELECT inn FROM account_companies WHERE login = $1",
-            [String(login).trim().toLowerCase()]
-          );
-          const allowed = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
-          if (verified.inn?.trim()) allowed.add(verified.inn.trim());
-          filterInns = allowed.size > 0 ? allowed : (verified.inn ? new Set([verified.inn]) : null);
-        }
-        const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
-        const finalInns = filterInns === null
-          ? null
-          : requestedInn
-            ? (filterInns.has(requestedInn) ? new Set([requestedInn]) : new Set<string>())
-            : filterInns;
-        const data = cacheRow.rows[0].data as any[];
-        const list = Array.isArray(data) ? data : [];
-        const filtered = list.filter((item) => {
-          if (finalInns !== null) {
-            const itemInnVal = invoiceInn(item);
-            if (!finalInns.has(itemInnVal)) return false;
-          }
-          const d = invoiceDate(item);
-          return d >= dateFrom && d <= dateTo;
-        });
+        const filtered = await readRegisteredInvoicesFromCache(pool, verified, login, dateFrom, dateTo, inn);
         return res.status(200).json(Array.isArray(filtered) ? filtered : []);
-      }
-      return res.status(200).json([]);
       }
     } catch (e) {
       logError(ctx, "invoices_registered_user_failed", e);
@@ -227,43 +203,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Быстрый путь: cache_invoices (последние CACHE_HISTORY_DAYS дн.; старше — 1С ниже).
   if (useDocumentCache) try {
     const pool = getPool();
-    let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-      "SELECT data, fetched_at FROM cache_invoices WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
-      [CACHE_FRESH_MINUTES]
-    );
-    if (cacheRow.rows.length === 0) {
-      cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-        "SELECT data, fetched_at FROM cache_invoices WHERE id = 1"
-      );
+    if (serviceMode) {
+      const { items } = await readDocumentsFromCacheByPeriod(pool, "invoices", dateFrom, dateTo);
+      const filtered = items.filter((item) => {
+        const d = invoiceDate(item);
+        return d >= dateFrom && d <= dateTo;
+      });
+      return res.status(200).json(Array.isArray(filtered) ? filtered : []);
     }
-    if (cacheRow.rows.length > 0) {
-      const data = cacheRow.rows[0].data as any[];
-      const list = Array.isArray(data) ? data : [];
-      if (serviceMode) {
-        const filtered = list.filter((item) => {
-          const d = invoiceDate(item);
-          return d >= dateFrom && d <= dateTo;
-        });
-        return res.status(200).json(Array.isArray(filtered) ? filtered : []);
-      }
-      const userInnsRow = await pool.query<{ inn: string }>(
-        "SELECT inn FROM account_companies WHERE login = $1",
-        [String(login).trim().toLowerCase()]
-      );
-      const allowedInns = new Set(userInnsRow.rows.map((r) => r.inn.trim()).filter(Boolean));
-      const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
-      const filterInns = requestedInn
-        ? (allowedInns.has(requestedInn) ? new Set([requestedInn]) : new Set<string>())
-        : allowedInns;
-      if (filterInns.size > 0) {
-        const filtered = list.filter((item) => {
-          const itemInnVal = invoiceInn(item);
-          if (!filterInns.has(itemInnVal)) return false;
-          const d = invoiceDate(item);
-          return d >= dateFrom && d <= dateTo;
-        });
-        return res.status(200).json(Array.isArray(filtered) ? filtered : []);
-      }
+    const userInnsRow = await pool.query<{ inn: string }>(
+      "SELECT inn FROM account_companies WHERE login = $1",
+      [String(login).trim().toLowerCase()],
+    );
+    const allowedInns = new Set(userInnsRow.rows.map((r) => r.inn.trim()).filter(Boolean));
+    const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+    const filterInns = requestedInn
+      ? allowedInns.has(requestedInn)
+        ? new Set([requestedInn])
+        : new Set<string>()
+      : allowedInns;
+    if (filterInns.size > 0) {
+      const { items, fromNormalized } = await readDocumentsFromCacheByPeriod(pool, "invoices", dateFrom, dateTo, {
+        inns: filterInns,
+      });
+      const filtered = fromNormalized
+        ? items
+        : items.filter((item) => {
+            const itemInnVal = invoiceInn(item);
+            if (!filterInns.has(itemInnVal)) return false;
+            const d = invoiceDate(item);
+            return d >= dateFrom && d <= dateTo;
+          });
+      return res.status(200).json(Array.isArray(filtered) ? filtered : []);
     }
   } catch {
     if (preferCacheOnlyOnVercel()) {

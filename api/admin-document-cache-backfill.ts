@@ -13,6 +13,12 @@ import {
   refreshDatedKindForWindow,
   type DatedDocumentCacheKind,
 } from "../lib/documentCacheRefreshCore.js";
+import {
+  migrateBlobToNormalizedBatch,
+  NORMALIZED_DOCUMENT_KINDS,
+  readNormalizedState,
+  type NormalizedDocumentKind,
+} from "../lib/documentCacheNormalized.js";
 import { initRequestContext, logError, logInfo } from "./_lib/observability.js";
 
 export const config = { maxDuration: 300 };
@@ -120,6 +126,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const state = await loadBackfillState(pool);
       const coverage = await readCacheCoverageStats(pool);
       const coverageByMonth = await loadCoverageByMonth(pool, state);
+      const normalized = await readNormalizedState(pool);
       return res.status(200).json({
         ok: true,
         historyDays: CACHE_HISTORY_DAYS,
@@ -127,6 +134,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         stepDaysDefault: CACHE_BACKFILL_STEP_DAYS,
         state: serializeState(state),
         coverage,
+        normalized,
         coverageByMonth,
         request_id: ctx.requestId,
       });
@@ -145,6 +153,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ok: true,
         action: "reset",
         state: serializeState(state),
+        request_id: ctx.requestId,
+      });
+    }
+
+    if (action === "migrate_normalized") {
+      const kindRaw = String(body?.kind ?? "perevozki").trim() as NormalizedDocumentKind;
+      const kind = NORMALIZED_DOCUMENT_KINDS.includes(kindRaw) ? kindRaw : "perevozki";
+      const offset = Math.max(0, Number(body?.offset) || 0);
+      const batchSize = Math.max(50, Math.min(2000, Number(body?.batchSize) || 500));
+      const result = await migrateBlobToNormalizedBatch(pool, kind, offset, batchSize);
+      const normalized = await readNormalizedState(pool);
+      logInfo(ctx, "document_cache_migrate_normalized", result);
+      return res.status(200).json({
+        ok: true,
+        action: "migrate_normalized",
+        result,
+        normalized,
+        nextOffset: result.done ? 0 : offset + result.processed,
         request_id: ctx.requestId,
       });
     }

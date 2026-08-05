@@ -8,6 +8,7 @@ import {
   upsertSendingsMetrics,
 } from "./sendingsMetrics.js";
 import { dispatchWebPushCargoEvents } from "../api/_lib/webpushEventDispatch.js";
+import { ensureNormalizedCacheTables, syncNormalizedWindow } from "./documentCacheNormalized.js";
 
 export const CACHE_RECENT_DAYS = 30;
 export const CACHE_DEEP_DAYS = 90;
@@ -216,6 +217,11 @@ export async function refreshDatedKindForWindow(
   const currentRows = await readCacheRow(pool, table);
   const mergedRows = mergeChunkIntoCache(kind, currentRows, chunkRows, dateFrom, dateTo);
   await updateCacheRow(pool, table, mergedRows);
+  try {
+    await syncNormalizedWindow(pool, kind, chunkRows, dateFrom, dateTo);
+  } catch {
+    // normalized sync не блокирует refresh blob
+  }
 
   let detail: string | undefined;
   if (kind === "perevozki" && chunkRows.length > 0 && options?.webPush !== false) {
@@ -239,6 +245,7 @@ export async function refreshDatedKindForWindow(
 }
 
 export async function ensureDocumentCacheTables(pool: Pool): Promise<void> {
+  await ensureNormalizedCacheTables(pool);
   await pool.query(
     "create table if not exists cache_sendings (id int primary key default 1 check (id = 1), data jsonb not null default '[]', fetched_at timestamptz not null default now())",
   );

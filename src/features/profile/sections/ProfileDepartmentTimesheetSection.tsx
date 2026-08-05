@@ -80,6 +80,8 @@ export function ProfileDepartmentTimesheetSection({ activeAccount, onBack, times
         departmentTimesheetWeekdayByDay,
         departmentTimesheetDepartmentOptions,
         visibleDepartmentTimesheetSummaries,
+        companyTimesheetSummary,
+        filteredDepartmentTimesheetSummary,
         departmentTimesheetContainerStyle,
         fetchDepartmentTimesheet,
         saveDepartmentTimesheetCell,
