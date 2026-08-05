@@ -1,0 +1,12 @@
+# Timeweb App Platform → тип «Docker Compose» (не Frontend/React).
+# Первый сервис получает домен haulz.ru; nginx проксирует /api → VPS :80.
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_ORIGIN: ""
+    ports:
+      - "80:80"
+    restart: unless-stopped
