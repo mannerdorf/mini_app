@@ -1,11 +1,15 @@
 # API на VPS (api.haulz.ru)
 
+Основной production API — **самостоятельный Node-сервер** на VPS. Vercel не нужен для haulz.ru.
+
+Полный runbook миграции с Neon: [docs/MIGRATION_VPS_POSTGRES.md](../docs/MIGRATION_VPS_POSTGRES.md).
+
 ## 1. Клонировать проект
 
 ```bash
 sudo mkdir -p /opt/haulz
 sudo git clone https://github.com/mannerdorf/mini_app.git /opt/haulz/app
-# или: cd /opt/haulz/app && sudo git pull origin main
+# или: cd /opt/haulz/app && sudo git pull origin staging
 ```
 
 ## 2. Переменные
@@ -15,7 +19,13 @@ sudo cp /opt/haulz/app/deploy/env.backend.example /opt/haulz/.env
 sudo nano /opt/haulz/.env
 ```
 
-Значения — из Vercel Production (те же ключи).
+Обязательно:
+
+- `DATABASE_URL` — **свой Postgres** (не Neon после миграции)
+- `PGSSLMODE=disable` — для локального Postgres на том же VPS
+- `PUBLIC_API_ORIGIN=https://api.haulz.ru`
+- `APP_URL` / `NEXT_PUBLIC_APP_URL=https://haulz.ru`
+- секреты 1С, Redis, ботов — из текущего production
 
 ## 3. Node 20 + зависимости
 
@@ -49,46 +59,43 @@ sudo nginx -t && sudo systemctl reload nginx
 curl -sS https://api.haulz.ru/api/auth-config
 ```
 
-## 6. Кроны (после API работает)
+## 6. Кроны
 
 ```bash
-sudo crontab -e
+sudo cp /opt/haulz/app/deploy/crontab.haulz-api.example /root/crontab-haulz.txt
+# подставьте CRON_SECRET
+sudo crontab /root/crontab-haulz.txt
 ```
 
-Пример (подставьте свой `CRON_SECRET`):
-
-```cron
-*/5 * * * * curl -fsS -H "Authorization: Bearer YOUR_CRON_SECRET" https://api.haulz.ru/api/cron/refresh-cache >/dev/null
-```
-
-Полный список путей — в `vercel.json` → `crons`.
+После переноса **отключите Vercel Cron**, иначе задачи дублируются.
 
 ## Обновление
 
 ```bash
-cd /opt/haulz/app && sudo git pull origin main && sudo npm ci && sudo systemctl restart haulz-api
+cd /opt/haulz/app && sudo git pull origin staging && sudo npm ci && sudo systemctl restart haulz-api
 ```
 
-После обновления с юридическими эндпоинтами (`/api/legal-public`, `/api/legal-status`) примените миграцию БД:
+После обновления с новыми миграциями:
 
 ```bash
 psql "$DATABASE_URL" -f /opt/haulz/app/migrations/075_legal_documents.sql
 ```
 
-Проверка:
-
-```bash
-curl -sS https://api.haulz.ru/api/legal-public | head -c 200
-```
-
 ## Статика haulz.ru
 
-Фронт на **haulz.ru** (Caddy/nginx) не обслуживает `POST /api/*` — только **api.haulz.ru**.
+Фронт на **haulz.ru** не обслуживает `POST /api/*` — только **api.haulz.ru**.
 
-При сборке для VPS можно явно задать:
+При сборке:
 
 ```bash
 VITE_API_ORIGIN=https://api.haulz.ru npm run build
 ```
 
-В актуальных сборках `main.tsx` сам перенаправляет `/api/*` с `haulz.ru` на `api.haulz.ru`, если `VITE_API_ORIGIN` не задан.
+В актуальных сборках `main.tsx` перенаправляет `/api/*` с `haulz.ru` / Layero на **`https://api.haulz.ru`** по умолчанию.
+
+## Postgres на VPS
+
+```bash
+sudo apt install postgresql postgresql-contrib postgresql-16-pgvector
+# см. docs/MIGRATION_VPS_POSTGRES.md — создание БД, pg_dump из Neon, PGSSLMODE
+```

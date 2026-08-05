@@ -1,9 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { getPublicApiOrigin } from "../lib/publicApiOrigin.js";
 
-const APP_DOMAIN =
-  process.env.NEXT_PUBLIC_APP_URL ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
+const APP_DOMAIN = getPublicApiOrigin();
 const ALICE_VERIFICATION_CODE = process.env.ALICE_VERIFICATION_CODE || "589570";
 
 async function getRedisValue(key: string): Promise<string | null> {

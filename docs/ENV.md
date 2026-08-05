@@ -9,13 +9,15 @@
 
 | Переменная | Где | Назначение |
 |------------|-----|------------|
-| `VITE_API_ORIGIN` | Layero, Amvera, Capacitor build | Базовый URL API **без** завершающего `/`. Пример: `https://mini-app-lake-phi.vercel.app`. Переписывает `fetch` на `/api/*` в `src/main.tsx`. |
+| `VITE_API_ORIGIN` | Layero, Amvera, Capacitor, Docker build | Базовый URL API **без** завершающего `/`. Production: `https://api.haulz.ru`. Переписывает `fetch` на `/api/*` в `src/main.tsx`. |
 | `VITE_SINGLEFILE` | Опционально | `1` — один `index.html` (legacy деплой). |
 | `VITE_PROD_SOURCEMAP` | Опционально | `1` — source maps в production build. |
 
-**Не задавать** на Layero `VITE_API_ORIGIN=https://api.haulz.ru`, если API на Vercel (см. `deploy/README-vercel.md`).
+**Production (haulz.ru):** API на VPS — `https://api.haulz.ru`. Fallback в `src/main.tsx` без `VITE_API_ORIGIN`.
 
-Partner API v1 для внешних интеграторов: базовый URL **`https://mini-app-lake-phi.vercel.app`** — см. [PARTNER_API.md](./PARTNER_API.md).
+Partner API v1: **`https://api.haulz.ru`** — см. [PARTNER_API.md](./PARTNER_API.md).
+
+Миграция с Vercel/Neon: [MIGRATION_VPS_POSTGRES.md](./MIGRATION_VPS_POSTGRES.md).
 
 ---
 
@@ -23,7 +25,8 @@ Partner API v1 для внешних интеграторов: базовый UR
 
 | Переменная | Назначение |
 |------------|------------|
-| `DATABASE_URL` | Postgres (кэш 1С, пользователи, претензии, …) |
+| `DATABASE_URL` | Postgres (кэш 1С, пользователи, претензии, …). Production VPS — свой Postgres, не Neon. |
+| `PGSSLMODE` / `DATABASE_SSL` | `disable` — локальный PG без SSL; `require` — SSL (Neon/облако). Auto: off для localhost. |
 | `UPSTASH_REDIS_REST_URL` | Redis REST (ссылки, 2FA, MAX/Alice) |
 | `UPSTASH_REDIS_REST_TOKEN` | Токен Upstash |
 | `CACHE_HISTORY_DAYS` | Глубина истории кэша (по умолчанию 365) |
@@ -89,7 +92,8 @@ Partner API v1 для внешних интеграторов: базовый UR
 |------------|------------|
 | `VERCEL` | `1` на Vercel runtime |
 | `VERCEL_URL` | Хост деплоя |
-| `NEXT_PUBLIC_APP_URL` / `APP_URL` | Публичный URL приложения |
+| `NEXT_PUBLIC_APP_URL` / `APP_URL` | Публичный URL фронта (`https://haulz.ru`) |
+| `PUBLIC_API_ORIGIN` / `HAULZ_PUBLIC_API_ORIGIN` | Публичный URL API (`https://api.haulz.ru`) для webhooks и server-side ссылок |
 | `TINYURL_API_TOKEN` | Сокращение ссылок |
 | `MARINESIA_API_KEY` / `VESSELAPI_API_KEY` | Суда / MMSI |
 | `OPENSHIPDATA_API_KEY` | OpenShipData |
@@ -112,13 +116,13 @@ PEREVOZKI_SERVICE_PASSWORD=...
 Фронт с API на Vercel preview:
 
 ```bash
-VITE_API_ORIGIN=https://<project>.vercel.app npm run build
+VITE_API_ORIGIN=https://api.haulz.ru npm run build
 ```
 
 ---
 
 ## Связанные документы
 
-- [deploy/README-vercel.md](../deploy/README-vercel.md)
 - [deploy/README-vps-api.md](../deploy/README-vps-api.md)
+- [MIGRATION_VPS_POSTGRES.md](./MIGRATION_VPS_POSTGRES.md)
 - [API_CORS_CHECKLIST.md](./API_CORS_CHECKLIST.md)

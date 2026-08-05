@@ -1,6 +1,7 @@
 import React from "react";
 import { Panel, Typography } from "@maxhub/max-ui";
 import type { AdminIntegrationsState } from "../hooks/useAdminIntegrations";
+import { PARTNER_API_PUBLIC_ORIGIN } from "../../../constants/partnerApi";
 
 type Props = Pick<AdminIntegrationsState, 'partnerApiHealthJson'>;
 
@@ -12,7 +13,7 @@ export function AdminPartnerApiPanel({
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Partner API и webhooks (v1)</Typography.Body>
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.55rem" }}>
             Внешний REST v1: заголовок <code style={{ fontSize: "0.75rem" }}>Authorization: Bearer &lt;полный ключ haulz_… из ЛК пользователя&gt;</code>, тело как у кэшированных методов (без логина/пароля в теле).
-            Базовый URL: <code style={{ fontSize: "0.75rem" }}>https://mini-app-lake-phi.vercel.app</code>. Документация:{" "}
+            Базовый URL: <code style={{ fontSize: "0.75rem" }}>{PARTNER_API_PUBLIC_ORIGIN}</code>. Документация:{" "}
             <code style={{ fontSize: "0.75rem" }}>docs/PARTNER_API.md</code>.
             Эндпоинты: <code style={{ fontSize: "0.75rem" }}>/api/partner/v1/cargo</code>,{" "}
             <code style={{ fontSize: "0.75rem" }}>/api/partner/v1/sendings</code>, <code style={{ fontSize: "0.75rem" }}>/api/partner/v1/orders</code> (все POST).

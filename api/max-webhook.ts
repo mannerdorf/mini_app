@@ -5,6 +5,7 @@ import {
   maxSendMessage,
 } from "../lib/maxBot.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { getPublicApiOrigin } from "../lib/publicApiOrigin.js";
 
 // MAX bot token must be stored in Vercel Environment Variables (server-side only)
 const MAX_BOT_TOKEN = process.env.MAX_BOT_TOKEN;
@@ -258,8 +259,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log("Cargo number extracted:", cargoNumber);
     
     // Получаем домен из env или используем дефолтный
-    const appDomain = process.env.NEXT_PUBLIC_APP_URL
-      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
+    const appDomain = getPublicApiOrigin();
     
     // Используем /api/doc-short для редиректа на мини-апп
     const docUrl = (metod: string) => 
@@ -330,8 +330,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.log("MAX webhook: no linked account for chatId", chatIdStr, "senderId", senderIdStr);
       }
 
-      const appDomain = process.env.NEXT_PUBLIC_APP_URL
-        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
+      const appDomain = getPublicApiOrigin();
       const chatUrl = `${appDomain}/api/chat`;
 
       // Сессия привязана к заказчику: при смене заказчика и повторной привязке — новая сессия, данные только по текущему заказчику

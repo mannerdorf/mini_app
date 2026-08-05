@@ -1,18 +1,12 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { resolvePublicApiOriginFromRequest } from "../lib/publicApiOrigin.js";
 
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
 const ADMIN_SECRET = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
 
 function resolveBaseUrl(req: VercelRequest): string {
-  const envBase = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL;
-  if (envBase && /^https?:\/\//i.test(envBase)) {
-    return envBase.replace(/\/+$/, "");
-  }
-  const host = String(req.headers["x-forwarded-host"] || req.headers.host || "").trim();
-  const proto = String(req.headers["x-forwarded-proto"] || "https").trim();
-  if (host) return `${proto}://${host}`;
-  return "https://mini-app-lake-phi.vercel.app";
+  return resolvePublicApiOriginFromRequest(req.headers);
 }
 
 async function telegramApi<T = any>(method: string, payload?: Record<string, unknown>): Promise<{ ok: boolean; status: number; data: T | null; raw: string }> {

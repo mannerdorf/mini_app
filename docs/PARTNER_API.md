@@ -7,12 +7,12 @@
 ## Базовый URL
 
 ```
-https://mini-app-lake-phi.vercel.app
+https://api.haulz.ru
 ```
 
 Фронт на **haulz.ru** — статика; все `fetch("/api/...")` из браузера переписываются на этот хост (см. `src/main.tsx`, `src/lib/resolveApiOrigin.ts`).
 
-**Официальный хост для интеграторов:** Vercel Production (не `api.haulz.ru`, не `haulz.ru`).
+**Официальный хост для интеграторов:** `https://api.haulz.ru` (VPS production).
 
 ---
 
@@ -53,7 +53,7 @@ Authorization: Bearer haulz_a1b2c3d4e5f6_0123456789abcdef...
 ### Health
 
 ```bash
-curl -s "https://mini-app-lake-phi.vercel.app/api/partner/v1/health"
+curl -s "https://api.haulz.ru/api/partner/v1/health"
 ```
 
 Ответ: `{ "ok": true, "version": "1", "partner_api": { ... }, "request_id": "..." }`
@@ -61,7 +61,7 @@ curl -s "https://mini-app-lake-phi.vercel.app/api/partner/v1/health"
 ### Перевозки
 
 ```bash
-curl -s -X POST "https://mini-app-lake-phi.vercel.app/api/partner/v1/cargo" \
+curl -s -X POST "https://api.haulz.ru/api/partner/v1/cargo" \
   -H "Authorization: Bearer haulz_YOUR_FULL_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -75,7 +75,7 @@ curl -s -X POST "https://mini-app-lake-phi.vercel.app/api/partner/v1/cargo" \
 ### Отправки
 
 ```bash
-curl -s -X POST "https://mini-app-lake-phi.vercel.app/api/partner/v1/sendings" \
+curl -s -X POST "https://api.haulz.ru/api/partner/v1/sendings" \
   -H "Authorization: Bearer haulz_YOUR_FULL_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -89,7 +89,7 @@ curl -s -X POST "https://mini-app-lake-phi.vercel.app/api/partner/v1/sendings" \
 ### Заявки
 
 ```bash
-curl -s -X POST "https://mini-app-lake-phi.vercel.app/api/partner/v1/orders" \
+curl -s -X POST "https://api.haulz.ru/api/partner/v1/orders" \
   -H "Authorization: Bearer haulz_YOUR_FULL_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

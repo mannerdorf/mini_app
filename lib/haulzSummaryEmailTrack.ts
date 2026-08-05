@@ -2,6 +2,7 @@ import crypto from "crypto";
 import type { Pool } from "pg";
 import { getAppUrl } from "./sendRegistrationEmail.js";
 import { buildSummaryUnsubscribeUrl } from "./haulzSummaryUnsubscribe.js";
+import { getPublicApiOrigin } from "./publicApiOrigin.js";
 
 const TRANSPARENT_GIF = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64");
 
@@ -16,9 +17,7 @@ export function createSummaryMessageId(): string {
 }
 
 export function getSummaryTrackBaseUrl(): string {
-  const vercel = process.env.VERCEL_URL?.trim();
-  if (vercel) return `https://${vercel.replace(/^https?:\/\//, "")}`;
-  return getAppUrl().replace(/\/$/, "");
+  return getPublicApiOrigin() || getAppUrl().replace(/\/$/, "");
 }
 
 export function buildOpenTrackUrl(messageId: string): string {

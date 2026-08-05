@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import crypto from "crypto";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { resolvePublicApiOriginFromRequest } from "../lib/publicApiOrigin.js";
 
 // Используем Upstash Redis для хранения токенов документов
 const TOKEN_MAX_AGE = 60 * 60; // 1 час в секундах
@@ -131,15 +132,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     // Определяем базовый URL для токена
-    const envDomain = process.env.NEXT_PUBLIC_APP_URL
-      ? process.env.NEXT_PUBLIC_APP_URL
-      : process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : null;
-    const host = req.headers.host || req.headers["x-forwarded-host"];
-    const protocol = req.headers["x-forwarded-proto"] || "https";
-    const base = envDomain || (host ? `${protocol}://${host}` : "");
-    const baseUrl = base.endsWith("/") ? base.slice(0, -1) : base;
+    const baseUrl = resolvePublicApiOriginFromRequest(req.headers);
     const tokenUrl = `${baseUrl}/api/doc/${token}`;
 
     // Создаем короткую ссылку через clck.ru

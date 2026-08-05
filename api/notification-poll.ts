@@ -3,6 +3,7 @@ import { getPool } from "./_db.js";
 import { getRedisValue } from "./redis.js";
 import { sendWebPushToLogin } from "./_lib/webpushDelivery.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { getPublicApiOrigin } from "../lib/publicApiOrigin.js";
 import {
   type CargoEvent,
   getCargoStatusKey,
@@ -93,9 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let errorMessage: string | null = null;
   let innsPolled = 0;
   let notificationsSent = 0;
-  const appDomain =
-    process.env.NEXT_PUBLIC_APP_URL
-    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
+  const appDomain = getPublicApiOrigin();
 
   try {
     const companiesResult = await pool.query<{ login: string; inn: string }>(

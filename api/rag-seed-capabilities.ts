@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { getPublicApiOrigin } from "../lib/publicApiOrigin.js";
 
 /**
  * Заполнение таблицы chat_capabilities («что умеет Грузик» и «примеры запросов»).
@@ -132,9 +133,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         [doc.slug, doc.title, doc.content],
       );
     }
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : process.env.NEXT_PUBLIC_APP_URL || "https://ваш-домен.vercel.app";
+    const baseUrl = getPublicApiOrigin();
     return res.status(200).json({
       ok: true,
       message: "chat_capabilities seeded",

@@ -11,3 +11,4 @@ dist/
 .env
 .env.vercel
 .env.timeweb
+.env*

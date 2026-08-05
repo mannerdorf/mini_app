@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { initRequestContext } from "./_lib/observability.js";
+import { getAppPublicUrl } from "../lib/publicApiOrigin.js";
 
 /**
  * Короткая ссылка на документ, которая открывает мини-апп
@@ -22,9 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // Определяем URL мини-аппа
-  const appDomain = process.env.VERCEL_URL 
-    ? `https://${process.env.VERCEL_URL}` 
-    : process.env.NEXT_PUBLIC_APP_URL || "https://<твой-домен>";
+  const appDomain = getAppPublicUrl();
 
   // Редирект на мини-апп с параметрами
   // Мини-апп должен обработать эти параметры и открыть модальное окно для скачивания

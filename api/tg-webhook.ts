@@ -5,6 +5,7 @@ import { getPool } from "./_db.js";
 import { sendTelegramActivationEmail } from "../lib/sendTelegramActivationEmail.js";
 import { writeAuditLog } from "../lib/adminAuditLog.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { getPublicApiOrigin } from "../lib/publicApiOrigin.js";
 
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -352,8 +353,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const payload = startText.includes(" ") ? startText.split(" ")[1] : "";
     if (payload.startsWith("haulz_n_")) {
       const cargoNumber = payload.split("_")[2];
-      const appDomain = process.env.NEXT_PUBLIC_APP_URL
-        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
+      const appDomain = getPublicApiOrigin();
       const docUrl = (m: string) => `${appDomain}/api/doc-short?metod=${encodeURIComponent(m)}&number=${encodeURIComponent(cargoNumber)}`;
 
       const message = `Вижу ваш вопрос по перевозке ${cargoNumber}. Выберите документ для скачивания:`;
@@ -639,8 +639,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       debugInfo.bound = { hasAuth: !!boundAuth, customer: boundCustomer };
     }
 
-    const appDomain = process.env.NEXT_PUBLIC_APP_URL
-      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
+    const appDomain = getPublicApiOrigin();
     if (debugInfo) debugInfo.appDomain = appDomain;
     await sendTgChatAction(chatId, "typing");
     typingInterval = setInterval(() => { sendTgChatAction(chatId, "typing"); }, 4000);
