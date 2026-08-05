@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useReducedMotion } from "motion/react";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
-import { usePerevozki, usePrevPeriodPerevozki, useInvoices } from "../hooks/useApi";
+import { usePerevozki, usePrevPeriodPerevozki } from "../hooks/useApi";
 import { getWebApp, isMaxWebApp } from "../webApp";
 import { sendMaxTestMessage } from "../api/client/dashboard";
 import { fetchMyPaymentCalendar } from "../api/client/scheduling";
@@ -153,15 +153,11 @@ export function useDashboardPageState({
         activeInn,
         runtimeActiveInn,
         activeCustomerName,
+        apiDateRange: filters.apiDateRange,
+        invoicesFetchEnabled: !loading,
     });
 
-    const { items: calendarInvoiceItems, mutate: mutateCalendarInvoices } = useInvoices({
-        auth: null,
-        dateFrom: monitors.calendarDateFrom,
-        dateTo: monitors.calendarDateTo,
-        activeInn: !useServiceRequest ? auth?.inn : undefined,
-        useServiceRequest,
-    });
+    const { calendarInvoiceItems, mutateCalendarInvoices } = monitors;
 
     useEffect(() => {
         if (!useServiceRequest) return;

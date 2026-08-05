@@ -44,7 +44,7 @@ export function DashboardFinanceSection({ page }: Props) {
                                 >
                                     Сегодня
                                 </Button>
-                                <Button className="filter-button" style={{ padding: '0.35rem 0.5rem', marginLeft: '0.25rem' }} onClick={() => page.mutateCalendarInvoices()} title="Обновить счета с начала текущего года" aria-label="Обновить счета">
+                                <Button className="filter-button" style={{ padding: '0.35rem 0.5rem', marginLeft: '0.25rem' }} onClick={() => page.mutateCalendarInvoices()} title="Обновить счета за выбранный период" aria-label="Обновить счета">
                                     <RefreshCw className="w-4 h-4" />
                                 </Button>
                             </Flex>
