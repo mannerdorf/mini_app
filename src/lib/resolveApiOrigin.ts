@@ -1,6 +1,6 @@
-import { PARTNER_API_PUBLIC_ORIGIN } from "../constants/partnerApi";
+import { APP_API_PUBLIC_ORIGIN } from "../constants/partnerApi";
 
-const FALLBACK_API_ORIGIN = PARTNER_API_PUBLIC_ORIGIN;
+const FALLBACK_API_ORIGIN = APP_API_PUBLIC_ORIGIN;
 
 const HAULZ_STATIC_ORIGINS = new Set([
   "https://haulz.ru",

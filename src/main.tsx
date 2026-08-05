@@ -16,7 +16,7 @@ import "./styles.css";
 import "./components/shipment-status.css";
 import "./styles/haulz-calculator.css";
 import { clearChunkReloadState, isChunkLoadError, reloadForStaleChunks } from "./lib/chunkLoadRecovery";
-import { PARTNER_API_PUBLIC_ORIGIN } from "./constants/partnerApi";
+import { APP_API_PUBLIC_ORIGIN } from "./constants/partnerApi";
 
 const swrConfig = {
     revalidateOnFocus: false,
@@ -114,8 +114,8 @@ const setupDebugOverlay = () => {
 
 setupDebugOverlay();
 
-/** API по умолчанию (VPS api.haulz.ru); нативное приложение и статика haulz.ru / Layero. */
-const FALLBACK_API_ORIGIN = PARTNER_API_PUBLIC_ORIGIN;
+/** API для миниаппа (VPS :8443 — обход TLS hang на :443). */
+const FALLBACK_API_ORIGIN = APP_API_PUBLIC_ORIGIN;
 
 /** Статика на haulz.ru / Layero (nginx); POST /api/* на этом хосте даёт 405 — API на Vercel. */
 const HAULZ_STATIC_ORIGINS = new Set([

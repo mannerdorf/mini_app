@@ -75,6 +75,12 @@ for f in /etc/nginx/conf.d/*.conf; do
 done
 shopt -u nullglob
 
+# Обходной TLS-порт (снаружи :443 иногда blackhole, :80 при этом жив)
+if command -v ufw >/dev/null 2>&1; then
+  ufw allow 8443/tcp comment 'haulz-api-tls-alt' || true
+  ufw status | head -20 || true
+fi
+
 nginx -t
 systemctl reload nginx
 
