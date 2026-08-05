@@ -3,6 +3,9 @@ import { useInvoices, usePerevozki } from "../../../hooks/useApi";
 import { filterCargoItemsForHeaderCustomer, filterItemsForHeaderCustomer } from "../../../features/documents/lib/documentsPipeline";
 import type { AuthData, CargoItem } from "../types";
 
+/** Временно off — запросы /api/invoices перегружают VPS. Включить после стабилизации. */
+export const DASHBOARD_INVOICE_MONITORS_ENABLED = false;
+
 /** Монитор задолженности — окно 3 месяца. */
 const UNPAID_MONITOR_MONTHS = 3;
 
@@ -48,7 +51,8 @@ export function useDashboardMonitors({
         return d.toISOString().slice(0, 10);
     }, []);
 
-    const monitorFetchEnabled = !!(auth?.login && auth?.password) && invoicesFetchEnabled;
+    const monitorFetchEnabled =
+        DASHBOARD_INVOICE_MONITORS_ENABLED && !!(auth?.login && auth?.password) && invoicesFetchEnabled;
 
     const [debtInvoicesEnabled, setDebtInvoicesEnabled] = useState(false);
     useEffect(() => {
