@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Flex, Input, Typography } from "@maxhub/max-ui";
+import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 import type { AdminIntegrationsState } from "../hooks/useAdminIntegrations";
 
 type Props = Pick<AdminIntegrationsState, 'zvonobotConfigured' | 'zvonobotKeyHint' | 'zvonobotLoading' | 'zvonobotError' | 'zvonobotResult' | 'zvonobotPhone' | 'setZvonobotPhone' | 'zvonobotOutgoingPhone' | 'setZvonobotOutgoingPhone' | 'zvonobotRecordId' | 'setZvonobotRecordId' | 'zvonobotRecordText' | 'setZvonobotRecordText' | 'zvonobotRecordGender' | 'setZvonobotRecordGender' | 'zvonobotPlannedAt' | 'setZvonobotPlannedAt' | 'zvonobotApiCallIds' | 'setZvonobotApiCallIds' | 'runZvonobotAction'>;
