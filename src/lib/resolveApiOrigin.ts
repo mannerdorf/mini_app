@@ -2,13 +2,6 @@ import { APP_API_PUBLIC_ORIGIN } from "../constants/partnerApi";
 
 const FALLBACK_API_ORIGIN = APP_API_PUBLIC_ORIGIN;
 
-const HAULZ_STATIC_ORIGINS = new Set([
-  "https://haulz.ru",
-  "http://haulz.ru",
-  "https://www.haulz.ru",
-  "http://www.haulz.ru",
-]);
-
 const normalizeOrigin = (value: string): string => value.trim().replace(/\/+$/, "");
 
 const normalizeApiOrigin = (value: string): string => {
@@ -20,16 +13,6 @@ const normalizeApiOrigin = (value: string): string => {
     return `${u.protocol}//${u.host}`;
   } catch {
     return "";
-  }
-};
-
-const isStaticFrontendOrigin = (origin: string): boolean => {
-  if (HAULZ_STATIC_ORIGINS.has(origin)) return true;
-  try {
-    const host = new URL(origin).hostname.toLowerCase();
-    return host === "haulz.ru" || host.endsWith(".haulz.ru") || host.endsWith(".layero.ru");
-  } catch {
-    return false;
   }
 };
 

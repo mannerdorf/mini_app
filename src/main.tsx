@@ -114,26 +114,8 @@ const setupDebugOverlay = () => {
 
 setupDebugOverlay();
 
-/** API для миниаппа (VPS :8443 — обход TLS hang на :443). */
+/** Capacitor / native fallback, когда нет window same-origin. */
 const FALLBACK_API_ORIGIN = APP_API_PUBLIC_ORIGIN;
-
-/** Статика на haulz.ru / Layero (nginx); POST /api/* на этом хосте даёт 405 — API на Vercel. */
-const HAULZ_STATIC_ORIGINS = new Set([
-  "https://haulz.ru",
-  "http://haulz.ru",
-  "https://www.haulz.ru",
-  "http://www.haulz.ru",
-]);
-
-const isStaticFrontendOrigin = (origin: string): boolean => {
-  if (HAULZ_STATIC_ORIGINS.has(origin)) return true;
-  try {
-    const host = new URL(origin).hostname.toLowerCase();
-    return host === "haulz.ru" || host.endsWith(".haulz.ru") || host.endsWith(".layero.ru");
-  } catch {
-    return false;
-  }
-};
 
 const normalizeOrigin = (value: string): string => value.trim().replace(/\/+$/, "");
 
