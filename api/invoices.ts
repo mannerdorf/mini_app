@@ -18,6 +18,7 @@ import {
   clampDateFromToMaxSpan,
   filterUnpaidInvoices,
   slimInvoiceForEdoMonitor,
+  stripInvoiceFileFields,
 } from "../lib/invoiceResponseLimits.js";
 
 /**
@@ -105,6 +106,8 @@ function normalizeDateOnly(raw: unknown): string {
 type InvoiceResponseOptions = {
   monitor?: string;
   unpaidOnly?: boolean;
+  /** Только для точечной выдачи вложений; в списке по умолчанию всегда strip. */
+  includeFiles?: boolean;
 };
 
 function finalizeInvoiceList(items: unknown[], options: InvoiceResponseOptions): unknown[] {
@@ -116,6 +119,8 @@ function finalizeInvoiceList(items: unknown[], options: InvoiceResponseOptions):
   }
   if (options.monitor === "edo") {
     rows = rows.map(slimInvoiceForEdoMonitor);
+  } else if (!options.includeFiles) {
+    rows = rows.map(stripInvoiceFileFields);
   }
   return capInvoiceRows(rows, MAX_INVOICE_ROWS_PER_RESPONSE).items;
 }
@@ -199,6 +204,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const responseOptions: InvoiceResponseOptions = {
     monitor: typeof monitor === "string" ? monitor.trim() : undefined,
     unpaidOnly: unpaidOnly === true || unpaidOnly === "true" || unpaidOnly === 1,
+    includeFiles: body?.includeFiles === true || body?.includeFiles === "true",
   };
 
   if (!login || !password) {
@@ -373,6 +379,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       return res.status(200).json(finalizeInvoiceList(extractInvoiceList(json), responseOptions));
     } catch {
+      // Не отдаём сырой гигантский ответ 1С без cap/strip.
+      if (typeof text === "string" && text.length > 2_000_000) {
+        return res.status(200).json([]);
+      }
       return res.status(200).send(text);
     }
   } catch (e: unknown) {

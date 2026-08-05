@@ -22,11 +22,30 @@ export function clampDateFromToMaxSpan(dateFrom: string, dateTo: string, maxDays
   return to.toISOString().split("T")[0];
 }
 
+/** Base64/PDF вложения в списке счетов (иначе ответ 100–250+ MB). */
+export function isHeavyInvoiceFileField(key: string): boolean {
+  return key.toLowerCase().endsWith("_file");
+}
+
+/**
+ * Убирает вложения (*_file) из элемента списка.
+ * Статусы ЭДО (без _file) и List строк оставляем — ими пользуется UI.
+ */
+export function stripInvoiceFileFields(item: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(item)) {
+    if (isHeavyInvoiceFileField(key)) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
 /** Убирает тяжёлые поля — для виджета ЭДО на дашборде. */
 export function slimInvoiceForEdoMonitor(item: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(item)) {
     if (key === "List" || key === "list" || key === "Строки" || key === "Items" || key === "items") continue;
+    if (isHeavyInvoiceFileField(key)) continue;
     out[key] = value;
   }
   return out;

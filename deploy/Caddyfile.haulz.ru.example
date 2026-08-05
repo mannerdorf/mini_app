@@ -1,0 +1,36 @@
+# HAULZ frontend (Timeweb / Caddy) — пример.
+# Критично: hashed /assets/* НЕ должны отдавать index.html (иначе 200 + HTML 4770 → chunk reload loop).
+
+{$HAULZ_DOMAIN:haulz.ru} {
+	encode gzip zstd
+	root * /srv/haulz/www
+
+	# API same-origin proxy (обходит сломанный TLS на api.haulz.ru, если :80 на VPS проксирует /api).
+	# Раскомментируйте после того, как nginx на VPS отдаёт JSON на http://IP/api/* без 301:
+	# handle /api/* {
+	# 	reverse_proxy http://72.56.36.185 {
+	# 		header_up Host api.haulz.ru
+	# 		header_up X-Forwarded-Proto {scheme}
+	# 		header_up X-Forwarded-For {remote_host}
+	# 	}
+	# }
+
+	# Статика с хэшем в имени — только файл или 404 (без SPA fallback).
+	handle /assets/* {
+		file_server
+	}
+
+	@immutable path *.js *.css *.woff2 *.png *.jpg *.jpeg *.gif *.svg *.webp *.ico
+	header @immutable Cache-Control "public, max-age=604800, immutable"
+
+	handle /index.html {
+		header Cache-Control "no-cache"
+		file_server
+	}
+
+	# SPA routes
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+}
