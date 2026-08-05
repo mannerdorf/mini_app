@@ -311,6 +311,7 @@ export function ProfilePage({
     if (currentView === 'departmentTimesheet') {
         return (
             <ProfileDepartmentTimesheetSection
+                activeAccount={activeAccount}
                 onBack={() => setCurrentView('haulz')}
                 timesheet={departmentTimesheet}
             />

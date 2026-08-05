@@ -2,6 +2,7 @@ import React from "react";
 import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 import { getCurrentMonthYm } from "../../../lib/dateUtils";
+import type { Account } from "../../../types";
 import type { DepartmentTimesheetState } from "../hooks/useDepartmentTimesheet";
 import {
     WORK_DAYS_IN_MONTH,
@@ -20,11 +21,12 @@ import {
 } from "../departmentTimesheetHelpers";
 
 type Props = {
+    activeAccount: Account | null;
     onBack: () => void;
     timesheet: DepartmentTimesheetState;
 };
 
-export function ProfileDepartmentTimesheetSection({ onBack, timesheet }: Props) {
+export function ProfileDepartmentTimesheetSection({ activeAccount, onBack, timesheet }: Props) {
     const {
         departmentTimesheetDepartment,
         departmentTimesheetAllDepartments,
