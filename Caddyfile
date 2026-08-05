@@ -1,0 +1,36 @@
+# Для Timeweb Apps (server: Caddy), если платформа подхватывает Caddyfile из корня репо.
+# /api уходит на VPS по HTTP :80 — обход флапающего TLS api.haulz.ru:443.
+
+haulz.ru, www.haulz.ru {
+	encode gzip zstd
+	root * /srv/haulz/www
+
+	handle /api/* {
+		reverse_proxy http://72.56.36.185 {
+			header_up Host api.haulz.ru
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-For {remote_host}
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 120s
+			}
+		}
+	}
+
+	handle /assets/* {
+		file_server
+	}
+
+	@immutable path *.js *.css *.woff2 *.png *.jpg *.jpeg *.gif *.svg *.webp *.ico
+	header @immutable Cache-Control "public, max-age=604800, immutable"
+
+	handle /index.html {
+		header Cache-Control "no-cache"
+		file_server
+	}
+
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+}
