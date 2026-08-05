@@ -11,6 +11,14 @@ import { handleHaulzSummarySandboxRequest, isHaulzSummarySandboxAction } from ".
 import { fetchWithTimeout, upstreamTimeoutMessage } from "../lib/fetchWithTimeout.js";
 import { preferCacheOnlyOnVercel } from "../lib/vercelRuntime.js";
 import { readDocumentsFromCacheByPeriod } from "../lib/documentCacheRead.js";
+import {
+  MAX_INVOICE_ROWS_PER_RESPONSE,
+  MAX_SERVICE_INVOICE_RANGE_DAYS,
+  capInvoiceRows,
+  clampDateFromToMaxSpan,
+  filterUnpaidInvoices,
+  slimInvoiceForEdoMonitor,
+} from "../lib/invoiceResponseLimits.js";
 
 /**
  * Прокси для GetIinvoices: счета.
@@ -94,6 +102,24 @@ function normalizeDateOnly(raw: unknown): string {
   return parsed.toISOString().split("T")[0];
 }
 
+type InvoiceResponseOptions = {
+  monitor?: string;
+  unpaidOnly?: boolean;
+};
+
+function finalizeInvoiceList(items: unknown[], options: InvoiceResponseOptions): unknown[] {
+  let rows = (Array.isArray(items) ? items : []).map((item) =>
+    item && typeof item === "object" ? (item as Record<string, unknown>) : {},
+  );
+  if (options.unpaidOnly) {
+    rows = filterUnpaidInvoices(rows);
+  }
+  if (options.monitor === "edo") {
+    rows = rows.map(slimInvoiceForEdoMonitor);
+  }
+  return capInvoiceRows(rows, MAX_INVOICE_ROWS_PER_RESPONSE).items;
+}
+
 /** Кэш счетов для зарегистрированного пользователя (Partner API v1 и isRegisteredUser). */
 export async function readRegisteredInvoicesFromCache(
   pool: ReturnType<typeof getPool>,
@@ -159,12 +185,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const {
     login,
     password,
-    dateFrom = "2024-01-01",
-    dateTo = new Date().toISOString().split("T")[0],
+    dateFrom: rawDateFrom = "2024-01-01",
+    dateTo: rawDateTo = new Date().toISOString().split("T")[0],
     inn,
     serviceMode,
     isRegisteredUser,
+    monitor,
+    unpaidOnly,
   } = body || {};
+
+  let dateFrom = String(rawDateFrom ?? "").trim();
+  let dateTo = String(rawDateTo ?? "").trim();
+  const responseOptions: InvoiceResponseOptions = {
+    monitor: typeof monitor === "string" ? monitor.trim() : undefined,
+    unpaidOnly: unpaidOnly === true || unpaidOnly === "true" || unpaidOnly === 1,
+  };
 
   if (!login || !password) {
     return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
@@ -175,6 +210,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res
       .status(400)
       .json({ error: "Invalid date format (YYYY-MM-DD required)", request_id: ctx.requestId });
+  }
+
+  if (serviceMode) {
+    dateFrom = clampDateFromToMaxSpan(dateFrom, dateTo, MAX_SERVICE_INVOICE_RANGE_DAYS);
   }
 
   const useDocumentCache = shouldServeFromDocumentCache(dateFrom, dateTo);
@@ -192,7 +231,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Период старше окна кэша — ниже прямой запрос в 1С через сервисный аккаунт.
       } else {
         const filtered = await readRegisteredInvoicesFromCache(pool, verified, login, dateFrom, dateTo, inn);
-        return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+        return res.status(200).json(finalizeInvoiceList(filtered, responseOptions));
       }
     } catch (e) {
       logError(ctx, "invoices_registered_user_failed", e);
@@ -209,7 +248,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const d = invoiceDate(item);
         return d >= dateFrom && d <= dateTo;
       });
-      return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+      return res.status(200).json(finalizeInvoiceList(filtered, responseOptions));
     }
     const userInnsRow = await pool.query<{ inn: string }>(
       "SELECT inn FROM account_companies WHERE login = $1",
@@ -234,7 +273,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const d = invoiceDate(item);
             return d >= dateFrom && d <= dateTo;
           });
-      return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+      return res.status(200).json(finalizeInvoiceList(filtered, responseOptions));
     }
   } catch {
     if (preferCacheOnlyOnVercel()) {
@@ -326,13 +365,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             dateTo,
             list,
           );
-          return res.status(200).json(filtered);
+          return res.status(200).json(finalizeInvoiceList(filtered, responseOptions));
         } catch (e) {
           logError(ctx, "invoices_registered_1c_filter_failed", e);
           return res.status(200).json([]);
         }
       }
-      return res.status(200).json(json);
+      return res.status(200).json(finalizeInvoiceList(extractInvoiceList(json), responseOptions));
     } catch {
       return res.status(200).send(text);
     }

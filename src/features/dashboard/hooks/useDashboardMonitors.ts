@@ -1,53 +1,13 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useInvoices, usePerevozki } from "../../../hooks/useApi";
 import { filterCargoItemsForHeaderCustomer, filterItemsForHeaderCustomer } from "../../../features/documents/lib/documentsPipeline";
-import { parseDateOnly } from "../../../lib/dateUtils";
-import type { AuthData, CargoItem } from "../../../types";
+import type { AuthData, CargoItem } from "../types";
 
-/** Монитор задолженности всегда смотрит 3 месяца назад от сегодня — независимо от фильтра дашборда. */
+/** Монитор задолженности — окно 3 месяца. */
 const UNPAID_MONITOR_MONTHS = 3;
 
-function invoiceDocDateKey(inv: Record<string, unknown>): string {
-    const raw = String(inv?.DateDoc ?? inv?.Date ?? inv?.date ?? inv?.dateDoc ?? inv?.Дата ?? "").trim();
-    if (!raw) return "";
-    const parsed = parseDateOnly(raw);
-    if (!parsed) return "";
-    const y = parsed.getFullYear();
-    const m = String(parsed.getMonth() + 1).padStart(2, "0");
-    const d = String(parsed.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-}
-
-function filterInvoicesInRange(source: unknown[], dateFrom: string, dateTo: string): unknown[] {
-    if (!dateFrom && !dateTo) return source;
-    return source.filter((inv) => {
-        const key = invoiceDocDateKey(inv as Record<string, unknown>);
-        if (!key) return false;
-        if (dateFrom && key < dateFrom) return false;
-        if (dateTo && key > dateTo) return false;
-        return true;
-    });
-}
-
-function filterInvoicesOnOrAfter(source: unknown[], dateFrom: string): unknown[] {
-    if (!dateFrom) return source;
-    return source.filter((inv) => {
-        const key = invoiceDocDateKey(inv as Record<string, unknown>);
-        return key && key >= dateFrom;
-    });
-}
-
-function minDateKey(a: string, b: string): string {
-    if (!a) return b;
-    if (!b) return a;
-    return a < b ? a : b;
-}
-
-function maxDateKey(a: string, b: string): string {
-    if (!a) return b;
-    if (!b) return a;
-    return a > b ? a : b;
-}
+/** Задержка второго запроса счетов, чтобы не блокировать perevozki/sendings. */
+const DEBT_INVOICES_DEFER_MS = 4000;
 
 export type UseDashboardMonitorsParams = {
     auth: AuthData;
@@ -88,51 +48,67 @@ export function useDashboardMonitors({
         return d.toISOString().slice(0, 10);
     }, []);
 
-    /** Один запрос: объединение периода фильтра и окна монитора задолженности (3 мес.). */
-    const invoiceFetchDateFrom = useMemo(
-        () => minDateKey(apiDateRange.dateFrom, unpaidMonitorDateFrom),
-        [apiDateRange.dateFrom, unpaidMonitorDateFrom],
-    );
-    const invoiceFetchDateTo = useMemo(
-        () => maxDateKey(apiDateRange.dateTo, todayKey),
-        [apiDateRange.dateTo, todayKey],
-    );
-
     const monitorFetchEnabled = !!(auth?.login && auth?.password) && invoicesFetchEnabled;
 
+    const [debtInvoicesEnabled, setDebtInvoicesEnabled] = useState(false);
+    useEffect(() => {
+        if (!monitorFetchEnabled) {
+            setDebtInvoicesEnabled(false);
+            return;
+        }
+        const timer = window.setTimeout(() => setDebtInvoicesEnabled(true), DEBT_INVOICES_DEFER_MS);
+        return () => window.clearTimeout(timer);
+    }, [monitorFetchEnabled, apiDateRange.dateFrom, apiDateRange.dateTo]);
+
+    /** ЭДО — только период фильтра дашборда, облегчённый ответ. */
     const {
-        items: monitorInvoiceItems,
-        loading: monitorInvoicesLoading,
-        mutate: mutateCalendarInvoices,
+        items: edoInvoiceItems,
+        loading: edoInvoicesLoading,
+        mutate: mutateEdoInvoices,
     } = useInvoices({
         auth,
-        dateFrom: invoiceFetchDateFrom,
-        dateTo: invoiceFetchDateTo,
+        dateFrom: apiDateRange.dateFrom,
+        dateTo: apiDateRange.dateTo,
         activeInn: auth?.inn || undefined,
         useServiceRequest,
+        monitor: "edo",
         enabled: monitorFetchEnabled,
     });
 
-    const monitorInvoicesFiltered = useMemo(
-        () => filterInvoicesForHeaderCustomer(monitorInvoiceItems),
-        [monitorInvoiceItems, filterInvoicesForHeaderCustomer],
+    /** Монитор задолженности — 3 мес., только неоплаченные; стартует с задержкой. */
+    const {
+        items: debtInvoiceItems,
+        loading: debtInvoicesLoading,
+        mutate: mutateDebtInvoices,
+    } = useInvoices({
+        auth,
+        dateFrom: unpaidMonitorDateFrom,
+        dateTo: todayKey,
+        activeInn: auth?.inn || undefined,
+        useServiceRequest,
+        monitor: "debt",
+        unpaidOnly: true,
+        enabled: monitorFetchEnabled && debtInvoicesEnabled,
+    });
+
+    const mutateCalendarInvoices = useCallback(
+        (...args: Parameters<typeof mutateEdoInvoices>) => {
+            void mutateEdoInvoices(...args);
+            void mutateDebtInvoices(...args);
+        },
+        [mutateEdoInvoices, mutateDebtInvoices],
     );
 
-    /** ЭДО и aging — строго в рамках выбранного фильтра дашборда. */
     const edoMonitorInvoices = useMemo(
-        () => filterInvoicesInRange(
-            monitorInvoicesFiltered,
-            apiDateRange.dateFrom,
-            apiDateRange.dateTo,
-        ),
-        [monitorInvoicesFiltered, apiDateRange.dateFrom, apiDateRange.dateTo],
+        () => filterInvoicesForHeaderCustomer(edoInvoiceItems),
+        [edoInvoiceItems, filterInvoicesForHeaderCustomer],
     );
 
     const calendarInvoiceItems = edoMonitorInvoices;
 
     const unpaidPlanMonitorInvoices = useMemo(
-        () => filterInvoicesOnOrAfter(monitorInvoicesFiltered, unpaidMonitorDateFrom),
-        [monitorInvoicesFiltered, unpaidMonitorDateFrom],
+        () => filterInvoicesForHeaderCustomer(debtInvoiceItems),
+        [debtInvoiceItems, filterInvoicesForHeaderCustomer],
     );
 
     const { items: unpaidPlanCargoItems, loading: unpaidPlanCargoLoading } = usePerevozki({
@@ -141,7 +117,7 @@ export function useDashboardMonitors({
         dateTo: todayKey,
         useServiceRequest,
         inn: !useServiceRequest ? auth?.inn : undefined,
-        enabled: monitorFetchEnabled,
+        enabled: monitorFetchEnabled && debtInvoicesEnabled,
     });
 
     const unpaidPlanMonitorCargo = useMemo((): CargoItem[] => {
@@ -158,9 +134,9 @@ export function useDashboardMonitors({
         calendarInvoiceItems,
         mutateCalendarInvoices,
         filterInvoicesForHeaderCustomer,
-        monitorInvoicesLoading,
+        monitorInvoicesLoading: edoInvoicesLoading,
         edoMonitorInvoices,
-        unpaidPlanInvoicesLoading: monitorInvoicesLoading,
+        unpaidPlanInvoicesLoading: debtInvoicesLoading,
         unpaidPlanMonitorInvoices,
         unpaidPlanCargoLoading,
         unpaidPlanMonitorCargo,
