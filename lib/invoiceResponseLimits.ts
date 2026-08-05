@@ -3,8 +3,8 @@ import { invoiceBalance } from "./invoiceAmounts.js";
 /** Макс. календарных дней в одном ответе /api/invoices для service mode (вся компания). */
 export const MAX_SERVICE_INVOICE_RANGE_DAYS = 62;
 
-/** Макс. строк счетов в одном ответе (страховка от 100+ MB JSON). */
-export const MAX_INVOICE_ROWS_PER_RESPONSE = 4000;
+/** Макс. строк счетов в одном ответе (после strip *_file обычно ~1 MB на тысячи строк). */
+export const MAX_INVOICE_ROWS_PER_RESPONSE = 3000;
 
 export function daysBetweenInclusive(dateFrom: string, dateTo: string): number {
   const from = new Date(`${dateFrom}T12:00:00`);

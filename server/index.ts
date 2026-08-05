@@ -38,9 +38,30 @@ console.log(
   })
 );
 
+/** Параллельные тяжёлые запросы не должны вечно держать сокеты nginx. */
+const REQUEST_HARD_TIMEOUT_MS = Number(process.env.HAULZ_REQUEST_TIMEOUT_MS || 90_000);
+
 const server = http.createServer(async (req, res) => {
   const started = Date.now();
   applyCors(res);
+
+  let settled = false;
+  const hardTimer = setTimeout(() => {
+    if (settled || res.headersSent) return;
+    settled = true;
+    res.statusCode = 504;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ error: "Gateway timeout", timeout_ms: REQUEST_HARD_TIMEOUT_MS }));
+  }, REQUEST_HARD_TIMEOUT_MS);
+  hardTimer.unref?.();
+
+  const finish = () => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(hardTimer);
+  };
+  res.on("finish", finish);
+  res.on("close", finish);
 
   if ((req.method || "GET").toUpperCase() === "OPTIONS") {
     res.statusCode = 204;
@@ -110,6 +131,19 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+server.requestTimeout = REQUEST_HARD_TIMEOUT_MS + 5_000;
+server.headersTimeout = Math.min(60_000, REQUEST_HARD_TIMEOUT_MS);
+server.keepAliveTimeout = 65_000;
+server.maxRequestsPerSocket = 100;
+
 server.listen(PORT, HOST, () => {
-  console.log(JSON.stringify({ level: "info", event: "haulz_api_listen", host: HOST, port: PORT }));
+  console.log(
+    JSON.stringify({
+      level: "info",
+      event: "haulz_api_listen",
+      host: HOST,
+      port: PORT,
+      request_timeout_ms: REQUEST_HARD_TIMEOUT_MS,
+    }),
+  );
 });

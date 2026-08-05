@@ -9,9 +9,14 @@ EnvironmentFile=-/opt/haulz/.env
 Environment=HAULZ_ENV_FILE=/opt/haulz/.env
 Environment=PORT=3000
 Environment=HOST=127.0.0.1
+Environment=HAULZ_REQUEST_TIMEOUT_MS=90000
+Environment=NODE_OPTIONS=--max-old-space-size=1024
 ExecStart=/usr/bin/npm run api:start
 Restart=on-failure
-RestartSec=5
+RestartSec=3
+TimeoutStopSec=20
+LimitNOFILE=65535
+OOMScoreAdjust=200
 
 [Install]
 WantedBy=multi-user.target
