@@ -35,9 +35,14 @@ export function AdminTimesheetPayoutPanel({ emp, stats, isSuperAdmin, ts }: Admi
     <tr>
       <td colSpan={totalColumnCount} style={{ padding: "0.55rem", borderBottom: "1px solid var(--color-border)", background: "var(--color-bg-hover)" }}>
         <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem" style={{ marginBottom: "0.45rem" }}>
-          <Typography.Body style={{ fontSize: "0.82rem", fontWeight: 600 }}>
-            Выплаты сотрудника
-          </Typography.Body>
+          <div>
+            <Typography.Body style={{ fontSize: "0.82rem", fontWeight: 600 }}>
+              Выплаты сотрудника
+            </Typography.Body>
+            <Typography.Body style={{ display: "block", fontSize: "0.74rem", color: "var(--color-text-secondary)", marginTop: "0.12rem" }}>
+              Отметьте дни в строке табеля (жёлтая подсветка), затем нажмите «+ Новая выплата».
+            </Typography.Body>
+          </div>
           <Flex align="center" gap="0.45rem" wrap="wrap">
             <Typography.Body style={{ fontSize: "0.76rem", color: "var(--color-text-secondary)" }}>
               Дней к выплате: {markedDaysCount} · Сумма: {Number(totalMoneyToPay.toFixed(2)).toLocaleString("ru-RU")} ₽

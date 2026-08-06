@@ -84,15 +84,22 @@ export function AdminTimesheetDayCell({
     }, 450);
   };
 
+  const togglePaymentMark = () => {
+    if (!isPayoutExpanded || isPaidDate) return;
+    const nextPaid = !isMarkedForPayment;
+    setTimesheetPaymentMarks((prev) => ({ ...prev, [key]: nextPaid }));
+    void saveTimesheetPaymentMark(emp.id, d.iso, nextPaid);
+  };
+
+  const cellTitle = isPaidDate
+    ? "Этот день уже оплачен, повторная оплата запрещена"
+    : isPayoutExpanded
+      ? (isMarkedForPayment ? "Нажмите, чтобы снять день с выплаты" : "Нажмите, чтобы добавить день к выплате")
+      : undefined;
+
   return (
     <td
-      onClick={() => {
-        if (!isPayoutExpanded) return;
-        if (isPaidDate) return;
-        const nextPaid = !isMarkedForPayment;
-        setTimesheetPaymentMarks((prev) => ({ ...prev, [key]: nextPaid }));
-        void saveTimesheetPaymentMark(emp.id, d.iso, nextPaid);
-      }}
+      onClick={togglePaymentMark}
       style={{
         padding: isPaidDate ? "0.2rem 0.2rem 0.72rem 0.2rem" : "0.2rem",
         borderBottom: "1px solid var(--color-border)",
@@ -101,8 +108,9 @@ export function AdminTimesheetDayCell({
         cursor: isPayoutExpanded ? (isPaidDate ? "not-allowed" : "pointer") : "default",
         opacity: isPayoutExpanded && isPaidDate ? 0.9 : 1,
       }}
-      title={isPaidDate ? "Этот день уже оплачен, повторная оплата запрещена" : undefined}
+      title={cellTitle}
     >
+      <div style={{ pointerEvents: isPayoutExpanded ? "none" : "auto" }}>
       {isMarkAccrual ? (
         <div style={{ display: "grid", justifyItems: "center", rowGap: "0.08rem" }}>
           <button
@@ -297,6 +305,7 @@ export function AdminTimesheetDayCell({
           )}
         </div>
       )}
+      </div>
     </td>
   );
 }
