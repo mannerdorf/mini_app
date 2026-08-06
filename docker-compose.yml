@@ -7,6 +7,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_ORIGIN: ""
-    expose:
-      - "80"
+    # Timeweb: хост-порты 80/443 зарезервированы; первый сервис — 8080→80 (см. docs App Platform).
+    ports:
+      - "8080:80"
     restart: unless-stopped
