@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sync VPS api.haulz.ru to origin/main (55861c2+).
+# Sync VPS api.haulz.ru to origin/main (эталон prod — см. deploy/README-vps-api.md).
 # Run on haulzbackend as root:
 #   bash /opt/haulz/app/deploy/vps-sync-main.sh
 # Or after tarball:

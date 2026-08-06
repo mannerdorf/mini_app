@@ -69,10 +69,39 @@ sudo crontab /root/crontab-haulz.txt
 
 После переноса **отключите Vercel Cron**, иначе задачи дублируются.
 
+## Production baseline (Aug 2026)
+
+Эталон — **`origin/main`**. На VPS после проверки:
+
+```bash
+cd /opt/haulz/app
+bash deploy/vps-sync-main.sh
+```
+
+Скрипты для точечных операций (не коммитить секреты):
+
+| Скрипт | Назначение |
+|--------|------------|
+| `deploy/vps-sync-main.sh` | Полный sync API с `main`, migrations, restart |
+| `deploy/build-vps-cache-upgrade-tgz.sh` | Сборка tarball normalized cache (Mac) |
+| `deploy/apply-vps-cache-upgrade.sh` | Накат tarball на VPS без смены `.env` |
+| `deploy/apply-vps-env.sh` | Замена `/opt/haulz/.env` с бэкапом (+ merge DGIS/Zvonobot) |
+| `deploy/apply-vps-rollback.sh` | Откат каталога app из бэкапа |
+
+Фронт Timeweb: пересборка из `main`, **`VITE_API_ORIGIN` пустой** если nginx/Caddy проксирует `/api` → VPS :80 (см. `docker-compose.yml`, `Caddyfile`).
+
+Кроны: `deploy/crontab.haulz-api.example` + `deploy/cron-call.sh`. После normalized cache в `.env`: `CACHE_REFRESH_SKIP_BLOB=1`.
+
 ## Обновление
 
 ```bash
-cd /opt/haulz/app && sudo git pull origin staging && sudo npm ci && sudo systemctl restart haulz-api
+cd /opt/haulz/app && bash deploy/vps-sync-main.sh
+```
+
+Или вручную:
+
+```bash
+cd /opt/haulz/app && sudo git pull origin main && sudo npm ci && sudo systemctl restart haulz-api
 ```
 
 После обновления с новыми миграциями:
@@ -83,15 +112,14 @@ psql "$DATABASE_URL" -f /opt/haulz/app/migrations/075_legal_documents.sql
 
 ## Статика haulz.ru
 
-Фронт на **haulz.ru** не обслуживает `POST /api/*` — только **api.haulz.ru**.
-
-При сборке:
+Рекомендуется **same-origin** `/api` → VPS :80 (`deploy/nginx.miniapp-static.conf`, корневой `Caddyfile`, `docker-compose.yml`).
 
 ```bash
-VITE_API_ORIGIN=https://api.haulz.ru npm run build
+# Docker Compose / Timeweb Apps — VITE_API_ORIGIN пустой (см. docker-compose.yml)
+npm run build
 ```
 
-В актуальных сборках `main.tsx` перенаправляет `/api/*` с `haulz.ru` / Layero на **`https://api.haulz.ru`** по умолчанию.
+Fallback в `src/main.tsx`: cross-origin на `https://api.haulz.ru`, если прокси на фронте не настроен.
 
 ## Postgres на VPS
 
