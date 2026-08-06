@@ -58,3 +58,4 @@ curl -sS http://127.0.0.1:3000/api/admin-haulz-calculator-tariffs -H "Authorizat
 curl -sS http://127.0.0.1:3000/api/admin-document-cache-backfill -H "Authorization: Bearer test" | head -c 120; echo
 
 echo "==> done"
+echo "Cron worker deploy: see deploy/vps-sync-cron.sh on dedicated cron-VPS (deploy/README-vps-cron.md)"

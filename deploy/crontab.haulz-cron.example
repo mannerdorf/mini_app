@@ -1,0 +1,29 @@
+# Crontab для ВЫДЕЛЕННОГО cron-VPS (localhost:3000 / haulz-cron.service).
+#
+# НЕ ставить на api.haulz.ru (72.56.36.185) — там только watchdog TLS.
+# См. deploy/README-vps-cron.md
+#
+# 1. sudo cp /opt/haulz/app/deploy/cron-call.sh /opt/haulz/cron-call.sh
+# 2. CRON_SECRET в /opt/haulz/.env
+# 3. CACHE_REFRESH_SKIP_BLOB=1 в .env (рекомендуется)
+# 4. sudo crontab deploy/crontab.haulz-cron.example   # или crontab /root/crontab-haulz-cron.txt
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+HAULZ_CRON_API_BASE=http://127.0.0.1:3000
+
+# refresh-cache: раз в 10 минут, сдвиг по минутам
+1,11,21,31,41,51 * * * * /opt/haulz/cron-call.sh /api/cron/refresh-cache
+0 2,8,14,20 * * * /opt/haulz/cron-call.sh /api/cron/refresh-cache-deep
+*/10 * * * * /opt/haulz/cron-call.sh /api/cron/backfill-sendings-metrics
+# refresh-orders-cache отключён — 1C часто не отвечает
+# */15 * * * * /opt/haulz/cron-call.sh /api/cron/refresh-orders-cache
+*/15 * * * * /opt/haulz/cron-call.sh /api/cron/refresh-suppliers-cache
+*/5 * * * * /opt/haulz/cron-call.sh /api/cron/process-claim-push-queue
+0 * * * * /opt/haulz/cron-call.sh /api/notification-poll
+0 0 * * * /opt/haulz/cron-call.sh /api/cron/refresh-tariffs-cache
+0 0 * * * /opt/haulz/cron-call.sh /api/cron/refresh-sverki-cache
+0 0 * * * /opt/haulz/cron-call.sh /api/cron/refresh-dogovors-cache
+0 0 * * * /opt/haulz/cron-call.sh /api/cron/refresh-pvz-cache
+0 10 * * * /opt/haulz/cron-call.sh /api/notification-daily-summary
+*/5 * * * * /opt/haulz/cron-call.sh /api/cron/weekly-partner-summary
