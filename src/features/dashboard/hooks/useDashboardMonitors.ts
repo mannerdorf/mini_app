@@ -3,8 +3,8 @@ import { useInvoices, usePerevozki } from "../../../hooks/useApi";
 import { filterCargoItemsForHeaderCustomer, filterItemsForHeaderCustomer } from "../../../features/documents/lib/documentsPipeline";
 import type { AuthData, CargoItem } from "../types";
 
-/** Временно off — запросы /api/invoices перегружают VPS. Включить после стабилизации. */
-export const DASHBOARD_INVOICE_MONITORS_ENABLED = false;
+/** ЭДО — период фильтра дашборда; задолженность — отдельный запрос, окно 3 мес. */
+export const DASHBOARD_INVOICE_MONITORS_ENABLED = true;
 
 /** Монитор задолженности — окно 3 месяца. */
 const UNPAID_MONITOR_MONTHS = 3;
