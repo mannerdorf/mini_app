@@ -1,5 +1,4 @@
-const DEFAULT_PUBLIC_API_ORIGIN = "https://api.haulz.ru";
-const DEFAULT_APP_URL = "https://haulz.ru";
+import { DEFAULT_APP_URL, DEFAULT_PUBLIC_API_ORIGIN } from "./haulzDomains.js";
 
 function normalizeOrigin(value: string): string {
   let v = value.trim().replace(/\/+$/, "");
@@ -13,7 +12,7 @@ function normalizeOrigin(value: string): string {
   }
 }
 
-/** Публичный URL фронта (haulz.ru). */
+/** Публичный URL фронта (haulz.space). */
 export function getAppPublicUrl(): string {
   const explicit = [process.env.NEXT_PUBLIC_APP_URL, process.env.APP_URL]
     .map((s) => normalizeOrigin(String(s || "")))
@@ -21,7 +20,7 @@ export function getAppPublicUrl(): string {
   return explicit || DEFAULT_APP_URL;
 }
 
-/** Публичный URL API (api.haulz.ru). Webhooks, partner API, track-ссылки. */
+/** Публичный URL API (api.haulz.space). Webhooks, partner API, track-ссылки. */
 export function getPublicApiOrigin(): string {
   const explicit = [
     process.env.PUBLIC_API_ORIGIN,
@@ -49,7 +48,7 @@ type RequestLikeHeaders = {
   "x-forwarded-proto"?: string | string[];
 };
 
-/** Origin API из env или заголовков запроса (nginx → api.haulz.ru). */
+/** Origin API из env или заголовков запроса (nginx → api.haulz.space). */
 export function resolvePublicApiOriginFromRequest(headers: RequestLikeHeaders): string {
   const fromEnv = [
     process.env.PUBLIC_API_ORIGIN,

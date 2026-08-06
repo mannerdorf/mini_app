@@ -92,7 +92,7 @@ export function renderUnsubscribeResultHtml(ok: boolean, message: string): strin
   <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:24px;border:1px solid #e5e7eb;">
     <h1 style="margin:0 0 12px;font-size:20px;color:${color};">${title}</h1>
     <p style="margin:0 0 16px;font-size:15px;line-height:1.5;">${message}</p>
-    <a href="${getAppUrl()}" style="color:#2563eb;font-weight:600;text-decoration:none;">Перейти на haulz.ru</a>
+    <a href="${getAppUrl()}" style="color:#2563eb;font-weight:600;text-decoration:none;">Перейти на haulz.space</a>
   </div>
 </body></html>`;
 }

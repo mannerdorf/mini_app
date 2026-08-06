@@ -6,7 +6,7 @@ export const HAULZ_LEGAL = {
   ogrn: "1237700687180",
   address: "119049, г. Москва, ул. Мытная, д. 28, стр. 3",
   email: "info@haulz.pro",
-  site: "haulz.ru",
+  site: "haulz.space",
   offices: [
     { city: "Москва / МО", phone: "+7 (958) 538-42-22" },
     { city: "Калининград", phone: "+7 (401) 227-95-55" },

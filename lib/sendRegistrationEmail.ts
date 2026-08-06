@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import type { Pool } from "pg";
 import { emailBodyStyle, HAULZ_EMAIL_HEAD_LINKS } from "./emailTypography.js";
+import { getAppPublicUrl } from "./publicApiOrigin.js";
 
 export type EmailSettings = {
   smtp_host: string | null;
@@ -18,9 +19,7 @@ function substituteTemplate(template: string, vars: Record<string, string>): str
 }
 
 export function getAppUrl(): string {
-  const url = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL;
-  if (url?.trim()) return url.trim().replace(/\/+$/, "");
-  return "https://haulz.ru";
+  return getAppPublicUrl();
 }
 
 /** Базовые настройки из env. Шаблоны писем могут переопределяться из БД (getEmailSettings с pool). */

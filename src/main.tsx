@@ -16,7 +16,7 @@ import "./styles.css";
 import "./components/shipment-status.css";
 import "./styles/haulz-calculator.css";
 import { clearChunkReloadState, isChunkLoadError, reloadForStaleChunks } from "./lib/chunkLoadRecovery";
-import { PARTNER_API_PUBLIC_ORIGIN } from "./constants/partnerApi";
+import { resolveApiOrigin } from "./lib/resolveApiOrigin";
 
 const swrConfig = {
     revalidateOnFocus: false,
@@ -114,30 +114,8 @@ const setupDebugOverlay = () => {
 
 setupDebugOverlay();
 
-/** API по умолчанию (VPS api.haulz.ru); нативное приложение и статика haulz.ru / Layero. */
-const FALLBACK_API_ORIGIN = PARTNER_API_PUBLIC_ORIGIN;
-
-/** Статика на haulz.ru / Layero (nginx); POST /api/* на этом хосте даёт 405 — API на Vercel. */
-const HAULZ_STATIC_ORIGINS = new Set([
-  "https://haulz.ru",
-  "http://haulz.ru",
-  "https://www.haulz.ru",
-  "http://www.haulz.ru",
-]);
-
-const isStaticFrontendOrigin = (origin: string): boolean => {
-  if (HAULZ_STATIC_ORIGINS.has(origin)) return true;
-  try {
-    const host = new URL(origin).hostname.toLowerCase();
-    return host === "haulz.ru" || host.endsWith(".haulz.ru") || host.endsWith(".layero.ru");
-  } catch {
-    return false;
-  }
-};
-
 const normalizeOrigin = (value: string): string => value.trim().replace(/\/+$/, "");
 
-/** VITE_API_ORIGIN без https:// иначе браузер шлёт POST на layero.ru/домен.vercel.app/api/... (S3 MethodNotAllowed). */
 const normalizeApiOrigin = (value: string): string => {
   let v = normalizeOrigin(value);
   if (!v) return "";
@@ -148,24 +126,6 @@ const normalizeApiOrigin = (value: string): string => {
   } catch {
     return "";
   }
-};
-
-const isCapacitorNative = (): boolean => {
-  if (typeof window === "undefined") return false;
-  const protocol = String(window.location?.protocol || "").toLowerCase();
-  if (protocol === "capacitor:" || protocol === "ionic:") return true;
-  return typeof window.Capacitor?.isNativePlatform === "function" ? !!window.Capacitor.isNativePlatform() : false;
-};
-
-const resolveApiOrigin = (): string => {
-  const envOrigin = normalizeApiOrigin(String(import.meta.env.VITE_API_ORIGIN || ""));
-  if (envOrigin) return envOrigin;
-  if (typeof window !== "undefined" && !isCapacitorNative()) {
-    const pageOrigin = normalizeOrigin(window.location.origin);
-    if (isStaticFrontendOrigin(pageOrigin)) return FALLBACK_API_ORIGIN;
-    return pageOrigin;
-  }
-  return FALLBACK_API_ORIGIN;
 };
 
 const rewriteNativeApiUrl = (url: string, apiOrigin: string): string => {
@@ -204,9 +164,8 @@ const isLikelyLocalDev = (): boolean => {
 };
 
 /**
- * /api/* → serverless functions в api/*.ts (Vercel) на том же origin, что и фронт.
- * Переписываем fetch только если API на другом хосте: VITE_API_ORIGIN, Capacitor → FALLBACK/VITE.
- * Статика на haulz.ru / Layero без VITE_API_ORIGIN → FALLBACK (api.haulz.ru).
+ * Переписываем fetch только если API на другом хосте (VITE_API_ORIGIN, Capacitor).
+ * haulz.space / haulz.ru → same-origin /api/* (nginx → api.haulz.space).
  */
 if (typeof window !== "undefined") {
   const apiOrigin = resolveApiOrigin();
