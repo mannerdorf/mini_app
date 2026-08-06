@@ -85,6 +85,7 @@ export function AdminUsersListPanel(props: AdminUsersListPanelProps) {
   const shared = {
     ...rest,
     users,
+    permissionPresets,
     sorted: listData.sorted,
     visibleSorted: listData.visibleSorted,
     hasMore: listData.hasMore,
