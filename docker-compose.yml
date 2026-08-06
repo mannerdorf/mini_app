@@ -1,0 +1,12 @@
+# Timeweb App Platform → Docker Compose (staging deploy).
+# Первый сервис получает домен; nginx в контейнере проксирует /api → VPS :80.
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_ORIGIN: ""
+    expose:
+      - "80"
+    restart: unless-stopped
