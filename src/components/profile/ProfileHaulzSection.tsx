@@ -7,19 +7,17 @@ import { RED_RETURNS_LABEL } from "../../features/redReturns/appRedReturns";
 type Props = {
     activeAccount: Account | null;
     onBack: () => void;
-    /** Переходы по подразделам HAULZ (табель, заявки, AIS и т.д.). */
+    /** Переходы по подразделам HAULZ (табель, заявки и т.д.). */
     navigateTo: (view: ProfileView) => void;
     onOpenDocumentsWithSection?: (section: string) => void;
-    onOpenWildberries?: () => void;
 };
 
-/** Экран подменю HAULZ: кнопки по правам (табель, заявки, AIS, сканер, бухгалтерия, WB). */
+/** Экран подменю HAULZ: кнопки по правам (табель, заявки, бухгалтерия и т.д.). */
 export function ProfileHaulzSection({
     activeAccount,
     onBack,
     navigateTo,
     onOpenDocumentsWithSection,
-    onOpenWildberries,
 }: Props) {
     return (
         <div className="w-full">
@@ -40,14 +38,6 @@ export function ProfileHaulzSection({
                         Заявки на расходы
                     </Button>
                 )}
-                <Button type="button" className="button-primary" onClick={() => navigateTo("parcelScanner")}>
-                    Сканер посылки
-                </Button>
-                {activeAccount?.permissions?.haulz === true && (
-                    <Button type="button" className="button-primary" onClick={() => navigateTo("ais")}>
-                        AIS
-                    </Button>
-                )}
                 {activeAccount?.permissions?.doc_claims === true && onOpenDocumentsWithSection && (
                     <Button type="button" className="button-primary" onClick={() => onOpenDocumentsWithSection("Претензии")}>
                         Претензии
@@ -56,11 +46,6 @@ export function ProfileHaulzSection({
                 {activeAccount?.permissions?.accounting === true && (
                     <Button type="button" className="button-primary" onClick={() => navigateTo("accounting")}>
                         Бухгалтерия
-                    </Button>
-                )}
-                {(activeAccount?.permissions?.wb === true || activeAccount?.permissions?.wb_admin === true) && onOpenWildberries && (
-                    <Button type="button" className="button-primary" onClick={onOpenWildberries}>
-                        Wildberries
                     </Button>
                 )}
                 {activeAccount?.permissions?.haulz === true && (
@@ -76,16 +61,6 @@ export function ProfileHaulzSection({
                 {activeAccount?.permissions?.haulz === true && (
                     <Button type="button" className="button-primary" onClick={() => navigateTo("haulzReturns")}>
                         {RED_RETURNS_LABEL}
-                    </Button>
-                )}
-                {activeAccount?.permissions?.haulz === true && activeAccount?.permissions?.service_mode === true && (
-                    <Button type="button" className="button-primary" onClick={() => navigateTo("haulzSandbox")}>
-                        Песочница
-                    </Button>
-                )}
-                {activeAccount?.permissions?.haulz === true && activeAccount?.permissions?.service_mode === true && (
-                    <Button type="button" className="button-primary" onClick={() => navigateTo("haulzSummary")}>
-                        Отчёт
                     </Button>
                 )}
             </Flex>

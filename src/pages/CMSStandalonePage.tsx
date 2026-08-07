@@ -57,6 +57,29 @@ const ADMIN_FAVICON =
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#b91c1c"/></svg>'
   );
 
+const ADMIN_SESSION_LOGIN_KEY = "haulz.adminSessionLogin";
+const ADMIN_SESSION_PASSWORD_KEY = "haulz.adminSessionPassword";
+
+function readAdminSandboxSession(): { login: string; password: string } | null {
+  if (typeof sessionStorage === "undefined") return null;
+  const login = sessionStorage.getItem(ADMIN_SESSION_LOGIN_KEY)?.trim() ?? "";
+  const password = sessionStorage.getItem(ADMIN_SESSION_PASSWORD_KEY) ?? "";
+  if (!login || !password) return null;
+  return { login, password };
+}
+
+function persistAdminSandboxSession(login: string, password: string) {
+  if (typeof sessionStorage === "undefined") return;
+  sessionStorage.setItem(ADMIN_SESSION_LOGIN_KEY, login);
+  sessionStorage.setItem(ADMIN_SESSION_PASSWORD_KEY, password);
+}
+
+function clearAdminSandboxSession() {
+  if (typeof sessionStorage === "undefined") return;
+  sessionStorage.removeItem(ADMIN_SESSION_LOGIN_KEY);
+  sessionStorage.removeItem(ADMIN_SESSION_PASSWORD_KEY);
+}
+
 /** CMS как отдельная страница по ?tab=cms — без входа в мини-приложение */
 export function CMSStandalonePage() {
   useEffect(() => {
@@ -68,6 +91,9 @@ export function CMSStandalonePage() {
 
   const [adminToken, setAdminToken] = useState<string | null>(() =>
     typeof sessionStorage !== "undefined" ? sessionStorage.getItem("haulz.adminToken") : null
+  );
+  const [sandboxSession, setSandboxSession] = useState<{ login: string; password: string } | null>(() =>
+    readAdminSandboxSession(),
   );
   const [adminLoginInput, setAdminLoginInput] = useState("");
   const [adminPasswordInput, setAdminPasswordInput] = useState("");
@@ -118,6 +144,8 @@ export function CMSStandalonePage() {
       }
       if (res.ok && data.adminToken) {
         if (typeof sessionStorage !== "undefined") sessionStorage.setItem("haulz.adminToken", data.adminToken);
+        persistAdminSandboxSession(login, password);
+        setSandboxSession({ login, password });
         setAdminToken(data.adminToken);
       } else {
         setAdminVerifyError(data?.error || "Доступ запрещён");
@@ -145,6 +173,8 @@ export function CMSStandalonePage() {
         setSessionWarningExpiresAt(null);
       } else {
         if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("haulz.adminToken");
+        clearAdminSandboxSession();
+        setSandboxSession(null);
         setAdminToken(null);
         setSessionExpired(true);
         setSessionWarningOpen(false);
@@ -175,6 +205,8 @@ export function CMSStandalonePage() {
         try {
           if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("haulz.adminToken");
         } catch {}
+        clearAdminSandboxSession();
+        setSandboxSession(null);
         setAdminToken(null);
         setSessionExpired(true);
         setSessionWarningOpen(false);
@@ -237,6 +269,8 @@ export function CMSStandalonePage() {
                       try {
                         if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("haulz.adminToken");
                       } catch {}
+                      clearAdminSandboxSession();
+                      setSandboxSession(null);
                       setAdminToken(null);
                     }}
                   >
@@ -248,11 +282,14 @@ export function CMSStandalonePage() {
           )}
           <AdminPage
             adminToken={adminToken}
+            sandboxSession={sandboxSession}
             onBack={goBackToApp}
             onLogout={(reason) => {
               try {
                 if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("haulz.adminToken");
               } catch {}
+              clearAdminSandboxSession();
+              setSandboxSession(null);
               setSessionExpired(reason === "expired");
               setSessionWarningOpen(false);
               setSessionWarningExpiresAt(null);

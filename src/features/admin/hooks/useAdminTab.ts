@@ -28,6 +28,8 @@ export const ADMIN_TABS = [
   "claims",
   "dashboards",
   "pnl",
+  "haulz_sandbox",
+  "haulz_summary",
 ] as const;
 
 export type AdminTab = (typeof ADMIN_TABS)[number];

@@ -17,6 +17,8 @@ import {
   LayoutDashboard,
   AlertCircle,
   Activity,
+  FlaskConical,
+  Mail,
 } from "lucide-react";
 import type { AdminTab } from "../hooks/useAdminTab";
 import type { AccountingSubsection } from "../types/expenseAccounting";
@@ -158,6 +160,22 @@ export function AdminPageNav({
             PNL
           </Button>
         )}
+        <Button
+          className="filter-button"
+          style={tabBtnStyle(tab === "haulz_sandbox")}
+          onClick={() => setTab("haulz_sandbox")}
+        >
+          <FlaskConical className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+          Песочница
+        </Button>
+        <Button
+          className="filter-button"
+          style={tabBtnStyle(tab === "haulz_summary")}
+          onClick={() => setTab("haulz_summary")}
+        >
+          <Mail className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+          Отчёт
+        </Button>
       </Flex>
 
       {isDirectoryTab && (

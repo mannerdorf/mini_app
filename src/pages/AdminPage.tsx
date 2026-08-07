@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { ArrowLeft, LogOut } from "lucide-react";
 import { PnlSection } from "../pnl/PnlSection";
@@ -31,19 +31,25 @@ import { useAdminPermissionPresets } from "../features/admin/hooks/useAdminPermi
 import { useAdminUsers } from "../features/admin/hooks/useAdminUsers";
 import { useAdminEmployeeDirectory } from "../features/admin/hooks/useAdminEmployeeDirectory";
 import { AdminHaulzCalculatorSection } from "../features/admin/sections/AdminHaulzCalculatorSection";
+import { buildAdminSandboxAccount } from "../features/admin/lib/adminSandboxAccount";
 import { fetchAdminMe } from "../api/client/admin/me";
+import { HaulzApiSandboxPage } from "./HaulzApiSandboxPage";
+import { HaulzSummarySandboxPage } from "./HaulzSummarySandboxPage";
+import type { Account } from "../types";
 import type { PnlExpensePrefill } from "../features/admin/types/expenseAccounting";
 
 const ADMIN_THEME_KEY = "admin-theme";
 
 type AdminPageProps = {
   adminToken: string;
+  /** Login/password CMS-сессии для песочницы API и отчёта. */
+  sandboxSession?: { login: string; password: string } | null;
   onBack: () => void;
   /** При 401 вызывается как onLogout("expired"), при нажатии «Выход» — onLogout() */
   onLogout?: (reason?: "expired") => void;
 };
 
-export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
+export function AdminPage({ adminToken, sandboxSession, onBack, onLogout }: AdminPageProps) {
   const { tab, setTab } = useAdminTab();
   const [accountingSubsection, setAccountingSubsection] = useState<"expense_requests" | "sverki" | "claims">("expense_requests");
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +67,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     onLogout,
     onError: setError,
   });
+
+  const sandboxAccount: Account | null = useMemo(() => {
+    const login = sandboxSession?.login?.trim() ?? "";
+    const password = sandboxSession?.password ?? "";
+    if (!login || !password) return null;
+    return buildAdminSandboxAccount(login, password);
+  }, [sandboxSession?.login, sandboxSession?.password]);
 
   const onLogoutRef = useRef(onLogout);
   useEffect(() => {
@@ -258,6 +271,24 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           expenseCategoryPrefill={pnlExpensePrefill}
         />
       )}
+
+      {tab === "haulz_sandbox" &&
+        (sandboxAccount ? (
+          <HaulzApiSandboxPage activeAccount={sandboxAccount} onBack={() => setTab("users")} />
+        ) : (
+          <Typography.Body style={{ color: "var(--color-text-secondary)" }}>
+            Нет данных сессии для песочницы. Выйдите из CMS и войдите снова.
+          </Typography.Body>
+        ))}
+
+      {tab === "haulz_summary" &&
+        (sandboxAccount ? (
+          <HaulzSummarySandboxPage activeAccount={sandboxAccount} onBack={() => setTab("users")} />
+        ) : (
+          <Typography.Body style={{ color: "var(--color-text-secondary)" }}>
+            Нет данных сессии для отчёта. Выйдите из CMS и войдите снова.
+          </Typography.Body>
+        ))}
     </div>
   );
 }

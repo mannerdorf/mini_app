@@ -16,8 +16,6 @@ import { ProfileVoiceAssistantsSection } from "../components/profile/ProfileVoic
 import { ProfileFaqSection } from "../components/profile/ProfileFaqSection";
 import { ProfileRolesSection } from "../components/profile/ProfileRolesSection";
 import { ProfileHaulzSection } from "../components/profile/ProfileHaulzSection";
-import { HaulzSummarySandboxPage } from "./HaulzSummarySandboxPage";
-import { HaulzApiSandboxPage } from "./HaulzApiSandboxPage";
 import { HaulzReturnsPage } from "./HaulzReturnsPage";
 import { HaulzCalculatorPage } from "./HaulzCalculatorPage";
 import { HaulzCalcRequestsPage } from "./HaulzCalcRequestsPage";
@@ -118,6 +116,12 @@ export function ProfilePage({
         }
     }, [currentView, activeAccount?.isRegisteredUser, activeAccount?.permissions?.service_mode]);
 
+    useEffect(() => {
+        if (currentView === "haulzSandbox" || currentView === "haulzSummary") {
+            setCurrentView("haulz");
+        }
+    }, [currentView]);
+
     if (currentView === 'chat') {
         const auth: AuthData | null = activeAccount ? {
             login: activeAccount.login,
@@ -185,25 +189,6 @@ export function ProfilePage({
                     setCurrentView(view);
                 }}
                 onOpenDocumentsWithSection={onOpenDocumentsWithSection}
-                onOpenWildberries={onOpenWildberries}
-            />
-        );
-    }
-
-    if (currentView === 'haulzSandbox') {
-        return (
-            <HaulzApiSandboxPage
-                activeAccount={activeAccount}
-                onBack={() => setCurrentView("haulz")}
-            />
-        );
-    }
-
-    if (currentView === 'haulzSummary') {
-        return (
-            <HaulzSummarySandboxPage
-                activeAccount={activeAccount}
-                onBack={() => setCurrentView("haulz")}
             />
         );
     }

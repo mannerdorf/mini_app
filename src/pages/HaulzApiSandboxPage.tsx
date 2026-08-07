@@ -10,7 +10,7 @@ type Props = {
     onBack: () => void;
 };
 
-/** Профиль → HAULZ → Песочница: тест внутренних прокси 1С. */
+/** CMS → Песочница: тест внутренних прокси 1С. */
 export function HaulzApiSandboxPage({ activeAccount, onBack }: Props) {
     const [selectedPath, setSelectedPath] = useState(HAULZ_SANDBOX_APIS[0].path);
     const selectedApi = useMemo(() => getHaulzSandboxApi(selectedPath), [selectedPath]);
