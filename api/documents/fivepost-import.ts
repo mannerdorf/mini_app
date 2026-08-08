@@ -6,6 +6,7 @@ import { parseMultipart } from "../_pnl-multipart.js";
 import { importFivepostShipmentXlsx } from "../../lib/fivepost/importBatch.js";
 import { resolveOpenaiApiKey } from "../../lib/haulzReturns/openaiEnv.js";
 import { resolveDocumentsOrderAccess } from "../_documentsOrder.js";
+import { isFivepostCustomer } from "../../lib/fivepost/customerAccess.js";
 import type { FivepostRoute } from "../../lib/fivepost/types.js";
 
 export const config = { api: { bodyParser: false } };
@@ -43,6 +44,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const access = await resolveDocumentsOrderAccess(req, fields);
     if (!access) {
       return res.status(401).json({ error: "Нет доступа", request_id: ctx.requestId });
+    }
+    if (!isFivepostCustomer(access.customerInn, access.customerName)) {
+      return res.status(403).json({ error: "Импорт 5 POST недоступен для этого заказчика", request_id: ctx.requestId });
     }
 
     const file = files.find((f) => f.fieldName === "file");

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Loader2, Plus, Upload, FileText } from "lucide-react";
 import type { ParcelPlace } from "../../../../lib/haulzCalculator/types";
 import type { Direction } from "../../../../lib/haulzCalculator/types";
@@ -33,6 +33,7 @@ export type DocumentsOrderCargoState = {
 type Props = {
   authScope: DocumentsAuthScope;
   direction: Direction;
+  isFivepostCustomer: boolean;
   state: DocumentsOrderCargoState;
   onChange: (next: DocumentsOrderCargoState) => void;
   chargeableHint: { w: number; v: number; volW: number; ch: number };
@@ -68,11 +69,44 @@ function fivepostRowsToTableRows(rows: DocumentsFivepostRow[]): OrderTableRow[] 
   }));
 }
 
-export function DocumentsOrderCargoSection({ authScope, direction, state, onChange, chargeableHint }: Props) {
+export function DocumentsOrderCargoSection({
+  authScope,
+  direction,
+  isFivepostCustomer,
+  state,
+  onChange,
+  chargeableHint,
+}: Props) {
   const [createMestaLoading, setCreateMestaLoading] = useState(false);
   const [fileImportLoading, setFileImportLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isFivepostCustomer || state.attachMode !== "file") return;
+    onChange({
+      ...state,
+      attachMode: "upd",
+      fileZayavki: null,
+      fivepostRows: [],
+      tableRows: [],
+    });
+    setImportMessage(null);
+    setError(null);
+  }, [isFivepostCustomer, state.attachMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (isFivepostCustomer || !state.fivepostRows.length) return;
+    onChange({
+      ...state,
+      attachMode: "upd",
+      fileZayavki: null,
+      fivepostRows: [],
+      tableRows: [],
+    });
+    setImportMessage(null);
+    setError(null);
+  }, [isFivepostCustomer, state.fivepostRows.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setPlaces = (updater: (prev: ParcelPlace[]) => ParcelPlace[]) => {
     onChange({ ...state, places: updater(state.places) });
@@ -113,6 +147,11 @@ export function DocumentsOrderCargoSection({ authScope, direction, state, onChan
       return;
     }
 
+    if (!isFivepostCustomer) {
+      setImportMessage("Файл будет передан менеджеру при оформлении");
+      return;
+    }
+
     setFileImportLoading(true);
     try {
       const result = await importDocumentsFivepostFile(authScope, file, { route: direction });
@@ -141,7 +180,11 @@ export function DocumentsOrderCargoSection({ authScope, direction, state, onChan
       <div className="haulz-calc-extra">
         <div className="haulz-calc-extra__text">
           <strong>Прикрепить заявку</strong>
-          <span className="haulz-calc-extra__desc">Файл 5 POST (Excel) или УПД для формирования мест</span>
+          <span className="haulz-calc-extra__desc">
+            {isFivepostCustomer
+              ? "Файл 5 POST (Excel) или УПД для формирования мест"
+              : "УПД или файл заявки для оформления"}
+          </span>
         </div>
         <label className="haulz-calc-switch">
           <input
@@ -151,7 +194,7 @@ export function DocumentsOrderCargoSection({ authScope, direction, state, onChan
               onChange({
                 ...state,
                 attachEnabled: e.target.checked,
-                attachMode: e.target.checked ? state.attachMode || "file" : "",
+                attachMode: e.target.checked ? state.attachMode || (isFivepostCustomer ? "file" : "upd") : "",
                 tableRows: e.target.checked ? state.tableRows : [],
                 fivepostRows: e.target.checked ? state.fivepostRows : [],
               })
@@ -180,12 +223,12 @@ export function DocumentsOrderCargoSection({ authScope, direction, state, onChan
               }
             >
               <option value="">— Выберите —</option>
-              <option value="file">Файл заявки (5 POST)</option>
+              {isFivepostCustomer && <option value="file">Файл заявки (5 POST)</option>}
               <option value="upd">УПД (Excel)</option>
             </select>
           </label>
 
-          {state.attachMode === "file" && (
+          {state.attachMode === "file" && isFivepostCustomer && (
             <div style={{ marginTop: "0.75rem" }}>
               <label className="haulz-calc-file-btn">
                 {fileImportLoading ? (
@@ -203,7 +246,9 @@ export function DocumentsOrderCargoSection({ authScope, direction, state, onChan
                 />
               </label>
               <p className="haulz-calc-hint">
-                Excel 5 POST — парсинг, перевод названий и таблица ниже. PDF/CSV — только приложение к заявке.
+                {isFivepostCustomer
+                  ? "Excel 5 POST — парсинг, перевод названий и таблица ниже. PDF/CSV — только приложение к заявке."
+                  : "Файл будет передан менеджеру при оформлении."}
               </p>
               {importMessage && (
                 <p className="haulz-calc-hint" style={{ marginTop: "0.35rem" }}>
@@ -249,7 +294,7 @@ export function DocumentsOrderCargoSection({ authScope, direction, state, onChan
             </div>
           )}
 
-          {state.fivepostRows.length > 0 && (
+          {isFivepostCustomer && state.fivepostRows.length > 0 && (
             <div style={{ marginTop: "1rem", overflowX: "auto", maxHeight: "55vh", overflowY: "auto" }}>
               <p className="haulz-calc-label">5 POST ({state.fivepostRows.length} строк)</p>
               <table className="haulz-calc-mini-table" style={{ fontSize: "0.78rem" }}>

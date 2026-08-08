@@ -31,6 +31,7 @@ import {
 import { DocumentsOrderQuoteSummary } from "./DocumentsOrderQuoteSummary";
 import { DocumentsOrderSuccessModal } from "./DocumentsOrderSuccessModal";
 import { filterDocumentsOrderPvzByCity, inferPvzCityCode } from "./documentsOrderPvzFilter";
+import { isFivepostCustomer } from "../../../../lib/fivepost/customerAccess";
 import "../../../styles/haulz-calculator.css";
 
 function resolveLegEndpoint(state: PvzSelectionState) {
@@ -151,6 +152,11 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
       customerName: activeCustomerName,
     }),
     [auth.login, auth.password, activeInn, activeCustomerName],
+  );
+
+  const fivepostCustomer = useMemo(
+    () => isFivepostCustomer(activeInn, activeCustomerName),
+    [activeInn, activeCustomerName],
   );
 
   const { pvzList, pvzLoading, pvzError } = useDocumentsOrderPvzList(authScope, true);
@@ -485,6 +491,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
           <DocumentsOrderCargoSection
             authScope={authScope}
             direction={direction}
+            isFivepostCustomer={fivepostCustomer}
             state={cargo}
             onChange={setCargo}
             chargeableHint={chargeableHint}
