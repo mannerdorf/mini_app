@@ -40,7 +40,7 @@ export function buildDocumentsOrderFormState(input: {
     customerCompanyName: input.customerName ?? "",
     fromInn: input.fromParty?.inn ?? "",
     toInn: input.toParty?.inn ?? "",
-    fromCompanyName: input.fromParty?.companyName ?? "",
+    fromCompanyName: input.fromParty?.companyName ?? input.customerName ?? "",
     toCompanyName: input.toParty?.companyName ?? "",
     fromName: input.fromParty?.fullName ?? "",
     toName: input.toParty?.fullName ?? "",

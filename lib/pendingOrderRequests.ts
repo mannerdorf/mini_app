@@ -363,6 +363,29 @@ async function resolvePendingInnFilter(
   return filterInns;
 }
 
+/** Данные заявки из ЛК для журнала / карточки менеджера (с грузом 5 POST). */
+export async function buildPendingOrderJournalItem(
+  pool: Pool,
+  nomerZayavki: string,
+): Promise<Record<string, unknown> | null> {
+  const number = String(nomerZayavki ?? "").trim();
+  if (!number) return null;
+
+  const { rows } = await pool.query<PendingOrderDbRow>(
+    `SELECT id, login, inn, punkt_otpravki, punkt_naznacheniya, nomer_zayavki, data_zabora, table_rows, created_at
+     FROM pending_order_requests
+     WHERE nomer_zayavki = $1
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [number],
+  );
+  if (!rows[0]) return null;
+
+  const item = pendingOrderToListItem(rows[0]);
+  const [enriched] = await attachPendingOrderCargo(pool, [rows[0]], [item]);
+  return enriched;
+}
+
 export async function fetchPendingOrdersForList(
   pool: Pool,
   login: string,

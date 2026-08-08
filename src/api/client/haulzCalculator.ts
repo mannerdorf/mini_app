@@ -12,6 +12,18 @@ import type { HaulzCalcDraftStatus } from "../../../lib/haulzCalculator/draftSta
 
 export type { HaulzCalculatorFormState, HaulzCalcDraftStatus };
 
+export type DocumentsOrderJournalView = {
+  customerName: string;
+  senderPoint: string;
+  destinationPoint: string;
+  senderName: string;
+  receiverName: string;
+  routeLabel: string;
+  pickupDate: string;
+  fivepostRows: Array<Record<string, unknown>>;
+  legacyTableRows: Array<Record<string, unknown>>;
+};
+
 export type HaulzCalcDraft = {
   id: number;
   title: string | null;
@@ -21,6 +33,7 @@ export type HaulzCalcDraft = {
   quoteResult: QuoteResult | null;
   recipientEmail?: string | null;
   loginKey?: string;
+  documentsOrderJournal?: DocumentsOrderJournalView;
   createdAt: string;
   updatedAt: string;
 };
