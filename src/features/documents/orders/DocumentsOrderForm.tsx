@@ -461,6 +461,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
             pvzLoading={pvzLoading}
             pvzError={pvzError}
             pvzCatalogEmpty={!pvzLoading && !pvzError && pvzList.length === 0}
+            pvzTotalCount={pvzList.length}
             state={fromState}
             onChange={setFromState}
             defaultCity={suggestCityFrom}
@@ -475,6 +476,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
             pvzLoading={pvzLoading}
             pvzError={pvzError}
             pvzCatalogEmpty={!pvzLoading && !pvzError && pvzList.length === 0}
+            pvzTotalCount={pvzList.length}
             state={toState}
             onChange={setToState}
             defaultCity={suggestCityTo}

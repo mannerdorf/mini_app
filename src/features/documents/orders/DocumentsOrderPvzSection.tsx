@@ -47,6 +47,7 @@ type Props = {
   pvzLoading: boolean;
   pvzError?: string | null;
   pvzCatalogEmpty?: boolean;
+  pvzTotalCount?: number;
   state: PvzSelectionState;
   onChange: React.Dispatch<React.SetStateAction<PvzSelectionState>>;
   defaultCity: CityCode;
@@ -85,6 +86,7 @@ export function DocumentsOrderPvzSection({
   pvzLoading,
   pvzError = null,
   pvzCatalogEmpty = false,
+  pvzTotalCount = 0,
   state,
   onChange,
   defaultCity,
@@ -256,8 +258,8 @@ export function DocumentsOrderPvzSection({
 
               {!pvzLoading && !geocodeLoading && !pvzError && pvzList.length === 0 && (
                 <p className="haulz-calc-hint haulz-calc-hint--error">
-                  {pvzCatalogEmpty
-                    ? "Справочник ПВЗ пуст для выбранного контрагента. Обновите его в CMS (Справочник ПВЗ → «Обновить из 1С»)."
+                  {pvzCatalogEmpty || pvzTotalCount === 0
+                    ? "Справочник ПВЗ пуст. Обновите его в CMS (Справочник ПВЗ → «Обновить из 1С»)."
                     : `Нет ПВЗ в ${CITY_LABELS[defaultCity]} для этого маршрута. Нажмите «Новый адрес» или выберите другой пункт.`}
                 </p>
               )}
@@ -301,28 +303,26 @@ export function DocumentsOrderPvzSection({
                 addr={state.addr}
                 setAddr={(a) =>
                   onChange((prev) =>
-                    a ? { ...prev, addr: a } : clearContacts({ ...prev, addr: null }),
+                    a ? { ...prev, addr: a } : { ...prev, addr: null },
                   )
                 }
                 onQuickCity={(c) =>
-                  onChange((prev) => clearContacts({ ...prev, city: c, addr: null, query: "" }))
+                  onChange((prev) => ({ ...prev, city: c, addr: null, query: "" }))
                 }
               />
 
-              {state.addr?.point && (
-                <DocumentsOrderCustomAddressContacts
-                  side={side}
-                  auth={auth}
-                  inn={state.inn}
-                  setInn={(inn) => onChange((prev) => ({ ...prev, inn }))}
-                  companyName={state.companyName}
-                  setCompanyName={(companyName) => onChange((prev) => ({ ...prev, companyName }))}
-                  phone={state.phone}
-                  setPhone={(phone) => onChange((prev) => ({ ...prev, phone }))}
-                  contactName={state.contactName}
-                  setContactName={(contactName) => onChange((prev) => ({ ...prev, contactName }))}
-                />
-              )}
+              <DocumentsOrderCustomAddressContacts
+                side={side}
+                auth={auth}
+                inn={state.inn}
+                setInn={(inn) => onChange((prev) => ({ ...prev, inn }))}
+                companyName={state.companyName}
+                setCompanyName={(companyName) => onChange((prev) => ({ ...prev, companyName }))}
+                phone={state.phone}
+                setPhone={(phone) => onChange((prev) => ({ ...prev, phone }))}
+                contactName={state.contactName}
+                setContactName={(contactName) => onChange((prev) => ({ ...prev, contactName }))}
+              />
 
               <button
                 type="button"

@@ -4,11 +4,13 @@ import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
 const normalizeLogin = (v: unknown) => String(v ?? "").trim().toLowerCase();
-const normalizeInn = (v: unknown) => String(v ?? "").replace(/\D/g, "").trim();
 
 /**
- * POST /api/pvz-list — ПВЗ, доступные заказчику (по ИНН из account_companies).
+ * POST /api/pvz-list — справочник ПВЗ для заявок (из cache_pvz).
  * Требуется авторизация зарегистрированного пользователя.
+ *
+ * ВладелецИНН в 1С — это владелец пункта (логистический партнёр), а не заказчик.
+ * Список общий для всех авторизованных пользователей; фильтр по городу — на клиенте.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "pvz-list");
@@ -29,7 +31,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const login = normalizeLogin(body?.login ?? req.headers["x-login"]);
   const password = String(body?.password ?? req.headers["x-password"] ?? "").trim();
-  const requestedInn = body?.inn ? normalizeInn(body.inn) : null;
 
   if (!login || !password) {
     return res.status(400).json({ error: "login and password required", request_id: ctx.requestId });
@@ -42,32 +43,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
     }
 
-    let filterInns: string[] = [];
-    if (verified.accessAllInns) {
-      filterInns = requestedInn ? [normalizeInn(requestedInn)] : [];
-    } else {
-      const acRows = await pool.query<{ inn: string }>(
-        "SELECT inn FROM account_companies WHERE login = $1",
-        [login]
-      );
-      const allowed = new Set(
-        acRows.rows.map((r) => normalizeInn(r.inn)).filter(Boolean)
-      );
-      if (verified.inn) allowed.add(normalizeInn(verified.inn));
-      if (requestedInn && allowed.has(requestedInn)) {
-        filterInns = [requestedInn];
-      } else if (requestedInn && allowed.size > 0) {
-        // ИНН из переключателя не совпал с account_companies — показываем все доступные, не пустой список
-        filterInns = Array.from(allowed);
-      } else {
-        filterInns = Array.from(allowed);
-      }
-    }
-
-    if (filterInns.length === 0 && !verified.accessAllInns) {
-      return res.status(200).json({ pvz: [], request_id: ctx.requestId });
-    }
-
     const geoExclude = "AND lower(naimenovanie) NOT LIKE '%геологистика%'";
     const zelenoeExclude =
       "AND lower(coalesce(naimenovanie,'') || ' ' || coalesce(gorod,'') || ' ' || coalesce(region,'')) NOT LIKE '%зеленое шоссе%'" +
@@ -75,22 +50,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const haulzWarehouseExclude =
       "AND lower(coalesce(naimenovanie,'') || ' ' || coalesce(gorod,'') || ' ' || coalesce(region,'') || ' ' || coalesce(otpravitel_poluchatel,'')) NOT LIKE '%андреевск%'" +
       " AND lower(coalesce(naimenovanie,'') || ' ' || coalesce(gorod,'') || ' ' || coalesce(region,'') || ' ' || coalesce(otpravitel_poluchatel,'')) NOT LIKE '%железнодорожн%12%'";
-    const query =
-      filterInns.length === 0
-        ? `SELECT ssylka, naimenovanie, kod_dlya_pechati, gorod, region,
-                 vladelec_inn, vladelec_naimenovanie, otpravitel_poluchatel, kontaktnoe_litso
-          FROM cache_pvz
-          WHERE 1=1 ${geoExclude} ${zelenoeExclude} ${haulzWarehouseExclude}
-          ORDER BY sort_order ASC, naimenovanie ASC`
-        : `SELECT ssylka, naimenovanie, kod_dlya_pechati, gorod, region,
-                 vladelec_inn, vladelec_naimenovanie, otpravitel_poluchatel, kontaktnoe_litso
-          FROM cache_pvz
-          WHERE regexp_replace(vladelec_inn, '[^0-9]', '', 'g') = ANY($1::text[])
-          ${geoExclude} ${zelenoeExclude} ${haulzWarehouseExclude}
-          ORDER BY sort_order ASC, naimenovanie ASC`;
 
-    const params = filterInns.length === 0 ? [] : [filterInns];
-    const { rows } = await pool.query(query, params);
+    const { rows } = await pool.query(
+      `SELECT ssylka, naimenovanie, kod_dlya_pechati, gorod, region,
+              vladelec_inn, vladelec_naimenovanie, otpravitel_poluchatel, kontaktnoe_litso
+       FROM cache_pvz
+       WHERE 1=1 ${geoExclude} ${zelenoeExclude} ${haulzWarehouseExclude}
+       ORDER BY sort_order ASC, naimenovanie ASC`,
+    );
 
     const pvz = rows.map((r: Record<string, string>) => {
       const naim = (r.naimenovanie || "").replace(/\s+/g, " ").trim();
