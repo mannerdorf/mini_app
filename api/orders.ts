@@ -8,6 +8,7 @@ import {
 } from "../lib/cacheHistoryDays.js";
 import { respondCorsPreflight } from "./_lib/cors.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { appendPendingOrdersForUser } from "../lib/pendingOrderRequests.js";
 
 /**
  * Прокси для GetZayavki в разделе "Заявки".
@@ -214,8 +215,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       registeredVerified = verified;
       if (useDocumentCache) {
         const filtered = await readRegisteredOrdersFromCache(pool, verified, login, dateFrom, dateTo, inn, serviceMode);
-        if (filtered.length > 0) return res.status(200).json(filtered);
-        return res.status(200).json([]);
+        const merged = await appendPendingOrdersForUser(
+          pool,
+          verified,
+          login,
+          dateFrom,
+          dateTo,
+          inn,
+          serviceMode,
+          filtered,
+        );
+        return res.status(200).json(merged);
       }
     } catch (e) {
       logError(ctx, "orders_registered_user_failed", e);
@@ -345,8 +355,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             serviceMode,
             list,
           );
+          list = await appendPendingOrdersForUser(
+            getPool(),
+            registeredVerified,
+            login,
+            dateFrom,
+            dateTo,
+            inn,
+            serviceMode,
+            list,
+          );
         }
-        if (Array.isArray(list) && list.length > 0) {
+        if (Array.isArray(list)) {
           return res.status(200).json(list);
         }
       } catch {
@@ -357,6 +377,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (lastError) {
       if (typeof lastError.payload === "string") return res.status(lastError.status).send(lastError.payload);
       return res.status(lastError.status).json(lastError.payload);
+    }
+    if (isRegisteredUser && registeredVerified) {
+      const merged = await appendPendingOrdersForUser(
+        getPool(),
+        registeredVerified,
+        login,
+        dateFrom,
+        dateTo,
+        inn,
+        serviceMode,
+        [],
+      );
+      return res.status(200).json(merged);
     }
     return res.status(200).json([]);
   } catch (e: any) {

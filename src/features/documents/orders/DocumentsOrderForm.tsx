@@ -15,6 +15,7 @@ import {
   fileToBase64,
   submitDocumentsOrder,
   type DocumentsAuthScope,
+  type DocumentsOrderQuotePayload,
 } from "../../../api/client/documentsOrder";
 import { warehouseForCity } from "../../../../lib/haulzCalculator/warehouses";
 import {
@@ -266,31 +267,39 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
 
   const debouncedQuoteDeps = useDebounced(quoteDepsKey, 700);
   const prevQuoteDepsRef = useRef<string | null>(null);
+  const quoteRequestRef = useRef<DocumentsOrderQuotePayload | null>(null);
+
+  quoteRequestRef.current =
+    canQuote && fromAddr && toAddr
+      ? {
+          from: fromAddr,
+          to: toAddr,
+          places,
+          mainlineMode,
+          direction,
+          declaredValueRub: Number(cargo.declaredValue) || 0,
+          extraCodes,
+          fromParty,
+          toParty,
+        }
+      : null;
 
   useEffect(() => {
-    if (!canQuote) {
+    if (!canQuote || !quoteRequestRef.current) {
       prevQuoteDepsRef.current = null;
       setQuote(null);
+      setLoading(false);
       return;
     }
     if (prevQuoteDepsRef.current === debouncedQuoteDeps) return;
     prevQuoteDepsRef.current = debouncedQuoteDeps;
 
+    const payload = quoteRequestRef.current;
     let cancelled = false;
     setLoading(true);
     setError(null);
 
-    fetchDocumentsOrderQuote(authScope, {
-      from: fromAddr!,
-      to: toAddr!,
-      places,
-      mainlineMode,
-      direction,
-      declaredValueRub: Number(cargo.declaredValue) || 0,
-      extraCodes,
-      fromParty,
-      toParty,
-    })
+    fetchDocumentsOrderQuote(authScope, payload)
       .then((q) => {
         if (!cancelled) setQuote(q);
       })
@@ -307,20 +316,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     return () => {
       cancelled = true;
     };
-  }, [
-    canQuote,
-    debouncedQuoteDeps,
-    authScope,
-    fromAddr,
-    toAddr,
-    places,
-    mainlineMode,
-    direction,
-    cargo.declaredValue,
-    extraCodes,
-    fromParty,
-    toParty,
-  ]);
+  }, [canQuote, debouncedQuoteDeps, authScope]);
 
   const punktOtpravki = fromEndpoint.punkt;
   const punktNaznacheniya = toEndpoint.punkt;

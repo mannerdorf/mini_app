@@ -71,6 +71,11 @@ async function translateBatchYandex(texts: string[]): Promise<string[]> {
   const payload = (await res.json().catch(() => ({}))) as YandexTranslateResponse;
   if (!res.ok) {
     const detail = payload.message?.trim() || res.statusText || "unknown error";
+    if (res.status === 403 && /permission|denied|resource-manager/i.test(detail)) {
+      throw new Error(
+        "Yandex Translate: нет прав у API-ключа. В Yandex Cloud → сервисный аккаунт → роли: ai.translate.user (и resource-manager.viewer на каталог). Проверьте YANDEX_FOLDER_ID.",
+      );
+    }
     throw new Error(`Yandex Translate: ${res.status} ${detail}`);
   }
 
