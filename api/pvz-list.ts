@@ -54,9 +54,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         acRows.rows.map((r) => normalizeInn(r.inn)).filter(Boolean)
       );
       if (verified.inn) allowed.add(normalizeInn(verified.inn));
-      filterInns = requestedInn
-        ? (allowed.has(requestedInn) ? [requestedInn] : [])
-        : Array.from(allowed);
+      if (requestedInn && allowed.has(requestedInn)) {
+        filterInns = [requestedInn];
+      } else if (requestedInn && allowed.size > 0) {
+        // ИНН из переключателя не совпал с account_companies — показываем все доступные, не пустой список
+        filterInns = Array.from(allowed);
+      } else {
+        filterInns = Array.from(allowed);
+      }
     }
 
     if (filterInns.length === 0 && !verified.accessAllInns) {

@@ -905,8 +905,7 @@
 
 /* Выше специфичность, чем у .light-mode input в styles.css; фикс autofill и type=search/tel */
 .haulz-calc-page--cdek input.haulz-calc-input,
-.haulz-calc-page--cdek textarea.haulz-calc-input,
-.haulz-calc-page--cdek select.haulz-calc-input {
+.haulz-calc-page--cdek textarea.haulz-calc-input {
   display: block;
   width: 100%;
   height: var(--calc-input-h);
@@ -921,6 +920,25 @@
   line-height: 1.25;
   -webkit-appearance: none;
   appearance: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+/* Native select: не снимаем appearance — иначе в iOS/Telegram WebView список не открывается */
+.haulz-calc-page--cdek select.haulz-calc-input {
+  display: block;
+  width: 100%;
+  height: var(--calc-input-h);
+  padding: 0 14px;
+  padding-right: 2rem;
+  box-sizing: border-box;
+  border: 1px solid var(--calc-border);
+  border-radius: 10px;
+  background-color: var(--calc-input-bg) !important;
+  color: var(--calc-text) !important;
+  font-size: 1rem;
+  line-height: 1.25;
+  -webkit-appearance: menulist;
+  appearance: auto;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 

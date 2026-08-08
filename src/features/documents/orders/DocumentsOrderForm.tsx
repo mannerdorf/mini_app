@@ -153,7 +153,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     [auth.login, auth.password, activeInn, activeCustomerName],
   );
 
-  const { pvzList, pvzLoading } = useDocumentsOrderPvzList(authScope, true);
+  const { pvzList, pvzLoading, pvzError } = useDocumentsOrderPvzList(authScope, true);
 
   const [direction, setDirection] = useState<Direction>("mow_kgd");
   const [fromState, setFromState] = useState<PvzSelectionState>(() => defaultPvzState("moscow"));
@@ -459,6 +459,8 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
             authScope={authScope}
             pvzList={fromPvzList}
             pvzLoading={pvzLoading}
+            pvzError={pvzError}
+            pvzCatalogEmpty={!pvzLoading && !pvzError && pvzList.length === 0}
             state={fromState}
             onChange={setFromState}
             defaultCity={suggestCityFrom}
@@ -471,6 +473,8 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
             authScope={authScope}
             pvzList={toPvzList}
             pvzLoading={pvzLoading}
+            pvzError={pvzError}
+            pvzCatalogEmpty={!pvzLoading && !pvzError && pvzList.length === 0}
             state={toState}
             onChange={setToState}
             defaultCity={suggestCityTo}

@@ -12,6 +12,11 @@ import { DocumentsOrderAddressField } from "./DocumentsOrderAddressField";
 import { DocumentsOrderCustomAddressContacts } from "./DocumentsOrderCustomAddressContacts";
 import { filterDocumentsOrderPvzList, inferPvzCityCode } from "./documentsOrderPvzFilter";
 
+const CITY_LABELS: Record<CityCode, string> = {
+  moscow: "Москве",
+  kaliningrad: "Калининграде",
+};
+
 export type PvzSelectionState = {
   deliveryMode: "courier" | "point";
   addressKind: "pvz" | "custom";
@@ -40,6 +45,8 @@ type Props = {
   authScope: DocumentsAuthScope;
   pvzList: PvzItem[];
   pvzLoading: boolean;
+  pvzError?: string | null;
+  pvzCatalogEmpty?: boolean;
   state: PvzSelectionState;
   onChange: React.Dispatch<React.SetStateAction<PvzSelectionState>>;
   defaultCity: CityCode;
@@ -76,6 +83,8 @@ export function DocumentsOrderPvzSection({
   authScope,
   pvzList,
   pvzLoading,
+  pvzError = null,
+  pvzCatalogEmpty = false,
   state,
   onChange,
   defaultCity,
@@ -241,6 +250,18 @@ export function DocumentsOrderPvzSection({
 
               {geocodeError && <p className="haulz-calc-hint haulz-calc-hint--error">{geocodeError}</p>}
 
+              {!pvzLoading && !geocodeLoading && pvzError && (
+                <p className="haulz-calc-hint haulz-calc-hint--error">{pvzError}</p>
+              )}
+
+              {!pvzLoading && !geocodeLoading && !pvzError && pvzList.length === 0 && (
+                <p className="haulz-calc-hint haulz-calc-hint--error">
+                  {pvzCatalogEmpty
+                    ? "Справочник ПВЗ пуст для выбранного контрагента. Обновите его в CMS (Справочник ПВЗ → «Обновить из 1С»)."
+                    : `Нет ПВЗ в ${CITY_LABELS[defaultCity]} для этого маршрута. Нажмите «Новый адрес» или выберите другой пункт.`}
+                </p>
+              )}
+
               {state.addr && (
                 <p className="haulz-calc-hint" style={{ marginTop: "0.5rem" }}>
                   {state.addr.fullAddress}
@@ -335,15 +356,20 @@ export function DocumentsOrderPvzSection({
 export function useDocumentsOrderPvzList(authScope: DocumentsAuthScope, enabled: boolean) {
   const [pvzList, setPvzList] = useState<PvzItem[]>([]);
   const [pvzLoading, setPvzLoading] = useState(false);
+  const [pvzError, setPvzError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!enabled || !authScope.login || !authScope.password) return;
     setPvzLoading(true);
+    setPvzError(null);
     fetchPvzList({ login: authScope.login, password: authScope.password, inn: authScope.inn })
       .then((list) => setPvzList(filterDocumentsOrderPvzList(list)))
-      .catch(() => setPvzList([]))
+      .catch((e) => {
+        setPvzList([]);
+        setPvzError((e as Error)?.message || "Не удалось загрузить ПВЗ");
+      })
       .finally(() => setPvzLoading(false));
   }, [enabled, authScope.login, authScope.password, authScope.inn]);
 
-  return { pvzList, pvzLoading };
+  return { pvzList, pvzLoading, pvzError };
 }

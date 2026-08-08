@@ -28,6 +28,9 @@ export async function fetchPvzList(auth: {
       inn: auth.inn || undefined,
     }),
   });
-  const data = (await res.json().catch(() => ({}))) as { pvz?: PvzItem[] };
+  const data = (await res.json().catch(() => ({}))) as { pvz?: PvzItem[]; error?: string };
+  if (!res.ok) {
+    throw new Error(data?.error || `Ошибка загрузки ПВЗ (${res.status})`);
+  }
   return data?.pvz || [];
 }
