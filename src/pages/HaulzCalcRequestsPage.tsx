@@ -10,6 +10,7 @@ import {
   type HaulzCalcDraft,
 } from "../api/client/haulzCalculator";
 import { HAULZ_CALC_DRAFT_STATUS_LABELS, type HaulzCalcDraftStatus } from "../../lib/haulzCalculator/draftStatus";
+import { formatHaulzCalcDraftCustomer } from "../../lib/haulzCalculator/draftCustomerDisplay";
 import { HaulzCalcRequestDetail } from "../features/haulzCalculator/HaulzCalcRequestDetail";
 import {
   persistHaulzCalcRequestsTab,
@@ -270,7 +271,7 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
               <thead>
                 <tr>
                   <th scope="col">Дата</th>
-                  {managerMode && <th scope="col">Клиент</th>}
+                  {managerMode && <th scope="col">Заказчик</th>}
                   <th scope="col">Маршрут</th>
                   <th scope="col">Статус</th>
                   <th scope="col" className="haulz-calc-requests-table__num">
@@ -297,7 +298,9 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
                     >
                       <td className="haulz-calc-requests-table__date">{formatWhen(d.updatedAt)}</td>
                       {managerMode && (
-                        <td className="haulz-calc-requests-table__login">{d.loginKey ?? "—"}</td>
+                        <td className="haulz-calc-requests-table__login">
+                          {formatHaulzCalcDraftCustomer(d.formState, d.loginKey)}
+                        </td>
                       )}
                       <td className="haulz-calc-requests-table__route">
                         <span className="haulz-calc-requests-table__route-title">{d.title || `#${d.id}`}</span>

@@ -10,6 +10,7 @@ import {
   legRequiresPvzCreation,
   PVZ_CREATION_REQUIRED_NOTE,
 } from "../../../lib/haulzCalculator/orderAddressKind";
+import { formatHaulzCalcDraftCustomer } from "../../../lib/haulzCalculator/draftCustomerDisplay";
 
 function formatWhen(iso: string): string {
   try {
@@ -116,7 +117,12 @@ export function HaulzCalcRequestDetail({
           <h3 className="haulz-calc-requests-detail__section-title">Общее</h3>
           <dl className="haulz-calc-requests-detail__grid">
             <DetailRow label="ID" value={String(d.id)} />
-            {managerMode && d.loginKey && <DetailRow label="Клиент" value={d.loginKey} />}
+            {managerMode && (
+              <>
+                <DetailRow label="Заказчик" value={formatHaulzCalcDraftCustomer(f, d.loginKey)} />
+                {d.loginKey && <DetailRow label="Логин ЛК" value={d.loginKey} />}
+              </>
+            )}
             <DetailRow label="Создано" value={formatWhen(d.createdAt)} />
             <DetailRow label="Обновлено" value={formatWhen(d.updatedAt)} />
             {d.recipientEmail && <DetailRow label="КП на почту" value={d.recipientEmail} />}

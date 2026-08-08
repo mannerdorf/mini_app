@@ -7,6 +7,7 @@ import { resolveHaulzCalcManagerAccess } from "../_haulzCalculator.js";
 import { pickHaulzCredentials } from "../_haulzReturns.js";
 import { getClientIp, isRateLimited, HAULZ_CALC_QUOTE_LIMIT } from "../../lib/rateLimit.js";
 import { listAllCalcDraftsForManager } from "../../lib/haulzCalculator/calculatorDraftAgree.js";
+import { enrichDraftCustomerFields } from "../../lib/haulzCalculator/draftCustomerDisplay.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (haulzCalculatorPreflight(req, res)) return;
@@ -38,7 +39,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const drafts = await listAllCalcDraftsForManager(pool);
-    return res.status(200).json({ drafts, request_id: ctx.requestId });
+    const enriched = await Promise.all(drafts.map((d) => enrichDraftCustomerFields(pool, d)));
+    return res.status(200).json({ drafts: enriched, request_id: ctx.requestId });
   } catch (e) {
     logError(ctx, "haulz_calc_drafts_manager_failed", e);
     return res.status(500).json({

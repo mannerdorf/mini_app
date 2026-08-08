@@ -9,6 +9,7 @@ import type {
   ParcelPlace,
   QuoteRequest,
 } from "../lib/haulzCalculator/types.js";
+import { resolveDocumentsCustomerName } from "../lib/haulzCalculator/draftCustomerDisplay.js";
 
 export const normalizeLogin = (v: unknown) => String(v ?? "").trim().toLowerCase();
 export const normalizeInn = (v: unknown) => String(v ?? "").replace(/\D/g, "").trim();
@@ -171,5 +172,8 @@ export async function resolveDocumentsOrderAccess(
 
   const customerName = String(b.customerName ?? b.customer_name ?? "").trim() || undefined;
 
-  return { login, loginKey, customerInn, customerName };
+  const resolvedName =
+    (await resolveDocumentsCustomerName(pool, loginKey, customerInn, customerName)) ?? customerName;
+
+  return { login, loginKey, customerInn, customerName: resolvedName };
 }
