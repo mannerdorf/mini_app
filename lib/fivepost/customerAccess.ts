@@ -1,4 +1,6 @@
 const FIVEPOST_NAME_RE = /(?:^|[\s(«"'])5\s*[-–]?\s*(?:post|пост)\b|five\s*post|fivepost/i;
+/** ИНН заказчика 5 POST (OMNI). Переопределяется через FIVEPOST_CUSTOMER_INNS. */
+const DEFAULT_FIVEPOST_CUSTOMER_INNS = "7722461620";
 
 function normalizeInn(value: unknown): string {
   return String(value ?? "").replace(/\D/g, "").trim();
@@ -14,7 +16,8 @@ function parseInnAllowlist(raw: string | undefined): Set<string> {
 }
 
 function fivepostInnAllowlist(): Set<string> {
-  return parseInnAllowlist(process.env.FIVEPOST_CUSTOMER_INNS);
+  const raw = String(process.env.FIVEPOST_CUSTOMER_INNS ?? "").trim() || DEFAULT_FIVEPOST_CUSTOMER_INNS;
+  return parseInnAllowlist(raw);
 }
 
 export function isFivepostCustomerName(customerName: unknown): boolean {

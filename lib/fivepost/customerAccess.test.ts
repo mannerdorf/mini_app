@@ -33,4 +33,9 @@ describe("isFivepostCustomer", () => {
   it("denies unrelated customers", () => {
     expect(isFivepostCustomer("9999999999", "АВТОПИТЕР")).toBe(false);
   });
+
+  it("allows default 5 POST INN when env is empty", () => {
+    delete process.env.FIVEPOST_CUSTOMER_INNS;
+    expect(isFivepostCustomer("7722461620", "АВТОПИТЕР")).toBe(true);
+  });
 });
