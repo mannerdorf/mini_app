@@ -19,7 +19,6 @@ import {
   Activity,
   FlaskConical,
   Mail,
-  Package,
 } from "lucide-react";
 import type { AdminTab } from "../hooks/useAdminTab";
 import type { AccountingSubsection } from "../types/expenseAccounting";
@@ -176,14 +175,6 @@ export function AdminPageNav({
         >
           <Mail className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
           Отчёт
-        </Button>
-        <Button
-          className="filter-button"
-          style={tabBtnStyle(tab === "fivepost")}
-          onClick={() => setTab("fivepost")}
-        >
-          <Package className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-          5 POST
         </Button>
       </Flex>
 

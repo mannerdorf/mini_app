@@ -12,7 +12,6 @@ import {
   AdminEmployeeDirectoryTab,
   AdminExpenseRequestsTab,
   AdminFerriesTab,
-  AdminFivePostTab,
   AdminIntegrationsTab,
   AdminLegalSection,
   AdminLogsTab,
@@ -193,7 +192,6 @@ export function AdminPage({ adminToken, sandboxSession, onBack, onLogout }: Admi
       {tab === "dogovors" && <AdminDogovorsTab adminToken={adminToken} />}
       {tab === "ferries" && <AdminFerriesTab adminToken={adminToken} />}
       {tab === "pvz" && <AdminPvzTab adminToken={adminToken} />}
-      {tab === "fivepost" && <AdminFivePostTab adminToken={adminToken} />}
 
       {tab === "payment_calendar" && isSuperAdmin && (
         <AdminPaymentCalendarTab adminToken={adminToken} onError={setError} />

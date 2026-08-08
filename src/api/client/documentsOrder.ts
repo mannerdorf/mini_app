@@ -179,6 +179,57 @@ export async function submitDocumentsOrder(
   };
 }
 
+export type DocumentsFivepostRow = {
+  lineNo: number;
+  clientOrderNo: string;
+  partnerOrderNo: string;
+  teBarcode: string;
+  placesCount: number;
+  omniBarcode: string;
+  itemName: string;
+  itemNameRu: string;
+  unitCost: number | null;
+  totalCost: number | null;
+  weightG: number | null;
+  lengthMm: number | null;
+  widthMm: number | null;
+  heightMm: number | null;
+};
+
+export type DocumentsFivepostImportResult = {
+  batchId: number;
+  rowCount: number;
+  translatedCount: number;
+  rows: DocumentsFivepostRow[];
+};
+
+export async function importDocumentsFivepostFile(
+  auth: DocumentsAuthScope,
+  file: File,
+  opts?: { route?: Direction; translate?: boolean },
+): Promise<DocumentsFivepostImportResult> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("login", auth.login);
+  form.append("password", auth.password);
+  form.append("inn", auth.inn);
+  if (auth.customerName) form.append("customerName", auth.customerName);
+  if (opts?.route) form.append("route", opts.route);
+  if (opts?.translate === false) form.append("translate", "0");
+
+  const res = await fetch("/api/documents/fivepost-import", {
+    method: "POST",
+    headers: {
+      "x-login": auth.login,
+      "x-password": auth.password,
+    },
+    body: form,
+  });
+  const data = (await res.json().catch(() => ({}))) as DocumentsFivepostImportResult & { error?: string };
+  if (!res.ok) throw new Error(data?.error || `Ошибка импорта (${res.status})`);
+  return data;
+}
+
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

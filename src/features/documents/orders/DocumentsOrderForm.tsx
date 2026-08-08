@@ -482,7 +482,13 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
             defaultCity={suggestCityTo}
           />
 
-          <DocumentsOrderCargoSection state={cargo} onChange={setCargo} chargeableHint={chargeableHint} />
+          <DocumentsOrderCargoSection
+            authScope={authScope}
+            direction={direction}
+            state={cargo}
+            onChange={setCargo}
+            chargeableHint={chargeableHint}
+          />
 
           {mainlineCards.length > 0 && (
             <div className="haulz-calc-card">

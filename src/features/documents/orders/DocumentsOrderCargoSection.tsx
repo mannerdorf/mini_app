@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import { Loader2, Plus, Upload, FileText } from "lucide-react";
 import type { ParcelPlace } from "../../../../lib/haulzCalculator/types";
+import type { Direction } from "../../../../lib/haulzCalculator/types";
+import type { DocumentsAuthScope, DocumentsFivepostRow } from "../../../api/client/documentsOrder";
+import { importDocumentsFivepostFile } from "../../../api/client/documentsOrder";
 import { parseUpdToTableRows, type OrderTableRow } from "./documentsOrderUpdParse";
 
 const BOX_PRESETS: { label: string; weightKg: number; volumeM3: number }[] = [
@@ -21,12 +24,15 @@ export type DocumentsOrderCargoState = {
   fileZayavki: File | null;
   fileUpd: File | null;
   tableRows: OrderTableRow[];
+  fivepostRows: DocumentsFivepostRow[];
   places: ParcelPlace[];
   activePresetIdx: Record<number, string>;
   declaredValue: string;
 };
 
 type Props = {
+  authScope: DocumentsAuthScope;
+  direction: Direction;
   state: DocumentsOrderCargoState;
   onChange: (next: DocumentsOrderCargoState) => void;
   chargeableHint: { w: number; v: number; volW: number; ch: number };
@@ -40,15 +46,33 @@ export function createDefaultCargoState(): DocumentsOrderCargoState {
     fileZayavki: null,
     fileUpd: null,
     tableRows: [],
+    fivepostRows: [],
     places: [{ weightKg: 100, volumeM3: 0.5 }],
     activePresetIdx: { 0: "XL" },
     declaredValue: "",
   };
 }
 
-export function DocumentsOrderCargoSection({ state, onChange, chargeableHint }: Props) {
+function isExcelFile(file: File): boolean {
+  const name = (file.name || "").toLowerCase();
+  return name.endsWith(".xlsx") || name.endsWith(".xls");
+}
+
+function fivepostRowsToTableRows(rows: DocumentsFivepostRow[]): OrderTableRow[] {
+  return rows.map((row, idx) => ({
+    n: idx + 1,
+    posylka: [row.omniBarcode, row.itemNameRu || row.itemName].filter(Boolean).join(" · "),
+    otskanirvano: false,
+    dataSkanirovaniya: "",
+    perevozka: row.clientOrderNo || row.partnerOrderNo || "",
+  }));
+}
+
+export function DocumentsOrderCargoSection({ authScope, direction, state, onChange, chargeableHint }: Props) {
   const [createMestaLoading, setCreateMestaLoading] = useState(false);
+  const [fileImportLoading, setFileImportLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
 
   const setPlaces = (updater: (prev: ParcelPlace[]) => ParcelPlace[]) => {
     onChange({ ...state, places: updater(state.places) });
@@ -64,11 +88,49 @@ export function DocumentsOrderCargoSection({ state, onChange, chargeableHint }: 
     setError(null);
     try {
       const rows = await parseUpdToTableRows(state.fileUpd, count);
-      onChange({ ...state, tableRows: rows });
+      onChange({ ...state, tableRows: rows, fivepostRows: [] });
     } catch (e) {
       setError((e as Error)?.message || "Ошибка чтения файла УПД");
     } finally {
       setCreateMestaLoading(false);
+    }
+  };
+
+  const handleFileZayavki = async (file: File | null) => {
+    if (!file) {
+      onChange({ ...state, fileZayavki: null, fivepostRows: [], tableRows: [] });
+      setImportMessage(null);
+      setError(null);
+      return;
+    }
+
+    onChange({ ...state, fileZayavki: file, fivepostRows: [], tableRows: [] });
+    setImportMessage(null);
+    setError(null);
+
+    if (!isExcelFile(file)) {
+      setImportMessage("Файл будет передан менеджеру при оформлении");
+      return;
+    }
+
+    setFileImportLoading(true);
+    try {
+      const result = await importDocumentsFivepostFile(authScope, file, { route: direction });
+      const tableRows = fivepostRowsToTableRows(result.rows);
+      onChange({
+        ...state,
+        fileZayavki: file,
+        fivepostRows: result.rows,
+        tableRows,
+      });
+      setImportMessage(
+        `5 POST: ${result.rowCount} строк, переведено ${result.translatedCount}. Пакет #${result.batchId}`,
+      );
+    } catch (e) {
+      setError((e as Error)?.message || "Ошибка импорта файла 5 POST");
+      onChange({ ...state, fileZayavki: file, fivepostRows: [], tableRows: [] });
+    } finally {
+      setFileImportLoading(false);
     }
   };
 
@@ -79,7 +141,7 @@ export function DocumentsOrderCargoSection({ state, onChange, chargeableHint }: 
       <div className="haulz-calc-extra">
         <div className="haulz-calc-extra__text">
           <strong>Прикрепить заявку</strong>
-          <span className="haulz-calc-extra__desc">УПД или файл загрузки для формирования мест</span>
+          <span className="haulz-calc-extra__desc">Файл 5 POST (Excel) или УПД для формирования мест</span>
         </div>
         <label className="haulz-calc-switch">
           <input
@@ -89,8 +151,9 @@ export function DocumentsOrderCargoSection({ state, onChange, chargeableHint }: 
               onChange({
                 ...state,
                 attachEnabled: e.target.checked,
-                attachMode: e.target.checked ? state.attachMode || "upd" : "",
+                attachMode: e.target.checked ? state.attachMode || "file" : "",
                 tableRows: e.target.checked ? state.tableRows : [],
+                fivepostRows: e.target.checked ? state.fivepostRows : [],
               })
             }
           />
@@ -109,28 +172,44 @@ export function DocumentsOrderCargoSection({ state, onChange, chargeableHint }: 
                 onChange({
                   ...state,
                   attachMode: (e.target.value || "") as AttachMode | "",
+                  tableRows: [],
+                  fivepostRows: [],
+                  fileZayavki: null,
+                  fileUpd: null,
                 })
               }
             >
               <option value="">— Выберите —</option>
+              <option value="file">Файл заявки (5 POST)</option>
               <option value="upd">УПД (Excel)</option>
-              <option value="file">Файл заявки</option>
             </select>
           </label>
 
           {state.attachMode === "file" && (
             <div style={{ marginTop: "0.75rem" }}>
               <label className="haulz-calc-file-btn">
-                <Upload className="w-4 h-4" />
+                {fileImportLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4" />
+                )}
                 {state.fileZayavki ? state.fileZayavki.name : "Загрузить файл"}
                 <input
                   type="file"
                   accept=".xlsx,.xls,.csv,.pdf"
-                  onChange={(e) => onChange({ ...state, fileZayavki: e.target.files?.[0] ?? null })}
+                  disabled={fileImportLoading}
+                  onChange={(e) => void handleFileZayavki(e.target.files?.[0] ?? null)}
                   style={{ display: "none" }}
                 />
               </label>
-              <p className="haulz-calc-hint">Файл будет передан менеджеру при оформлении</p>
+              <p className="haulz-calc-hint">
+                Excel 5 POST — парсинг, перевод названий и таблица ниже. PDF/CSV — только приложение к заявке.
+              </p>
+              {importMessage && (
+                <p className="haulz-calc-hint" style={{ marginTop: "0.35rem" }}>
+                  {importMessage}
+                </p>
+              )}
             </div>
           )}
 
@@ -170,7 +249,49 @@ export function DocumentsOrderCargoSection({ state, onChange, chargeableHint }: 
             </div>
           )}
 
-          {state.tableRows.length > 0 && (
+          {state.fivepostRows.length > 0 && (
+            <div style={{ marginTop: "1rem", overflowX: "auto", maxHeight: "55vh", overflowY: "auto" }}>
+              <p className="haulz-calc-label">5 POST ({state.fivepostRows.length} строк)</p>
+              <table className="haulz-calc-mini-table" style={{ fontSize: "0.78rem" }}>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Заказ клиента</th>
+                    <th>Заказ партнёра</th>
+                    <th>ШК ТЕ</th>
+                    <th>Мест</th>
+                    <th>ШК OMNI</th>
+                    <th>Наименование</th>
+                    <th>RU</th>
+                    <th>Цена</th>
+                    <th>Сумма</th>
+                    <th>Вес</th>
+                    <th>Д×Ш×В</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {state.fivepostRows.map((r) => (
+                    <tr key={r.lineNo}>
+                      <td>{r.lineNo}</td>
+                      <td>{r.clientOrderNo}</td>
+                      <td>{r.partnerOrderNo}</td>
+                      <td>{r.teBarcode}</td>
+                      <td>{r.placesCount}</td>
+                      <td>{r.omniBarcode}</td>
+                      <td>{r.itemName}</td>
+                      <td>{r.itemNameRu}</td>
+                      <td>{r.unitCost ?? "—"}</td>
+                      <td>{r.totalCost ?? "—"}</td>
+                      <td>{r.weightG ?? "—"}</td>
+                      <td>{[r.lengthMm, r.widthMm, r.heightMm].map((v) => v ?? "—").join("×")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {state.tableRows.length > 0 && state.fivepostRows.length === 0 && (
             <div style={{ marginTop: "1rem", overflowX: "auto" }}>
               <p className="haulz-calc-label">Табличная часть ({state.tableRows.length} мест)</p>
               <table className="haulz-calc-mini-table">
