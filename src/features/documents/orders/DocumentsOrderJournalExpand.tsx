@@ -1,8 +1,8 @@
 import React from "react";
 import { Loader2 } from "lucide-react";
 import { DateText } from "../../../components/ui/DateText";
-import { formatQuoteVatLine } from "../../../lib/haulzCalculator/quoteVat";
-import type { QuoteResult } from "../../../lib/haulzCalculator/types";
+import { formatQuoteVatLine } from "../../../../lib/haulzCalculator/quoteVat";
+import type { QuoteResult } from "../../../../lib/haulzCalculator/types";
 import { DocumentsRouteBadge } from "../views/documentsViewBlocks";
 import {
   DocumentsOrdersPendingCargo,

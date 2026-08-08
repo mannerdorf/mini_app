@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import type { HaulzCalcDraft } from "../../api/client/haulzCalculator";
-import { formatInvoiceNumber, stripOoo } from "../../../lib/formatUtils";
+import { formatInvoiceNumber, stripOoo } from "../../lib/formatUtils";
 import { DateText } from "../../components/ui/DateText";
 import { DocumentsRouteBadge } from "../documents/views/documentsViewBlocks";
 import { DocumentsOrderJournalExpand } from "../documents/orders/DocumentsOrderJournalExpand";
