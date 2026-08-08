@@ -32,7 +32,7 @@ export async function suggestAddresses(
   const query = String(q || "").trim();
   if (query.length < 2) return [];
 
-  const cacheKey = `suggest:dadata:v3:${opts.city || "any"}:${query.toLowerCase()}`;
+  const cacheKey = `suggest:dadata:v4:${opts.city || "any"}:${query.toLowerCase()}`;
   const cached = await dgisReadCache(pool, cacheKey);
   const fromCache = cached ? readCachedItems(cached) : null;
   if (fromCache && fromCache.length > 0) return fromCache;

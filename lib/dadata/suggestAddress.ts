@@ -48,10 +48,10 @@ type SuggestScope = {
   locations_boost?: Record<string, string>[];
 };
 
-/** Москва — вся Московская область, приоритет у г. Москва; Калининград — вся область, приоритет у г. Калининград. */
+/** Москва — г. Москва + Московская область; Калининград — вся область, приоритет у г. Калининград. */
 const SUGGEST_SCOPES: Record<"moscow" | "kaliningrad", SuggestScope> = {
   moscow: {
-    locations: [{ region: "Московская" }],
+    locations: [{ city: "Москва" }, { region: "Московская" }],
     locations_boost: [{ city: "Москва" }],
   },
   kaliningrad: {

@@ -72,7 +72,7 @@ describe("dadata suggestAddress", () => {
     await dadataSuggestAddresses("королев", { city: "moscow" });
 
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
-    expect(body.locations).toEqual([{ region: "Московская" }]);
+    expect(body.locations).toEqual([{ city: "Москва" }, { region: "Московская" }]);
     expect(body.locations_boost).toEqual([{ city: "Москва" }]);
   });
 });
