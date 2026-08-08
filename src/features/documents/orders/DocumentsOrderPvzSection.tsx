@@ -296,8 +296,8 @@ export function DocumentsOrderPvzSection({
             <>
               <DocumentsOrderAddressField
                 authScope={authScope}
+                side={side}
                 city={state.city}
-                lockCity={defaultCity}
                 query={state.query}
                 setQuery={(q) => onChange((prev) => ({ ...prev, query: q }))}
                 addr={state.addr}

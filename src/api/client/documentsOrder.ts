@@ -71,7 +71,13 @@ export async function fetchDocumentsAddressSuggest(
 
 export async function fetchDocumentsGeocode(
   auth: DocumentsAuthScope,
-  params: { address?: string; uri?: string; city?: "moscow" | "kaliningrad" },
+  params: {
+    address?: string;
+    uri?: string;
+    city?: "moscow" | "kaliningrad";
+    lat?: number;
+    lon?: number;
+  },
 ): Promise<DocumentsGeocodeResult> {
   const res = await fetch("/api/documents/geocode", {
     method: "POST",
