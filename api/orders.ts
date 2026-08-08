@@ -229,6 +229,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } catch (e) {
       logError(ctx, "orders_registered_user_failed", e);
+      if (registeredVerified) {
+        try {
+          const merged = await appendPendingOrdersForUser(
+            pool,
+            registeredVerified,
+            login,
+            dateFrom,
+            dateTo,
+            inn,
+            serviceMode,
+            [],
+          );
+          return res.status(200).json(merged);
+        } catch {
+          /* fall through */
+        }
+      }
       return res.status(200).json([]);
     }
   }

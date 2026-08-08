@@ -273,7 +273,7 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
                   <th scope="col">Дата</th>
                   {managerMode && <th scope="col">Заказчик</th>}
                   <th scope="col">Маршрут</th>
-                  <th scope="col">Статус</th>
+                  <th scope="col" className="haulz-calc-requests-table__status">Статус</th>
                   <th scope="col" className="haulz-calc-requests-table__num">
                     Сумма
                   </th>
@@ -298,7 +298,10 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
                     >
                       <td className="haulz-calc-requests-table__date">{formatWhen(d.updatedAt)}</td>
                       {managerMode && (
-                        <td className="haulz-calc-requests-table__login">
+                        <td
+                          className="haulz-calc-requests-table__customer"
+                          title={formatHaulzCalcDraftCustomer(d.formState, d.loginKey)}
+                        >
                           {formatHaulzCalcDraftCustomer(d.formState, d.loginKey)}
                         </td>
                       )}
@@ -308,7 +311,7 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
                           <span className="haulz-calc-requests-table__route-nomer">{d.nomerZayavki}</span>
                         )}
                       </td>
-                      <td>
+                      <td className="haulz-calc-requests-table__status">
                         <span className={`haulz-calc-requests-badge ${statusBadgeClass(d.status)}`}>
                           {HAULZ_CALC_DRAFT_STATUS_LABELS[d.status] ?? d.status}
                         </span>

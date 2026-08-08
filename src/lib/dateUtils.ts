@@ -1,6 +1,10 @@
 import type { DateFilter } from "../types";
 
-export const getTodayDate = () => new Date().toISOString().split('T')[0];
+export const getTodayDate = () => {
+  const n = new Date();
+  const pad = (v: number) => String(v).padStart(2, "0");
+  return `${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())}`;
+};
 
 /** Год-месяц для `input type="month"` (локальная дата). */
 export const getCurrentMonthYm = () => {

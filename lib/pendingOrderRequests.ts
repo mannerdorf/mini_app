@@ -29,12 +29,32 @@ function tableRowByType(tableRows: unknown[], type: string): Record<string, unkn
   return row as Record<string, unknown> | undefined;
 }
 
+const MSK_OFFSET_MS = 3 * 60 * 60 * 1000;
+
 function dateOnly(value: unknown): string {
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (value instanceof Date) {
+    return new Date(value.getTime() + MSK_OFFSET_MS).toISOString().slice(0, 10);
+  }
   const s = String(value ?? "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const parsed = new Date(s);
+  if (!Number.isNaN(parsed.getTime())) {
+    return new Date(parsed.getTime() + MSK_OFFSET_MS).toISOString().slice(0, 10);
+  }
   const iso = s.match(/^(\d{4}-\d{2}-\d{2})/);
   if (iso) return iso[1];
   return s.slice(0, 10);
+}
+
+function pendingOrderMatchesDateRange(
+  row: PendingOrderDbRow,
+  dateFrom: string,
+  dateTo: string,
+): boolean {
+  const created = dateOnly(row.created_at);
+  const pickup = dateOnly(row.data_zabora);
+  const inRange = (d: string) => Boolean(d) && d >= dateFrom && d <= dateTo;
+  return inRange(created) || inRange(pickup);
 }
 
 /** Преобразует строку pending_order_requests в формат списка «Заявки». */
@@ -133,13 +153,14 @@ export async function fetchPendingOrdersForList(
     `SELECT id, login, inn, punkt_otpravki, punkt_naznacheniya, nomer_zayavki, data_zabora, table_rows, created_at
      FROM pending_order_requests
      WHERE lower(trim(login)) = $1
-       AND created_at::date >= $2::date
-       AND created_at::date <= $3::date
+       AND created_at >= ($2::date - interval '1 day')
+       AND created_at < ($3::date + interval '2 day')
      ORDER BY created_at DESC`,
     [normalizeLogin(login), dateFrom, dateTo],
   );
 
   return rows
+    .filter((row) => pendingOrderMatchesDateRange(row, dateFrom, dateTo))
     .filter((row) => {
       if (filterInns === null) return true;
       const itemInn = normalizePendingOrderInn(row.inn);

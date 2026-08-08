@@ -191,8 +191,10 @@
 
 .haulz-calc-requests-table {
   width: 100%;
+  min-width: 42rem;
   border-collapse: collapse;
   font-size: 0.8125rem;
+  table-layout: auto;
 }
 
 .haulz-calc-requests-table th,
@@ -231,23 +233,31 @@
 }
 
 .haulz-calc-requests-table__date {
+  width: 1%;
+  min-width: 7.25rem;
   white-space: nowrap;
   color: var(--calc-text-secondary);
 }
 
-.haulz-calc-requests-table__login {
-  max-width: 10rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.haulz-calc-requests-table__login,
+.haulz-calc-requests-table__customer {
+  min-width: 8.5rem;
+  max-width: 11rem;
+  white-space: normal;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .haulz-calc-requests-table__route {
-  min-width: 8rem;
+  min-width: 10rem;
+  max-width: 18rem;
 }
 
 .haulz-calc-requests-table__route-title {
-  display: block;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
   font-weight: 500;
   color: var(--calc-text);
   line-height: 1.35;
@@ -261,6 +271,8 @@
 }
 
 .haulz-calc-requests-table__num {
+  width: 1%;
+  min-width: 5.75rem;
   text-align: right;
   white-space: nowrap;
   font-weight: 600;
@@ -269,9 +281,16 @@
 
 .haulz-calc-requests-table__chevron {
   width: 2rem;
+  min-width: 2rem;
   padding-left: 0.25rem;
   padding-right: 0.5rem;
   color: var(--calc-text-secondary);
+}
+
+.haulz-calc-requests-table__status {
+  width: 1%;
+  min-width: 5.5rem;
+  white-space: nowrap;
 }
 
 .haulz-calc-requests-badge {

@@ -28,6 +28,22 @@ describe("pendingOrderToListItem", () => {
     expect(item._pendingOrder).toBe(true);
     expect(item.Комментарий).toContain("1С");
   });
+
+  it("uses Moscow date for late-night UTC timestamps", () => {
+    const item = pendingOrderToListItem({
+      id: 2,
+      login: "user@test.ru",
+      inn: "7722461620",
+      punkt_otpravki: "A",
+      punkt_naznacheniya: "B",
+      nomer_zayavki: "HAULZ-DOC-999",
+      data_zabora: "2026-08-09",
+      created_at: "2026-08-08T21:30:00.000Z",
+      table_rows: [],
+    });
+    expect(item.Дата).toBe("2026-08-09");
+    expect(item.ДатаЗабораПлан).toBe("2026-08-09");
+  });
 });
 
 describe("mergeOrdersWithPending", () => {
