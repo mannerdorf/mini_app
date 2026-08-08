@@ -167,11 +167,35 @@ export async function setDraftStatusByManager(
 }
 
 export async function deleteDraftByManager(pool: Pool, draftId: number): Promise<boolean> {
-  const { rowCount } = await pool.query(
-    `delete from haulz_calc_drafts where id = $1 and status <> 'draft'`,
-    [draftId],
-  );
-  return (rowCount ?? 0) > 0;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query<{ nomer_zayavki: string | null }>(
+      `select nomer_zayavki from haulz_calc_drafts where id = $1 and status <> 'draft'`,
+      [draftId],
+    );
+    if (!rows[0]) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+
+    const nomer = String(rows[0].nomer_zayavki ?? "").trim();
+    if (nomer) {
+      await client.query(`delete from pending_order_requests where nomer_zayavki = $1`, [nomer]);
+    }
+
+    const { rowCount } = await client.query(
+      `delete from haulz_calc_drafts where id = $1 and status <> 'draft'`,
+      [draftId],
+    );
+    await client.query("COMMIT");
+    return (rowCount ?? 0) > 0;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 export async function listAllCalcDraftsForManager(pool: Pool, limit = 100): Promise<HaulzCalcDraftRow[]> {

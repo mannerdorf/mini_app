@@ -288,6 +288,21 @@ export function pendingOrderToListItem(row: PendingOrderDbRow): Record<string, u
   };
 }
 
+/** Удаляет заявку из ЛК (pending_order_requests) по номеру — для каскада при удалении менеджером. */
+export async function deletePendingOrdersByNomerZayavki(pool: Pool, nomerZayavki: string): Promise<number> {
+  const number = String(nomerZayavki ?? "").trim();
+  if (!number) return 0;
+  try {
+    const { rowCount } = await pool.query(
+      `delete from pending_order_requests where nomer_zayavki = $1`,
+      [number],
+    );
+    return rowCount ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 export function mergeOrdersWithPending(list: unknown[], pending: Record<string, unknown>[]): unknown[] {
   const cached = Array.isArray(list) ? list : [];
   const existingNumbers = new Set(
