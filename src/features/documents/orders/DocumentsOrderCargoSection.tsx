@@ -3,7 +3,7 @@ import { Loader2, Plus, Upload, FileText } from "lucide-react";
 import type { ParcelPlace } from "../../../../lib/haulzCalculator/types";
 import type { Direction } from "../../../../lib/haulzCalculator/types";
 import type { DocumentsAuthScope, DocumentsFivepostRow } from "../../../api/client/documentsOrder";
-import { importDocumentsFivepostFile } from "../../../api/client/documentsOrder";
+import { importDocumentsFivepostFile, translateDocumentsFivepostBatch } from "../../../api/client/documentsOrder";
 import { parseUpdToTableRows, type OrderTableRow } from "./documentsOrderUpdParse";
 
 const BOX_PRESETS: { label: string; weightKg: number; volumeM3: number }[] = [
@@ -25,6 +25,8 @@ export type DocumentsOrderCargoState = {
   fileUpd: File | null;
   tableRows: OrderTableRow[];
   fivepostRows: DocumentsFivepostRow[];
+  fivepostBatchId: number | null;
+  fivepostNeedsTranslation: number;
   places: ParcelPlace[];
   activePresetIdx: Record<number, string>;
   declaredValue: string;
@@ -48,6 +50,8 @@ export function createDefaultCargoState(): DocumentsOrderCargoState {
     fileUpd: null,
     tableRows: [],
     fivepostRows: [],
+    fivepostBatchId: null,
+    fivepostNeedsTranslation: 0,
     places: [{ weightKg: 100, volumeM3: 0.5 }],
     activePresetIdx: { 0: "XL" },
     declaredValue: "",
@@ -79,6 +83,7 @@ export function DocumentsOrderCargoSection({
 }: Props) {
   const [createMestaLoading, setCreateMestaLoading] = useState(false);
   const [fileImportLoading, setFileImportLoading] = useState(false);
+  const [translateLoading, setTranslateLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
 
@@ -89,6 +94,8 @@ export function DocumentsOrderCargoSection({
       attachMode: "upd",
       fileZayavki: null,
       fivepostRows: [],
+      fivepostBatchId: null,
+      fivepostNeedsTranslation: 0,
       tableRows: [],
     });
     setImportMessage(null);
@@ -102,6 +109,8 @@ export function DocumentsOrderCargoSection({
       attachMode: "upd",
       fileZayavki: null,
       fivepostRows: [],
+      fivepostBatchId: null,
+      fivepostNeedsTranslation: 0,
       tableRows: [],
     });
     setImportMessage(null);
@@ -122,7 +131,7 @@ export function DocumentsOrderCargoSection({
     setError(null);
     try {
       const rows = await parseUpdToTableRows(state.fileUpd, count);
-      onChange({ ...state, tableRows: rows, fivepostRows: [] });
+      onChange({ ...state, tableRows: rows, fivepostRows: [], fivepostBatchId: null, fivepostNeedsTranslation: 0 });
     } catch (e) {
       setError((e as Error)?.message || "Ошибка чтения файла УПД");
     } finally {
@@ -132,13 +141,27 @@ export function DocumentsOrderCargoSection({
 
   const handleFileZayavki = async (file: File | null) => {
     if (!file) {
-      onChange({ ...state, fileZayavki: null, fivepostRows: [], tableRows: [] });
+      onChange({
+        ...state,
+        fileZayavki: null,
+        fivepostRows: [],
+        fivepostBatchId: null,
+        fivepostNeedsTranslation: 0,
+        tableRows: [],
+      });
       setImportMessage(null);
       setError(null);
       return;
     }
 
-    onChange({ ...state, fileZayavki: file, fivepostRows: [], tableRows: [] });
+    onChange({
+      ...state,
+      fileZayavki: file,
+      fivepostRows: [],
+      fivepostBatchId: null,
+      fivepostNeedsTranslation: 0,
+      tableRows: [],
+    });
     setImportMessage(null);
     setError(null);
 
@@ -160,16 +183,48 @@ export function DocumentsOrderCargoSection({
         ...state,
         fileZayavki: file,
         fivepostRows: result.rows,
+        fivepostBatchId: result.batchId,
+        fivepostNeedsTranslation: result.needsTranslationCount,
         tableRows,
       });
       setImportMessage(
-        `5 POST: ${result.rowCount} строк, переведено ${result.translatedCount}. Пакет #${result.batchId}`,
+        result.needsTranslationCount > 0
+          ? `5 POST: загружено ${result.rowCount} строк. Нажмите «Перевести названия» (${result.needsTranslationCount} поз.).`
+          : `5 POST: ${result.rowCount} строк загружено, перевод не требуется.`,
       );
     } catch (e) {
       setError((e as Error)?.message || "Ошибка импорта файла 5 POST");
-      onChange({ ...state, fileZayavki: file, fivepostRows: [], tableRows: [] });
+      onChange({
+        ...state,
+        fileZayavki: file,
+        fivepostRows: [],
+        fivepostBatchId: null,
+        fivepostNeedsTranslation: 0,
+        tableRows: [],
+      });
     } finally {
       setFileImportLoading(false);
+    }
+  };
+
+  const handleTranslateFivepost = async () => {
+    if (!state.fivepostBatchId) return;
+    setTranslateLoading(true);
+    setError(null);
+    try {
+      const result = await translateDocumentsFivepostBatch(authScope, state.fivepostBatchId);
+      const tableRows = fivepostRowsToTableRows(result.rows);
+      onChange({
+        ...state,
+        fivepostRows: result.rows,
+        fivepostNeedsTranslation: result.needsTranslationCount,
+        tableRows,
+      });
+      setImportMessage(`Переведено ${result.translatedCount} наименований.`);
+    } catch (e) {
+      setError((e as Error)?.message || "Ошибка перевода названий");
+    } finally {
+      setTranslateLoading(false);
     }
   };
 
@@ -217,6 +272,8 @@ export function DocumentsOrderCargoSection({
                   attachMode: (e.target.value || "") as AttachMode | "",
                   tableRows: [],
                   fivepostRows: [],
+                  fivepostBatchId: null,
+                  fivepostNeedsTranslation: 0,
                   fileZayavki: null,
                   fileUpd: null,
                 })
@@ -246,10 +303,25 @@ export function DocumentsOrderCargoSection({
                 />
               </label>
               <p className="haulz-calc-hint">
-                {isFivepostCustomer
-                  ? "Excel 5 POST — парсинг, перевод названий и таблица ниже. PDF/CSV — только приложение к заявке."
-                  : "Файл будет передан менеджеру при оформлении."}
+                Excel 5 POST — сначала парсинг и таблица, затем кнопка «Перевести названия». PDF/CSV — только приложение.
               </p>
+              {state.fivepostRows.length > 0 && state.fivepostNeedsTranslation > 0 && (
+                <button
+                  type="button"
+                  className="haulz-calc-btn-secondary"
+                  style={{ marginTop: "0.5rem" }}
+                  disabled={translateLoading || !state.fivepostBatchId}
+                  onClick={() => void handleTranslateFivepost()}
+                >
+                  {translateLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Перевести названия ({state.fivepostNeedsTranslation})
+                </button>
+              )}
+              {translateLoading && (
+                <p className="haulz-calc-hint" style={{ marginTop: "0.35rem" }}>
+                  Перевод через ChatGPT, подождите 1–3 мин…
+                </p>
+              )}
               {importMessage && (
                 <p className="haulz-calc-hint" style={{ marginTop: "0.35rem" }}>
                   {importMessage}

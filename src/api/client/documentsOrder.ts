@@ -200,13 +200,14 @@ export type DocumentsFivepostImportResult = {
   batchId: number;
   rowCount: number;
   translatedCount: number;
+  needsTranslationCount: number;
   rows: DocumentsFivepostRow[];
 };
 
 export async function importDocumentsFivepostFile(
   auth: DocumentsAuthScope,
   file: File,
-  opts?: { route?: Direction; translate?: boolean },
+  opts?: { route?: Direction },
 ): Promise<DocumentsFivepostImportResult> {
   const form = new FormData();
   form.append("file", file);
@@ -215,7 +216,7 @@ export async function importDocumentsFivepostFile(
   form.append("inn", auth.inn);
   if (auth.customerName) form.append("customerName", auth.customerName);
   if (opts?.route) form.append("route", opts.route);
-  if (opts?.translate === false) form.append("translate", "0");
+  form.append("translate", "0");
 
   const res = await fetch("/api/documents/fivepost-import", {
     method: "POST",
@@ -227,6 +228,30 @@ export async function importDocumentsFivepostFile(
   });
   const data = (await res.json().catch(() => ({}))) as DocumentsFivepostImportResult & { error?: string };
   if (!res.ok) throw new Error(data?.error || `Ошибка импорта (${res.status})`);
+  return data;
+}
+
+export async function translateDocumentsFivepostBatch(
+  auth: DocumentsAuthScope,
+  batchId: number,
+): Promise<DocumentsFivepostImportResult> {
+  const res = await fetch("/api/documents/fivepost-translate", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-login": auth.login,
+      "x-password": auth.password,
+    },
+    body: JSON.stringify({
+      login: auth.login,
+      password: auth.password,
+      inn: auth.inn,
+      customerName: auth.customerName || undefined,
+      batchId,
+    }),
+  });
+  const data = (await res.json().catch(() => ({}))) as DocumentsFivepostImportResult & { error?: string };
+  if (!res.ok) throw new Error(data?.error || `Ошибка перевода (${res.status})`);
   return data;
 }
 

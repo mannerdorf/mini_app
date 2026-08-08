@@ -5,12 +5,30 @@ import { parseFivepostShipmentBuffer } from "./parseShipmentXlsx.js";
 import type { FivepostRoute, FivepostShipmentRow } from "./types.js";
 
 const TRANSLATE_BATCH = 50;
+const TRANSLATE_CONCURRENCY = 5;
+
+async function runWithConcurrency(tasks: (() => Promise<void>)[], concurrency: number): Promise<void> {
+  let next = 0;
+
+  async function worker() {
+    while (next < tasks.length) {
+      const idx = next++;
+      await tasks[idx]();
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, () => worker()));
+}
 
 function resolveItemNameRu(itemName: string, translations: Map<string, string>): string {
   const trimmed = itemName.trim();
   if (!trimmed) return "";
   if (isRussianOnlyText(trimmed)) return trimmed;
   return translations.get(trimmed) ?? trimmed;
+}
+
+export function countFivepostRowsNeedingTranslation(itemNames: string[]): number {
+  return itemNames.filter((name) => itogTextNeedsTranslation(name)).length;
 }
 
 async function buildTranslationMap(texts: string[]): Promise<Map<string, string>> {
@@ -26,15 +44,45 @@ async function buildTranslationMap(texts: string[]): Promise<Map<string, string>
     if (itogTextNeedsTranslation(t)) unique.push(t);
   }
 
+  const batchRanges: string[][] = [];
   for (let i = 0; i < unique.length; i += TRANSLATE_BATCH) {
-    const batch = unique.slice(i, i + TRANSLATE_BATCH);
-    const translated = await translateProductNamesEnToRu(batch);
-    batch.forEach((text, idx) => {
-      map.set(text, translated[idx]?.trim() || text);
-    });
+    batchRanges.push(unique.slice(i, i + TRANSLATE_BATCH));
   }
 
+  await runWithConcurrency(
+    batchRanges.map((batch) => async () => {
+      const translated = await translateProductNamesEnToRu(batch);
+      batch.forEach((text, idx) => {
+        map.set(text, translated[idx]?.trim() || text);
+      });
+    }),
+    TRANSLATE_CONCURRENCY,
+  );
+
   return map;
+}
+
+function dbRowToShipmentRow(r: Record<string, unknown>): FivepostShipmentRow {
+  const num = (v: unknown) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  return {
+    lineNo: Number(r.line_no),
+    clientOrderNo: String(r.client_order_no ?? ""),
+    partnerOrderNo: String(r.partner_order_no ?? ""),
+    teBarcode: String(r.te_barcode ?? ""),
+    placesCount: Number(r.places_count ?? 1),
+    omniBarcode: String(r.omni_barcode ?? ""),
+    itemName: String(r.item_name ?? ""),
+    itemNameRu: String(r.item_name_ru ?? ""),
+    unitCost: num(r.unit_cost),
+    totalCost: num(r.total_cost),
+    weightG: num(r.weight_g),
+    lengthMm: num(r.length_mm),
+    widthMm: num(r.width_mm),
+    heightMm: num(r.height_mm),
+  };
 }
 
 export async function importFivepostShipmentXlsx(
@@ -46,16 +94,22 @@ export async function importFivepostShipmentXlsx(
     route?: FivepostRoute;
     translate?: boolean;
   },
-): Promise<{ batchId: number; rows: FivepostShipmentRow[]; translatedCount: number }> {
+): Promise<{
+  batchId: number;
+  rows: FivepostShipmentRow[];
+  translatedCount: number;
+  needsTranslationCount: number;
+}> {
   const parsed = parseFivepostShipmentBuffer(opts.buffer, opts.filename);
   const route = opts.route ?? parsed.route;
-  const shouldTranslate = opts.translate !== false;
+  const shouldTranslate = opts.translate === true;
+  const needsTranslationCount = countFivepostRowsNeedingTranslation(parsed.rows.map((r) => r.itemName));
 
   let translations = new Map<string, string>();
   let translatedCount = 0;
   if (shouldTranslate) {
     translations = await buildTranslationMap(parsed.rows.map((r) => r.itemName));
-    translatedCount = parsed.rows.filter((r) => itogTextNeedsTranslation(r.itemName)).length;
+    translatedCount = needsTranslationCount;
   }
 
   const shipmentRows: FivepostShipmentRow[] = parsed.rows.map((row, idx) => ({
@@ -78,7 +132,54 @@ export async function importFivepostShipmentXlsx(
 
     await insertShipmentRows(client, batchId, shipmentRows);
     await client.query("commit");
-    return { batchId, rows: shipmentRows, translatedCount };
+    return { batchId, rows: shipmentRows, translatedCount, needsTranslationCount };
+  } catch (e) {
+    await client.query("rollback");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+export async function translateFivepostBatch(
+  pool: Pool,
+  batchId: number,
+): Promise<{ rows: FivepostShipmentRow[]; translatedCount: number; needsTranslationCount: number }> {
+  const client = await pool.connect();
+  try {
+    const { rows: dbRows } = await client.query<Record<string, unknown>>(
+      `select * from fivepost_shipment_rows where batch_id = $1 order by line_no asc`,
+      [batchId],
+    );
+    if (!dbRows.length) throw new Error("Пакет не найден или пустой");
+
+    const shipmentRows = dbRows.map((r) => dbRowToShipmentRow(r));
+    const needsTranslationCount = countFivepostRowsNeedingTranslation(shipmentRows.map((r) => r.itemName));
+    if (needsTranslationCount === 0) {
+      return { rows: shipmentRows, translatedCount: 0, needsTranslationCount: 0 };
+    }
+
+    const translations = await buildTranslationMap(shipmentRows.map((r) => r.itemName));
+    const updatedRows = shipmentRows.map((row) => ({
+      ...row,
+      itemNameRu: resolveItemNameRu(row.itemName, translations),
+    }));
+
+    await client.query("begin");
+    for (const row of updatedRows) {
+      if (!itogTextNeedsTranslation(row.itemName)) continue;
+      await client.query(
+        `update fivepost_shipment_rows set item_name_ru = $1 where batch_id = $2 and line_no = $3`,
+        [row.itemNameRu, batchId, row.lineNo],
+      );
+    }
+    await client.query(
+      `update fivepost_import_batches set translated_count = $1 where id = $2`,
+      [needsTranslationCount, batchId],
+    );
+    await client.query("commit");
+
+    return { rows: updatedRows, translatedCount: needsTranslationCount, needsTranslationCount: 0 };
   } catch (e) {
     await client.query("rollback");
     throw e;

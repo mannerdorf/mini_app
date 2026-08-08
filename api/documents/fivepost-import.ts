@@ -4,7 +4,6 @@ import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgTableExists } from "../_haulzReturns.js";
 import { parseMultipart } from "../_pnl-multipart.js";
 import { importFivepostShipmentXlsx } from "../../lib/fivepost/importBatch.js";
-import { resolveOpenaiApiKey } from "../../lib/haulzReturns/openaiEnv.js";
 import { resolveDocumentsOrderAccess } from "../_documentsOrder.js";
 import { isFivepostCustomer } from "../../lib/fivepost/customerAccess.js";
 import type { FivepostRoute } from "../../lib/fivepost/types.js";
@@ -32,13 +31,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  if (!resolveOpenaiApiKey()) {
-    return res.status(503).json({
-      error: "Сервис перевода временно недоступен",
-      request_id: ctx.requestId,
-    });
-  }
-
   try {
     const { files, fields } = await parseMultipart(req);
     const access = await resolveDocumentsOrderAccess(req, fields);
@@ -55,7 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const route = readRoute(fields.route);
-    const translate = String(fields.translate ?? "1").trim() !== "0";
+    const translate = String(fields.translate ?? "0").trim() === "1";
 
     const result = await importFivepostShipmentXlsx(pool, {
       buffer: file.buffer,
@@ -69,6 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       batchId: result.batchId,
       rowCount: result.rows.length,
       translatedCount: result.translatedCount,
+      needsTranslationCount: result.needsTranslationCount,
       rows: result.rows,
       request_id: ctx.requestId,
     });
