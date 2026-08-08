@@ -14,6 +14,7 @@ export { AdminSverkiTab } from "./tabs/AdminSverkiTab";
 export { AdminDogovorsTab } from "./tabs/AdminDogovorsTab";
 export { AdminFerriesTab } from "./tabs/AdminFerriesTab";
 export { AdminPvzTab } from "./tabs/AdminPvzTab";
+export { AdminFivePostTab } from "./tabs/AdminFivePostTab";
 export { AdminUsersTab } from "./tabs/AdminUsersTab";
 export { AdminPresetsTab } from "./tabs/AdminPresetsTab";
 export { AdminEmployeeDirectoryTab } from "./tabs/AdminEmployeeDirectoryTab";
