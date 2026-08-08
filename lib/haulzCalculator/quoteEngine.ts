@@ -38,7 +38,7 @@ function inferCityFromAddress(addr: AddressSelection): CityCode | null {
   if (addr.city === "moscow" || addr.city === "kaliningrad") return addr.city;
   const t = `${addr.fullAddress} ${addr.label}`.toLowerCase();
   if (t.includes("калининград") || t.includes("kaliningrad")) return "kaliningrad";
-  if (t.includes("москва") || t.includes("moscow")) return "moscow";
+  if (t.includes("москва") || t.includes("moscow") || t.includes("московск")) return "moscow";
   return null;
 }
 

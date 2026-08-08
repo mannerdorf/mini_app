@@ -60,4 +60,19 @@ describe("dadata suggestAddress", () => {
     expect(body.locations).toEqual([{ region: "Калининградская" }]);
     expect(body.locations_boost).toEqual([{ city: "Калининград" }]);
   });
+
+  it("moscow scope searches whole Moscow region with city boost", async () => {
+    vi.stubEnv("DADATA_API_KEY", "test-key");
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ suggestions: [] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await dadataSuggestAddresses("королев", { city: "moscow" });
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(body.locations).toEqual([{ region: "Московская" }]);
+    expect(body.locations_boost).toEqual([{ city: "Москва" }]);
+  });
 });
