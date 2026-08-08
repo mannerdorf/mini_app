@@ -3,7 +3,7 @@ import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgTableExists } from "../_haulzReturns.js";
 import { translateFivepostBatch } from "../../lib/fivepost/importBatch.js";
-import { resolveOpenaiApiKey } from "../../lib/haulzReturns/openaiEnv.js";
+import { resolveProductNameTranslator } from "../../lib/fivepost/productNameTranslate.js";
 import { parseJsonBody, resolveDocumentsOrderAccess } from "../_documentsOrder.js";
 import { isFivepostCustomer } from "../../lib/fivepost/customerAccess.js";
 
@@ -22,9 +22,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  if (!resolveOpenaiApiKey()) {
+  if (!resolveProductNameTranslator()) {
     return res.status(503).json({
-      error: "OPENAI_API_KEY не настроен на сервере API",
+      error: "YANDEX_TRANSLATE_API_KEY или OPENAI_API_KEY не настроен на сервере API",
       request_id: ctx.requestId,
     });
   }

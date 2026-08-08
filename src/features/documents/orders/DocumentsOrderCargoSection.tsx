@@ -352,7 +352,7 @@ export function DocumentsOrderCargoSection({
               )}
               {translateLoading && (
                 <p className="haulz-calc-hint" style={{ marginTop: "0.35rem" }}>
-                  Перевод через ChatGPT, подождите 1–3 мин…
+                  Перевод названий, подождите 1–3 мин…
                 </p>
               )}
               {importMessage && (

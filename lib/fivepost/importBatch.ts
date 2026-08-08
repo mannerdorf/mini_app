@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from "pg";
-import { translateProductNamesEnToRu } from "../haulzReturns/openaiTranslate.js";
+import { translateProductNamesToRu } from "./productNameTranslate.js";
 import { isRussianOnlyText, itogTextNeedsTranslation } from "../haulzReturns/textLanguage.js";
 import { parseFivepostShipmentBuffer } from "./parseShipmentXlsx.js";
 import type { FivepostRoute, FivepostParsedRow, FivepostShipmentRow } from "./types.js";
@@ -51,7 +51,7 @@ async function buildTranslationMap(texts: string[]): Promise<Map<string, string>
 
   await runWithConcurrency(
     batchRanges.map((batch) => async () => {
-      const translated = await translateProductNamesEnToRu(batch);
+      const translated = await translateProductNamesToRu(batch);
       batch.forEach((text, idx) => {
         map.set(text, translated[idx]?.trim() || text);
       });
