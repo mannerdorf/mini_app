@@ -2,7 +2,7 @@ import type { Pool, PoolClient } from "pg";
 import { translateProductNamesEnToRu } from "../haulzReturns/openaiTranslate.js";
 import { isRussianOnlyText, itogTextNeedsTranslation } from "../haulzReturns/textLanguage.js";
 import { parseFivepostShipmentBuffer } from "./parseShipmentXlsx.js";
-import type { FivepostRoute, FivepostShipmentRow } from "./types.js";
+import type { FivepostRoute, FivepostParsedRow, FivepostShipmentRow } from "./types.js";
 
 const TRANSLATE_BATCH = 50;
 const TRANSLATE_CONCURRENCY = 5;
@@ -85,6 +85,51 @@ function dbRowToShipmentRow(r: Record<string, unknown>): FivepostShipmentRow {
   };
 }
 
+export async function saveFivepostParsedRows(
+  pool: Pool,
+  opts: {
+    login: string;
+    filename: string;
+    route?: FivepostRoute;
+    rows: FivepostParsedRow[];
+  },
+): Promise<{
+  batchId: number;
+  rows: FivepostShipmentRow[];
+  translatedCount: number;
+  needsTranslationCount: number;
+}> {
+  const route = opts.route ?? "kgd_mow";
+  const needsTranslationCount = countFivepostRowsNeedingTranslation(opts.rows.map((r) => r.itemName));
+  const shipmentRows: FivepostShipmentRow[] = opts.rows.map((row, idx) => ({
+    ...row,
+    lineNo: idx + 1,
+    itemNameRu: row.itemName,
+  }));
+
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const batchRes = await client.query<{ id: number }>(
+      `insert into fivepost_import_batches (login, filename, route, status, row_count, translated_count)
+       values ($1, $2, $3, 'completed', $4, 0)
+       returning id`,
+      [opts.login, opts.filename, route, shipmentRows.length],
+    );
+    const batchId = batchRes.rows[0]?.id;
+    if (!batchId) throw new Error("Не удалось создать пакет импорта");
+
+    await insertShipmentRows(client, batchId, shipmentRows);
+    await client.query("commit");
+    return { batchId, rows: shipmentRows, translatedCount: 0, needsTranslationCount };
+  } catch (e) {
+    await client.query("rollback");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 export async function importFivepostShipmentXlsx(
   pool: Pool,
   opts: {
@@ -105,17 +150,23 @@ export async function importFivepostShipmentXlsx(
   const shouldTranslate = opts.translate === true;
   const needsTranslationCount = countFivepostRowsNeedingTranslation(parsed.rows.map((r) => r.itemName));
 
-  let translations = new Map<string, string>();
-  let translatedCount = 0;
-  if (shouldTranslate) {
-    translations = await buildTranslationMap(parsed.rows.map((r) => r.itemName));
-    translatedCount = needsTranslationCount;
+  if (!shouldTranslate) {
+    return saveFivepostParsedRows(pool, {
+      login: opts.login,
+      filename: opts.filename,
+      route,
+      rows: parsed.rows,
+    });
   }
+
+  let translations = new Map<string, string>();
+  const translatedCount = needsTranslationCount;
+  translations = await buildTranslationMap(parsed.rows.map((r) => r.itemName));
 
   const shipmentRows: FivepostShipmentRow[] = parsed.rows.map((row, idx) => ({
     ...row,
     lineNo: idx + 1,
-    itemNameRu: shouldTranslate ? resolveItemNameRu(row.itemName, translations) : row.itemName,
+    itemNameRu: resolveItemNameRu(row.itemName, translations),
   }));
 
   const client = await pool.connect();

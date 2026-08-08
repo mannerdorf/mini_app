@@ -75,10 +75,11 @@ function inferRouteFromFilename(filename: string): FivepostRoute {
 }
 
 export function parseFivepostShipmentBuffer(
-  buffer: Buffer,
+  buffer: Buffer | Uint8Array,
   filename = "",
 ): { rows: FivepostParsedRow[]; route: FivepostRoute } {
-  const wb = XLSX.read(buffer, { type: "buffer" });
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  const wb = XLSX.read(bytes, { type: "array" });
   const sheet = wb.Sheets[wb.SheetNames[0]];
   if (!sheet) throw new Error("Лист Excel не найден");
 
@@ -129,5 +130,5 @@ export function parseFivepostShipmentBuffer(
 }
 
 export function parseFivepostShipmentFile(file: File): Promise<{ rows: FivepostParsedRow[]; route: FivepostRoute }> {
-  return file.arrayBuffer().then((buf) => parseFivepostShipmentBuffer(Buffer.from(buf), file.name));
+  return file.arrayBuffer().then((buf) => parseFivepostShipmentBuffer(new Uint8Array(buf), file.name));
 }

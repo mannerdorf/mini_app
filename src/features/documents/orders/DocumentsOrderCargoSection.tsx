@@ -3,7 +3,8 @@ import { Loader2, Plus, Upload, FileText } from "lucide-react";
 import type { ParcelPlace } from "../../../../lib/haulzCalculator/types";
 import type { Direction } from "../../../../lib/haulzCalculator/types";
 import type { DocumentsAuthScope, DocumentsFivepostRow } from "../../../api/client/documentsOrder";
-import { importDocumentsFivepostFile, translateDocumentsFivepostBatch } from "../../../api/client/documentsOrder";
+import { saveDocumentsFivepostRows, translateDocumentsFivepostBatch } from "../../../api/client/documentsOrder";
+import { parseFivepostShipmentFile } from "../../../../lib/fivepost/parseShipmentXlsx";
 import { parseUpdToTableRows, type OrderTableRow } from "./documentsOrderUpdParse";
 
 const BOX_PRESETS: { label: string; weightKg: number; volumeM3: number }[] = [
@@ -177,7 +178,39 @@ export function DocumentsOrderCargoSection({
 
     setFileImportLoading(true);
     try {
-      const result = await importDocumentsFivepostFile(authScope, file, { route: direction });
+      setImportMessage("Читаем Excel…");
+      const parsed = await parseFivepostShipmentFile(file);
+      const previewRows: DocumentsFivepostRow[] = parsed.rows.map((row, idx) => ({
+        lineNo: idx + 1,
+        clientOrderNo: row.clientOrderNo,
+        partnerOrderNo: row.partnerOrderNo,
+        teBarcode: row.teBarcode,
+        placesCount: row.placesCount,
+        omniBarcode: row.omniBarcode,
+        itemName: row.itemName,
+        itemNameRu: row.itemName,
+        unitCost: row.unitCost,
+        totalCost: row.totalCost,
+        weightG: row.weightG,
+        lengthMm: row.lengthMm,
+        widthMm: row.widthMm,
+        heightMm: row.heightMm,
+      }));
+      onChange({
+        ...state,
+        fileZayavki: file,
+        fivepostRows: previewRows,
+        fivepostBatchId: null,
+        fivepostNeedsTranslation: 0,
+        tableRows: fivepostRowsToTableRows(previewRows),
+      });
+      setImportMessage(`Распознано ${previewRows.length} строк, сохранение в базу…`);
+
+      const result = await saveDocumentsFivepostRows(authScope, {
+        filename: file.name,
+        route: direction,
+        rows: parsed.rows,
+      });
       const tableRows = fivepostRowsToTableRows(result.rows);
       onChange({
         ...state,
@@ -189,8 +222,8 @@ export function DocumentsOrderCargoSection({
       });
       setImportMessage(
         result.needsTranslationCount > 0
-          ? `5 POST: загружено ${result.rowCount} строк. Нажмите «Перевести названия» (${result.needsTranslationCount} поз.).`
-          : `5 POST: ${result.rowCount} строк загружено, перевод не требуется.`,
+          ? `5 POST: ${result.rowCount} строк сохранено. Нажмите «Перевести названия» (${result.needsTranslationCount}).`
+          : `5 POST: ${result.rowCount} строк сохранено, перевод не требуется.`,
       );
     } catch (e) {
       setError((e as Error)?.message || "Ошибка импорта файла 5 POST");

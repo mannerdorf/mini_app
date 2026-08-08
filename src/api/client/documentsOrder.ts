@@ -8,6 +8,7 @@ import type {
   ParcelPlace,
   QuoteResult,
 } from "../../../lib/haulzCalculator/types";
+import type { FivepostParsedRow } from "../../../lib/fivepost/types";
 import type { TableRow } from "../../features/documents/orders/NewOrderModal";
 
 export type DocumentsSuggestItem = {
@@ -204,6 +205,33 @@ export type DocumentsFivepostImportResult = {
   rows: DocumentsFivepostRow[];
 };
 
+export async function saveDocumentsFivepostRows(
+  auth: DocumentsAuthScope,
+  payload: { filename: string; route?: Direction; rows: FivepostParsedRow[] },
+): Promise<DocumentsFivepostImportResult> {
+  const res = await fetch("/api/documents/fivepost-save", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-login": auth.login,
+      "x-password": auth.password,
+    },
+    body: JSON.stringify({
+      login: auth.login,
+      password: auth.password,
+      inn: auth.inn,
+      customerName: auth.customerName || undefined,
+      filename: payload.filename,
+      route: payload.route,
+      rows: payload.rows,
+    }),
+  });
+  const data = (await res.json().catch(() => ({}))) as DocumentsFivepostImportResult & { error?: string };
+  if (!res.ok) throw new Error(data?.error || `Ошибка сохранения (${res.status})`);
+  return data;
+}
+
+/** @deprecated Используйте parseFivepostShipmentFile + saveDocumentsFivepostRows */
 export async function importDocumentsFivepostFile(
   auth: DocumentsAuthScope,
   file: File,
