@@ -3,7 +3,7 @@ import type { Pool } from "pg";
 import { notifyCalcTransportAgree } from "./calcAgreeWebhook.js";
 import type { HaulzCalculatorFormState, HaulzCalcDraftRow } from "./calculatorDraft.js";
 import { getHaulzCalcDraft } from "./calculatorDraft.js";
-import { parseHaulzCalcDraftStatus } from "./draftStatus.js";
+import { parseHaulzCalcDraftStatus, type HaulzCalcDraftStatus } from "./draftStatus.js";
 import { buildCalcAgreeTransportUrl } from "./publicApiBase.js";
 import type { QuoteResult } from "./types.js";
 
@@ -152,17 +152,26 @@ export async function confirmTransportAgree(pool: Pool, token: string): Promise<
 export async function setDraftStatusByManager(
   pool: Pool,
   draftId: number,
-  status: "agreed" | "rejected",
+  status: HaulzCalcDraftStatus,
 ): Promise<HaulzCalcDraftRow | null> {
+  if (status === "draft") return null;
   const { rows } = await pool.query<DraftDbRow>(
     `update haulz_calc_drafts set status = $2, updated_at = now()
-     where id = $1 and status = 'awaiting_call'
+     where id = $1 and status <> 'draft'
      returning id::text, login_key, title, status, nomer_zayavki, form_state, quote_result,
                recipient_email, agree_token, transport_agreed_at, created_at, updated_at`,
     [draftId, status],
   );
   const row = rows[0];
   return row ? mapRowExtended(row) : null;
+}
+
+export async function deleteDraftByManager(pool: Pool, draftId: number): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `delete from haulz_calc_drafts where id = $1 and status <> 'draft'`,
+    [draftId],
+  );
+  return (rowCount ?? 0) > 0;
 }
 
 export async function listAllCalcDraftsForManager(pool: Pool, limit = 100): Promise<HaulzCalcDraftRow[]> {

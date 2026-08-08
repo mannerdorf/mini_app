@@ -29,11 +29,16 @@ export function parseHaulzCalcDraftStatus(raw: unknown): HaulzCalcDraftStatus {
   return HAULZ_CALC_DRAFT_STATUSES.includes(s) ? s : "draft";
 }
 
-/** Менеджер после звонка: только из «ожидает звонка» → согласовано / не согласовано. */
+/** Статусы заявок в журнале менеджера (без черновиков). */
+export const MANAGER_JOURNAL_STATUSES: HaulzCalcDraftStatus[] = HAULZ_CALC_DRAFT_STATUSES.filter(
+  (s) => s !== "draft",
+);
+
+/** Менеджер может выставить любой статус заявки, кроме «Черновик». */
 export function canManagerSetDraftStatus(
   from: HaulzCalcDraftStatus,
   to: HaulzCalcDraftStatus,
 ): boolean {
-  if (to === "agreed" || to === "rejected") return from === "awaiting_call";
-  return false;
+  if (from === "draft" || to === "draft") return false;
+  return HAULZ_CALC_DRAFT_STATUSES.includes(to);
 }

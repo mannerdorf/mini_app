@@ -375,7 +375,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
         nomerZayavki: nomerZayavki.trim() || undefined,
         dataZabora,
         tableRows: cargo.tableRows,
-        fivepostBatchId: cargo.fivepostBatchId ?? undefined,
+        fivepostBatchId: fivepostCustomer && cargo.fivepostBatchId ? cargo.fivepostBatchId : undefined,
         attachments: attachments.length ? attachments : undefined,
       });
 

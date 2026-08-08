@@ -195,28 +195,6 @@ async function attachPendingOrderCargo(
     const batchId = fivepostBatchIdFromTableRows(tableRows);
     if (batchId) {
       batchIdByOrderId.set(row.id, batchId);
-      continue;
-    }
-    const legacyBlock = tableRowByType(tableRows, "legacy_parcels");
-    const legacyCount = Array.isArray(legacyBlock?.rows) ? legacyBlock.rows.length : 0;
-    if (legacyCount > 0) {
-      try {
-        const { rows: fallbackRows } = await pool.query<{ id: number }>(
-          `SELECT id
-           FROM fivepost_import_batches
-           WHERE lower(trim(login)) = $1
-             AND created_at <= $2::timestamptz + interval '2 hours'
-           ORDER BY created_at DESC
-           LIMIT 1`,
-          [normalizeLogin(row.login), row.created_at],
-        );
-        const fallbackId = Number(fallbackRows[0]?.id);
-        if (Number.isFinite(fallbackId) && fallbackId > 0) {
-          batchIdByOrderId.set(row.id, fallbackId);
-        }
-      } catch {
-        // ignore missing table / query errors
-      }
     }
   }
 
@@ -363,7 +341,7 @@ async function resolvePendingInnFilter(
   return filterInns;
 }
 
-/** Данные заявки из ЛК для журнала / карточки менеджера (с грузом 5 POST). */
+/** Данные заявки из ЛК для журнала / карточки менеджера (табличная часть из сохранённой заявки). */
 export async function buildPendingOrderJournalItem(
   pool: Pool,
   nomerZayavki: string,

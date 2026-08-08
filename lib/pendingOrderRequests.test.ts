@@ -97,6 +97,15 @@ describe("pendingOrderToListItem", () => {
       fivepostBatchIdFromTableRows([{ type: "fivepost", batchId: 42 }, { type: "source" }]),
     ).toBe(42);
   });
+
+  it("does not infer fivepost batch from legacy UPD rows alone", () => {
+    expect(
+      fivepostBatchIdFromTableRows([
+        { type: "legacy_parcels", rows: [{ n: 1, posylka: "UPD-1", perevozka: "T-1" }] },
+        { type: "source" },
+      ]),
+    ).toBeNull();
+  });
 });
 
 describe("mergeOrdersWithPending", () => {

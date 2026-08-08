@@ -315,6 +315,15 @@ export async function deleteHaulzCalcDraft(auth: AuthData, id: number): Promise<
   if (!res.ok) throw new Error(parseError(res, data));
 }
 
+export async function deleteHaulzCalcDraftManager(auth: AuthData, id: number): Promise<void> {
+  const res = await fetch(`/api/haulz-calculator/drafts-manager?id=${id}`, {
+    method: "DELETE",
+    headers: authHeaders(auth),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(parseError(res, data));
+}
+
 export async function sendHaulzQuoteEmail(
   auth: AuthData,
   body: {
@@ -347,7 +356,7 @@ export async function fetchHaulzCalcDraftsManager(auth: AuthData): Promise<Haulz
 export async function patchHaulzCalcDraftStatus(
   auth: AuthData,
   id: number,
-  status: "agreed" | "rejected",
+  status: HaulzCalcDraftStatus,
 ): Promise<HaulzCalcDraft> {
   const res = await fetch("/api/haulz-calculator/draft-status", {
     method: "PATCH",

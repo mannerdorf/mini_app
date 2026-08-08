@@ -1,8 +1,13 @@
 import React from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Pencil, Trash2 } from "lucide-react";
 import { DateText } from "../../../components/ui/DateText";
 import { formatQuoteVatLine } from "../../../../lib/haulzCalculator/quoteVat";
 import type { QuoteResult } from "../../../../lib/haulzCalculator/types";
+import {
+  HAULZ_CALC_DRAFT_STATUS_LABELS,
+  MANAGER_JOURNAL_STATUSES,
+  type HaulzCalcDraftStatus,
+} from "../../../../lib/haulzCalculator/draftStatus";
 import { DocumentsRouteBadge } from "../views/documentsViewBlocks";
 import {
   DocumentsOrdersPendingCargo,
@@ -30,10 +35,12 @@ type Props = {
   fivepostRows?: PendingFivepostRow[];
   legacyRows?: PendingLegacyTableRow[];
   quote?: QuoteResult | null;
-  managerStatus?: string;
+  managerStatus?: HaulzCalcDraftStatus;
   managerStatusLoading?: boolean;
-  onAgreed?: () => void;
-  onRejected?: () => void;
+  onStatusChange?: (status: HaulzCalcDraftStatus) => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  deleteLoading?: boolean;
 };
 
 export function DocumentsOrderJournalExpand({
@@ -49,8 +56,10 @@ export function DocumentsOrderJournalExpand({
   quote,
   managerStatus,
   managerStatusLoading,
-  onAgreed,
-  onRejected,
+  onStatusChange,
+  onEdit,
+  onDelete,
+  deleteLoading,
 }: Props) {
   const hasCargo = fivepostRows.length > 0 || legacyRows.length > 0;
 
@@ -123,15 +132,78 @@ export function DocumentsOrderJournalExpand({
           </p>
         </div>
       )}
-      {managerStatus === "awaiting_call" && onAgreed && onRejected && (
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.75rem" }}>
-          <button type="button" className="haulz-calc-btn-primary" disabled={managerStatusLoading} onClick={onAgreed}>
-            {managerStatusLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            Согласовано
-          </button>
-          <button type="button" className="haulz-calc-btn-secondary" disabled={managerStatusLoading} onClick={onRejected}>
-            Не согласовано
-          </button>
+      {managerStatus && onStatusChange && (
+        <div
+          style={{
+            display: "flex",
+            gap: "0.5rem",
+            flexWrap: "wrap",
+            marginTop: "0.75rem",
+            alignItems: "center",
+          }}
+        >
+          <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.82rem" }}>
+            <span style={{ color: "var(--color-text-secondary)", fontWeight: 600 }}>Статус:</span>
+            <select
+              value={managerStatus}
+              disabled={managerStatusLoading}
+              onChange={(e) => onStatusChange(e.target.value as HaulzCalcDraftStatus)}
+              style={{
+                fontSize: "0.82rem",
+                padding: "0.3rem 0.45rem",
+                borderRadius: 6,
+                border: "1px solid var(--color-border)",
+              }}
+            >
+              {MANAGER_JOURNAL_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {HAULZ_CALC_DRAFT_STATUS_LABELS[status]}
+                </option>
+              ))}
+            </select>
+            {managerStatusLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+          </label>
+          {managerStatus === "awaiting_call" && (
+            <>
+              <button
+                type="button"
+                className="haulz-calc-btn-primary"
+                disabled={managerStatusLoading}
+                onClick={() => onStatusChange("agreed")}
+              >
+                Согласовано
+              </button>
+              <button
+                type="button"
+                className="haulz-calc-btn-secondary"
+                disabled={managerStatusLoading}
+                onClick={() => onStatusChange("rejected")}
+              >
+                Не согласовано
+              </button>
+            </>
+          )}
+          {onEdit && (
+            <button type="button" className="haulz-calc-btn-secondary" onClick={onEdit}>
+              <Pencil className="w-4 h-4" style={{ display: "inline", marginRight: "0.25rem" }} />
+              Изменить
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              className="haulz-calc-btn-secondary haulz-calc-drafts-delete"
+              disabled={deleteLoading}
+              onClick={onDelete}
+            >
+              {deleteLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" style={{ display: "inline", marginRight: "0.25rem" }} />
+              )}
+              Удалить
+            </button>
+          )}
         </div>
       )}
     </div>

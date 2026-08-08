@@ -7,7 +7,7 @@ import { resolveHaulzCalcManagerAccess } from "../_haulzCalculator.js";
 import { pickHaulzCredentials } from "../_haulzReturns.js";
 import { getClientIp, isRateLimited, HAULZ_CALC_QUOTE_LIMIT } from "../../lib/rateLimit.js";
 import { setDraftStatusByManager } from "../../lib/haulzCalculator/calculatorDraftAgree.js";
-import { canManagerSetDraftStatus, parseHaulzCalcDraftStatus } from "../../lib/haulzCalculator/draftStatus.js";
+import { parseHaulzCalcDraftStatus } from "../../lib/haulzCalculator/draftStatus.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (haulzCalculatorPreflight(req, res)) return;
@@ -43,21 +43,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!Number.isFinite(id) || id <= 0) {
     return res.status(400).json({ error: "Укажите id заявки", request_id: ctx.requestId });
   }
-  if (status !== "agreed" && status !== "rejected") {
+  if (status === "draft") {
     return res.status(400).json({
-      error: "status: agreed или rejected",
+      error: "Нельзя установить статус «Черновик»",
       request_id: ctx.requestId,
     });
-  }
-  if (!canManagerSetDraftStatus("awaiting_call", status)) {
-    return res.status(400).json({ error: "Недопустимый переход статуса", request_id: ctx.requestId });
   }
 
   try {
     const draft = await setDraftStatusByManager(pool, id, status);
     if (!draft) {
-      return res.status(409).json({
-        error: "Заявка не в статусе «Согласовано, ожидает звонка»",
+      return res.status(404).json({
+        error: "Заявка не найдена или это черновик",
         request_id: ctx.requestId,
       });
     }

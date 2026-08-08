@@ -3,6 +3,7 @@ import { ArrowLeft, ChevronRight, Loader2, Trash2 } from "lucide-react";
 import type { AuthData } from "../types";
 import {
   deleteHaulzCalcDraft,
+  deleteHaulzCalcDraftManager,
   fetchHaulzCalcDrafts,
   fetchHaulzCalcDraftsManager,
   fetchHaulzCalcSavedDrafts,
@@ -119,7 +120,7 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
     onOpenCalculator(draftId);
   };
 
-  const handleManagerStatus = async (id: number, status: "agreed" | "rejected") => {
+  const handleManagerStatus = async (id: number, status: HaulzCalcDraftStatus) => {
     setStatusLoadingId(id);
     setError(null);
     try {
@@ -129,6 +130,20 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
       setError((e as Error)?.message || "Не удалось обновить статус");
     } finally {
       setStatusLoadingId(null);
+    }
+  };
+
+  const handleManagerDelete = async (id: number) => {
+    if (!window.confirm("Удалить заявку?")) return;
+    setDeletingId(id);
+    setError(null);
+    try {
+      await deleteHaulzCalcDraftManager(auth, id);
+      setRequests((prev) => prev.filter((d) => d.id !== id));
+    } catch (e) {
+      setError((e as Error)?.message || "Не удалось удалить заявку");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -269,8 +284,10 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
         <ManagerOrdersJournalSection
           drafts={requests}
           statusLoadingId={statusLoadingId}
-          onAgreed={(id) => void handleManagerStatus(id, "agreed")}
-          onRejected={(id) => void handleManagerStatus(id, "rejected")}
+          deletingId={deletingId}
+          onStatusChange={(id, status) => void handleManagerStatus(id, status)}
+          onEdit={(id) => handleOpenCalculator(id)}
+          onDelete={(id) => void handleManagerDelete(id)}
         />
       )}
 
