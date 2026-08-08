@@ -12,6 +12,7 @@ import {
 import { HAULZ_CALC_DRAFT_STATUS_LABELS, type HaulzCalcDraftStatus } from "../../lib/haulzCalculator/draftStatus";
 import { formatHaulzCalcDraftCustomer } from "../../lib/haulzCalculator/draftCustomerDisplay";
 import { HaulzCalcRequestDetail } from "../features/haulzCalculator/HaulzCalcRequestDetail";
+import { ManagerOrdersJournalSection } from "../features/haulzCalculator/ManagerOrdersJournalSection";
 import {
   persistHaulzCalcRequestsTab,
   readStoredHaulzCalcRequestsTab,
@@ -147,7 +148,7 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
 
   const hintText =
     managerMode
-      ? "Выберите строку в таблице, чтобы открыть полную информацию и изменить статус после звонка."
+      ? "Нажмите на строку заявки, чтобы развернуть полную информацию как в разделе «Документы → Заявки»."
       : tab === "saved"
         ? "Незавершённые расчёты из калькулятора. Откройте черновик, чтобы продолжить, или начните новый расчёт."
         : "Оформленные заявки и расчёты после отправки КП.";
@@ -264,7 +265,16 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
         </div>
       )}
 
-      {!loading && tab === "requests" && list.length > 0 && (
+      {!loading && tab === "requests" && list.length > 0 && managerMode && (
+        <ManagerOrdersJournalSection
+          drafts={requests}
+          statusLoadingId={statusLoadingId}
+          onAgreed={(id) => void handleManagerStatus(id, "agreed")}
+          onRejected={(id) => void handleManagerStatus(id, "rejected")}
+        />
+      )}
+
+      {!loading && tab === "requests" && list.length > 0 && !managerMode && (
         <div className={`haulz-calc-requests-layout${selected ? " haulz-calc-requests-layout--open" : ""}`}>
           <div className="haulz-calc-requests-table-wrap">
             <table className="haulz-calc-requests-table">

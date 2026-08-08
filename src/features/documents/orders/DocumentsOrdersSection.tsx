@@ -3,11 +3,12 @@ import { AnimatePresence, motion } from "motion/react";
 import { Flex, Panel, Typography } from "@maxhub/max-ui";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { DateText } from "../../../components/ui/DateText";
-import { cityToCode, formatInvoiceNumber, stripOoo } from "../../../lib/formatUtils";
+import { formatInvoiceNumber, stripOoo } from "../../../lib/formatUtils";
 import { ClickableCargoNumber } from "../../../components/ui/EntityLinks";
 import { AppBadge } from "../../../components/shared/AppBadge";
 import { DocumentsRouteBadge, DocumentsStateBlocks } from "../views/documentsViewBlocks";
 import { DocumentsOrdersPendingCargo } from "./DocumentsOrdersPendingCargo";
+import { orderRouteLabel, pendingPointLabel } from "./documentsOrderJournalUtils";
 import { getParcelSearchText, getRequestParcels } from "../sendings/sendingsParcelHelpers";
 import {
   cargoListContainerVariants,
@@ -34,37 +35,6 @@ type Props = {
   setExpandedOrderRow: React.Dispatch<React.SetStateAction<string | null>>;
   onOpenCargo?: (cargoNumber: string) => void;
 };
-
-function pendingPointLabel(row: Record<string, unknown>, kind: "from" | "to"): string {
-  if (kind === "from") {
-    return String(
-      row?.АдресОтправки ??
-        row?.ПунктОтправкиНаименование ??
-        row?.ПунктОтправки ??
-        row?.ПунктОтправления ??
-        row?.SenderPoint ??
-        "",
-    ).trim();
-  }
-  return String(
-    row?.АдресНазначения ??
-      row?.ПунктНазначенияНаименование ??
-      row?.ПунктНазначения ??
-      row?.ПунктДоставки ??
-      row?.DestinationPoint ??
-      row?.ReceiverPoint ??
-      "",
-  ).trim();
-}
-
-function orderRouteLabel(row: Record<string, unknown>, senderPoint: string, destinationPoint: string): string {
-  const cityFrom = String(row?.CitySender ?? "").trim();
-  const cityTo = String(row?.CityReceiver ?? "").trim();
-  if (cityFrom && cityTo) return `${cityFrom} – ${cityTo}`;
-  return [cityToCode(senderPoint) || senderPoint, cityToCode(destinationPoint) || destinationPoint]
-    .filter(Boolean)
-    .join(" – ") || "—";
-}
 
 export function DocumentsOrdersSection({
   active,

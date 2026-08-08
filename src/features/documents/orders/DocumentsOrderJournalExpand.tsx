@@ -1,0 +1,139 @@
+import React from "react";
+import { Loader2 } from "lucide-react";
+import { DateText } from "../../../components/ui/DateText";
+import { formatQuoteVatLine } from "../../../lib/haulzCalculator/quoteVat";
+import type { QuoteResult } from "../../../lib/haulzCalculator/types";
+import { DocumentsRouteBadge } from "../views/documentsViewBlocks";
+import {
+  DocumentsOrdersPendingCargo,
+  type PendingFivepostRow,
+  type PendingLegacyTableRow,
+} from "./DocumentsOrdersPendingCargo";
+
+function JournalGridRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <>
+      <span style={{ color: "var(--color-text-secondary)", fontWeight: 600 }}>{label}</span>
+      <span>{value || "—"}</span>
+    </>
+  );
+}
+
+type Props = {
+  customer: string;
+  senderPoint: string;
+  destinationPoint: string;
+  sender: string;
+  receiver: string;
+  routeLabel: string;
+  pickupDate?: string;
+  fivepostRows?: PendingFivepostRow[];
+  legacyRows?: PendingLegacyTableRow[];
+  quote?: QuoteResult | null;
+  managerStatus?: string;
+  managerStatusLoading?: boolean;
+  onAgreed?: () => void;
+  onRejected?: () => void;
+};
+
+export function DocumentsOrderJournalExpand({
+  customer,
+  senderPoint,
+  destinationPoint,
+  sender,
+  receiver,
+  routeLabel,
+  pickupDate,
+  fivepostRows = [],
+  legacyRows = [],
+  quote,
+  managerStatus,
+  managerStatusLoading,
+  onAgreed,
+  onRejected,
+}: Props) {
+  const hasCargo = fivepostRows.length > 0 || legacyRows.length > 0;
+
+  return (
+    <div style={{ padding: "0.75rem", borderBottom: "1px solid var(--color-border)", background: "var(--color-bg-primary)" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "0.75rem",
+          marginBottom: "0.65rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <DocumentsRouteBadge>{routeLabel || "—"}</DocumentsRouteBadge>
+        {pickupDate && (
+          <span style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
+            Забор: <DateText value={pickupDate} />
+          </span>
+        )}
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(170px, 220px) 1fr",
+          gap: "0.35rem 0.75rem",
+          fontSize: "0.85rem",
+          marginBottom: hasCargo || quote ? "0.75rem" : 0,
+        }}
+      >
+        <JournalGridRow label="Заказчик:" value={customer} />
+        <JournalGridRow label="Пункт отправки:" value={senderPoint} />
+        <JournalGridRow label="Отправитель:" value={sender} />
+        <JournalGridRow label="Пункт назначения:" value={destinationPoint} />
+        <JournalGridRow label="Получатель:" value={receiver} />
+      </div>
+      {hasCargo ? (
+        <DocumentsOrdersPendingCargo fivepostRows={fivepostRows} legacyRows={legacyRows} />
+      ) : (
+        <p style={{ color: "var(--color-text-secondary)", fontSize: "0.85rem", margin: "0 0 0.75rem" }}>
+          Нет данных по посылкам
+        </p>
+      )}
+      {quote && (
+        <div style={{ marginTop: "0.75rem" }}>
+          <p style={{ fontSize: "0.8rem", fontWeight: 600, margin: "0 0 0.35rem", color: "var(--color-text-secondary)" }}>
+            Расчёт
+          </p>
+          <table className="doc-inner-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+            <tbody>
+              {quote.lines.map((line) => (
+                <tr key={line.key} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                  <td style={{ padding: "0.35rem 0.3rem" }}>{line.label}</td>
+                  <td style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap" }}>
+                    {line.meta?.informational ? "—" : `${line.amountRub.toLocaleString("ru-RU")} ₽`}
+                  </td>
+                </tr>
+              ))}
+              <tr style={{ fontWeight: 600 }}>
+                <td style={{ padding: "0.35rem 0.3rem" }}>Итого</td>
+                <td style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap" }}>
+                  {quote.totalRub.toLocaleString("ru-RU")} ₽
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", margin: "0.35rem 0 0" }}>
+            {formatQuoteVatLine(quote.totalRub)}
+          </p>
+        </div>
+      )}
+      {managerStatus === "awaiting_call" && onAgreed && onRejected && (
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.75rem" }}>
+          <button type="button" className="haulz-calc-btn-primary" disabled={managerStatusLoading} onClick={onAgreed}>
+            {managerStatusLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            Согласовано
+          </button>
+          <button type="button" className="haulz-calc-btn-secondary" disabled={managerStatusLoading} onClick={onRejected}>
+            Не согласовано
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
