@@ -7,6 +7,7 @@ import { cityToCode, formatInvoiceNumber, stripOoo } from "../../../lib/formatUt
 import { ClickableCargoNumber } from "../../../components/ui/EntityLinks";
 import { AppBadge } from "../../../components/shared/AppBadge";
 import { DocumentsRouteBadge, DocumentsStateBlocks } from "../views/documentsViewBlocks";
+import { DocumentsOrdersPendingCargo } from "./DocumentsOrdersPendingCargo";
 import { getParcelSearchText, getRequestParcels } from "../sendings/sendingsParcelHelpers";
 import {
   cargoListContainerVariants,
@@ -33,6 +34,37 @@ type Props = {
   setExpandedOrderRow: React.Dispatch<React.SetStateAction<string | null>>;
   onOpenCargo?: (cargoNumber: string) => void;
 };
+
+function pendingPointLabel(row: Record<string, unknown>, kind: "from" | "to"): string {
+  if (kind === "from") {
+    return String(
+      row?.АдресОтправки ??
+        row?.ПунктОтправкиНаименование ??
+        row?.ПунктОтправки ??
+        row?.ПунктОтправления ??
+        row?.SenderPoint ??
+        "",
+    ).trim();
+  }
+  return String(
+    row?.АдресНазначения ??
+      row?.ПунктНазначенияНаименование ??
+      row?.ПунктНазначения ??
+      row?.ПунктДоставки ??
+      row?.DestinationPoint ??
+      row?.ReceiverPoint ??
+      "",
+  ).trim();
+}
+
+function orderRouteLabel(row: Record<string, unknown>, senderPoint: string, destinationPoint: string): string {
+  const cityFrom = String(row?.CitySender ?? "").trim();
+  const cityTo = String(row?.CityReceiver ?? "").trim();
+  if (cityFrom && cityTo) return `${cityFrom} – ${cityTo}`;
+  return [cityToCode(senderPoint) || senderPoint, cityToCode(destinationPoint) || destinationPoint]
+    .filter(Boolean)
+    .join(" – ") || "—";
+}
 
 export function DocumentsOrdersSection({
   active,
@@ -131,9 +163,12 @@ export function DocumentsOrdersSection({
                     const pickupDate = String(row?.ДатаЗабораПлан ?? row?.PickupDatePlan ?? '');
                     const rowKey = `${requestNumber || 'row'}-${cargoNumber || idx}`;
                     const expanded = expandedOrderRow === rowKey;
-                    const senderPoint = String(row?.ПунктОтправкиНаименование ?? row?.ПунктОтправки ?? row?.ПунктОтправления ?? row?.АдресОтправки ?? row?.SenderPoint ?? '');
-                    const destinationPoint = String(row?.ПунктНазначенияНаименование ?? row?.ПунктНазначения ?? row?.ПунктДоставки ?? row?.ReceiverPoint ?? row?.DestinationPoint ?? '');
-                    const route = [cityToCode(senderPoint) || senderPoint, cityToCode(destinationPoint) || destinationPoint].filter(Boolean).join(' – ') || '—';
+                    const senderPoint = pendingPointLabel(row, "from");
+                    const destinationPoint = pendingPointLabel(row, "to");
+                    const route = orderRouteLabel(row, senderPoint, destinationPoint);
+                    const pendingFivepostRows = Array.isArray(row?._fivepostRows) ? row._fivepostRows : [];
+                    const pendingLegacyRows = Array.isArray(row?._legacyTableRows) ? row._legacyTableRows : [];
+                    const hasPendingCargo = pendingFivepostRows.length > 0 || pendingLegacyRows.length > 0;
                     return (
                         <React.Fragment key={rowKey}>
                             <tr
@@ -229,7 +264,12 @@ export function DocumentsOrdersSection({
                                             </div>
                                         </div>
                                         <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
-                                            {parcelsToRender.length === 0 ? (
+                                            {hasPendingCargo ? (
+                                                <DocumentsOrdersPendingCargo
+                                                    fivepostRows={pendingFivepostRows}
+                                                    legacyRows={pendingLegacyRows}
+                                                />
+                                            ) : parcelsToRender.length === 0 ? (
                                                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '0.5rem 0.25rem' }}>Нет данных по посылкам</Typography.Body>
                                             ) : (
                                                 <>
@@ -312,9 +352,12 @@ export function DocumentsOrdersSection({
             const receiver = String(row?.ПолучательНаименование ?? row?.Получатель ?? row?.ГрузополучательНаименование ?? row?.Грузополучатель ?? row?.Receiver ?? row?.receiver ?? row?.Consignee ?? '');
             const sender = String(row?.ОтправительНаименование ?? row?.Отправитель ?? row?.ГрузоотправительНаименование ?? row?.Грузоотправитель ?? row?.Sender ?? row?.sender ?? row?.Shipper ?? row?.Consignor ?? '');
             const comment = String(row?.Комментарий ?? row?.Comment ?? row?.Примечание ?? row?.Note ?? '');
-            const senderPoint = String(row?.ПунктОтправкиНаименование ?? row?.ПунктОтправки ?? row?.ПунктОтправления ?? row?.АдресОтправки ?? row?.SenderPoint ?? '');
-            const destinationPoint = String(row?.ПунктНазначенияНаименование ?? row?.ПунктНазначения ?? row?.ПунктДоставки ?? row?.ReceiverPoint ?? row?.DestinationPoint ?? '');
-            const route = [cityToCode(senderPoint) || senderPoint, cityToCode(destinationPoint) || destinationPoint].filter(Boolean).join(' – ') || '—';
+            const senderPoint = pendingPointLabel(row, "from");
+            const destinationPoint = pendingPointLabel(row, "to");
+            const route = orderRouteLabel(row, senderPoint, destinationPoint);
+            const pendingFivepostRows = Array.isArray(row?._fivepostRows) ? row._fivepostRows : [];
+            const pendingLegacyRows = Array.isArray(row?._legacyTableRows) ? row._legacyTableRows : [];
+            const hasPendingCargo = pendingFivepostRows.length > 0 || pendingLegacyRows.length > 0;
             const rowKey = `${requestNumber || 'row'}-${cargoNumber || idx}`;
             const expanded = expandedOrderRow === rowKey;
             return (
@@ -369,10 +412,16 @@ export function DocumentsOrdersSection({
                     {expanded && (
                         <div style={{ marginTop: '0.6rem', borderTop: '1px solid var(--color-border)', paddingTop: '0.55rem' }} onClick={(ev) => ev.stopPropagation()}>
                             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(130px, 180px) 1fr', gap: '0.3rem 0.7rem', fontSize: '0.82rem', marginBottom: '0.5rem' }}>
+                                <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Заказчик:</Typography.Body>
+                                <Typography.Body>{customer || '—'}</Typography.Body>
                                 <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Пункт отправки:</Typography.Body>
                                 <Typography.Body>{senderPoint || '—'}</Typography.Body>
+                                <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Отправитель:</Typography.Body>
+                                <Typography.Body>{sender || '—'}</Typography.Body>
                                 <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Пункт назначения:</Typography.Body>
                                 <Typography.Body>{destinationPoint || '—'}</Typography.Body>
+                                <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Получатель:</Typography.Body>
+                                <Typography.Body>{receiver || '—'}</Typography.Body>
                                 {effectiveServiceMode && (
                                     <>
                                         <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Комментарий:</Typography.Body>
@@ -380,7 +429,12 @@ export function DocumentsOrdersSection({
                                     </>
                                 )}
                             </div>
-                            {parcelsToRender.length === 0 ? (
+                            {hasPendingCargo ? (
+                                <DocumentsOrdersPendingCargo
+                                    fivepostRows={pendingFivepostRows}
+                                    legacyRows={pendingLegacyRows}
+                                />
+                            ) : parcelsToRender.length === 0 ? (
                                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '0.35rem 0.2rem', fontSize: '0.8rem' }}>
                                     Нет данных по посылкам
                                 </Typography.Body>

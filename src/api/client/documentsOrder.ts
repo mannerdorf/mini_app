@@ -152,6 +152,7 @@ export type DocumentsOrderSubmitPayload = DocumentsOrderQuotePayload & {
   nomerZayavki?: string;
   dataZabora: string;
   tableRows?: TableRow[];
+  fivepostBatchId?: number | null;
   attachments?: DocumentsOrderAttachment[];
 };
 

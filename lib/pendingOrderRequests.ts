@@ -1,5 +1,14 @@
 import type { Pool } from "pg";
+import { cityToCode } from "./cityToCode.js";
+import type { FivepostRowRecord } from "./fivepost/importBatch.js";
+import { directionCityCodes } from "./haulzCalculator/clientMainlineTariff.js";
+import type { Direction } from "./haulzCalculator/types.js";
+import { HAULZ_WAREHOUSES } from "./haulzCalculator/warehouses.js";
 import type { VerifiedRegisteredUser } from "./verifyRegisteredUser.js";
+
+const WAREHOUSE_BY_CODE = Object.fromEntries(
+  Object.values(HAULZ_WAREHOUSES).map((warehouse) => [warehouse.code, warehouse]),
+);
 
 type PendingOrderDbRow = {
   id: number;
@@ -27,6 +36,215 @@ export function normalizePendingOrderInn(value: unknown): string {
 function tableRowByType(tableRows: unknown[], type: string): Record<string, unknown> | undefined {
   const row = tableRows.find((item) => item && typeof item === "object" && (item as Record<string, unknown>).type === type);
   return row as Record<string, unknown> | undefined;
+}
+
+function partyDisplayName(party?: Record<string, unknown>, fallback?: Record<string, unknown>): string {
+  const company = String(party?.companyName ?? "").trim();
+  const name = String(party?.fullName ?? "").trim();
+  if (company || name) return company || name;
+  const fbCompany = String(fallback?.companyName ?? "").trim();
+  const fbName = String(fallback?.fullName ?? "").trim();
+  return fbCompany || fbName;
+}
+
+function resolveWarehouseFullAddress(ref: string): string {
+  const warehouse = WAREHOUSE_BY_CODE[ref];
+  if (!warehouse) return "";
+  return warehouse.fullAddress || warehouse.label;
+}
+
+function extractPvzSide(value: unknown): { label: string; fullAddress: string; ref: string } {
+  const side = value as { ref?: string; address?: { label?: string; fullAddress?: string } } | undefined;
+  const label = String(side?.address?.label ?? "").trim();
+  const fullAddress = String(side?.address?.fullAddress ?? label).trim();
+  return {
+    label: label || fullAddress,
+    fullAddress,
+    ref: String(side?.ref ?? "").trim(),
+  };
+}
+
+function resolvePointDisplay(side: { label: string; fullAddress: string; ref: string }, punktCode: string): string {
+  if (side.fullAddress) return side.fullAddress;
+  if (side.label) return side.label;
+  const warehouseAddress = resolveWarehouseFullAddress(side.ref || punktCode);
+  if (warehouseAddress) return warehouseAddress;
+  return side.ref || punktCode;
+}
+
+function resolvePendingRouteFields(
+  tableRows: unknown[],
+  punktFrom: string,
+  punktTo: string,
+): {
+  CitySender: string;
+  CityReceiver: string;
+  ПунктОтправкиНаименование: string;
+  ПунктНазначенияНаименование: string;
+  АдресОтправки: string;
+  АдресНазначения: string;
+} {
+  const pvz = tableRowByType(tableRows, "pvz");
+  const quoteLines = tableRowByType(tableRows, "quote_lines");
+  const fromPvz = extractPvzSide(pvz?.from);
+  const toPvz = extractPvzSide(pvz?.to);
+  const direction = String(quoteLines?.direction ?? "").trim();
+  const fromDisplay = resolvePointDisplay(fromPvz, punktFrom);
+  const toDisplay = resolvePointDisplay(toPvz, punktTo);
+
+  if (direction === "mow_kgd" || direction === "kgd_mow") {
+    const { from, to } = directionCityCodes(direction as Direction);
+    return {
+      CitySender: from,
+      CityReceiver: to,
+      ПунктОтправкиНаименование: fromDisplay,
+      ПунктНазначенияНаименование: toDisplay,
+      АдресОтправки: fromDisplay,
+      АдресНазначения: toDisplay,
+    };
+  }
+
+  const fromPoint = fromPvz.fullAddress || fromPvz.label || fromPvz.ref || punktFrom;
+  const toPoint = toPvz.fullAddress || toPvz.label || toPvz.ref || punktTo;
+
+  return {
+    CitySender: cityToCode(fromPoint),
+    CityReceiver: cityToCode(toPoint),
+    ПунктОтправкиНаименование: fromDisplay,
+    ПунктНазначенияНаименование: toDisplay,
+    АдресОтправки: fromDisplay,
+    АдресНазначения: toDisplay,
+  };
+}
+
+export function fivepostBatchIdFromTableRows(tableRows: unknown[]): number | null {
+  const block = tableRowByType(tableRows, "fivepost");
+  const batchId = Number(block?.batchId ?? block?.batch_id);
+  return Number.isFinite(batchId) && batchId > 0 ? batchId : null;
+}
+
+export function mapFivepostRecordToClientRow(record: FivepostRowRecord): Record<string, unknown> {
+  return {
+    lineNo: record.lineNo,
+    clientOrderNo: record.clientOrderNo,
+    partnerOrderNo: record.partnerOrderNo,
+    teBarcode: record.teBarcode,
+    placesCount: record.placesCount,
+    omniBarcode: record.omniBarcode,
+    itemName: record.itemName,
+    itemNameRu: record.itemNameRu,
+    unitCost: record.unitCost,
+    totalCost: record.totalCost,
+    weightG: record.weightG,
+    lengthMm: record.lengthMm,
+    widthMm: record.widthMm,
+    heightMm: record.heightMm,
+  };
+}
+
+async function loadFivepostRowsByBatchIds(pool: Pool, batchIds: number[]): Promise<Map<number, Record<string, unknown>[]>> {
+  const out = new Map<number, Record<string, unknown>[]>();
+  if (!batchIds.length) return out;
+
+  const { rows } = await pool.query<Record<string, unknown>>(
+    `SELECT batch_id, line_no, client_order_no, partner_order_no, te_barcode, places_count, omni_barcode,
+            item_name, item_name_ru, unit_cost, total_cost, weight_g, length_mm, width_mm, height_mm
+     FROM fivepost_shipment_rows
+     WHERE batch_id = ANY($1::int[])
+     ORDER BY batch_id ASC, line_no ASC`,
+    [batchIds],
+  );
+
+  for (const row of rows) {
+    const batchId = Number(row.batch_id);
+    if (!Number.isFinite(batchId) || batchId < 1) continue;
+    const mapped = mapFivepostRecordToClientRow({
+      id: 0,
+      batchId,
+      lineNo: Number(row.line_no),
+      clientOrderNo: String(row.client_order_no ?? ""),
+      partnerOrderNo: String(row.partner_order_no ?? ""),
+      teBarcode: String(row.te_barcode ?? ""),
+      placesCount: Number(row.places_count ?? 1),
+      omniBarcode: String(row.omni_barcode ?? ""),
+      itemName: String(row.item_name ?? ""),
+      itemNameRu: String(row.item_name_ru ?? ""),
+      unitCost: row.unit_cost == null ? null : Number(row.unit_cost),
+      totalCost: row.total_cost == null ? null : Number(row.total_cost),
+      weightG: row.weight_g == null ? null : Number(row.weight_g),
+      lengthMm: row.length_mm == null ? null : Number(row.length_mm),
+      widthMm: row.width_mm == null ? null : Number(row.width_mm),
+      heightMm: row.height_mm == null ? null : Number(row.height_mm),
+    });
+    const list = out.get(batchId) ?? [];
+    list.push(mapped);
+    out.set(batchId, list);
+  }
+
+  return out;
+}
+
+async function attachPendingOrderCargo(
+  pool: Pool,
+  dbRows: PendingOrderDbRow[],
+  items: Record<string, unknown>[],
+): Promise<Record<string, unknown>[]> {
+  const batchIdByOrderId = new Map<number, number>();
+  for (const row of dbRows) {
+    const tableRows = Array.isArray(row.table_rows) ? row.table_rows : [];
+    const batchId = fivepostBatchIdFromTableRows(tableRows);
+    if (batchId) {
+      batchIdByOrderId.set(row.id, batchId);
+      continue;
+    }
+    const legacyBlock = tableRowByType(tableRows, "legacy_parcels");
+    const legacyCount = Array.isArray(legacyBlock?.rows) ? legacyBlock.rows.length : 0;
+    if (legacyCount > 0) {
+      try {
+        const { rows: fallbackRows } = await pool.query<{ id: number }>(
+          `SELECT id
+           FROM fivepost_import_batches
+           WHERE lower(trim(login)) = $1
+             AND created_at <= $2::timestamptz + interval '2 hours'
+           ORDER BY created_at DESC
+           LIMIT 1`,
+          [normalizeLogin(row.login), row.created_at],
+        );
+        const fallbackId = Number(fallbackRows[0]?.id);
+        if (Number.isFinite(fallbackId) && fallbackId > 0) {
+          batchIdByOrderId.set(row.id, fallbackId);
+        }
+      } catch {
+        // ignore missing table / query errors
+      }
+    }
+  }
+
+  let rowsByBatch = new Map<number, Record<string, unknown>[]>();
+  try {
+    rowsByBatch = await loadFivepostRowsByBatchIds(pool, [...new Set(batchIdByOrderId.values())]);
+  } catch {
+    rowsByBatch = new Map();
+  }
+
+  return items.map((item) => {
+    const orderId = Number(item._pendingOrderId);
+    const tableRows = Array.isArray(
+      dbRows.find((row) => row.id === orderId)?.table_rows,
+    )
+      ? (dbRows.find((row) => row.id === orderId)?.table_rows as unknown[])
+      : [];
+    const legacyBlock = tableRowByType(tableRows, "legacy_parcels");
+    const legacyRows = Array.isArray(legacyBlock?.rows) ? legacyBlock.rows : [];
+    const batchId = batchIdByOrderId.get(orderId);
+    const fivepostRows = batchId ? rowsByBatch.get(batchId) ?? [] : [];
+
+    return {
+      ...item,
+      ...(fivepostRows.length ? { _fivepostRows: fivepostRows } : {}),
+      ...(legacyRows.length ? { _legacyTableRows: legacyRows } : {}),
+    };
+  });
 }
 
 const MSK_OFFSET_MS = 3 * 60 * 60 * 1000;
@@ -68,6 +286,7 @@ export function pendingOrderToListItem(row: PendingOrderDbRow): Record<string, u
   const inn = normalizePendingOrderInn(row.inn ?? source?.customerInn);
   const createdDate = dateOnly(row.created_at);
   const pickupDate = dateOnly(row.data_zabora);
+  const route = resolvePendingRouteFields(tableRows, row.punkt_otpravki, row.punkt_naznacheniya);
 
   return {
     Дата: createdDate,
@@ -77,12 +296,14 @@ export function pendingOrderToListItem(row: PendingOrderDbRow): Record<string, u
     PickupDatePlan: pickupDate,
     ПунктОтправки: row.punkt_otpravki,
     ПунктНазначения: row.punkt_naznacheniya,
+    ...route,
     ЗаказчикНаименование: String(source?.customerName ?? customer?.fullName ?? "").trim(),
     ЗаказчикИНН: inn,
     CustomerINN: inn,
     INN: inn,
-    ОтправительНаименование: String(fromParty?.fullName ?? "").trim(),
-    ПолучательНаименование: String(toParty?.fullName ?? "").trim(),
+    ОтправительНаименование:
+      partyDisplayName(fromParty, customer) || String(source?.customerName ?? "").trim(),
+    ПолучательНаименование: partyDisplayName(toParty),
     Комментарий: "Ожидает обработки в 1С",
     _pendingOrder: true,
     _pendingOrderId: row.id,
@@ -159,14 +380,16 @@ export async function fetchPendingOrdersForList(
     [normalizeLogin(login), dateFrom, dateTo],
   );
 
-  return rows
+  const filtered = rows
     .filter((row) => pendingOrderMatchesDateRange(row, dateFrom, dateTo))
     .filter((row) => {
       if (filterInns === null) return true;
       const itemInn = normalizePendingOrderInn(row.inn);
       return itemInn && filterInns.has(itemInn);
-    })
-    .map(pendingOrderToListItem);
+    });
+
+  const items = filtered.map(pendingOrderToListItem);
+  return attachPendingOrderCargo(pool, filtered, items);
 }
 
 /** Добавляет заявки из ЛК (pending_order_requests), пока их нет в 1С. */

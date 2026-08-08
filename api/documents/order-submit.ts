@@ -98,6 +98,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const mainlineMode: MainlineMode = modeRaw === "auto" ? "auto" : "ferry";
 
   const legacyTableRows = Array.isArray(body.tableRows) ? body.tableRows : [];
+  const fivepostBatchId = Number(body.fivepostBatchId ?? body.fivepost_batch_id);
   const attachments = parseAttachments(body.attachments);
   let attachmentsTooLarge = false;
   for (const att of attachments) {
@@ -128,6 +129,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const quote = await buildQuote(pool, quoteReq);
+
+    let fivepostBatchBlock: { type: "fivepost"; batchId: number } | null = null;
+    if (Number.isFinite(fivepostBatchId) && fivepostBatchId > 0) {
+      if (await pgTableExists(pool, "fivepost_import_batches")) {
+        const { rows: ownerRows } = await pool.query<{ login: string }>(
+          `SELECT login FROM fivepost_import_batches WHERE id = $1 LIMIT 1`,
+          [fivepostBatchId],
+        );
+        const owner = normalizeLogin(ownerRows[0]?.login);
+        if (owner && owner === normalizeLogin(access.login)) {
+          fivepostBatchBlock = { type: "fivepost", batchId: fivepostBatchId };
+        }
+      }
+    }
 
     const tableRows = [
       {
@@ -166,6 +181,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ...(legacyTableRows.length
         ? [{ type: "legacy_parcels", rows: legacyTableRows }]
         : []),
+      ...(fivepostBatchBlock ? [fivepostBatchBlock] : []),
       {
         type: "attachments",
         items: attachments.map((a) => ({

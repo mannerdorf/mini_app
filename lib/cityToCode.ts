@@ -2,6 +2,8 @@
 export function cityToCode(city: string | number | undefined | null): string {
   if (city === undefined || city === null) return "";
   const s = String(city).trim().toLowerCase();
+  if (/^wh_msk$/.test(s)) return "MSK";
+  if (/^wh_kgd$/.test(s)) return "KGD";
   if (/калининградская\s*область|калининград|кгд/.test(s)) return "KGD";
   if (
     /советск|черняховск|балтийск|гусев|светлый|гурьевск|зеленоградск|светлогорск|пионерский|багратионовск|нестеров|озёрск|правдинск|полесск|лаврово|мамоново|янтарный/.test(
