@@ -2646,10 +2646,16 @@ body.haulz-calc-map-screen-open {
   margin-right: 0;
 }
 
+/* «Ваш расчёт» не выше 1 см от app-header и ниже липких фильтров «Документы» */
+.documents-page:has(.documents-order-form) {
+  --haulz-docs-summary-min-top: calc(64px + 11.5rem + 1cm);
+}
+
 @media (min-width: 769px) {
   .documents-order-form.haulz-calc-page--cdek {
     --haulz-summary-fixed-top: max(
-      calc(var(--haulz-summary-header-offset) + 0.75rem),
+      calc(var(--haulz-summary-header-offset) + 1cm),
+      var(--haulz-docs-summary-min-top),
       env(safe-area-inset-top, 0px)
     );
   }
@@ -2662,7 +2668,7 @@ body.haulz-calc-map-screen-open {
   }
 
   .documents-order-form .haulz-calc-main {
-    margin-right: calc(var(--haulz-summary-col-width) + 1rem + 2cm);
+    margin-right: calc(var(--haulz-summary-col-width) + 1rem);
     min-width: 0;
   }
 
