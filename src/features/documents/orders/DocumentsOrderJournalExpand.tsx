@@ -3,11 +3,8 @@ import { Loader2, Pencil, Trash2 } from "lucide-react";
 import { DateText } from "../../../components/ui/DateText";
 import { formatQuoteVatLine } from "../../../../lib/haulzCalculator/quoteVat";
 import type { QuoteResult } from "../../../../lib/haulzCalculator/types";
-import {
-  HAULZ_CALC_DRAFT_STATUS_LABELS,
-  MANAGER_JOURNAL_STATUSES,
-  type HaulzCalcDraftStatus,
-} from "../../../../lib/haulzCalculator/draftStatus";
+import type { HaulzCalcDraftStatus } from "../../../../lib/haulzCalculator/draftStatus";
+import { ManagerJournalStatusSelect } from "../../haulzCalculator/ManagerJournalStatusSelect";
 import { DocumentsRouteBadge } from "../views/documentsViewBlocks";
 import {
   DocumentsOrdersPendingCargo,
@@ -144,24 +141,12 @@ export function DocumentsOrderJournalExpand({
         >
           <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.82rem" }}>
             <span style={{ color: "var(--color-text-secondary)", fontWeight: 600 }}>Статус:</span>
-            <select
+            <ManagerJournalStatusSelect
               value={managerStatus}
               disabled={managerStatusLoading}
-              onChange={(e) => onStatusChange(e.target.value as HaulzCalcDraftStatus)}
-              style={{
-                fontSize: "0.82rem",
-                padding: "0.3rem 0.45rem",
-                borderRadius: 6,
-                border: "1px solid var(--color-border)",
-              }}
-            >
-              {MANAGER_JOURNAL_STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {HAULZ_CALC_DRAFT_STATUS_LABELS[status]}
-                </option>
-              ))}
-            </select>
-            {managerStatusLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+              loading={managerStatusLoading}
+              onChange={onStatusChange}
+            />
           </label>
           {managerStatus === "awaiting_call" && (
             <>

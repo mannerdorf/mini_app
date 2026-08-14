@@ -63,6 +63,17 @@ export function buildManagerJournalFilterOptions(rows: ManagerJournalRow[]) {
   }
 
   const sortRu = (a: string, b: string) => a.localeCompare(b, "ru");
+  const sortDatesDesc = (a: string, b: string) => b.localeCompare(a);
+
+  const orderDates = new Set<string>();
+  const pickupDates = new Set<string>();
+
+  for (const row of rows) {
+    const orderDate = datePart(String(row.Дата ?? row.DateZayavki ?? row._draft.updatedAt ?? ""));
+    const pickupDate = datePart(String(row.ДатаЗабораПлан ?? row.PickupDatePlan ?? ""));
+    if (orderDate) orderDates.add(orderDate);
+    if (pickupDate) pickupDates.add(pickupDate);
+  }
 
   return {
     customers: [...customers].sort(sortRu),
@@ -70,6 +81,8 @@ export function buildManagerJournalFilterOptions(rows: ManagerJournalRow[]) {
     receivers: [...receivers].sort(sortRu),
     routes: [...routes].sort(sortRu),
     statuses: [...statuses],
+    orderDates: [...orderDates].sort(sortDatesDesc),
+    pickupDates: [...pickupDates].sort(sortDatesDesc),
   };
 }
 

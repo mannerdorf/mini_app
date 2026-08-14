@@ -18,6 +18,7 @@ import {
   type PendingFivepostRow,
   type PendingLegacyTableRow,
 } from "../documents/orders/DocumentsOrdersPendingCargo";
+import { haulzCalcDraftStatusBadgeClass } from "./haulzCalcDraftStatusBadge";
 
 function formatWhen(iso: string): string {
   try {
@@ -31,14 +32,6 @@ function formatWhen(iso: string): string {
   } catch {
     return iso;
   }
-}
-
-function statusBadgeClass(status: HaulzCalcDraftStatus): string {
-  if (status === "awaiting_call") return "haulz-calc-requests-badge--awaiting";
-  if (status === "agreed" || status === "submitted") return "haulz-calc-requests-badge--ok";
-  if (status === "rejected") return "haulz-calc-requests-badge--reject";
-  if (status === "new") return "haulz-calc-requests-badge--new";
-  return "";
 }
 
 function partyModeLabel(mode: string): string {
@@ -156,7 +149,7 @@ export function HaulzCalcRequestDetail({
         <div className="haulz-calc-requests-detail__head-text">
           <h2 className="haulz-calc-requests-detail__title">{d.title || `Заявка #${d.id}`}</h2>
           <p className="haulz-calc-requests-detail__sub">
-            <span className={`haulz-calc-requests-badge ${statusBadgeClass(d.status)}`}>
+            <span className={`haulz-calc-requests-badge ${haulzCalcDraftStatusBadgeClass(d.status)}`}>
               {HAULZ_CALC_DRAFT_STATUS_LABELS[d.status] ?? d.status}
             </span>
             {d.nomerZayavki && <span className="haulz-calc-requests-detail__nomer">№ {d.nomerZayavki}</span>}

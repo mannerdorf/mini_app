@@ -11,8 +11,6 @@ import {
 } from "../documents/orders/documentsOrderJournalUtils";
 import type { PendingFivepostRow, PendingLegacyTableRow } from "../documents/orders/DocumentsOrdersPendingCargo";
 import {
-  HAULZ_CALC_DRAFT_STATUS_LABELS,
-  MANAGER_JOURNAL_STATUSES,
   type HaulzCalcDraftStatus,
 } from "../../../lib/haulzCalculator/draftStatus";
 import { draftToManagerJournalRow } from "./draftToManagerJournalRow";
@@ -22,14 +20,7 @@ import {
   filterManagerJournalRows,
 } from "./filterManagerJournalRows";
 import { ManagerOrdersJournalFilters } from "./ManagerOrdersJournalFilters";
-
-function statusBadgeClass(status: HaulzCalcDraftStatus): string {
-  if (status === "awaiting_call") return "haulz-calc-requests-badge--awaiting";
-  if (status === "agreed" || status === "submitted") return "haulz-calc-requests-badge--ok";
-  if (status === "rejected") return "haulz-calc-requests-badge--reject";
-  if (status === "new") return "haulz-calc-requests-badge--new";
-  return "";
-}
+import { ManagerJournalStatusSelect } from "./ManagerJournalStatusSelect";
 
 type Props = {
   drafts: HaulzCalcDraft[];
@@ -124,20 +115,12 @@ export function ManagerOrdersJournalSection({
                       <DocumentsRouteBadge>{route}</DocumentsRouteBadge>
                     </td>
                     <td className="haulz-calc-manager-journal__cell-status" onClick={(e) => e.stopPropagation()}>
-                      <select
+                      <ManagerJournalStatusSelect
                         value={draft.status}
                         disabled={statusBusy}
-                        onChange={(e) => onStatusChange(draft.id, e.target.value as HaulzCalcDraftStatus)}
-                        className={`haulz-calc-manager-journal-status ${statusBadgeClass(draft.status)}`}
-                        aria-label="Статус заявки"
-                      >
-                        {MANAGER_JOURNAL_STATUSES.map((status) => (
-                          <option key={status} value={status}>
-                            {HAULZ_CALC_DRAFT_STATUS_LABELS[status]}
-                          </option>
-                        ))}
-                      </select>
-                      {statusBusy && <Loader2 className="w-3 h-3 animate-spin haulz-calc-manager-journal__status-spinner" />}
+                        loading={statusBusy}
+                        onChange={(status) => onStatusChange(draft.id, status)}
+                      />
                     </td>
                     <td className="haulz-calc-manager-journal__cell-sum">
                       {draft.quoteResult ? `${draft.quoteResult.totalRub.toLocaleString("ru-RU")} ₽` : "—"}

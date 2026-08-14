@@ -2671,39 +2671,48 @@ body.haulz-calc-map-screen-open {
 }
 
 .haulz-calc-manager-journal-filters {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-  gap: 0.65rem;
   margin-bottom: 0.85rem;
-  align-items: end;
 }
 
-.haulz-calc-manager-journal-filters__field {
+.haulz-calc-manager-journal-filters__status-option {
   display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  min-width: 0;
-  font-size: 0.75rem;
+  align-items: center;
+}
+
+.haulz-calc-manager-journal-status-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.2rem 0.1rem 0.1rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  max-width: 100%;
+}
+
+.haulz-calc-manager-journal-status-select:hover:not(:disabled) {
+  border-color: var(--color-border, var(--calc-border));
+  background: var(--color-bg-hover, var(--calc-suggest-hover));
+}
+
+.haulz-calc-manager-journal-status-select:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.haulz-calc-manager-journal-status-select__chevron {
+  flex-shrink: 0;
   color: var(--color-text-secondary, var(--calc-text-secondary));
-  font-weight: 600;
 }
 
-.haulz-calc-manager-journal-filters__control {
-  width: 100%;
-  min-width: 0;
-  font-size: 0.82rem;
-  padding: 0.35rem 0.45rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border, var(--calc-border));
-  background: var(--color-bg-primary, var(--calc-input-bg));
-  color: var(--color-text-primary, var(--calc-text));
+.haulz-calc-manager-journal-status-select__spinner {
+  flex-shrink: 0;
 }
 
-.haulz-calc-manager-journal-filters__reset {
-  align-self: end;
-  justify-self: start;
-  font-size: 0.82rem;
-  padding: 0.4rem 0.65rem;
+.haulz-calc-manager-journal-status-select__option {
+  display: flex;
+  align-items: center;
 }
 
 .haulz-calc-manager-journal__table-wrap {
@@ -2812,23 +2821,6 @@ body.haulz-calc-map-screen-open {
   white-space: nowrap;
 }
 
-.haulz-calc-manager-journal-status {
-  width: 100%;
-  max-width: 100%;
-  font-size: 0.78rem;
-  padding: 0.25rem 0.35rem;
-  border-radius: 6px;
-  border: 1px solid var(--color-border, var(--calc-border));
-  background: var(--color-bg-primary, var(--calc-input-bg));
-  color: var(--color-text-primary, var(--calc-text));
-}
-
-.haulz-calc-manager-journal__status-spinner {
-  display: inline-block;
-  margin-left: 0.25rem;
-  vertical-align: middle;
-}
-
 .haulz-calc-manager-journal__cell-sum {
   text-align: right;
   white-space: nowrap;
@@ -2842,10 +2834,6 @@ body.haulz-calc-map-screen-open {
 @media (max-width: 768px) {
   .haulz-calc-manager-journal {
     padding: 0.85rem 0.75rem 1rem;
-  }
-
-  .haulz-calc-manager-journal-filters {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .haulz-calc-manager-journal__table {

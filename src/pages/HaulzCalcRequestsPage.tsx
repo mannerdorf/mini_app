@@ -11,6 +11,7 @@ import {
   type HaulzCalcDraft,
 } from "../api/client/haulzCalculator";
 import { HAULZ_CALC_DRAFT_STATUS_LABELS, type HaulzCalcDraftStatus } from "../../lib/haulzCalculator/draftStatus";
+import { haulzCalcDraftStatusBadgeClass } from "../features/haulzCalculator/haulzCalcDraftStatusBadge";
 import { formatHaulzCalcDraftCustomer } from "../../lib/haulzCalculator/draftCustomerDisplay";
 import { HaulzCalcRequestDetail } from "../features/haulzCalculator/HaulzCalcRequestDetail";
 import { ManagerOrdersJournalSection } from "../features/haulzCalculator/ManagerOrdersJournalSection";
@@ -41,13 +42,7 @@ function formatWhen(iso: string): string {
   }
 }
 
-function statusBadgeClass(status: HaulzCalcDraftStatus): string {
-  if (status === "awaiting_call") return "haulz-calc-requests-badge--awaiting";
-  if (status === "agreed" || status === "submitted") return "haulz-calc-requests-badge--ok";
-  if (status === "rejected") return "haulz-calc-requests-badge--reject";
-  if (status === "new") return "haulz-calc-requests-badge--new";
-  return "";
-}
+import { haulzCalcDraftStatusBadgeClass } from "./haulzCalcDraftStatusBadge";
 
 export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerMode }: Props) {
   const [tab, setTab] = useState<HaulzCalcRequestsTab>(() =>
@@ -341,7 +336,7 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
                         )}
                       </td>
                       <td className="haulz-calc-requests-table__status">
-                        <span className={`haulz-calc-requests-badge ${statusBadgeClass(d.status)}`}>
+                        <span className={`haulz-calc-requests-badge ${haulzCalcDraftStatusBadgeClass(d.status)}`}>
                           {HAULZ_CALC_DRAFT_STATUS_LABELS[d.status] ?? d.status}
                         </span>
                       </td>
