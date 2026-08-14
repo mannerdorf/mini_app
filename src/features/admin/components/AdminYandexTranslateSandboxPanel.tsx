@@ -15,8 +15,6 @@ type Props = Pick<
   | "yandexKeyHint"
   | "yandexFolderConfigured"
   | "yandexFolderHint"
-  | "yandexOpenaiConfigured"
-  | "yandexPreferredProvider"
   | "yandexLoading"
   | "yandexError"
   | "yandexResult"
@@ -30,8 +28,6 @@ export function AdminYandexTranslateSandboxPanel({
   yandexKeyHint,
   yandexFolderConfigured,
   yandexFolderHint,
-  yandexOpenaiConfigured,
-  yandexPreferredProvider,
   yandexLoading,
   yandexError,
   yandexResult,
@@ -39,13 +35,6 @@ export function AdminYandexTranslateSandboxPanel({
   setYandexInput,
   runYandexTranslate,
 }: Props) {
-  const providerLabel =
-    yandexPreferredProvider === "yandex"
-      ? "Yandex"
-      : yandexPreferredProvider === "openai"
-        ? "OpenAI"
-        : "не настроен";
-
   return (
     <Panel
       className="cargo-card"
@@ -71,8 +60,7 @@ export function AdminYandexTranslateSandboxPanel({
         YANDEX_FOLDER_ID: {yandexFolderConfigured ? yandexFolderHint || "задан" : "не задан (может понадобиться для прав API-ключа)"}
       </Typography.Body>
       <Typography.Body style={{ fontSize: "0.8rem", marginBottom: "0.75rem", color: "var(--color-text-secondary)" }}>
-        OPENAI_API_KEY: {yandexOpenaiConfigured ? "настроен (fallback)" : "не задан"} · активный провайдер 5 POST:{" "}
-        <strong>{providerLabel}</strong>
+        Провайдер 5 POST: <strong>{yandexConfigured ? "Yandex Translate" : "не настроен"}</strong>
       </Typography.Body>
 
       <textarea
@@ -114,7 +102,7 @@ export function AdminYandexTranslateSandboxPanel({
         <Button
           type="button"
           className="filter-button"
-          disabled={yandexLoading || !yandexPreferredProvider}
+          disabled={yandexLoading || !yandexConfigured}
           onClick={() => void runYandexTranslate("productNames")}
         >
           Как productNames
@@ -122,7 +110,7 @@ export function AdminYandexTranslateSandboxPanel({
         <Button
           type="button"
           className="filter-button"
-          disabled={yandexLoading || !yandexPreferredProvider}
+          disabled={yandexLoading || !yandexConfigured}
           onClick={() => void runYandexTranslate("fivepost")}
         >
           Как 5 POST (с артикулом)

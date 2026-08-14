@@ -212,24 +212,19 @@ export function DocumentsOrderCargoSection({
         rows: parsed.rows,
       });
       const tableRows = fivepostRowsToTableRows(result.rows);
-      const savedState: DocumentsOrderCargoState = {
+      onChange({
         ...state,
         fileZayavki: file,
         fivepostRows: result.rows,
         fivepostBatchId: result.batchId,
         fivepostNeedsTranslation: result.needsTranslationCount,
         tableRows,
-      };
-      onChange(savedState);
+      });
       setImportMessage(
         result.needsTranslationCount > 0
-          ? `5 POST: ${result.rowCount} строк сохранено. Запускаем перевод (${result.needsTranslationCount})…`
+          ? `5 POST: ${result.rowCount} строк сохранено. Нажмите «Перевести названия» (${result.needsTranslationCount}).`
           : `5 POST: ${result.rowCount} строк сохранено, перевод не требуется.`,
       );
-
-      if (result.needsTranslationCount > 0 && result.batchId) {
-        await runTranslateFivepost(result.batchId, savedState);
-      }
     } catch (e) {
       setError((e as Error)?.message || "Ошибка импорта файла 5 POST");
       onChange({
@@ -260,7 +255,7 @@ export function DocumentsOrderCargoSection({
     });
     setImportMessage(
       result.translatedCount > 0 && result.needsTranslationCount > 0
-        ? `Переведено ${result.translatedCount} наименований. Не переведено: ${result.needsTranslationCount}. Нажмите «Повторить перевод» или проверьте ключи на сервере.`
+        ? `Переведено ${result.translatedCount} наименований. Не переведено: ${result.needsTranslationCount}. Нажмите «Перевести названия» ещё раз.`
         : result.translatedCount > 0
           ? `Переведено ${result.translatedCount} наименований.`
           : result.needsTranslationCount > 0
@@ -364,7 +359,7 @@ export function DocumentsOrderCargoSection({
                 />
               </label>
               <p className="haulz-calc-hint">
-                Excel 5 POST — парсинг, сохранение и автоматический перевод названий. PDF/CSV — только приложение.
+                Excel 5 POST — сначала парсинг и таблица, затем кнопка «Перевести названия» (Yandex). PDF/CSV — только приложение.
               </p>
               {state.fivepostRows.length > 0 && state.fivepostNeedsTranslation > 0 && (
                 <button
@@ -375,7 +370,7 @@ export function DocumentsOrderCargoSection({
                   onClick={() => void handleTranslateFivepost()}
                 >
                   {translateLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Повторить перевод ({state.fivepostNeedsTranslation})
+                  Перевести названия ({state.fivepostNeedsTranslation})
                 </button>
               )}
               {translateLoading && (

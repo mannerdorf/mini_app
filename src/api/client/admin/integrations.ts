@@ -140,7 +140,7 @@ export type AdminYandexTranslateConfig = {
   folderIdHint: string;
   openaiConfigured: boolean;
   openaiKeyHint: string;
-  preferredProvider: "yandex" | "openai" | null;
+  preferredProvider: "yandex" | null;
 };
 
 export async function fetchAdminYandexTranslateConfig(
@@ -158,10 +158,7 @@ export async function fetchAdminYandexTranslateConfig(
     folderIdHint: String(data?.folderIdHint || ""),
     openaiConfigured: Boolean(data?.openaiConfigured),
     openaiKeyHint: String(data?.openaiKeyHint || ""),
-    preferredProvider:
-      data?.preferredProvider === "yandex" || data?.preferredProvider === "openai"
-        ? data.preferredProvider
-        : null,
+    preferredProvider: data?.preferredProvider === "yandex" ? "yandex" : null,
   };
 }
 

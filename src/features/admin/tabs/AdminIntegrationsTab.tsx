@@ -64,8 +64,6 @@ export function AdminIntegrationsTab({ adminToken }: { adminToken: string | null
         yandexKeyHint={state.yandexKeyHint}
         yandexFolderConfigured={state.yandexFolderConfigured}
         yandexFolderHint={state.yandexFolderHint}
-        yandexOpenaiConfigured={state.yandexOpenaiConfigured}
-        yandexPreferredProvider={state.yandexPreferredProvider}
         yandexLoading={state.yandexLoading}
         yandexError={state.yandexError}
         yandexResult={state.yandexResult}

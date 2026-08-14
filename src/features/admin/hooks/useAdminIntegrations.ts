@@ -45,7 +45,7 @@ export function useAdminIntegrations(adminToken: string | null) {
   const [yandexFolderConfigured, setYandexFolderConfigured] = useState(false);
   const [yandexFolderHint, setYandexFolderHint] = useState("");
   const [yandexOpenaiConfigured, setYandexOpenaiConfigured] = useState(false);
-  const [yandexPreferredProvider, setYandexPreferredProvider] = useState<"yandex" | "openai" | null>(null);
+  const [yandexPreferredProvider, setYandexPreferredProvider] = useState<"yandex" | null>(null);
   const [yandexLoading, setYandexLoading] = useState(false);
   const [yandexError, setYandexError] = useState("");
   const [yandexResult, setYandexResult] = useState("");

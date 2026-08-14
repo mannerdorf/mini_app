@@ -24,7 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!resolveProductNameTranslator()) {
     return res.status(503).json({
-      error: "YANDEX_TRANSLATE_API_KEY или OPENAI_API_KEY не настроен на сервере API",
+      error: "YANDEX_TRANSLATE_API_KEY не настроен на сервере API",
       request_id: ctx.requestId,
     });
   }
