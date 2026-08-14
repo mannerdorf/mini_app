@@ -78,14 +78,17 @@ export function useDocumentsPageNavigation({
     }, [persistDocumentsNewOrderOpen]);
 
     const allowedDocSections = useMemo(() => {
-        if (!permissions) return DOC_SECTIONS;
+        const sendingsAllowed =
+            effectiveServiceMode &&
+            (!permissions || (permissions.doc_sendings === true && permissions.haulz === true));
         return DOC_SECTIONS.filter(({ key }) => {
             if (key === "ЭДО") return true;
-            if (key === "Отправки") return permissions.doc_sendings === true && permissions.haulz === true;
+            if (key === "Отправки") return sendingsAllowed;
+            if (!permissions) return true;
             if (key === "Претензии") return permissions.doc_claims === true;
             return permissions[DOC_SECTION_TO_PERMISSION[key]] !== false;
         });
-    }, [permissions]);
+    }, [permissions, effectiveServiceMode]);
 
     const defaultDocSection = allowedDocSections[0]?.key ?? "ЭДО";
 
@@ -132,7 +135,7 @@ export function useDocumentsPageNavigation({
         }
     }, [allowedDocSections, docSection, defaultDocSection]);
 
-    const serviceModeForCurrentDocSection = effectiveServiceMode || docSection === "Отправки";
+    const serviceModeForCurrentDocSection = effectiveServiceMode;
 
     return {
         docSection,
