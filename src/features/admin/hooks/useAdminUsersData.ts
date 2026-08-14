@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { searchAdminCustomers } from "../../../api/client/admin/customers";
 import { fetchAdminUsers } from "../../../api/client/admin/users";
+import { normalizeAdminUserRow } from "../lib/adminUsersHelpers";
 import type { User } from "../types/adminUsers";
 
 type Params = {
@@ -26,7 +27,7 @@ export function useAdminUsersData({
     onError?.(null);
     try {
       const data = await fetchAdminUsers(adminToken);
-      setUsers(data.users);
+      setUsers(data.users.map(normalizeAdminUserRow));
       setLastLoginAvailable(data.last_login_available);
     } catch (e: unknown) {
       if ((e as Error & { status?: number })?.status === 401) {

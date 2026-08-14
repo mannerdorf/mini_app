@@ -15,7 +15,14 @@ export type AdminPermissionPreset = {
 export async function fetchAdminPresets(adminToken: string): Promise<AdminPermissionPreset[]> {
   const res = await fetch("/api/admin-presets", { headers: adminAuthHeaders(adminToken) });
   const data = (await res.json().catch(() => ({}))) as { presets?: AdminPermissionPreset[] };
-  return Array.isArray(data.presets) ? data.presets : [];
+  if (!Array.isArray(data.presets)) return [];
+  return data.presets.map((preset) => ({
+    ...preset,
+    permissions:
+      preset.permissions && typeof preset.permissions === "object" && !Array.isArray(preset.permissions)
+        ? preset.permissions
+        : {},
+  }));
 }
 
 export type SaveAdminPresetPayload = {

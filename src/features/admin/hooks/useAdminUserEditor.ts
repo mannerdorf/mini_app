@@ -4,11 +4,15 @@ import { searchAdminCustomers } from "../../../api/client/admin/customers";
 import { fetchAdminAuditLog } from "../../../api/client/admin/journal";
 import { patchAdminUser } from "../../../api/client/admin/users";
 import {
+  buildEditorCustomersFromUser,
+  buildEditorPermissionsFromUser,
+  normalizeAdminUserRow,
+} from "../lib/adminUsersHelpers";
+import {
   PERMISSION_KEYS,
   applyPermissionsToggle,
   isPermissionLockedByRedReturns,
   isSuperadminOnlyPermissionKey,
-  normalizeAnalyticsDashboardPermissions,
   permissionsForAdminEditor,
 } from "../lib/permissions";
 import type { User } from "../types/adminUsers";
@@ -57,8 +61,14 @@ export function useAdminUserEditor({
   const [userChangeQuery, setUserChangeQuery] = useState("");
 
   const openPermissionsEditor = useCallback((user: User) => {
-    setSelectedUser(user);
+    const normalized = normalizeAdminUserRow(user);
+    setSelectedUser(normalized);
     setEditorSelectedPresetId("");
+    setEditorPermissions(buildEditorPermissionsFromUser(normalized));
+    setEditorFinancial(Boolean(normalized.financial_access));
+    setEditorAccessAllInns(Boolean(normalized.permissions?.service_mode ?? normalized.access_all_inns));
+    setEditorCustomers(buildEditorCustomersFromUser(normalized));
+    setEditorError(null);
   }, []);
 
   const closePermissionsEditor = useCallback(() => {
@@ -67,6 +77,7 @@ export function useAdminUserEditor({
     setEditorSelectedPresetId("");
     setEditorChangeLoginOpen(false);
     setDeleteProfileConfirmOpen(false);
+    setEditorCustomers([]);
   }, []);
 
   const handlePermissionsToggle = useCallback(
@@ -86,7 +97,7 @@ export function useAdminUserEditor({
 
   const handleSaveUserPermissions = useCallback(async () => {
     if (!selectedUser) return;
-    if (!editorAccessAllInns && !editorPermissions.service_mode && editorCustomers.length === 0) {
+    if (!editorAccessAllInns && !editorPermissions.service_mode && (editorCustomers ?? []).length === 0) {
       setEditorError("Конфликт: нет заказчиков и выключен служебный режим. Назначьте заказчика или включите служебный режим.");
       return;
     }
@@ -99,7 +110,7 @@ export function useAdminUserEditor({
         access_all_inns: isSuperAdmin
           ? editorAccessAllInns
           : Boolean(selectedUser.permissions?.service_mode ?? selectedUser.access_all_inns),
-        customers: editorCustomers.map((c) => ({ inn: c.inn, name: c.customer_name })),
+        customers: (editorCustomers ?? []).map((c) => ({ inn: c.inn, name: c.customer_name })),
       });
       await fetchUsers();
       setSelectedUser(null);
@@ -172,21 +183,10 @@ export function useAdminUserEditor({
 
   useEffect(() => {
     if (!selectedUser) return;
-    const nextPermissions = normalizeAnalyticsDashboardPermissions(
-      PERMISSION_KEYS.reduce<Record<string, boolean>>((acc, perm) => {
-        acc[perm.key] = Boolean(selectedUser.permissions?.[perm.key]);
-        return acc;
-      }, {}),
-    );
-    setEditorPermissions(nextPermissions);
+    setEditorPermissions(buildEditorPermissionsFromUser(selectedUser));
     setEditorFinancial(Boolean(selectedUser.financial_access));
     setEditorAccessAllInns(Boolean(selectedUser.permissions?.service_mode ?? selectedUser.access_all_inns));
-    const list = selectedUser.companies?.length
-      ? selectedUser.companies.map((c) => ({ inn: c.inn, customer_name: c.name || "", email: "" }))
-      : selectedUser.inn
-        ? [{ inn: selectedUser.inn, customer_name: selectedUser.company_name || "", email: "" }]
-        : [];
-    setEditorCustomers(list);
+    setEditorCustomers(buildEditorCustomersFromUser(selectedUser));
     setEditorError(null);
     searchAdminCustomers(adminToken, { limit: 2000 })
       .then((customers) => {
@@ -213,7 +213,7 @@ export function useAdminUserEditor({
     setUserChangeQuery(login);
     setUserChangeLoading(true);
     fetchAdminAuditLog(adminToken, { q: login, limit: 30 })
-      .then(setUserChangeEntries)
+      .then((entries) => setUserChangeEntries(Array.isArray(entries) ? entries : []))
       .catch(() => setUserChangeEntries([]))
       .finally(() => setUserChangeLoading(false));
   }, [selectedUser, adminToken]);
@@ -237,15 +237,11 @@ export function useAdminUserEditor({
     if (beforeService !== afterService) {
       items.push(`Служебный режим: ${beforeService ? "вкл" : "выкл"} -> ${afterService ? "вкл" : "выкл"}`);
     }
-    const originalCustomers = (selectedUser.companies?.length
-      ? selectedUser.companies.map((c) => c.inn)
-      : selectedUser.inn
-        ? [selectedUser.inn]
-        : []
-    )
+    const originalCustomers = buildEditorCustomersFromUser(selectedUser)
+      .map((c) => c.inn)
       .filter(Boolean)
       .sort();
-    const editedCustomers = editorCustomers.map((c) => c.inn).filter(Boolean).sort();
+    const editedCustomers = (editorCustomers ?? []).map((c) => c.inn).filter(Boolean).sort();
     if (JSON.stringify(originalCustomers) !== JSON.stringify(editedCustomers)) {
       items.push(
         `Заказчики: ${originalCustomers.length ? originalCustomers.join(", ") : "не назначены"} -> ${editedCustomers.length ? editedCustomers.join(", ") : "не назначены"}`,
