@@ -147,6 +147,26 @@ export function buildQuoteRequestFromBody(
   return { quoteReq, from, to };
 }
 
+export type RegisteredDocumentsUserAccess = {
+  login: string;
+  loginKey: string;
+};
+
+/** Проверка login/password для зарегистрированного пользователя (без ИНН). */
+export async function resolveRegisteredDocumentsUserAccess(
+  req: VercelRequest,
+  body?: unknown,
+): Promise<RegisteredDocumentsUserAccess | null> {
+  const { login, password } = pickHaulzCredentials(req, body);
+  if (!login || !password) return null;
+
+  const pool = getPool();
+  const verified = await verifyRegisteredUser(pool, login, password);
+  if (!verified) return null;
+
+  return { login, loginKey: login.trim().toLowerCase() };
+}
+
 /** Доступ к форме заявки: зарегистрированный пользователь + permissions.doc_orders. */
 export async function resolveDocumentsOrderAccess(
   req: VercelRequest,
@@ -173,6 +193,9 @@ export async function resolveDocumentsOrderAccess(
   if (!customerInn && customerName) {
     const resolved = await lookupCustomerInnByName(pool, loginKey, customerName);
     if (resolved?.inn) customerInn = normalizeInn(resolved.inn);
+  }
+  if (!customerInn && verified.inn) {
+    customerInn = normalizeInn(verified.inn);
   }
   if (!customerInn) return null;
 

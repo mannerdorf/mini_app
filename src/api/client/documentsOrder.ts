@@ -287,11 +287,15 @@ export async function translateDocumentsFivepostBatch(
 export async function deleteDocumentsOrder(
   auth: Pick<DocumentsAuthScope, "login" | "password" | "inn" | "customerName">,
   pendingOrderId: number,
+  nomerZayavki?: string,
 ): Promise<void> {
   const res = await fetch("/api/documents/order-delete", {
     method: "POST",
     headers: authHeaders(auth as DocumentsAuthScope),
-    body: authBody(auth as DocumentsAuthScope, { pendingOrderId }),
+    body: authBody(auth as DocumentsAuthScope, {
+      pendingOrderId,
+      nomerZayavki: nomerZayavki || undefined,
+    }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(parseError(res, data));

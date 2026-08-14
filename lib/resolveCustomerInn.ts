@@ -33,13 +33,16 @@ export async function lookupCustomerInnByName(
     const cc = await pool.query<{ inn: string; customer_name: string }>(
       `SELECT inn, customer_name FROM cache_customers
        WHERE lower(trim(customer_name)) = lower(trim($1))
-       LIMIT 1`,
+          OR lower(customer_name) LIKE '%' || lower(trim($1)) || '%'
+       LIMIT 20`,
       [String(customerName).trim()],
     );
-    const hit = cc.rows[0];
-    const inn = normalizeOrderInn(hit?.inn);
-    if (inn) {
-      return { inn, name: String(hit.customer_name || customerName).trim() || customerName };
+    for (const row of cc.rows) {
+      const inn = normalizeOrderInn(row.inn);
+      if (!inn) continue;
+      if (normalizeCompanyName(row.customer_name) === nameNorm) {
+        return { inn, name: String(row.customer_name || customerName).trim() || customerName };
+      }
     }
   } catch {
     return null;

@@ -395,6 +395,9 @@ export function useDocumentsOrders({
       setDeletingPendingOrderId(pendingOrderId);
       setDeleteOrderError(null);
       try {
+        const nomerZayavki = String(
+          row.НомерЗаявки ?? row.Number ?? row.number ?? "",
+        ).trim();
         await deleteDocumentsOrder(
           {
             login: auth.login,
@@ -403,10 +406,13 @@ export function useDocumentsOrders({
             customerName: activeCustomerName || undefined,
           },
           pendingOrderId,
+          nomerZayavki || undefined,
         );
         onOrdersMutate?.();
       } catch (e: unknown) {
-        setDeleteOrderError(e instanceof Error ? e.message : "Не удалось удалить заявку");
+        const message = e instanceof Error ? e.message : "Не удалось удалить заявку";
+        setDeleteOrderError(message);
+        window.alert(message);
       } finally {
         setDeletingPendingOrderId(null);
       }
