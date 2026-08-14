@@ -1,6 +1,14 @@
 import type { Pool, PoolClient } from "pg";
 import { translateProductNamesToRu } from "./productNameTranslate.js";
-import { isRussianOnlyText, itogTextNeedsTranslation } from "../haulzReturns/textLanguage.js";
+import {
+  isRussianOnlyText,
+  itogTextNeedsTranslation,
+  translationLooksSuccessful,
+} from "../haulzReturns/textLanguage.js";
+import {
+  applyProductNameTranslation,
+  collectUniqueProductNameTranslationKeys,
+} from "./productNameTranslation.js";
 import { parseFivepostShipmentBuffer } from "./parseShipmentXlsx.js";
 import type { FivepostRoute, FivepostParsedRow, FivepostShipmentRow } from "./types.js";
 
@@ -21,10 +29,19 @@ async function runWithConcurrency(tasks: (() => Promise<void>)[], concurrency: n
 }
 
 function resolveItemNameRu(itemName: string, translations: Map<string, string>): string {
-  const trimmed = itemName.trim();
-  if (!trimmed) return "";
-  if (isRussianOnlyText(trimmed)) return trimmed;
-  return translations.get(trimmed) ?? trimmed;
+  return applyProductNameTranslation(itemName, translations);
+}
+
+export function countFivepostRowsSuccessfullyTranslated(rows: Pick<FivepostShipmentRow, "itemName" | "itemNameRu">[]): number {
+  return rows.filter(
+    (row) => itogTextNeedsTranslation(row.itemName) && translationLooksSuccessful(row.itemName, row.itemNameRu),
+  ).length;
+}
+
+export function countFivepostRowsStillNeedingTranslation(rows: Pick<FivepostShipmentRow, "itemName" | "itemNameRu">[]): number {
+  return rows.filter(
+    (row) => itogTextNeedsTranslation(row.itemName) && !translationLooksSuccessful(row.itemName, row.itemNameRu),
+  ).length;
 }
 
 export function countFivepostRowsNeedingTranslation(itemNames: string[]): number {
@@ -33,20 +50,18 @@ export function countFivepostRowsNeedingTranslation(itemNames: string[]): number
 
 async function buildTranslationMap(texts: string[]): Promise<Map<string, string>> {
   const map = new Map<string, string>();
-  const unique: string[] = [];
   for (const text of texts) {
     const t = text.trim();
     if (!t || map.has(t)) continue;
     if (isRussianOnlyText(t)) {
       map.set(t, t);
-      continue;
     }
-    if (itogTextNeedsTranslation(t)) unique.push(t);
   }
 
+  const uniqueKeys = collectUniqueProductNameTranslationKeys(texts);
   const batchRanges: string[][] = [];
-  for (let i = 0; i < unique.length; i += TRANSLATE_BATCH) {
-    batchRanges.push(unique.slice(i, i + TRANSLATE_BATCH));
+  for (let i = 0; i < uniqueKeys.length; i += TRANSLATE_BATCH) {
+    batchRanges.push(uniqueKeys.slice(i, i + TRANSLATE_BATCH));
   }
 
   await runWithConcurrency(
@@ -159,15 +174,15 @@ export async function importFivepostShipmentXlsx(
     });
   }
 
-  let translations = new Map<string, string>();
-  const translatedCount = needsTranslationCount;
-  translations = await buildTranslationMap(parsed.rows.map((r) => r.itemName));
+  const translations = await buildTranslationMap(parsed.rows.map((r) => r.itemName));
 
   const shipmentRows: FivepostShipmentRow[] = parsed.rows.map((row, idx) => ({
     ...row,
     lineNo: idx + 1,
     itemNameRu: resolveItemNameRu(row.itemName, translations),
   }));
+  const translatedCount = countFivepostRowsSuccessfullyTranslated(shipmentRows);
+  const remainingNeedsTranslation = countFivepostRowsStillNeedingTranslation(shipmentRows);
 
   const client = await pool.connect();
   try {
@@ -183,7 +198,12 @@ export async function importFivepostShipmentXlsx(
 
     await insertShipmentRows(client, batchId, shipmentRows);
     await client.query("commit");
-    return { batchId, rows: shipmentRows, translatedCount, needsTranslationCount };
+    return {
+      batchId,
+      rows: shipmentRows,
+      translatedCount,
+      needsTranslationCount: remainingNeedsTranslation,
+    };
   } catch (e) {
     await client.query("rollback");
     throw e;
@@ -215,6 +235,8 @@ export async function translateFivepostBatch(
       ...row,
       itemNameRu: resolveItemNameRu(row.itemName, translations),
     }));
+    const translatedCount = countFivepostRowsSuccessfullyTranslated(updatedRows);
+    const remainingNeedsTranslation = countFivepostRowsStillNeedingTranslation(updatedRows);
 
     await client.query("begin");
     for (const row of updatedRows) {
@@ -226,11 +248,11 @@ export async function translateFivepostBatch(
     }
     await client.query(
       `update fivepost_import_batches set translated_count = $1 where id = $2`,
-      [needsTranslationCount, batchId],
+      [translatedCount, batchId],
     );
     await client.query("commit");
 
-    return { rows: updatedRows, translatedCount: needsTranslationCount, needsTranslationCount: 0 };
+    return { rows: updatedRows, translatedCount, needsTranslationCount: remainingNeedsTranslation };
   } catch (e) {
     await client.query("rollback");
     throw e;

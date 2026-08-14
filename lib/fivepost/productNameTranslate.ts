@@ -1,5 +1,6 @@
 import { translateProductNamesEnToRu } from "../haulzReturns/openaiTranslate.js";
 import { resolveOpenaiApiKey } from "../haulzReturns/openaiEnv.js";
+import { itogTextNeedsTranslation, translationLooksSuccessful } from "../haulzReturns/textLanguage.js";
 import { resolveYandexTranslateApiKey, translateTextsToRuYandex } from "./yandexTranslate.js";
 
 export type ProductNameTranslator = "yandex" | "openai";
@@ -25,6 +26,28 @@ export async function translateProductNamesToRu(texts: string[]): Promise<string
   if (texts.length === 0) return [];
 
   const provider = requireProductNameTranslator();
-  if (provider === "yandex") return translateTextsToRuYandex(texts);
-  return translateProductNamesEnToRu(texts);
+  let results = provider === "yandex" ? await translateTextsToRuYandex(texts) : await translateProductNamesEnToRu(texts);
+
+  const openaiKey = resolveOpenaiApiKey();
+  if (!openaiKey) return results;
+
+  const retryIndexes: number[] = [];
+  texts.forEach((text, idx) => {
+    if (itogTextNeedsTranslation(text) && !translationLooksSuccessful(text, results[idx] ?? "")) {
+      retryIndexes.push(idx);
+    }
+  });
+  if (retryIndexes.length === 0) return results;
+
+  const retryTexts = retryIndexes.map((idx) => texts[idx]);
+  const retryResults = await translateProductNamesEnToRu(retryTexts);
+  results = [...results];
+  retryIndexes.forEach((origIdx, j) => {
+    const candidate = retryResults[j]?.trim();
+    if (candidate && translationLooksSuccessful(texts[origIdx], candidate)) {
+      results[origIdx] = candidate;
+    }
+  });
+
+  return results;
 }

@@ -253,7 +253,15 @@ export function DocumentsOrderCargoSection({
         fivepostNeedsTranslation: result.needsTranslationCount,
         tableRows,
       });
-      setImportMessage(`Переведено ${result.translatedCount} наименований.`);
+      setImportMessage(
+        result.translatedCount > 0 && result.needsTranslationCount > 0
+          ? `Переведено ${result.translatedCount} наименований. Не переведено: ${result.needsTranslationCount}. Проверьте ключи Yandex/OpenAI на сервере и нажмите «Перевести названия» снова.`
+          : result.translatedCount > 0
+            ? `Переведено ${result.translatedCount} наименований.`
+            : result.needsTranslationCount > 0
+              ? `Перевод не выполнен (${result.needsTranslationCount} строк). Настройте YANDEX_TRANSLATE_API_KEY или OPENAI_API_KEY на сервере API.`
+              : "Перевод не требуется.",
+      );
     } catch (e) {
       setError((e as Error)?.message || "Ошибка перевода названий");
     } finally {

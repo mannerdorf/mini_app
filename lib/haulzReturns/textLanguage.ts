@@ -19,3 +19,14 @@ export function itogTextNeedsTranslation(text: string): boolean {
   if (!t || isRussianOnlyText(t)) return false;
   return /[A-Za-z]/.test(t);
 }
+
+/** Перевод считается успешным, если появилась кириллица или текст заметно изменился на русский. */
+export function translationLooksSuccessful(original: string, translated: string): boolean {
+  const a = original.trim();
+  const b = translated.trim();
+  if (!b || b === a) return false;
+  if (isRussianOnlyText(b)) return true;
+  const cyrA = (a.match(/[А-Яа-яЁё]/g) ?? []).length;
+  const cyrB = (b.match(/[А-Яа-яЁё]/g) ?? []).length;
+  return cyrB > cyrA;
+}

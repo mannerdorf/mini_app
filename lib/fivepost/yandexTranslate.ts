@@ -55,6 +55,7 @@ async function translateBatchYandex(texts: string[]): Promise<string[]> {
   const folderId = resolveYandexFolderId();
   const body: Record<string, unknown> = {
     texts,
+    sourceLanguageCode: "en",
     targetLanguageCode: "ru",
   };
   if (folderId) body.folderId = folderId;
