@@ -1,4 +1,18 @@
-import type { Account, CustomerOption } from "../types";
+import type { Account, AuthData, CustomerOption } from "../types";
+
+/** ИНН активного заказчика: activeCustomerInn → customers[] → auth.inn */
+export function resolveAccountActiveInn(
+    acc: Pick<Account, "activeCustomerInn" | "customers"> | null | undefined,
+    auth?: Pick<AuthData, "inn"> | null,
+): string {
+    const fromActive = (acc?.activeCustomerInn ?? "").trim();
+    if (fromActive) return fromActive;
+    for (const c of acc?.customers ?? []) {
+        const inn = (c.inn ?? "").trim();
+        if (inn) return inn;
+    }
+    return (auth?.inn ?? "").trim();
+}
 
 /** Заказчик из CMS (registered_users), не «все ИНН». */
 export function isSingleRegisteredCustomerAccount(acc: Account): boolean {

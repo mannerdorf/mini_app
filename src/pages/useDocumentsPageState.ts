@@ -45,7 +45,7 @@ export function useDocumentsPageState({
 }: DocumentsPageProps) {
     const runtime = useAppRuntime();
     const effectiveServiceMode = useServiceRequest ?? runtime.useServiceRequest;
-    const effectiveActiveInn = activeInn ?? runtime.activeInn;
+    const effectiveActiveInn = (activeInn ?? runtime.activeInn ?? auth?.inn ?? "").trim();
     const effectiveSearchText = searchText ?? runtime.searchText;
     const showCustomerColumn = runtime.showCustomerColumn;
     const activeCustomerName = runtime.activeCustomerName;

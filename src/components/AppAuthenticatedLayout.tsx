@@ -6,6 +6,8 @@ import { AppShellModals } from "./AppShellModals";
 import { AppMainContent } from "./AppMainContent";
 import { AppRuntimeProvider } from "../contexts/AppRuntimeContext";
 import { useAuth } from "../contexts/AuthContext";
+import { useActiveCustomerInnSync } from "../hooks/useActiveCustomerInnSync";
+import { resolveAccountActiveInn } from "../lib/accountCustomer";
 import { useAppShell } from "../contexts/AppShellContext";
 import { stripOoo } from "../lib/formatUtils";
 import type { useLegalCompliance } from "../hooks/useLegalCompliance";
@@ -72,6 +74,7 @@ export function AppAuthenticatedLayout({
 }: Props) {
   const { auth, activeAccount } = useAuth();
   const { desktopExpanded } = useAppShell();
+  useActiveCustomerInnSync();
 
   return (
     <Container
@@ -93,7 +96,7 @@ export function AppAuthenticatedLayout({
             value={{
               useServiceRequest,
               searchText,
-              activeInn: activeAccount?.activeCustomerInn ?? auth?.inn ?? "",
+              activeInn: resolveAccountActiveInn(activeAccount, auth),
               activeCustomerName: stripOoo(activeAccount?.customer ?? ""),
               showCustomerColumn,
             }}

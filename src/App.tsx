@@ -23,6 +23,7 @@ import { useTelegramWebAppInit } from "./hooks/useTelegramWebAppInit";
 import { useAppLogout } from "./hooks/useAppLogout";
 import { useTwoFaSettingsSync } from "./hooks/useTwoFaSettingsSync";
 import { stripOoo } from "./lib/formatUtils";
+import { resolveAccountActiveInn } from "./lib/accountCustomer";
 
 function AppRoot() {
     const {
@@ -164,7 +165,7 @@ function AppRoot() {
                     value={{
                         useServiceRequest: false,
                         searchText,
-                        activeInn: activeAccount?.activeCustomerInn ?? auth?.inn ?? "",
+                        activeInn: resolveAccountActiveInn(activeAccount, auth),
                         activeCustomerName: stripOoo(activeAccount?.customer ?? ""),
                         showCustomerColumn,
                     }}
