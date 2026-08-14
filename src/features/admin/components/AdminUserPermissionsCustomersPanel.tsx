@@ -9,6 +9,7 @@ type Props = {
 
 export function AdminUserPermissionsCustomersPanel({ customerDirectoryMap, editor }: Props) {
   const { editorPermissions, editorAccessAllInns, editorCustomers, setEditorCustomers, setEditorCustomerPickOpen } = editor;
+  const customers = editorCustomers ?? [];
 
   if (editorPermissions.service_mode || editorAccessAllInns) return null;
 
@@ -37,10 +38,10 @@ export function AdminUserPermissionsCustomersPanel({ customerDirectoryMap, edito
           }}
           aria-label="Выбрать заказчика"
         >
-          {editorCustomers.length === 0 ? (
+          {customers.length === 0 ? (
             <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Не выбран</Typography.Body>
           ) : (
-            editorCustomers.map((cust) => (
+            customers.map((cust) => (
               <div
                 key={cust.inn}
                 style={{
@@ -70,7 +71,7 @@ export function AdminUserPermissionsCustomersPanel({ customerDirectoryMap, edito
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           <Button type="button" className="filter-button" onClick={() => setEditorCustomerPickOpen(true)}>Подбор</Button>
-          {editorCustomers.length > 0 && (
+          {customers.length > 0 && (
             <Button type="button" className="filter-button" style={{ padding: "0.4rem 0.75rem", fontSize: "0.8rem" }} onClick={() => setEditorCustomers([])}>
               Очистить
             </Button>

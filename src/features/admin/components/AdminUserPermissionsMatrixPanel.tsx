@@ -22,6 +22,7 @@ type Props = {
 };
 
 export function AdminUserPermissionsMatrixPanel({ user, isSuperAdmin, permissionPresets, editor }: Props) {
+  const presets = permissionPresets ?? [];
   const {
     editorPermissions,
     setEditorPermissions,
@@ -45,7 +46,7 @@ export function AdminUserPermissionsMatrixPanel({ user, isSuperAdmin, permission
           onChange={(e) => {
             const id = e.target.value;
             setEditorSelectedPresetId(id);
-            const preset = permissionPresets.find((p) => p.id === id);
+            const preset = presets.find((p) => p.id === id);
             if (preset) {
               const applied = applyPresetPermissionsWithSendingsGate(
                 preset.permissions,
@@ -67,7 +68,7 @@ export function AdminUserPermissionsMatrixPanel({ user, isSuperAdmin, permission
           }}
         >
           <option value="">—</option>
-          {permissionPresets.map((p) => (
+          {presets.map((p) => (
             <option key={p.id} value={p.id}>{p.label}</option>
           ))}
         </select>
