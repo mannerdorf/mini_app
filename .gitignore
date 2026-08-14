@@ -3,6 +3,10 @@ node_modules
 .vercel
 # Сборка Vite — не в git (Layero/Vercel собирают сами)
 dist/
+# Android signing (local only)
+android/keystore.properties
+android/*.jks
+android/*.keystore
 # macOS
 .DS_Store
 **/.DS_Store
