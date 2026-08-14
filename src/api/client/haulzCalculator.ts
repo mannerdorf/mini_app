@@ -324,6 +324,28 @@ export async function deleteHaulzCalcDraftManager(auth: AuthData, id: number): P
   if (!res.ok) throw new Error(parseError(res, data));
 }
 
+export async function previewHaulzQuoteEmail(
+  auth: AuthData,
+  body: Parameters<typeof fetchHaulzQuote>[1] & {
+    dataZabora?: string;
+    customerParty?: Parameters<typeof fetchHaulzQuote>[1]["fromParty"];
+    fromParty?: Parameters<typeof fetchHaulzQuote>[1]["fromParty"];
+    toParty?: Parameters<typeof fetchHaulzQuote>[1]["toParty"];
+  },
+): Promise<{ html: string; subject: string }> {
+  const res = await fetch("/api/haulz-calculator/preview-quote-email", {
+    method: "POST",
+    headers: authHeaders(auth),
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(parseError(res, data));
+  const html = String((data as { html?: string }).html ?? "");
+  const subject = String((data as { subject?: string }).subject ?? "");
+  if (!html) throw new Error("Пустой предпросмотр");
+  return { html, subject };
+}
+
 export async function sendHaulzQuoteEmail(
   auth: AuthData,
   body: {

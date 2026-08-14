@@ -5,6 +5,7 @@ import {
   ChevronRight,
   ChevronUp,
   Copy,
+  Eye,
   Loader2,
   Mail,
   MapPin,
@@ -119,6 +120,7 @@ export type HaulzCalcMobileFlowProps = {
   setDataZabora: (v: string) => void;
   copySummary: () => void;
   openEmailModal: () => void;
+  openQuotePreview: () => void;
   canSendQuoteEmail: boolean;
   registeredNomerZayavki: string | null;
 };
@@ -240,6 +242,7 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
     setDataZabora,
     copySummary,
     openEmailModal,
+    openQuotePreview,
     canSendQuoteEmail,
   } = props;
 
@@ -622,6 +625,10 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
               <button type="button" className="haulz-calc-btn-secondary" disabled={!quote} onClick={copySummary}>
                 <Copy className="w-4 h-4" />
                 Копировать
+              </button>
+              <button type="button" className="haulz-calc-btn-secondary" disabled={!quote} onClick={openQuotePreview}>
+                <Eye className="w-4 h-4" />
+                Предпросмотр
               </button>
             </div>
           </div>

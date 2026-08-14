@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Copy, Loader2, Mail, Plus, X } from "lucide-react";
+import { ArrowLeft, Copy, Eye, Loader2, Mail, Plus, X } from "lucide-react";
 import type { AuthData } from "../types";
 import type {
   AddressSelection,
@@ -15,6 +15,7 @@ import {
   fetchHaulzCalculatorOptions,
   fetchHaulzQuote,
   saveHaulzCalcDraft,
+  previewHaulzQuoteEmail,
   sendHaulzQuoteEmail,
   submitHaulzCalculatorOrder,
   type HaulzCalculatorFormState,
@@ -105,6 +106,11 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
   const [emailSending, setEmailSending] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewSubject, setPreviewSubject] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [registeredNomerZayavki, setRegisteredNomerZayavki] = useState<string | null>(null);
   const [mobileRoute, setMobileRoute] = useState<HaulzCalcMobileRoute>("hub");
   const isMobileLayout = useHaulzCalcMobile();
@@ -558,6 +564,78 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     setEmailModalOpen(true);
   };
 
+  const buildQuoteEmailPayload = useCallback(() => {
+    if (!fromAddr?.point || !toAddr?.point) return null;
+    return {
+      from: fromAddr,
+      to: toAddr,
+      places,
+      mainlineMode,
+      direction: inferredDirection,
+      declaredValueRub: Number(declaredValue) || 0,
+      extraCodes,
+      dataZabora,
+      customerParty: buildCustomerParty(),
+      fromParty: {
+        mode: fromMode,
+        phone: fromPhone,
+        fullName: fromName,
+      },
+      toParty: {
+        mode: toMode,
+        phone: toPhone,
+        fullName: toName,
+      },
+    };
+  }, [
+    fromAddr,
+    toAddr,
+    places,
+    mainlineMode,
+    inferredDirection,
+    declaredValue,
+    extraCodes,
+    dataZabora,
+    buildCustomerParty,
+    fromMode,
+    fromPhone,
+    fromName,
+    toMode,
+    toPhone,
+    toName,
+  ]);
+
+  const loadQuotePreview = useCallback(async () => {
+    if (!auth) return;
+    const payload = buildQuoteEmailPayload();
+    if (!payload) {
+      setPreviewError("Заполните адреса для предпросмотра");
+      return;
+    }
+    setPreviewLoading(true);
+    setPreviewError(null);
+    try {
+      const result = await previewHaulzQuoteEmail(auth, payload);
+      setPreviewHtml(result.html);
+      setPreviewSubject(result.subject);
+    } catch (e) {
+      setPreviewHtml(null);
+      setPreviewSubject("");
+      setPreviewError((e as Error)?.message || "Не удалось загрузить предпросмотр");
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, [auth, buildQuoteEmailPayload]);
+
+  const openQuotePreview = () => {
+    if (!quote) return;
+    setPreviewHtml(null);
+    setPreviewSubject("");
+    setPreviewError(null);
+    setPreviewModalOpen(true);
+    void loadQuotePreview();
+  };
+
   const sendQuoteEmail = useCallback(async () => {
     if (!auth || !quote || !fromAddr?.point || !toAddr?.point || !registeredNomerZayavki) return;
     const email = emailTo.trim().toLowerCase();
@@ -697,6 +775,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     setDataZabora,
     copySummary,
     openEmailModal,
+    openQuotePreview,
     canSendQuoteEmail,
     registeredNomerZayavki,
   };
@@ -1032,6 +1111,10 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
                     <Copy className="w-4 h-4" />
                     Копировать расчёт
                   </button>
+                  <button type="button" className="haulz-calc-btn-secondary" disabled={!quote || previewLoading} onClick={openQuotePreview}>
+                    {previewLoading && previewModalOpen ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                    Предпросмотр
+                  </button>
                   <button
                     type="button"
                     className="haulz-calc-btn-secondary"
@@ -1125,6 +1208,74 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
                 {emailSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
                 Отправить
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewModalOpen && (
+        <div
+          className="haulz-calc-map-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="haulz-calc-preview-title"
+          onClick={() => !previewLoading && setPreviewModalOpen(false)}
+        >
+          <div className="haulz-calc-map-modal haulz-calc-map-modal--preview" onClick={(e) => e.stopPropagation()}>
+            <div className="haulz-calc-map-modal__head">
+              <div id="haulz-calc-preview-title" className="haulz-calc-map-modal__title">
+                <Eye className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+                Предпросмотр КП
+              </div>
+              <button
+                type="button"
+                className="haulz-calc-map-modal__close"
+                aria-label="Закрыть"
+                disabled={previewLoading}
+                onClick={() => setPreviewModalOpen(false)}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {previewSubject && (
+              <p className="haulz-calc-map-modal__hint haulz-calc-quote-preview__subject">Тема письма: {previewSubject}</p>
+            )}
+            <p className="haulz-calc-map-modal__hint">
+              Так будет выглядеть коммерческое предложение в письме. Кнопка «Согласовать перевозку» появится после отправки на почту.
+            </p>
+            {previewError && <p className="haulz-calc-map-modal__error">{previewError}</p>}
+            {previewLoading && (
+              <div className="haulz-calc-quote-preview__loading">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Формируем предпросмотр…</span>
+              </div>
+            )}
+            {previewHtml && !previewLoading && (
+              <iframe
+                title="Предпросмотр коммерческого предложения"
+                className="haulz-calc-quote-preview__frame"
+                srcDoc={previewHtml}
+                sandbox=""
+              />
+            )}
+            <div className="haulz-calc-map-modal__actions">
+              <button type="button" className="haulz-calc-btn-secondary" disabled={previewLoading} onClick={() => setPreviewModalOpen(false)}>
+                Закрыть
+              </button>
+              {canSendQuoteEmail && (
+                <button
+                  type="button"
+                  className="haulz-calc-btn-primary"
+                  disabled={previewLoading}
+                  onClick={() => {
+                    setPreviewModalOpen(false);
+                    openEmailModal();
+                  }}
+                >
+                  <Mail className="w-4 h-4" />
+                  Отправить на почту
+                </button>
+              )}
             </div>
           </div>
         </div>

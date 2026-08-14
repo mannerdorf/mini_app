@@ -882,6 +882,37 @@
   min-width: 8.5rem;
 }
 
+.haulz-calc-map-modal--preview {
+  width: min(720px, 96vw);
+  max-height: min(92dvh, 820px);
+  display: flex;
+  flex-direction: column;
+}
+
+.haulz-calc-quote-preview__subject {
+  margin-bottom: 0.35rem;
+  font-weight: 500;
+}
+
+.haulz-calc-quote-preview__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 240px;
+  padding: 1rem;
+  color: var(--calc-text-secondary);
+  font-size: 0.875rem;
+}
+
+.haulz-calc-quote-preview__frame {
+  flex: 1 1 auto;
+  min-height: 280px;
+  width: 100%;
+  border: none;
+  background: #f3f4f6;
+}
+
 .haulz-calc-map-modal__actions {
   display: flex;
   gap: 0.5rem;
@@ -2468,7 +2499,7 @@ body.haulz-calc-map-screen-open {
   z-index: 45;
   left: max(var(--space-3, 12px), env(safe-area-inset-left, 0px));
   right: max(var(--space-3, 12px), env(safe-area-inset-right, 0px));
-  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  bottom: var(--haulz-summary-fixed-bottom);
   padding: 0.65rem 0.85rem 0.75rem;
   border: 1px solid var(--calc-border);
   border-radius: var(--calc-radius-lg);
