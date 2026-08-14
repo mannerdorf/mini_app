@@ -2628,18 +2628,13 @@ body.haulz-calc-map-screen-open {
 
 .documents-order-form.haulz-calc-page--cdek {
   --haulz-docs-content-max: min(56rem, 100vw);
-  --haulz-docs-summary-shift-right: 0px;
+  --haulz-docs-summary-gap: 1rem;
   max-width: none;
   width: 100%;
 }
 
-.app-main:not(.app-main-wide) .documents-order-form.haulz-calc-page--cdek {
-  --haulz-docs-summary-shift-right: calc(2.75rem + 2cm);
-}
-
 .app-main-wide .documents-order-form.haulz-calc-page--cdek {
   --haulz-docs-content-max: min(96vw, 1400px);
-  --haulz-docs-summary-shift-right: -3.5cm;
 }
 
 .documents-order-form.haulz-calc-page--cdek .haulz-calc-shell-bg {
@@ -2669,20 +2664,22 @@ body.haulz-calc-map-screen-open {
   }
 
   .documents-order-form .haulz-calc-main {
-    margin-right: calc(var(--haulz-summary-col-width) + 1rem);
+    margin-right: calc(var(--haulz-summary-col-width) + var(--haulz-docs-summary-gap, 1rem));
     min-width: 0;
   }
 
   .documents-order-form .haulz-calc-summary-wrap {
     position: fixed;
     top: var(--haulz-summary-fixed-top);
-    left: max(
-      var(--pad-page-h, 24px),
-      calc(
-        50vw - var(--haulz-docs-content-max) / 2
-        + var(--haulz-docs-content-max) - var(--haulz-summary-col-width)
-        - var(--pad-page-h, 24px)
-        + var(--haulz-docs-summary-shift-right, 0px)
+    left: var(
+      --haulz-docs-summary-sync-left,
+      max(
+        var(--pad-page-h, 24px),
+        calc(
+          50vw + var(--haulz-docs-content-max) / 2
+          - var(--haulz-summary-col-width)
+          - var(--haulz-docs-summary-gap, 1rem)
+        )
       )
     );
     right: auto;

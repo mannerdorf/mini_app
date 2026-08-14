@@ -184,7 +184,8 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
 
   const formRef = useRef<HTMLDivElement>(null);
   const routeRef = useRef<HTMLDivElement>(null);
-  useDocumentsOrderSummaryTopSync(formRef, routeRef);
+  const mainRef = useRef<HTMLDivElement>(null);
+  useDocumentsOrderSummaryTopSync(formRef, routeRef, mainRef);
 
   const fromAddr = fromState.addr;
   const toAddr = toState.addr;
@@ -435,7 +436,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
         </header>
 
         <div className="haulz-calc-grid">
-        <div className="haulz-calc-main">
+        <div ref={mainRef} className="haulz-calc-main">
           <div ref={routeRef} className="haulz-calc-card documents-order-direction">
             <h2 className="haulz-calc-card__title">Маршрут</h2>
             <div className="haulz-calc-segment" role="tablist" aria-label="Маршрут перевозки">
