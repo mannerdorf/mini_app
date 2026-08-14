@@ -284,6 +284,19 @@ export async function translateDocumentsFivepostBatch(
   return data;
 }
 
+export async function deleteDocumentsOrder(
+  auth: Pick<DocumentsAuthScope, "login" | "password" | "inn" | "customerName">,
+  pendingOrderId: number,
+): Promise<void> {
+  const res = await fetch("/api/documents/order-delete", {
+    method: "POST",
+    headers: authHeaders(auth as DocumentsAuthScope),
+    body: authBody(auth as DocumentsAuthScope, { pendingOrderId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(parseError(res, data));
+}
+
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

@@ -136,6 +136,7 @@ export type DocumentsPageToolbarSummaryProps = {
 export type DocumentsPageToolbarActionBars = {
   auth: AuthData;
   effectiveActiveInn?: string;
+  activeCustomerName?: string;
   onNewOrder: () => void;
   onOpenClaimsCreate: () => void;
   onOpenSverkiOrder: () => void;
@@ -870,9 +871,13 @@ export function DocumentsPageToolbar({
           <Button
             className="button-primary doc-section-action-btn"
             onClick={actionBars.onNewOrder}
-            disabled={!actionBars.auth?.login || !actionBars.auth?.password || !actionBars.effectiveActiveInn}
+            disabled={
+              !actionBars.auth?.login ||
+              !actionBars.auth?.password ||
+              !(actionBars.effectiveActiveInn?.trim() || actionBars.activeCustomerName?.trim())
+            }
             title={
-              !actionBars.effectiveActiveInn
+              !(actionBars.effectiveActiveInn?.trim() || actionBars.activeCustomerName?.trim())
                 ? "Выберите заказчика в хедере"
                 : !actionBars.auth?.login || !actionBars.auth?.password
                   ? "Требуется авторизация"

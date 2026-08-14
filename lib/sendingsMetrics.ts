@@ -227,7 +227,7 @@ function statusKey(raw: unknown): "ready" | "delivered" | "other" {
   return "other";
 }
 
-function getSendingCargoNumbers(row: any): string[] {
+export function getSendingCargoNumbers(row: any): string[] {
   const numbers = new Set<string>();
   const add = (value: unknown) => {
     const normalized = normalizeCargoNumber(value);

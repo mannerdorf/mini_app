@@ -276,6 +276,17 @@ function buildSimpleParams(kind: Exclude<NormalizedDocumentKind, "perevozki">, i
   return [itemKey(kind, row), docDate, docNumber(row) || null, primaryInn(kind, row) || null, JSON.stringify(row)];
 }
 
+/** Postgres rejects ON CONFLICT when the same item_key appears twice in one INSERT. */
+function dedupeItemsByKey(kind: NormalizedDocumentKind, items: unknown[]): unknown[] {
+  if (items.length <= 1) return items;
+  const byKey = new Map<string, unknown>();
+  for (const item of items) {
+    const row = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+    byKey.set(itemKey(kind, row), item);
+  }
+  return Array.from(byKey.values());
+}
+
 async function upsertPerevozkiBatch(db: Pool | PoolClient, items: unknown[]): Promise<number> {
   if (items.length === 0) return 0;
   let upserted = 0;
@@ -345,8 +356,9 @@ async function upsertSimpleBatch(
 }
 
 async function upsertItems(db: Pool | PoolClient, kind: NormalizedDocumentKind, items: unknown[]): Promise<number> {
-  if (kind === "perevozki") return upsertPerevozkiBatch(db, items);
-  return upsertSimpleBatch(db, kind, items);
+  const deduped = dedupeItemsByKey(kind, items);
+  if (kind === "perevozki") return upsertPerevozkiBatch(db, deduped);
+  return upsertSimpleBatch(db, kind, deduped);
 }
 
 /** Синхронизация окна backfill/cron: удалить строки в диапазоне дат, вставить chunk из 1С. */

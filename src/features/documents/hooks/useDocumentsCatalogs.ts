@@ -35,6 +35,8 @@ export type UseDocumentsCatalogsParams = {
     actsItems: CargoItem[];
     ordersItems: CargoItem[];
     effectiveActiveInn?: string;
+    activeCustomerName?: string;
+    onOrdersMutate?: () => void;
     effectiveServiceMode: boolean;
     effectiveSearchText?: string;
     apiDateRange: { dateFrom: string; dateTo: string };
@@ -90,6 +92,8 @@ export function useDocumentsCatalogs({
     actsItems,
     ordersItems,
     effectiveActiveInn,
+    activeCustomerName,
+    onOrdersMutate,
     effectiveServiceMode,
     effectiveSearchText,
     apiDateRange,
@@ -233,12 +237,15 @@ export function useDocumentsCatalogs({
     const ordersCatalog = useDocumentsOrders({
         active: docSection === "Заявки",
         ordersItems,
+        auth,
         effectiveActiveInn,
+        activeCustomerName,
         effectiveServiceMode,
         customerFilter,
         effectiveSearchText,
         sortBy,
         sortOrder,
+        onOrdersMutate,
     });
 
     const tariffsCatalog = useDocumentsTariffs({

@@ -1,29 +1,11 @@
-# Crontab для VPS (api.haulz.ru / localhost:3000)
+# Crontab для API-VPS (api.haulz.ru / 72.56.36.185).
 #
-# 1. Скопировать скрипт:
-#    sudo cp /opt/haulz/app/deploy/cron-call.sh /opt/haulz/cron-call.sh
-#    sudo chmod +x /opt/haulz/cron-call.sh
+# После split: cache/cron job — только на отдельном cron-VPS.
+# Используйте deploy/crontab.haulz-cron.example там.
 #
-# 2. Открыть crontab:
-#    sudo crontab -e
-#
-# 3. Вставить блок ниже (nano: Ctrl+O, Enter, Ctrl+X)
+# На API-VPS оставить watchdog TLS (nginx) + при необходимости локальные проверки.
 
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-*/5 * * * * /opt/haulz/cron-call.sh /api/cron/refresh-cache
-0 1,7,13,19 * * * /opt/haulz/cron-call.sh /api/cron/refresh-cache-deep
-*/5 * * * * /opt/haulz/cron-call.sh /api/cron/backfill-sendings-metrics
-*/15 * * * * /opt/haulz/cron-call.sh /api/cron/refresh-orders-cache
-*/15 * * * * /opt/haulz/cron-call.sh /api/cron/refresh-suppliers-cache
-*/5 * * * * /opt/haulz/cron-call.sh /api/cron/process-claim-push-queue
-0 * * * * /opt/haulz/cron-call.sh /api/notification-poll
-0 0 * * * /opt/haulz/cron-call.sh /api/cron/refresh-tariffs-cache
-0 0 * * * /opt/haulz/cron-call.sh /api/cron/refresh-sverki-cache
-0 0 * * * /opt/haulz/cron-call.sh /api/cron/refresh-dogovors-cache
-0 0 * * * /opt/haulz/cron-call.sh /api/cron/refresh-pvz-cache
-0 10 * * * /opt/haulz/cron-call.sh /api/notification-daily-summary
-*/5 * * * * /opt/haulz/cron-call.sh /api/cron/weekly-partner-summary
-
-# После переноса — отключить crons на Vercel (vercel.json → "crons": []).
+* * * * * /opt/haulz/watchdog-api-tls.sh >/dev/null 2>&1

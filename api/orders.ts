@@ -9,6 +9,12 @@ import {
 import { respondCorsPreflight } from "./_lib/cors.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import { appendPendingOrdersForUser } from "../lib/pendingOrderRequests.js";
+import {
+  getOrderCustomerInn,
+  normalizeCompanyName,
+  normalizeOrderInn,
+  orderMatchesCustomerScope,
+} from "../lib/orderCustomerScope.js";
 
 /**
  * Прокси для GetZayavki в разделе "Заявки".
@@ -38,7 +44,9 @@ function getFirstNonEmpty(item: any, keys: string[]): string {
 }
 
 export function ordersItemInn(item: any): string {
-  return normalizeInn(getFirstNonEmpty(item, [
+  const customerInn = getOrderCustomerInn(item);
+  if (customerInn) return customerInn;
+  return normalizeOrderInn(getFirstNonEmpty(item, [
     "INN",
     "Inn",
     "inn",
@@ -102,9 +110,21 @@ export async function filterRegisteredOrdersList(
   inn: unknown,
   serviceMode: unknown,
   list: any[],
+  customerName?: unknown,
 ): Promise<any[]> {
-  const requestedInn = normalizeInn(inn);
+  const requestedInn = normalizeOrderInn(inn);
   const isService = !!serviceMode;
+  const scopeName = normalizeCompanyName(customerName);
+  if (!isService && (requestedInn || scopeName)) {
+    return list.filter((item) => {
+      if (!orderMatchesCustomerScope(item, { inn: requestedInn || undefined, name: scopeName || undefined })) {
+        return false;
+      }
+      const d = orderDate(item);
+      return !d || (d >= dateFrom && d <= dateTo);
+    });
+  }
+
   let filterInns: Set<string> | null = null;
   if (!isService && !verified.accessAllInns) {
     const acRows = await pool.query<{ inn: string }>(
@@ -146,6 +166,7 @@ export async function readRegisteredOrdersFromCache(
   dateTo: string,
   inn: unknown,
   serviceMode: unknown,
+  customerName?: unknown,
 ): Promise<any[]> {
   try {
     let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
@@ -160,7 +181,28 @@ export async function readRegisteredOrdersFromCache(
     if (cacheRow.rows.length === 0) return [];
     const data = cacheRow.rows[0].data as any[];
     const list = Array.isArray(data) ? data : [];
-    return filterRegisteredOrdersList(pool, verified, login, dateFrom, dateTo, inn, serviceMode, list);
+    const filtered = await filterRegisteredOrdersList(
+      pool,
+      verified,
+      login,
+      dateFrom,
+      dateTo,
+      inn,
+      serviceMode,
+      list,
+      customerName,
+    );
+    return appendPendingOrdersForUser(
+      pool,
+      verified,
+      login,
+      dateFrom,
+      dateTo,
+      inn,
+      serviceMode,
+      filtered,
+      customerName,
+    );
   } catch {
     return [];
   }
@@ -189,6 +231,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     dateFrom = "2024-01-01",
     dateTo = new Date().toISOString().split("T")[0],
     inn,
+    customerName,
     serviceMode,
     isRegisteredUser,
   } = body || {};
@@ -214,8 +257,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       registeredVerified = verified;
       if (useDocumentCache) {
-        const filtered = await readRegisteredOrdersFromCache(pool, verified, login, dateFrom, dateTo, inn, serviceMode);
-        const merged = await appendPendingOrdersForUser(
+        const filtered = await readRegisteredOrdersFromCache(
           pool,
           verified,
           login,
@@ -223,29 +265,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           dateTo,
           inn,
           serviceMode,
-          filtered,
+          customerName,
         );
-        return res.status(200).json(merged);
+        return res.status(200).json(filtered);
       }
     } catch (e) {
       logError(ctx, "orders_registered_user_failed", e);
-      if (registeredVerified) {
-        try {
-          const merged = await appendPendingOrdersForUser(
-            pool,
-            registeredVerified,
-            login,
-            dateFrom,
-            dateTo,
-            inn,
-            serviceMode,
-            [],
-          );
-          return res.status(200).json(merged);
-        } catch {
-          /* fall through */
-        }
-      }
       return res.status(200).json([]);
     }
   }
@@ -262,31 +287,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
     }
     if (cacheRow.rows.length > 0) {
-      const requestedInn = normalizeInn(inn);
+      const requestedInn = normalizeOrderInn(inn);
       const isService = !!serviceMode;
-      let filterInns: Set<string> | null = null;
-      if (!isService) {
-        const userInnsRow = await pool.query<{ inn: string }>(
-          "SELECT inn FROM account_companies WHERE login = $1",
-          [String(login).trim().toLowerCase()]
-        );
-        const allowedInns = new Set(userInnsRow.rows.map((r) => normalizeInn(r.inn)).filter(Boolean));
-        filterInns = requestedInn
-          ? (allowedInns.has(requestedInn) ? new Set([requestedInn]) : new Set<string>())
-          : allowedInns;
-      }
-      const finalInns = isService ? null : filterInns;
+      const scopeName = normalizeCompanyName(customerName);
       const data = cacheRow.rows[0].data as any[];
       const list = Array.isArray(data) ? data : [];
+      let legacyAllowedInns: Set<string> | null = null;
+      if (!isService && !requestedInn && !scopeName) {
+        const userInnsRow = await pool.query<{ inn: string }>(
+          "SELECT inn FROM account_companies WHERE login = $1",
+          [String(login).trim().toLowerCase()],
+        );
+        legacyAllowedInns = new Set(userInnsRow.rows.map((r) => normalizeInn(r.inn)).filter(Boolean));
+      }
       const filtered = list.filter((item) => {
-        if (finalInns !== null) {
+        if (!isService && (requestedInn || scopeName)) {
+          if (!orderMatchesCustomerScope(item, { inn: requestedInn || undefined, name: scopeName || undefined })) {
+            return false;
+          }
+        } else if (!isService && legacyAllowedInns && legacyAllowedInns.size > 0) {
           const itemInnVal = ordersItemInn(item);
-          if (!finalInns.has(itemInnVal)) return false;
+          if (!legacyAllowedInns.has(itemInnVal)) return false;
         }
         const d = orderDate(item);
         return !d || (d >= dateFrom && d <= dateTo);
       });
-      if ((isService || (finalInns && finalInns.size > 0)) && filtered.length > 0) {
+      if (filtered.length > 0) {
         return res.status(200).json(filtered);
       }
     }
@@ -361,6 +387,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           continue;
         }
         let list = extractItems(json);
+        const requestedInn = normalizeOrderInn(inn);
+        const scopeName = normalizeCompanyName(customerName);
+        if (!serviceMode && (requestedInn || scopeName)) {
+          list = list.filter((item) =>
+            orderMatchesCustomerScope(item, { inn: requestedInn || undefined, name: scopeName || undefined }),
+          );
+        }
         if (isRegisteredUser && registeredVerified) {
           list = await filterRegisteredOrdersList(
             getPool(),
@@ -371,6 +404,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             inn,
             serviceMode,
             list,
+            customerName,
           );
           list = await appendPendingOrdersForUser(
             getPool(),
@@ -381,9 +415,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             inn,
             serviceMode,
             list,
+            customerName,
           );
         }
-        if (Array.isArray(list)) {
+        if (Array.isArray(list) && list.length > 0) {
           return res.status(200).json(list);
         }
       } catch {
@@ -394,19 +429,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (lastError) {
       if (typeof lastError.payload === "string") return res.status(lastError.status).send(lastError.payload);
       return res.status(lastError.status).json(lastError.payload);
-    }
-    if (isRegisteredUser && registeredVerified) {
-      const merged = await appendPendingOrdersForUser(
-        getPool(),
-        registeredVerified,
-        login,
-        dateFrom,
-        dateTo,
-        inn,
-        serviceMode,
-        [],
-      );
-      return res.status(200).json(merged);
     }
     return res.status(200).json([]);
   } catch (e: any) {

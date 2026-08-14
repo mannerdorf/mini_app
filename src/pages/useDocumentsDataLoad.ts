@@ -8,6 +8,7 @@ type DocSectionKey = 'Счета' | 'ЭДО' | 'УПД' | 'Заявки' | 'От
 type Params = {
   auth: AuthData;
   activeInn: string;
+  activeCustomerName?: string;
   useServiceRequest: boolean;
   apiDateRange: { dateFrom: string; dateTo: string };
   perevozkiDateRange: { dateFrom: string; dateTo: string };
@@ -15,7 +16,7 @@ type Params = {
 };
 
 export function useDocumentsDataLoad(params: Params) {
-  const { auth, activeInn, useServiceRequest, apiDateRange, perevozkiDateRange, docSection } = params;
+  const { auth, activeInn, activeCustomerName, useServiceRequest, apiDateRange, perevozkiDateRange, docSection } = params;
   const loadInvoices = docSection === 'Счета' || docSection === 'ЭДО' || docSection === 'УПД';
   const loadActs = docSection === 'УПД';
   const loadOrders = docSection === 'Заявки';
@@ -60,6 +61,7 @@ export function useDocumentsDataLoad(params: Params) {
     dateFrom: apiDateRange.dateFrom,
     dateTo: apiDateRange.dateTo,
     activeInn: activeInn || undefined,
+    activeCustomerName: activeCustomerName || undefined,
     useServiceRequest,
     enabled: loadOrders,
   });

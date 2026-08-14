@@ -4,6 +4,11 @@ import type { FivepostRowRecord } from "./fivepost/importBatch.js";
 import { directionCityCodes } from "./haulzCalculator/clientMainlineTariff.js";
 import type { Direction } from "./haulzCalculator/types.js";
 import { HAULZ_WAREHOUSES } from "./haulzCalculator/warehouses.js";
+import {
+  normalizeCompanyName,
+  normalizeOrderInn,
+  orderMatchesCustomerScope,
+} from "./orderCustomerScope.js";
 import type { VerifiedRegisteredUser } from "./verifyRegisteredUser.js";
 
 const WAREHOUSE_BY_CODE = Object.fromEntries(
@@ -27,10 +32,7 @@ function normalizeLogin(value: unknown): string {
 }
 
 export function normalizePendingOrderInn(value: unknown): string {
-  const raw = String(value ?? "").trim();
-  if (!raw) return "";
-  const digits = raw.replace(/\D/g, "");
-  return digits || raw;
+  return normalizeOrderInn(value);
 }
 
 function tableRowByType(tableRows: unknown[], type: string): Record<string, unknown> | undefined {
@@ -282,6 +284,8 @@ export function pendingOrderToListItem(row: PendingOrderDbRow): Record<string, u
     ОтправительНаименование:
       partyDisplayName(fromParty, customer) || String(source?.customerName ?? "").trim(),
     ПолучательНаименование: partyDisplayName(toParty),
+    Статус: "Ожидает обработки",
+    State: "Ожидает обработки",
     Комментарий: "Ожидает обработки в 1С",
     _pendingOrder: true,
     _pendingOrderId: row.id,
@@ -385,6 +389,7 @@ export async function fetchPendingOrdersForList(
   dateFrom: string,
   dateTo: string,
   filterInns: Set<string> | null,
+  scopeName?: string,
 ): Promise<Record<string, unknown>[]> {
   const { rows } = await pool.query<PendingOrderDbRow>(
     `SELECT id, login, inn, punkt_otpravki, punkt_naznacheniya, nomer_zayavki, data_zabora, table_rows, created_at
@@ -396,12 +401,18 @@ export async function fetchPendingOrdersForList(
     [normalizeLogin(login), dateFrom, dateTo],
   );
 
+  const normalizedScopeName = normalizeCompanyName(scopeName);
   const filtered = rows
     .filter((row) => pendingOrderMatchesDateRange(row, dateFrom, dateTo))
     .filter((row) => {
-      if (filterInns === null) return true;
+      if (filterInns === null && !normalizedScopeName) return true;
+      const item = pendingOrderToListItem(row);
+      if (normalizedScopeName) {
+        const scopeInn = filterInns?.size === 1 ? [...filterInns][0] : undefined;
+        return orderMatchesCustomerScope(item, { inn: scopeInn, name: normalizedScopeName });
+      }
       const itemInn = normalizePendingOrderInn(row.inn);
-      return itemInn && filterInns.has(itemInn);
+      return itemInn && filterInns!.has(itemInn);
     });
 
   const items = filtered.map(pendingOrderToListItem);
@@ -418,13 +429,36 @@ export async function appendPendingOrdersForUser(
   inn: unknown,
   serviceMode: unknown,
   list: unknown[],
+  customerName?: unknown,
 ): Promise<unknown[]> {
   try {
+    if (serviceMode) return list;
     const filterInns = await resolvePendingInnFilter(pool, verified, login, inn, serviceMode);
-    if (filterInns && filterInns.size === 0) return list;
-    const pending = await fetchPendingOrdersForList(pool, login, dateFrom, dateTo, filterInns);
+    const scopeName = normalizeCompanyName(customerName);
+    if (filterInns && filterInns.size === 0 && !scopeName) return list;
+    const pending = await fetchPendingOrdersForList(
+      pool,
+      login,
+      dateFrom,
+      dateTo,
+      scopeName ? null : filterInns,
+      scopeName || undefined,
+    );
     return mergeOrdersWithPending(list, pending);
   } catch {
     return list;
   }
+}
+
+export async function deletePendingOrderForUser(
+  pool: Pool,
+  login: string,
+  pendingOrderId: number,
+): Promise<boolean> {
+  if (!Number.isFinite(pendingOrderId) || pendingOrderId < 1) return false;
+  const { rowCount } = await pool.query(
+    `DELETE FROM pending_order_requests WHERE id = $1 AND lower(trim(login)) = $2`,
+    [pendingOrderId, normalizeLogin(login)],
+  );
+  return (rowCount ?? 0) > 0;
 }

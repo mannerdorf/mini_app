@@ -90,6 +90,7 @@ export function useDocumentsPageState({
     const dataLoad = useDocumentsDataLoad({
         auth,
         activeInn: effectiveActiveInn,
+        activeCustomerName,
         useServiceRequest: serviceModeForCurrentDocSection,
         apiDateRange,
         perevozkiDateRange,
@@ -118,6 +119,10 @@ export function useDocumentsPageState({
         actsItems: dataLoad.actsItems,
         ordersItems: dataLoad.ordersItems,
         effectiveActiveInn,
+        activeCustomerName,
+        onOrdersMutate: () => {
+            void dataLoad.mutateOrders(undefined, { revalidate: true });
+        },
         effectiveServiceMode,
         effectiveSearchText,
         apiDateRange,
@@ -190,6 +195,7 @@ export function useDocumentsPageState({
         docsMotionEnabled,
         auth,
         effectiveActiveInn,
+        activeCustomerName,
         onNewOrder: () => setDocumentsOrderFormOpenPersist(true),
         onOpenClaimsCreate: () => catalogs.claimsCatalog.openClaimsCreateModal(),
         onOpenSverkiOrder: catalogs.sverkiCatalog.openSverkiOrderModal,

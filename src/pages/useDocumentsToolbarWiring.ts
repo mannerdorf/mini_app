@@ -28,6 +28,7 @@ type Params = {
   docsMotionEnabled: boolean;
   auth: AuthData;
   effectiveActiveInn?: string;
+  activeCustomerName?: string;
   onNewOrder: () => void;
   onOpenClaimsCreate: () => void;
   onOpenSverkiOrder: () => void;
@@ -53,6 +54,7 @@ export function useDocumentsToolbarWiring({
   docsMotionEnabled,
   auth,
   effectiveActiveInn,
+  activeCustomerName,
   onNewOrder,
   onOpenClaimsCreate,
   onOpenSverkiOrder,
@@ -227,6 +229,7 @@ export function useDocumentsToolbarWiring({
     docsMotionEnabled,
     auth,
     effectiveActiveInn,
+    activeCustomerName,
     onNewOrder,
     onOpenClaimsCreate,
     onOpenSverkiOrder,

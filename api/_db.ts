@@ -51,7 +51,7 @@ export function getPool() {
     globalThis.__haulz_pg_pool = new Pool({
       connectionString,
       ssl,
-      max: 5,
+      max: Number(process.env.PG_POOL_MAX || 12),
     });
   }
 

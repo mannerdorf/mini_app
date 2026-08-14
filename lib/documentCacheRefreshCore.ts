@@ -4,11 +4,18 @@ import {
   buildCargoSendingAssignments,
   buildSendingsMetrics,
   extractArrayFromAnyPayload,
+  getSendingCargoNumbers,
   upsertCargoSendingAssignments,
   upsertSendingsMetrics,
 } from "./sendingsMetrics.js";
 import { dispatchWebPushCargoEvents } from "../api/_lib/webpushEventDispatch.js";
-import { ensureNormalizedCacheTables, syncNormalizedWindow } from "./documentCacheNormalized.js";
+import {
+  ensureNormalizedCacheTables,
+  isNormalizedCacheReady,
+  readNormalizedByDocNumbers,
+  syncNormalizedWindow,
+  type NormalizedDocumentKind,
+} from "./documentCacheNormalized.js";
 
 export const CACHE_RECENT_DAYS = 30;
 export const CACHE_DEEP_DAYS = 90;
@@ -214,13 +221,26 @@ export async function refreshDatedKindForWindow(
   const { url, table, jsonKeys } = kindEndpoint(kind, dateFrom, dateTo);
   const json = await fetchServiceJson(login, password, url);
   const chunkRows = extractKnownArray(json, ...jsonKeys);
-  const currentRows = await readCacheRow(pool, table);
-  const mergedRows = mergeChunkIntoCache(kind, currentRows, chunkRows, dateFrom, dateTo);
-  await updateCacheRow(pool, table, mergedRows);
-  try {
-    await syncNormalizedWindow(pool, kind, chunkRows, dateFrom, dateTo);
-  } catch {
-    // normalized sync не блокирует refresh blob
+
+  const normalizedKind = kind as NormalizedDocumentKind;
+  const skipBlobRefresh =
+    kind !== "orders" &&
+    (process.env.CACHE_REFRESH_SKIP_BLOB === "1" || (await isNormalizedCacheReady(pool, normalizedKind)));
+
+  let cacheCount: number;
+  if (skipBlobRefresh) {
+    await syncNormalizedWindow(pool, normalizedKind, chunkRows, dateFrom, dateTo);
+    cacheCount = chunkRows.length;
+  } else {
+    const currentRows = await readCacheRow(pool, table);
+    const mergedRows = mergeChunkIntoCache(kind, currentRows, chunkRows, dateFrom, dateTo);
+    await updateCacheRow(pool, table, mergedRows);
+    cacheCount = mergedRows.length;
+    try {
+      await syncNormalizedWindow(pool, normalizedKind, chunkRows, dateFrom, dateTo);
+    } catch {
+      // normalized sync не блокирует refresh blob
+    }
   }
 
   let detail: string | undefined;
@@ -234,14 +254,28 @@ export async function refreshDatedKindForWindow(
     detail = `webpush changed=${dispatchResult.changed}, delivered=${dispatchResult.delivered}, failed=${dispatchResult.failed}, deduped=${dispatchResult.deduped}`;
   }
   if (kind === "sendings") {
-    const perevozkiRows = await readCacheRow(pool, "cache_perevozki");
+    let perevozkiRows: unknown[];
+    if (await isNormalizedCacheReady(pool, "perevozki")) {
+      const cargoNumbers = new Set<string>();
+      for (const row of chunkRows) {
+        for (const number of getSendingCargoNumbers(row as any)) {
+          cargoNumbers.add(number);
+        }
+      }
+      perevozkiRows =
+        cargoNumbers.size > 0
+          ? await readNormalizedByDocNumbers(pool, "perevozki", [...cargoNumbers])
+          : [];
+    } else {
+      perevozkiRows = await readCacheRow(pool, "cache_perevozki");
+    }
     const metricsRows = buildSendingsMetrics(chunkRows as any[], perevozkiRows as any[]);
     const metrics = await upsertSendingsMetrics(pool, metricsRows);
     const assignments = await upsertCargoSendingAssignments(pool, buildCargoSendingAssignments(chunkRows as any[]));
     detail = `metrics=${metrics.updated}, assignments=${assignments.updated}`;
   }
 
-  return { kind, mode, dateFrom, dateTo, chunkCountRows: chunkRows.length, cacheCount: mergedRows.length, detail };
+  return { kind, mode, dateFrom, dateTo, chunkCountRows: chunkRows.length, cacheCount, detail };
 }
 
 export async function ensureDocumentCacheTables(pool: Pool): Promise<void> {

@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { lookupCustomerInnByName } from "../lib/resolveCustomerInn.js";
+import { normalizeOrderInn } from "../lib/orderCustomerScope.js";
 import {
   assertHaulzSummarySandboxAccess,
   loadHaulzSummaryDirectories,
@@ -81,7 +83,16 @@ export default async function handler(
           [loginLower]
         );
         for (const r of rows) {
-          all.push({ login: loginLower, inn: r.inn, name: r.name });
+          let inn = normalizeOrderInn(r.inn);
+          let name = String(r.name ?? "").trim();
+          if (!inn && name) {
+            const resolved = await lookupCustomerInnByName(pool, loginLower, name);
+            if (resolved?.inn) {
+              inn = normalizeOrderInn(resolved.inn);
+              name = resolved.name || name;
+            }
+          }
+          all.push({ login: loginLower, inn, name: name || inn });
         }
       }
     }

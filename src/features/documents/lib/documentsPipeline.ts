@@ -12,6 +12,7 @@ import {
 } from "../../../lib/edoStatus";
 import type { StatusFilter } from "../../../types";
 import { parseSendingMetricNumber } from "../sendings/sendingsMetrics";
+import { orderMatchesCustomerScope } from "./orderCustomerScope";
 import {
   matchesRouteFilterSet,
   matchesTypeFilterSet,
@@ -664,6 +665,7 @@ export function buildFilteredActs(params: FilterActsParams) {
 type FilterOrdersParams = {
   items: any[];
   activeInn?: string;
+  activeCustomerName?: string;
   useServiceRequest: boolean;
   customerFilter: string;
   typeFilterSet: Set<TypeFilterKey>;
@@ -679,6 +681,7 @@ export function buildFilteredOrders(params: FilterOrdersParams) {
   const {
     items,
     activeInn,
+    activeCustomerName,
     useServiceRequest,
     customerFilter,
     typeFilterSet,
@@ -691,15 +694,14 @@ export function buildFilteredOrders(params: FilterOrdersParams) {
   } = params;
 
   let res = [...items];
-  const normalizedActiveInn = normalizeInn(activeInn);
-  if (!useServiceRequest && normalizedActiveInn) {
-    res = res.filter((i) => {
-      const customerInn = normalizeInn(i?.ЗаказчикИНН ?? i?.CustomerINN ?? i?.CustomerInn ?? i?.customerInn ?? i?.INNCustomer ?? i?.InnCustomer);
-      const receiverInn = normalizeInn(i?.ПолучательИНН ?? i?.ReceiverINN ?? i?.ReceiverInn ?? i?.INNReceiver ?? i?.InnReceiver);
-      const senderInn = normalizeInn(i?.ОтправительИНН ?? i?.SenderINN ?? i?.SenderInn ?? i?.INNSender ?? i?.InnSender);
-      const fallbackInn = getItemInn(i);
-      return [customerInn, receiverInn, senderInn, fallbackInn].some((inn) => inn === normalizedActiveInn);
-    });
+  if (!useServiceRequest) {
+    const scopeInn = normalizeInn(activeInn);
+    const scopeName = stripOoo(activeCustomerName ?? "");
+    if (scopeInn || scopeName) {
+      res = res.filter((i) =>
+        orderMatchesCustomerScope(i, { inn: scopeInn || undefined, name: scopeName || undefined }),
+      );
+    }
   }
   if (customerFilter) {
     res = res.filter((i) => ((i.Customer ?? i.customer ?? i.ЗаказчикНаименование ?? i.Заказчик ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? "").trim()) === customerFilter);

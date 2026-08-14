@@ -316,10 +316,13 @@ type InvoicesParams = {
     activeInn?: string;
     useServiceRequest?: boolean;
     enabled?: boolean;
+    /** edo — облегчённый ответ без строк List; debt — только неоплаченные. */
+    monitor?: "edo" | "debt";
+    unpaidOnly?: boolean;
 };
 
 async function fetcherInvoices(params: InvoicesParams): Promise<unknown[]> {
-    const { auth, dateFrom, dateTo, activeInn, useServiceRequest } = params;
+    const { auth, dateFrom, dateTo, activeInn, useServiceRequest, monitor, unpaidOnly } = params;
     if (!auth?.login || !auth?.password) return [];
     const data = await apiFetchJson<{ items?: unknown[]; Invoices?: unknown[]; invoices?: unknown[] } | unknown[]>(PROXY_API_INVOICES_URL, {
         method: "POST",
@@ -331,6 +334,8 @@ async function fetcherInvoices(params: InvoicesParams): Promise<unknown[]> {
             dateTo,
             inn: activeInn || undefined,
             serviceMode: useServiceRequest,
+            ...(monitor ? { monitor } : {}),
+            ...(unpaidOnly ? { unpaidOnly: true } : {}),
             ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
         }),
     });
@@ -339,9 +344,9 @@ async function fetcherInvoices(params: InvoicesParams): Promise<unknown[]> {
 }
 
 export function useInvoices(params: InvoicesParams) {
-    const { auth, dateFrom, dateTo, activeInn, useServiceRequest, enabled = true } = params;
+    const { auth, dateFrom, dateTo, activeInn, useServiceRequest, monitor, unpaidOnly, enabled = true } = params;
     const key = enabled && auth?.login && auth?.password
-        ? ["invoices", auth.login, dateFrom, dateTo, activeInn ?? "", !!useServiceRequest]
+        ? ["invoices", auth.login, dateFrom, dateTo, activeInn ?? "", !!useServiceRequest, monitor ?? "", !!unpaidOnly]
         : null;
     const { data, error, isLoading, mutate } = useSWR<unknown[]>(
         key,
@@ -361,13 +366,14 @@ type OrdersParams = {
     dateFrom: string;
     dateTo: string;
     activeInn?: string;
+    activeCustomerName?: string;
     useServiceRequest?: boolean;
     mode?: "Customer" | "Sender" | "Receiver";
     enabled?: boolean;
 };
 
 async function fetcherOrders(params: OrdersParams): Promise<unknown[]> {
-    const { auth, dateFrom, dateTo, activeInn, useServiceRequest, mode } = params;
+    const { auth, dateFrom, dateTo, activeInn, activeCustomerName, useServiceRequest, mode } = params;
     if (!auth?.login || !auth?.password) return [];
     const data = await apiFetchJson<{ items?: unknown[] } | unknown[]>(PROXY_API_ORDERS_URL, {
         method: "POST",
@@ -378,6 +384,7 @@ async function fetcherOrders(params: OrdersParams): Promise<unknown[]> {
             dateFrom,
             dateTo,
             inn: activeInn || undefined,
+            customerName: activeCustomerName || undefined,
             mode: mode || undefined,
             serviceMode: useServiceRequest,
             ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
@@ -388,9 +395,9 @@ async function fetcherOrders(params: OrdersParams): Promise<unknown[]> {
 }
 
 export function useOrders(params: OrdersParams) {
-    const { auth, dateFrom, dateTo, activeInn, useServiceRequest, mode, enabled = true } = params;
+    const { auth, dateFrom, dateTo, activeInn, activeCustomerName, useServiceRequest, mode, enabled = true } = params;
     const key = enabled && auth?.login && auth?.password
-        ? ["orders", auth.login, dateFrom, dateTo, activeInn ?? "", !!useServiceRequest, mode ?? ""]
+        ? ["orders", auth.login, dateFrom, dateTo, activeInn ?? "", activeCustomerName ?? "", !!useServiceRequest, mode ?? ""]
         : null;
     const { data, error, isLoading, mutate } = useSWR<unknown[]>(
         key,

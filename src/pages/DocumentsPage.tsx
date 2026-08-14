@@ -182,7 +182,7 @@ export function DocumentsPage(props: DocumentsPageProps) {
             )}
             {page.docSection === 'Заявки' && (
                 <>
-                    {page.documentsOrderFormOpen && page.effectiveActiveInn ? (
+                    {page.documentsOrderFormOpen && (page.effectiveActiveInn || page.activeCustomerName) ? (
                         <DocumentsOrderForm
                             auth={page.auth}
                             activeInn={page.effectiveActiveInn}
@@ -212,6 +212,9 @@ export function DocumentsPage(props: DocumentsPageProps) {
                             expandedOrderRow={page.ordersCatalog.expandedOrderRow}
                             setExpandedOrderRow={page.ordersCatalog.setExpandedOrderRow}
                             onOpenCargo={page.onOpenCargo}
+                            onDeletePendingOrder={page.ordersCatalog.handleDeletePendingOrder}
+                            deletingPendingOrderId={page.ordersCatalog.deletingPendingOrderId}
+                            deleteOrderError={page.ordersCatalog.deleteOrderError}
                         />
                     )}
                 </>
