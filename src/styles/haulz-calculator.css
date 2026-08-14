@@ -2717,14 +2717,16 @@ body.haulz-calc-map-screen-open {
 
 .haulz-calc-manager-journal__table-wrap {
   min-width: 0;
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
 }
 
 .haulz-calc-manager-journal__table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 .haulz-calc-manager-journal__table thead th {
@@ -2762,43 +2764,46 @@ body.haulz-calc-map-screen-open {
   vertical-align: top;
 }
 
-.haulz-calc-manager-journal__col-date {
-  width: 8%;
+.haulz-calc-manager-journal__col-date,
+.haulz-calc-manager-journal__cell-date {
+  width: 1%;
+  min-width: 8.5rem;
+  white-space: nowrap;
 }
 
-.haulz-calc-manager-journal__col-number {
-  width: 11%;
+.haulz-calc-manager-journal__col-number,
+.haulz-calc-manager-journal__cell-number {
+  width: 1%;
+  min-width: 6.75rem;
+  white-space: nowrap;
 }
 
 .haulz-calc-manager-journal__col-party {
-  width: 13%;
+  min-width: 0;
 }
 
 .haulz-calc-manager-journal__col-route {
-  width: 9%;
+  width: 1%;
+  white-space: nowrap;
 }
 
 .haulz-calc-manager-journal__col-status {
-  width: 12%;
+  min-width: 9.5rem;
 }
 
-.haulz-calc-manager-journal__col-sum {
-  width: 9%;
+.haulz-calc-manager-journal__col-sum,
+.haulz-calc-manager-journal__cell-sum {
+  width: 1%;
+  white-space: nowrap;
   text-align: right;
 }
 
-.haulz-calc-manager-journal__col-actions {
-  width: 5%;
+.haulz-calc-manager-journal__col-actions,
+.haulz-calc-manager-journal__cell-actions {
+  width: 1%;
+  min-width: 4.5rem;
   text-align: center;
-}
-
-.haulz-calc-manager-journal__cell-date {
   white-space: nowrap;
-}
-
-.haulz-calc-manager-journal__cell-number {
-  white-space: nowrap;
-  word-break: break-all;
 }
 
 .haulz-calc-manager-journal__cell-party {
@@ -2821,33 +2826,9 @@ body.haulz-calc-map-screen-open {
   white-space: nowrap;
 }
 
-.haulz-calc-manager-journal__cell-sum {
-  text-align: right;
-  white-space: nowrap;
-}
-
-.haulz-calc-manager-journal__cell-actions {
-  text-align: center;
-  white-space: nowrap;
-}
-
 @media (max-width: 768px) {
   .haulz-calc-manager-journal {
     padding: 0.85rem 0.75rem 1rem;
-  }
-
-  .haulz-calc-manager-journal__table {
-    table-layout: auto;
-  }
-
-  .haulz-calc-manager-journal__col-date,
-  .haulz-calc-manager-journal__col-number,
-  .haulz-calc-manager-journal__col-party,
-  .haulz-calc-manager-journal__col-route,
-  .haulz-calc-manager-journal__col-status,
-  .haulz-calc-manager-journal__col-sum,
-  .haulz-calc-manager-journal__col-actions {
-    width: auto;
   }
 }
 
