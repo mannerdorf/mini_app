@@ -2646,16 +2646,16 @@ body.haulz-calc-map-screen-open {
   margin-right: 0;
 }
 
-/* «Ваш расчёт» не выше 1 см от app-header и ниже липких фильтров «Документы» */
+/* «Ваш расчёт»: top синхронизируется с карточкой «Маршрут» (JS), fallback — 1 см от app-header */
 .documents-page:has(.documents-order-form) {
-  --haulz-docs-summary-min-top: calc(64px + 11.5rem + 1cm);
+  --haulz-docs-summary-sync-top: calc(var(--haulz-summary-header-offset) + 1cm);
 }
 
 @media (min-width: 769px) {
   .documents-order-form.haulz-calc-page--cdek {
     --haulz-summary-fixed-top: max(
       calc(var(--haulz-summary-header-offset) + 1cm),
-      var(--haulz-docs-summary-min-top),
+      var(--haulz-docs-summary-sync-top),
       env(safe-area-inset-top, 0px)
     );
   }

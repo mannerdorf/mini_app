@@ -31,6 +31,7 @@ import {
 } from "./DocumentsOrderCargoSection";
 import { DocumentsOrderQuoteSummary } from "./DocumentsOrderQuoteSummary";
 import { DocumentsOrderSuccessModal } from "./DocumentsOrderSuccessModal";
+import { useDocumentsOrderSummaryTopSync } from "./useDocumentsOrderSummaryTopSync";
 import { filterDocumentsOrderPvzByCity, inferPvzCityCode } from "./documentsOrderPvzFilter";
 import { isFivepostCustomer } from "../../../../lib/fivepost/customerAccess";
 import "../../../styles/haulz-calculator.css";
@@ -180,6 +181,10 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     d.setDate(d.getDate() + 1);
     return d.toISOString().slice(0, 10);
   });
+
+  const formRef = useRef<HTMLDivElement>(null);
+  const routeRef = useRef<HTMLDivElement>(null);
+  useDocumentsOrderSummaryTopSync(formRef, routeRef);
 
   const fromAddr = fromState.addr;
   const toAddr = toState.addr;
@@ -420,7 +425,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
         : "Заполните параметры груза — расчёт обновится автоматически";
 
   return (
-    <div className="haulz-calc-page--cdek documents-order-form">
+    <div ref={formRef} className="haulz-calc-page--cdek documents-order-form">
       <div className="haulz-calc-shell-bg">
         <header className="haulz-calc-header">
           <button type="button" className="haulz-calc-header__back" onClick={onBack} aria-label="Назад к заявкам">
@@ -431,7 +436,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
 
         <div className="haulz-calc-grid">
         <div className="haulz-calc-main">
-          <div className="haulz-calc-card documents-order-direction">
+          <div ref={routeRef} className="haulz-calc-card documents-order-direction">
             <h2 className="haulz-calc-card__title">Маршрут</h2>
             <div className="haulz-calc-segment" role="tablist" aria-label="Маршрут перевозки">
               <button
