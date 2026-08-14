@@ -67,6 +67,15 @@ function authHeaders(auth: AuthData): Record<string, string> {
 
 function parseError(res: Response, data: unknown): string {
   if (typeof (data as { error?: string })?.error === "string") return (data as { error: string }).error;
+  if (res.status === 502) {
+    return "HTTP 502: сервис подсказок временно недоступен";
+  }
+  if (res.status === 503) {
+    return "HTTP 503: сервис временно недоступен";
+  }
+  if (res.status === 504) {
+    return "HTTP 504: сервер долго не отвечает";
+  }
   return `HTTP ${res.status}`;
 }
 

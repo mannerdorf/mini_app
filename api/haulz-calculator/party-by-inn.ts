@@ -6,7 +6,17 @@ import { resolveHaulzCalculatorAccess } from "../_haulzCalculator.js";
 import { pickHaulzCredentials } from "../_haulzReturns.js";
 import { getClientIp, isRateLimited, HAULZ_CALC_SUGGEST_LIMIT } from "../../lib/rateLimit.js";
 import { findPartyByInn, isValidInn, normalizeInn } from "../../lib/dadata/findPartyByInn.js";
-import { lookupPartnerDirectoryByInn } from "../../lib/haulzCalculator/partnerDirectory.js";
+import {
+  lookupPartnerDirectoryByInn,
+  type HaulzPartnerDirectoryInfo,
+} from "../../lib/haulzCalculator/partnerDirectory.js";
+
+const DEFAULT_PARTNER_DIRECTORY: HaulzPartnerDirectoryInfo = {
+  kind: "new_partner",
+  label: "Новый партнёр, необходимо заключить договор",
+  inCustomerDirectory: false,
+  hasEdo: false,
+};
 
 function readInn(req: VercelRequest): string {
   let body: Record<string, unknown> = {};
@@ -36,15 +46,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
-  const access = await resolveHaulzCalculatorAccess(req, req.body);
-  if (!access) {
-    const creds = pickHaulzCredentials(req, req.body);
-    if (!creds.login || !creds.password) {
-      return res.status(401).json({ error: "Нет доступа: укажите login и password", request_id: ctx.requestId });
-    }
-    return res.status(401).json({ error: "Нет доступа", request_id: ctx.requestId });
-  }
-
   const inn = readInn(req);
   if (!inn) {
     return res.status(400).json({ error: "Укажите ИНН", request_id: ctx.requestId });
@@ -57,13 +58,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const pool = getPool();
-    const partnerDirectory = await lookupPartnerDirectoryByInn(pool, inn);
+    let access: Awaited<ReturnType<typeof resolveHaulzCalculatorAccess>>;
+    try {
+      access = await resolveHaulzCalculatorAccess(req, req.body);
+    } catch (e) {
+      logError(ctx, "haulz_calculator_party_by_inn_auth_failed", e);
+      return res.status(503).json({
+        error: "Сервис временно недоступен. Попробуйте позже.",
+        request_id: ctx.requestId,
+      });
+    }
+    if (!access) {
+      const creds = pickHaulzCredentials(req, req.body);
+      if (!creds.login || !creds.password) {
+        return res.status(401).json({ error: "Нет доступа: укажите login и password", request_id: ctx.requestId });
+      }
+      return res.status(401).json({ error: "Нет доступа", request_id: ctx.requestId });
+    }
+
+    let partnerDirectory = DEFAULT_PARTNER_DIRECTORY;
+    try {
+      const pool = getPool();
+      partnerDirectory = await lookupPartnerDirectoryByInn(pool, inn);
+    } catch (e) {
+      logError(ctx, "haulz_calculator_partner_dir_failed", e);
+    }
 
     let party: Awaited<ReturnType<typeof findPartyByInn>> = null;
     try {
       party = await findPartyByInn(inn);
-    } catch {
+    } catch (e) {
+      logError(ctx, "haulz_calculator_dadata_failed", e);
       party = null;
     }
 
@@ -87,8 +112,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ party, partnerDirectory, request_id: ctx.requestId });
   } catch (e) {
     logError(ctx, "haulz_calculator_party_by_inn_failed", e);
-    const msg = (e as Error)?.message || "Ошибка запроса к DaData";
-    const hint = msg.includes("DADATA_API_KEY") ? " Задайте DADATA_API_KEY на Vercel." : "";
+    const msg = (e as Error)?.message || "Ошибка поиска организации";
+    const hint = msg.includes("DADATA_API_KEY") ? " Задайте DADATA_API_KEY на сервере API." : "";
     return res.status(500).json({ error: msg + hint, request_id: ctx.requestId });
   }
 }

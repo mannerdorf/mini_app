@@ -2,14 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { AuthData } from "../../types";
 import { fetchHaulzPartyByInn } from "../../api/client/haulzCalculator";
-
-function formatHaulzCalcFetchError(e: unknown, fallback: string): string {
-  const msg = (e as Error)?.message || "";
-  if (/failed to fetch/i.test(msg)) {
-    return "Не удалось связаться с сервером. Обновите страницу или попробуйте позже.";
-  }
-  return msg || fallback;
-}
+import { formatHaulzCalcFetchError } from "../../lib/haulzCalcFetchError";
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);

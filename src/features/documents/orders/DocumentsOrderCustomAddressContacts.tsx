@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import type { AuthData } from "../../../types";
 import { fetchHaulzPartyByInn } from "../../../api/client/haulzCalculator";
 import { formatPhoneMask } from "../../../lib/formatPhoneMask";
+import { formatHaulzCalcFetchError } from "../../../lib/haulzCalcFetchError";
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -75,7 +76,7 @@ export function DocumentsOrderCustomAddressContacts({
       .catch((e) => {
         if (!cancelled) {
           lastFetchedInnRef.current = "";
-          setInnError((e as Error)?.message || "Не удалось найти организацию");
+          setInnError(formatHaulzCalcFetchError(e, "Не удалось найти организацию"));
         }
       })
       .finally(() => {

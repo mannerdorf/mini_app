@@ -14,14 +14,7 @@ import {
 import { HaulzCalcMapPicker } from "./HaulzCalcMapPicker";
 import { HaulzCalcRingDistanceHint } from "./HaulzCalcRingDistanceHint";
 import { formatPhoneMask } from "../../lib/formatPhoneMask";
-
-function formatHaulzCalcFetchError(e: unknown, fallback: string): string {
-  const msg = (e as Error)?.message || "";
-  if (/failed to fetch/i.test(msg)) {
-    return "Не удалось связаться с сервером. Обновите страницу или попробуйте позже.";
-  }
-  return msg || fallback;
-}
+import { formatHaulzCalcFetchError } from "../../lib/haulzCalcFetchError";
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
