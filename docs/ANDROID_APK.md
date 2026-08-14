@@ -1,7 +1,8 @@
 # Сборка подписанного Android APK (Capacitor)
 
 Приложение: **HAULZ Mini App** (`ru.haulz.miniapp`).  
-API в нативной сборке: **`https://api.haulz.space`** (задаётся при `npm run build:android`).
+API в нативной сборке: **`https://haulz.space`** (same-origin `/api/*` через nginx → VPS).  
+Не используйте `https://api.haulz.space` в APK, пока на поддомене нет валидного SSL — Android блокирует login.
 
 ## Требования
 
@@ -63,7 +64,7 @@ npm run android:release
 Скрипт:
 
 1. при первом запуске создаёт `android/haulz-release.jks` и `android/keystore.properties` (локально, в git не попадают);
-2. собирает web с `VITE_API_ORIGIN=https://api.haulz.space`;
+2. собирает web с `VITE_API_ORIGIN=https://haulz.space`;
 3. выполняет `cap sync android`;
 4. собирает **`assembleRelease`**.
 
