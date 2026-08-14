@@ -80,7 +80,7 @@ export function AdminUsersCustomerGroupsView(props: Props) {
     <AdminUserPermissionsEditorPanel
       user={selectedUser}
       isSuperAdmin={isSuperAdmin}
-      permissionPresets={permissionPresets}
+      permissionPresets={permissionPresets ?? []}
       customerDirectoryMap={customerDirectoryMap}
       editor={editor}
     />
@@ -139,7 +139,7 @@ export function AdminUsersCustomerGroupsView(props: Props) {
       <AdminUsersBulkPermissionsPanel
         selectedUserIds={selectedUserIds}
         isSuperAdmin={isSuperAdmin}
-        permissionPresets={permissionPresets}
+        permissionPresets={permissionPresets ?? []}
         bulkPermissions={bulkPermissions}
         setBulkPermissions={setBulkPermissions}
         bulkFinancial={bulkFinancial}

@@ -55,6 +55,7 @@ export function AdminUsersBulkPermissionsPanel({
   handleBulkDeactivate,
   clearSelection,
 }: AdminUsersBulkPermissionsPanelProps) {
+  const presets = permissionPresets ?? [];
   if (selectedUserIds.length === 0) return null;
   return (
                 <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)", marginBottom: "var(--element-gap, 1rem)" }}>
@@ -68,7 +69,7 @@ export function AdminUsersBulkPermissionsPanel({
                       onChange={(e) => {
                         const id = e.target.value;
                         setBulkSelectedPresetId(id);
-                        const preset = permissionPresets.find((p) => p.id === id);
+                        const preset = presets.find((p) => p.id === id);
                         if (preset) {
                           setBulkPermissions(applyPresetPermissionsWithSendingsGate(preset.permissions, isSuperAdmin, false));
                           setBulkFinancial(preset.financial);
@@ -77,7 +78,7 @@ export function AdminUsersBulkPermissionsPanel({
                       }}
                     >
                       <option value="">—</option>
-                      {permissionPresets.map((p) => (
+                      {presets.map((p) => (
                         <option key={p.id} value={p.id}>{p.label}</option>
                       ))}
                     </select>

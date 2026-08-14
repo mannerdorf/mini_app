@@ -57,7 +57,7 @@ export function AdminUsersLoginListView(props: AdminUsersListSharedProps) {
     <AdminUserPermissionsEditorPanel
       user={selectedUser}
       isSuperAdmin={isSuperAdmin}
-      permissionPresets={permissionPresets}
+      permissionPresets={permissionPresets ?? []}
       customerDirectoryMap={customerDirectoryMap}
       editor={editor}
     />
@@ -116,7 +116,7 @@ export function AdminUsersLoginListView(props: AdminUsersListSharedProps) {
       <AdminUsersBulkPermissionsPanel
         selectedUserIds={selectedUserIds}
         isSuperAdmin={isSuperAdmin}
-        permissionPresets={permissionPresets}
+        permissionPresets={permissionPresets ?? []}
         bulkPermissions={bulkPermissions}
         setBulkPermissions={setBulkPermissions}
         bulkFinancial={bulkFinancial}
