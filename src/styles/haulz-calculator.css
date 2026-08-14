@@ -2933,7 +2933,11 @@ body.haulz-calc-map-screen-open {
   .haulz-calc-summary-layout-sync .haulz-calc-summary-wrap {
     position: fixed;
     top: var(--haulz-summary-fixed-top);
-    bottom: var(--haulz-summary-fixed-bottom);
+    bottom: auto;
+    max-height: var(
+      --haulz-docs-summary-sync-max-height,
+      calc(100dvh - var(--haulz-summary-fixed-top) - var(--haulz-summary-fixed-bottom))
+    );
     left: var(
       --haulz-docs-summary-sync-left,
       max(

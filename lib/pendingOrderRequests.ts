@@ -268,10 +268,14 @@ export function pendingOrderToListItem(row: PendingOrderDbRow): Record<string, u
   const pickupDate = dateOnly(row.data_zabora);
   const route = resolvePendingRouteFields(tableRows, row.punkt_otpravki, row.punkt_naznacheniya);
 
+  const customerRequestNumber = String(source?.customerRequestNumber ?? "").trim();
+
   return {
     Дата: createdDate,
     DateZayavki: createdDate,
     НомерЗаявки: row.nomer_zayavki,
+    НомерЗаявкиКлиента: customerRequestNumber,
+    ClientRequestNumber: customerRequestNumber,
     ДатаЗабораПлан: pickupDate,
     PickupDatePlan: pickupDate,
     ПунктОтправки: row.punkt_otpravki,

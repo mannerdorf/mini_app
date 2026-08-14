@@ -108,9 +108,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const nomerZayavki =
-    String(body.nomerZayavki ?? body.nomer_zayavki ?? "").trim() ||
-    `HAULZ-DOC-${Date.now()}`;
+  const nomerZayavkiKlienta = String(
+    body.nomerZayavkiKlienta ??
+      body.nomer_zayavki_klienta ??
+      body.clientRequestNumber ??
+      body.client_request_number ??
+      "",
+  ).trim();
+
+  const nomerZayavki = `HAULZ-DOC-${Date.now()}`;
 
   const fromPvzRef = String(body.fromPvzRef ?? body.from_pvz_ref ?? "").trim() || undefined;
   const toPvzRef = String(body.toPvzRef ?? body.to_pvz_ref ?? "").trim() || undefined;
@@ -151,6 +157,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         login: access.login,
         customerInn: access.customerInn,
         customerName: access.customerName,
+        customerRequestNumber: nomerZayavkiKlienta || undefined,
       },
       {
         type: "pvz",
@@ -265,6 +272,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         Заявка из личного кабинета · раздел «Документы → Заявки»<br/>
         Заказчик: ${access.customerName || "—"} · ИНН ${access.customerInn}<br/>
         Номер заявки: ${nomerZayavki} · Логин: ${access.login}
+        ${nomerZayavkiKlienta ? `<br/>Номер заявки заказчика: ${nomerZayavkiKlienta}` : ""}
       </div>`;
     html = docsBanner + html;
 

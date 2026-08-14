@@ -374,7 +374,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
         toPvzRef: toEndpoint.pvzRef,
         fromAddressType: fromEndpoint.addressType,
         toAddressType: toEndpoint.addressType,
-        nomerZayavki: nomerZayavki.trim() || undefined,
+        nomerZayavkiKlienta: nomerZayavki.trim() || undefined,
         dataZabora,
         tableRows: cargo.tableRows,
         fivepostBatchId: fivepostCustomer && cargo.fivepostBatchId ? cargo.fivepostBatchId : undefined,

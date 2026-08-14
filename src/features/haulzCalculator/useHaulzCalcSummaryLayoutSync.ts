@@ -13,6 +13,17 @@ function measureCssLength(value: string, context?: HTMLElement): number {
   return px || 16;
 }
 
+function measureCssHeight(value: string, context?: HTMLElement): number {
+  if (typeof document === "undefined") return 72;
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:absolute;visibility:hidden;width:0;overflow:hidden;";
+  probe.style.height = value;
+  (context ?? document.body).appendChild(probe);
+  const px = probe.getBoundingClientRect().height;
+  probe.remove();
+  return px || 72;
+}
+
 function measureCmPx(cm: number): number {
   return measureCssLength(`${cm}cm`);
 }
@@ -20,6 +31,13 @@ function measureCmPx(cm: number): number {
 function readSummaryGapPx(root: HTMLElement): number {
   const raw = getComputedStyle(root).getPropertyValue("--haulz-docs-summary-gap").trim() || "1rem";
   return measureCssLength(raw, root);
+}
+
+function readBottomClearancePx(root: HTMLElement): number {
+  const raw =
+    getComputedStyle(root).getPropertyValue("--haulz-summary-fixed-bottom").trim() ||
+    "calc(72px + env(safe-area-inset-bottom, 0px))";
+  return measureCssHeight(raw, root);
 }
 
 /** Синхронизирует fixed «Ваш расчёт» с первой карточкой формы (top) и колонкой формы (left + gap). */
@@ -40,6 +58,7 @@ export function useHaulzCalcSummaryLayoutSync(
     const clear = () => {
       root.style.removeProperty("--haulz-docs-summary-sync-top");
       root.style.removeProperty("--haulz-docs-summary-sync-left");
+      root.style.removeProperty("--haulz-docs-summary-sync-max-height");
     };
 
     const update = () => {
@@ -59,6 +78,13 @@ export function useHaulzCalcSummaryLayoutSync(
 
       const left = main.getBoundingClientRect().right + summaryGapPx;
       root.style.setProperty("--haulz-docs-summary-sync-left", `${Math.round(left)}px`);
+
+      const bottomClearance = readBottomClearancePx(root);
+      const viewportMaxBottom = window.innerHeight - bottomClearance;
+      const mainBottom = main.getBoundingClientRect().bottom;
+      const cappedBottom = Math.min(mainBottom, viewportMaxBottom);
+      const maxHeight = Math.max(160, Math.round(cappedBottom - top));
+      root.style.setProperty("--haulz-docs-summary-sync-max-height", `${maxHeight}px`);
     };
 
     update();

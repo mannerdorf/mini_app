@@ -149,7 +149,7 @@ export type DocumentsOrderSubmitPayload = DocumentsOrderQuotePayload & {
   toPvzRef?: string;
   fromAddressType?: "pvz" | "custom" | "warehouse";
   toAddressType?: "pvz" | "custom" | "warehouse";
-  nomerZayavki?: string;
+  nomerZayavkiKlienta?: string;
   dataZabora: string;
   tableRows?: TableRow[];
   fivepostBatchId?: number | null;
