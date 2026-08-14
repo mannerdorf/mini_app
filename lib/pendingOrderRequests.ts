@@ -1,4 +1,4 @@
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { cityToCode } from "./cityToCode.js";
 import type { FivepostRowRecord } from "./fivepost/importBatch.js";
 import { directionCityCodes } from "./haulzCalculator/clientMainlineTariff.js";
@@ -562,7 +562,7 @@ export async function appendPendingOrdersForUser(
   }
 }
 
-async function deleteLinkedCalcDrafts(client: Pool | import("pg").PoolClient, nomerZayavki: string): Promise<void> {
+async function deleteLinkedCalcDrafts(client: PoolClient, nomerZayavki: string): Promise<void> {
   const number = String(nomerZayavki ?? "").trim();
   if (!number) return;
   await client.query(`DELETE FROM haulz_calc_drafts WHERE nomer_zayavki = $1 AND status <> 'draft'`, [number]);
