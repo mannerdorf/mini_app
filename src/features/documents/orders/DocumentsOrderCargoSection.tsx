@@ -212,19 +212,24 @@ export function DocumentsOrderCargoSection({
         rows: parsed.rows,
       });
       const tableRows = fivepostRowsToTableRows(result.rows);
-      onChange({
+      const savedState: DocumentsOrderCargoState = {
         ...state,
         fileZayavki: file,
         fivepostRows: result.rows,
         fivepostBatchId: result.batchId,
         fivepostNeedsTranslation: result.needsTranslationCount,
         tableRows,
-      });
+      };
+      onChange(savedState);
       setImportMessage(
         result.needsTranslationCount > 0
-          ? `5 POST: ${result.rowCount} строк сохранено. Нажмите «Перевести названия» (${result.needsTranslationCount}).`
+          ? `5 POST: ${result.rowCount} строк сохранено. Запускаем перевод (${result.needsTranslationCount})…`
           : `5 POST: ${result.rowCount} строк сохранено, перевод не требуется.`,
       );
+
+      if (result.needsTranslationCount > 0 && result.batchId) {
+        await runTranslateFivepost(result.batchId, savedState);
+      }
     } catch (e) {
       setError((e as Error)?.message || "Ошибка импорта файла 5 POST");
       onChange({
@@ -240,33 +245,48 @@ export function DocumentsOrderCargoSection({
     }
   };
 
-  const handleTranslateFivepost = async () => {
-    if (!state.fivepostBatchId) return;
+  const applyTranslateResult = (
+    result: Awaited<ReturnType<typeof translateDocumentsFivepostBatch>>,
+    batchId: number,
+    baseState: DocumentsOrderCargoState,
+  ) => {
+    const tableRows = fivepostRowsToTableRows(result.rows);
+    onChange({
+      ...baseState,
+      fivepostRows: result.rows,
+      fivepostBatchId: batchId,
+      fivepostNeedsTranslation: result.needsTranslationCount,
+      tableRows,
+    });
+    setImportMessage(
+      result.translatedCount > 0 && result.needsTranslationCount > 0
+        ? `Переведено ${result.translatedCount} наименований. Не переведено: ${result.needsTranslationCount}. Нажмите «Повторить перевод» или проверьте ключи на сервере.`
+        : result.translatedCount > 0
+          ? `Переведено ${result.translatedCount} наименований.`
+          : result.needsTranslationCount > 0
+            ? `Перевод не выполнен (${result.needsTranslationCount} строк). Проверьте YANDEX_TRANSLATE_API_KEY на сервере API.`
+            : "Перевод не требуется.",
+    );
+  };
+
+  const runTranslateFivepost = async (batchId: number, baseState: DocumentsOrderCargoState = state) => {
     setTranslateLoading(true);
     setError(null);
+    setImportMessage("Перевод названий, подождите 1–3 мин…");
     try {
-      const result = await translateDocumentsFivepostBatch(authScope, state.fivepostBatchId);
-      const tableRows = fivepostRowsToTableRows(result.rows);
-      onChange({
-        ...state,
-        fivepostRows: result.rows,
-        fivepostNeedsTranslation: result.needsTranslationCount,
-        tableRows,
-      });
-      setImportMessage(
-        result.translatedCount > 0 && result.needsTranslationCount > 0
-          ? `Переведено ${result.translatedCount} наименований. Не переведено: ${result.needsTranslationCount}. Проверьте ключи Yandex/OpenAI на сервере и нажмите «Перевести названия» снова.`
-          : result.translatedCount > 0
-            ? `Переведено ${result.translatedCount} наименований.`
-            : result.needsTranslationCount > 0
-              ? `Перевод не выполнен (${result.needsTranslationCount} строк). Настройте YANDEX_TRANSLATE_API_KEY или OPENAI_API_KEY на сервере API.`
-              : "Перевод не требуется.",
-      );
+      const result = await translateDocumentsFivepostBatch(authScope, batchId);
+      applyTranslateResult(result, batchId, baseState);
     } catch (e) {
       setError((e as Error)?.message || "Ошибка перевода названий");
+      setImportMessage(null);
     } finally {
       setTranslateLoading(false);
     }
+  };
+
+  const handleTranslateFivepost = async () => {
+    if (!state.fivepostBatchId) return;
+    await runTranslateFivepost(state.fivepostBatchId);
   };
 
   return (
@@ -344,7 +364,7 @@ export function DocumentsOrderCargoSection({
                 />
               </label>
               <p className="haulz-calc-hint">
-                Excel 5 POST — сначала парсинг и таблица, затем кнопка «Перевести названия». PDF/CSV — только приложение.
+                Excel 5 POST — парсинг, сохранение и автоматический перевод названий. PDF/CSV — только приложение.
               </p>
               {state.fivepostRows.length > 0 && state.fivepostNeedsTranslation > 0 && (
                 <button
@@ -355,7 +375,7 @@ export function DocumentsOrderCargoSection({
                   onClick={() => void handleTranslateFivepost()}
                 >
                   {translateLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Перевести названия ({state.fivepostNeedsTranslation})
+                  Повторить перевод ({state.fivepostNeedsTranslation})
                 </button>
               )}
               {translateLoading && (

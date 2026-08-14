@@ -206,6 +206,43 @@ export type DocumentsFivepostImportResult = {
   rows: DocumentsFivepostRow[];
 };
 
+function numOrNull(value: unknown): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+export function normalizeDocumentsFivepostRow(raw: Record<string, unknown>): DocumentsFivepostRow {
+  return {
+    lineNo: Number(raw.lineNo ?? raw.line_no ?? 0),
+    clientOrderNo: String(raw.clientOrderNo ?? raw.client_order_no ?? ""),
+    partnerOrderNo: String(raw.partnerOrderNo ?? raw.partner_order_no ?? ""),
+    teBarcode: String(raw.teBarcode ?? raw.te_barcode ?? ""),
+    placesCount: Math.max(1, Math.round(Number(raw.placesCount ?? raw.places_count) || 1)),
+    omniBarcode: String(raw.omniBarcode ?? raw.omni_barcode ?? ""),
+    itemName: String(raw.itemName ?? raw.item_name ?? ""),
+    itemNameRu: String(raw.itemNameRu ?? raw.item_name_ru ?? raw.itemName ?? raw.item_name ?? ""),
+    unitCost: numOrNull(raw.unitCost ?? raw.unit_cost),
+    totalCost: numOrNull(raw.totalCost ?? raw.total_cost),
+    weightG: numOrNull(raw.weightG ?? raw.weight_g),
+    lengthMm: numOrNull(raw.lengthMm ?? raw.length_mm),
+    widthMm: numOrNull(raw.widthMm ?? raw.width_mm),
+    heightMm: numOrNull(raw.heightMm ?? raw.height_mm),
+  };
+}
+
+function normalizeDocumentsFivepostImportResult(data: Record<string, unknown>): DocumentsFivepostImportResult {
+  const rowsRaw = Array.isArray(data.rows) ? data.rows : [];
+  return {
+    batchId: Number(data.batchId ?? data.batch_id ?? 0),
+    rowCount: Number(data.rowCount ?? data.row_count ?? rowsRaw.length),
+    translatedCount: Number(data.translatedCount ?? data.translated_count ?? 0),
+    needsTranslationCount: Number(data.needsTranslationCount ?? data.needs_translation_count ?? 0),
+    rows: rowsRaw
+      .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object")
+      .map((row) => normalizeDocumentsFivepostRow(row)),
+  };
+}
+
 export async function saveDocumentsFivepostRows(
   auth: DocumentsAuthScope,
   payload: { filename: string; route?: Direction; rows: FivepostParsedRow[] },
@@ -227,9 +264,9 @@ export async function saveDocumentsFivepostRows(
       rows: payload.rows,
     }),
   });
-  const data = (await res.json().catch(() => ({}))) as DocumentsFivepostImportResult & { error?: string };
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown> & { error?: string };
   if (!res.ok) throw new Error(data?.error || `Ошибка сохранения (${res.status})`);
-  return data;
+  return normalizeDocumentsFivepostImportResult(data);
 }
 
 /** @deprecated Используйте parseFivepostShipmentFile + saveDocumentsFivepostRows */
@@ -255,9 +292,9 @@ export async function importDocumentsFivepostFile(
     },
     body: form,
   });
-  const data = (await res.json().catch(() => ({}))) as DocumentsFivepostImportResult & { error?: string };
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown> & { error?: string };
   if (!res.ok) throw new Error(data?.error || `Ошибка импорта (${res.status})`);
-  return data;
+  return normalizeDocumentsFivepostImportResult(data);
 }
 
 export async function translateDocumentsFivepostBatch(
@@ -279,9 +316,9 @@ export async function translateDocumentsFivepostBatch(
       batchId,
     }),
   });
-  const data = (await res.json().catch(() => ({}))) as DocumentsFivepostImportResult & { error?: string };
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown> & { error?: string };
   if (!res.ok) throw new Error(data?.error || `Ошибка перевода (${res.status})`);
-  return data;
+  return normalizeDocumentsFivepostImportResult(data);
 }
 
 export async function deleteDocumentsOrder(

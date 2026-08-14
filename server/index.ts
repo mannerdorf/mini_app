@@ -40,10 +40,22 @@ console.log(
 
 /** Параллельные тяжёлые запросы не должны вечно держать сокеты nginx. */
 const REQUEST_HARD_TIMEOUT_MS = Number(process.env.HAULZ_REQUEST_TIMEOUT_MS || 90_000);
+const FIVEPOST_TRANSLATE_TIMEOUT_MS = Number(
+  process.env.HAULZ_FIVEPOST_TRANSLATE_TIMEOUT_MS || 300_000,
+);
+
+function requestHardTimeoutMs(pathname: string): number {
+  if (pathname === "/api/documents/fivepost-translate") return FIVEPOST_TRANSLATE_TIMEOUT_MS;
+  return REQUEST_HARD_TIMEOUT_MS;
+}
 
 const server = http.createServer(async (req, res) => {
   const started = Date.now();
   applyCors(res);
+
+  const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+  const pathname = url.pathname.replace(/\/+$/, "") || "/";
+  const hardTimeoutMs = requestHardTimeoutMs(pathname);
 
   let settled = false;
   const hardTimer = setTimeout(() => {
@@ -51,8 +63,8 @@ const server = http.createServer(async (req, res) => {
     settled = true;
     res.statusCode = 504;
     res.setHeader("Content-Type", "application/json");
-    res.end(JSON.stringify({ error: "Gateway timeout", timeout_ms: REQUEST_HARD_TIMEOUT_MS }));
-  }, REQUEST_HARD_TIMEOUT_MS);
+    res.end(JSON.stringify({ error: "Gateway timeout", timeout_ms: hardTimeoutMs }));
+  }, hardTimeoutMs);
   hardTimer.unref?.();
 
   const finish = () => {
@@ -70,9 +82,6 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
-    const pathname = url.pathname.replace(/\/+$/, "") || "/";
-
     if (pathname === "/health") {
       res.statusCode = 200;
       res.setHeader("Content-Type", "application/json");
