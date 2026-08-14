@@ -101,8 +101,13 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       if (profileInn && !unique.has(profileInn)) {
         unique.set(profileInn, { inn: profileInn, name: u.company_name || "" });
       }
+      const permissions =
+        u.permissions && typeof u.permissions === "object" && !Array.isArray(u.permissions)
+          ? u.permissions
+          : {};
       return {
         ...u,
+        permissions,
         companies: [...unique.values()],
       };
     });
