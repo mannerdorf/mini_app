@@ -21,12 +21,15 @@ import {
 } from "../api/client/haulzCalculator";
 import { HaulzCalcAddressField } from "../features/haulzCalculator/HaulzCalcAddressField";
 import { HaulzCalcCustomerBlock } from "../features/haulzCalculator/HaulzCalcCustomerBlock";
+import { HaulzCalcDirectionCard } from "../features/haulzCalculator/HaulzCalcDirectionCard";
 import { HaulzCalcTariffBasisFootnote } from "../features/haulzCalculator/HaulzCalcTariffBasisFootnote";
 import { HaulzCalcMobileFlow } from "../features/haulzCalculator/HaulzCalcMobileFlow";
 import type { HaulzCalcMobileRoute } from "../features/haulzCalculator/haulzCalcMobileLabels";
 import { useHaulzCalcMobile } from "../features/haulzCalculator/useHaulzCalcMobile";
 import { useHaulzCalcSummaryLayoutSync } from "../features/haulzCalculator/useHaulzCalcSummaryLayoutSync";
 import { formatQuoteVatLine } from "../../lib/haulzCalculator/quoteVat";
+import { citiesForDirection, cityLabel } from "../../lib/haulzCalculator/direction";
+import { warehouseForCity } from "../../lib/haulzCalculator/warehouses";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import { formatPhoneMask } from "../lib/formatPhoneMask";
 
@@ -294,7 +297,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
   }, [auth, draftId, buildFormState, quote]);
 
   const applyQuickCity = useCallback((side: "from" | "to", city: CityCode) => {
-    const label = city === "moscow" ? "Москва" : "Калининград";
+    const label = cityLabel(city);
     if (side === "from") {
       setDirectionOverride(city === "moscow" ? "mow_kgd" : "kgd_mow");
       setFromQuery(`${label}, `);
@@ -305,6 +308,44 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
       setToAddr(null);
     }
   }, []);
+
+  const handleDirectionChange = useCallback(
+    (next: Direction) => {
+      setDirectionOverride(next);
+      const { from, to } = citiesForDirection(next);
+
+      if (fromMode === "point") {
+        const wh = warehouseForCity(from);
+        setFromQuery(wh.fullAddress);
+        setFromAddr({
+          label: wh.label,
+          fullAddress: wh.fullAddress,
+          point: wh.point,
+          city: from,
+          sourceId: wh.code,
+        });
+      } else {
+        setFromQuery(`${cityLabel(from)}, `);
+        setFromAddr(null);
+      }
+
+      if (toMode === "point") {
+        const wh = warehouseForCity(to);
+        setToQuery(wh.fullAddress);
+        setToAddr({
+          label: wh.label,
+          fullAddress: wh.fullAddress,
+          point: wh.point,
+          city: to,
+          sourceId: wh.code,
+        });
+      } else {
+        setToQuery(`${cityLabel(to)}, `);
+        setToAddr(null);
+      }
+    },
+    [fromMode, toMode],
+  );
 
   const canQuote = Boolean(auth && fromAddr?.point && toAddr?.point && chargeableHint.ch > 0);
 
@@ -697,20 +738,23 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
 
         <div className="haulz-calc-grid">
           <div ref={mainRef} className="haulz-calc-main">
+            <HaulzCalcDirectionCard
+              cardRef={anchorRef}
+              direction={inferredDirection}
+              onDirectionChange={handleDirectionChange}
+            />
+
             {useServiceRequest && (
-              <div ref={anchorRef}>
-                <HaulzCalcCustomerBlock
-                  auth={auth}
-                  inn={customerInn}
-                  setInn={setCustomerInn}
-                  companyName={customerCompanyName}
-                  setCompanyName={setCustomerCompanyName}
-                />
-              </div>
+              <HaulzCalcCustomerBlock
+                auth={auth}
+                inn={customerInn}
+                setInn={setCustomerInn}
+                companyName={customerCompanyName}
+                setCompanyName={setCustomerCompanyName}
+              />
             )}
 
             <HaulzCalcAddressField
-              cardRef={useServiceRequest ? undefined : anchorRef}
               title="Отправить"
               side="from"
               city={suggestCityFrom}

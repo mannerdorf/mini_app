@@ -18,6 +18,8 @@ import {
   type DocumentsOrderQuotePayload,
 } from "../../../api/client/documentsOrder";
 import { warehouseForCity } from "../../../../lib/haulzCalculator/warehouses";
+import { citiesForDirection } from "../../../../lib/haulzCalculator/direction";
+import { HaulzCalcDirectionCard } from "../../haulzCalculator/HaulzCalcDirectionCard";
 import {
   DocumentsOrderPvzSection,
   emptyPvzContactFields,
@@ -84,12 +86,6 @@ function useDebounced<T>(value: T, ms: number): T {
     return () => clearTimeout(t);
   }, [value, ms]);
   return v;
-}
-
-function citiesForDirection(direction: Direction): { from: CityCode; to: CityCode } {
-  return direction === "kgd_mow"
-    ? { from: "kaliningrad", to: "moscow" }
-    : { from: "moscow", to: "kaliningrad" };
 }
 
 function resetLegStateForCity(prev: PvzSelectionState, city: CityCode): PvzSelectionState {
@@ -437,29 +433,11 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
 
         <div className="haulz-calc-grid">
         <div ref={mainRef} className="haulz-calc-main">
-          <div ref={routeRef} className="haulz-calc-card documents-order-direction">
-            <h2 className="haulz-calc-card__title">Маршрут</h2>
-            <div className="haulz-calc-segment" role="tablist" aria-label="Маршрут перевозки">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={direction === "mow_kgd"}
-                className={`haulz-calc-segment__btn${direction === "mow_kgd" ? " haulz-calc-segment__btn--active" : ""}`}
-                onClick={() => handleDirectionChange("mow_kgd")}
-              >
-                МСК → КГД
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={direction === "kgd_mow"}
-                className={`haulz-calc-segment__btn${direction === "kgd_mow" ? " haulz-calc-segment__btn--active" : ""}`}
-                onClick={() => handleDirectionChange("kgd_mow")}
-              >
-                КГД → МСК
-              </button>
-            </div>
-          </div>
+          <HaulzCalcDirectionCard
+            cardRef={routeRef}
+            direction={direction}
+            onDirectionChange={handleDirectionChange}
+          />
 
           <DocumentsOrderPvzSection
             title="Отправить"
