@@ -3,8 +3,8 @@ import { getPool } from "../_db.js";
 import { respondCorsPreflight } from "../_lib/cors.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
 import {
+  deletePendingOrderByNomerForUser,
   deletePendingOrderForUser,
-  deletePendingOrdersByNomerZayavki,
 } from "../../lib/pendingOrderRequests.js";
 import { parseJsonBody, resolveRegisteredDocumentsUserAccess } from "../_documentsOrder.js";
 
@@ -38,12 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (!deleted && nomerZayavki) {
-      const { rowCount } = await pool.query(
-        `DELETE FROM pending_order_requests
-         WHERE nomer_zayavki = $1 AND lower(trim(login)) = $2`,
-        [nomerZayavki, access.loginKey],
-      );
-      deleted = (rowCount ?? 0) > 0;
+      deleted = await deletePendingOrderByNomerForUser(pool, access.loginKey, nomerZayavki);
     }
 
     if (!deleted) {

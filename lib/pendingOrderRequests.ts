@@ -562,15 +562,95 @@ export async function appendPendingOrdersForUser(
   }
 }
 
+async function deleteLinkedCalcDrafts(client: Pool | import("pg").PoolClient, nomerZayavki: string): Promise<void> {
+  const number = String(nomerZayavki ?? "").trim();
+  if (!number) return;
+  await client.query(`DELETE FROM haulz_calc_drafts WHERE nomer_zayavki = $1 AND status <> 'draft'`, [number]);
+}
+
+/** Удаляет заявку из ЛК и связанный черновик менеджера по номеру. */
+export async function deletePendingOrderByNomerForUser(
+  pool: Pool,
+  login: string,
+  nomerZayavki: string,
+): Promise<boolean> {
+  const number = String(nomerZayavki ?? "").trim();
+  const normalizedLogin = normalizeLogin(login);
+  if (!number || !normalizedLogin) return false;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query<{ id: number }>(
+      `SELECT id FROM pending_order_requests
+       WHERE nomer_zayavki = $1 AND lower(trim(login)) = $2
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [number, normalizedLogin],
+    );
+    if (!rows[0]) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+
+    const { rowCount } = await client.query(
+      `DELETE FROM pending_order_requests WHERE id = $1 AND lower(trim(login)) = $2`,
+      [rows[0].id, normalizedLogin],
+    );
+    if ((rowCount ?? 0) === 0) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+
+    await deleteLinkedCalcDrafts(client, number);
+    await client.query("COMMIT");
+    return true;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 export async function deletePendingOrderForUser(
   pool: Pool,
   login: string,
   pendingOrderId: number,
 ): Promise<boolean> {
   if (!Number.isFinite(pendingOrderId) || pendingOrderId < 1) return false;
-  const { rowCount } = await pool.query(
-    `DELETE FROM pending_order_requests WHERE id = $1 AND lower(trim(login)) = $2`,
-    [pendingOrderId, normalizeLogin(login)],
-  );
-  return (rowCount ?? 0) > 0;
+  const normalizedLogin = normalizeLogin(login);
+  if (!normalizedLogin) return false;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query<{ nomer_zayavki: string }>(
+      `SELECT nomer_zayavki FROM pending_order_requests
+       WHERE id = $1 AND lower(trim(login)) = $2`,
+      [pendingOrderId, normalizedLogin],
+    );
+    if (!rows[0]) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+
+    const { rowCount } = await client.query(
+      `DELETE FROM pending_order_requests WHERE id = $1 AND lower(trim(login)) = $2`,
+      [pendingOrderId, normalizedLogin],
+    );
+    if ((rowCount ?? 0) === 0) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+
+    await deleteLinkedCalcDrafts(client, rows[0].nomer_zayavki);
+    await client.query("COMMIT");
+    return true;
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 }
