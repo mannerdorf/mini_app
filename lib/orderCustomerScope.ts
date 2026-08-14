@@ -105,7 +105,6 @@ export function orderMatchesCustomerScope(
 
 export function getOrderStatusLabel(item: Record<string, unknown> | null | undefined): string {
   if (!item) return "—";
-  if (item._pendingOrder === true) return "Ожидает обработки";
   const raw = String(
     item.Статус ??
       item.State ??
@@ -116,6 +115,7 @@ export function getOrderStatusLabel(item: Record<string, unknown> | null | undef
       "",
   ).trim();
   if (raw) return raw;
+  if (item._pendingOrder === true) return "Ожидает обработки";
   const comment = String(item.Комментарий ?? item.Comment ?? "").trim();
   if (comment.includes("Ожидает обработки")) return "Ожидает обработки";
   return "—";

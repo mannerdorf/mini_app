@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { mergeOrdersWithPending, pendingOrderToListItem, fivepostBatchIdFromTableRows } from "./pendingOrderRequests";
+import { getOrderStatusLabel } from "./orderCustomerScope";
+import {
+  mergeOrdersWithPending,
+  pendingOrderToListItem,
+  fivepostBatchIdFromTableRows,
+  resolvePendingOrderStatusLabel,
+  upsertManagerStatusInTableRows,
+  PENDING_ORDER_MANAGER_STATUS_ROW_TYPE,
+} from "./pendingOrderRequests";
 
 describe("pendingOrderToListItem", () => {
   it("maps db row to orders list shape", () => {
@@ -28,6 +36,26 @@ describe("pendingOrderToListItem", () => {
     expect(item.ЗаказчикИНН).toBe("7722461620");
     expect(item._pendingOrder).toBe(true);
     expect(item.Комментарий).toContain("1С");
+    expect(item.Статус).toBe("Ожидает обработки");
+  });
+
+  it("maps manager status from table_rows", () => {
+    const item = pendingOrderToListItem({
+      id: 4,
+      login: "user@test.ru",
+      inn: "7722461620",
+      punkt_otpravki: "MSK-PVZ-1",
+      punkt_naznacheniya: "KGD-PVZ-2",
+      nomer_zayavki: "HAULZ-DOC-777",
+      data_zabora: "2026-08-09",
+      created_at: "2026-08-09T12:00:00.000Z",
+      table_rows: [
+        { type: PENDING_ORDER_MANAGER_STATUS_ROW_TYPE, status: "agreed", label: "Согласовано" },
+      ],
+    });
+
+    expect(item.Статус).toBe("Согласовано");
+    expect(item.State).toBe("Согласовано");
   });
 
   it("maps customer request number from source block", () => {
@@ -131,6 +159,37 @@ describe("pendingOrderToListItem", () => {
         { type: "source" },
       ]),
     ).toBeNull();
+  });
+});
+
+describe("manager status helpers", () => {
+  it("upserts manager_status row without duplicates", () => {
+    const rows = upsertManagerStatusInTableRows(
+      [{ type: "source" }, { type: PENDING_ORDER_MANAGER_STATUS_ROW_TYPE, status: "new", label: "Новая" }],
+      "agreed",
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toEqual({
+      type: PENDING_ORDER_MANAGER_STATUS_ROW_TYPE,
+      status: "agreed",
+      label: "Согласовано",
+    });
+  });
+
+  it("resolvePendingOrderStatusLabel prefers stored label", () => {
+    expect(
+      resolvePendingOrderStatusLabel([
+        { type: PENDING_ORDER_MANAGER_STATUS_ROW_TYPE, status: "agreed", label: "Согласовано" },
+      ]),
+    ).toBe("Согласовано");
+    expect(resolvePendingOrderStatusLabel([])).toBe("Ожидает обработки");
+  });
+
+  it("getOrderStatusLabel uses pending order status when set", () => {
+    expect(
+      getOrderStatusLabel({ _pendingOrder: true, Статус: "Согласовано" }),
+    ).toBe("Согласовано");
+    expect(getOrderStatusLabel({ _pendingOrder: true })).toBe("Ожидает обработки");
   });
 });
 

@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import type { Pool } from "pg";
+import { syncPendingOrderManagerStatus } from "../pendingOrderRequests.js";
 import { notifyCalcTransportAgree } from "./calcAgreeWebhook.js";
 import type { HaulzCalculatorFormState, HaulzCalcDraftRow } from "./calculatorDraft.js";
 import { getHaulzCalcDraft } from "./calculatorDraft.js";
@@ -163,7 +164,15 @@ export async function setDraftStatusByManager(
     [draftId, status],
   );
   const row = rows[0];
-  return row ? mapRowExtended(row) : null;
+  const draft = row ? mapRowExtended(row) : null;
+  if (draft?.nomerZayavki) {
+    try {
+      await syncPendingOrderManagerStatus(pool, draft.nomerZayavki, status);
+    } catch {
+      // pending_order_requests may be absent; draft status update still succeeds
+    }
+  }
+  return draft;
 }
 
 export async function deleteDraftByManager(pool: Pool, draftId: number): Promise<boolean> {

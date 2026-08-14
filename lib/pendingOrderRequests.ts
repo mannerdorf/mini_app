@@ -2,6 +2,11 @@ import type { Pool } from "pg";
 import { cityToCode } from "./cityToCode.js";
 import type { FivepostRowRecord } from "./fivepost/importBatch.js";
 import { directionCityCodes } from "./haulzCalculator/clientMainlineTariff.js";
+import {
+  HAULZ_CALC_DRAFT_STATUS_LABELS,
+  parseHaulzCalcDraftStatus,
+  type HaulzCalcDraftStatus,
+} from "./haulzCalculator/draftStatus.js";
 import type { Direction } from "./haulzCalculator/types.js";
 import { HAULZ_WAREHOUSES } from "./haulzCalculator/warehouses.js";
 import {
@@ -35,9 +40,74 @@ export function normalizePendingOrderInn(value: unknown): string {
   return normalizeOrderInn(value);
 }
 
+export const PENDING_ORDER_MANAGER_STATUS_ROW_TYPE = "manager_status";
+
 function tableRowByType(tableRows: unknown[], type: string): Record<string, unknown> | undefined {
   const row = tableRows.find((item) => item && typeof item === "object" && (item as Record<string, unknown>).type === type);
   return row as Record<string, unknown> | undefined;
+}
+
+export function upsertManagerStatusInTableRows(
+  tableRows: unknown[],
+  status: HaulzCalcDraftStatus,
+  label?: string,
+): unknown[] {
+  const rows = Array.isArray(tableRows) ? tableRows : [];
+  const statusLabel = label ?? HAULZ_CALC_DRAFT_STATUS_LABELS[status] ?? status;
+  const withoutManagerStatus = rows.filter(
+    (item) =>
+      !(
+        item &&
+        typeof item === "object" &&
+        (item as Record<string, unknown>).type === PENDING_ORDER_MANAGER_STATUS_ROW_TYPE
+      ),
+  );
+  return [
+    ...withoutManagerStatus,
+    { type: PENDING_ORDER_MANAGER_STATUS_ROW_TYPE, status, label: statusLabel },
+  ];
+}
+
+export function resolvePendingOrderStatusLabel(tableRows: unknown[]): string {
+  const managerStatus = tableRowByType(
+    Array.isArray(tableRows) ? tableRows : [],
+    PENDING_ORDER_MANAGER_STATUS_ROW_TYPE,
+  );
+  const label = String(managerStatus?.label ?? "").trim();
+  if (label) return label;
+  const status = parseHaulzCalcDraftStatus(managerStatus?.status);
+  if (status !== "draft") return HAULZ_CALC_DRAFT_STATUS_LABELS[status];
+  return "Ожидает обработки";
+}
+
+/** Синхронизирует статус менеджера в pending_order_requests для отображения в ЛК заказчика. */
+export async function syncPendingOrderManagerStatus(
+  pool: Pool,
+  nomerZayavki: string,
+  status: HaulzCalcDraftStatus,
+): Promise<number> {
+  const number = String(nomerZayavki ?? "").trim();
+  if (!number || status === "draft") return 0;
+
+  const { rows } = await pool.query<{ id: number; table_rows: unknown }>(
+    `SELECT id, table_rows FROM pending_order_requests WHERE nomer_zayavki = $1`,
+    [number],
+  );
+  if (!rows.length) return 0;
+
+  let updated = 0;
+  for (const row of rows) {
+    const tableRows = upsertManagerStatusInTableRows(
+      Array.isArray(row.table_rows) ? row.table_rows : [],
+      status,
+    );
+    await pool.query(`UPDATE pending_order_requests SET table_rows = $2::jsonb WHERE id = $1`, [
+      row.id,
+      JSON.stringify(tableRows),
+    ]);
+    updated += 1;
+  }
+  return updated;
 }
 
 function partyDisplayName(party?: Record<string, unknown>, fallback?: Record<string, unknown>): string {
@@ -186,13 +256,39 @@ async function loadFivepostRowsByBatchIds(pool: Pool, batchIds: number[]): Promi
   return out;
 }
 
+async function loadDraftStatusLabelsByNomer(pool: Pool, nomers: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const unique = [...new Set(nomers.map((n) => String(n ?? "").trim()).filter(Boolean))];
+  if (!unique.length) return out;
+
+  try {
+    const { rows } = await pool.query<{ nomer_zayavki: string; status: string }>(
+      `SELECT nomer_zayavki, status
+       FROM haulz_calc_drafts
+       WHERE nomer_zayavki = ANY($1::text[]) AND status <> 'draft'`,
+      [unique],
+    );
+    for (const row of rows) {
+      const nomer = String(row.nomer_zayavki ?? "").trim();
+      const status = parseHaulzCalcDraftStatus(row.status);
+      if (nomer) out.set(nomer, HAULZ_CALC_DRAFT_STATUS_LABELS[status]);
+    }
+  } catch {
+    // haulz_calc_drafts may be absent in some environments
+  }
+
+  return out;
+}
+
 async function attachPendingOrderCargo(
   pool: Pool,
   dbRows: PendingOrderDbRow[],
   items: Record<string, unknown>[],
 ): Promise<Record<string, unknown>[]> {
   const batchIdByOrderId = new Map<number, number>();
+  const dbRowById = new Map<number, PendingOrderDbRow>();
   for (const row of dbRows) {
+    dbRowById.set(row.id, row);
     const tableRows = Array.isArray(row.table_rows) ? row.table_rows : [];
     const batchId = fivepostBatchIdFromTableRows(tableRows);
     if (batchId) {
@@ -207,20 +303,31 @@ async function attachPendingOrderCargo(
     rowsByBatch = new Map();
   }
 
+  const nomersNeedingDraftStatus = dbRows
+    .filter((row) => !tableRowByType(Array.isArray(row.table_rows) ? row.table_rows : [], PENDING_ORDER_MANAGER_STATUS_ROW_TYPE))
+    .map((row) => row.nomer_zayavki);
+  const draftStatusByNomer = await loadDraftStatusLabelsByNomer(pool, nomersNeedingDraftStatus);
+
   return items.map((item) => {
     const orderId = Number(item._pendingOrderId);
-    const tableRows = Array.isArray(
-      dbRows.find((row) => row.id === orderId)?.table_rows,
-    )
-      ? (dbRows.find((row) => row.id === orderId)?.table_rows as unknown[])
-      : [];
+    const dbRow = dbRowById.get(orderId);
+    const tableRows = Array.isArray(dbRow?.table_rows) ? (dbRow.table_rows as unknown[]) : [];
     const legacyBlock = tableRowByType(tableRows, "legacy_parcels");
     const legacyRows = Array.isArray(legacyBlock?.rows) ? legacyBlock.rows : [];
     const batchId = batchIdByOrderId.get(orderId);
     const fivepostRows = batchId ? rowsByBatch.get(batchId) ?? [] : [];
 
+    let statusLabel = resolvePendingOrderStatusLabel(tableRows);
+    if (statusLabel === "Ожидает обработки") {
+      const nomer = String(item.НомерЗаявки ?? dbRow?.nomer_zayavki ?? "").trim();
+      const draftLabel = nomer ? draftStatusByNomer.get(nomer) : undefined;
+      if (draftLabel) statusLabel = draftLabel;
+    }
+
     return {
       ...item,
+      Статус: statusLabel,
+      State: statusLabel,
       ...(fivepostRows.length ? { _fivepostRows: fivepostRows } : {}),
       ...(legacyRows.length ? { _legacyTableRows: legacyRows } : {}),
     };
@@ -269,6 +376,7 @@ export function pendingOrderToListItem(row: PendingOrderDbRow): Record<string, u
   const route = resolvePendingRouteFields(tableRows, row.punkt_otpravki, row.punkt_naznacheniya);
 
   const customerRequestNumber = String(source?.customerRequestNumber ?? "").trim();
+  const statusLabel = resolvePendingOrderStatusLabel(tableRows);
 
   return {
     Дата: createdDate,
@@ -288,8 +396,8 @@ export function pendingOrderToListItem(row: PendingOrderDbRow): Record<string, u
     ОтправительНаименование:
       partyDisplayName(fromParty, customer) || String(source?.customerName ?? "").trim(),
     ПолучательНаименование: partyDisplayName(toParty),
-    Статус: "Ожидает обработки",
-    State: "Ожидает обработки",
+    Статус: statusLabel,
+    State: statusLabel,
     Комментарий: "Ожидает обработки в 1С",
     _pendingOrder: true,
     _pendingOrderId: row.id,
