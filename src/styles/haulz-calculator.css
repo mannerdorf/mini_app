@@ -6,7 +6,8 @@
   --haulz-calc-content-max: min(1180px, 96vw);
   /* сдвиг блока «Ваш расчёт» чуть левее для равных полей фона по краям */
   --haulz-summary-fixed-shift: 20px;
-  --haulz-summary-fixed-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+  --haulz-app-tabbar-clearance: calc(var(--app-mobile-tabbar-clearance, 72px) + env(safe-area-inset-bottom, 0px));
+  --haulz-summary-fixed-bottom: calc(var(--haulz-app-tabbar-clearance) + 0.5rem);
   /* высота липкого .app-header + небольшой зазор (десктоп) */
   --haulz-summary-header-offset: calc(
     var(--space-4, 16px) * 2 + 2.75rem + var(--space-1, 4px) + var(--space-2, 8px)
@@ -619,6 +620,7 @@
   .haulz-calc-page--cdek:not(.haulz-calc-summary-layout-sync) .haulz-calc-summary-wrap {
     position: fixed;
     top: var(--haulz-summary-fixed-top);
+    bottom: var(--haulz-summary-fixed-bottom);
     left: max(
       var(--pad-page-h, 24px),
       calc(
@@ -631,7 +633,6 @@
     width: var(--haulz-summary-col-width);
     max-width: var(--haulz-summary-col-width);
     z-index: 5;
-    max-height: calc(100dvh - var(--haulz-summary-fixed-top) - var(--haulz-summary-fixed-bottom));
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -651,7 +652,7 @@
 @media (max-width: 768px) {
   .haulz-calc-grid {
     grid-template-columns: 1fr;
-    padding-bottom: calc(280px + 72px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(280px + var(--haulz-app-tabbar-clearance) + 0.5rem);
   }
 
   .haulz-calc-summary-wrap {
@@ -659,10 +660,10 @@
     z-index: 44;
     left: max(var(--space-3, 12px), env(safe-area-inset-left, 0px));
     right: max(var(--space-3, 12px), env(safe-area-inset-right, 0px));
-    bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 0.5rem);
+    bottom: var(--haulz-summary-fixed-bottom);
     top: auto;
     width: auto;
-    max-height: min(56vh, calc(100dvh - 120px - env(safe-area-inset-bottom, 0px)));
+    max-height: min(56vh, calc(100dvh - 120px - var(--haulz-summary-fixed-bottom)));
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
@@ -2683,6 +2684,7 @@ body.haulz-calc-map-screen-open {
   .haulz-calc-summary-layout-sync .haulz-calc-summary-wrap {
     position: fixed;
     top: var(--haulz-summary-fixed-top);
+    bottom: var(--haulz-summary-fixed-bottom);
     left: var(
       --haulz-docs-summary-sync-left,
       max(
@@ -2698,7 +2700,6 @@ body.haulz-calc-map-screen-open {
     width: var(--haulz-summary-col-width);
     max-width: var(--haulz-summary-col-width);
     z-index: 5;
-    max-height: calc(100dvh - var(--haulz-summary-fixed-top) - var(--haulz-summary-fixed-bottom));
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -2717,7 +2718,15 @@ body.haulz-calc-map-screen-open {
 
 @media (max-width: 768px) {
   .haulz-calc-summary-layout-sync .haulz-calc-grid {
-    padding-bottom: calc(280px + 72px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(280px + var(--haulz-app-tabbar-clearance) + 0.5rem);
+  }
+}
+
+/* Планшет / профиль: tabbar clearance шире, чем 72px */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .app-container.profile-saas-shell .haulz-calc-page--cdek {
+    --haulz-app-tabbar-clearance: calc(112px + env(safe-area-inset-bottom, 0px));
+    --haulz-summary-fixed-bottom: calc(var(--haulz-app-tabbar-clearance) + 0.5rem);
   }
 }
 
