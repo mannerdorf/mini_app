@@ -261,23 +261,27 @@ export function useAdminIntegrations(adminToken: string | null) {
       const frontendOk = partnerHealth.ok;
       const publicDbOk = authConfig.ok;
       const serverDbOk = server.database.ok;
+      const dbReachable = serverDbOk || publicDbOk;
       const hasCompaniesData = (server.samples.accountCompanies ?? 0) > 0;
       const hasCargoCache = (server.samples.cachePerevozkiRows ?? 0) > 0;
-      const allOk = frontendOk && serverDbOk;
+      const allOk = frontendOk && dbReachable && hasCompaniesData && hasCargoCache;
 
-      let summaryText = "Фронт доходит до API, Postgres доступен с сервера.";
+      let summaryText = "Фронт → API → Postgres работают, данные в БД есть.";
       if (!frontendOk) {
         summaryText = "Браузер не получает ответ от API — проверьте VITE_API_ORIGIN и деплой Functions.";
       } else if (!server.env.databaseUrlConfigured) {
         summaryText = "DATABASE_URL не задан на сервере API (Vercel env).";
-      } else if (!serverDbOk) {
+      } else if (!dbReachable) {
         summaryText = server.database.hint || "API не подключается к Postgres.";
       } else if (!hasCompaniesData) {
         summaryText = "БД доступна, но account_companies пуст — в приложении будет «Нет компаний».";
       } else if (!hasCargoCache) {
         summaryText = "БД доступна, но cache_perevozki_rows пуст — грузы не появятся без cron refresh-cache.";
-      } else if (!publicDbOk) {
-        summaryText = "Admin-probe видит БД, но публичный /api/auth-config падает — проверьте логи Functions.";
+      } else if (!publicDbOk && !serverDbOk) {
+        summaryText = "Публичный /api/auth-config и admin-probe не видят БД — проверьте логи Functions.";
+      } else if (!server.env.cronSecretConfigured) {
+        summaryText =
+          "Цепочка работает. CRON_SECRET не задан на Vercel — авто-обновление кэша через cron не пойдёт.";
       }
 
       const report = {

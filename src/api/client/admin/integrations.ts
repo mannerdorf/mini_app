@@ -205,7 +205,7 @@ export type AdminConnectivitySandboxReport = {
     accountCompanies: number | null;
     registeredUsers: number | null;
     cachePerevozkiRows: number | null;
-    cachePerevozkiUpdatedAt: string | null;
+    cachePerevozkiFetchedAt: string | null;
     adminAuthConfigReadable: boolean;
   };
   request_id?: string;

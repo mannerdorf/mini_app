@@ -51,6 +51,20 @@ async function countRows(pool: import("pg").Pool, sql: string): Promise<number |
   }
 }
 
+async function optionalQuery<T>(
+  run: () => Promise<T>,
+): Promise<{ value: T | null; error: string | null }> {
+  try {
+    return { value: await run(), error: null };
+  } catch (e: unknown) {
+    const err = e as { code?: string; message?: string };
+    if (err?.code === "42P01" || err?.code === "42703") {
+      return { value: null, error: null };
+    }
+    return { value: null, error: err?.message || String(e) };
+  }
+}
+
 async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "admin-connectivity-sandbox");
   if (req.method !== "GET") {
@@ -95,13 +109,13 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     accountCompanies: number | null;
     registeredUsers: number | null;
     cachePerevozkiRows: number | null;
-    cachePerevozkiUpdatedAt: string | null;
+    cachePerevozkiFetchedAt: string | null;
     adminAuthConfigReadable: boolean;
   } = {
     accountCompanies: null,
     registeredUsers: null,
     cachePerevozkiRows: null,
-    cachePerevozkiUpdatedAt: null,
+    cachePerevozkiFetchedAt: null,
     adminAuthConfigReadable: false,
   };
 
@@ -121,23 +135,19 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       samples.registeredUsers = registeredUsers;
       samples.cachePerevozkiRows = cachePerevozkiRows;
 
-      try {
-        const updated = await pool.query<{ updated_at: string | null }>(
-          "SELECT updated_at::text AS updated_at FROM cache_perevozki WHERE id = 1",
+      const fetchedAt = await optionalQuery(async () => {
+        const { rows } = await pool.query<{ fetched_at: string | null }>(
+          "SELECT fetched_at::text AS fetched_at FROM cache_perevozki WHERE id = 1",
         );
-        samples.cachePerevozkiUpdatedAt = updated.rows[0]?.updated_at ?? null;
-      } catch (e: unknown) {
-        const err = e as { code?: string };
-        if (err?.code !== "42P01") throw e;
-      }
+        return rows[0]?.fetched_at ?? null;
+      });
+      samples.cachePerevozkiFetchedAt = fetchedAt.value;
 
-      try {
+      const authConfig = await optionalQuery(async () => {
         await pool.query("SELECT api_v1, api_v2, cms FROM admin_auth_config WHERE id = 1");
-        samples.adminAuthConfigReadable = true;
-      } catch (e: unknown) {
-        const err = e as { code?: string };
-        if (err?.code !== "42P01") throw e;
-      }
+        return true;
+      });
+      samples.adminAuthConfigReadable = authConfig.value === true;
     } catch (e: unknown) {
       const err = e as { code?: string; message?: string };
       logError(ctx, "admin_connectivity_db_failed", e);
