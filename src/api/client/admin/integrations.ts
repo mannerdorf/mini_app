@@ -178,3 +178,49 @@ export async function postAdminYandexTranslateSandbox(
   }
   return data;
 }
+
+export type AdminConnectivitySandboxReport = {
+  ok: boolean;
+  runtime: {
+    nodeVersion: string;
+    platform: string;
+    vercelRegion: string | null;
+    vercelEnv: string | null;
+  };
+  env: {
+    databaseUrlConfigured: boolean;
+    databaseHost: string;
+    pgSslMode: string;
+    cronSecretConfigured: boolean;
+    perevozkiConfigured: boolean;
+  };
+  database: {
+    ok: boolean;
+    latencyMs?: number;
+    error?: string;
+    errorCode?: string;
+    hint?: string;
+  };
+  samples: {
+    accountCompanies: number | null;
+    registeredUsers: number | null;
+    cachePerevozkiRows: number | null;
+    cachePerevozkiUpdatedAt: string | null;
+    adminAuthConfigReadable: boolean;
+  };
+  request_id?: string;
+};
+
+export async function fetchAdminConnectivitySandbox(
+  adminToken: string,
+): Promise<AdminConnectivitySandboxReport> {
+  const res = await fetch("/api/admin-connectivity-sandbox", {
+    method: "GET",
+    headers: adminAuthHeaders(adminToken),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(String((data as { error?: string })?.error || `HTTP ${res.status}`));
+  }
+  return data as AdminConnectivitySandboxReport;
+}

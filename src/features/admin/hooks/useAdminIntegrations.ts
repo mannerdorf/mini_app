@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchAdminIntegrationHealth, type AdminIntegrationHealth } from "../../../api/client/admin/journal";
 import {
+  fetchAdminConnectivitySandbox,
   fetchAdminYandexTranslateConfig,
   fetchAdminZvonobotConfig,
   fetchDocumentCacheBackfillStatus,
@@ -11,6 +12,7 @@ import {
   postDocumentCacheBackfill,
   type DocumentCacheBackfillStatus,
 } from "../../../api/client/admin/integrations";
+import { resolveApiOrigin } from "../../../lib/resolveApiOrigin";
 
 export function useAdminIntegrations(adminToken: string | null) {
   const [healthDays, setHealthDays] = useState(30);
@@ -50,6 +52,9 @@ export function useAdminIntegrations(adminToken: string | null) {
   const [yandexError, setYandexError] = useState("");
   const [yandexResult, setYandexResult] = useState("");
   const [yandexInput, setYandexInput] = useState("jewelry components\nusb adapter");
+  const [connectivityLoading, setConnectivityLoading] = useState(false);
+  const [connectivityError, setConnectivityError] = useState("");
+  const [connectivityResult, setConnectivityResult] = useState("");
 
   useEffect(() => {
     if (!adminToken) return;
@@ -204,6 +209,103 @@ export function useAdminIntegrations(adminToken: string | null) {
     setHealthFetchTrigger((x) => x + 1);
   }, []);
 
+  const runConnectivityCheck = useCallback(async () => {
+    if (!adminToken) return;
+    setConnectivityLoading(true);
+    setConnectivityError("");
+    setConnectivityResult("");
+
+    const pageOrigin = typeof window !== "undefined" ? window.location.origin : "";
+    const apiOrigin = typeof window !== "undefined" ? resolveApiOrigin() : "";
+    const viteApiOrigin = String(import.meta.env.VITE_API_ORIGIN || "").trim();
+    const sameOriginApi = Boolean(pageOrigin && apiOrigin && pageOrigin === apiOrigin);
+
+    const probe = async (name: string, path: string) => {
+      const url = `${apiOrigin || pageOrigin}${path}`;
+      const started = performance.now();
+      try {
+        const res = await fetch(url, { method: "GET", cache: "no-store" });
+        const latencyMs = Math.round(performance.now() - started);
+        let body: unknown = null;
+        try {
+          body = await res.json();
+        } catch {
+          body = null;
+        }
+        return {
+          name,
+          url,
+          ok: res.ok,
+          status: res.status,
+          latencyMs,
+          body,
+        };
+      } catch (e: unknown) {
+        return {
+          name,
+          url,
+          ok: false,
+          latencyMs: Math.round(performance.now() - started),
+          error: (e as Error)?.message || String(e),
+        };
+      }
+    };
+
+    try {
+      const [partnerHealth, authConfig, server] = await Promise.all([
+        probe("partner_health", "/api/partner/v1/health"),
+        probe("auth_config_db", "/api/auth-config"),
+        fetchAdminConnectivitySandbox(adminToken),
+      ]);
+
+      const frontendOk = partnerHealth.ok;
+      const publicDbOk = authConfig.ok;
+      const serverDbOk = server.database.ok;
+      const hasCompaniesData = (server.samples.accountCompanies ?? 0) > 0;
+      const hasCargoCache = (server.samples.cachePerevozkiRows ?? 0) > 0;
+      const allOk = frontendOk && serverDbOk;
+
+      let summaryText = "Фронт доходит до API, Postgres доступен с сервера.";
+      if (!frontendOk) {
+        summaryText = "Браузер не получает ответ от API — проверьте VITE_API_ORIGIN и деплой Functions.";
+      } else if (!server.env.databaseUrlConfigured) {
+        summaryText = "DATABASE_URL не задан на сервере API (Vercel env).";
+      } else if (!serverDbOk) {
+        summaryText = server.database.hint || "API не подключается к Postgres.";
+      } else if (!hasCompaniesData) {
+        summaryText = "БД доступна, но account_companies пуст — в приложении будет «Нет компаний».";
+      } else if (!hasCargoCache) {
+        summaryText = "БД доступна, но cache_perevozki_rows пуст — грузы не появятся без cron refresh-cache.";
+      } else if (!publicDbOk) {
+        summaryText = "Admin-probe видит БД, но публичный /api/auth-config падает — проверьте логи Functions.";
+      }
+
+      const report = {
+        checkedAt: new Date().toISOString(),
+        summary: { ok: allOk, text: summaryText },
+        frontend: {
+          pageOrigin,
+          apiOrigin,
+          viteApiOrigin: viteApiOrigin || null,
+          sameOriginApi,
+        },
+        clientProbes: [partnerHealth, authConfig],
+        server,
+      };
+
+      setConnectivityResult(JSON.stringify(report, null, 2));
+    } catch (e: unknown) {
+      setConnectivityError((e as Error)?.message || "Ошибка проверки доступности");
+    } finally {
+      setConnectivityLoading(false);
+    }
+  }, [adminToken]);
+
+  useEffect(() => {
+    if (!adminToken) return;
+    void runConnectivityCheck();
+  }, [adminToken, runConnectivityCheck]);
+
   return {
     healthDays,
     setHealthDays,
@@ -259,6 +361,10 @@ export function useAdminIntegrations(adminToken: string | null) {
     yandexInput,
     setYandexInput,
     runYandexTranslate,
+    connectivityLoading,
+    connectivityError,
+    connectivityResult,
+    runConnectivityCheck,
   };
 }
 

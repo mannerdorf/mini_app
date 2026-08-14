@@ -1,6 +1,7 @@
 import React from "react";
 import { AdminUserApiKeysSection } from "../sections/AdminUserApiKeysSection";
 import { useAdminIntegrations } from "../hooks/useAdminIntegrations";
+import { AdminConnectivitySandboxPanel } from "../components/AdminConnectivitySandboxPanel";
 import { AdminDocumentCacheBackfillPanel } from "../components/AdminDocumentCacheBackfillPanel";
 import { AdminIntegrationHealthPanel } from "../components/AdminIntegrationHealthPanel";
 import { AdminZvonobotSandboxPanel } from "../components/AdminZvonobotSandboxPanel";
@@ -12,6 +13,12 @@ export function AdminIntegrationsTab({ adminToken }: { adminToken: string | null
 
   return (
     <>
+      <AdminConnectivitySandboxPanel
+        connectivityLoading={state.connectivityLoading}
+        connectivityError={state.connectivityError}
+        connectivityResult={state.connectivityResult}
+        runConnectivityCheck={state.runConnectivityCheck}
+      />
       <AdminDocumentCacheBackfillPanel
         historyDays={state.historyDays}
         setHistoryDays={state.setHistoryDays}
