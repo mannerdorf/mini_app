@@ -2634,7 +2634,7 @@ body.haulz-calc-map-screen-open {
 }
 
 .app-main:not(.app-main-wide) .documents-order-form.haulz-calc-page--cdek {
-  --haulz-docs-summary-shift-right: 2.75rem;
+  --haulz-docs-summary-shift-right: calc(2.75rem + 2cm);
 }
 
 .app-main-wide .documents-order-form.haulz-calc-page--cdek {
@@ -2662,7 +2662,7 @@ body.haulz-calc-map-screen-open {
   }
 
   .documents-order-form .haulz-calc-main {
-    margin-right: calc(var(--haulz-summary-col-width) + 1rem);
+    margin-right: calc(var(--haulz-summary-col-width) + 1rem + 2cm);
     min-width: 0;
   }
 
