@@ -4,6 +4,7 @@ import { useAdminIntegrations } from "../hooks/useAdminIntegrations";
 import { AdminDocumentCacheBackfillPanel } from "../components/AdminDocumentCacheBackfillPanel";
 import { AdminIntegrationHealthPanel } from "../components/AdminIntegrationHealthPanel";
 import { AdminZvonobotSandboxPanel } from "../components/AdminZvonobotSandboxPanel";
+import { AdminYandexTranslateSandboxPanel } from "../components/AdminYandexTranslateSandboxPanel";
 import { AdminPartnerApiPanel } from "../components/AdminPartnerApiPanel";
 
 export function AdminIntegrationsTab({ adminToken }: { adminToken: string | null }) {
@@ -57,6 +58,20 @@ export function AdminIntegrationsTab({ adminToken }: { adminToken: string | null
         zvonobotApiCallIds={state.zvonobotApiCallIds}
         setZvonobotApiCallIds={state.setZvonobotApiCallIds}
         runZvonobotAction={state.runZvonobotAction}
+      />
+      <AdminYandexTranslateSandboxPanel
+        yandexConfigured={state.yandexConfigured}
+        yandexKeyHint={state.yandexKeyHint}
+        yandexFolderConfigured={state.yandexFolderConfigured}
+        yandexFolderHint={state.yandexFolderHint}
+        yandexOpenaiConfigured={state.yandexOpenaiConfigured}
+        yandexPreferredProvider={state.yandexPreferredProvider}
+        yandexLoading={state.yandexLoading}
+        yandexError={state.yandexError}
+        yandexResult={state.yandexResult}
+        yandexInput={state.yandexInput}
+        setYandexInput={state.setYandexInput}
+        runYandexTranslate={state.runYandexTranslate}
       />
       {adminToken ? <AdminUserApiKeysSection adminToken={adminToken} /> : null}
       <AdminPartnerApiPanel partnerApiHealthJson={state.partnerApiHealthJson} />

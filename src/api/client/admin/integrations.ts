@@ -132,3 +132,52 @@ export async function fetchPartnerApiHealth(): Promise<unknown> {
   const res = await fetch("/api/partner/v1/health");
   return res.json().catch(() => ({ error: "Не удалось загрузить /api/partner/v1/health" }));
 }
+
+export type AdminYandexTranslateConfig = {
+  yandexConfigured: boolean;
+  yandexKeyHint: string;
+  folderIdConfigured: boolean;
+  folderIdHint: string;
+  openaiConfigured: boolean;
+  openaiKeyHint: string;
+  preferredProvider: "yandex" | "openai" | null;
+};
+
+export async function fetchAdminYandexTranslateConfig(
+  adminToken: string,
+): Promise<AdminYandexTranslateConfig> {
+  const res = await fetch("/api/admin-yandex-translate-sandbox", {
+    method: "GET",
+    headers: adminAuthHeaders(adminToken),
+  });
+  const data = (await res.json().catch(() => ({}))) as Partial<AdminYandexTranslateConfig>;
+  return {
+    yandexConfigured: Boolean(data?.yandexConfigured),
+    yandexKeyHint: String(data?.yandexKeyHint || ""),
+    folderIdConfigured: Boolean(data?.folderIdConfigured),
+    folderIdHint: String(data?.folderIdHint || ""),
+    openaiConfigured: Boolean(data?.openaiConfigured),
+    openaiKeyHint: String(data?.openaiKeyHint || ""),
+    preferredProvider:
+      data?.preferredProvider === "yandex" || data?.preferredProvider === "openai"
+        ? data.preferredProvider
+        : null,
+  };
+}
+
+export async function postAdminYandexTranslateSandbox(
+  adminToken: string,
+  mode: "direct" | "productNames" | "fivepost",
+  texts: string[],
+): Promise<unknown> {
+  const res = await fetch("/api/admin-yandex-translate-sandbox", {
+    method: "POST",
+    headers: adminAuthHeaders(adminToken, { "Content-Type": "application/json" }),
+    body: JSON.stringify({ mode, texts }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(String((data as { error?: string })?.error || `HTTP ${res.status}`));
+  }
+  return data;
+}

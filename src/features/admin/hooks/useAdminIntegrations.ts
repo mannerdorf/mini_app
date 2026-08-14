@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchAdminIntegrationHealth, type AdminIntegrationHealth } from "../../../api/client/admin/journal";
 import {
+  fetchAdminYandexTranslateConfig,
   fetchAdminZvonobotConfig,
   fetchDocumentCacheBackfillStatus,
   fetchPartnerApiHealth,
   postAdminSendlkSync,
+  postAdminYandexTranslateSandbox,
   postAdminZvonobotSandbox,
   postDocumentCacheBackfill,
   type DocumentCacheBackfillStatus,
@@ -38,6 +40,16 @@ export function useAdminIntegrations(adminToken: string | null) {
   const [zvonobotPlannedAt, setZvonobotPlannedAt] = useState("");
   const [zvonobotApiCallIds, setZvonobotApiCallIds] = useState("");
   const [partnerApiHealthJson, setPartnerApiHealthJson] = useState("");
+  const [yandexConfigured, setYandexConfigured] = useState<boolean | null>(null);
+  const [yandexKeyHint, setYandexKeyHint] = useState("");
+  const [yandexFolderConfigured, setYandexFolderConfigured] = useState(false);
+  const [yandexFolderHint, setYandexFolderHint] = useState("");
+  const [yandexOpenaiConfigured, setYandexOpenaiConfigured] = useState(false);
+  const [yandexPreferredProvider, setYandexPreferredProvider] = useState<"yandex" | "openai" | null>(null);
+  const [yandexLoading, setYandexLoading] = useState(false);
+  const [yandexError, setYandexError] = useState("");
+  const [yandexResult, setYandexResult] = useState("");
+  const [yandexInput, setYandexInput] = useState("jewelry components\nusb adapter");
 
   useEffect(() => {
     if (!adminToken) return;
@@ -144,6 +156,50 @@ export function useAdminIntegrations(adminToken: string | null) {
       .catch(() => setPartnerApiHealthJson(JSON.stringify({ error: "Не удалось загрузить /api/partner/v1/health" }, null, 2)));
   }, [healthFetchTrigger]);
 
+  const runYandexTranslate = useCallback(async (mode: "direct" | "productNames" | "fivepost") => {
+    if (!adminToken) return;
+    const texts = yandexInput
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (texts.length === 0) {
+      setYandexError("Введите хотя бы одну строку для перевода");
+      return;
+    }
+    setYandexLoading(true);
+    setYandexError("");
+    setYandexResult("");
+    try {
+      const data = await postAdminYandexTranslateSandbox(adminToken, mode, texts);
+      setYandexResult(JSON.stringify(data, null, 2));
+    } catch (e: unknown) {
+      setYandexError((e as Error)?.message || "Ошибка перевода");
+    } finally {
+      setYandexLoading(false);
+    }
+  }, [adminToken, yandexInput]);
+
+  useEffect(() => {
+    if (!adminToken) return;
+    fetchAdminYandexTranslateConfig(adminToken)
+      .then((cfg) => {
+        setYandexConfigured(cfg.yandexConfigured);
+        setYandexKeyHint(cfg.yandexKeyHint);
+        setYandexFolderConfigured(cfg.folderIdConfigured);
+        setYandexFolderHint(cfg.folderIdHint);
+        setYandexOpenaiConfigured(cfg.openaiConfigured);
+        setYandexPreferredProvider(cfg.preferredProvider);
+      })
+      .catch(() => {
+        setYandexConfigured(false);
+        setYandexKeyHint("");
+        setYandexFolderConfigured(false);
+        setYandexFolderHint("");
+        setYandexOpenaiConfigured(false);
+        setYandexPreferredProvider(null);
+      });
+  }, [adminToken]);
+
   const refreshHealth = useCallback(() => {
     setHealthFetchTrigger((x) => x + 1);
   }, []);
@@ -191,6 +247,18 @@ export function useAdminIntegrations(adminToken: string | null) {
     setZvonobotApiCallIds,
     runZvonobotAction,
     partnerApiHealthJson,
+    yandexConfigured,
+    yandexKeyHint,
+    yandexFolderConfigured,
+    yandexFolderHint,
+    yandexOpenaiConfigured,
+    yandexPreferredProvider,
+    yandexLoading,
+    yandexError,
+    yandexResult,
+    yandexInput,
+    setYandexInput,
+    runYandexTranslate,
   };
 }
 
