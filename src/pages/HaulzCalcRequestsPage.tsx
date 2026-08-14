@@ -42,8 +42,6 @@ function formatWhen(iso: string): string {
   }
 }
 
-import { haulzCalcDraftStatusBadgeClass } from "./haulzCalcDraftStatusBadge";
-
 export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerMode }: Props) {
   const [tab, setTab] = useState<HaulzCalcRequestsTab>(() =>
     managerMode ? "requests" : readStoredHaulzCalcRequestsTab(),
