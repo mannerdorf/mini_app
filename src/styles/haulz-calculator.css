@@ -2645,6 +2645,224 @@ body.haulz-calc-map-screen-open {
   padding: 0.35rem;
 }
 
+/* Журнал заявок менеджера — как «Документы → Заявки», без горизонтального скролла */
+.haulz-calc-requests-page--manager {
+  max-width: none;
+  width: 100%;
+  min-width: 0;
+  padding-bottom: 1.5rem;
+}
+
+.haulz-calc-requests-page--manager .haulz-calc-requests-page__hint {
+  color: var(--color-text-secondary, var(--calc-text-secondary));
+}
+
+.haulz-calc-manager-journal {
+  margin-bottom: 1rem;
+  padding: 1rem 1.15rem 1.15rem;
+  min-width: 0;
+  overflow: visible;
+}
+
+.haulz-calc-manager-journal__empty {
+  margin: 0 0 0.75rem;
+  color: var(--color-text-secondary, var(--calc-text-secondary));
+  font-size: 0.85rem;
+}
+
+.haulz-calc-manager-journal-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 0.85rem;
+  align-items: end;
+}
+
+.haulz-calc-manager-journal-filters__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary, var(--calc-text-secondary));
+  font-weight: 600;
+}
+
+.haulz-calc-manager-journal-filters__control {
+  width: 100%;
+  min-width: 0;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border, var(--calc-border));
+  background: var(--color-bg-primary, var(--calc-input-bg));
+  color: var(--color-text-primary, var(--calc-text));
+}
+
+.haulz-calc-manager-journal-filters__reset {
+  align-self: end;
+  justify-self: start;
+  font-size: 0.82rem;
+  padding: 0.4rem 0.65rem;
+}
+
+.haulz-calc-manager-journal__table-wrap {
+  min-width: 0;
+  overflow: visible;
+}
+
+.haulz-calc-manager-journal__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  table-layout: fixed;
+}
+
+.haulz-calc-manager-journal__table thead th {
+  padding: 0.5rem 0.4rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--color-text-primary, var(--calc-text));
+  background: var(--color-bg-hover, var(--calc-surface-muted));
+  border-bottom: 1px solid var(--color-border, var(--calc-border));
+  vertical-align: middle;
+}
+
+.haulz-calc-manager-journal__table tbody td {
+  padding: 0.5rem 0.4rem;
+  border-bottom: 1px solid var(--color-border, var(--calc-border));
+  vertical-align: top;
+}
+
+.haulz-calc-manager-journal__row {
+  cursor: pointer;
+}
+
+.haulz-calc-manager-journal__row:hover td {
+  background: var(--color-bg-hover, var(--calc-suggest-hover));
+}
+
+.haulz-calc-manager-journal__row--expanded td {
+  background: var(--color-bg-hover, var(--calc-suggest-hover));
+  border-bottom: none;
+}
+
+.haulz-calc-manager-journal__expand-row td {
+  padding: 0;
+  border-bottom: 1px solid var(--color-border, var(--calc-border));
+  vertical-align: top;
+}
+
+.haulz-calc-manager-journal__col-date {
+  width: 8%;
+}
+
+.haulz-calc-manager-journal__col-number {
+  width: 11%;
+}
+
+.haulz-calc-manager-journal__col-party {
+  width: 13%;
+}
+
+.haulz-calc-manager-journal__col-route {
+  width: 9%;
+}
+
+.haulz-calc-manager-journal__col-status {
+  width: 12%;
+}
+
+.haulz-calc-manager-journal__col-sum {
+  width: 9%;
+  text-align: right;
+}
+
+.haulz-calc-manager-journal__col-actions {
+  width: 5%;
+  text-align: center;
+}
+
+.haulz-calc-manager-journal__cell-date {
+  white-space: nowrap;
+}
+
+.haulz-calc-manager-journal__cell-number {
+  white-space: nowrap;
+  word-break: break-all;
+}
+
+.haulz-calc-manager-journal__cell-party {
+  min-width: 0;
+}
+
+.haulz-calc-manager-journal__cell-clamp {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+
+.haulz-calc-manager-journal__cell-route {
+  min-width: 0;
+}
+
+.haulz-calc-manager-journal__cell-status {
+  white-space: nowrap;
+}
+
+.haulz-calc-manager-journal-status {
+  width: 100%;
+  max-width: 100%;
+  font-size: 0.78rem;
+  padding: 0.25rem 0.35rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-border, var(--calc-border));
+  background: var(--color-bg-primary, var(--calc-input-bg));
+  color: var(--color-text-primary, var(--calc-text));
+}
+
+.haulz-calc-manager-journal__status-spinner {
+  display: inline-block;
+  margin-left: 0.25rem;
+  vertical-align: middle;
+}
+
+.haulz-calc-manager-journal__cell-sum {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.haulz-calc-manager-journal__cell-actions {
+  text-align: center;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .haulz-calc-manager-journal {
+    padding: 0.85rem 0.75rem 1rem;
+  }
+
+  .haulz-calc-manager-journal-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .haulz-calc-manager-journal__table {
+    table-layout: auto;
+  }
+
+  .haulz-calc-manager-journal__col-date,
+  .haulz-calc-manager-journal__col-number,
+  .haulz-calc-manager-journal__col-party,
+  .haulz-calc-manager-journal__col-route,
+  .haulz-calc-manager-journal__col-status,
+  .haulz-calc-manager-journal__col-sum,
+  .haulz-calc-manager-journal__col-actions {
+    width: auto;
+  }
+}
+
 /* Форма с синхронизацией «Ваш расчёт» — калькулятор профиля и заявка в «Документы» */
 .app-container:has(.haulz-calc-summary-layout-sync),
 .app-container:has(.haulz-calc-summary-layout-sync) .app-main,

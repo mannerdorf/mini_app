@@ -176,7 +176,9 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
         : "Пока нет заявок. Оформите расчёт в калькуляторе или отправьте КП на почту.";
 
   return (
-    <div className={`haulz-calc-page--cdek haulz-calc-requests-page${tab === "saved" ? " haulz-calc-drafts-page" : ""}`}>
+    <div
+      className={`haulz-calc-page--cdek haulz-calc-requests-page${managerMode ? " haulz-calc-requests-page--manager" : ""}${tab === "saved" ? " haulz-calc-drafts-page" : ""}`}
+    >
       <div className="haulz-calc-requests-page__head">
         <button type="button" className="haulz-calc-header__back" onClick={onBack} aria-label="Назад">
           <ArrowLeft className="w-5 h-5" />

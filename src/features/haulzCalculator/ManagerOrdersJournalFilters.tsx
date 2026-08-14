@@ -20,62 +20,35 @@ type Props = {
   options: FilterOptions;
 };
 
-const selectStyle: React.CSSProperties = {
-  fontSize: "0.82rem",
-  padding: "0.35rem 0.45rem",
-  borderRadius: 6,
-  border: "1px solid var(--color-border)",
-  background: "var(--color-bg-primary)",
-  maxWidth: 180,
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "0.2rem",
-  fontSize: "0.75rem",
-  color: "var(--color-text-secondary)",
-  fontWeight: 600,
-};
-
 export function ManagerOrdersJournalFilters({ filters, onChange, options }: Props) {
   const set = (patch: Partial<ManagerJournalFilters>) => onChange({ ...filters, ...patch });
 
   return (
-    <div
-      className="haulz-calc-manager-journal-filters"
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: "0.65rem",
-        marginBottom: "0.75rem",
-        alignItems: "flex-end",
-      }}
-    >
-      <label style={labelStyle}>
+    <div className="haulz-calc-manager-journal-filters">
+      <label className="haulz-calc-manager-journal-filters__field">
         Дата заявки
         <input
           type="date"
+          className="haulz-calc-manager-journal-filters__control"
           value={filters.orderDate}
           onChange={(e) => set({ orderDate: e.target.value })}
-          style={selectStyle}
         />
       </label>
-      <label style={labelStyle}>
+      <label className="haulz-calc-manager-journal-filters__field">
         Дата забора
         <input
           type="date"
+          className="haulz-calc-manager-journal-filters__control"
           value={filters.pickupDate}
           onChange={(e) => set({ pickupDate: e.target.value })}
-          style={selectStyle}
         />
       </label>
-      <label style={labelStyle}>
+      <label className="haulz-calc-manager-journal-filters__field">
         Заказчик
         <select
+          className="haulz-calc-manager-journal-filters__control"
           value={filters.customer}
           onChange={(e) => set({ customer: e.target.value })}
-          style={selectStyle}
         >
           <option value="">Все</option>
           {options.customers.map((value) => (
@@ -85,12 +58,12 @@ export function ManagerOrdersJournalFilters({ filters, onChange, options }: Prop
           ))}
         </select>
       </label>
-      <label style={labelStyle}>
+      <label className="haulz-calc-manager-journal-filters__field">
         Отправитель
         <select
+          className="haulz-calc-manager-journal-filters__control"
           value={filters.sender}
           onChange={(e) => set({ sender: e.target.value })}
-          style={selectStyle}
         >
           <option value="">Все</option>
           {options.senders.map((value) => (
@@ -100,12 +73,12 @@ export function ManagerOrdersJournalFilters({ filters, onChange, options }: Prop
           ))}
         </select>
       </label>
-      <label style={labelStyle}>
+      <label className="haulz-calc-manager-journal-filters__field">
         Получатель
         <select
+          className="haulz-calc-manager-journal-filters__control"
           value={filters.receiver}
           onChange={(e) => set({ receiver: e.target.value })}
-          style={selectStyle}
         >
           <option value="">Все</option>
           {options.receivers.map((value) => (
@@ -115,9 +88,13 @@ export function ManagerOrdersJournalFilters({ filters, onChange, options }: Prop
           ))}
         </select>
       </label>
-      <label style={labelStyle}>
+      <label className="haulz-calc-manager-journal-filters__field">
         Маршрут
-        <select value={filters.route} onChange={(e) => set({ route: e.target.value })} style={selectStyle}>
+        <select
+          className="haulz-calc-manager-journal-filters__control"
+          value={filters.route}
+          onChange={(e) => set({ route: e.target.value })}
+        >
           <option value="">Все</option>
           {options.routes.map((value) => (
             <option key={value} value={value}>
@@ -126,9 +103,13 @@ export function ManagerOrdersJournalFilters({ filters, onChange, options }: Prop
           ))}
         </select>
       </label>
-      <label style={labelStyle}>
+      <label className="haulz-calc-manager-journal-filters__field">
         Статус
-        <select value={filters.status} onChange={(e) => set({ status: e.target.value })} style={selectStyle}>
+        <select
+          className="haulz-calc-manager-journal-filters__control"
+          value={filters.status}
+          onChange={(e) => set({ status: e.target.value })}
+        >
           <option value="">Все</option>
           {options.statuses.map((status) => (
             <option key={status} value={status}>
@@ -146,8 +127,7 @@ export function ManagerOrdersJournalFilters({ filters, onChange, options }: Prop
         filters.status) && (
         <button
           type="button"
-          className="haulz-calc-btn-secondary"
-          style={{ fontSize: "0.82rem", padding: "0.4rem 0.65rem" }}
+          className="haulz-calc-btn-secondary haulz-calc-manager-journal-filters__reset"
           onClick={() =>
             onChange({
               orderDate: "",
