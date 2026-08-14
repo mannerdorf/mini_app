@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, type Ref } from "react";
 import { Loader2, Map } from "lucide-react";
 import type { AuthData } from "../../types";
 import type { AddressSelection, CityCode } from "../../../lib/haulzCalculator/types";
@@ -63,6 +63,7 @@ type Props = {
   openMapOnMount?: boolean;
   /** ИНН и наименование — в блоке «Заказчик» */
   showIdentityFields?: boolean;
+  cardRef?: Ref<HTMLDivElement | null>;
 };
 
 export function HaulzCalcAddressField({
@@ -88,6 +89,7 @@ export function HaulzCalcAddressField({
   embedded = false,
   openMapOnMount = false,
   showIdentityFields = true,
+  cardRef,
 }: Props) {
   const [suggestions, setSuggestions] = useState<HaulzSuggestItem[]>([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
@@ -525,7 +527,7 @@ export function HaulzCalcAddressField({
   );
 
   return (
-    <div className={embedded ? "haulz-calc-address-embedded" : "haulz-calc-card"}>
+    <div ref={cardRef} className={embedded ? "haulz-calc-address-embedded" : "haulz-calc-card"}>
       {body}
     </div>
   );

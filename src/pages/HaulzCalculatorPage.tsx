@@ -25,6 +25,7 @@ import { HaulzCalcTariffBasisFootnote } from "../features/haulzCalculator/HaulzC
 import { HaulzCalcMobileFlow } from "../features/haulzCalculator/HaulzCalcMobileFlow";
 import type { HaulzCalcMobileRoute } from "../features/haulzCalculator/haulzCalcMobileLabels";
 import { useHaulzCalcMobile } from "../features/haulzCalculator/useHaulzCalcMobile";
+import { useHaulzCalcSummaryLayoutSync } from "../features/haulzCalculator/useHaulzCalcSummaryLayoutSync";
 import { formatQuoteVatLine } from "../../lib/haulzCalculator/quoteVat";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import { formatPhoneMask } from "../lib/formatPhoneMask";
@@ -106,6 +107,10 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
   const isMobileLayout = useHaulzCalcMobile();
   const prevQuoteDepsRef = useRef<string | null>(null);
   const customerInnBootstrappedRef = useRef(false);
+  const formRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
+  useHaulzCalcSummaryLayoutSync(formRef, anchorRef, mainRef);
 
   const effectiveCustomerInn = useServiceRequest ? customerInn : activeInn;
   const effectiveCustomerCompanyName = useServiceRequest ? customerCompanyName : activeCustomerName;
@@ -656,7 +661,10 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
   };
 
   return (
-    <div className={`haulz-calc-page--cdek${isMobileLayout ? " haulz-calc-page--mobile-flow" : ""}`}>
+    <div
+      ref={formRef}
+      className={`haulz-calc-page--cdek haulz-calc-summary-layout-sync${isMobileLayout ? " haulz-calc-page--mobile-flow" : ""}`}
+    >
       <div className="haulz-calc-shell-bg">
         {isMobileLayout ? (
           <HaulzCalcMobileFlow {...mobileFlowProps} />
@@ -688,18 +696,21 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
         {error && <div className="haulz-calc-alert haulz-calc-alert--error">{error}</div>}
 
         <div className="haulz-calc-grid">
-          <div className="haulz-calc-main">
+          <div ref={mainRef} className="haulz-calc-main">
             {useServiceRequest && (
-              <HaulzCalcCustomerBlock
-                auth={auth}
-                inn={customerInn}
-                setInn={setCustomerInn}
-                companyName={customerCompanyName}
-                setCompanyName={setCustomerCompanyName}
-              />
+              <div ref={anchorRef}>
+                <HaulzCalcCustomerBlock
+                  auth={auth}
+                  inn={customerInn}
+                  setInn={setCustomerInn}
+                  companyName={customerCompanyName}
+                  setCompanyName={setCustomerCompanyName}
+                />
+              </div>
             )}
 
             <HaulzCalcAddressField
+              cardRef={useServiceRequest ? undefined : anchorRef}
               title="Отправить"
               side="from"
               city={suggestCityFrom}

@@ -426,7 +426,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
         : "Заполните параметры груза — расчёт обновится автоматически";
 
   return (
-    <div ref={formRef} className="haulz-calc-page--cdek documents-order-form">
+    <div ref={formRef} className="haulz-calc-page--cdek haulz-calc-summary-layout-sync documents-order-form">
       <div className="haulz-calc-shell-bg">
         <header className="haulz-calc-header">
           <button type="button" className="haulz-calc-header__back" onClick={onBack} aria-label="Назад к заявкам">

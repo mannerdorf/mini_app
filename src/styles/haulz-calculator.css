@@ -600,7 +600,7 @@
     overflow: visible;
   }
 
-  .haulz-calc-page--cdek {
+  .haulz-calc-page--cdek:not(.haulz-calc-summary-layout-sync) {
     --haulz-summary-fixed-top: max(
       calc(var(--haulz-summary-header-offset) + 0.75rem),
       env(safe-area-inset-top, 0px)
@@ -611,12 +611,12 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .haulz-calc-main {
+  .haulz-calc-page--cdek:not(.haulz-calc-summary-layout-sync) .haulz-calc-main {
     margin-right: calc(var(--haulz-summary-col-width) + 1rem);
     min-width: 0;
   }
 
-  .haulz-calc-summary-wrap {
+  .haulz-calc-page--cdek:not(.haulz-calc-summary-layout-sync) .haulz-calc-summary-wrap {
     position: fixed;
     top: var(--haulz-summary-fixed-top);
     left: max(
@@ -638,7 +638,7 @@
     box-sizing: border-box;
   }
 
-  .haulz-calc-summary-wrap > .haulz-calc-summary {
+  .haulz-calc-page--cdek:not(.haulz-calc-summary-layout-sync) .haulz-calc-summary-wrap > .haulz-calc-summary {
     min-height: 0;
     flex: 1 1 auto;
     overflow-x: hidden;
@@ -2613,42 +2613,54 @@ body.haulz-calc-map-screen-open {
   padding: 0.35rem;
 }
 
-/* Форма заявки в «Документы» — блок «Ваш расчёт» всегда на экране (fixed) */
-.app-container:has(.documents-order-form),
-.app-container:has(.documents-order-form) .app-main,
-.app-container:has(.documents-order-form) .app-header,
-.app-main:has(.documents-order-form),
-.app-main:has(.documents-order-form) > div,
-.documents-page:has(.documents-order-form),
-.documents-order-form.haulz-calc-page--cdek,
-.documents-order-form.haulz-calc-page--cdek .haulz-calc-shell-bg,
-.documents-order-form.haulz-calc-page--cdek .haulz-calc-grid {
+/* Форма с синхронизацией «Ваш расчёт» — калькулятор профиля и заявка в «Документы» */
+.app-container:has(.haulz-calc-summary-layout-sync),
+.app-container:has(.haulz-calc-summary-layout-sync) .app-main,
+.app-container:has(.haulz-calc-summary-layout-sync) .app-header,
+.app-main:has(.haulz-calc-summary-layout-sync),
+.app-main:has(.haulz-calc-summary-layout-sync) > div,
+.documents-page:has(.haulz-calc-summary-layout-sync),
+.haulz-calc-summary-layout-sync.haulz-calc-page--cdek,
+.haulz-calc-summary-layout-sync.haulz-calc-page--cdek .haulz-calc-shell-bg,
+.haulz-calc-summary-layout-sync.haulz-calc-page--cdek .haulz-calc-grid {
   overflow: visible;
 }
 
-.documents-order-form.haulz-calc-page--cdek {
-  --haulz-docs-content-max: min(56rem, 100vw);
+.haulz-calc-summary-layout-sync.haulz-calc-page--cdek {
+  --haulz-docs-content-max: min(1180px, 96vw);
   --haulz-docs-summary-gap: 1rem;
   max-width: none;
   width: 100%;
 }
 
-.app-main-wide .documents-order-form.haulz-calc-page--cdek {
+.app-main-wide .haulz-calc-summary-layout-sync.haulz-calc-page--cdek {
   --haulz-docs-content-max: min(96vw, 1400px);
 }
 
-.documents-order-form.haulz-calc-page--cdek .haulz-calc-shell-bg {
+.documents-order-form.haulz-calc-summary-layout-sync.haulz-calc-page--cdek {
+  --haulz-docs-content-max: min(56rem, 100vw);
+}
+
+.app-main-wide .documents-order-form.haulz-calc-summary-layout-sync.haulz-calc-page--cdek {
+  --haulz-docs-content-max: min(96vw, 1400px);
+}
+
+.haulz-calc-summary-layout-sync.haulz-calc-page--cdek .haulz-calc-shell-bg {
   margin-left: 0;
   margin-right: 0;
 }
 
-/* «Ваш расчёт»: top синхронизируется с карточкой «Маршрут» (JS), fallback — 1 см от app-header */
-.documents-page:has(.documents-order-form) {
+/* «Ваш расчёт»: top синхронизируется с первой карточкой формы (JS), fallback — 1 см от app-header */
+.documents-page:has(.haulz-calc-summary-layout-sync) {
+  --haulz-docs-summary-sync-top: calc(var(--haulz-summary-header-offset) + 1cm);
+}
+
+.haulz-calc-summary-layout-sync.haulz-calc-page--cdek {
   --haulz-docs-summary-sync-top: calc(var(--haulz-summary-header-offset) + 1cm);
 }
 
 @media (min-width: 769px) {
-  .documents-order-form.haulz-calc-page--cdek {
+  .haulz-calc-summary-layout-sync.haulz-calc-page--cdek {
     --haulz-summary-fixed-top: max(
       calc(var(--haulz-summary-header-offset) + 1cm),
       var(--haulz-docs-summary-sync-top),
@@ -2657,18 +2669,18 @@ body.haulz-calc-map-screen-open {
   }
 
   /*
-   * Форма в app-main: fixed по вертикали (как калькулятор), left по ширине контейнера — не к краю окна.
+   * Форма в app-main: fixed по вертикали, left по правому краю основной колонки + gap (JS).
    */
-  .documents-order-form.haulz-calc-page--cdek .haulz-calc-grid {
+  .haulz-calc-summary-layout-sync.haulz-calc-page--cdek .haulz-calc-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .documents-order-form .haulz-calc-main {
+  .haulz-calc-summary-layout-sync .haulz-calc-main {
     margin-right: calc(var(--haulz-summary-col-width) + var(--haulz-docs-summary-gap, 1rem));
     min-width: 0;
   }
 
-  .documents-order-form .haulz-calc-summary-wrap {
+  .haulz-calc-summary-layout-sync .haulz-calc-summary-wrap {
     position: fixed;
     top: var(--haulz-summary-fixed-top);
     left: var(
@@ -2693,7 +2705,7 @@ body.haulz-calc-map-screen-open {
     box-sizing: border-box;
   }
 
-  .documents-order-form .haulz-calc-summary-wrap > .haulz-calc-summary {
+  .haulz-calc-summary-layout-sync .haulz-calc-summary-wrap > .haulz-calc-summary {
     min-height: 0;
     flex: 1 1 auto;
     overflow-x: hidden;
@@ -2704,7 +2716,7 @@ body.haulz-calc-map-screen-open {
 }
 
 @media (max-width: 768px) {
-  .documents-order-form .haulz-calc-grid {
+  .haulz-calc-summary-layout-sync .haulz-calc-grid {
     padding-bottom: calc(280px + 72px + env(safe-area-inset-bottom, 0px));
   }
 }
