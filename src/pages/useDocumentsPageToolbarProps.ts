@@ -73,6 +73,7 @@ type BuildInput = {
   docsMotionEnabled: boolean;
   auth: DocumentsPageToolbarActionBars["auth"];
   effectiveActiveInn?: string;
+  activeCustomerName?: string;
   onNewOrder: () => void;
   onOpenClaimsCreate: () => void;
   onOpenSverkiOrder: () => void;
@@ -262,6 +263,7 @@ export function buildDocumentsPageToolbarProps(input: BuildInput) {
   const actionBars: DocumentsPageToolbarActionBars = {
     auth: input.auth,
     effectiveActiveInn: input.effectiveActiveInn,
+    activeCustomerName: input.activeCustomerName,
     onNewOrder: input.onNewOrder,
     onOpenClaimsCreate: input.onOpenClaimsCreate,
     onOpenSverkiOrder: input.onOpenSverkiOrder,

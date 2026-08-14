@@ -2,27 +2,35 @@ import { useCallback, useMemo, useState } from "react";
 import { cityToCode } from "../../../lib/formatUtils";
 import type { RouteFilterKey, StatusFilter, TypeFilterKey } from "../../../lib/sharedListFilters";
 import { buildFilteredOrders } from "../lib/documentsPipeline";
+import { deleteDocumentsOrder } from "../../../api/client/documentsOrder";
+import type { AuthData } from "../../../types";
 
 type UseDocumentsOrdersInput = {
   active: boolean;
   ordersItems: any[];
+  auth: AuthData;
   effectiveActiveInn?: string;
+  activeCustomerName?: string;
   effectiveServiceMode: boolean;
   customerFilter: string;
   effectiveSearchText: string;
   sortBy: string;
   sortOrder: "asc" | "desc";
+  onOrdersMutate?: () => void;
 };
 
 export function useDocumentsOrders({
   active,
   ordersItems,
+  auth,
   effectiveActiveInn,
+  activeCustomerName,
   effectiveServiceMode,
   customerFilter,
   effectiveSearchText,
   sortBy,
   sortOrder,
+  onOrdersMutate,
 }: UseDocumentsOrdersInput) {
   const [orderReceiverFilter, setOrderReceiverFilter] = useState<string>("");
   const [orderSenderFilter, setOrderSenderFilter] = useState<string>("");
@@ -39,11 +47,14 @@ export function useDocumentsOrders({
   const [isReceiverDropdownOpen, setIsReceiverDropdownOpen] = useState(false);
   const [isOrderSenderDropdownOpen, setIsOrderSenderDropdownOpen] = useState(false);
   const [isOrderRouteDropdownOpen, setIsOrderRouteDropdownOpen] = useState(false);
+  const [deletingPendingOrderId, setDeletingPendingOrderId] = useState<number | null>(null);
+  const [deleteOrderError, setDeleteOrderError] = useState<string | null>(null);
 
   const filteredOrders = useMemo(() => {
     const base = buildFilteredOrders({
       items: ordersItems || [],
       activeInn: effectiveActiveInn,
+      activeCustomerName,
       useServiceRequest: effectiveServiceMode,
       customerFilter,
       typeFilterSet: new Set<TypeFilterKey>(),
@@ -109,6 +120,7 @@ export function useDocumentsOrders({
   }, [
     ordersItems,
     effectiveActiveInn,
+    activeCustomerName,
     effectiveServiceMode,
     customerFilter,
     effectiveSearchText,
@@ -372,6 +384,36 @@ export function useDocumentsOrders({
     if (active) setExpandedOrderRow(null);
   }, [active]);
 
+  const handleDeletePendingOrder = useCallback(
+    async (row: Record<string, unknown>) => {
+      if (row?._pendingOrder !== true) return;
+      const pendingOrderId = Number(row._pendingOrderId);
+      if (!Number.isFinite(pendingOrderId) || pendingOrderId < 1) return;
+      if (!auth?.login || !auth?.password) return;
+      if (!window.confirm("Удалить заявку?")) return;
+
+      setDeletingPendingOrderId(pendingOrderId);
+      setDeleteOrderError(null);
+      try {
+        await deleteDocumentsOrder(
+          {
+            login: auth.login,
+            password: auth.password,
+            inn: effectiveActiveInn || auth.inn || "",
+            customerName: activeCustomerName || undefined,
+          },
+          pendingOrderId,
+        );
+        onOrdersMutate?.();
+      } catch (e: unknown) {
+        setDeleteOrderError(e instanceof Error ? e.message : "Не удалось удалить заявку");
+      } finally {
+        setDeletingPendingOrderId(null);
+      }
+    },
+    [auth?.login, auth?.password, auth?.inn, effectiveActiveInn, activeCustomerName, onOrdersMutate],
+  );
+
   return {
     orderReceiverFilter,
     setOrderReceiverFilter,
@@ -400,5 +442,8 @@ export function useDocumentsOrders({
     setIsOrderSenderDropdownOpen,
     isOrderRouteDropdownOpen,
     setIsOrderRouteDropdownOpen,
+    deletingPendingOrderId,
+    deleteOrderError,
+    handleDeletePendingOrder,
   };
 }

@@ -1,12 +1,13 @@
 import React from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Flex, Panel, Typography } from "@maxhub/max-ui";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
+import { ArrowDown, ArrowUp, Loader2, Trash2 } from "lucide-react";
 import { DateText } from "../../../components/ui/DateText";
 import { cityToCode, formatInvoiceNumber, stripOoo } from "../../../lib/formatUtils";
 import { ClickableCargoNumber } from "../../../components/ui/EntityLinks";
 import { AppBadge } from "../../../components/shared/AppBadge";
 import { DocumentsRouteBadge, DocumentsStateBlocks } from "../views/documentsViewBlocks";
+import { getOrderStatusLabel } from "../lib/orderCustomerScope";
 import { getParcelSearchText, getRequestParcels } from "../sendings/sendingsParcelHelpers";
 import {
   cargoListContainerVariants,
@@ -32,6 +33,9 @@ type Props = {
   expandedOrderRow: string | null;
   setExpandedOrderRow: React.Dispatch<React.SetStateAction<string | null>>;
   onOpenCargo?: (cargoNumber: string) => void;
+  onDeletePendingOrder?: (row: Record<string, unknown>) => void | Promise<void>;
+  deletingPendingOrderId?: number | null;
+  deleteOrderError?: string | null;
 };
 
 export function DocumentsOrdersSection({
@@ -52,11 +56,21 @@ export function DocumentsOrdersSection({
   expandedOrderRow,
   setExpandedOrderRow,
   onOpenCargo,
+  onDeletePendingOrder,
+  deletingPendingOrderId,
+  deleteOrderError,
 }: Props) {
   if (!active) return null;
 
+  const tableColSpan = (effectiveServiceMode ? 9 : 7) + 2;
+
   return (
     <>
+      {deleteOrderError && (
+        <Typography.Body style={{ color: "var(--color-danger, #dc2626)", marginBottom: "0.5rem" }}>
+          {deleteOrderError}
+        </Typography.Body>
+      )}
       {(ordersLoading || !!ordersError) && <DocumentsStateBlocks loading={ordersLoading} error={ordersError} emptyText="" />}
       <AnimatePresence mode="wait">
 {!ordersLoading && !ordersError && tableModeEffective && orderRowsSorted.length > 0 ? (
@@ -73,6 +87,8 @@ export function DocumentsOrdersSection({
                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('sender')} title="Сортировка">Отправитель {ordersSortColumn === 'sender' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('receiver')} title="Сортировка">Получатель {ordersSortColumn === 'receiver' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('route')} title="Сортировка">Маршрут {ordersSortColumn === 'route' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
+                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'center', fontWeight: 600, width: 48 }} aria-label="Действия" />
                     {effectiveServiceMode && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('comment')} title="Сортировка">Комментарий {ordersSortColumn === 'comment' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
                 </tr>
             </thead>
@@ -134,6 +150,10 @@ export function DocumentsOrdersSection({
                     const senderPoint = String(row?.ПунктОтправкиНаименование ?? row?.ПунктОтправки ?? row?.ПунктОтправления ?? row?.АдресОтправки ?? row?.SenderPoint ?? '');
                     const destinationPoint = String(row?.ПунктНазначенияНаименование ?? row?.ПунктНазначения ?? row?.ПунктДоставки ?? row?.ReceiverPoint ?? row?.DestinationPoint ?? '');
                     const route = [cityToCode(senderPoint) || senderPoint, cityToCode(destinationPoint) || destinationPoint].filter(Boolean).join(' – ') || '—';
+                    const statusLabel = getOrderStatusLabel(row);
+                    const isPendingOrder = row?._pendingOrder === true;
+                    const pendingOrderId = Number(row?._pendingOrderId);
+                    const isDeleting = isPendingOrder && deletingPendingOrderId === pendingOrderId;
                     return (
                         <React.Fragment key={rowKey}>
                             <tr
@@ -209,11 +229,29 @@ export function DocumentsOrdersSection({
                                         {route}
                                     </DocumentsRouteBadge>
                                 </td>
+                                <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>{statusLabel}</td>
+                                <td style={{ padding: '0.5rem 0.4rem', textAlign: 'center' }}>
+                                    {isPendingOrder && onDeletePendingOrder ? (
+                                        <Button
+                                            type="button"
+                                            className="button-ghost"
+                                            disabled={isDeleting}
+                                            title="Удалить заявку"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                void onDeletePendingOrder(row);
+                                            }}
+                                            style={{ minWidth: 32, padding: '0.25rem' }}
+                                        >
+                                            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                        </Button>
+                                    ) : null}
+                                </td>
                                 {effectiveServiceMode && <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>}
                             </tr>
                             {expanded && (
                                 <tr>
-                                    <td colSpan={effectiveServiceMode ? 9 : 7} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                    <td colSpan={tableColSpan} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                         <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--color-border)' }}>
                                             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(170px, 220px) 1fr', gap: '0.35rem 0.75rem', fontSize: '0.85rem' }}>
                                                 <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Заказчик:</Typography.Body>
@@ -315,6 +353,10 @@ export function DocumentsOrdersSection({
             const senderPoint = String(row?.ПунктОтправкиНаименование ?? row?.ПунктОтправки ?? row?.ПунктОтправления ?? row?.АдресОтправки ?? row?.SenderPoint ?? '');
             const destinationPoint = String(row?.ПунктНазначенияНаименование ?? row?.ПунктНазначения ?? row?.ПунктДоставки ?? row?.ReceiverPoint ?? row?.DestinationPoint ?? '');
             const route = [cityToCode(senderPoint) || senderPoint, cityToCode(destinationPoint) || destinationPoint].filter(Boolean).join(' – ') || '—';
+            const statusLabel = getOrderStatusLabel(row);
+            const isPendingOrder = row?._pendingOrder === true;
+            const pendingOrderId = Number(row?._pendingOrderId);
+            const isDeleting = isPendingOrder && deletingPendingOrderId === pendingOrderId;
             const rowKey = `${requestNumber || 'row'}-${cargoNumber || idx}`;
             const expanded = expandedOrderRow === rowKey;
             return (
@@ -349,10 +391,30 @@ export function DocumentsOrdersSection({
                         <DocumentsRouteBadge>
                             {route}
                         </DocumentsRouteBadge>
-                        <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                            Забор: <DateText value={pickupDate || undefined} />
-                        </Typography.Label>
+                        <Flex align="center" gap="0.5rem">
+                            <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                {statusLabel}
+                            </Typography.Label>
+                            {isPendingOrder && onDeletePendingOrder ? (
+                                <Button
+                                    type="button"
+                                    className="button-ghost"
+                                    disabled={isDeleting}
+                                    title="Удалить заявку"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        void onDeletePendingOrder(row);
+                                    }}
+                                    style={{ minWidth: 32, padding: '0.25rem' }}
+                                >
+                                    {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                </Button>
+                            ) : null}
+                        </Flex>
                     </Flex>
+                    <Typography.Label style={{ marginBottom: '0.45rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)', display: 'block' }}>
+                        Забор: <DateText value={pickupDate || undefined} />
+                    </Typography.Label>
                     <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
                         <Typography.Label style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '48%' }} title={stripOoo(String(sender || ''))}>
                             {stripOoo(String(sender || '—'))}

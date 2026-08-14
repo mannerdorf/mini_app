@@ -2,6 +2,7 @@ import type { VercelRequest } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { pickHaulzCredentials } from "./_haulzReturns.js";
+import { lookupCustomerInnByName } from "../lib/resolveCustomerInn.js";
 import type {
   AddressSelection,
   DeliveryParty,
@@ -154,9 +155,6 @@ export async function resolveDocumentsOrderAccess(
   const { login, password } = pickHaulzCredentials(req, body);
   if (!login || !password) return null;
 
-  const customerInn = normalizeInn(b.inn ?? b.customerInn ?? b.customer_inn);
-  if (!customerInn) return null;
-
   const pool = getPool();
   const verified = await verifyRegisteredUser(pool, login, password);
   if (!verified) return null;
@@ -170,6 +168,12 @@ export async function resolveDocumentsOrderAccess(
   if (perms?.doc_orders !== true) return null;
 
   const customerName = String(b.customerName ?? b.customer_name ?? "").trim() || undefined;
+  let customerInn = normalizeInn(b.inn ?? b.customerInn ?? b.customer_inn);
+  if (!customerInn && customerName) {
+    const resolved = await lookupCustomerInnByName(pool, loginKey, customerName);
+    if (resolved?.inn) customerInn = normalizeInn(resolved.inn);
+  }
+  if (!customerInn) return null;
 
   return { login, loginKey, customerInn, customerName };
 }
