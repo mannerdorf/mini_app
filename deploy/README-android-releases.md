@@ -13,25 +13,27 @@
 
 ---
 
-## Git-ветка для APK
+## Git-ветки
 
 | Ветка | Назначение |
 |-------|------------|
-| `main` | основной код (сайт + приложение) |
-| `staging` | предпрод сайта |
-| **`cursor/android-app-ea4b`** | **линия сборок APK** — собирайте и деплойте с неё |
+| `main` | **тест** — эксперименты и проверки |
+| `staging` | **основной** код сайта (прод `haulz.space`) |
+| **`cursor/android-app-ea4b`** | **сборка и деплой APK** на `app.haulz.space` |
 
-На Mac перед сборкой:
+На Mac перед сборкой APK:
 
 ```bash
 git fetch origin
 git checkout cursor/android-app-ea4b
 git pull origin cursor/android-app-ea4b
-# при необходимости подтянуть свежий main:
-# git merge origin/main
+# подтянуть актуальный прод-код с staging:
+git merge origin/staging
 ```
 
-После правок только под APK — коммит в `cursor/android-app-ea4b`, push, сборка, деплой на `app.haulz.space`.
+Правки только под APK — коммит в `cursor/android-app-ea4b`, push, `npm run android:release`, деплoy на `app.haulz.space`.
+
+Общие фичи для сайта и приложения сначала попадают в **`staging`**, затем мержатся в **`cursor/android-app-ea4b`** перед релизом APK.
 
 ---
 
