@@ -1,5 +1,13 @@
 import { adminAuthHeaders } from "./auth";
 
+function formatAdminPushApiError(data: unknown, fallback: string): string {
+  const err = (data as { error?: string; path?: string })?.error || fallback;
+  if (err === "API route not found") {
+    return "Маршрут API не найден — обновите код на API haulzbackend (git pull staging + restart haulz-api)";
+  }
+  return err;
+}
+
 export type AdminPushAudienceType =
   | "all_with_token"
   | "logins"
@@ -51,7 +59,7 @@ export async function postAdminPushPreview(
     body: JSON.stringify({ audience }),
   });
   const data = (await res.json().catch(() => ({}))) as AdminPushPreviewResult & { error?: string };
-  if (!res.ok) throw new Error(data?.error || "Ошибка предпросмотра получателей");
+  if (!res.ok) throw new Error(formatAdminPushApiError(data, "Ошибка предпросмотра получателей"));
   return data;
 }
 
@@ -72,6 +80,6 @@ export async function postAdminPushSend(
     body: JSON.stringify(payload),
   });
   const data = (await res.json().catch(() => ({}))) as AdminPushSendResult & { error?: string };
-  if (!res.ok) throw new Error(data?.error || "Ошибка отправки push-уведомлений");
+  if (!res.ok) throw new Error(formatAdminPushApiError(data, "Ошибка отправки push-уведомлений"));
   return data;
 }

@@ -47,6 +47,42 @@
     border-radius: var(--radius-md);
 }
 
+/* Поля форм CMS: нативные input/textarea и max-ui Input — светлая тема */
+.admin-page-root--saas-analytics input.admin-form-input,
+.admin-page-root--saas-analytics textarea.admin-form-input,
+.admin-page-root--saas-analytics select.admin-form-input {
+    width: 100%;
+    box-sizing: border-box;
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.875rem;
+    box-shadow: none !important;
+}
+
+.admin-page-root--saas-analytics label[class*="Input"],
+.admin-page-root--saas-analytics [class*="Input__body"],
+.admin-page-root--saas-analytics [class*="ClearableInput"],
+.admin-page-root--saas-analytics .admin-form-input:not(input):not(textarea):not(select) {
+    background-color: #ffffff !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 0.375rem;
+    color: #111827 !important;
+    box-shadow: none !important;
+}
+
+.admin-page-root--saas-analytics label[class*="Input"] input,
+.admin-page-root--saas-analytics [class*="Input__body"] input,
+.admin-page-root--saas-analytics [class*="ClearableInput"] input,
+.admin-page-root--saas-analytics .admin-form-input input {
+    background-color: transparent !important;
+    color: #111827 !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .admin-page-root--saas-analytics .cargo-card {
         transition: none;

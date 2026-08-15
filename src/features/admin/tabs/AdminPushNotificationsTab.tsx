@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
+import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { Bell, Loader2 } from "lucide-react";
 import {
   postAdminPushPreview,
@@ -196,9 +196,19 @@ export function AdminPushNotificationsTab({ adminToken, onError }: Props) {
 
       <Typography.Body style={{ fontWeight: 600, fontSize: "0.9rem", marginBottom: "0.35rem" }}>Сообщение</Typography.Body>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(14rem, 1fr))", gap: "0.55rem", marginBottom: "0.75rem" }}>
-        <Input className="admin-form-input" placeholder="Заголовок" value={title} onChange={(e) => setTitle(e.target.value)} />
-        <Input className="admin-form-input" placeholder="Ссылка в приложении (например /cargo)" value={url} onChange={(e) => setUrl(e.target.value)} />
-        <Input
+        <input
+          className="admin-form-input"
+          placeholder="Заголовок"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <input
+          className="admin-form-input"
+          placeholder="Ссылка в приложении (например /cargo)"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+        />
+        <input
           className="admin-form-input"
           placeholder="Лимит получателей (макс. 5000)"
           value={limit}
