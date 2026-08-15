@@ -45,6 +45,19 @@ fi
 
 NOTES="${ANDROID_RELEASE_NOTES:-}"
 
+REMOTE_VERSION_CODE=""
+if command -v curl >/dev/null 2>&1; then
+  REMOTE_VERSION_CODE="$(curl -fsS "${ORIGIN}/version.json" 2>/dev/null | sed -n 's/.*"versionCode"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -1 || true)"
+fi
+if [[ -n "$REMOTE_VERSION_CODE" && "$REMOTE_VERSION_CODE" =~ ^[0-9]+$ ]]; then
+  echo "Remote ${ORIGIN}/version.json → versionCode ${REMOTE_VERSION_CODE}"
+  if [[ "$VERSION_CODE" -le "$REMOTE_VERSION_CODE" ]]; then
+    echo "ERROR: local versionCode=${VERSION_CODE} must be greater than remote ${REMOTE_VERSION_CODE}." >&2
+    echo "Bump android/app/build.gradle, rebuild APK, then deploy again." >&2
+    exit 1
+  fi
+fi
+
 STAGING="$(mktemp -d)"
 trap 'rm -rf "$STAGING"' EXIT
 
@@ -94,3 +107,6 @@ echo "  ${ORIGIN}/"
 echo "  ${ORIGIN}/latest.apk"
 echo "  ${ORIGIN}/version.json"
 echo "  ${ORIGIN}/${RELEASES_PATH}"
+echo ""
+echo "Verify:"
+echo "  curl -sS ${ORIGIN}/version.json"

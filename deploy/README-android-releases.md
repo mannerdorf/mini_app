@@ -13,6 +13,18 @@
 
 ---
 
+**Важно:** `version.json` на сервере **не обновляется сам** при git push. Его перезаписывает только `./scripts/deploy-android-release.sh` (или ручной scp). Если в браузере «старые» данные — либо деплой не делали, либо `versionCode` в `build.gradle` не увеличили перед деплоем.
+
+Сейчас на сервере может быть **новее**, чем в git: `versionCode` при прошлых деплоях иногда меняли только на Mac, без коммита. Перед следующим релизом сверьте:
+
+```bash
+curl -sS https://app.haulz.space/version.json
+grep versionCode android/app/build.gradle
+# local versionCode MUST be > remote
+```
+
+---
+
 ## Git-ветки
 
 | Ветка | Назначение |
