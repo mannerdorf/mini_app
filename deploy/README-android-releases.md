@@ -13,6 +13,28 @@
 
 ---
 
+## Git-ветка для APK
+
+| Ветка | Назначение |
+|-------|------------|
+| `main` | основной код (сайт + приложение) |
+| `staging` | предпрод сайта |
+| **`cursor/android-app-ea4b`** | **линия сборок APK** — собирайте и деплойте с неё |
+
+На Mac перед сборкой:
+
+```bash
+git fetch origin
+git checkout cursor/android-app-ea4b
+git pull origin cursor/android-app-ea4b
+# при необходимости подтянуть свежий main:
+# git merge origin/main
+```
+
+После правок только под APK — коммит в `cursor/android-app-ea4b`, push, сборка, деплой на `app.haulz.space`.
+
+---
+
 ## 1. DNS (Timeweb → haulz.space)
 
 | Тип | Имя | Значение |
