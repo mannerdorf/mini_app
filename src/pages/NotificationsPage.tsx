@@ -240,14 +240,10 @@ export function NotificationsPage({
             ) : (
                 <>
                     <Typography.Body style={{ marginBottom: "0.5rem", fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
-                        Push-уведомления (приложение)
+                        Push-уведомления
                     </Typography.Body>
                     <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                        {!isNativeAndroid ? (
-                            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-                                Push-уведомления доступны в установленном Android-приложении HAULZ.
-                            </Typography.Body>
-                        ) : (
+                        {isNativeAndroid ? (
                             <>
                                 <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
                                     Уведомления о перевозках и документах на телефон через Firebase Cloud Messaging.
@@ -266,51 +262,60 @@ export function NotificationsPage({
                                         </Button>
                                     </>
                                 )}
-                                {pushError && (
-                                    <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #ef4444)" }}>
-                                        {pushError}
-                                    </Typography.Body>
-                                )}
-                                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.25rem", marginBottom: "0.25rem" }}>
-                                    Раздел «Перевозки»
-                                </Typography.Body>
-                                {CARGO_NOTIFICATION_STAGES.map((ev) => (
-                                    <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
-                                        <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
-                                        <TapSwitch
-                                            checked={isCargoPrefEnabled("push", ev.id)}
-                                            onToggle={() => savePrefs("push", ev.id, !isCargoPrefEnabled("push", ev.id))}
-                                            aria-label={`Push: ${ev.label}`}
-                                        />
-                                    </Flex>
-                                ))}
-                                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.5rem", marginBottom: "0.25rem" }}>
-                                    Раздел «Документы»
-                                </Typography.Body>
-                                {NOTIF_DOCS.map((ev) => (
-                                    <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
-                                        <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
-                                        <TapSwitch
-                                            checked={!!prefs.push[ev.id]}
-                                            onToggle={() => savePrefs("push", ev.id, !prefs.push[ev.id])}
-                                            aria-label={`Push: ${ev.label}`}
-                                        />
-                                    </Flex>
-                                ))}
-                                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.5rem", marginBottom: "0.25rem" }}>
-                                    Сводка
-                                </Typography.Body>
-                                {NOTIF_SUMMARY.map((ev) => (
-                                    <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
-                                        <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
-                                        <TapSwitch
-                                            checked={!!prefs.push[ev.id]}
-                                            onToggle={() => savePrefs("push", ev.id, !prefs.push[ev.id])}
-                                            aria-label={`Push: ${ev.label}`}
-                                        />
-                                    </Flex>
-                                ))}
                             </>
+                        ) : (
+                            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                                Доставка push — в Android-приложении HAULZ. Здесь можно выбрать, о каких этапах перевозки присылать уведомления на телефон.
+                            </Typography.Body>
+                        )}
+                        {pushError && (
+                            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #ef4444)" }}>
+                                {pushError}
+                            </Typography.Body>
+                        )}
+                        <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.25rem", marginBottom: "0.25rem" }}>
+                            Раздел «Перевозки»
+                        </Typography.Body>
+                        {CARGO_NOTIFICATION_STAGES.map((ev) => (
+                            <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                                <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
+                                <TapSwitch
+                                    checked={isCargoPrefEnabled("push", ev.id)}
+                                    onToggle={() => savePrefs("push", ev.id, !isCargoPrefEnabled("push", ev.id))}
+                                    aria-label={`Push: ${ev.label}`}
+                                />
+                            </Flex>
+                        ))}
+                        <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.5rem", marginBottom: "0.25rem" }}>
+                            Раздел «Документы»
+                        </Typography.Body>
+                        {NOTIF_DOCS.map((ev) => (
+                            <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                                <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
+                                <TapSwitch
+                                    checked={!!prefs.push[ev.id]}
+                                    onToggle={() => savePrefs("push", ev.id, !prefs.push[ev.id])}
+                                    aria-label={`Push: ${ev.label}`}
+                                />
+                            </Flex>
+                        ))}
+                        <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.5rem", marginBottom: "0.25rem" }}>
+                            Сводка
+                        </Typography.Body>
+                        {NOTIF_SUMMARY.map((ev) => (
+                            <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                                <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
+                                <TapSwitch
+                                    checked={!!prefs.push[ev.id]}
+                                    onToggle={() => savePrefs("push", ev.id, !prefs.push[ev.id])}
+                                    aria-label={`Push: ${ev.label}`}
+                                />
+                            </Flex>
+                        ))}
+                        {prefsSaving && (
+                            <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                                Сохранение…
+                            </Typography.Body>
                         )}
                     </Panel>
 
