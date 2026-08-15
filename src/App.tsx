@@ -98,7 +98,6 @@ function AppRoot() {
     });
     const [isOfferOpen, setIsOfferOpen] = useState(false);
     const [isPersonalConsentOpen, setIsPersonalConsentOpen] = useState(false);
-    const [isChatOpen, setIsChatOpen] = useState(false);
     useRegisteredAccountSync(isWbOnlyUser, isRedReturnsOnlyUser);
 
     useEffect(() => {
@@ -209,8 +208,6 @@ function AppRoot() {
                 pinError={pinError}
                 setPinError={setPinError}
                 onPinSubmit={handlePinSubmit}
-                isChatOpen={isChatOpen}
-                setIsChatOpen={setIsChatOpen}
                 openSecretPinModal={openSecretPinModal}
                 onLogout={handleLogout}
             />

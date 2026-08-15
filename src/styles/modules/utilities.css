@@ -28,33 +28,6 @@
 .pad-card { padding: var(--pad-card, 24px); }
 .pad-modal { padding: var(--pad-modal, 28px); }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-/* Аватар без изменения размера — анимация только внутри GIF/video */
-.gruzik-avatar { }
-.gruzik-avatar.typing { }
-/* Тёмная тема: чёрный фон видео сливается с фоном чата */
-.gruzik-avatar img,
-.gruzik-avatar video { mix-blend-mode: screen; }
-/* Светлая тема: аватар в круге на чёрном фоне */
-.light-mode .gruzik-avatar {
-  background: #000 !important;
-  border-radius: 50%;
-  overflow: hidden;
-}
-.light-mode .gruzik-avatar img,
-.light-mode .gruzik-avatar video { mix-blend-mode: screen; }
-
-/* Чат: «печатает» и анимированное троеточие */
-.chat-typing-text { margin-right: 0.15em; }
-.chat-typing-dots span {
-  animation: chat-typing-dot 1.4s ease-in-out infinite both;
-}
-.chat-typing-dots span:nth-child(1) { animation-delay: 0s; }
-.chat-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-.chat-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
-@keyframes chat-typing-dot {
-  0%, 80%, 100% { opacity: 0.3; }
-  40% { opacity: 1; }
-}
 
 .text-theme-primary { color: var(--color-text-primary); }
 .text-theme-secondary { color: var(--color-text-secondary); }

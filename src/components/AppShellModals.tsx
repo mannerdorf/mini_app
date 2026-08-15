@@ -1,7 +1,6 @@
 import React, { FormEvent } from "react";
 import { X } from "lucide-react";
 import { Button, Input, Typography } from "@maxhub/max-ui";
-import { ChatModal } from "../ChatModal";
 import { LegalModal } from "./modals/LegalModal";
 import { LegalReacceptModal } from "./modals/LegalReacceptModal";
 import type { useLegalCompliance } from "../hooks/useLegalCompliance";
@@ -9,7 +8,6 @@ import type { useLegalCompliance } from "../hooks/useLegalCompliance";
 type LegalCompliance = ReturnType<typeof useLegalCompliance>;
 
 type Props = {
-  authLogin: string | undefined;
   legalCompliance: LegalCompliance;
   isOfferOpen: boolean;
   setIsOfferOpen: (value: boolean) => void;
@@ -22,12 +20,9 @@ type Props = {
   pinError: boolean;
   setPinError: (value: boolean) => void;
   onPinSubmit: (e?: FormEvent) => void;
-  isChatOpen: boolean;
-  setIsChatOpen: (value: boolean) => void;
 };
 
 export function AppShellModals({
-  authLogin,
   legalCompliance,
   isOfferOpen,
   setIsOfferOpen,
@@ -40,8 +35,6 @@ export function AppShellModals({
   pinError,
   setPinError,
   onPinSubmit,
-  isChatOpen,
-  setIsChatOpen,
 }: Props) {
   const closePinModal = () => {
     setShowPinModal(false);
@@ -118,7 +111,6 @@ export function AppShellModals({
         </div>
       )}
 
-      <ChatModal isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} userId={authLogin || "anon"} />
     </>
   );
 }

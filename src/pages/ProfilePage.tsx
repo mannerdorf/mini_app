@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@maxhub/max-ui";
 import type { Account, AuthData, ProfileView } from "../types";
-import { getWebApp } from "../webApp";
-import { AiChatProfilePage } from "./AiChatProfilePage";
 import { CompaniesListPage } from "./CompaniesListPage";
 import { CompaniesPage } from "./CompaniesPage";
 import { AddCompanyByINNPage } from "./AddCompanyByINNPage";
@@ -121,30 +119,6 @@ export function ProfilePage({
             setCurrentView("haulz");
         }
     }, [currentView]);
-
-    if (currentView === 'chat') {
-        const auth: AuthData | null = activeAccount ? {
-            login: activeAccount.login,
-            password: activeAccount.password,
-            inn: activeAccount.activeCustomerInn ?? activeAccount.customers?.[0]?.inn,
-            ...(activeAccount.isRegisteredUser === true ? { isRegisteredUser: true } : {}),
-        } : null;
-        const webApp = typeof window !== "undefined" ? getWebApp() : undefined;
-        const chatIdFromWebApp = webApp?.initDataUnsafe?.chat?.id;
-        const chatId = chatIdFromWebApp != null ? String(chatIdFromWebApp) : null;
-        return (
-            <AiChatProfilePage
-                onBack={() => setCurrentView('main')}
-                auth={auth}
-                accountId={activeAccountId}
-                customer={activeAccount?.customer ?? activeAccount?.customers?.[0]?.name ?? null}
-                onOpenCargo={onOpenCargo}
-                chatId={chatId}
-                onOpenTelegramBot={onOpenTelegramBot}
-                onOpenMaxBot={onOpenMaxBot}
-            />
-        );
-    }
 
     if (currentView === 'companies') {
         return <CompaniesListPage 

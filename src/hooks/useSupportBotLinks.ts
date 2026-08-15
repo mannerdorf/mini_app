@@ -3,13 +3,10 @@ import { getWebApp } from "../webApp";
 import { isClientMobile } from "../lib/clientPlatform";
 import { HAULZ_MAX_SUPPORT_BOT_URL, HAULZ_TG_SUPPORT_BOT_URL } from "../constants/brand";
 import { createMaxAuthDeepLinkToken } from "../api/client/maxLink";
-import { postGetPerevozkaJson } from "../api/client/perevozkiClient";
 import { useAuth } from "../contexts/AuthContext";
-import { useAppShell } from "../contexts/AppShellContext";
 
 export function useSupportBotLinks() {
-  const { accounts, activeAccountId, activeAccount } = useAuth();
-  const { setActiveTab } = useAppShell();
+  const { accounts, activeAccountId } = useAuth();
 
   const openExternalLink = useCallback((url: string) => {
     const webApp = getWebApp();
@@ -71,41 +68,9 @@ export function useSupportBotLinks() {
     openMaxBotLink(url.toString());
   }, [accounts, activeAccountId, openMaxBotLink]);
 
-  const openAiChatDeepLink = useCallback(
-    (cargoNumber?: string) => {
-      if (typeof window !== "undefined" && cargoNumber) {
-        window.sessionStorage.setItem(
-          "haulz.chat.prefill",
-          `Интересует информация по перевозке номер ${cargoNumber}`,
-        );
-        if (activeAccount?.login && activeAccount?.password) {
-          const inn = activeAccount.activeCustomerInn ?? activeAccount.customers?.[0]?.inn ?? undefined;
-          postGetPerevozkaJson({
-            login: activeAccount.login,
-            password: activeAccount.password,
-            number: cargoNumber,
-            ...(inn ? { inn } : {}),
-            ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}),
-          })
-            .then((data) => {
-              try {
-                window.sessionStorage.setItem("haulz.chat.cargoPreload", JSON.stringify(data));
-              } catch {
-                /* ignore */
-              }
-            })
-            .catch(() => {});
-        }
-      }
-      setActiveTab("cargo");
-    },
-    [activeAccount, setActiveTab],
-  );
-
   return {
     openExternalLink,
     openTelegramBotWithAccount,
     openMaxBotWithAccount,
-    openAiChatDeepLink,
   };
 }
