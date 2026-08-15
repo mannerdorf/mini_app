@@ -12,13 +12,9 @@ import {
     enableAndroidPushNotifications,
     isAndroidPushEnvironment,
 } from "../lib/androidPushNotifications";
+import { CARGO_NOTIFICATION_STAGES, isCargoStageNotificationEnabled, type CargoStageEventId } from "../../lib/notificationCargoEvents";
 import { TapSwitch } from "../components/TapSwitch";
 
-const NOTIF_PEREVOZKI: { id: string; label: string }[] = [
-    { id: "accepted", label: "Принята" },
-    { id: "in_transit", label: "В пути" },
-    { id: "delivered", label: "Доставлено" },
-];
 const NOTIF_DOCS: { id: string; label: string }[] = [
     { id: "bill_created", label: "Создан счёт" },
     { id: "bill_paid", label: "Счёт оплачен" },
@@ -71,6 +67,12 @@ export function NotificationsPage({
 
     const login = activeAccount?.login?.trim().toLowerCase() || "";
     const isNativeAndroid = isAndroidPushEnvironment();
+
+    const isCargoPrefEnabled = useCallback(
+        (channel: "push" | "email", eventId: CargoStageEventId) =>
+            isCargoStageNotificationEnabled(prefs[channel], eventId),
+        [prefs],
+    );
 
     useEffect(() => {
         if (!login) {
@@ -272,12 +274,12 @@ export function NotificationsPage({
                                 <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.25rem", marginBottom: "0.25rem" }}>
                                     Раздел «Перевозки»
                                 </Typography.Body>
-                                {NOTIF_PEREVOZKI.map((ev) => (
+                                {CARGO_NOTIFICATION_STAGES.map((ev) => (
                                     <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
                                         <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
                                         <TapSwitch
-                                            checked={!!prefs.push[ev.id]}
-                                            onToggle={() => savePrefs("push", ev.id, !prefs.push[ev.id])}
+                                            checked={isCargoPrefEnabled("push", ev.id)}
+                                            onToggle={() => savePrefs("push", ev.id, !isCargoPrefEnabled("push", ev.id))}
                                             aria-label={`Push: ${ev.label}`}
                                         />
                                     </Flex>
@@ -322,12 +324,12 @@ export function NotificationsPage({
                         <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.25rem" }}>
                             Раздел «Перевозки»
                         </Typography.Body>
-                        {NOTIF_PEREVOZKI.map((ev) => (
+                        {CARGO_NOTIFICATION_STAGES.map((ev) => (
                             <Flex key={`email-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
                                 <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
                                 <TapSwitch
-                                    checked={!!prefs.email[ev.id]}
-                                    onToggle={() => savePrefs("email", ev.id, !prefs.email[ev.id])}
+                                    checked={isCargoPrefEnabled("email", ev.id)}
+                                    onToggle={() => savePrefs("email", ev.id, !isCargoPrefEnabled("email", ev.id))}
                                     aria-label={`Email: ${ev.label}`}
                                 />
                             </Flex>

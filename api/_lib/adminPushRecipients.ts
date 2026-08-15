@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { getCargoStatusKey, type CargoEvent } from "../../lib/notificationPoll.js";
+import { getCargoStatusKey, type LegacyCargoStatusKey } from "../../lib/notificationPoll.js";
 
 export type PushAudience =
   | { type: "all_with_token" }
@@ -11,7 +11,7 @@ export type PushAudience =
 
 const CARGO_AUDIENCE_STATUS: Record<
   "cargo_in_transit" | "cargo_accepted" | "cargo_delivered",
-  CargoEvent
+  LegacyCargoStatusKey
 > = {
   cargo_in_transit: "in_transit",
   cargo_accepted: "accepted",

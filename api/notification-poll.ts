@@ -7,10 +7,13 @@ import { initRequestContext, logError } from "./_lib/observability.js";
 import { getPublicApiOrigin } from "../lib/publicApiOrigin.js";
 import {
   type CargoEvent,
-  getCargoStatusKey,
+  type CargoStageEventId,
+  CARGO_STAGE_EVENT_IDS,
+  getCargoStageEventsOnStateChange,
   getPaymentKey,
   fetchPerevozkiByInn,
   formatTelegramMessage,
+  isCargoStageNotificationEnabled,
 } from "../lib/notificationPoll.js";
 
 const CRON_SECRET = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
@@ -18,7 +21,12 @@ const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_
 const POLL_SERVICE_LOGIN = process.env.POLL_SERVICE_LOGIN;
 const POLL_SERVICE_PASSWORD = process.env.POLL_SERVICE_PASSWORD;
 
-const NOTIFICATION_EVENTS: CargoEvent[] = ["accepted", "in_transit", "delivered", "bill_created", "bill_paid"];
+const NOTIFICATION_EVENTS: CargoEvent[] = [...CARGO_STAGE_EVENT_IDS, "bill_created", "bill_paid"];
+
+function isNotificationEventEnabled(prefs: Record<string, boolean>, event: CargoEvent): boolean {
+  if (event === "bill_created" || event === "bill_paid") return prefs[event] === true;
+  return isCargoStageNotificationEnabled(prefs, event as CargoStageEventId);
+}
 
 function hasBillData(item: any): boolean {
   const number = String(
@@ -251,22 +259,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!number) continue;
         const currentState = item?.State ?? null;
         const currentStateBill = item?.StateBill ?? null;
-        const stateKey = getCargoStatusKey(currentState);
         const payKey = getPaymentKey(currentStateBill);
         const last = lastByNumber.get(number);
 
-        const eventsToSend: CargoEvent[] = [];
+        const eventsToSend: CargoEvent[] = [
+          ...getCargoStageEventsOnStateChange(last?.state, currentState, !last),
+        ];
         if (!last) {
-          if (stateKey === "accepted") eventsToSend.push("accepted");
           if (hasBillData(item)) eventsToSend.push("bill_created");
           if (payKey === "paid") eventsToSend.push("bill_paid");
         } else {
-          const prevStateKey = getCargoStatusKey(last.state ?? undefined);
-          if (stateKey && stateKey !== prevStateKey) {
-            if (stateKey === "accepted") eventsToSend.push("accepted");
-            if (stateKey === "in_transit") eventsToSend.push("in_transit");
-            if (stateKey === "delivered") eventsToSend.push("delivered");
-          }
           const prevPayKey = getPaymentKey(last.state_bill ?? undefined);
           if (prevPayKey === "unknown" && hasBillData(item)) eventsToSend.push("bill_created");
           if (payKey === "paid" && prevPayKey !== "paid") eventsToSend.push("bill_paid");
@@ -276,7 +278,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const text = formatTelegramMessage(event, number, item);
           const title = "HAULZ";
           let docButton: Record<string, unknown> | undefined;
-          if (event === "accepted") {
+          if (event === "info_received" || event === "received_at_warehouse") {
             const erUrl = `${appDomain}/api/doc-short?metod=${encodeURIComponent("ЭР")}&number=${encodeURIComponent(number)}`;
             docButton = { inline_keyboard: [[{ text: "Получить ЭР", url: erUrl }]] };
           } else if (event === "bill_created") {
@@ -290,7 +292,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             docButton = { inline_keyboard: [[{ text: "Скачать УПД", url: updUrl }]] };
           }
           for (const sub of subscribers) {
-            if (sub.prefsTelegram[event] && sub.telegramChatId) {
+            if (isNotificationEventEnabled(sub.prefsTelegram, event) && sub.telegramChatId) {
               const sendResult = await sendTelegramMessage(sub.telegramChatId, text, docButton);
               notificationsSent += 1;
               await pool.query(
@@ -300,7 +302,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               );
               if (!sendResult.ok) status = "partial";
             }
-            if (sub.prefsWeb[event]) {
+            if (isNotificationEventEnabled(sub.prefsWeb, event)) {
               const sendResult = await sendWebPushToLogin(sub.login, { title, body: text, url: "/" });
               notificationsSent += 1;
               await pool.query(
@@ -310,7 +312,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               );
               if (!sendResult.ok) status = "partial";
             }
-            if (sub.prefsPush[event]) {
+            if (isNotificationEventEnabled(sub.prefsPush, event)) {
               const sendResult = await sendFcmToLogin(sub.login, { title, body: text, url: "/" });
               notificationsSent += 1;
               await pool.query(

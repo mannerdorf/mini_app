@@ -1,9 +1,12 @@
 import type { Pool } from "pg";
 
+import {
+  CARGO_STAGE_EVENT_IDS,
+  type CargoStageEventId,
+} from "./notificationCargoEvents.js";
+
 export const EMAIL_NOTIFICATION_EVENTS = [
-  "accepted",
-  "in_transit",
-  "delivered",
+  ...CARGO_STAGE_EVENT_IDS,
   "bill_created",
   "bill_paid",
   "daily_summary",
@@ -14,8 +17,14 @@ export type EmailNotificationEventId = (typeof EMAIL_NOTIFICATION_EVENTS)[number
 
 /** По умолчанию все email-уведомления выключены — клиент включает сам. */
 export const DEFAULT_EMAIL_PREFS: Record<string, boolean> = {
-  accepted: false,
-  in_transit: false,
+  info_received: false,
+  received_at_warehouse: false,
+  measured: false,
+  consolidation: false,
+  loaded: false,
+  sent: false,
+  arrived: false,
+  delivery_scheduled: false,
   delivered: false,
   bill_created: false,
   bill_paid: false,
@@ -24,9 +33,7 @@ export const DEFAULT_EMAIL_PREFS: Record<string, boolean> = {
 };
 
 export const PUSH_NOTIFICATION_EVENTS = [
-  "accepted",
-  "in_transit",
-  "delivered",
+  ...CARGO_STAGE_EVENT_IDS,
   "bill_created",
   "bill_paid",
   "daily_summary",

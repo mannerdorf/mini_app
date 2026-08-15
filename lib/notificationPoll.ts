@@ -2,13 +2,31 @@
  * Опрос по заказчику (INN): маппинг статусов 1С → события уведомлений и шаблоны для Telegram.
  */
 
+import {
+  CARGO_STAGE_EVENT_IDS,
+  cargoStageEventLabel,
+  type CargoStageEventId,
+} from "./notificationCargoEvents.js";
+
+export type { CargoStageEventId } from "./notificationCargoEvents.js";
+export {
+  CARGO_NOTIFICATION_STAGES,
+  CARGO_STAGE_EVENT_IDS,
+  getCargoStageEventIdFromState,
+  getCargoStageEventsOnStateChange,
+  isCargoStageNotificationEnabled,
+} from "./notificationCargoEvents.js";
+
 const PEREVOZKI_BASE =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
 const INVOICES_BASE =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetIinvoices";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
-export type CargoEvent = "accepted" | "in_transit" | "delivered" | "bill_created" | "bill_paid";
+export type CargoEvent = CargoStageEventId | "bill_created" | "bill_paid";
+
+/** @deprecated Coarse filter; для админки и фильтров списка. */
+export type LegacyCargoStatusKey = "accepted" | "in_transit" | "delivered";
 
 function pickFirst(item: any, keys: string[]): unknown {
   for (const key of keys) {
@@ -19,7 +37,7 @@ function pickFirst(item: any, keys: string[]): unknown {
 }
 
 /** State 1С → ключ события перевозки (как в alice getFilterKeyByStatus). */
-export function getCargoStatusKey(state: string | undefined): CargoEvent | null {
+export function getCargoStatusKey(state: string | undefined): LegacyCargoStatusKey | null {
   if (!state) return null;
   const lower = state.toLowerCase().trim();
   // Промежуточный этап перед delivered: "готов к выдаче" шлем тем же шаблоном, что и accepted.
@@ -161,14 +179,10 @@ export function formatTelegramMessage(
   const billVatNum = typeof billVatRaw === "number" ? billVatRaw : parseFloat(String(billVatRaw ?? "").replace(",", "."));
   const billSum = Number.isFinite(billSumNum) ? new Intl.NumberFormat("ru-RU").format(Math.round(billSumNum)) : "—";
   const billVat = Number.isFinite(billVatNum) ? new Intl.NumberFormat("ru-RU").format(Math.round(billVatNum)) : "—";
+  if (CARGO_STAGE_EVENT_IDS.includes(event as CargoStageEventId)) {
+    return `${cargoStageEventLabel(event as CargoStageEventId)}. № ${n}`;
+  }
   switch (event) {
-    case "accepted": {
-      return `Создана перевозка. ${details}`;
-    }
-    case "in_transit":
-      return `Перевозка в пути. № ${n}`;
-    case "delivered":
-      return `Перевозка доставлена. № ${n}`;
     case "bill_created":
       return `Создан счет (${billNumber}) от ${billDate} на сумму ${billSum} ₽, в том числе НДС ${billVat} ₽.`;
     case "bill_paid":

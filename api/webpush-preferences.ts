@@ -4,6 +4,7 @@ import { initRequestContext, logError } from "./_lib/observability.js";
 import {
   DEFAULT_EMAIL_PREFS,
   EMAIL_NOTIFICATION_EVENTS,
+  PUSH_NOTIFICATION_EVENTS,
   normalizeNotificationPreferencesState,
 } from "../lib/notificationEmailPrefs.js";
 
@@ -14,7 +15,7 @@ const DEFAULT_PREFS = {
   email: { ...DEFAULT_EMAIL_PREFS } as Record<string, boolean>,
 };
 
-const EVENTS = ["accepted", "in_transit", "delivered", "bill_created", "bill_paid", "daily_summary"] as const;
+const EVENTS = [...PUSH_NOTIFICATION_EVENTS] as const;
 
 /** GET ?login= — настройки из БД (notification_preferences). POST { login, preferences } — сохранить в БД. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {

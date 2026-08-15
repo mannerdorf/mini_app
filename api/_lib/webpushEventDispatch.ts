@@ -1,5 +1,13 @@
 import type { Pool } from "pg";
-import { formatTelegramMessage, getCargoStatusKey, getPaymentKey } from "../../lib/notificationPoll.js";
+import {
+  CARGO_STAGE_EVENT_IDS,
+  formatTelegramMessage,
+  getCargoStageEventsOnStateChange,
+  getPaymentKey,
+  isCargoStageNotificationEnabled,
+  type CargoEvent,
+  type CargoStageEventId,
+} from "../../lib/notificationPoll.js";
 import { acquireWebPushDedupeKey, sendWebPushToLogin } from "./webpushDelivery.js";
 import { sendFcmToLogin } from "./fcmDelivery.js";
 
@@ -17,8 +25,13 @@ type CargoSnapshotItem = {
   [key: string]: unknown;
 };
 
-const NOTIFICATION_EVENTS = ["accepted", "in_transit", "delivered", "bill_created", "bill_paid"] as const;
+const NOTIFICATION_EVENTS = [...CARGO_STAGE_EVENT_IDS, "bill_created", "bill_paid"] as const;
 type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
+
+function isNotificationEventEnabled(prefs: Record<string, boolean>, event: NotificationEvent): boolean {
+  if (event === "bill_created" || event === "bill_paid") return prefs[event] === true;
+  return isCargoStageNotificationEnabled(prefs, event as CargoStageEventId);
+}
 
 function normalizeInn(item: CargoSnapshotItem): string {
   return String(item.inn ?? item.INN ?? item.Inn ?? "").trim();
@@ -110,8 +123,8 @@ export async function dispatchWebPushCargoEvents(params: {
 
   const inns = Array.from(new Set(prepared.map((x) => x.inn)));
   const cargoNumbers = Array.from(new Set(prepared.map((x) => x.cargoNumber)));
-  const subscriberByInn = new Map<string, Map<string, Set<string>>>();
-  const pushSubscriberByInn = new Map<string, Map<string, Set<string>>>();
+  const subscriberByInn = new Map<string, Map<string, Record<string, boolean>>>();
+  const pushSubscriberByInn = new Map<string, Map<string, Record<string, boolean>>>();
   const accountRows = await pool.query<{ login: string; inn: string }>(
     `select distinct lower(trim(login)) as login, inn
      from account_companies
@@ -119,8 +132,8 @@ export async function dispatchWebPushCargoEvents(params: {
     [inns]
   );
   const logins = [...new Set(accountRows.rows.map((r) => String(r.login || "").trim().toLowerCase()).filter(Boolean))];
-  const prefsByLogin = new Map<string, Set<string>>();
-  const pushPrefsByLogin = new Map<string, Set<string>>();
+  const prefsByLogin = new Map<string, Record<string, boolean>>();
+  const pushPrefsByLogin = new Map<string, Record<string, boolean>>();
   const loadedFromState = new Set<string>();
   if (logins.length > 0) {
     try {
@@ -136,14 +149,8 @@ export async function dispatchWebPushCargoEvents(params: {
         const raw = row.preferences || {};
         const webpush = raw?.webpush && typeof raw.webpush === "object" ? raw.webpush : {};
         const push = raw?.push && typeof raw.push === "object" ? raw.push : {};
-        const events = new Set<string>();
-        const pushEvents = new Set<string>();
-        for (const ev of NOTIFICATION_EVENTS) {
-          if (webpush[ev]) events.add(ev);
-          if (push[ev]) pushEvents.add(ev);
-        }
-        prefsByLogin.set(login, events);
-        pushPrefsByLogin.set(login, pushEvents);
+        prefsByLogin.set(login, { ...webpush });
+        pushPrefsByLogin.set(login, { ...push });
         loadedFromState.add(login);
       }
     } catch {
@@ -166,13 +173,13 @@ export async function dispatchWebPushCargoEvents(params: {
       if (!login) continue;
       const eventId = String(row.event_id || "").trim();
       if (row.channel === "push") {
-        const set = pushPrefsByLogin.get(login) || new Set<string>();
-        set.add(eventId);
-        pushPrefsByLogin.set(login, set);
+        const current = pushPrefsByLogin.get(login) || {};
+        current[eventId] = true;
+        pushPrefsByLogin.set(login, current);
       } else {
-        const set = prefsByLogin.get(login) || new Set<string>();
-        set.add(eventId);
-        prefsByLogin.set(login, set);
+        const current = prefsByLogin.get(login) || {};
+        current[eventId] = true;
+        prefsByLogin.set(login, current);
       }
     }
   }
@@ -182,18 +189,18 @@ export async function dispatchWebPushCargoEvents(params: {
     const enabledEvents = prefsByLogin.get(login);
     const enabledPushEvents = pushPrefsByLogin.get(login);
     if (!inn || !login) continue;
-    if (enabledEvents && enabledEvents.size > 0) {
+    if (enabledEvents && Object.keys(enabledEvents).length > 0) {
       let byLogin = subscriberByInn.get(inn);
       if (!byLogin) {
-        byLogin = new Map<string, Set<string>>();
+        byLogin = new Map<string, Record<string, boolean>>();
         subscriberByInn.set(inn, byLogin);
       }
       byLogin.set(login, enabledEvents);
     }
-    if (enabledPushEvents && enabledPushEvents.size > 0) {
+    if (enabledPushEvents && Object.keys(enabledPushEvents).length > 0) {
       let byLogin = pushSubscriberByInn.get(inn);
       if (!byLogin) {
-        byLogin = new Map<string, Set<string>>();
+        byLogin = new Map<string, Record<string, boolean>>();
         pushSubscriberByInn.set(inn, byLogin);
       }
       byLogin.set(login, enabledPushEvents);
@@ -234,31 +241,25 @@ export async function dispatchWebPushCargoEvents(params: {
   for (const item of prepared) {
     const key = `${item.inn}::${item.cargoNumber}`;
     const prev = lastState.get(key);
-    const stateKey = getCargoStatusKey(item.state ?? undefined);
     const payKey = getPaymentKey(item.stateBill ?? undefined);
-    const eventsToSend: NotificationEvent[] = [];
+    const eventsToSend: NotificationEvent[] = [
+      ...getCargoStageEventsOnStateChange(prev?.state, item.state, !prev),
+    ];
     if (!prev) {
-      if (stateKey === "accepted") eventsToSend.push("accepted");
       if (hasBillData(item.raw)) eventsToSend.push("bill_created");
       if (payKey === "paid") eventsToSend.push("bill_paid");
     } else {
-      const prevStateKey = getCargoStatusKey(prev.state ?? undefined);
       const prevPayKey = getPaymentKey(prev.stateBill ?? undefined);
-      if (stateKey && stateKey !== prevStateKey) {
-        if (stateKey === "accepted") eventsToSend.push("accepted");
-        if (stateKey === "in_transit") eventsToSend.push("in_transit");
-        if (stateKey === "delivered") eventsToSend.push("delivered");
-      }
       if (prevPayKey === "unknown" && hasBillData(item.raw)) eventsToSend.push("bill_created");
       if (payKey === "paid" && prevPayKey !== "paid") eventsToSend.push("bill_paid");
     }
     if (eventsToSend.length > 0) changed += 1;
 
-    const subscribers = subscriberByInn.get(item.inn) || new Map<string, Set<string>>();
-    const pushSubscribers = pushSubscriberByInn.get(item.inn) || new Map<string, Set<string>>();
+    const subscribers = subscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
+    const pushSubscribers = pushSubscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
     for (const event of eventsToSend) {
       for (const [login, eventsEnabled] of subscribers.entries()) {
-        if (!eventsEnabled.has(event)) continue;
+        if (!isNotificationEventEnabled(eventsEnabled, event)) continue;
         const dedupeKey = [
           "webpush",
           "dedupe",
@@ -299,7 +300,7 @@ export async function dispatchWebPushCargoEvents(params: {
         }
       }
       for (const [login, eventsEnabled] of pushSubscribers.entries()) {
-        if (!eventsEnabled.has(event)) continue;
+        if (!isNotificationEventEnabled(eventsEnabled, event)) continue;
         const dedupeKey = [
           "fcm",
           "dedupe",
