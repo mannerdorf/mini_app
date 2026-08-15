@@ -6,6 +6,7 @@ import { DOCUMENT_METHODS } from "../../documentMethods";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { normalizeWbPerevozkaHaulzDigits } from "../../lib/wbPerevozkaNumber";
 import { downloadBase64File } from "../../utils";
+import { requestCameraStream } from "../../lib/requestCameraStream";
 
 type Props = {
     activeAccount: Account | null;
@@ -24,6 +25,7 @@ export function ProfileParcelScannerSection({ activeAccount, onBack }: Props) {
     } | null>(null);
     const [parcelAppLoading, setParcelAppLoading] = useState(false);
     const [scannerOpen, setScannerOpen] = useState(false);
+    const [scannerStarting, setScannerStarting] = useState(false);
     const [scannerError, setScannerError] = useState<string | null>(null);
     const [scannerDetected, setScannerDetected] = useState("");
     const scannerVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -124,25 +126,23 @@ export function ProfileParcelScannerSection({ activeAccount, onBack }: Props) {
             setScannerError("Камера не поддерживается на этом устройстве");
             return;
         }
+        setScannerStarting(true);
+        let stream: MediaStream | null = null;
         try {
-            setScannerOpen(true);
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { ideal: "environment" } },
-                audio: false,
-            });
+            stream = await requestCameraStream();
             scannerStreamRef.current = stream;
+            setScannerOpen(true);
+
             let video = scannerVideoRef.current;
             if (!video) {
-                for (let i = 0; i < 12 && !video; i += 1) {
-                    await new Promise((resolve) => window.setTimeout(resolve, 25));
+                for (let i = 0; i < 20 && !video; i += 1) {
+                    await new Promise((resolve) => window.setTimeout(resolve, 50));
                     video = scannerVideoRef.current;
                 }
             }
             if (!video) {
-                for (const track of stream.getTracks()) track.stop();
-                scannerStreamRef.current = null;
                 setScannerError("Не удалось открыть окно сканера");
-                setScannerOpen(false);
+                stopParcelScanner();
                 return;
             }
             (video as HTMLVideoElement & { srcObject?: MediaStream | null }).srcObject = stream;
@@ -215,8 +215,14 @@ export function ProfileParcelScannerSection({ activeAccount, onBack }: Props) {
                 void tick();
             });
         } catch (e: unknown) {
+            if (stream) {
+                for (const track of stream.getTracks()) track.stop();
+            }
+            scannerStreamRef.current = null;
             setScannerError((e as Error)?.message || "Не удалось открыть камеру");
-            stopParcelScanner();
+            setScannerOpen(false);
+        } finally {
+            setScannerStarting(false);
         }
     }, [handleLookupParcel, stopParcelScanner]);
 
@@ -312,16 +318,25 @@ export function ProfileParcelScannerSection({ activeAccount, onBack }: Props) {
                         type="button"
                         className="filter-button"
                         onClick={() => void startParcelScanner()}
-                        disabled={scannerOpen}
+                        disabled={scannerOpen || scannerStarting}
                         style={{ minWidth: 170 }}
                     >
-                        <Camera className="w-4 h-4" style={{ marginRight: "0.25rem" }} />
-                        Сканировать
+                        {scannerStarting ? (
+                            <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.25rem" }} />
+                        ) : (
+                            <Camera className="w-4 h-4" style={{ marginRight: "0.25rem" }} />
+                        )}
+                        {scannerStarting ? "Запрос камеры…" : "Сканировать"}
                     </Button>
                 </Flex>
                 {scannerDetected ? (
                     <Typography.Body style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
                         Распознано: <strong style={{ color: "var(--color-text-primary)" }}>{scannerDetected}</strong>
+                    </Typography.Body>
+                ) : null}
+                {scannerError ? (
+                    <Typography.Body style={{ marginTop: "0.5rem", color: "var(--color-error)", fontSize: "0.84rem" }}>
+                        {scannerError}
                     </Typography.Body>
                 ) : null}
                 {parcelLookupError ? (
