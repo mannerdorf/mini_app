@@ -24,6 +24,9 @@ import { useAppLogout } from "./hooks/useAppLogout";
 import { useTwoFaSettingsSync } from "./hooks/useTwoFaSettingsSync";
 import { stripOoo } from "./lib/formatUtils";
 import { resolveAccountActiveInn } from "./lib/accountCustomer";
+import { isCapacitorAndroidApp } from "./lib/androidAppUpdate";
+import { useAndroidAppUpdate } from "./hooks/useAndroidAppUpdate";
+import { AndroidUpdateBanner } from "./components/AndroidUpdateBanner";
 
 function AppRoot() {
     const {
@@ -58,6 +61,9 @@ function AppRoot() {
     }, [activeAccount?.isRegisteredUser, activeAccount?.permissions?.service_mode]);
     const isWbOnlyUser = useMemo(() => isWbOnlyAccount(activeAccount), [activeAccount]);
     const isRedReturnsOnlyUser = useMemo(() => isRedReturnsOnlyAccount(activeAccount), [activeAccount]);
+    const isNativeAndroid = useMemo(() => isCapacitorAndroidApp(), []);
+    const androidUpdate = useAndroidAppUpdate(!!auth && isNativeAndroid);
+    const [androidUpdateDismissed, setAndroidUpdateDismissed] = useState(false);
     useEffect(() => {
         if (!serviceModeUnlocked && useServiceRequest) {
             setUseServiceRequest(false);
@@ -186,6 +192,9 @@ function AppRoot() {
 
     return (
         <AppNavigationProvider setSearchText={setSearchText} useServiceRequest={useServiceRequest}>
+            {androidUpdate && !androidUpdateDismissed ? (
+                <AndroidUpdateBanner manifest={androidUpdate} onDismiss={() => setAndroidUpdateDismissed(true)} />
+            ) : null}
             <AppAuthenticatedLayout
                 searchText={searchText}
                 setSearchText={setSearchText}

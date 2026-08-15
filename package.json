@@ -9,9 +9,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:android": "VITE_API_ORIGIN=https://api.haulz.space vite build",
+    "build:android": "VITE_API_ORIGIN=https://haulz.space vite build",
     "android:sync": "npm run build:android && npx cap sync android",
     "android:release": "bash scripts/build-android-release-apk.sh",
+    "android:deploy": "bash scripts/deploy-android-release.sh dist/haulz-miniapp-release.apk",
     "preview": "vite preview",
     "api:dev": "tsx server/index.ts",
     "api:start": "node --import tsx server/index.ts",
@@ -20,6 +21,7 @@
   },
   "dependencies": {
     "@capacitor/android": "^7.4.2",
+    "@capacitor/app": "^7.1.2",
     "@capacitor/core": "^7.4.2",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",

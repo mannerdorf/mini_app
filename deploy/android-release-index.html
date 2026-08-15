@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HAULZ — Android</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: "Manrope", system-ui, sans-serif;
+        line-height: 1.5;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #0f1419;
+        color: #f5f7fa;
+      }
+      main {
+        width: min(520px, calc(100vw - 32px));
+        padding: 32px;
+        border-radius: 20px;
+        background: #171d24;
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 1.6rem;
+      }
+      p {
+        margin: 0 0 16px;
+        color: #b8c0cc;
+      }
+      .meta {
+        font-size: 0.95rem;
+        margin-bottom: 24px;
+      }
+      a.button {
+        display: inline-block;
+        padding: 14px 20px;
+        border-radius: 12px;
+        background: #ff6b2c;
+        color: #111;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      code {
+        background: #10151b;
+        padding: 2px 6px;
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>HAULZ Mini App</h1>
+      <p>Официальная сборка для Android (Capacitor).</p>
+      <p class="meta">
+        Версия: <strong id="version-name">—</strong>
+        (<span id="version-code">—</span>)<br />
+        Опубликовано: <span id="published-at">—</span>
+      </p>
+      <p><a class="button" id="download-link" href="/latest.apk">Скачать APK</a></p>
+      <p style="font-size: 0.85rem; color: #8a939f">
+        Постоянная ссылка: <code>/latest.apk</code> · манифест: <code>/version.json</code>
+      </p>
+    </main>
+    <script>
+      fetch("/version.json", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((data) => {
+          document.getElementById("version-name").textContent = data.versionName || "—";
+          document.getElementById("version-code").textContent = data.versionCode ?? "—";
+          document.getElementById("published-at").textContent = data.publishedAt
+            ? new Date(data.publishedAt).toLocaleString("ru-RU")
+            : "—";
+          if (data.apkUrl) document.getElementById("download-link").href = data.apkUrl;
+        })
+        .catch(() => {});
+    </script>
+  </body>
+</html>

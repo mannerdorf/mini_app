@@ -5,12 +5,50 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ANDROID_DIR="$ROOT/android"
 KEYSTORE="$ANDROID_DIR/haulz-release.jks"
 PROPS="$ANDROID_DIR/keystore.properties"
-API_ORIGIN="${VITE_API_ORIGIN:-https://api.haulz.space}"
+API_ORIGIN="${VITE_API_ORIGIN:-https://haulz.space}"
 
 cd "$ROOT"
 
+resolve_java_home() {
+  if [[ -n "${JAVA_HOME:-}" && -x "${JAVA_HOME}/bin/java" ]]; then
+    return 0
+  fi
+  local candidate
+  for candidate in \
+    "/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home" \
+    "/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"; do
+    if [[ -x "$candidate/bin/java" ]]; then
+      export JAVA_HOME="$candidate"
+      export PATH="$JAVA_HOME/bin:$PATH"
+      echo "Using JAVA_HOME=$JAVA_HOME"
+      return 0
+    fi
+  done
+  if command -v /usr/libexec/java_home >/dev/null 2>&1; then
+    local picked
+    picked="$(/usr/libexec/java_home -v 21 2>/dev/null || /usr/libexec/java_home -v 17 2>/dev/null || true)"
+    if [[ -n "$picked" && -x "$picked/bin/java" ]]; then
+      export JAVA_HOME="$picked"
+      export PATH="$JAVA_HOME/bin:$PATH"
+      echo "Using JAVA_HOME=$JAVA_HOME"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+if ! command -v java >/dev/null 2>&1 || ! java -version 2>&1 | grep -qE 'version "(1[7-9]|[2-9][0-9])'; then
+  resolve_java_home || true
+fi
+
 if ! command -v java >/dev/null 2>&1; then
-  echo "Java (JDK 21) is required." >&2
+  echo "Java JDK 17+ is required (recommended: brew install openjdk@21)." >&2
+  exit 1
+fi
+
+if ! java -version 2>&1 | grep -qE 'version "(1[7-9]|[2-9][0-9])'; then
+  echo "Android Gradle plugin requires Java 17+. Current:" >&2
+  java -version >&2
   exit 1
 fi
 
@@ -70,3 +108,6 @@ echo ""
 echo "Signed release APK:"
 echo "  $OUT"
 echo "  $APK"
+echo ""
+echo "Publish to android.haulz.space:"
+echo "  ANDROID_RELEASE_SSH=root@YOUR_SERVER ./scripts/deploy-android-release.sh \"$OUT\""

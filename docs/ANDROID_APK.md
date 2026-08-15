@@ -1,7 +1,8 @@
 # Сборка подписанного Android APK (Capacitor)
 
 Приложение: **HAULZ Mini App** (`ru.haulz.miniapp`).  
-API в нативной сборке: **`https://api.haulz.space`** (задаётся при `npm run build:android`).
+API в нативной сборке: **`https://haulz.space`**.  
+Обновления: **`https://android.haulz.space`** — см. [deploy/README-android-releases.md](../deploy/README-android-releases.md).
 
 ## Требования
 
@@ -24,6 +25,7 @@ export PATH="$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/late
 ```bash
 npm install
 npm run android:release
+npm run android:deploy   # после настройки ANDROID_RELEASE_SSH
 ```
 
 Скрипт:
