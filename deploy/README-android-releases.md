@@ -17,7 +17,7 @@
 
 | Тип | Имя | Значение |
 |-----|-----|----------|
-| **A** | `android` | IP **отдельного** сервера под APK |
+| **A** | `app` | IP сервера APK (`200.165.236.49`) |
 
 Пример: `android.haulz.space` → `185.x.x.x` (новый VPS, не обязательно `72.56.36.185` API).
 
@@ -29,21 +29,21 @@
 sudo apt update
 sudo apt install -y nginx certbot python3-certbot-nginx
 
-sudo mkdir -p /var/www/android.haulz.space/releases
-sudo chown -R www-data:www-data /var/www/android.haulz.space
+sudo mkdir -p /var/www/app.haulz.space/releases
+sudo chown -R www-data:www-data /var/www/app.haulz.space
 
-# из репозитория на любом компьютере с git clone:
-sudo cp deploy/nginx-android.haulz.space.conf /etc/nginx/sites-available/android.haulz.space
-sudo ln -sf /etc/nginx/sites-available/android.haulz.space /etc/nginx/sites-enabled/
+sudo cp deploy/nginx-app.haulz.space.conf /etc/nginx/sites-available/app.haulz.space
+sudo ln -sf /etc/nginx/sites-available/app.haulz.space /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/android.haulz.space
 sudo nginx -t && sudo systemctl reload nginx
 
-sudo certbot --nginx -d android.haulz.space
+sudo certbot --nginx -d app.haulz.space
 ```
 
 Проверка до первого APK:
 
 ```bash
-curl -sS https://android.haulz.space/
+curl -sS https://app.haulz.space/
 ```
 
 ---
@@ -78,8 +78,8 @@ API в APK: `https://haulz.space` (не `api.haulz.space`, пока там би�
 ### Вариант A — scp с Mac/CI
 
 ```bash
-export ANDROID_RELEASE_SSH=root@YOUR_ANDROID_SERVER_IP
-export ANDROID_RELEASE_HOST=android.haulz.space
+export ANDROID_RELEASE_SSH=root@200.165.236.49
+export ANDROID_RELEASE_HOST=app.haulz.space
 export ANDROID_RELEASE_NOTES="Исправлен вход, баннер обновлений"
 
 npm run android:deploy
@@ -105,7 +105,7 @@ npm run android:deploy
 ### Проверка
 
 ```bash
-curl -sS https://android.haulz.space/version.json | python3 -m json.tool
+curl -sS https://app.haulz.space/version.json | python3 -m json.tool
 curl -I https://android.haulz.space/latest.apk
 ```
 
@@ -126,8 +126,8 @@ curl -I https://android.haulz.space/latest.apk
 | Переменная | Пример |
 |------------|--------|
 | `ANDROID_RELEASE_SSH` | `root@185.x.x.x` |
-| `ANDROID_RELEASE_HOST` | `android.haulz.space` |
-| `ANDROID_RELEASE_DIR` | `/var/www/android.haulz.space` |
+| `ANDROID_RELEASE_HOST` | `app.haulz.space` |
+| `ANDROID_RELEASE_DIR` | `/var/www/app.haulz.space` |
 | `ANDROID_RELEASE_NOTES` | текст для баннера |
 
 ---
