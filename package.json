@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:android": "VITE_API_ORIGIN=https://api.haulz.space vite build",
+    "build:android": "VITE_API_ORIGIN=https://haulz.space vite build",
     "android:sync": "npm run build:android && npx cap sync android",
     "android:release": "bash scripts/build-android-release-apk.sh",
     "preview": "vite preview",

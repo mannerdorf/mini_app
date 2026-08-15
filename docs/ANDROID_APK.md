@@ -1,23 +1,58 @@
 # Сборка подписанного Android APK (Capacitor)
 
 Приложение: **HAULZ Mini App** (`ru.haulz.miniapp`).  
-API в нативной сборке: **`https://api.haulz.space`** (задаётся при `npm run build:android`).
+API в нативной сборке: **`https://haulz.space`** (same-origin `/api/*` через nginx → VPS).  
+Не используйте `https://api.haulz.space` в APK, пока на поддомене нет валидного SSL — Android блокирует login.
 
 ## Требования
 
 - Node.js ≥ 18
-- JDK **21**
+- JDK **17+** (рекомендуется **21**: `brew install openjdk@21`)
 - Android SDK (Android Studio или [command-line tools](https://developer.android.com/studio#command-line-tools-only))
 - Переменная **`ANDROID_HOME`** (или `ANDROID_SDK_ROOT`)
 
-Пример:
+### macOS: JAVA_HOME
+
+Путь Homebrew зависит от процессора (`uname -m`):
+
+| Архитектура | JAVA_HOME |
+|-------------|-----------|
+| **Apple Silicon** (`arm64`) | `/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home` |
+| **Intel** (`x86_64`) | `/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home` |
 
 ```bash
-export ANDROID_HOME="$HOME/Android/Sdk"
+brew install openjdk@21
+export JAVA_HOME="/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"   # Intel
+# export JAVA_HOME="/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"  # Apple Silicon
+export PATH="$JAVA_HOME/bin:$PATH"
+java -version   # должно быть 21.x, не 11
+```
+
+Скрипт `npm run android:release` пробует эти пути сам, если `java` в PATH ещё 11.
+
+### Android SDK
+
+На Mac SDK обычно:
+
+```bash
+export ANDROID_HOME="$HOME/Library/Android/sdk"
 export PATH="$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin"
 ```
 
 Установите SDK Platform **36** и Build-Tools (через Android Studio SDK Manager или `sdkmanager`).
+
+### Мало места на внутреннем SSD
+
+Gradle/SDK можно вынести на внешний диск (APFS):
+
+```bash
+DISK="/Volumes/YourDisk"
+export ANDROID_HOME="$DISK/haulz-build/android-sdk"
+export GRADLE_USER_HOME="$DISK/haulz-build/gradle-home"
+export TMPDIR="$DISK/haulz-build/tmp"
+```
+
+В `android/gradle/wrapper/gradle-wrapper.properties` лучше `gradle-8.14.3-bin.zip` вместо `-all.zip` (меньше скачивает).
 
 ## Быстрая сборка
 
@@ -29,7 +64,7 @@ npm run android:release
 Скрипт:
 
 1. при первом запуске создаёт `android/haulz-release.jks` и `android/keystore.properties` (локально, в git не попадают);
-2. собирает web с `VITE_API_ORIGIN=https://api.haulz.space`;
+2. собирает web с `VITE_API_ORIGIN=https://haulz.space`;
 3. выполняет `cap sync android`;
 4. собирает **`assembleRelease`**.
 
