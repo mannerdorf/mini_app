@@ -65,8 +65,10 @@ async function getMessaging(): Promise<FirebaseMessaging | null> {
       return null;
     }
     try {
-      const admin = await import("firebase-admin");
-      if (!admin.apps.length) {
+      const adminModule = await import("firebase-admin");
+      const admin = adminModule.default ?? adminModule;
+      const existingApps = typeof admin.getApps === "function" ? admin.getApps() : admin.apps ?? [];
+      if (existingApps.length === 0) {
         admin.initializeApp({
           credential: admin.credential.cert(resolved.account),
         });
@@ -131,38 +133,49 @@ export async function sendFcmToLogin(
     return { ok: false, sent: 0, failed: 0, removed: 0, error: "no FCM tokens" };
   }
 
-  const response = await messaging.sendEachForMulticast({
-    tokens,
-    notification: {
-      title: payload.title || "HAULZ",
-      body: payload.body || "",
-    },
-    data: {
-      url: payload.url || "/",
-      title: payload.title || "HAULZ",
-      body: payload.body || "",
-    },
-    android: { priority: "high" },
-  });
+  try {
+    const response = await messaging.sendEachForMulticast({
+      tokens,
+      notification: {
+        title: payload.title || "HAULZ",
+        body: payload.body || "",
+      },
+      data: {
+        url: payload.url || "/",
+        title: payload.title || "HAULZ",
+        body: payload.body || "",
+      },
+      android: { priority: "high" },
+    });
 
-  const invalidTokens: string[] = [];
-  response.responses.forEach((item, index) => {
-    if (item.success) return;
-    const code = item.error?.code || "";
-    if (
-      code === "messaging/registration-token-not-registered" ||
-      code === "messaging/invalid-registration-token"
-    ) {
-      invalidTokens.push(tokens[index]);
-    }
-  });
+    const invalidTokens: string[] = [];
+    const responses = Array.isArray(response.responses) ? response.responses : [];
+    responses.forEach((item, index) => {
+      if (item.success) return;
+      const code = item.error?.code || "";
+      if (
+        code === "messaging/registration-token-not-registered" ||
+        code === "messaging/invalid-registration-token"
+      ) {
+        invalidTokens.push(tokens[index]);
+      }
+    });
 
-  const removed = await removeInvalidTokens(invalidTokens);
-  return {
-    ok: response.successCount > 0,
-    sent: response.successCount,
-    failed: response.failureCount,
-    removed,
-    error: response.successCount > 0 ? undefined : "FCM send failed",
-  };
+    const removed = await removeInvalidTokens(invalidTokens);
+    return {
+      ok: response.successCount > 0,
+      sent: response.successCount,
+      failed: response.failureCount,
+      removed,
+      error: response.successCount > 0 ? undefined : "FCM send failed",
+    };
+  } catch (e: unknown) {
+    return {
+      ok: false,
+      sent: 0,
+      failed: tokens.length,
+      removed: 0,
+      error: (e as Error)?.message || "FCM send failed",
+    };
+  }
 }
