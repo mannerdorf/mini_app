@@ -44,6 +44,14 @@ sudo certbot --nginx -d app.haulz.space
 
 ```bash
 curl -sS https://app.haulz.space/
+curl -sI https://app.haulz.space/version.json | grep -i access-control
+```
+
+Если в APK раздел «Версия» не читает `version.json`, обновите nginx-конфиг на сервере APK (нужен `Access-Control-Allow-Origin` для Capacitor) и перезагрузите nginx:
+
+```bash
+sudo cp deploy/nginx-app.haulz.space.conf /etc/nginx/sites-available/app.haulz.space
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
 ---

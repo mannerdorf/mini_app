@@ -87,8 +87,19 @@
           if (/WebAppData=/i.test(hash)) return true;
           return false;
         }
+        function isEmbeddedAppShell() {
+          if (isMiniAppHost()) return true;
+          try {
+            if (w.Capacitor && typeof w.Capacitor.isNativePlatform === "function" && w.Capacitor.isNativePlatform()) {
+              return true;
+            }
+          } catch (e) {}
+          var protocol = String(w.location.protocol || "").toLowerCase();
+          if (protocol === "capacitor:" || protocol === "ionic:") return true;
+          return false;
+        }
         function inject() {
-          if (isMiniAppHost()) return;
+          if (isEmbeddedAppShell()) return;
           var s = d.createElement("script");
           s.async = true;
           s.src = u + "?" + ((Date.now() / 60000) | 0);

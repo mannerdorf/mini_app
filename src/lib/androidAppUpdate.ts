@@ -1,3 +1,4 @@
+import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { ANDROID_RELEASE_MANIFEST_URL, type AndroidReleaseManifest } from "../constants/androidRelease";
 import { getClientPlatform } from "./clientPlatform";
 
@@ -8,6 +9,17 @@ export function isCapacitorAndroidApp(): boolean {
 
 export async function fetchAndroidReleaseManifest(): Promise<AndroidReleaseManifest | null> {
   try {
+    if (Capacitor.isNativePlatform()) {
+      const res = await CapacitorHttp.get({
+        url: ANDROID_RELEASE_MANIFEST_URL,
+        headers: { Accept: "application/json" },
+      });
+      if (res.status < 200 || res.status >= 300) return null;
+      const data = (typeof res.data === "string" ? JSON.parse(res.data) : res.data) as AndroidReleaseManifest;
+      if (!data?.versionCode || !data?.apkUrl) return null;
+      return data;
+    }
+
     const res = await fetch(ANDROID_RELEASE_MANIFEST_URL, { cache: "no-store" });
     if (!res.ok) return null;
     const data = (await res.json()) as AndroidReleaseManifest;
