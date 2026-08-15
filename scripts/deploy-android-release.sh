@@ -30,9 +30,8 @@ if [[ ! -f "$APK" ]]; then
   exit 1
 fi
 
-mapfile -t VERSION_LINES < <(bash "$ROOT/scripts/read-android-version.sh" "$GRADLE_FILE")
-VERSION_CODE="${VERSION_LINES[0]}"
-VERSION_NAME="${VERSION_LINES[1]}"
+VERSION_CODE="$(bash "$ROOT/scripts/read-android-version.sh" "$GRADLE_FILE" | sed -n '1p')"
+VERSION_NAME="$(bash "$ROOT/scripts/read-android-version.sh" "$GRADLE_FILE" | sed -n '2p')"
 
 APK_BASENAME="haulz-miniapp-${VERSION_NAME}.apk"
 RELEASES_PATH="releases/${APK_BASENAME}"
