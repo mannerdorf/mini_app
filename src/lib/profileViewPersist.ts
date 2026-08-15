@@ -33,7 +33,6 @@ const PROFILE_VIEWS = new Set<ProfileView>([
   "haulzCalcRequests",
   "admin",
   "tinyurl-test",
-  "chat",
   "apiKeys",
 ]);
 
@@ -45,6 +44,9 @@ function migrateLegacyDraftsView(view: string | null | undefined): ProfileView |
   if (view === "haulzCalcDrafts") {
     persistHaulzCalcRequestsTab("saved");
     return "haulzCalcRequests";
+  }
+  if (view === "chat") {
+    return "main";
   }
   return null;
 }

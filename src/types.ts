@@ -138,7 +138,6 @@ export type ProfileView =
     | "haulzCalcRequests"
     | "admin"
     | "tinyurl-test"
-    | "chat"
     | "apiKeys";
 
 export type CompanyRow = { login: string; inn: string; name: string };

@@ -38,8 +38,6 @@ type Props = {
   pinError: boolean;
   setPinError: (value: boolean) => void;
   onPinSubmit: (e?: FormEvent) => void;
-  isChatOpen: boolean;
-  setIsChatOpen: (value: boolean) => void;
   openSecretPinModal: () => void;
   onLogout: () => void;
 };
@@ -67,8 +65,6 @@ export function AppAuthenticatedLayout({
   pinError,
   setPinError,
   onPinSubmit,
-  isChatOpen,
-  setIsChatOpen,
   openSecretPinModal,
   onLogout,
 }: Props) {
@@ -114,7 +110,6 @@ export function AppAuthenticatedLayout({
       </div>
       <AppTabBar showDashboard={showDashboard} />
       <AppShellModals
-        authLogin={auth?.login}
         legalCompliance={legalCompliance}
         isOfferOpen={isOfferOpen}
         setIsOfferOpen={setIsOfferOpen}
@@ -127,8 +122,6 @@ export function AppAuthenticatedLayout({
         pinError={pinError}
         setPinError={setPinError}
         onPinSubmit={onPinSubmit}
-        isChatOpen={isChatOpen}
-        setIsChatOpen={setIsChatOpen}
       />
     </Container>
   );

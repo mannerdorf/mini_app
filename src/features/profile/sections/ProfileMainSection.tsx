@@ -88,12 +88,6 @@ export function ProfileMainSection({
                 onClick: () => onNavigate("voiceAssistants"),
             }]
             : []),
-        ...(activeAccount?.permissions?.chat === true ? [{
-            id: "chat" as const,
-            label: "Чат с Грузиком",
-            icon: <MessageCircle className="w-5 h-5" style={{ color: "var(--color-primary)" }} />,
-            onClick: () => onNavigate("chat"),
-        }] : []),
         {
             id: "notifications",
             label: "Уведомления",
