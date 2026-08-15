@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { getPool } from "../_db.js";
 
 type FcmPayload = {
@@ -20,27 +21,59 @@ type FirebaseMessaging = {
 };
 
 let messagingPromise: Promise<FirebaseMessaging | null> | null = null;
+let messagingInitError: string | null = null;
+
+function readServiceAccountFromFile(pathRaw: string): Record<string, unknown> | null {
+  const path = String(pathRaw || "").trim();
+  if (!path || !fs.existsSync(path)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(path, "utf8")) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function readServiceAccountFromEnv(): Record<string, unknown> | null {
+  const rawJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
+  if (!rawJson) return null;
+  try {
+    return JSON.parse(rawJson) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function resolveServiceAccount(): { account: Record<string, unknown>; source: string } | null {
+  const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
+  const fromFile = credPath ? readServiceAccountFromFile(credPath) : null;
+  if (fromFile) return { account: fromFile, source: credPath! };
+
+  const fromEnv = readServiceAccountFromEnv();
+  if (fromEnv) return { account: fromEnv, source: "FIREBASE_SERVICE_ACCOUNT_JSON" };
+
+  return null;
+}
 
 async function getMessaging(): Promise<FirebaseMessaging | null> {
   if (messagingPromise) return messagingPromise;
   messagingPromise = (async () => {
-    const rawJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
-    if (!rawJson && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    messagingInitError = null;
+    const resolved = resolveServiceAccount();
+    if (!resolved) {
+      messagingInitError =
+        "FCM not configured: set GOOGLE_APPLICATION_CREDENTIALS to a valid JSON file or FIREBASE_SERVICE_ACCOUNT_JSON";
       return null;
     }
     try {
       const admin = await import("firebase-admin");
       if (!admin.apps.length) {
-        if (rawJson) {
-          admin.initializeApp({
-            credential: admin.credential.cert(JSON.parse(rawJson) as Record<string, unknown>),
-          });
-        } else {
-          admin.initializeApp();
-        }
+        admin.initializeApp({
+          credential: admin.credential.cert(resolved.account),
+        });
       }
       return admin.messaging() as FirebaseMessaging;
-    } catch {
+    } catch (e: unknown) {
+      messagingInitError = (e as Error)?.message || "FCM init failed";
       return null;
     }
   })();
@@ -84,7 +117,13 @@ export async function sendFcmToLogin(
 
   const messaging = await getMessaging();
   if (!messaging) {
-    return { ok: false, sent: 0, failed: 0, removed: 0, error: "FCM not configured (FIREBASE_SERVICE_ACCOUNT_JSON)" };
+    return {
+      ok: false,
+      sent: 0,
+      failed: 0,
+      removed: 0,
+      error: messagingInitError || "FCM not configured",
+    };
   }
 
   const tokens = await loadTokensForLogin(login);
