@@ -2,7 +2,7 @@
 
 Приложение: **HAULZ Mini App** (`ru.haulz.miniapp`).  
 API в нативной сборке: **`https://haulz.space`**.  
-Обновления: **`https://android.haulz.space`** — см. [deploy/README-android-releases.md](../deploy/README-android-releases.md).
+Обновления: **`https://app.haulz.space`** — см. [deploy/README-android-releases.md](../deploy/README-android-releases.md).
 
 ## Требования
 

@@ -1,13 +1,13 @@
-# Android releases: android.haulz.space
+# Android releases: app.haulz.space
 
-Постоянный канал обновлений HAULZ Mini App (Capacitor) на **отдельном Timeweb-сервере**.
+Постоянный канал обновлений HAULZ Mini App на **Timeweb VPS** `200.165.236.49`.
 
 | URL | Назначение |
 |-----|------------|
-| `https://android.haulz.space/` | Страница скачивания |
-| `https://android.haulz.space/latest.apk` | Всегда последняя сборка |
-| `https://android.haulz.space/version.json` | Манифест для приложения |
-| `https://android.haulz.space/releases/haulz-miniapp-X.Y.Z.apk` | Архив версий |
+| `https://app.haulz.space/` | Страница скачивания |
+| `https://app.haulz.space/latest.apk` | Всегда последняя сборка |
+| `https://app.haulz.space/version.json` | Манифест для приложения |
+| `https://app.haulz.space/releases/haulz-miniapp-X.Y.Z.apk` | Архив версий |
 
 Приложение в Capacitor при старте сравнивает `versionCode` с `version.json` и показывает баннер «Скачать обновление».
 

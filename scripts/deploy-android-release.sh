@@ -17,10 +17,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APK="${1:-$ROOT/dist/haulz-miniapp-release.apk}"
 LOCAL_ONLY="${2:-}"
 
-HOST="${ANDROID_RELEASE_HOST:-android.haulz.space}"
+HOST="${ANDROID_RELEASE_HOST:-app.haulz.space}"
 ORIGIN="https://${HOST}"
 SSH_TARGET="${ANDROID_RELEASE_SSH:-}"
-REMOTE_DIR="${ANDROID_RELEASE_DIR:-/var/www/android.haulz.space}"
+REMOTE_DIR="${ANDROID_RELEASE_DIR:-/var/www/app.haulz.space}"
 GRADLE_FILE="$ROOT/android/app/build.gradle"
 INDEX_FILE="$ROOT/deploy/android-release-index.html"
 
