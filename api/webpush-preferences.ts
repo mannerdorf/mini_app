@@ -10,6 +10,7 @@ import {
 const DEFAULT_PREFS = {
   telegram: { daily_summary: true } as Record<string, boolean>,
   webpush: { daily_summary: false } as Record<string, boolean>,
+  push: { daily_summary: false } as Record<string, boolean>,
   email: { ...DEFAULT_EMAIL_PREFS } as Record<string, boolean>,
 };
 
@@ -46,6 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(200).json({
             telegram: { ...DEFAULT_PREFS.telegram, ...normalized.telegram },
             webpush: { ...DEFAULT_PREFS.webpush, ...normalized.webpush },
+            push: { ...DEFAULT_PREFS.push, ...normalized.push },
             email: { ...DEFAULT_EMAIL_PREFS, ...normalized.email },
             request_id: ctx.requestId,
           });
@@ -61,7 +63,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         [login]
       );
       for (const r of rows) {
-        const ch = r.channel === "telegram" ? "telegram" : r.channel === "email" ? "email" : "webpush";
+        const ch =
+          r.channel === "telegram"
+            ? "telegram"
+            : r.channel === "email"
+              ? "email"
+              : r.channel === "push"
+                ? "push"
+                : "webpush";
         const eventIds =
           ch === "email"
             ? (EMAIL_NOTIFICATION_EVENTS as readonly string[])
@@ -101,10 +110,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const prefObj = preferences as Record<string, unknown>;
   const telegram = prefObj.telegram && typeof prefObj.telegram === "object" ? (prefObj.telegram as Record<string, boolean>) : {};
   const webpush = prefObj.webpush && typeof prefObj.webpush === "object" ? (prefObj.webpush as Record<string, boolean>) : {};
+  const push = prefObj.push && typeof prefObj.push === "object" ? (prefObj.push as Record<string, boolean>) : {};
   const email = prefObj.email && typeof prefObj.email === "object" ? (prefObj.email as Record<string, boolean>) : {};
   const current = normalizeNotificationPreferencesState({
     telegram: { ...DEFAULT_PREFS.telegram, ...telegram },
     webpush: { ...DEFAULT_PREFS.webpush, ...webpush },
+    push: { ...DEFAULT_PREFS.push, ...push },
     email: { ...DEFAULT_EMAIL_PREFS, ...email },
   });
 
@@ -137,6 +148,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
            VALUES ($1, 'web', $2, $3, now())
            ON CONFLICT (login, channel, event_id) DO UPDATE SET enabled = excluded.enabled, updated_at = now()`,
           [login, eventId, !!current.webpush[eventId]]
+        );
+        await pool.query(
+          `INSERT INTO notification_preferences (login, channel, event_id, enabled, updated_at)
+           VALUES ($1, 'push', $2, $3, now())
+           ON CONFLICT (login, channel, event_id) DO UPDATE SET enabled = excluded.enabled, updated_at = now()`,
+          [login, eventId, !!current.push[eventId]]
         );
       } catch (e: unknown) {
         const code = (e as { code?: string })?.code;

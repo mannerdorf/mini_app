@@ -23,9 +23,19 @@ export const DEFAULT_EMAIL_PREFS: Record<string, boolean> = {
   weekly_summary: false,
 };
 
+export const PUSH_NOTIFICATION_EVENTS = [
+  "accepted",
+  "in_transit",
+  "delivered",
+  "bill_created",
+  "bill_paid",
+  "daily_summary",
+] as const;
+
 export type NotificationPreferencesState = {
   telegram: Record<string, boolean>;
   webpush: Record<string, boolean>;
+  push: Record<string, boolean>;
   email: Record<string, boolean>;
 };
 
@@ -33,6 +43,7 @@ export function normalizeNotificationPreferencesState(raw: unknown): Notificatio
   const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const telegram = obj.telegram && typeof obj.telegram === "object" ? (obj.telegram as Record<string, boolean>) : {};
   const webpush = obj.webpush && typeof obj.webpush === "object" ? (obj.webpush as Record<string, boolean>) : {};
+  const push = obj.push && typeof obj.push === "object" ? (obj.push as Record<string, boolean>) : {};
   const emailRaw = obj.email && typeof obj.email === "object" ? (obj.email as Record<string, boolean>) : {};
   const email: Record<string, boolean> = {};
   for (const eventId of EMAIL_NOTIFICATION_EVENTS) {
@@ -41,6 +52,7 @@ export function normalizeNotificationPreferencesState(raw: unknown): Notificatio
   return {
     telegram: { ...telegram },
     webpush: { ...webpush },
+    push: { ...push },
     email,
   };
 }
@@ -51,7 +63,7 @@ export async function loadNotificationPreferencesState(
 ): Promise<NotificationPreferencesState> {
   const key = String(login || "").trim().toLowerCase();
   if (!key) {
-    return { telegram: {}, webpush: {}, email: {} };
+    return { telegram: {}, webpush: {}, push: {}, email: {} };
   }
   try {
     const { rows } = await pool.query<{ preferences: unknown }>(
@@ -62,7 +74,7 @@ export async function loadNotificationPreferencesState(
   } catch {
     /* ignore */
   }
-  return { telegram: {}, webpush: {}, email: {} };
+  return { telegram: {}, webpush: {}, push: {}, email: {} };
 }
 
 /** Отправляем только если клиент явно включил тип в профиле. */

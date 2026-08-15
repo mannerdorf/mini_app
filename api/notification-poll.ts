@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { getRedisValue } from "./redis.js";
 import { sendWebPushToLogin } from "./_lib/webpushDelivery.js";
+import { sendFcmToLogin } from "./_lib/fcmDelivery.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import { getPublicApiOrigin } from "../lib/publicApiOrigin.js";
 import {
@@ -103,7 +104,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const loginInnPairs = companiesResult.rows;
     const prefsByLogin = new Map<
       string,
-      { telegram: Record<string, boolean>; web: Record<string, boolean> }
+      { telegram: Record<string, boolean>; web: Record<string, boolean>; push: Record<string, boolean> }
     >();
 
     const loginKeys = [...new Set(loginInnPairs.map((r) => String(r.login || "").trim().toLowerCase()).filter(Boolean))];
@@ -121,10 +122,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const raw = row.preferences || {};
         const telegram = raw?.telegram && typeof raw.telegram === "object" ? raw.telegram : {};
         const webpush = raw?.webpush && typeof raw.webpush === "object" ? raw.webpush : {};
-        const p = { telegram: {} as Record<string, boolean>, web: {} as Record<string, boolean> };
+        const push = raw?.push && typeof raw.push === "object" ? raw.push : {};
+        const p = { telegram: {} as Record<string, boolean>, web: {} as Record<string, boolean>, push: {} as Record<string, boolean> };
         for (const ev of NOTIFICATION_EVENTS) {
           p.telegram[ev] = !!telegram[ev];
           p.web[ev] = !!webpush[ev];
+          p.push[ev] = !!push[ev];
         }
         prefsByLogin.set(key, p);
         prefsStateLoaded.add(key);
@@ -143,10 +146,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const key = String(r.login || "").trim().toLowerCase();
         let p = prefsByLogin.get(key);
         if (!p) {
-          p = { telegram: {}, web: {} };
+          p = { telegram: {}, web: {}, push: {} };
           prefsByLogin.set(key, p);
         }
-        const ch = r.channel === "telegram" ? "telegram" : "web";
+        const ch =
+          r.channel === "telegram" ? "telegram" : r.channel === "push" ? "push" : "web";
         if (NOTIFICATION_EVENTS.includes(r.event_id as CargoEvent)) {
           p[ch][r.event_id] = true;
         }
@@ -186,6 +190,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         telegramChatId: string | null;
         prefsTelegram: Record<string, boolean>;
         prefsWeb: Record<string, boolean>;
+        prefsPush: Record<string, boolean>;
       }>
     >();
     for (const { login, inn } of loginInnPairs) {
@@ -193,7 +198,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const prefs = prefsByLogin.get(key);
       if (!prefs) continue;
       const hasAny =
-        NOTIFICATION_EVENTS.some((ev) => prefs.telegram[ev]) || NOTIFICATION_EVENTS.some((ev) => prefs.web[ev]);
+        NOTIFICATION_EVENTS.some((ev) => prefs.telegram[ev]) ||
+        NOTIFICATION_EVENTS.some((ev) => prefs.web[ev]) ||
+        NOTIFICATION_EVENTS.some((ev) => prefs.push[ev]);
       if (!hasAny) continue;
       const telegramChatId = chatIdByLogin.get(key) || null;
       const list = subscribersByInn.get(inn) || [];
@@ -202,6 +209,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         telegramChatId,
         prefsTelegram: prefs.telegram,
         prefsWeb: prefs.web,
+        prefsPush: prefs.push,
       });
       subscribersByInn.set(inn, list);
     }
@@ -298,6 +306,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               await pool.query(
                 `insert into notification_deliveries (poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message)
                  values ($1, $2, $3, $4, $5, 'web', null, $6, $7)`,
+                [runId, sub.login, inn, number, event, sendResult.ok, sendResult.error || null]
+              );
+              if (!sendResult.ok) status = "partial";
+            }
+            if (sub.prefsPush[event]) {
+              const sendResult = await sendFcmToLogin(sub.login, { title, body: text, url: "/" });
+              notificationsSent += 1;
+              await pool.query(
+                `insert into notification_deliveries (poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message)
+                 values ($1, $2, $3, $4, $5, 'push', null, $6, $7)`,
                 [runId, sub.login, inn, number, event, sendResult.ok, sendResult.error || null]
               );
               if (!sendResult.ok) status = "partial";

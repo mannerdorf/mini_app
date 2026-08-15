@@ -70,6 +70,13 @@ function AppRoot() {
         }
     }, [serviceModeUnlocked, useServiceRequest]);
     useTwoFaSettingsSync();
+    useEffect(() => {
+        const login = activeAccount?.login?.trim().toLowerCase();
+        if (!auth || !login || !isNativeAndroid) return;
+        void import("./lib/androidPushNotifications").then(({ syncAndroidPushNotifications }) =>
+            syncAndroidPushNotifications(login),
+        );
+    }, [auth, activeAccount?.login, isNativeAndroid]);
     const {
         showDashboard,
         showPinModal,

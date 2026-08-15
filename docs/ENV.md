@@ -80,7 +80,9 @@ Partner API v1: **`https://api.haulz.ru`** — см. [PARTNER_API.md](./PARTNER_
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | Исходящая почта |
 | `FROM_EMAIL`, `FROM_NAME` | Отправитель |
 | `EMAIL_TEMPLATE_REGISTRATION` / `EMAIL_TEMPLATE_PASSWORD_RESET` | Шаблоны |
-| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push (браузер) |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | FCM push в Android-приложении (JSON service account Firebase) |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Альтернатива: путь к JSON service account |
 | `OPENAI_API_KEY` | RAG / embeddings |
 | `RAG_EMBEDDING_MODEL`, `RAG_TOP_K`, `RAG_MIN_SCORE` | RAG tuning |
 

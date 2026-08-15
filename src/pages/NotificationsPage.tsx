@@ -2,18 +2,16 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import type { Account } from "../types";
-import { urlBase64ToUint8Array } from "../utils";
 import {
-    fetchTwoFaSettingsWithSignal,
-    fetchWebpushPreferences,
-    fetchWebpushVapid,
-    saveWebpushPreferences,
-    saveWebpushPreferencesKeepalive,
-    subscribeWebpush,
-    unlinkTelegram,
-    unlinkTelegramVia2fa,
-    unsubscribeWebpush,
+    fetchNotificationPreferences,
+    saveNotificationPreferences,
+    saveNotificationPreferencesKeepalive,
 } from "../api/client/notifications";
+import {
+    disableAndroidPushNotifications,
+    enableAndroidPushNotifications,
+    isAndroidPushEnvironment,
+} from "../lib/androidPushNotifications";
 import { TapSwitch } from "../components/TapSwitch";
 
 const NOTIF_PEREVOZKI: { id: string; label: string }[] = [
@@ -35,15 +33,11 @@ const NOTIF_EMAIL_SUMMARY: { id: string; label: string }[] = [
 
 export function NotificationsPage({
     activeAccount,
-    activeAccountId,
     onBack,
     onOpenDeveloper,
-    onOpenTelegramBot,
-    onOpenMaxBot,
-    onUpdateAccount,
 }: {
     activeAccount: Account | null;
-    activeAccountId: string | null;
+    activeAccountId?: string | null;
     onBack: () => void;
     onOpenDeveloper: () => void;
     onOpenTelegramBot?: () => Promise<void>;
@@ -61,52 +55,27 @@ export function NotificationsPage({
         }
     };
 
-    const [prefs, setPrefs] = useState<{ telegram: Record<string, boolean>; webpush: Record<string, boolean>; email: Record<string, boolean> }>({
-        telegram: {},
-        webpush: {},
+    const [prefs, setPrefs] = useState<{ push: Record<string, boolean>; email: Record<string, boolean> }>({
+        push: {},
         email: {},
     });
     const [prefsLoading, setPrefsLoading] = useState(true);
     const [prefsSaving, setPrefsSaving] = useState(false);
-    const [webPushLoading, setWebPushLoading] = useState(false);
-    const [webPushError, setWebPushError] = useState<string | null>(null);
-    const [webPushSubscribed, setWebPushSubscribed] = useState(false);
-    const [tgLinkLoading, setTgLinkLoading] = useState(false);
-    const [tgLinkError, setTgLinkError] = useState<string | null>(null);
-    const [tgUnlinkLoading, setTgUnlinkLoading] = useState(false);
-    const [maxLinkLoading, setMaxLinkLoading] = useState(false);
-    const [maxLinkError, setMaxLinkError] = useState<string | null>(null);
-    const [telegramLinkedFromApi, setTelegramLinkedFromApi] = useState<boolean | null>(null);
-    const [maxLinkedFromApi, setMaxLinkedFromApi] = useState<boolean | null>(null);
+    const [pushLoading, setPushLoading] = useState(false);
+    const [pushError, setPushError] = useState<string | null>(null);
+    const [pushEnabled, setPushEnabled] = useState(false);
     const prefsRef = useRef(prefs);
     const prefsDirtyRef = useRef(false);
     const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
     const pendingSavesRef = useRef(0);
 
     const login = activeAccount?.login?.trim().toLowerCase() || "";
-    const telegramLinked = telegramLinkedFromApi ?? activeAccount?.twoFactorTelegramLinked ?? false;
-    const maxLinked = maxLinkedFromApi ?? false;
-
-    const checkTelegramLinked = useCallback(async () => {
-        if (!login) return false;
-        try {
-            const linked = await withTimeout((signal) => fetchTwoFaSettingsWithSignal(login, signal));
-            if (!linked) return false;
-            setTelegramLinkedFromApi(linked.telegramLinked);
-            setMaxLinkedFromApi(linked.maxLinked);
-            if (linked.telegramLinked && activeAccountId && onUpdateAccount) onUpdateAccount(activeAccountId, { twoFactorTelegramLinked: true });
-            return linked.telegramLinked;
-        } catch {
-            return false;
-        }
-    }, [login, activeAccountId, onUpdateAccount]);
+    const isNativeAndroid = isAndroidPushEnvironment();
 
     useEffect(() => {
         if (!login) {
             setPrefsLoading(false);
-            setTelegramLinkedFromApi(null);
-            setMaxLinkedFromApi(null);
-            setWebPushSubscribed(false);
+            setPushEnabled(false);
             return;
         }
         let cancelled = false;
@@ -116,22 +85,25 @@ export function NotificationsPage({
         (async () => {
             try {
                 const prefsData = await withTimeout(
-                    (signal) => fetchWebpushPreferences(login, signal),
+                    (signal) => fetchNotificationPreferences(login, signal),
                     FETCH_TIMEOUT_MS,
                 ).catch(() => null);
-                checkTelegramLinked().catch(() => {});
                 if (cancelled) return;
                 if (prefsData) {
-                    if (!cancelled) setPrefs({
-                        telegram: prefsData.telegram || {},
-                        webpush: prefsData.webpush || {},
+                    setPrefs({
+                        push: prefsData.push || {},
                         email: prefsData.email || {},
                     });
                 } else {
-                    if (!cancelled) setPrefs({ telegram: {}, webpush: {}, email: {} });
+                    setPrefs({ push: {}, email: {} });
+                }
+                if (isNativeAndroid) {
+                    const { PushNotifications } = await import("@capacitor/push-notifications");
+                    const perm = await PushNotifications.checkPermissions();
+                    if (!cancelled) setPushEnabled(perm.receive === "granted");
                 }
             } catch {
-                if (!cancelled) setPrefs({ telegram: {}, webpush: {}, email: {} });
+                if (!cancelled) setPrefs({ push: {}, email: {} });
             } finally {
                 if (!cancelled) setPrefsLoading(false);
             }
@@ -140,47 +112,20 @@ export function NotificationsPage({
             cancelled = true;
             clearTimeout(hardStop);
         };
-    }, [login]);
-
-    useEffect(() => {
-        if (!login) return;
-        if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
-            setWebPushSubscribed(false);
-            return;
-        }
-        let cancelled = false;
-        (async () => {
-            try {
-                const reg = (await navigator.serviceWorker.getRegistration("/")) || (await navigator.serviceWorker.getRegistration());
-                if (!reg) {
-                    if (!cancelled) setWebPushSubscribed(false);
-                    return;
-                }
-                const sub = await reg.pushManager.getSubscription();
-                if (!cancelled) setWebPushSubscribed(!!sub);
-            } catch {
-                if (!cancelled) setWebPushSubscribed(false);
-            }
-        })();
-        return () => {
-            cancelled = true;
-        };
-    }, [login]);
+    }, [login, isNativeAndroid]);
 
     useEffect(() => {
         prefsRef.current = prefs;
     }, [prefs]);
 
-    const persistPrefs = useCallback(async (
-        nextPrefs: { telegram: Record<string, boolean>; webpush: Record<string, boolean>; email: Record<string, boolean> }
-    ) => {
+    const persistPrefs = useCallback(async (nextPrefs: { push: Record<string, boolean>; email: Record<string, boolean> }) => {
         if (!login) return false;
-        return saveWebpushPreferences(login, nextPrefs);
+        return saveNotificationPreferences(login, nextPrefs);
     }, [login]);
 
     const savePrefs = useCallback(
-        async (channel: "telegram" | "webpush" | "email", eventId: string, value: boolean) => {
-            let nextPrefs: { telegram: Record<string, boolean>; webpush: Record<string, boolean>; email: Record<string, boolean> } | null = null;
+        async (channel: "push" | "email", eventId: string, value: boolean) => {
+            let nextPrefs: { push: Record<string, boolean>; email: Record<string, boolean> } | null = null;
             setPrefs((prev) => {
                 const next = {
                     ...prev,
@@ -202,121 +147,46 @@ export function NotificationsPage({
                 })
                 .catch(() => {
                     prefsDirtyRef.current = true;
-                    setTgLinkError("Не удалось сохранить настройки. Проверьте миграции notification_preferences.");
+                    setPushError("Не удалось сохранить настройки.");
                 })
                 .finally(() => {
                     pendingSavesRef.current = Math.max(0, pendingSavesRef.current - 1);
                     if (pendingSavesRef.current === 0) setPrefsSaving(false);
                 });
         },
-        [login, persistPrefs]
+        [login, persistPrefs],
     );
 
-    const enableWebPush = useCallback(async () => {
+    const enablePush = useCallback(async () => {
         if (!login) return;
-        if (typeof window === "undefined" || !("Notification" in window) || !("serviceWorker" in navigator)) {
-            setWebPushError("Уведомления в браузере не поддерживаются.");
-            return;
-        }
-        setWebPushError(null);
-        setWebPushLoading(true);
+        setPushError(null);
+        setPushLoading(true);
         try {
-            let permission = Notification.permission;
-            if (permission === "default") {
-                permission = await Notification.requestPermission();
-            }
-            if (permission !== "granted") {
-                setWebPushError("Разрешение на уведомления отклонено.");
-                setWebPushLoading(false);
-                return;
-            }
-            const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-            await reg.update();
-            const existing = await reg.pushManager.getSubscription();
-            const vapidData = await fetchWebpushVapid();
-            const publicKey = vapidData.publicKey as string | undefined;
-            if (!publicKey) throw new Error("No public key");
-            const sub = existing || await reg.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(publicKey),
-            });
-            const { ok: subOk } = await subscribeWebpush({ login, subscription: sub.toJSON() });
-            if (!subOk) throw new Error("Failed to save subscription");
-            setWebPushSubscribed(true);
+            const result = await enableAndroidPushNotifications(login);
+            if (!result.ok) throw new Error(result.error || "Не удалось включить push.");
+            setPushEnabled(true);
         } catch (e: unknown) {
-            setWebPushError((e as { message?: string })?.message || "Не удалось включить уведомления.");
+            setPushError((e as { message?: string })?.message || "Не удалось включить push-уведомления.");
         } finally {
-            setWebPushLoading(false);
-        }
-    }, [login]);
-    const disableWebPush = useCallback(async () => {
-        if (!login) return;
-        if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
-            setWebPushSubscribed(false);
-            return;
-        }
-        setWebPushError(null);
-        setWebPushLoading(true);
-        try {
-            const reg = (await navigator.serviceWorker.getRegistration("/")) || (await navigator.serviceWorker.getRegistration());
-            if (!reg) {
-                setWebPushSubscribed(false);
-                return;
-            }
-            const sub = await reg.pushManager.getSubscription();
-            if (!sub) {
-                setWebPushSubscribed(false);
-                return;
-            }
-            await unsubscribeWebpush({ login, endpoint: sub.endpoint }).catch(() => null);
-            await sub.unsubscribe().catch(() => false);
-            setWebPushSubscribed(false);
-        } catch (e: unknown) {
-            setWebPushError((e as { message?: string })?.message || "Не удалось отключить Web Push.");
-        } finally {
-            setWebPushLoading(false);
+            setPushLoading(false);
         }
     }, [login]);
 
-    const disableTelegram = useCallback(async () => {
+    const disablePush = useCallback(async () => {
         if (!login) return;
-        setTgLinkError(null);
-        setTgUnlinkLoading(true);
+        setPushError(null);
+        setPushLoading(true);
         try {
-            const { ok, data } = await unlinkTelegram(login);
-            let unlinkOk = ok && !!(data as { ok?: boolean }).ok;
-            if (!unlinkOk) {
-                const fallback = await unlinkTelegramVia2fa(login);
-                if (!fallback.ok) {
-                    throw new Error(fallback.error || "Не удалось отключить Telegram.");
-                }
-            }
-
-            const telegramOff: Record<string, boolean> = {
-                accepted: false,
-                in_transit: false,
-                delivered: false,
-                bill_created: false,
-                bill_paid: false,
-                daily_summary: false,
-            };
-            const nextPrefs = { ...prefs, telegram: { ...prefs.telegram, ...telegramOff } };
-            setPrefs(nextPrefs);
-            await saveWebpushPreferences(login, nextPrefs).catch(() => {});
-
-            setTelegramLinkedFromApi(false);
-            if (activeAccountId && onUpdateAccount) onUpdateAccount(activeAccountId, { twoFactorTelegramLinked: false });
-            setTgLinkError(null);
+            const result = await disableAndroidPushNotifications(login);
+            if (!result.ok) throw new Error(result.error || "Не удалось отключить push.");
+            setPushEnabled(false);
         } catch (e: unknown) {
-            setTgLinkError((e as { message?: string })?.message || "Не удалось отключить Telegram.");
+            setPushError((e as { message?: string })?.message || "Не удалось отключить push-уведомления.");
         } finally {
-            setTgUnlinkLoading(false);
+            setPushLoading(false);
         }
-    }, [login, prefs, activeAccountId, onUpdateAccount]);
+    }, [login]);
 
-    const webPushSupported =
-        typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator;
-    const SHOW_WEB_PUSH_SECTION = true;
     const flushPrefsOnExit = useCallback(() => {
         if (!login || !prefsDirtyRef.current) return;
         const payload = JSON.stringify({ login, preferences: prefsRef.current });
@@ -332,7 +202,7 @@ export function NotificationsPage({
         } catch {
             // fallback below
         }
-        void saveWebpushPreferencesKeepalive(login, prefsRef.current).then(() => {
+        void saveNotificationPreferencesKeepalive(login, prefsRef.current).then(() => {
             prefsDirtyRef.current = false;
         }).catch(() => {});
     }, [login]);
@@ -368,127 +238,47 @@ export function NotificationsPage({
             ) : (
                 <>
                     <Typography.Body style={{ marginBottom: "0.5rem", fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
-                        Чат-бот Telegram HAULZinfobot
+                        Push-уведомления (приложение)
                     </Typography.Body>
                     <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                        {onOpenTelegramBot && (
-                            <Button
-                                type="button"
-                                className="filter-button"
-                                disabled={tgLinkLoading}
-                                onClick={async () => {
-                                    setTgLinkError(null);
-                                    setTgLinkLoading(true);
-                                    try {
-                                        await onOpenTelegramBot();
-                                    } catch (e: unknown) {
-                                        setTgLinkError((e as { message?: string })?.message || "Не удалось открыть Telegram.");
-                                    } finally {
-                                        setTgLinkLoading(false);
-                                    }
-                                }}
-                            >
-                                {tgLinkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Открыть HAULZinfobot"}
-                            </Button>
-                        )}
-                        {!telegramLinked ? (
-                            <>
-                                <Typography.Body style={{ fontSize: "0.9rem" }}>
-                                    Для активации откройте HAULZinfobot и введите логин или ИНН. Затем подтвердите пин-код из email.
-                                </Typography.Body>
-                                {tgLinkError && (
-                                    <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #ef4444)" }}>
-                                        {tgLinkError}
-                                    </Typography.Body>
-                                )}
-                                {onOpenMaxBot && (
-                                    <Button
-                                        type="button"
-                                        className="button-primary"
-                                        disabled={maxLinkLoading}
-                                        onClick={async () => {
-                                            setMaxLinkError(null);
-                                            setMaxLinkLoading(true);
-                                            try {
-                                                await onOpenMaxBot();
-                                            } catch (e: unknown) {
-                                                setMaxLinkError((e as { message?: string })?.message || "Не удалось открыть MAX.");
-                                            } finally {
-                                                setMaxLinkLoading(false);
-                                            }
-                                        }}
-                                    >
-                                        {maxLinkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Привязать MAX"}
-                                    </Button>
-                                )}
-                                {maxLinkError && (
-                                    <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #ef4444)" }}>
-                                        {maxLinkError}
-                                    </Typography.Body>
-                                )}
-                                <Typography.Body
-                                    style={{ fontSize: "0.8rem", color: "var(--color-primary)", cursor: "pointer", textDecoration: "underline" }}
-                                    onClick={() => checkTelegramLinked()}
-                                >
-                                    Проверить привязку
-                                </Typography.Body>
-                            </>
+                        {!isNativeAndroid ? (
+                            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                                Push-уведомления доступны в установленном Android-приложении HAULZ.
+                            </Typography.Body>
                         ) : (
                             <>
-                                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-success, #22c55e)" }}>
-                                    Telegram подключён.
+                                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                                    Уведомления о перевозках и документах на телефон через Firebase Cloud Messaging.
                                 </Typography.Body>
-                                <Button
-                                    type="button"
-                                    className="button-secondary"
-                                    disabled={tgUnlinkLoading}
-                                    onClick={disableTelegram}
-                                >
-                                    {tgUnlinkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Отключить Telegram"}
-                                </Button>
-                                {tgLinkError && (
-                                    <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #ef4444)" }}>
-                                        {tgLinkError}
-                                    </Typography.Body>
-                                )}
-                                {maxLinked ? (
-                                    <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-success, #22c55e)" }}>
-                                        MAX подключён.
-                                    </Typography.Body>
-                                ) : onOpenMaxBot ? (
-                                    <Button
-                                        type="button"
-                                        className="button-primary"
-                                        disabled={maxLinkLoading}
-                                        onClick={async () => {
-                                            setMaxLinkError(null);
-                                            setMaxLinkLoading(true);
-                                            try {
-                                                await onOpenMaxBot();
-                                            } catch (e: unknown) {
-                                                setMaxLinkError((e as { message?: string })?.message || "Не удалось открыть MAX.");
-                                            } finally {
-                                                setMaxLinkLoading(false);
-                                            }
-                                        }}
-                                    >
-                                        {maxLinkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Привязать MAX"}
+                                {!pushEnabled ? (
+                                    <Button type="button" className="button-primary" disabled={pushLoading} onClick={enablePush}>
+                                        {pushLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Включить push-уведомления"}
                                     </Button>
-                                ) : null}
-                                {maxLinkError && (
+                                ) : (
+                                    <>
+                                        <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-success, #22c55e)" }}>
+                                            Push-уведомления включены.
+                                        </Typography.Body>
+                                        <Button type="button" className="button-secondary" disabled={pushLoading} onClick={disablePush}>
+                                            {pushLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Отключить push-уведомления"}
+                                        </Button>
+                                    </>
+                                )}
+                                {pushError && (
                                     <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #ef4444)" }}>
-                                        {maxLinkError}
+                                        {pushError}
                                     </Typography.Body>
                                 )}
-                                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.25rem" }}>
+                                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.25rem", marginBottom: "0.25rem" }}>
                                     Раздел «Перевозки»
                                 </Typography.Body>
                                 {NOTIF_PEREVOZKI.map((ev) => (
-                                    <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                                    <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
                                         <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
                                         <TapSwitch
-                                            checked={!!prefs.telegram[ev.id]}
-                                            onToggle={() => savePrefs("telegram", ev.id, !prefs.telegram[ev.id])}
+                                            checked={!!prefs.push[ev.id]}
+                                            onToggle={() => savePrefs("push", ev.id, !prefs.push[ev.id])}
+                                            aria-label={`Push: ${ev.label}`}
                                         />
                                     </Flex>
                                 ))}
@@ -496,11 +286,12 @@ export function NotificationsPage({
                                     Раздел «Документы»
                                 </Typography.Body>
                                 {NOTIF_DOCS.map((ev) => (
-                                    <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                                    <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
                                         <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
                                         <TapSwitch
-                                            checked={!!prefs.telegram[ev.id]}
-                                            onToggle={() => savePrefs("telegram", ev.id, !prefs.telegram[ev.id])}
+                                            checked={!!prefs.push[ev.id]}
+                                            onToggle={() => savePrefs("push", ev.id, !prefs.push[ev.id])}
+                                            aria-label={`Push: ${ev.label}`}
                                         />
                                     </Flex>
                                 ))}
@@ -508,11 +299,12 @@ export function NotificationsPage({
                                     Сводка
                                 </Typography.Body>
                                 {NOTIF_SUMMARY.map((ev) => (
-                                    <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                                    <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
                                         <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
                                         <TapSwitch
-                                            checked={!!prefs.telegram[ev.id]}
-                                            onToggle={() => savePrefs("telegram", ev.id, !prefs.telegram[ev.id])}
+                                            checked={!!prefs.push[ev.id]}
+                                            onToggle={() => savePrefs("push", ev.id, !prefs.push[ev.id])}
+                                            aria-label={`Push: ${ev.label}`}
                                         />
                                     </Flex>
                                 ))}
@@ -572,94 +364,6 @@ export function NotificationsPage({
                             </Typography.Body>
                         )}
                     </Panel>
-
-                    {SHOW_WEB_PUSH_SECTION && (
-                        <>
-                            <Typography.Body style={{ marginTop: "1.25rem", marginBottom: "0.5rem", fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
-                                Web Push (браузер)
-                            </Typography.Body>
-                            <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                                {webPushSupported && (
-                                    <>
-                                        <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-                                            Уведомления в браузере (Chrome, Edge, Firefox; на iOS — после добавления на экран «Домой»).
-                                        </Typography.Body>
-                                        {!webPushSubscribed && (
-                                            <Button
-                                                type="button"
-                                                className="button-primary"
-                                                disabled={webPushLoading}
-                                                onClick={enableWebPush}
-                                            >
-                                                {webPushLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Включить уведомления в браузере"}
-                                            </Button>
-                                        )}
-                                        {webPushSubscribed && (
-                                            <>
-                                                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-success, #22c55e)" }}>
-                                                    Уведомления в браузере включены.
-                                                </Typography.Body>
-                                                <Button
-                                                    type="button"
-                                                    className="button-secondary"
-                                                    disabled={webPushLoading}
-                                                    onClick={disableWebPush}
-                                                >
-                                                    {webPushLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Отключить Web Push"}
-                                                </Button>
-                                            </>
-                                        )}
-                                        {webPushError && (
-                                            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #ef4444)" }}>
-                                                {webPushError}
-                                            </Typography.Body>
-                                        )}
-                                        <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.25rem", marginBottom: "0.25rem" }}>
-                                            Раздел «Перевозки»
-                                        </Typography.Body>
-                                        {NOTIF_PEREVOZKI.map((ev) => (
-                                            <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
-                                                <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
-                                                <TapSwitch
-                                                    checked={!!prefs.webpush[ev.id]}
-                                                    onToggle={() => savePrefs("webpush", ev.id, !prefs.webpush[ev.id])}
-                                                />
-                                            </Flex>
-                                        ))}
-                                        <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.5rem", marginBottom: "0.25rem" }}>
-                                            Раздел «Документы»
-                                        </Typography.Body>
-                                        {NOTIF_DOCS.map((ev) => (
-                                            <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
-                                                <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
-                                                <TapSwitch
-                                                    checked={!!prefs.webpush[ev.id]}
-                                                    onToggle={() => savePrefs("webpush", ev.id, !prefs.webpush[ev.id])}
-                                                />
-                                            </Flex>
-                                        ))}
-                                        <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.5rem", marginBottom: "0.25rem" }}>
-                                            Сводка
-                                        </Typography.Body>
-                                        {NOTIF_SUMMARY.map((ev) => (
-                                            <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
-                                                <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
-                                                <TapSwitch
-                                                    checked={!!prefs.webpush[ev.id]}
-                                                    onToggle={() => savePrefs("webpush", ev.id, !prefs.webpush[ev.id])}
-                                                />
-                                            </Flex>
-                                        ))}
-                                    </>
-                                )}
-                                {!webPushSupported && (
-                                    <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-                                        Web Push доступен в браузерах (Chrome, Edge, Firefox). В мини‑приложении внутри соцсетей может быть недоступен.
-                                    </Typography.Body>
-                                )}
-                            </Panel>
-                        </>
-                    )}
 
                     <Typography.Body
                         style={{ marginTop: "1.5rem", fontSize: "0.8rem", color: "var(--color-text-secondary)", cursor: "pointer", textDecoration: "underline" }}

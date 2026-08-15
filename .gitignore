@@ -7,6 +7,7 @@ dist/
 android/keystore.properties
 android/*.jks
 android/*.keystore
+android/app/google-services.json
 # macOS
 .DS_Store
 **/.DS_Store

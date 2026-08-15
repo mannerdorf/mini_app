@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import { formatTelegramMessage, getCargoStatusKey, getPaymentKey } from "../../lib/notificationPoll.js";
 import { acquireWebPushDedupeKey, sendWebPushToLogin } from "./webpushDelivery.js";
+import { sendFcmToLogin } from "./fcmDelivery.js";
 
 type CargoSnapshotItem = {
   inn?: unknown;
@@ -110,6 +111,7 @@ export async function dispatchWebPushCargoEvents(params: {
   const inns = Array.from(new Set(prepared.map((x) => x.inn)));
   const cargoNumbers = Array.from(new Set(prepared.map((x) => x.cargoNumber)));
   const subscriberByInn = new Map<string, Map<string, Set<string>>>();
+  const pushSubscriberByInn = new Map<string, Map<string, Set<string>>>();
   const accountRows = await pool.query<{ login: string; inn: string }>(
     `select distinct lower(trim(login)) as login, inn
      from account_companies
@@ -118,6 +120,7 @@ export async function dispatchWebPushCargoEvents(params: {
   );
   const logins = [...new Set(accountRows.rows.map((r) => String(r.login || "").trim().toLowerCase()).filter(Boolean))];
   const prefsByLogin = new Map<string, Set<string>>();
+  const pushPrefsByLogin = new Map<string, Set<string>>();
   const loadedFromState = new Set<string>();
   if (logins.length > 0) {
     try {
@@ -132,11 +135,15 @@ export async function dispatchWebPushCargoEvents(params: {
         if (!login) continue;
         const raw = row.preferences || {};
         const webpush = raw?.webpush && typeof raw.webpush === "object" ? raw.webpush : {};
+        const push = raw?.push && typeof raw.push === "object" ? raw.push : {};
         const events = new Set<string>();
+        const pushEvents = new Set<string>();
         for (const ev of NOTIFICATION_EVENTS) {
           if (webpush[ev]) events.add(ev);
+          if (push[ev]) pushEvents.add(ev);
         }
         prefsByLogin.set(login, events);
+        pushPrefsByLogin.set(login, pushEvents);
         loadedFromState.add(login);
       }
     } catch {
@@ -145,10 +152,10 @@ export async function dispatchWebPushCargoEvents(params: {
   }
   const missingLogins = logins.filter((login) => !loadedFromState.has(login));
   if (missingLogins.length > 0) {
-    const prefsRows = await pool.query<{ login: string; event_id: string }>(
-      `select distinct lower(trim(login)) as login, event_id
+    const prefsRows = await pool.query<{ login: string; event_id: string; channel: string }>(
+      `select distinct lower(trim(login)) as login, event_id, channel
        from notification_preferences
-       where channel = 'web'
+       where channel in ('web', 'push')
          and enabled = true
          and event_id = any($2::text[])
          and lower(trim(login)) = any($1::text[])`,
@@ -157,24 +164,42 @@ export async function dispatchWebPushCargoEvents(params: {
     for (const row of prefsRows.rows) {
       const login = String(row.login || "").trim().toLowerCase();
       if (!login) continue;
-      const set = prefsByLogin.get(login) || new Set<string>();
-      set.add(String(row.event_id || "").trim());
-      prefsByLogin.set(login, set);
+      const eventId = String(row.event_id || "").trim();
+      if (row.channel === "push") {
+        const set = pushPrefsByLogin.get(login) || new Set<string>();
+        set.add(eventId);
+        pushPrefsByLogin.set(login, set);
+      } else {
+        const set = prefsByLogin.get(login) || new Set<string>();
+        set.add(eventId);
+        prefsByLogin.set(login, set);
+      }
     }
   }
   for (const row of accountRows.rows) {
     const inn = String(row.inn || "").trim();
     const login = String(row.login || "").trim().toLowerCase();
     const enabledEvents = prefsByLogin.get(login);
-    if (!inn || !login || !enabledEvents || enabledEvents.size === 0) continue;
-    let byLogin = subscriberByInn.get(inn);
-    if (!byLogin) {
-      byLogin = new Map<string, Set<string>>();
-      subscriberByInn.set(inn, byLogin);
+    const enabledPushEvents = pushPrefsByLogin.get(login);
+    if (!inn || !login) continue;
+    if (enabledEvents && enabledEvents.size > 0) {
+      let byLogin = subscriberByInn.get(inn);
+      if (!byLogin) {
+        byLogin = new Map<string, Set<string>>();
+        subscriberByInn.set(inn, byLogin);
+      }
+      byLogin.set(login, enabledEvents);
     }
-    byLogin.set(login, enabledEvents);
+    if (enabledPushEvents && enabledPushEvents.size > 0) {
+      let byLogin = pushSubscriberByInn.get(inn);
+      if (!byLogin) {
+        byLogin = new Map<string, Set<string>>();
+        pushSubscriberByInn.set(inn, byLogin);
+      }
+      byLogin.set(login, enabledPushEvents);
+    }
   }
-  if (subscriberByInn.size === 0) {
+  if (subscriberByInn.size === 0 && pushSubscriberByInn.size === 0) {
     return {
       ok: true,
       source,
@@ -230,6 +255,7 @@ export async function dispatchWebPushCargoEvents(params: {
     if (eventsToSend.length > 0) changed += 1;
 
     const subscribers = subscriberByInn.get(item.inn) || new Map<string, Set<string>>();
+    const pushSubscribers = pushSubscriberByInn.get(item.inn) || new Map<string, Set<string>>();
     for (const event of eventsToSend) {
       for (const [login, eventsEnabled] of subscribers.entries()) {
         if (!eventsEnabled.has(event)) continue;
@@ -266,6 +292,46 @@ export async function dispatchWebPushCargoEvents(params: {
             `insert into notification_deliveries (
               poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message
             ) values ($1,$2,$3,$4,$5,'web',null,$6,$7)`,
+            [null, login, item.inn, item.cargoNumber, event, sendResult.ok, sendResult.error || null]
+          );
+        } catch {
+          // Delivery log is best-effort.
+        }
+      }
+      for (const [login, eventsEnabled] of pushSubscribers.entries()) {
+        if (!eventsEnabled.has(event)) continue;
+        const dedupeKey = [
+          "fcm",
+          "dedupe",
+          source,
+          login,
+          item.inn,
+          item.cargoNumber,
+          event,
+          String(item.state || ""),
+          String(item.stateBill || ""),
+          String(nowBucket),
+        ].join(":");
+        const shouldSend = await acquireWebPushDedupeKey(dedupeKey, dedupeTtlSeconds);
+        if (!shouldSend) {
+          deduped += 1;
+          continue;
+        }
+        attempted += 1;
+        const body = formatTelegramMessage(event, item.cargoNumber, item.raw as any);
+        const sendResult = await sendFcmToLogin(login, {
+          title: "HAULZ",
+          body,
+          url: eventUrl(event, item.cargoNumber),
+        });
+        if (sendResult.sent > 0) delivered += 1;
+        if (!sendResult.ok) failed += 1;
+        cleanedSubscriptions += sendResult.removed || 0;
+        try {
+          await pool.query(
+            `insert into notification_deliveries (
+              poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message
+            ) values ($1,$2,$3,$4,$5,'push',null,$6,$7)`,
             [null, login, item.inn, item.cargoNumber, event, sendResult.ok, sendResult.error || null]
           );
         } catch {
