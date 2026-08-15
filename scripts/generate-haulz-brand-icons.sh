@@ -83,11 +83,20 @@ mkdir -p "$DRAWABLE"
 to_png "$TMP/foreground.png" "$DRAWABLE/splash_wordmark.png" 320 320
 rm -f "$DRAWABLE/splash.png"
 
+# Legacy launcher icons (48dp on home screen).
 for size in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
   dens="${size%%:*}"
   px="${size##*:}"
+  mkdir -p "$ANDROID_RES/mipmap-${dens}"
   to_png "$TMP/square.png" "$ANDROID_RES/mipmap-${dens}/ic_launcher.png" "$px" "$px"
   to_png "$TMP/square.png" "$ANDROID_RES/mipmap-${dens}/ic_launcher_round.png" "$px" "$px"
+done
+
+# Adaptive icon foreground must be 108dp (not 48dp), otherwise Android upscales and the icon looks blurry.
+for size in mdpi:108 hdpi:162 xhdpi:216 xxhdpi:324 xxxhdpi:432; do
+  dens="${size%%:*}"
+  px="${size##*:}"
+  mkdir -p "$ANDROID_RES/mipmap-${dens}"
   to_png "$TMP/foreground.png" "$ANDROID_RES/mipmap-${dens}/ic_launcher_foreground.png" "$px" "$px"
 done
 
