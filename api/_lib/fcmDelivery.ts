@@ -65,15 +65,27 @@ async function getMessaging(): Promise<FirebaseMessaging | null> {
       return null;
     }
     try {
-      const adminModule = await import("firebase-admin");
+      const [adminModule, messagingModule] = await Promise.all([
+        import("firebase-admin"),
+        import("firebase-admin/messaging"),
+      ]);
       const admin = adminModule.default ?? adminModule;
-      const existingApps = typeof admin.getApps === "function" ? admin.getApps() : admin.apps ?? [];
-      if (existingApps.length === 0) {
-        admin.initializeApp({
-          credential: admin.credential.cert(resolved.account),
+      const cert = admin.cert;
+      const initializeApp = admin.initializeApp;
+      const getApps = admin.getApps;
+      const getMessaging = messagingModule.getMessaging;
+
+      if (typeof cert !== "function" || typeof getMessaging !== "function") {
+        messagingInitError = "FCM SDK incompatible: firebase-admin cert/getMessaging missing";
+        return null;
+      }
+
+      if (getApps().length === 0) {
+        initializeApp({
+          credential: cert(resolved.account),
         });
       }
-      return admin.messaging() as FirebaseMessaging;
+      return getMessaging() as FirebaseMessaging;
     } catch (e: unknown) {
       messagingInitError = (e as Error)?.message || "FCM init failed";
       return null;
