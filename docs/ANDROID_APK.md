@@ -2,7 +2,8 @@
 
 Приложение: **HAULZ Mini App** (`ru.haulz.miniapp`).  
 API в нативной сборке: **`https://haulz.space`** (same-origin `/api/*` через nginx → VPS).  
-Не используйте `https://api.haulz.space` в APK, пока на поддомене нет валидного SSL — Android блокирует login.
+Не используйте `https://api.haulz.space` в APK, пока на поддомене нет валидного SSL — Android блокирует login.  
+Обновления: **`https://app.haulz.space`** — см. [deploy/README-android-releases.md](../deploy/README-android-releases.md).
 
 ## Требования
 
@@ -59,6 +60,7 @@ export TMPDIR="$DISK/haulz-build/tmp"
 ```bash
 npm install
 npm run android:release
+npm run android:deploy   # после настройки ANDROID_RELEASE_SSH
 ```
 
 Скрипт:
