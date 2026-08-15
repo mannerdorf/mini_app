@@ -31,6 +31,7 @@ export function auditActionLabel(action: string): string {
   if (action === "preset_updated") return "Пресет обновлён";
   if (action === "preset_deleted") return "Пресет удалён";
   if (action === "user_archived") return "Профиль в архиве";
+  if (action === "admin_push_send") return "Push-рассылка";
   return action;
 }
 

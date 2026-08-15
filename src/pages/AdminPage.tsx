@@ -15,6 +15,7 @@ import {
   AdminIntegrationsTab,
   AdminLegalSection,
   AdminLogsTab,
+  AdminPushNotificationsTab,
   AdminPaymentCalendarTab,
   AdminPresetsTab,
   AdminPvzTab,
@@ -118,7 +119,8 @@ export function AdminPage({ adminToken, sandboxSession, onBack, onLogout }: Admi
         tab === "accounting" ||
         tab === "claims" ||
         tab === "dashboards" ||
-        tab === "pnl")
+        tab === "pnl" ||
+        tab === "push_notifications")
     ) {
       setTab("users");
     }
@@ -270,6 +272,10 @@ export function AdminPage({ adminToken, sandboxSession, onBack, onLogout }: Admi
           initialView={pnlExpensePrefill ? "ref-expenses" : "dashboard"}
           expenseCategoryPrefill={pnlExpensePrefill}
         />
+      )}
+
+      {tab === "push_notifications" && isSuperAdmin && (
+        <AdminPushNotificationsTab adminToken={adminToken} onError={setError} />
       )}
 
       {tab === "haulz_sandbox" &&

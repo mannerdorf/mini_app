@@ -19,6 +19,7 @@ import {
   Activity,
   FlaskConical,
   Mail,
+  Bell,
 } from "lucide-react";
 import type { AdminTab } from "../hooks/useAdminTab";
 import type { AccountingSubsection } from "../types/expenseAccounting";
@@ -158,6 +159,16 @@ export function AdminPageNav({
           >
             <BarChart3 className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             PNL
+          </Button>
+        )}
+        {isSuperAdmin && (
+          <Button
+            className="filter-button"
+            style={tabBtnStyle(tab === "push_notifications")}
+            onClick={() => setTab("push_notifications")}
+          >
+            <Bell className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Push-уведомления
           </Button>
         )}
         <Button

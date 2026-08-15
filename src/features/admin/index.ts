@@ -7,6 +7,7 @@ export { AdminUserApiKeysSection } from "./sections/AdminUserApiKeysSection";
 export { AdminAuditTab } from "./tabs/AdminAuditTab";
 export { AdminLogsTab } from "./tabs/AdminLogsTab";
 export { AdminIntegrationsTab } from "./tabs/AdminIntegrationsTab";
+export { AdminPushNotificationsTab } from "./tabs/AdminPushNotificationsTab";
 export { AdminCustomersTab } from "./tabs/AdminCustomersTab";
 export { AdminSuppliersTab } from "./tabs/AdminSuppliersTab";
 export { AdminTariffsTab } from "./tabs/AdminTariffsTab";
