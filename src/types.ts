@@ -126,6 +126,7 @@ export type ProfileView =
     | "addCompanyByLogin"
     | "about"
     | "faq"
+    | "version"
     | "voiceAssistants"
     | "2fa"
     | "notifications"

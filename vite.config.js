@@ -1,6 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import { viteSingleFile } from "vite-plugin-singlefile";
+import { readFileSync } from "fs";
+
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
 
 // В dev: /admin и /cms отдают index.html (постоянная ссылка на админку)
 function adminRewrite() {
@@ -31,6 +34,9 @@ function useSingleFilePlugin() {
 }
 
 export default defineConfig(({ command }) => ({
+  define: {
+    "import.meta.env.VITE_APP_VERSION": JSON.stringify(pkg.version),
+  },
   plugins: [react(), ...(useSingleFilePlugin() ? [viteSingleFile()] : []), adminRewrite()],
   build: {
     // Без singlefile — разумный лимит инлайна мелких ассетов

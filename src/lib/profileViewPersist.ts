@@ -21,6 +21,7 @@ const PROFILE_VIEWS = new Set<ProfileView>([
   "addCompanyByLogin",
   "about",
   "faq",
+  "version",
   "voiceAssistants",
   "2fa",
   "notifications",

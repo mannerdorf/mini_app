@@ -12,6 +12,7 @@ import { AisStreamPage } from "./AisStreamPage";
 import { ProfileTwoFactorSection } from "../components/profile/ProfileTwoFactorSection";
 import { ProfileVoiceAssistantsSection } from "../components/profile/ProfileVoiceAssistantsSection";
 import { ProfileFaqSection } from "../components/profile/ProfileFaqSection";
+import { ProfileVersionSection } from "../components/profile/ProfileVersionSection";
 import { ProfileRolesSection } from "../components/profile/ProfileRolesSection";
 import { ProfileHaulzSection } from "../components/profile/ProfileHaulzSection";
 import { HaulzReturnsPage } from "./HaulzReturnsPage";
@@ -343,6 +344,10 @@ export function ProfilePage({
 
     if (currentView === 'faq') {
         return <ProfileFaqSection onBack={() => setCurrentView('main')} />;
+    }
+
+    if (currentView === 'version') {
+        return <ProfileVersionSection onBack={() => setCurrentView('main')} />;
     }
 
     if (currentView === '2fa' && activeAccountId && activeAccount) {

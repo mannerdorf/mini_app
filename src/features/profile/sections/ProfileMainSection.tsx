@@ -13,6 +13,7 @@ import {
     Shield,
     User as UserIcon,
     Users,
+    Smartphone,
 } from "lucide-react";
 import { Flex, Panel, Typography } from "@maxhub/max-ui";
 import type { Account, ProfileView } from "../../../types";
@@ -116,6 +117,12 @@ export function ProfileMainSection({
             label: "FAQ",
             icon: <MessageCircle className="w-5 h-5" style={{ color: "var(--color-primary)" }} />,
             onClick: () => onNavigate("faq"),
+        },
+        {
+            id: "version",
+            label: "Версия",
+            icon: <Smartphone className="w-5 h-5" style={{ color: "var(--color-primary)" }} />,
+            onClick: () => onNavigate("version"),
         },
         {
             id: "offer",
