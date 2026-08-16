@@ -1251,24 +1251,28 @@ export function HaulzCalculatorPage({
                     {previewLoading && previewModalOpen ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
                     Предпросмотр
                   </button>
-                  <button
-                    type="button"
-                    className="haulz-calc-btn-secondary"
-                    disabled={!canSendQuoteEmail}
-                    title={
-                      canSendQuoteEmail
-                        ? undefined
-                        : "Сначала оформите заявку — кнопка «Оформить»"
-                    }
-                    onClick={openEmailModal}
-                  >
-                    <Mail className="w-4 h-4" />
-                    Отправить на почту
-                  </button>
-                  {!canSendQuoteEmail && quote && !needsAccount && (
-                    <p className="haulz-calc-field-hint" style={{ margin: 0 }}>
-                      КП на почту доступно после оформления заявки.
-                    </p>
+                  {!needsAccount && (
+                    <>
+                      <button
+                        type="button"
+                        className="haulz-calc-btn-secondary"
+                        disabled={!canSendQuoteEmail}
+                        title={
+                          canSendQuoteEmail
+                            ? undefined
+                            : "Сначала оформите заявку — кнопка «Оформить»"
+                        }
+                        onClick={openEmailModal}
+                      >
+                        <Mail className="w-4 h-4" />
+                        Отправить на почту
+                      </button>
+                      {!canSendQuoteEmail && quote && (
+                        <p className="haulz-calc-field-hint" style={{ margin: 0 }}>
+                          КП на почту доступно после оформления заявки.
+                        </p>
+                      )}
+                    </>
                   )}
                   {guestOrderCompleted && (
                     <p className="haulz-calc-field-hint" style={{ margin: 0 }}>
