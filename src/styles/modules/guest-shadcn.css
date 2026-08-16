@@ -277,10 +277,14 @@ html.guest-mode #root {
 }
 
 .guest-footer {
+  --guest-footer-font-size: 0.75rem;
+  --guest-footer-line-height: 1.45;
   margin-top: 1rem;
   background-color: #1e3a8a;
   background-image: linear-gradient(135deg, #1e3a8a, #2563eb);
   color: #fff;
+  font-size: var(--guest-footer-font-size);
+  line-height: var(--guest-footer-line-height);
 }
 
 .guest-footer__inner {
@@ -314,15 +318,15 @@ html.guest-mode #root {
 
 .guest-footer__brand-subtitle {
   margin-top: 0.25rem;
-  font-size: 0.875rem;
-  line-height: 1.45;
+  font-size: inherit;
+  line-height: inherit;
   opacity: 0.9;
 }
 
 .guest-footer__lead {
   margin: 0;
-  font-size: 0.875rem;
-  line-height: 1.55;
+  font-size: inherit;
+  line-height: inherit;
   opacity: 0.88;
 }
 
@@ -347,9 +351,9 @@ html.guest-mode #root {
 
 .guest-footer__heading {
   margin: 0 0 0.85rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  line-height: 1.35;
+  font-size: inherit;
+  font-weight: 700;
+  line-height: inherit;
   color: rgba(255, 255, 255, 0.95);
 }
 
@@ -369,8 +373,9 @@ html.guest-mode #root {
   padding: 0;
   text-align: left;
   font: inherit;
-  font-size: 0.875rem;
-  line-height: 1.45;
+  font-size: inherit;
+  font-weight: 400;
+  line-height: inherit;
   color: rgba(255, 255, 255, 0.82);
   cursor: pointer;
   transition: color 0.15s ease, opacity 0.15s ease;
@@ -387,8 +392,9 @@ html.guest-mode #root {
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
-  font-size: 0.8125rem;
-  line-height: 1.5;
+  font-size: inherit;
+  font-weight: 400;
+  line-height: inherit;
   color: rgba(255, 255, 255, 0.82);
 }
 
@@ -437,8 +443,8 @@ html.guest-mode #root {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  font-size: 0.75rem;
-  line-height: 1.45;
+  font-size: inherit;
+  line-height: inherit;
 }
 
 @media (min-width: 640px) {
@@ -450,12 +456,13 @@ html.guest-mode #root {
 
 .guest-footer-disclosures__item dt {
   margin: 0;
-  font-weight: 600;
+  font-weight: 400;
   color: rgba(255, 255, 255, 0.92);
 }
 
 .guest-footer-disclosures__item dd {
   margin: 0;
+  font-weight: 400;
   color: rgba(255, 255, 255, 0.78);
   overflow-wrap: anywhere;
 }
@@ -464,8 +471,9 @@ html.guest-mode #root {
   margin: 1.25rem 0 0;
   padding-top: 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.14);
-  font-size: 0.6875rem;
-  line-height: 1.45;
+  font-size: inherit;
+  font-weight: 400;
+  line-height: inherit;
   opacity: 0.78;
 }
 
