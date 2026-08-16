@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 72" fill="none" role="img" aria-label="Сбер Логистика">
+  <defs>
+    <linearGradient id="sberRing" x1="8" y1="8" x2="56" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#21A8E0"/>
+      <stop offset="0.45" stop-color="#21A038"/>
+      <stop offset="1" stop-color="#A8CF45"/>
+    </linearGradient>
+  </defs>
+  <circle cx="34" cy="36" r="22" fill="none" stroke="url(#sberRing)" stroke-width="6" stroke-dasharray="110 28" stroke-linecap="round" transform="rotate(-40 34 36)"/>
+  <path d="M22 38l8 8 16-18" fill="none" stroke="url(#sberRing)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="68" y="30" fill="#21A038" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="800" letter-spacing="0.04em">СБЕР</text>
+  <text x="68" y="52" fill="#166534" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="600" letter-spacing="0.08em">ЛОГИСТИКА</text>
+</svg>

@@ -4,17 +4,16 @@ export type GuestPartner = {
   logo: string;
 };
 
-/** Логотипы партнёров по образцам заказчика (полоски с официальными марками). */
+/** Логотипы партнёров по образцам заказчика (wordmark / фирменный знак). */
 export const GUEST_PARTNERS: GuestPartner[] = [
-  { id: "europlan", name: "Европлан", logo: "/guest/partners/europlan.svg" },
-  { id: "kamaz", name: "KAMAZ", logo: "/guest/partners/kamaz.svg" },
-  { id: "sovcombank", name: "Совкомбанк", logo: "/guest/partners/sovcombank.svg" },
-  { id: "vtb", name: "ВТБ", logo: "/guest/partners/vtb.svg" },
-  { id: "detsky-mir", name: "Детский мир", logo: "/guest/partners/detsky-mir.svg" },
-  { id: "magnit", name: "Магнит", logo: "/guest/partners/magnit.svg" },
-  { id: "gloria-jeans", name: "Gloria Jeans", logo: "/guest/partners/gloria-jeans.svg" },
-  { id: "mvideo", name: "М.Видео", logo: "/guest/partners/mvideo.svg" },
-  { id: "dns", name: "DNS", logo: "/guest/partners/dns.svg" },
-  { id: "eldorado", name: "Эльдорадо", logo: "/guest/partners/eldorado.svg" },
+  { id: "froza", name: "FROZA", logo: "/guest/partners/froza.svg" },
   { id: "autopiter", name: "autopiter.ru", logo: "/guest/partners/autopiter.svg" },
+  { id: "autodoc", name: "autodoc.ru", logo: "/guest/partners/autodoc.svg" },
+  { id: "emex", name: "EMEX", logo: "/guest/partners/emex.svg" },
+  { id: "simple", name: "simple", logo: "/guest/partners/simple.svg" },
+  { id: "fivepost", name: "5post", logo: "/guest/partners/fivepost.svg" },
+  { id: "ozon", name: "OZON", logo: "/guest/partners/ozon.svg" },
+  { id: "major", name: "Major", logo: "/guest/partners/major.svg" },
+  { id: "wildberries", name: "Wildberries", logo: "/guest/partners/wildberries.svg" },
+  { id: "sber-logistics", name: "Сбер Логистика", logo: "/guest/partners/sber-logistics.svg" },
 ];
