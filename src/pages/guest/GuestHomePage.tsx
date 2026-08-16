@@ -228,7 +228,6 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
                     <ArrowRight className="h-4 w-4 shrink-0 text-haulz-brand" />
                     <span>{route.to}</span>
                   </div>
-                  <CardTitle className="text-lg leading-snug sm:text-xl">{route.title}</CardTitle>
                   <CardDescription className="text-sm leading-relaxed">{route.summary}</CardDescription>
                 </CardHeader>
                 <CardContent className="pt-0">
