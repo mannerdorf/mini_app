@@ -144,13 +144,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       for (const candidate of candidates) {
         const result = await callSetPlanDate(serviceLogin, servicePassword, candidate, date);
-        if (result.ok) {
+        if (result.ok === true) {
           ok = true;
           appliedCargoNumber = candidate;
           break;
-        } else {
-          lastError = result.error;
         }
+        lastError = result.error;
       }
 
       return {

@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { Pool } from "pg";
 import { getPool } from "./_db.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import { lookupCustomerInnByName } from "../lib/resolveCustomerInn.js";
@@ -22,18 +23,17 @@ export default async function handler(
     const login = String(req.headers["x-login"] ?? req.query.login ?? "").trim();
     const password = String(req.headers["x-password"] ?? req.query.password ?? "").trim();
     const auth = await assertHaulzSummarySandboxAccess(req, { login, password });
-    if (!auth.ok) {
+    if (auth.ok === false) {
       return res.status(auth.status).json({ error: auth.error, request_id: ctx.requestId });
-    } else {
-      try {
-        const pool = getPool();
-        const { users, customers, defaultPeriod } = await loadHaulzSummaryDirectories(pool);
-        return res.status(200).json({ users, customers, defaultPeriod, request_id: ctx.requestId });
-      } catch (e: unknown) {
-        const err = e as Error;
-        logError(ctx, "companies_sandbox_directory_failed", err);
-        return res.status(500).json({ error: err?.message || "Ошибка загрузки справочников", request_id: ctx.requestId });
-      }
+    }
+    try {
+      const pool = getPool();
+      const { users, customers, defaultPeriod } = await loadHaulzSummaryDirectories(pool);
+      return res.status(200).json({ users, customers, defaultPeriod, request_id: ctx.requestId });
+    } catch (e: unknown) {
+      const err = e as Error;
+      logError(ctx, "companies_sandbox_directory_failed", err);
+      return res.status(500).json({ error: err?.message || "Ошибка загрузки справочников", request_id: ctx.requestId });
     }
   }
 
@@ -52,7 +52,7 @@ export default async function handler(
   }
 
   try {
-    let pool;
+    let pool: Pool;
     try {
       pool = getPool();
     } catch {

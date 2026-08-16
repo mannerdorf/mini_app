@@ -32,7 +32,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     dateDog: body.dateDog != null ? String(body.dateDog) : undefined,
     inn: body.inn != null ? String(body.inn) : undefined,
   });
-  if (!validated.ok) {
+  if (validated.ok === false) {
     return res.status(validated.status).json({ error: validated.error, request_id: ctx.requestId });
   }
 
@@ -68,7 +68,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
           validated.params.number,
           body.inn,
         );
-  if (!access.ok) {
+  if (access.ok === false) {
     return res.status(access.status).json({ error: access.error, request_id: ctx.requestId });
   }
 
