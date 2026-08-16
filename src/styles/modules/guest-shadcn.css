@@ -98,13 +98,19 @@ html.guest-mode #root {
   margin-inline: auto;
 }
 
+.guest-shell button,
+.guest-shell [type="button"],
+.guest-shell [type="submit"] {
+  box-shadow: none !important;
+}
+
 .guest-login-screen__back {
   width: 2.35rem;
   height: 2.35rem;
   border: none;
   border-radius: 999px;
   background: hsl(var(--guest-card));
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;

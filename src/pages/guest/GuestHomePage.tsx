@@ -134,7 +134,7 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onCalculator }: Props) 
               </CardDescription>
             </CardHeader>
             <CardContent className="relative z-[1] flex items-end justify-between gap-4 pb-6">
-              <Button className="mt-2 shadow-guest" onClick={(e) => { e.stopPropagation(); onLogin(); }}>
+              <Button className="mt-2" onClick={(e) => { e.stopPropagation(); onLogin(); }}>
                 Войти и оформить
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -198,7 +198,7 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onCalculator }: Props) 
               const Icon = action.icon;
               const content = (
                 <>
-                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-haulz-brand text-white shadow-guest">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-haulz-brand text-white">
                     <Icon className="h-5 w-5" />
                   </span>
                   <span className="text-center text-xs font-semibold sm:text-sm">{action.label}</span>
