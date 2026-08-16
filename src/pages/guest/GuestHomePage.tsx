@@ -13,15 +13,11 @@ import {
 import { Button } from "../../components/shadcn/button";
 import { Badge } from "../../components/shadcn/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/shadcn/card";
-import {
-  HAULZ_EMAIL,
-  HAULZ_MAX_SUPPORT_BOT_URL,
-  HAULZ_TG_SUPPORT_BOT_URL,
-} from "../../constants/brand";
 import { GUEST_ILLUSTRATIONS } from "../../constants/guestIllustrations";
 import { isCapacitorAndroidApp } from "../../lib/androidAppUpdate";
 import { cn } from "../../lib/cn";
 import { GUEST_FAQ_ITEMS } from "./guestFaqContent";
+import { GuestFooter } from "./GuestFooter";
 import { GuestHomeMenuSheet } from "./GuestHomeMenuSheet";
 
 type Props = {
@@ -288,27 +284,16 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
             </CardContent>
           </Card>
 
-          {/* Contacts */}
-          <section className="rounded-guest border border-[hsl(var(--guest-border))] bg-[hsl(var(--guest-card))] p-5 lg:col-span-12">
-            <h2 className="text-lg font-bold">Связаться с нами</h2>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button variant="secondary" size="sm" asChild>
-                <a href={`mailto:${HAULZ_EMAIL}`}>{HAULZ_EMAIL}</a>
-              </Button>
-              <Button variant="outline" size="sm" asChild>
-                <a href={HAULZ_TG_SUPPORT_BOT_URL} target="_blank" rel="noopener noreferrer">
-                  Telegram
-                </a>
-              </Button>
-              <Button variant="outline" size="sm" asChild>
-                <a href={HAULZ_MAX_SUPPORT_BOT_URL} target="_blank" rel="noopener noreferrer">
-                  MAX
-                </a>
-              </Button>
-            </div>
-          </section>
         </div>
       </main>
+
+      <GuestFooter
+        onAbout={onAbout}
+        onFaq={onFaq}
+        onApp={onApp}
+        onCalculator={onCalculator}
+        onLogin={onLogin}
+      />
 
       {/* Mobile / tablet sticky login bar — CDEK pattern */}
       <div
