@@ -79,19 +79,7 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
             <span className="inline-flex min-w-[4.75rem] items-center justify-center rounded-xl bg-haulz-brand px-3 py-1.5 text-sm font-bold tracking-[0.12em] text-white">
               HAULZ
             </span>
-            <span className="hidden text-sm text-[hsl(var(--guest-muted-foreground))] md:inline">
-              Москва ↔ Калининград
-            </span>
           </div>
-
-          <nav className="hidden items-center gap-1 lg:flex" aria-label="Навигация">
-            <Button variant="ghost" size="sm" onClick={onAbout}>
-              Офисы
-            </Button>
-            <Button variant="ghost" size="sm" onClick={onFaq}>
-              FAQ
-            </Button>
-          </nav>
 
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={onLogin}>
