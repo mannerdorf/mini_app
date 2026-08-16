@@ -542,17 +542,15 @@ html.guest-mode #root {
 
 .guest-home-partners__item img {
   width: 100%;
-  max-width: 9.5rem;
-  height: 2.6rem;
+  max-width: 7.5rem;
+  height: 3rem;
   object-fit: contain;
-  filter: grayscale(0.15);
-  opacity: 0.92;
-  transition: filter 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+  filter: none;
+  opacity: 1;
+  transition: transform 0.2s ease;
 }
 
 .guest-home-partners__item:hover img {
-  filter: none;
-  opacity: 1;
   transform: scale(1.03);
 }
 

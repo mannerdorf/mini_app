@@ -1,6 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 64" fill="none">
-  <circle cx="22" cy="32" r="16" fill="#21A038"/>
-  <path d="M15 32.5l5.2 5.2 9.8-11" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="48" y="28" fill="#21A038" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="800" letter-spacing="0.04em">СБЕР</text>
-  <text x="48" y="48" fill="#21A038" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="700" letter-spacing="0.08em">ЛОГИСТИКА</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 72" fill="none">
+  <defs>
+    <linearGradient id="sberCheck" x1="10" y1="10" x2="52" y2="62" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2EA7E0"/>
+      <stop offset="0.4" stop-color="#A8CF45"/>
+      <stop offset="1" stop-color="#21A038"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="36" r="22" fill="url(#sberCheck)"/>
+  <path d="M21 36.5l7 7 15-16" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="66" y="32" fill="#21A038" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="800" letter-spacing="0.08em">СБЕР</text>
+  <text x="66" y="54" fill="#1B6B32" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" letter-spacing="0.12em">ЛОГИСТИКА</text>
 </svg>
