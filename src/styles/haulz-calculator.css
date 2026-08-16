@@ -2458,13 +2458,14 @@ body.haulz-calc-map-screen-open {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Зазор перед доком «Итого/Оформить» = как между карточками (и свёрнутый, и раскрытый док) */
+/* Зазор перед доком «Итого/Оформить» = высота дока + как между карточками */
 .haulz-calc-mobile-last-card {
   margin-bottom: 0 !important;
 }
 
 .haulz-calc-mobile-hub__end-gap {
-  height: 1rem;
+  --haulz-mobile-card-gap: 1rem;
+  height: calc(140px + var(--haulz-mobile-card-gap));
   flex-shrink: 0;
   pointer-events: none;
 }
@@ -2596,18 +2597,26 @@ body.haulz-calc-map-screen-open {
 }
 
 .haulz-calc-mobile-dock {
-  /* В потоке hub: всегда под скроллом, зазор = margin-bottom карточек */
-  position: relative;
-  z-index: 5;
-  flex-shrink: 0;
-  width: 100%;
-  margin: 0 0 var(--haulz-summary-fixed-bottom);
-  padding: 0.65rem 0.85rem 0.75rem;
+  /* Прилипает к нижнему краю viewport при скролле содержимого */
+  position: fixed;
+  z-index: 45;
+  left: max(var(--space-3, 12px), env(safe-area-inset-left, 0px));
+  right: max(var(--space-3, 12px), env(safe-area-inset-right, 0px));
+  bottom: 0;
+  margin: 0;
+  padding: 0.65rem 0.85rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
   border: 1px solid var(--calc-border);
-  border-radius: var(--calc-radius-lg);
+  border-radius: var(--calc-radius-lg) var(--calc-radius-lg) 0 0;
   background: var(--calc-card);
   box-shadow: var(--calc-shadow);
   box-sizing: border-box;
+}
+
+/* В приложении с tabbar — чуть выше панели вкладок */
+.app-container .haulz-calc-page--mobile-flow .haulz-calc-mobile-dock {
+  bottom: var(--haulz-app-tabbar-clearance);
+  border-radius: var(--calc-radius-lg);
+  padding-bottom: 0.75rem;
 }
 
 .haulz-calc-mobile-dock__details {

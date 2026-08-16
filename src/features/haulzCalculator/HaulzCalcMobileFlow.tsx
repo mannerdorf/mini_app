@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   ChevronDown,
@@ -251,7 +251,26 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
   } = props;
 
   const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const dockRef = useRef<HTMLDivElement | null>(null);
+  const endGapRef = useRef<HTMLDivElement | null>(null);
   const goHub = () => setRoute("hub");
+
+  useLayoutEffect(() => {
+    const dock = dockRef.current;
+    const gap = endGapRef.current;
+    if (!dock || !gap) return;
+
+    const syncGap = () => {
+      const cardGap = Number.parseFloat(getComputedStyle(gap).getPropertyValue("--haulz-mobile-card-gap")) || 16;
+      const next = Math.ceil(dock.getBoundingClientRect().height + cardGap);
+      gap.style.height = `${next}px`;
+    };
+
+    syncGap();
+    const ro = new ResizeObserver(syncGap);
+    ro.observe(dock);
+    return () => ro.disconnect();
+  }, [summaryExpanded, quote, guestOrderCompleted, canSendQuoteEmail, orderLoading]);
 
   if (route === "from") {
     return (
@@ -601,11 +620,11 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
         </label>
 
         {orderMessage && <div className="haulz-calc-alert haulz-calc-alert--success">{orderMessage}</div>}
-        {/* Несхлопываемый зазор до дока = как margin-bottom между карточками */}
-        <div className="haulz-calc-mobile-hub__end-gap" aria-hidden />
+        {/* Высота = док + зазор между карточками (ResizeObserver) */}
+        <div ref={endGapRef} className="haulz-calc-mobile-hub__end-gap" aria-hidden />
       </div>
 
-      <div className="haulz-calc-mobile-dock">
+      <div ref={dockRef} className="haulz-calc-mobile-dock">
         {summaryExpanded && quote && (
           <div className="haulz-calc-mobile-dock__details">
             {quote.warnings.map((w) => (
