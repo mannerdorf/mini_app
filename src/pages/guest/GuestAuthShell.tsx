@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { LoginScreen } from "../../components/LoginScreen";
 import { AboutCompanyPage } from "../AboutCompanyPage";
+import { GuestAppDownloadPage } from "./GuestAppDownloadPage";
 import { GuestFaqPage } from "./GuestFaqPage";
 import { GuestHomePage } from "./GuestHomePage";
 
@@ -9,7 +10,7 @@ const ForgotPasswordPage = lazy(() =>
   import("../ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage })),
 );
 
-type GuestScreen = "home" | "login" | "about" | "faq" | "forgot";
+type GuestScreen = "home" | "login" | "about" | "faq" | "forgot" | "app";
 
 export function GuestAuthShell() {
   const [screen, setScreen] = useState<GuestScreen>("home");
@@ -80,11 +81,16 @@ export function GuestAuthShell() {
     return <GuestFaqPage onBack={() => setScreen("home")} />;
   }
 
+  if (screen === "app") {
+    return <GuestAppDownloadPage onBack={() => setScreen("home")} />;
+  }
+
   return (
     <GuestHomePage
       onLogin={() => openLogin()}
       onAbout={() => setScreen("about")}
       onFaq={() => setScreen("faq")}
+      onApp={() => setScreen("app")}
       onCalculator={openCalculator}
     />
   );

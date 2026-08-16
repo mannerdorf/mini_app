@@ -3,7 +3,6 @@ import {
   Building2,
   Calculator,
   HelpCircle,
-  MessageCircle,
   Smartphone,
 } from "lucide-react";
 import { Button } from "../../components/shadcn/button";
@@ -19,7 +18,6 @@ import {
   HAULZ_MAX_SUPPORT_BOT_URL,
   HAULZ_TG_SUPPORT_BOT_URL,
 } from "../../constants/brand";
-import { ANDROID_RELEASE_DOWNLOAD_URL } from "../../constants/androidRelease";
 import { isCapacitorAndroidApp } from "../../lib/androidAppUpdate";
 
 type Props = {
@@ -28,6 +26,7 @@ type Props = {
   onLogin: () => void;
   onAbout: () => void;
   onFaq: () => void;
+  onApp: () => void;
   onCalculator: () => void;
 };
 
@@ -39,7 +38,7 @@ type MenuItem = {
   onClick: () => void;
 };
 
-export function GuestHomeMenuSheet({ open, onClose, onLogin, onAbout, onFaq, onCalculator }: Props) {
+export function GuestHomeMenuSheet({ open, onClose, onLogin, onAbout, onFaq, onApp, onCalculator }: Props) {
   const isNativeAndroid = isCapacitorAndroidApp();
 
   const items: MenuItem[] = [
@@ -74,34 +73,25 @@ export function GuestHomeMenuSheet({ open, onClose, onLogin, onAbout, onFaq, onC
     },
     {
       id: "faq",
-      label: "Вопросы и ответы",
+      label: "FAQ",
+      hint: "Часто задаваемые вопросы",
       icon: <HelpCircle className="h-5 w-5" />,
       onClick: () => {
         onClose();
         onFaq();
       },
     },
-    {
-      id: "support",
-      label: "Поддержка",
-      hint: HAULZ_EMAIL,
-      icon: <MessageCircle className="h-5 w-5" />,
-      onClick: () => {
-        window.open(HAULZ_TG_SUPPORT_BOT_URL, "_blank", "noopener,noreferrer");
-        onClose();
-      },
-    },
   ];
 
   if (!isNativeAndroid) {
     items.push({
-      id: "apk",
-      label: "Скачать приложение",
-      hint: "Android APK",
+      id: "app",
+      label: "Приложение",
+      hint: "Android и iPhone",
       icon: <Smartphone className="h-5 w-5" />,
       onClick: () => {
-        window.open(ANDROID_RELEASE_DOWNLOAD_URL, "_blank", "noopener,noreferrer");
         onClose();
+        onApp();
       },
     });
   }

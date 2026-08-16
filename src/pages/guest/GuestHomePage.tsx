@@ -9,7 +9,6 @@ import {
   Route,
   ShieldCheck,
   Smartphone,
-  Zap,
 } from "lucide-react";
 import { Button } from "../../components/shadcn/button";
 import { Badge } from "../../components/shadcn/badge";
@@ -20,7 +19,6 @@ import {
   HAULZ_TG_SUPPORT_BOT_URL,
 } from "../../constants/brand";
 import { GUEST_ILLUSTRATIONS } from "../../constants/guestIllustrations";
-import { ANDROID_RELEASE_DOWNLOAD_URL } from "../../constants/androidRelease";
 import { isCapacitorAndroidApp } from "../../lib/androidAppUpdate";
 import { cn } from "../../lib/cn";
 import { GUEST_FAQ_ITEMS } from "./guestFaqContent";
@@ -30,16 +28,20 @@ type Props = {
   onLogin: () => void;
   onAbout: () => void;
   onFaq: () => void;
+  onApp: () => void;
   onCalculator: () => void;
 };
 
-const QUICK_ACTIONS: Array<
-  | { id: string; label: string; icon: typeof Calculator; href: string }
-  | { id: string; label: string; icon: typeof Calculator; action: "calculator" | "faq" }
-> = [
+type QuickAction = {
+  id: string;
+  label: string;
+  icon: typeof Calculator;
+  action: "calculator" | "faq" | "app";
+};
+
+const QUICK_ACTIONS: QuickAction[] = [
   { id: "calc", label: "Калькулятор", icon: Calculator, action: "calculator" },
   { id: "faq", label: "FAQ", icon: HelpCircle, action: "faq" },
-  { id: "support", label: "Поддержка", icon: Zap, href: HAULZ_TG_SUPPORT_BOT_URL },
 ];
 
 const BENEFITS = [
@@ -60,15 +62,15 @@ const BENEFITS = [
   },
 ] as const;
 
-export function GuestHomePage({ onLogin, onAbout, onFaq, onCalculator }: Props) {
+export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: Props) {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const isNativeAndroid = isCapacitorAndroidApp();
   const previewFaq = GUEST_FAQ_ITEMS.slice(0, 3);
 
-  const quickActions = [
+  const quickActions: QuickAction[] = [
     ...QUICK_ACTIONS,
     ...(!isNativeAndroid
-      ? [{ id: "app", label: "Приложение", icon: Smartphone, href: ANDROID_RELEASE_DOWNLOAD_URL }]
+      ? [{ id: "app", label: "Приложение", icon: Smartphone, action: "app" as const }]
       : []),
   ];
 
@@ -189,38 +191,24 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onCalculator }: Props) 
           </div>
 
           {/* Quick actions */}
-          <section className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:col-span-12" aria-label="Быстрые действия">
+          <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:col-span-12" aria-label="Быстрые действия">
             {quickActions.map((action) => {
               const Icon = action.icon;
-              const content = (
-                <>
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-haulz-brand text-white">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <span className="text-center text-xs font-semibold sm:text-sm">{action.label}</span>
-                </>
-              );
-              if ("href" in action && action.href) {
-                return (
-                  <a
-                    key={action.id}
-                    href={action.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex flex-col items-center gap-2 rounded-guest border border-[hsl(var(--guest-border))] bg-[hsl(var(--guest-card))] p-4 shadow-guest transition hover:-translate-y-0.5 hover:shadow-guest-lg"
-                  >
-                    {content}
-                  </a>
-                );
-              }
               return (
                 <button
                   key={action.id}
                   type="button"
                   className="flex flex-col items-center gap-2 rounded-guest border border-[hsl(var(--guest-border))] bg-[hsl(var(--guest-card))] p-4 shadow-guest transition hover:-translate-y-0.5 hover:shadow-guest-lg"
-                  onClick={action.action === "faq" ? onFaq : onCalculator}
+                  onClick={() => {
+                    if (action.action === "faq") onFaq();
+                    else if (action.action === "app") onApp();
+                    else onCalculator();
+                  }}
                 >
-                  {content}
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-haulz-brand text-white">
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span className="text-center text-xs font-semibold sm:text-sm">{action.label}</span>
                 </button>
               );
             })}
@@ -347,6 +335,7 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onCalculator }: Props) 
         onLogin={onLogin}
         onAbout={onAbout}
         onFaq={onFaq}
+        onApp={onApp}
         onCalculator={onCalculator}
       />
     </div>
