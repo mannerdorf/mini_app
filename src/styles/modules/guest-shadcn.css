@@ -156,10 +156,6 @@ html.guest-mode #root {
   backdrop-filter: blur(8px);
 }
 
-.guest-shell--calc .haulz-calc-mobile-hub__end-gap {
-  height: 1.05rem;
-}
-
 .guest-shell--calc .haulz-calc-card__title {
   margin-bottom: 0.95rem;
   font-size: 1.05rem;
