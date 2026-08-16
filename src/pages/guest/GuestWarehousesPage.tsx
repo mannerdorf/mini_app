@@ -2,6 +2,7 @@ import React from "react";
 import { ArrowLeft, Clock3, Mail, MapPin, Phone } from "lucide-react";
 import { Button } from "../../components/shadcn/button";
 import { GUEST_ILLUSTRATIONS } from "../../constants/guestIllustrations";
+import { yandexMapEmbedUrl, yandexMapsOpenUrl } from "../../lib/yandexMaps";
 import { GUEST_CONTACT_EMAIL_LABEL } from "./guestContactLabels";
 import { GUEST_WAREHOUSE_ITEMS } from "./guestWarehouseContent";
 
@@ -12,14 +13,6 @@ type Props = {
 function normalizePhoneToTel(phone: string): string {
   const digits = phone.replace(/[^\d+]/g, "");
   return digits.startsWith("+") ? digits : `+${digits}`;
-}
-
-function yandexMapEmbedUrl(lat: number, lon: number): string {
-  return `https://yandex.ru/map-widget/v1/?ll=${lon},${lat}&z=15&pt=${lon},${lat},pm2rdm`;
-}
-
-function yandexMapsRouteUrl(address: string): string {
-  return `https://yandex.ru/maps/?text=${encodeURIComponent(address)}`;
 }
 
 export function GuestWarehousesPage({ onBack }: Props) {
@@ -105,7 +98,11 @@ export function GuestWarehousesPage({ onBack }: Props) {
                 </div>
 
                 <a
-                  href={yandexMapsRouteUrl(warehouse.address)}
+                  href={yandexMapsOpenUrl({
+                    lat: warehouse.lat,
+                    lon: warehouse.lon,
+                    address: warehouse.address,
+                  })}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#2563eb] px-5 py-3 text-sm font-bold text-white hover:bg-[#1d4ed8]"
@@ -134,7 +131,11 @@ export function GuestWarehousesPage({ onBack }: Props) {
                 </div>
                 <iframe
                   title={`Карта склада HAULZ — ${warehouse.city}`}
-                  src={yandexMapEmbedUrl(warehouse.lat, warehouse.lon)}
+                  src={yandexMapEmbedUrl({
+                    lat: warehouse.lat,
+                    lon: warehouse.lon,
+                    address: warehouse.address,
+                  })}
                   className="h-64 w-full border-0"
                   loading="lazy"
                   allowFullScreen
