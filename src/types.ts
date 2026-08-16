@@ -130,6 +130,7 @@ export type ProfileView =
     | "voiceAssistants"
     | "2fa"
     | "notifications"
+    | "push"
     | "accounting"
     | "ais"
     | "haulzSummary"

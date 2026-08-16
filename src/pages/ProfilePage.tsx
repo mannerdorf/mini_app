@@ -13,6 +13,7 @@ import { ProfileTwoFactorSection } from "../components/profile/ProfileTwoFactorS
 import { ProfileVoiceAssistantsSection } from "../components/profile/ProfileVoiceAssistantsSection";
 import { ProfileFaqSection } from "../components/profile/ProfileFaqSection";
 import { ProfileVersionSection } from "../components/profile/ProfileVersionSection";
+import { ProfilePushHistorySection } from "../components/profile/ProfilePushHistorySection";
 import { ProfileRolesSection } from "../components/profile/ProfileRolesSection";
 import { ProfileHaulzSection } from "../components/profile/ProfileHaulzSection";
 import { HaulzReturnsPage } from "./HaulzReturnsPage";
@@ -338,6 +339,15 @@ export function ProfilePage({
                 onOpenTelegramBot={onOpenTelegramBot}
                 onOpenMaxBot={undefined}
                 onUpdateAccount={onUpdateAccount}
+            />
+        );
+    }
+
+    if (currentView === 'push') {
+        return (
+            <ProfilePushHistorySection
+                activeAccount={activeAccount}
+                onBack={() => setCurrentView('main')}
             />
         );
     }

@@ -25,6 +25,7 @@ const PROFILE_VIEWS = new Set<ProfileView>([
   "voiceAssistants",
   "2fa",
   "notifications",
+  "push",
   "accounting",
   "ais",
   "haulzSummary",
