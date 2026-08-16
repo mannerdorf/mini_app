@@ -161,6 +161,15 @@ html.guest-mode #root {
   background: #f9fafb;
 }
 
+.about-company-hero {
+  background: #1e3a8a;
+  color: #fff;
+}
+
+.about-company-hero h1 {
+  color: #fff;
+}
+
 @keyframes guest-slide-up {
   from { transform: translateY(8px); }
   to { transform: translateY(0); }
