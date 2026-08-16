@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
 import { getPool } from "./_db.js";
 import { initRequestContext, logError, logInfo } from "./_lib/observability.js";
-import { normalizeKontragentsFrom1c } from "../../lib/normalizeKontragents.js";
+import { normalizeKontragentsFrom1c } from "../lib/normalizeKontragents.js";
 
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";

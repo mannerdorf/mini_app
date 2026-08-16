@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import https from "https";
 import { URL } from "url";
-import { getPool } from "../../_db.js";
+import { getPool } from "../_db.js";
 import { verifyRegisteredUser } from "../../lib/verifyRegisteredUser.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
 

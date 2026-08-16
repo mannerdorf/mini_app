@@ -185,7 +185,7 @@ export function mergeWorkbookPatch(stored: HaulzWorkbook | null, incoming: Haulz
       .map((s) => normalizeSheetId(s)),
   );
 
-  const mergedSheets = incoming.sheets.flatMap((s) => {
+  const mergedSheets: HaulzSheet[] = incoming.sheets.flatMap((s) => {
     const id = normalizeSheetId(s);
     if (id.startsWith("ul-")) {
       const ul = parseUlSheetId(id);

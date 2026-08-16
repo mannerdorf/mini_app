@@ -131,10 +131,12 @@ export async function filterRegisteredOrdersList(
       "SELECT inn FROM account_companies WHERE login = $1",
       [String(login).trim().toLowerCase()],
     );
-    const allowed = new Set(acRows.rows.map((r) => normalizeInn(r.inn)).filter(Boolean));
+    const allowed = new Set<string>(
+      acRows.rows.map((r: { inn?: unknown }) => normalizeInn(r.inn)).filter(Boolean) as string[]
+    );
     const verifiedInn = normalizeInn(verified.inn);
     if (verifiedInn) allowed.add(verifiedInn);
-    filterInns = allowed.size > 0 ? allowed : verifiedInn ? new Set([verifiedInn]) : null;
+    filterInns = allowed.size > 0 ? allowed : verifiedInn ? new Set<string>([verifiedInn]) : null;
   }
   const finalInns = isService
     ? null

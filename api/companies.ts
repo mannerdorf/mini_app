@@ -24,15 +24,16 @@ export default async function handler(
     const auth = await assertHaulzSummarySandboxAccess(req, { login, password });
     if (!auth.ok) {
       return res.status(auth.status).json({ error: auth.error, request_id: ctx.requestId });
-    }
-    try {
-      const pool = getPool();
-      const { users, customers, defaultPeriod } = await loadHaulzSummaryDirectories(pool);
-      return res.status(200).json({ users, customers, defaultPeriod, request_id: ctx.requestId });
-    } catch (e: unknown) {
-      const err = e as Error;
-      logError(ctx, "companies_sandbox_directory_failed", err);
-      return res.status(500).json({ error: err?.message || "Ошибка загрузки справочников", request_id: ctx.requestId });
+    } else {
+      try {
+        const pool = getPool();
+        const { users, customers, defaultPeriod } = await loadHaulzSummaryDirectories(pool);
+        return res.status(200).json({ users, customers, defaultPeriod, request_id: ctx.requestId });
+      } catch (e: unknown) {
+        const err = e as Error;
+        logError(ctx, "companies_sandbox_directory_failed", err);
+        return res.status(500).json({ error: err?.message || "Ошибка загрузки справочников", request_id: ctx.requestId });
+      }
     }
   }
 

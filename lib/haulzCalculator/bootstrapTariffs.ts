@@ -73,7 +73,7 @@ function buildPickupPayload(
 export async function bootstrapHaulzCalculatorTariffs(
   pool: Pool,
   opts?: { effectiveFrom?: string },
-): Promise<{ sets: number; versionsWritten: number }> {
+): Promise<{ sets: number; versionsWritten: number; wasEmpty: boolean }> {
   const effectiveFrom = opts?.effectiveFrom || "2020-01-01";
   const before = await pool.query<{ n: string }>(`select count(*)::text as n from haulz_calc_tariff_sets`);
   const setsBefore = Number(before.rows[0]?.n) || 0;

@@ -5,7 +5,15 @@ import {
   type EmailNotificationEventId,
   EMAIL_NOTIFICATION_EVENTS,
 } from "./notificationEmailPrefs.js";
-import { formatTelegramMessage, getPaymentKey, type CargoEvent } from "./notificationPoll.js";
+import {
+  CARGO_NOTIFICATION_STAGES,
+  CARGO_STAGE_EVENT_IDS,
+  formatTelegramMessage,
+  getCargoStageEventIdFromState,
+  getPaymentKey,
+  type CargoEvent,
+  type CargoStageEventId,
+} from "./notificationPoll.js";
 import { perevozkiItemInn } from "../api/perevozki.js";
 import { readCacheRow } from "./documentCacheRefreshCore.js";
 import {
@@ -19,9 +27,7 @@ export type NotificationEmailPreviewKind = EmailNotificationEventId;
 export const NOTIFICATION_EMAIL_PREVIEW_KINDS: Array<{ id: NotificationEmailPreviewKind; label: string; group: string }> = [
   { id: "weekly_summary", label: "Еженедельная сводка", group: "Сводка" },
   { id: "daily_summary", label: "Ежедневная сводка", group: "Сводка" },
-  { id: "accepted", label: "Перевозка принята", group: "Перевозки" },
-  { id: "in_transit", label: "Перевозка в пути", group: "Перевозки" },
-  { id: "delivered", label: "Перевозка доставлена", group: "Перевозки" },
+  ...CARGO_NOTIFICATION_STAGES.map((s) => ({ id: s.id as NotificationEmailPreviewKind, label: s.label, group: "Перевозки" })),
   { id: "bill_created", label: "Создан счёт", group: "Документы" },
   { id: "bill_paid", label: "Счёт оплачен", group: "Документы" },
 ];
@@ -57,18 +63,8 @@ function invoiceSum(item: Record<string, unknown>): number {
 }
 
 function statusMatchesEvent(status: string, event: CargoEvent): boolean {
-  const lower = status.toLowerCase();
-  if (event === "delivered") return lower.includes("достав") || lower.includes("заверш");
-  if (event === "in_transit") return lower.includes("пути") || lower.includes("отправлен");
-  if (event === "accepted") {
-    return (
-      lower.includes("готов") ||
-      lower.includes("принят") ||
-      lower.includes("ответ") ||
-      lower.includes("к выдаче")
-    );
-  }
-  return false;
+  if (event === "bill_created" || event === "bill_paid") return false;
+  return getCargoStageEventIdFromState(status) === event;
 }
 
 function renderSimpleNotificationEmail(params: {
@@ -119,7 +115,7 @@ async function loadInvoicesForInn(pool: Pool, inn: string): Promise<Record<strin
   return (rows as Record<string, unknown>[]).filter((item) => invoiceInn(item) === normalizeInnCanon(inn));
 }
 
-function findCargoSample(items: Record<string, unknown>[], event: CargoEvent): Record<string, unknown> | null {
+function findCargoSample(items: Record<string, unknown>[], event: CargoStageEventId): Record<string, unknown> | null {
   for (const item of items) {
     if (statusMatchesEvent(normalizeStatus(item.State), event)) return item;
   }
@@ -135,17 +131,22 @@ function findInvoiceSample(items: Record<string, unknown>[], paid: boolean): Rec
   return items[0] ?? null;
 }
 
-function demoCargo(event: CargoEvent): Record<string, unknown> {
-  const states: Record<CargoEvent, string> = {
-    accepted: "Принят на склад",
-    in_transit: "В пути",
-    delivered: "Доставлен",
-    bill_created: "",
-    bill_paid: "",
-  };
+const DEMO_CARGO_STATES: Record<CargoStageEventId, string> = {
+  info_received: "Получена информация",
+  received_at_warehouse: "Получена на складе",
+  measured: "Измерена",
+  consolidation: "Консолидация",
+  loaded: "Загружена в ТС",
+  sent: "Отправлена",
+  arrived: "Прибыла в город назначения",
+  delivery_scheduled: "Запланирована доставка",
+  delivered: "Доставлена",
+};
+
+function demoCargo(event: CargoStageEventId): Record<string, unknown> {
   return {
     Number: "0000-123456",
-    State: states[event],
+    State: DEMO_CARGO_STATES[event],
     Mest: 3,
     PW: 120,
     W: 95,
@@ -226,7 +227,7 @@ async function buildDailySummaryPreview(
 
 async function buildCargoEventPreview(
   pool: Pool,
-  event: "accepted" | "in_transit" | "delivered",
+  event: CargoStageEventId,
   params: { targetLogin: string; inn: string; companyName: string },
 ): Promise<{ html: string; subject: string }> {
   const items = await loadCargoForInn(pool, params.inn);
@@ -237,21 +238,17 @@ async function buildCargoEventPreview(
     demo = true;
   }
   const text = formatTelegramMessage(event, cargoNumber(sample), sample);
-  const titles: Record<typeof event, string> = {
-    accepted: "Перевозка принята",
-    in_transit: "Перевозка в пути",
-    delivered: "Перевозка доставлена",
-  };
+  const title = CARGO_NOTIFICATION_STAGES.find((s) => s.id === event)?.label ?? event;
   const bodyHtml = `<p style="margin:0;font-size:15px;color:#111827;line-height:1.55;">${escapeHtml(text)}</p>`;
   const html = renderSimpleNotificationEmail({
     targetLogin: params.targetLogin,
-    headerTitle: titles[event],
+    headerTitle: title,
     headerSubtitle: `№ ${escapeHtml(cargoNumber(sample))}`,
     companyLine: `${escapeHtml(params.companyName || params.inn)} (ИНН ${escapeHtml(params.inn)})`,
     bodyHtml,
     previewNote: demo ? "Пример на демо-данных — подходящая перевозка не найдена в кэше для этого ИНН." : undefined,
   });
-  return { html, subject: `HAULZ: ${titles[event].toLowerCase()} № ${cargoNumber(sample)}` };
+  return { html, subject: `HAULZ: ${title.toLowerCase()} № ${cargoNumber(sample)}` };
 }
 
 async function buildBillEventPreview(
@@ -317,8 +314,8 @@ export async function buildNotificationEmailPreview(
     return { kind, ...r };
   }
 
-  if (kind === "accepted" || kind === "in_transit" || kind === "delivered") {
-    const r = await buildCargoEventPreview(pool, kind, { targetLogin, inn, companyName });
+  if ((CARGO_STAGE_EVENT_IDS as readonly string[]).includes(kind)) {
+    const r = await buildCargoEventPreview(pool, kind as CargoStageEventId, { targetLogin, inn, companyName });
     return { kind, ...r };
   }
 

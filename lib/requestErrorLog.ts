@@ -40,7 +40,10 @@ export function logRequestError(
     .catch((e) => console.error("request_error_log write error:", e));
 }
 
-type Handler = (req: VercelRequest, res: VercelResponse) => void | Promise<void>;
+type Handler = (
+  req: VercelRequest,
+  res: VercelResponse
+) => void | VercelResponse | Promise<void | VercelResponse>;
 
 /**
  * Оборачивает API-обработчик: при ответе с кодом 4xx/5xx пишет запись в request_error_log.

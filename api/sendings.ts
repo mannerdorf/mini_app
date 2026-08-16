@@ -103,13 +103,7 @@ async function attachMetricsToSendings(
     .filter((k) => k.sending_number);
   if (!keys.length) return list;
 
-  const metricsRes = await pool.query<{
-    customer_inn: string;
-    sending_number: string;
-    in_transit_hours: number | null;
-    send_start_at: string | null;
-    first_ready_at: string | null;
-  }>(
+  const metricsRes = await pool.query(
     `with src as (
        select *
        from jsonb_to_recordset($1::jsonb) as x(customer_inn text, sending_number text)
@@ -215,9 +209,11 @@ async function filterRegisteredSendingsList(
       "SELECT inn FROM account_companies WHERE login = $1",
       [String(login).trim().toLowerCase()],
     );
-    const allowed = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
+    const allowed = new Set<string>(
+      acRows.rows.map((r: { inn?: unknown }) => String(r.inn ?? "").trim()).filter(Boolean)
+    );
     if (verified.inn?.trim()) allowed.add(verified.inn.trim());
-    filterInns = allowed.size > 0 ? allowed : verified.inn ? new Set([verified.inn]) : null;
+    filterInns = allowed.size > 0 ? allowed : verified.inn ? new Set<string>([verified.inn]) : null;
   }
   const finalInns = isService
     ? null
@@ -252,9 +248,11 @@ export async function readRegisteredSendingsFromCache(
         "SELECT inn FROM account_companies WHERE login = $1",
         [String(login).trim().toLowerCase()],
       );
-      const allowed = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
+      const allowed = new Set<string>(
+        acRows.rows.map((r: { inn?: unknown }) => String(r.inn ?? "").trim()).filter(Boolean)
+      );
       if (verified.inn?.trim()) allowed.add(verified.inn.trim());
-      filterInns = allowed.size > 0 ? allowed : verified.inn ? new Set([verified.inn]) : null;
+      filterInns = allowed.size > 0 ? allowed : verified.inn ? new Set<string>([verified.inn]) : null;
     }
     const finalInns = isService
       ? null
@@ -377,10 +375,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         "SELECT inn FROM account_companies WHERE login = $1",
         [String(login).trim().toLowerCase()],
       );
-      const allowed = new Set(userInnsRow.rows.map((r) => r.inn.trim()).filter(Boolean));
+      const allowed = new Set<string>(
+        userInnsRow.rows.map((r: { inn?: unknown }) => String(r.inn ?? "").trim()).filter(Boolean)
+      );
       finalInns = requestedInn
         ? allowed.has(requestedInn)
-          ? new Set([requestedInn])
+          ? new Set<string>([requestedInn])
           : new Set<string>()
         : allowed;
     }

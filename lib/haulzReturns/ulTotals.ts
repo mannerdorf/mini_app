@@ -118,6 +118,7 @@ export function syncAllUlSheetsFromControlKeys(workbook: {
 }): HaulzWorkbook {
   return {
     ...workbook,
+    excludedUlNumbers: (workbook as HaulzWorkbook).excludedUlNumbers ?? new Set<string>(),
     sheets: workbook.sheets.map((sheet) =>
       sheet.id.startsWith("ul-") ? syncUlSheetFromControlKeys(sheet, workbook.itogControlKeys) : sheet,
     ),

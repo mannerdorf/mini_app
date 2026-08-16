@@ -220,7 +220,9 @@ export async function readRegisteredPerevozkiFromCache(
         "SELECT inn FROM account_companies WHERE login = $1",
         [String(login).trim().toLowerCase()],
       );
-      allowedInnsFromDb = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
+      allowedInnsFromDb = new Set<string>(
+        acRows.rows.map((r: { inn?: unknown }) => String(r.inn ?? "").trim()).filter(Boolean)
+      );
     }
     const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
     const isServiceMode = !!serviceMode;
@@ -385,7 +387,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           "SELECT inn FROM account_companies WHERE login = $1",
           [String(login).trim().toLowerCase()],
         );
-        const allowedInns = new Set(userInnsRow.rows.map((r) => r.inn.trim()).filter(Boolean));
+        const allowedInns = new Set<string>(
+          userInnsRow.rows.map((r: { inn?: unknown }) => String(r.inn ?? "").trim()).filter(Boolean)
+        );
         filterInns = requestedInn
           ? allowedInns.has(requestedInn)
             ? new Set([requestedInn])
@@ -503,7 +507,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               "SELECT inn FROM account_companies WHERE login = $1",
               [String(login).trim().toLowerCase()],
             );
-            allowedInnsFromDb = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
+            allowedInnsFromDb = new Set<string>(
+        acRows.rows.map((r: { inn?: unknown }) => String(r.inn ?? "").trim()).filter(Boolean)
+      );
           }
           list = filterPerevozkiListForRegistered(
             Array.isArray(list) ? list : [],

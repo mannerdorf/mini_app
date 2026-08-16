@@ -8,14 +8,26 @@ function getSecret(): string {
   return process.env.ADMIN_TOKEN_SECRET || "haulz-admin";
 }
 
-export function createAdminToken(superAdmin?: boolean): string {
-  const payload = { admin: true, exp: Date.now() + TTL_MS, ...(superAdmin ? { superAdmin: true } : {}) };
+export type AdminTokenPayload = {
+  admin?: boolean;
+  superAdmin?: boolean;
+  login?: string;
+  exp?: number;
+};
+
+export function createAdminToken(superAdmin?: boolean, login?: string): string {
+  const payload: AdminTokenPayload = {
+    admin: true,
+    exp: Date.now() + TTL_MS,
+    ...(superAdmin ? { superAdmin: true } : {}),
+    ...(login ? { login } : {}),
+  };
   const payloadB64 = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const sig = crypto.createHmac(ALG, getSecret()).update(payloadB64).digest("base64url");
   return `${payloadB64}.${sig}`;
 }
 
-export function getAdminTokenPayload(token: string | undefined): { superAdmin?: boolean } | null {
+export function getAdminTokenPayload(token: string | undefined): AdminTokenPayload | null {
   if (!token || typeof token !== "string") return null;
   const parts = token.split(".");
   if (parts.length !== 2) return null;
@@ -23,7 +35,7 @@ export function getAdminTokenPayload(token: string | undefined): { superAdmin?: 
   const expectedSig = crypto.createHmac(ALG, getSecret()).update(payloadB64).digest("base64url");
   if (sig !== expectedSig) return null;
   try {
-    const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf8"));
+    const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf8")) as AdminTokenPayload;
     return payload;
   } catch {
     return null;

@@ -28,7 +28,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
-  let body: { login?: string; password?: string; section?: string } = req.body;
+  let body: { login?: string; password?: string; section?: string; platform?: string } = req.body;
   if (typeof body === "string") {
     try {
       body = JSON.parse(body);

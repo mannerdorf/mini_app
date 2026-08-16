@@ -1,5 +1,5 @@
 /** Все города Калининградской области → KGD; все города Московской области → MSK (как в разделе «Грузы»). */
-export function cityToCode(city: string | number | undefined | null): string {
+export function cityToCode(city: string | number | undefined | null | unknown): string {
   if (city === undefined || city === null) return "";
   const s = String(city).trim().toLowerCase();
   if (/^wh_msk$/.test(s)) return "MSK";

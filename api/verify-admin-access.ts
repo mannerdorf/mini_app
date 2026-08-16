@@ -26,7 +26,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(429).json({ error: "Слишком много попыток входа. Попробуйте через минуту.", request_id: ctx.requestId });
   }
 
-  let body: { login?: string; password?: string } = req.body;
+  let body: { login?: string; password?: string; email?: string } = req.body;
   if (typeof body === "string") {
     try {
       body = JSON.parse(body);
@@ -60,7 +60,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (e) {
       logError(ctx, "verify_admin_access_audit_failed", e);
     }
-    const adminToken = createAdminToken(true);
+    const adminToken = createAdminToken(true, loginLower);
     return res.status(200).json({ ok: true, adminToken, request_id: ctx.requestId });
   }
 
@@ -90,7 +90,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       } catch (e) {
         logError(ctx, "verify_admin_access_audit_failed", e);
       }
-      const adminToken = createAdminToken(false);
+      const adminToken = createAdminToken(false, user.login);
       return res.status(200).json({ ok: true, adminToken, request_id: ctx.requestId });
     }
   } catch (e) {

@@ -54,7 +54,7 @@ async function sendTelegramMessage(
         ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
       }),
     });
-    const data = await res.json().catch(() => ({}));
+    const data = (await res.json().catch(() => ({}))) as { ok?: boolean; description?: string };
     if (!res.ok || !data?.ok) return { ok: false, error: data?.description || String(res.status) };
     return { ok: true };
   } catch (e: any) {

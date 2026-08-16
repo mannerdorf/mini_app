@@ -31,6 +31,9 @@ export type HaulzSummarySandboxBody = {
   dateTo?: string;
   emailType?: string;
   cron?: Partial<SummaryCronConfig>;
+  limit?: number;
+  logId?: number;
+  dispatchLogId?: number;
 };
 
 export function parseHaulzSummarySandboxBody(req: VercelRequest): HaulzSummarySandboxBody {
