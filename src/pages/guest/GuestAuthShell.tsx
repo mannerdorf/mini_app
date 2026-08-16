@@ -65,15 +65,11 @@ export function GuestAuthShell() {
 
   if (screen === "about") {
     return (
-      <div className="guest-shell min-h-[100dvh] px-4 py-4 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-guest">
-          <AboutCompanyPage
-            onBack={() => setScreen("home")}
-            emailLabel={GUEST_CONTACT_EMAIL_LABEL}
-            showWarehouses={false}
-          />
-        </div>
-      </div>
+      <AboutCompanyPage
+        onBack={() => setScreen("home")}
+        emailLabel={GUEST_CONTACT_EMAIL_LABEL}
+        showWarehouses={false}
+      />
     );
   }
 
