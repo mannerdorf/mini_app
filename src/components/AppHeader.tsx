@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Bell,
   Loader2,
   LogOut,
   Maximize,
@@ -41,7 +42,7 @@ export function AppHeader({
   onLogout,
 }: Props) {
   const { accounts, activeAccountId, activeAccount } = useAuth();
-  const { activeTab, theme, setTheme, desktopExpanded, setDesktopExpanded } = useAppShell();
+  const { activeTab, theme, setTheme, desktopExpanded, setDesktopExpanded, requestProfileView } = useAppShell();
   const { handleSwitchAccount, handleUpdateAccount } = useAccountActions();
 
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -257,6 +258,14 @@ export function AppHeader({
               {isSearchExpanded ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
             </Button>
           )}
+          <Button
+            className="search-toggle-button"
+            onClick={() => requestProfileView("push")}
+            title="История push-уведомлений"
+            aria-label="История push-уведомлений"
+          >
+            <Bell className="w-5 h-5" />
+          </Button>
           <Button
             className="search-toggle-button"
             onClick={() => setTheme((prev) => (prev === "light" ? "dark" : "light"))}

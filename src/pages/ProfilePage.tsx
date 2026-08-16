@@ -69,7 +69,7 @@ export function ProfilePage({
     /** Активна оболочка «мягкая панель» (суперадмин или право haulz). */
     profileSaasShellActive?: boolean;
 }) {
-    const { profileRootRequest } = useAppShell();
+    const { profileRootRequest, profileViewRequest, requestedProfileView } = useAppShell();
     const [currentView, setCurrentView] = useState<ProfileView>(() => readStoredProfileView());
     const [haulzCalcRestoreDraftId, setHaulzCalcRestoreDraftId] = useState<number | null>(() =>
       readStoredHaulzCalcDraftId(),
@@ -108,6 +108,12 @@ export function ProfilePage({
         setHaulzCalcRestoreDraftId(null);
         setCurrentView("main");
     }, [profileRootRequest]);
+
+    useEffect(() => {
+        if (profileViewRequest === 0 || !requestedProfileView) return;
+        setHaulzCalcRestoreDraftId(null);
+        setCurrentView(requestedProfileView);
+    }, [profileViewRequest, requestedProfileView]);
     useEffect(() => {
         const voiceUnlocked =
             activeAccount?.isRegisteredUser === true && activeAccount?.permissions?.service_mode === true;

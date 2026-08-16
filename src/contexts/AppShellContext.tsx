@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import type { Tab } from "../types";
+import type { ProfileView, Tab } from "../types";
 import { getWebApp } from "../webApp";
 import { HAULZ_SPLASH_BACKGROUND } from "../constants/brand";
 import {
@@ -28,6 +28,10 @@ export type AppShellContextValue = {
   /** Увеличивается при повторном нажатии вкладки «Профиль» — сброс вложенных экранов. */
   profileRootRequest: number;
   requestProfileRoot: () => void;
+  /** Запрос открыть конкретный подраздел профиля (например, историю Push). */
+  profileViewRequest: number;
+  requestedProfileView: ProfileView | null;
+  requestProfileView: (view: ProfileView) => void;
   hasRestoredTabRef: React.MutableRefObject<boolean>;
   hasUrlTabOverrideRef: React.MutableRefObject<boolean>;
 };
@@ -69,10 +73,18 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
   });
   const [activeTab, setActiveTab] = useState<Tab>(initialActiveTab);
   const [profileRootRequest, setProfileRootRequest] = useState(0);
+  const [profileViewRequest, setProfileViewRequest] = useState(0);
+  const [requestedProfileView, setRequestedProfileView] = useState<ProfileView | null>(null);
   const hasRestoredTabRef = useRef(false);
   const hasUrlTabOverrideRef = useRef(false);
   const requestProfileRoot = useCallback(() => {
+    setRequestedProfileView(null);
     setProfileRootRequest((n) => n + 1);
+  }, []);
+  const requestProfileView = useCallback((view: ProfileView) => {
+    setRequestedProfileView(view);
+    setProfileViewRequest((n) => n + 1);
+    setActiveTab("profile");
   }, []);
 
   useEffect(() => {
@@ -150,10 +162,22 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
       setActiveTab,
       profileRootRequest,
       requestProfileRoot,
+      profileViewRequest,
+      requestedProfileView,
+      requestProfileView,
       hasRestoredTabRef,
       hasUrlTabOverrideRef,
     }),
-    [theme, desktopExpanded, activeTab, profileRootRequest, requestProfileRoot]
+    [
+      theme,
+      desktopExpanded,
+      activeTab,
+      profileRootRequest,
+      requestProfileRoot,
+      profileViewRequest,
+      requestedProfileView,
+      requestProfileView,
+    ]
   );
 
   return <AppShellContext.Provider value={value}>{children}</AppShellContext.Provider>;
