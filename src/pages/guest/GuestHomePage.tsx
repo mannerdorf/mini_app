@@ -130,8 +130,8 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
             </CardContent>
           </Card>
 
-          {/* Secondary card — offices */}
-          <div className="grid gap-4 lg:col-span-4 lg:grid-rows-[1fr_auto]">
+          {/* Secondary card — warehouses */}
+          <div className="lg:col-span-4">
             <Card
               className="relative cursor-pointer overflow-hidden border-0 bg-white transition hover:shadow-guest-lg"
               role="button"
@@ -161,16 +161,6 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
                   className="h-24 w-24 object-contain"
                   loading="lazy"
                 />
-              </CardContent>
-            </Card>
-
-            <Card className="hidden border-haulz-brand/15 bg-haulz-brand-soft/40 lg:block">
-              <CardContent className="flex flex-col gap-3 p-5">
-                <p className="text-sm font-semibold">Уже есть аккаунт?</p>
-                <p className="text-sm text-[hsl(var(--guest-muted-foreground))]">
-                  Войдите, чтобы отслеживать перевозки, документы и push-уведомления.
-                </p>
-                <Button onClick={onLogin}>Войти в кабинет</Button>
               </CardContent>
             </Card>
           </div>
