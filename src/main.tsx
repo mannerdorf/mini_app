@@ -191,7 +191,13 @@ if (typeof window !== "undefined") {
 
 /** Дождаться условной загрузки Telegram/MAX SDK из index.html, затем монтировать React. */
 const mountApp = () => {
-  ReactDOM.createRoot(document.getElementById("root")!).render(
+  const rootEl = document.getElementById("root");
+  if (!rootEl) {
+    console.error("[HAULZ] #root not found");
+    return;
+  }
+
+  ReactDOM.createRoot(rootEl).render(
     <React.StrictMode>
       <ErrorBoundary>
         <SWRConfig value={swrConfig}>
@@ -204,11 +210,31 @@ const mountApp = () => {
   );
 };
 
-void (async () => {
+const startApp = async () => {
   try {
     await (typeof window !== "undefined" ? window.__haulzWebAppSdkReady ?? Promise.resolve() : Promise.resolve());
   } catch {
     /* загрузчик сам логирует предупреждения */
   }
-  mountApp();
-})();
+  try {
+    mountApp();
+  } catch (error) {
+    console.error("[HAULZ] mount failed", error);
+    const rootEl = document.getElementById("root");
+    if (rootEl && rootEl.childElementCount === 0) {
+      rootEl.innerHTML =
+        '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f3f4f6;color:#111827;font-family:Inter,system-ui,sans-serif;text-align:center">' +
+        '<div><p style="font-size:18px;font-weight:700;margin:0 0 8px">Не удалось загрузить приложение</p>' +
+        '<p style="font-size:14px;margin:0 0 16px;color:#6b7280">Обновите страницу или очистите кэш браузера.</p>' +
+        '<button type="button" onclick="location.reload()" style="border:0;border-radius:12px;background:#2563eb;color:#fff;font-size:14px;font-weight:600;padding:10px 18px;cursor:pointer">Обновить</button></div></div>';
+    }
+  }
+};
+
+if (typeof document !== "undefined" && document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => {
+    void startApp();
+  });
+} else {
+  void startApp();
+}

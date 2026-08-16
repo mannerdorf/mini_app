@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, Suspense } from "react";
+import React, { useEffect, useLayoutEffect, useState, useMemo, Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import "./styles.css";
 import { AppMainContent } from "./components/AppMainContent";
@@ -34,6 +34,17 @@ function AppRoot() {
         activeAccount,
     } = useAuth();
     const { setTheme, desktopExpanded } = useAppShell();
+
+    useLayoutEffect(() => {
+        if (typeof document === "undefined") return;
+        if (!auth) {
+            document.documentElement.classList.add("guest-mode", "light-mode");
+            document.documentElement.classList.remove("dark-mode");
+            document.body.classList.add("guest-mode", "light-mode");
+            document.body.classList.remove("dark-mode");
+            setTheme("light");
+        }
+    }, [auth, setTheme]);
 
     useEffect(() => {
         applyClientPlatformToDocument();

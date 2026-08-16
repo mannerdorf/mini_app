@@ -78,8 +78,10 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof document === "undefined") return;
     const cls = `${theme}-mode`;
-    document.documentElement.className = cls;
-    document.body.className = cls;
+    document.documentElement.classList.remove("light-mode", "dark-mode");
+    document.documentElement.classList.add(cls);
+    document.body.classList.remove("light-mode", "dark-mode");
+    document.body.classList.add(cls);
     try {
       window.localStorage.setItem("haulz.theme", theme);
     } catch {

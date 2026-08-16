@@ -19,6 +19,17 @@ export function isChunkLoadError(error: unknown): boolean {
   );
 }
 
+function showStaleChunkMessage(): void {
+  if (typeof document === "undefined") return;
+  const root = document.getElementById("root");
+  if (!root || root.childElementCount > 0) return;
+  root.innerHTML =
+    '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f3f4f6;color:#111827;font-family:Inter,system-ui,sans-serif;text-align:center">' +
+    '<div><p style="font-size:18px;font-weight:700;margin:0 0 8px">Обновите страницу</p>' +
+    '<p style="font-size:14px;margin:0 0 16px;color:#6b7280">После обновления сайта браузер мог сохранить старую версию.</p>' +
+    '<button type="button" onclick="location.reload()" style="border:0;border-radius:12px;background:#2563eb;color:#fff;font-size:14px;font-weight:600;padding:10px 18px;cursor:pointer">Обновить</button></div></div>';
+}
+
 /** Hard reload with cache-bust when a stale Vite chunk is requested after deploy. */
 export function reloadForStaleChunks(_source: string): boolean {
   if (typeof window === "undefined") return false;
@@ -34,6 +45,7 @@ export function reloadForStaleChunks(_source: string): boolean {
 
     if (state.count >= MAX_RETRIES) {
       window.sessionStorage.removeItem(RETRY_STATE_KEY);
+      showStaleChunkMessage();
       return false;
     }
 

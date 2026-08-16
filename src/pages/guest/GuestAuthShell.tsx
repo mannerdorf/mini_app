@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useCallback, useEffect, useState } from "react";
+import React, { useEffect, useLayoutEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { LoginScreen } from "../../components/LoginScreen";
 import { AboutCompanyPage } from "../AboutCompanyPage";
@@ -28,11 +28,16 @@ export function GuestAuthShell() {
     setScreen("calculator");
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = document.documentElement;
+    const body = document.body;
     root.classList.add("guest-mode", "light-mode");
+    root.classList.remove("dark-mode");
+    body.classList.add("guest-mode", "light-mode");
+    body.classList.remove("dark-mode");
     return () => {
       root.classList.remove("guest-mode", "light-mode");
+      body.classList.remove("guest-mode", "light-mode");
     };
   }, []);
 
