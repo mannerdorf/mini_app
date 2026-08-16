@@ -124,6 +124,7 @@ export type HaulzCalcMobileFlowProps = {
   canSendQuoteEmail: boolean;
   registeredNomerZayavki: string | null;
   guestOrderCompleted?: boolean;
+  hideQuotePreview?: boolean;
 };
 
 function MobileSubScreen({
