@@ -1,18 +1,13 @@
 import React from "react";
 import {
   ArrowRight,
-  Calculator,
   ChevronRight,
   FileText,
-  HelpCircle,
   Menu,
   Route,
   ShieldCheck,
-  Smartphone,
 } from "lucide-react";
 import { Button } from "../../components/shadcn/button";
-import { Badge } from "../../components/shadcn/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/shadcn/card";
 import { GUEST_ILLUSTRATIONS } from "../../constants/guestIllustrations";
 import { isCapacitorAndroidApp } from "../../lib/androidAppUpdate";
 import { cn } from "../../lib/cn";
@@ -33,13 +28,40 @@ type Props = {
 type QuickAction = {
   id: string;
   label: string;
-  icon: typeof Calculator;
-  action: "calculator" | "faq" | "app";
+  hint: string;
+  image: string;
+  action: "calculator" | "faq" | "app" | "about" | "warehouses";
 };
 
-const QUICK_ACTIONS: QuickAction[] = [
-  { id: "calc", label: "Калькулятор", icon: Calculator, action: "calculator" },
-  { id: "faq", label: "FAQ", icon: HelpCircle, action: "faq" },
+const QUICK_ACTIONS_BASE: QuickAction[] = [
+  {
+    id: "calc",
+    label: "Калькулятор",
+    hint: "Предварительный расчёт",
+    image: GUEST_ILLUSTRATIONS.iconCalculator,
+    action: "calculator",
+  },
+  {
+    id: "faq",
+    label: "FAQ",
+    hint: "Короткие ответы",
+    image: GUEST_ILLUSTRATIONS.iconFaq,
+    action: "faq",
+  },
+  {
+    id: "about",
+    label: "О компании",
+    hint: "Кто такой HAULZ",
+    image: GUEST_ILLUSTRATIONS.iconAbout,
+    action: "about",
+  },
+  {
+    id: "warehouses",
+    label: "Склады",
+    hint: "Москва и Калининград",
+    image: GUEST_ILLUSTRATIONS.iconWarehouse,
+    action: "warehouses",
+  },
 ];
 
 const BENEFITS = [
@@ -65,229 +87,188 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
   const isNativeAndroid = isCapacitorAndroidApp();
 
   const quickActions: QuickAction[] = [
-    ...QUICK_ACTIONS,
+    ...QUICK_ACTIONS_BASE,
     ...(!isNativeAndroid
-      ? [{ id: "app", label: "Приложение", icon: Smartphone, action: "app" as const }]
+      ? [
+          {
+            id: "app",
+            label: "Приложение",
+            hint: "Android и iPhone",
+            image: GUEST_ILLUSTRATIONS.iconApp,
+            action: "app" as const,
+          },
+        ]
       : []),
   ];
 
-  return (
-    <div className="guest-shell guest-animate-in">
-      <header className="guest-header">
-        <div className="mx-auto flex max-w-guest items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8 lg:py-4">
-          <div className="flex items-center gap-3">
-            <span className="guest-header__logo">HAULZ</span>
-          </div>
+  const runQuickAction = (action: QuickAction["action"]) => {
+    if (action === "faq") onFaq();
+    else if (action === "app") onApp();
+    else if (action === "about") onAbout();
+    else if (action === "warehouses") onWarehouses();
+    else onCalculator();
+  };
 
+  return (
+    <div className="guest-shell">
+      <header className="guest-header guest-header--overlay">
+        <div className="mx-auto flex max-w-guest items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8 lg:py-4">
+          <span className="guest-header__logo guest-header__logo--on-hero">HAULZ</span>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={onLogin}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden border-white/30 bg-white/10 text-white hover:bg-white/20 sm:inline-flex"
+              onClick={onLogin}
+            >
               Войти
             </Button>
-            <Button variant="outline" size="icon" className="lg:hidden" aria-label="Меню" onClick={() => setMenuOpen(true)}>
+            <Button
+              variant="outline"
+              size="icon"
+              className="border-white/30 bg-white/10 text-white hover:bg-white/20 lg:hidden"
+              aria-label="Меню"
+              onClick={() => setMenuOpen(true)}
+            >
               <Menu className="h-5 w-5" />
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-guest px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-16 lg:pt-8">
-        <div className="grid gap-4 lg:grid-cols-12 lg:gap-6">
-          {/* Hero — CDEK-style primary card */}
-          <Card
-            className="group relative cursor-pointer overflow-hidden guest-surface--soft lg:col-span-8 lg:min-h-[18rem]"
-            role="button"
-            tabIndex={0}
-            onClick={onLogin}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onLogin();
-              }
-            }}
-          >
-            <CardHeader className="relative z-[1] max-w-xl pb-2">
-              <Badge variant="secondary" className="mb-2 w-fit border-0 bg-white/90 text-[#374151]">
-                B2B-логистика
-              </Badge>
-              <CardTitle className="text-2xl sm:text-3xl lg:text-4xl">Отправить груз</CardTitle>
-              <CardDescription className="text-base sm:text-lg">
-                Перевозки между Москвой и Калининградом с документами и статусами онлайн
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="relative z-[1] flex items-end justify-between gap-4 pb-6">
-              <Button className="mt-2" onClick={(e) => { e.stopPropagation(); onLogin(); }}>
-                Войти и оформить
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-              <img
-                src={GUEST_ILLUSTRATIONS.delivery}
-                alt=""
-                className="pointer-events-none h-28 w-28 shrink-0 object-contain sm:h-36 sm:w-36 lg:h-44 lg:w-44"
-                loading="eager"
-              />
-            </CardContent>
-          </Card>
-
-          {/* Secondary cards — about & warehouses */}
-          <div className="grid gap-4 lg:col-span-4">
-            <Card
-              className="guest-surface relative cursor-pointer overflow-hidden transition-colors hover:bg-[#eff6ff]"
-              role="button"
-              tabIndex={0}
-              onClick={onAbout}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onAbout();
-                }
-              }}
+      <section className="guest-home-hero" aria-label="HAULZ">
+        <img
+          src={GUEST_ILLUSTRATIONS.hero}
+          alt=""
+          className="guest-home-hero__media"
+          loading="eager"
+        />
+        <div className="guest-home-hero__veil" aria-hidden />
+        <div className="guest-home-hero__content mx-auto max-w-guest px-4 sm:px-6 lg:px-8">
+          <p className="guest-home-hero__brand guest-reveal guest-reveal--1">HAULZ</p>
+          <h1 className="guest-home-hero__title guest-reveal guest-reveal--2">
+            Отправить груз между Москвой и Калининградом
+          </h1>
+          <p className="guest-home-hero__lead guest-reveal guest-reveal--3">
+            B2B-логистика с расчётом, статусами и документами онлайн.
+          </p>
+          <div className="guest-home-hero__actions guest-reveal guest-reveal--4">
+            <Button size="lg" onClick={onLogin}>
+              Войти и оформить
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="border-white/40 bg-white/10 text-white hover:bg-white/20"
+              onClick={onCalculator}
             >
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xl">О компании</CardTitle>
-                <CardDescription>B2B-логистика Москва ↔ Калининград</CardDescription>
-              </CardHeader>
-              <CardContent className="flex items-end justify-between gap-3 pt-0">
-                <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); onAbout(); }}>
-                  Смотреть
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                <img
-                  src={GUEST_ILLUSTRATIONS.logistics}
-                  alt=""
-                  className="h-24 w-24 object-contain"
-                  loading="lazy"
-                />
-              </CardContent>
-            </Card>
-
-            <Card
-              className="guest-surface relative cursor-pointer overflow-hidden transition-colors hover:bg-[#eff6ff]"
-              role="button"
-              tabIndex={0}
-              onClick={onWarehouses}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onWarehouses();
-                }
-              }}
-            >
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xl">Склады HAULZ</CardTitle>
-              </CardHeader>
-              <CardContent className="flex items-end justify-between gap-3 pt-0">
-                <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); onWarehouses(); }}>
-                  Смотреть
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                <img
-                  src={GUEST_ILLUSTRATIONS.location}
-                  alt=""
-                  className="h-24 w-24 object-contain"
-                  loading="lazy"
-                />
-              </CardContent>
-            </Card>
+              Рассчитать без входа
+            </Button>
           </div>
+        </div>
+      </section>
 
-          {/* Quick actions */}
-          <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:col-span-12" aria-label="Быстрые действия">
-            {quickActions.map((action) => {
-              const Icon = action.icon;
-              return (
-                <button
-                  key={action.id}
-                  type="button"
-                  className="guest-quick-action"
-                  onClick={() => {
-                    if (action.action === "faq") onFaq();
-                    else if (action.action === "app") onApp();
-                    else onCalculator();
-                  }}
-                >
-                  <span className="guest-quick-action__icon">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <span className="text-center text-xs font-semibold text-[#374151] sm:text-sm">{action.label}</span>
-                </button>
-              );
-            })}
-          </section>
+      <main className="mx-auto max-w-guest px-4 pb-28 pt-8 sm:px-6 lg:px-8 lg:pb-16">
+        <section className="guest-home-actions" aria-label="Быстрые действия">
+          {quickActions.map((action, index) => (
+            <button
+              key={action.id}
+              type="button"
+              className={cn("guest-home-action guest-reveal", `guest-reveal--${Math.min(index + 1, 5)}`)}
+              onClick={() => runQuickAction(action.action)}
+            >
+              <span className="guest-home-action__visual">
+                <img src={action.image} alt="" loading="lazy" />
+              </span>
+              <span className="guest-home-action__copy">
+                <span className="guest-home-action__label">{action.label}</span>
+                <span className="guest-home-action__hint">{action.hint}</span>
+              </span>
+              <ChevronRight className="guest-home-action__chevron h-4 w-4" />
+            </button>
+          ))}
+        </section>
 
-          {/* Why choose HAULZ */}
-          <section className="lg:col-span-12" aria-label="Почему стоит выбрать HAULZ">
-            <h2 className="guest-why-choose__title">Почему стоит выбрать HAULZ?</h2>
-            <div className="guest-why-choose__grid">
-              {GUEST_WHY_CHOOSE_ITEMS.map((item, index) => (
-                <article key={item.title} className="guest-why-choose__item">
-                  <span className="guest-why-choose__num" aria-hidden>
-                    {index + 1}
-                  </span>
-                  <div>
-                    <h3 className="guest-why-choose__item-title">{item.title}</h3>
-                    <p className="guest-why-choose__item-text">{item.text}</p>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
+        <section className="guest-home-why" aria-label="Почему стоит выбрать HAULZ">
+          <div className="guest-home-why__intro">
+            <p className="guest-section-title">Почему HAULZ</p>
+            <h2 className="guest-section-heading sm:text-3xl">Логистика без лишней суеты</h2>
+            <p className="guest-section-lead max-w-2xl">
+              Прозрачные статусы, аккуратные документы и маршрут, в котором груз не теряется между складами и перепиской.
+            </p>
+          </div>
+          <div className="guest-why-choose__grid">
+            {GUEST_WHY_CHOOSE_ITEMS.map((item, index) => (
+              <article key={item.title} className="guest-why-choose__item guest-lift">
+                <span className="guest-why-choose__num" aria-hidden>
+                  {index + 1}
+                </span>
+                <div>
+                  <h3 className="guest-why-choose__item-title">{item.title}</h3>
+                  <p className="guest-why-choose__item-text">{item.text}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
 
-          {/* Benefits */}
-          <section className="lg:col-span-12" aria-label="Преимущества">
-            <div className="mb-4 flex items-end justify-between gap-3">
-              <div>
-                <p className="guest-section-title">После входа в кабинет</p>
-                <h2 className="guest-section-heading sm:text-2xl">Цифровая логистика HAULZ</h2>
-              </div>
-              <img src={GUEST_ILLUSTRATIONS.logistics} alt="" className="hidden h-20 w-20 object-contain md:block" loading="lazy" />
-            </div>
-            <div className="grid gap-3 md:grid-cols-3">
-              {BENEFITS.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Card key={item.title} className="guest-surface">
-                    <CardContent className="flex gap-3 p-5">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[0.625rem] bg-[#eff6ff] text-[#2563eb]">
+        <section className="guest-home-benefits" aria-label="После входа в кабинет">
+          <div
+            className="guest-home-benefits__panel"
+            style={{ backgroundImage: `url(${GUEST_ILLUSTRATIONS.atmosphere})` }}
+          >
+            <div className="guest-home-benefits__veil" aria-hidden />
+            <div className="guest-home-benefits__content">
+              <p className="guest-home-benefits__eyebrow">После входа</p>
+              <h2 className="guest-home-benefits__title">Цифровая логистика HAULZ</h2>
+              <p className="guest-home-benefits__lead">
+                Кабинет собирает перевозки, документы и уведомления в одном спокойном рабочем пространстве.
+              </p>
+              <div className="guest-home-benefits__grid">
+                {BENEFITS.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <article key={item.title} className="guest-home-benefits__card">
+                      <span className="guest-home-benefits__icon">
                         <Icon className="h-5 w-5" />
                       </span>
-                      <div>
-                        <h3 className="font-semibold text-[#111827]">{item.title}</h3>
-                        <p className="mt-1 text-sm text-[#6b7280]">{item.text}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                      <h3>{item.title}</h3>
+                      <p>{item.text}</p>
+                    </article>
+                  );
+                })}
+              </div>
             </div>
-          </section>
+          </div>
+        </section>
 
-          {/* Routes */}
-          <section className="grid gap-4 md:grid-cols-2 lg:col-span-12" aria-label="Маршруты HAULZ">
+        <section className="guest-home-routes" aria-label="Направления HAULZ">
+          <div className="mb-5">
+            <p className="guest-section-title">Направления</p>
+            <h2 className="guest-section-heading sm:text-2xl">Москва ↔ Калининград</h2>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
             {GUEST_ROUTE_DIRECTIONS.map((route) => (
-              <Card key={route.id} className="guest-surface">
-                <CardHeader className="pb-3">
-                  <div className="mb-2 flex items-center gap-2 text-base font-bold text-[#111827] sm:text-lg">
-                    <span>{route.from}</span>
-                    <ArrowRight className="h-4 w-4 shrink-0 text-[#2563eb]" />
-                    <span>{route.to}</span>
-                  </div>
-                  <CardDescription className="text-sm leading-relaxed">{route.summary}</CardDescription>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <ul className="space-y-2 text-sm leading-relaxed text-[#6b7280]">
-                    {route.features.map((feature) => (
-                      <li key={feature} className="flex gap-2">
-                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#2563eb]" aria-hidden />
-                        <span>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
+              <article key={route.id} className="guest-home-route guest-lift">
+                <div className="mb-3 flex items-center gap-2 text-base font-bold text-[#111827] sm:text-lg">
+                  <span>{route.from}</span>
+                  <ArrowRight className="h-4 w-4 shrink-0 text-[#2563eb]" />
+                  <span>{route.to}</span>
+                </div>
+                <p className="text-sm leading-relaxed text-[#6b7280]">{route.summary}</p>
+                <ul className="mt-4 space-y-2 text-sm leading-relaxed text-[#6b7280]">
+                  {route.features.slice(0, 4).map((feature) => (
+                    <li key={feature} className="flex gap-2">
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#2563eb]" aria-hidden />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+              </article>
             ))}
-          </section>
-
-        </div>
+          </div>
+        </section>
       </main>
 
       <GuestFooter
@@ -299,13 +280,11 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
         onLogin={onLogin}
       />
 
-      {/* Mobile / tablet sticky login bar — CDEK pattern */}
-      <div
-        className={cn("guest-mobile-dock lg:hidden")}
-        role="region"
-        aria-label="Вход в кабинет"
-      >
-        <div className="mx-auto flex max-w-guest items-center justify-between gap-3 px-4 py-3 sm:px-6" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
+      <div className={cn("guest-mobile-dock lg:hidden")} role="region" aria-label="Вход в кабинет">
+        <div
+          className="mx-auto flex max-w-guest items-center justify-between gap-3 px-4 py-3 sm:px-6"
+          style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+        >
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-[#111827]">Войдите, чтобы смотреть перевозки</p>
             <p className="truncate text-xs text-[#6b7280]">Грузы, документы и уведомления</p>
