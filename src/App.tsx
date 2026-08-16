@@ -3,9 +3,8 @@ import { Loader2 } from "lucide-react";
 import "./styles.css";
 import { AppMainContent } from "./components/AppMainContent";
 import { AppAuthenticatedLayout } from "./components/AppAuthenticatedLayout";
-import { GuestAuthShell } from "./pages/guest/GuestAuthShell";
+import { CMSStandalonePage, GuestAuthShell, NotFoundPage } from "./app/lazyPages";
 import { applyClientPlatformToDocument } from "./lib/clientPlatform";
-import { CMSStandalonePage, NotFoundPage } from "./app/lazyPages";
 import { AppRuntimeProvider } from "./contexts/AppRuntimeContext";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AppShellProvider, useAppShell } from "./contexts/AppShellContext";
@@ -37,6 +36,17 @@ function AppRoot() {
 
     useLayoutEffect(() => {
         if (typeof document === "undefined") return;
+        const isAdminRoute =
+            new URL(window.location.href).searchParams.get("tab") === "cms" ||
+            /^\/(admin|cms)\/?$/i.test(window.location.pathname);
+        if (isAdminRoute) {
+            document.documentElement.classList.remove("guest-mode", "dark-mode");
+            document.documentElement.classList.add("light-mode");
+            document.body.classList.remove("guest-mode", "dark-mode");
+            document.body.classList.add("light-mode");
+            setTheme("light");
+            return;
+        }
         if (!auth) {
             document.documentElement.classList.add("guest-mode", "light-mode");
             document.documentElement.classList.remove("dark-mode");
@@ -153,7 +163,11 @@ function AppRoot() {
     }
 
     if (!auth) {
-        return <GuestAuthShell />;
+        return (
+            <Suspense fallback={<div className="guest-shell flex min-h-[100dvh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-haulz-brand" /></div>}>
+                <GuestAuthShell />
+            </Suspense>
+        );
     }
 
     if (isRedReturnsOnlyUser) {

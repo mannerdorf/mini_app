@@ -1,17 +1,13 @@
-import React, { lazy, Suspense, useCallback, useLayoutEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import React, { useCallback, useLayoutEffect, useState } from "react";
 import { LoginScreen } from "../../components/LoginScreen";
 import { AboutCompanyPage } from "../AboutCompanyPage";
+import { ForgotPasswordPage } from "../ForgotPasswordPage";
 import { GuestAppDownloadPage } from "./GuestAppDownloadPage";
 import { GuestCalculatorPage } from "./GuestCalculatorPage";
 import { GuestFaqPage } from "./GuestFaqPage";
 import { GuestHomePage } from "./GuestHomePage";
 import { GuestWarehousesPage } from "./GuestWarehousesPage";
 import { GUEST_CONTACT_EMAIL_LABEL } from "./guestContactLabels";
-
-const ForgotPasswordPage = lazy(() =>
-  import("../ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage })),
-);
 
 type GuestScreen = "home" | "login" | "about" | "warehouses" | "faq" | "forgot" | "app" | "calculator";
 
@@ -60,17 +56,9 @@ export function GuestAuthShell() {
   if (screen === "forgot") {
     return (
       <div className="guest-shell">
-        <Suspense
-          fallback={
-            <div className="guest-login-screen">
-              <Loader2 className="h-8 w-8 animate-spin guest-login-screen__loader" />
-            </div>
-          }
-        >
-          <div className="guest-login-screen">
-            <ForgotPasswordPage onBackToLogin={() => setScreen("login")} />
-          </div>
-        </Suspense>
+        <div className="guest-login-screen">
+          <ForgotPasswordPage onBackToLogin={() => setScreen("login")} />
+        </div>
       </div>
     );
   }

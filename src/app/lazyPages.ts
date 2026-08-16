@@ -16,6 +16,10 @@ export const CMSStandalonePage = lazyWithRetry(
   () => import("../pages/CMSStandalonePage").then((m) => ({ default: m.CMSStandalonePage })),
   "CMSStandalonePage",
 );
+export const GuestAuthShell = lazyWithRetry(
+  () => import("../pages/guest/GuestAuthShell").then((m) => ({ default: m.GuestAuthShell })),
+  "GuestAuthShell",
+);
 export const CargoPage = lazyWithRetry(
   () => import("../pages/CargoPage").then((m) => ({ default: m.CargoPage })),
   "CargoPage",
