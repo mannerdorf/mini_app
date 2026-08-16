@@ -20,7 +20,8 @@ export const HAULZ_WAREHOUSES: Record<CityCode, HaulzWarehouse> = {
     hours: "ежедневно 09:00–18:00",
     phone: "+7 (958) 538-42-22",
     email: "Info@haulz.pro",
-    point: { lat: 55.6022, lon: 37.7265 },
+    // Индустриальный парк «Андреевское», вл. 14А (Ленинский ГО)
+    point: { lat: 55.55034, lon: 37.90994 },
   },
   kaliningrad: {
     code: "WH_KGD",
@@ -29,7 +30,8 @@ export const HAULZ_WAREHOUSES: Record<CityCode, HaulzWarehouse> = {
     hours: "ежедневно 09:00–18:00",
     phone: "+7 (401) 227-95-55",
     email: "Info@haulz.pro",
-    point: { lat: 54.7114, lon: 20.4568 },
+    // Железнодорожная ул., 12к4
+    point: { lat: 54.69293, lon: 20.50473 },
   },
 };
 

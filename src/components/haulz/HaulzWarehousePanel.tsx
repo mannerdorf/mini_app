@@ -1,5 +1,6 @@
 import React from "react";
 import { Globe, Mail, MapPin, Phone } from "lucide-react";
+import { yandexMapEmbedUrl, yandexMapsOpenUrl } from "../../lib/yandexMaps";
 
 export type HaulzWarehousePanelProps = {
   city: string;
@@ -18,14 +19,6 @@ function normalizePhoneToTel(phone: string): string {
   return digits.startsWith("+") ? digits : `+${digits}`;
 }
 
-function yandexMapEmbedUrl(lat: number, lon: number): string {
-  return `https://yandex.ru/map-widget/v1/?ll=${lon},${lat}&z=15&pt=${lon},${lat},pm2rdm`;
-}
-
-function yandexMapsRouteUrl(address: string): string {
-  return `https://yandex.ru/maps/?text=${encodeURIComponent(address)}`;
-}
-
 export function HaulzWarehousePanel({
   city,
   hours,
@@ -38,13 +31,15 @@ export function HaulzWarehousePanel({
   websiteUrl,
 }: HaulzWarehousePanelProps) {
   const mailLabel = emailLabel ?? email;
+  const mapSrc = yandexMapEmbedUrl({ lat, lon, address });
+  const mapsHref = yandexMapsOpenUrl({ lat, lon, address });
 
   return (
     <article className="haulz-warehouse-panel">
       <div className="haulz-warehouse-panel__map">
         <iframe
           title={`Карта склада HAULZ — ${city}`}
-          src={yandexMapEmbedUrl(lat, lon)}
+          src={mapSrc}
           loading="lazy"
           allowFullScreen
         />
@@ -73,7 +68,7 @@ export function HaulzWarehousePanel({
           </a>
           <a
             className="haulz-warehouse-panel__action"
-            href={yandexMapsRouteUrl(address)}
+            href={mapsHref}
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`Маршрут — ${city}`}
