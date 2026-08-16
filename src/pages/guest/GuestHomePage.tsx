@@ -16,7 +16,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../..
 import { GUEST_ILLUSTRATIONS } from "../../constants/guestIllustrations";
 import { isCapacitorAndroidApp } from "../../lib/androidAppUpdate";
 import { cn } from "../../lib/cn";
-import { GUEST_FAQ_ITEMS } from "./guestFaqContent";
 import { GUEST_ROUTE_DIRECTIONS } from "./guestRouteContent";
 import { GuestFooter } from "./GuestFooter";
 import { GuestHomeMenuSheet } from "./GuestHomeMenuSheet";
@@ -62,7 +61,6 @@ const BENEFITS = [
 export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: Props) {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const isNativeAndroid = isCapacitorAndroidApp();
-  const previewFaq = GUEST_FAQ_ITEMS.slice(0, 3);
 
   const quickActions: QuickAction[] = [
     ...QUICK_ACTIONS,
@@ -246,32 +244,6 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
               </Card>
             ))}
           </section>
-
-          <Card className="lg:col-span-12">
-            <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-              <div>
-                <CardTitle>Частые вопросы</CardTitle>
-                <CardDescription>Коротко о перевозках, входе и поддержке</CardDescription>
-              </div>
-              <Button variant="ghost" size="sm" onClick={onFaq}>
-                Все
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-2 pt-0">
-              {previewFaq.map((item) => (
-                <button
-                  key={item.q}
-                  type="button"
-                  className="flex w-full items-center justify-between gap-3 rounded-xl bg-[hsl(var(--guest-muted))] px-4 py-3 text-left text-sm font-medium transition hover:bg-haulz-brand-soft"
-                  onClick={onFaq}
-                >
-                  <span>{item.q}</span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-[hsl(var(--guest-muted-foreground))]" />
-                </button>
-              ))}
-            </CardContent>
-          </Card>
 
         </div>
       </main>
