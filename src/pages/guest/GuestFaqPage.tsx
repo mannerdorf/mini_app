@@ -67,7 +67,9 @@ export function GuestFaqPage({ onBack }: Props) {
         <section className="mb-6 flex flex-col items-start justify-between gap-4 rounded-2xl bg-[#1e3a8a] px-6 py-6 text-white sm:flex-row sm:items-center sm:px-8">
           <div>
             <p className="text-base font-bold">Не нашли свой вопрос?</p>
-            <p className="mt-1 text-sm text-blue-100">Ничего страшного — логистика любит индивидуальный подход.</p>
+            <p className="mt-1 text-sm text-blue-100">
+              Ничего страшного — логистика любит индивидуальный подход. Напишите в чате поддержки.
+            </p>
           </div>
           <button
             type="button"
