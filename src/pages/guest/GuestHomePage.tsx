@@ -113,8 +113,7 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
   return (
     <div className="guest-shell">
       <header className="guest-header guest-header--overlay">
-        <div className="mx-auto flex max-w-guest items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8 lg:py-4">
-          <span className="guest-header__logo guest-header__logo--on-hero">HAULZ</span>
+        <div className="mx-auto flex max-w-guest items-center justify-end gap-4 px-4 py-3 sm:px-6 lg:px-8 lg:py-4">
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
