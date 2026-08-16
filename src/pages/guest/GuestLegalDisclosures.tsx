@@ -7,7 +7,10 @@ type DisclosureBlock = {
 };
 
 const DISCLOSURE_BLOCKS: DisclosureBlock[] = [
-  HAULZ_LEGAL.disclosures.edo,
+  {
+    ...HAULZ_LEGAL.disclosures.edo,
+    rows: HAULZ_LEGAL.disclosures.edo.rows.filter((row) => row.label !== "Наименование:"),
+  },
   HAULZ_LEGAL.disclosures.goslog,
 ];
 

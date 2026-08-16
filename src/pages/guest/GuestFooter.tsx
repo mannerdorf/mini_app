@@ -19,6 +19,7 @@ type Props = {
 type LegalDoc = "offer" | "consent" | null;
 
 const NAV_LINKS: Array<{ label: string; onClick: keyof Pick<Props, "onAbout" | "onWarehouses" | "onFaq" | "onApp" | "onCalculator" | "onLogin"> }> = [
+  { label: "О компании", onClick: "onAbout" },
   { label: "Склады HAULZ", onClick: "onWarehouses" },
   { label: "FAQ", onClick: "onFaq" },
   { label: "Калькулятор", onClick: "onCalculator" },
@@ -52,18 +53,21 @@ export function GuestFooter({ onAbout, onWarehouses, onFaq, onApp, onCalculator,
   };
 
   const year = new Date().getFullYear();
-  const phones = HAULZ_LEGAL.offices.map((o) => `${o.city}: ${o.phone}`).join(" · ");
 
   return (
     <>
       <footer className="guest-footer" aria-label="Подвал сайта">
         <div className="guest-footer__inner mx-auto max-w-guest px-4 sm:px-6 lg:px-8">
-          <div className="guest-footer__brand-title">HAULZ</div>
-          <div className="guest-footer__brand-subtitle">Логистика Москва ↔ Калининград</div>
-          <p className="guest-footer__lead">
-            B2B-логистика между Москвой и Калининградом: перевозки, документы, отслеживание и калькулятор в личном
-            кабинете.
-          </p>
+          <div className="guest-footer__intro">
+            <div>
+              <div className="guest-footer__brand-title">HAULZ</div>
+              <div className="guest-footer__brand-subtitle">Логистика Москва ↔ Калининград</div>
+            </div>
+            <p className="guest-footer__lead">
+              B2B-логистика между Москвой и Калининградом: перевозки, документы, отслеживание и калькулятор в личном
+              кабинете.
+            </p>
+          </div>
 
           <div className="guest-footer__grid">
             <div>
@@ -85,15 +89,13 @@ export function GuestFooter({ onAbout, onWarehouses, onFaq, onApp, onCalculator,
                 <li>
                   <a href={`mailto:${HAULZ_EMAIL}`}>{GUEST_CONTACT_EMAIL_LABEL}</a>
                 </li>
-              </ul>
-              <div className="guest-footer__phones">
                 {HAULZ_LEGAL.offices.map((office) => (
-                  <p key={office.city}>
+                  <li key={office.city}>
                     {office.city}:{" "}
                     <a href={`tel:${office.phone.replace(/[^\d+]/g, "")}`}>{office.phone}</a>
-                  </p>
+                  </li>
                 ))}
-              </div>
+              </ul>
             </div>
 
             <div>
@@ -111,22 +113,25 @@ export function GuestFooter({ onAbout, onWarehouses, onFaq, onApp, onCalculator,
                 </li>
               </ul>
             </div>
+
+            <div>
+              <h2 className="guest-footer__heading">Реквизиты</h2>
+              <div className="guest-footer__text">
+                <p>
+                  {HAULZ_LEGAL.name}
+                  <br />
+                  ИНН {HAULZ_LEGAL.inn} · ОГРН {HAULZ_LEGAL.ogrn}
+                </p>
+                <p>{HAULZ_LEGAL.address}</p>
+              </div>
+            </div>
           </div>
 
           <GuestLegalDisclosures />
 
-          <div className="guest-footer__meta">
-            {HAULZ_LEGAL.name} · ИНН {HAULZ_LEGAL.inn} · ОГРН {HAULZ_LEGAL.ogrn}
-            <br />
-            {HAULZ_LEGAL.address}
-          </div>
-          <div className="guest-footer__meta">
-            <a href={`mailto:${HAULZ_EMAIL}`}>{HAULZ_EMAIL}</a>
-          </div>
-          <div className="guest-footer__meta">{phones}</div>
-          <div className="guest-footer__note">
+          <p className="guest-footer__note">
             © {year} {HAULZ_LEGAL.name}. Все права защищены. Предварительный расчёт не является публичной офертой.
-          </div>
+          </p>
         </div>
       </footer>
 
