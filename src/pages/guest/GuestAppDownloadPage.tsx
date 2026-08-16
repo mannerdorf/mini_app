@@ -4,7 +4,6 @@ import {
   Check,
   Clock3,
   Download,
-  ExternalLink,
   Share2,
   ShieldCheck,
   Smartphone,
