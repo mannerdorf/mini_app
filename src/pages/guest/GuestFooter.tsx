@@ -7,6 +7,7 @@ import {
 import { PERSONAL_DATA_CONSENT_TEXT, PUBLIC_OFFER_TEXT } from "../../constants/legalTexts";
 import { HAULZ_LEGAL } from "../../../lib/haulzLegal";
 import { GUEST_CONTACT_EMAIL_LABEL } from "./guestContactLabels";
+import { GuestLegalDisclosures } from "./GuestLegalDisclosures";
 
 type Props = {
   onAbout: () => void;
@@ -123,6 +124,8 @@ export function GuestFooter({ onAbout, onFaq, onApp, onCalculator, onLogin }: Pr
               </p>
             </div>
           </div>
+
+          <GuestLegalDisclosures />
 
           <div className="guest-footer__bottom">
             <p>© {year} {HAULZ_LEGAL.name}. Все права защищены.</p>
