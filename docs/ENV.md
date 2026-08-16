@@ -10,7 +10,7 @@
 | Переменная | Где | Назначение |
 |------------|-----|------------|
 | `VITE_API_ORIGIN` | Layero, Amvera, Capacitor, Docker build | Базовый URL API **без** завершающего `/`. Production: `https://api.haulz.ru`. Переписывает `fetch` на `/api/*` в `src/main.tsx`. |
-| `VITE_YANDEX_MAPS_API_KEY` | Vite build (Timeweb / Vercel / локально) | Ключ [Yandex Maps API](https://developer.tech.yandex.ru/) (JS API / HTTP Геокодер). Подставляется в виджеты складов (`src/lib/yandexMaps.ts`). |
+| `VITE_YANDEX_MAPS_API_KEY` | Vite build (Timeweb / Vercel / локально) | Ключ [Yandex Maps API](https://developer.tech.yandex.ru/) (JS API / HTTP Геокодер). Опционально подставляется в виджеты складов (`src/lib/yandexMaps.ts`). Метки складов задаются координатами (`pt`), не текстовым поиском. После смены ключа нужен rebuild фронта. |
 | `VITE_SINGLEFILE` | Опционально | `1` — один `index.html` (legacy деплой). |
 | `VITE_PROD_SOURCEMAP` | Опционально | `1` — source maps в production build. |
 
