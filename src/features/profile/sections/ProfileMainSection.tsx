@@ -95,6 +95,12 @@ export function ProfileMainSection({
             icon: <Bell className="w-5 h-5" style={{ color: "var(--color-primary)" }} />,
             onClick: () => onNavigate("notifications"),
         },
+        {
+            id: "push",
+            label: "Push",
+            icon: <Smartphone className="w-5 h-5" style={{ color: "var(--color-primary)" }} />,
+            onClick: () => onNavigate("push"),
+        },
         ...(activeAccount?.isRegisteredUser === true
             ? [{
                 id: "apiKeys" as const,
