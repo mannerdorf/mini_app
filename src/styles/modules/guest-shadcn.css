@@ -179,6 +179,26 @@ html.guest-mode #root {
   color: #fff;
 }
 
+.guest-about-visual {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  box-shadow: 0 18px 40px rgba(8, 20, 48, 0.28);
+}
+
+.guest-about-visual__img {
+  display: block;
+  background: #0f1c33;
+}
+
+.guest-about-visual::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, transparent 55%, rgba(15, 28, 51, 0.28));
+  pointer-events: none;
+}
+
 .guest-faq-item summary::-webkit-details-marker {
   display: none;
 }
