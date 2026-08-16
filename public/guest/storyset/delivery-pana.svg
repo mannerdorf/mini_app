@@ -1,16 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" fill="none" aria-hidden="true">
-  <path fill="#EBF4FF" d="M0 0h500v500H0z"/>
-  <path fill="#3655FF" d="M88 312c0-61.856 50.144-112 112-112h100c61.856 0 112 50.144 112 112v28H88v-28z" opacity=".12"/>
-  <rect x="132" y="198" width="168" height="132" rx="16" fill="#3655FF"/>
-  <rect x="148" y="214" width="136" height="88" rx="8" fill="#fff" opacity=".95"/>
-  <path stroke="#3655FF" stroke-width="8" stroke-linecap="round" d="M168 256h96M168 276h64"/>
-  <path fill="#FFB347" d="M300 214h56l28 44v72h-84V214z"/>
-  <path fill="#FF8A5B" d="M328 286c0 11.046-8.954 20-20 20s-20-8.954-20-20 8.954-20 20-20 20 8.954 20 20z"/>
-  <path fill="#2D3748" d="M152 330h176v18c0 11.046-8.954 20-20 20H172c-11.046 0-20-8.954-20-20v-18z"/>
-  <circle cx="196" cy="368" r="22" fill="#2D3748"/>
-  <circle cx="196" cy="368" r="10" fill="#fff"/>
-  <circle cx="284" cy="368" r="22" fill="#2D3748"/>
-  <circle cx="284" cy="368" r="10" fill="#fff"/>
-  <path fill="#3655FF" d="M352 156c18.778 0 34 15.222 34 34s-15.222 34-34 34-34-15.222-34-34 15.222-34 34-34z" opacity=".25"/>
-  <path fill="#3655FF" d="M120 132c14.36 0 26 11.64 26 26s-11.64 26-26 26-26-11.64-26-26 11.64-26 26-26z" opacity=".18"/>
+  <path fill="#EBF0FF" d="M0 0h500v500H0z"/>
+  <ellipse cx="250" cy="392" rx="148" ry="18" fill="#3655FF" opacity=".08"/>
+  <path fill="#3655FF" d="M250 118c72.049 0 130.5 58.451 130.5 130.5S322.049 379 250 379 119.5 320.549 119.5 248.5 177.951 118 250 118z" opacity=".07"/>
+  <path fill="#3655FF" d="M118 286c0-15.464 12.536-28 28-28h164c15.464 0 28 12.536 28 28v18c0 15.464-12.536 28-28 28H146c-15.464 0-28-12.536-28-28v-18z"/>
+  <rect x="136" y="198" width="176" height="112" rx="18" fill="#3655FF"/>
+  <rect x="154" y="216" width="140" height="76" rx="10" fill="#fff"/>
+  <path stroke="#3655FF" stroke-width="7" stroke-linecap="round" d="M176 248h96M176 268h68"/>
+  <path fill="#FFB347" d="M312 216h62l34 52v58H312V216z"/>
+  <path fill="#FF8A5B" d="M338 298a18 18 0 1 1-36 0 18 18 0 0 1 36 0z"/>
+  <path fill="#1E293B" d="M132 314h236v22c0 12.15-9.85 22-22 22H154c-12.15 0-22-9.85-22-22v-22z"/>
+  <circle cx="188" cy="358" r="26" fill="#1E293B"/>
+  <circle cx="188" cy="358" r="11" fill="#fff"/>
+  <circle cx="312" cy="358" r="26" fill="#1E293B"/>
+  <circle cx="312" cy="358" r="11" fill="#fff"/>
+  <path fill="#3655FF" d="M356 176a28 28 0 1 1-56 0 28 28 0 0 1 56 0z" opacity=".14"/>
 </svg>
