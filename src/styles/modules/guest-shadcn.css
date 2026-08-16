@@ -67,7 +67,30 @@ html.guest-mode #root {
 
 .guest-shell button,
 .guest-shell [type="button"],
-.guest-shell [type="submit"] {
+.guest-shell [type="submit"],
+.guest-shell [role="button"] {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.guest-shell button:focus,
+.guest-shell button:focus-visible,
+.guest-shell [type="button"]:focus,
+.guest-shell [type="button"]:focus-visible,
+.guest-shell [type="submit"]:focus,
+.guest-shell [type="submit"]:focus-visible {
+  outline: none;
+  box-shadow: none !important;
+}
+
+.guest-shell .button-primary,
+.guest-shell .filter-button,
+.guest-shell .primary-button,
+.guest-shell .guest-quick-action {
+  border: none !important;
   box-shadow: none !important;
 }
 
