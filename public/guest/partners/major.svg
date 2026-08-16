@@ -1,21 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 128" fill="none">
-  <!-- Major: air / road / rail / sea + wordmark -->
-  <g fill="none" stroke="#2F6FB5" stroke-width="1.7">
-    <rect x="22" y="10" width="52" height="52" rx="7"/>
-    <rect x="90" y="10" width="52" height="52" rx="7"/>
-    <rect x="158" y="10" width="52" height="52" rx="7"/>
-    <rect x="226" y="10" width="52" height="52" rx="7"/>
-  </g>
-  <!-- plane -->
-  <path fill="#2F6FB5" d="M34 40l18-12 6 3 10-7-1 6 7 4-12 2-4 10-5-6-12 4z"/>
-  <!-- truck -->
-  <path fill="#2F6FB5" d="M98 36h18l7-9h9v16h-5.5a5 5 0 01-9.5 0h-9.5a5 5 0 01-9.5 0H98V36zm5 14a3 3 0 100-6 3 3 0 000 6zm24 0a3 3 0 100-6 3 3 0 000 6z"/>
-  <!-- train -->
-  <path fill="#2F6FB5" d="M168 40h12l5-10h10l4 10h7v10h-5a4.5 4.5 0 01-8.5 0h-10a4.5 4.5 0 01-8.5 0H168V40zm8 12a2.8 2.8 0 100-5.6 2.8 2.8 0 000 5.6zm18 0a2.8 2.8 0 100-5.6 2.8 2.8 0 000 5.6z"/>
-  <!-- ship -->
-  <path fill="#2F6FB5" d="M236 42h34l-5 10h-24l-5-10zm8-10h6v10h-6v-10zm10 0h6v10h-6v-10z"/>
-  <path fill="#2F6FB5" d="M240 36c3-8 10-12 20-12" stroke="#2F6FB5" stroke-width="2"/>
-  <text x="150" y="106" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="30" font-weight="700">
-    <tspan fill="#2F6FB5">Ma</tspan><tspan fill="#E85A2A">j</tspan><tspan fill="#2F6FB5">or</tspan>
-  </text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 88" fill="none" role="img" aria-label="Major">
+  <!-- Геометрический знак Major из карточки партнёров -->
+  <rect x="58" y="8" width="84" height="42" rx="4" stroke="#2F6FB5" stroke-width="2" fill="none"/>
+  <path d="M72 22h20" stroke="#2F6FB5" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M98 18l14 10-14 10" fill="none" stroke="#2F6FB5" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M120 18v24" stroke="#2F6FB5" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M128 34v8h10" stroke="#2F6FB5" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="100" y="74" text-anchor="middle" fill="#2F6FB5" font-family="Georgia, 'Times New Roman', serif" font-size="26" font-weight="700">Major</text>
 </svg>
