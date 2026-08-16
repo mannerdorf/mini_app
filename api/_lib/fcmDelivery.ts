@@ -29,6 +29,13 @@ export async function logPushDelivery(params: {
   if (!login) return;
   const pushTitle = String(params.title ?? params.delivery.title ?? "").trim();
   const pushBody = String(params.body ?? params.delivery.body ?? "").trim();
+  const event = String(params.delivery.event || "push").trim() || "push";
+  const explicitCargo = String(params.delivery.cargoNumber || "").trim();
+  // cargo_number — fallback для старых APK/схемы: для broadcast кладём текст сообщения.
+  const cargoNumber =
+    explicitCargo ||
+    (event === "broadcast" ? pushBody.slice(0, 500) || pushTitle.slice(0, 120) : pushBody.slice(0, 120));
+
   try {
     const pool = getPool();
     await pool.query(
@@ -38,8 +45,8 @@ export async function logPushDelivery(params: {
       [
         login,
         String(params.delivery.inn || "").trim(),
-        String(params.delivery.cargoNumber || "").trim(),
-        String(params.delivery.event || "push").trim() || "push",
+        cargoNumber,
+        event,
         params.success,
         params.success ? null : params.error || "send failed",
         pushTitle || null,
@@ -58,8 +65,8 @@ export async function logPushDelivery(params: {
         [
           login,
           String(params.delivery.inn || "").trim(),
-          String(params.delivery.cargoNumber || "").trim(),
-          String(params.delivery.event || "push").trim() || "push",
+          cargoNumber,
+          event,
           params.success,
           params.success ? null : params.error || "send failed",
         ],

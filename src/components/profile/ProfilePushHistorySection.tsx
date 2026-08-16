@@ -26,7 +26,11 @@ function pushHistoryHeadline(item: PushHistoryItem): string {
 function pushHistorySubtitle(item: PushHistoryItem): string {
   const body = String(item.pushBody || "").trim();
   if (body) return body;
-  if (item.event === "broadcast") return item.cargoNumber || "Рассылка HAULZ";
+  if (item.event === "broadcast") {
+    const legacy = String(item.cargoNumber || "").trim();
+    if (legacy && legacy !== "HAULZ") return legacy;
+    return "Рассылка HAULZ";
+  }
   if (item.cargoNumber) return `Груз ${item.cargoNumber}`;
   return "Без номера груза";
 }
