@@ -170,6 +170,15 @@ html.guest-mode #root {
   color: #fff;
 }
 
+.guest-app-hero {
+  background: #1e3a8a;
+  color: #fff;
+}
+
+.guest-app-hero h1 {
+  color: #fff;
+}
+
 @keyframes guest-slide-up {
   from { transform: translateY(8px); }
   to { transform: translateY(0); }
