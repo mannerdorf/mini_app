@@ -7,7 +7,7 @@ export type GuestRouteDirection = {
   features: string[];
 };
 
-/** Тексты маршрутов — по материалам haulz.pro. */
+/** Тексты маршрутов HAULZ. */
 export const GUEST_ROUTE_DIRECTIONS: GuestRouteDirection[] = [
   {
     id: "mow_kgd",

@@ -16,9 +16,9 @@ import {
 import {
   HAULZ_EMAIL,
   HAULZ_MAX_SUPPORT_BOT_URL,
-  HAULZ_TG_SUPPORT_BOT_URL,
 } from "../../constants/brand";
 import { isCapacitorAndroidApp } from "../../lib/androidAppUpdate";
+import { GUEST_CONTACT_EMAIL_LABEL } from "./guestContactLabels";
 
 type Props = {
   open: boolean;
@@ -126,15 +126,11 @@ export function GuestHomeMenuSheet({ open, onClose, onLogin, onAbout, onFaq, onA
         <div className="border-t border-[hsl(var(--guest-border))] px-6 py-4 text-xs text-[hsl(var(--guest-muted-foreground))]">
           <div className="flex flex-wrap items-center gap-2">
             <a href={`mailto:${HAULZ_EMAIL}`} className="font-semibold text-haulz-brand">
-              {HAULZ_EMAIL}
+              {GUEST_CONTACT_EMAIL_LABEL}
             </a>
             <span>·</span>
             <a href={HAULZ_MAX_SUPPORT_BOT_URL} target="_blank" rel="noopener noreferrer" className="font-semibold text-haulz-brand">
               MAX
-            </a>
-            <span>·</span>
-            <a href={HAULZ_TG_SUPPORT_BOT_URL} target="_blank" rel="noopener noreferrer" className="font-semibold text-haulz-brand">
-              Telegram
             </a>
           </div>
           <Button variant="default" className="mt-4 w-full" onClick={() => { onClose(); onLogin(); }}>

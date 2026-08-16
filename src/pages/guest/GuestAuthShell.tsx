@@ -5,6 +5,7 @@ import { AboutCompanyPage } from "../AboutCompanyPage";
 import { GuestAppDownloadPage } from "./GuestAppDownloadPage";
 import { GuestFaqPage } from "./GuestFaqPage";
 import { GuestHomePage } from "./GuestHomePage";
+import { GUEST_CONTACT_EMAIL_LABEL } from "./guestContactLabels";
 
 const ForgotPasswordPage = lazy(() =>
   import("../ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage })),
@@ -71,7 +72,7 @@ export function GuestAuthShell() {
     return (
       <div className="guest-shell min-h-[100dvh] px-4 py-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-guest">
-          <AboutCompanyPage onBack={() => setScreen("home")} />
+          <AboutCompanyPage onBack={() => setScreen("home")} emailLabel={GUEST_CONTACT_EMAIL_LABEL} />
         </div>
       </div>
     );

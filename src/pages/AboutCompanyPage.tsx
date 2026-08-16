@@ -6,9 +6,11 @@ import { HAULZ_OFFICES, HAULZ_EMAIL } from "../constants/brand";
 
 type Props = {
     onBack: () => void;
+    /** Подпись email в UI (без домена в гостевой зоне). */
+    emailLabel?: string;
 };
 
-export function AboutCompanyPage({ onBack }: Props) {
+export function AboutCompanyPage({ onBack, emailLabel = HAULZ_EMAIL }: Props) {
     const normalizePhoneToTel = (phone: string) => {
         const digits = phone.replace(/[^\d+]/g, "");
         return digits.startsWith("+") ? digits : `+${digits}`;
@@ -81,7 +83,7 @@ export function AboutCompanyPage({ onBack }: Props) {
                                 aria-label="Поделиться"
                                 style={{ padding: "0.25rem 0.5rem", minWidth: "auto" }}
                                 onClick={() => {
-                                    const text = `HAULZ — ${office.city}\nАдрес: ${office.address}\nТел.: ${office.phone}\nEmail: ${HAULZ_EMAIL}`;
+                                    const text = `HAULZ — ${office.city}\nАдрес: ${office.address}\nТел.: ${office.phone}\n${emailLabel === HAULZ_EMAIL ? `Email: ${HAULZ_EMAIL}` : emailLabel}`;
                                     shareText(`HAULZ — ${office.city}`, text);
                                 }}
                             >
@@ -149,7 +151,7 @@ export function AboutCompanyPage({ onBack }: Props) {
                     >
                         <Mail className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
                         <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
-                            {HAULZ_EMAIL}
+                            {emailLabel}
                         </Typography.Body>
                     </a>
                     <Button
@@ -159,7 +161,7 @@ export function AboutCompanyPage({ onBack }: Props) {
                         aria-label="Поделиться"
                         style={{ padding: "0.25rem 0.5rem", minWidth: "auto", flexShrink: 0 }}
                         onClick={() => {
-                            const text = `HAULZ\nEmail: ${HAULZ_EMAIL}\nТел.: ${HAULZ_OFFICES.map((o) => `${o.city}: ${o.phone}`).join(" | ")}`;
+                            const text = `HAULZ\n${emailLabel === HAULZ_EMAIL ? `Email: ${HAULZ_EMAIL}` : emailLabel}\nТел.: ${HAULZ_OFFICES.map((o) => `${o.city}: ${o.phone}`).join(" | ")}`;
                             shareText("HAULZ — контакты", text);
                         }}
                     >
