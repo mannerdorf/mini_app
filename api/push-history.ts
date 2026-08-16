@@ -44,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }>(
       `select id, inn, cargo_number, event, sent_at, success, error_message
        from notification_deliveries
-       where login = $1 and channel = 'push'
+       where lower(trim(login)) = $1 and channel = 'push'
        order by sent_at desc
        limit $2`,
       [login, limit],

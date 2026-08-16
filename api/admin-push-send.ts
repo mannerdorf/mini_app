@@ -83,7 +83,15 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const failures: Array<{ login: string; error?: string }> = [];
 
     for (const login of targets) {
-      const result = await sendFcmToLogin(login, { title, body: messageBody, url });
+      const result = await sendFcmToLogin(login, {
+        title,
+        body: messageBody,
+        url,
+        delivery: {
+          event: "broadcast",
+          cargoNumber: title.slice(0, 120) || "HAULZ",
+        },
+      });
       if (result.ok) {
         sent += 1;
         devicesSent += result.sent;
@@ -92,21 +100,6 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         if (failures.length < 20) {
           failures.push({ login, error: result.error });
         }
-      }
-      try {
-        await pool.query(
-          `insert into notification_deliveries (
-            poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message
-          ) values (null, $1, '', $2, 'broadcast', 'push', null, $3, $4)`,
-          [
-            login,
-            title.slice(0, 120) || "HAULZ",
-            result.ok,
-            result.ok ? null : result.error || "send failed",
-          ],
-        );
-      } catch {
-        // History log is best-effort.
       }
     }
 

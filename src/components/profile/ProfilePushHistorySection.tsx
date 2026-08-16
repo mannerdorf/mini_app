@@ -59,8 +59,9 @@ export function ProfilePushHistorySection({ activeAccount, onBack }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const next = await fetchPushHistory(login, { limit: 50 });
-      setItems(next);
+      const result = await fetchPushHistory(login, { limit: 50 });
+      setItems(result.items);
+      if (result.error) setError(result.error);
     } catch (e) {
       setError((e as { message?: string })?.message || "Не удалось загрузить историю");
       setItems([]);
@@ -97,8 +98,11 @@ export function ProfilePushHistorySection({ activeAccount, onBack }: Props) {
                 lineHeight: 1.45,
               }}
             >
-              Здесь отображаются push, отправленные в Android-приложение HAULZ по этапам перевозки и счетам.
+              Push из приложения: этапы перевозки, счета, сводка и тестовые рассылки HAULZ.
             </Typography.Body>
+            <Button className="button-secondary" type="button" onClick={() => void load()} disabled={loading} style={{ marginTop: "0.75rem" }}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Обновить"}
+            </Button>
           </div>
         </Flex>
       </Panel>

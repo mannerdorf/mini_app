@@ -147,13 +147,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           title: "HAULZ: ежедневная сводка",
           body: text,
           url: "/",
-        });
-        await logDelivery(pool, {
-          login,
-          inn: primaryInn,
-          channel: "push",
-          success: sendResult.ok && sendResult.sent > 0,
-          error: sendResult.error || (sendResult.sent > 0 ? null : "no active FCM tokens"),
+          delivery: { event: "daily_summary" },
         });
         if (sendResult.ok && sendResult.sent > 0) sentPush += 1;
         else errors.push({ login, channel: "push", error: sendResult.error || "no active FCM tokens" });

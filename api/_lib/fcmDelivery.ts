@@ -1,11 +1,47 @@
 import fs from "node:fs";
 import { getPool } from "../_db.js";
 
+export type FcmDeliveryLog = {
+  event: string;
+  inn?: string;
+  cargoNumber?: string;
+};
+
 type FcmPayload = {
   title: string;
   body: string;
   url?: string;
+  /** When set, write a row to notification_deliveries for profile push history. */
+  delivery?: FcmDeliveryLog;
 };
+
+export async function logPushDelivery(params: {
+  login: string;
+  delivery: FcmDeliveryLog;
+  success: boolean;
+  error?: string | null;
+}): Promise<void> {
+  const login = String(params.login || "").trim().toLowerCase();
+  if (!login) return;
+  try {
+    const pool = getPool();
+    await pool.query(
+      `INSERT INTO notification_deliveries (
+         poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message
+       ) VALUES (NULL, $1, $2, $3, $4, 'push', NULL, $5, $6)`,
+      [
+        login,
+        String(params.delivery.inn || "").trim(),
+        String(params.delivery.cargoNumber || "").trim(),
+        String(params.delivery.event || "push").trim() || "push",
+        params.success,
+        params.success ? null : params.error || "send failed",
+      ],
+    );
+  } catch {
+    // History log is best-effort.
+  }
+}
 
 type FirebaseMessaging = {
   sendEachForMulticast(message: {
@@ -131,18 +167,26 @@ export async function sendFcmToLogin(
 
   const messaging = await getMessaging();
   if (!messaging) {
+    const error = messagingInitError || "FCM not configured";
+    if (payload.delivery) {
+      await logPushDelivery({ login, delivery: payload.delivery, success: false, error });
+    }
     return {
       ok: false,
       sent: 0,
       failed: 0,
       removed: 0,
-      error: messagingInitError || "FCM not configured",
+      error,
     };
   }
 
   const tokens = await loadTokensForLogin(login);
   if (tokens.length === 0) {
-    return { ok: false, sent: 0, failed: 0, removed: 0, error: "no FCM tokens" };
+    const error = "no FCM tokens";
+    if (payload.delivery) {
+      await logPushDelivery({ login, delivery: payload.delivery, success: false, error });
+    }
+    return { ok: false, sent: 0, failed: 0, removed: 0, error };
   }
 
   try {
@@ -174,20 +218,39 @@ export async function sendFcmToLogin(
     });
 
     const removed = await removeInvalidTokens(invalidTokens);
+    const ok = response.successCount > 0;
+    const error = ok ? undefined : "FCM send failed";
+    if (payload.delivery) {
+      await logPushDelivery({
+        login,
+        delivery: payload.delivery,
+        success: ok,
+        error,
+      });
+    }
     return {
-      ok: response.successCount > 0,
+      ok,
       sent: response.successCount,
       failed: response.failureCount,
       removed,
-      error: response.successCount > 0 ? undefined : "FCM send failed",
+      error,
     };
   } catch (e: unknown) {
+    const error = (e as Error)?.message || "FCM send failed";
+    if (payload.delivery) {
+      await logPushDelivery({
+        login,
+        delivery: payload.delivery,
+        success: false,
+        error,
+      });
+    }
     return {
       ok: false,
       sent: 0,
       failed: tokens.length,
       removed: 0,
-      error: (e as Error)?.message || "FCM send failed",
+      error,
     };
   }
 }
