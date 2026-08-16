@@ -247,6 +247,7 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
     openQuotePreview,
     canSendQuoteEmail,
     guestOrderCompleted = false,
+    hideQuotePreview = false,
   } = props;
 
   const [summaryExpanded, setSummaryExpanded] = useState(false);
@@ -629,10 +630,12 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
                 <Copy className="w-4 h-4" />
                 Копировать
               </button>
-              <button type="button" className="haulz-calc-btn-secondary" disabled={!quote} onClick={openQuotePreview}>
-                <Eye className="w-4 h-4" />
-                Предпросмотр
-              </button>
+              {!hideQuotePreview && (
+                <button type="button" className="haulz-calc-btn-secondary" disabled={!quote} onClick={openQuotePreview}>
+                  <Eye className="w-4 h-4" />
+                  Предпросмотр
+                </button>
+              )}
             </div>
           </div>
         )}

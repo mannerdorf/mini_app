@@ -903,6 +903,7 @@ export function HaulzCalculatorPage({
     canSendQuoteEmail,
     registeredNomerZayavki,
     guestOrderCompleted,
+    hideQuotePreview: needsAccount,
   };
 
   return (
@@ -1247,10 +1248,12 @@ export function HaulzCalculatorPage({
                     <Copy className="w-4 h-4" />
                     Копировать расчёт
                   </button>
-                  <button type="button" className="haulz-calc-btn-secondary" disabled={!quote || previewLoading} onClick={openQuotePreview}>
-                    {previewLoading && previewModalOpen ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-                    Предпросмотр
-                  </button>
+                  {!needsAccount && (
+                    <button type="button" className="haulz-calc-btn-secondary" disabled={!quote || previewLoading} onClick={openQuotePreview}>
+                      {previewLoading && previewModalOpen ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                      Предпросмотр
+                    </button>
+                  )}
                   {!needsAccount && (
                     <>
                       <button
