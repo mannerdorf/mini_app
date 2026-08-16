@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" fill="none" aria-hidden="true">
+  <path fill="#EFF6FF" d="M0 0h500v500H0z"/>
+  <path fill="#3655FF" d="M72 300h356v72c0 13.255-10.745 24-24 24H96c-13.255 0-24-10.745-24-24v-72z" opacity=".12"/>
+  <path fill="#3655FF" d="M108 284h284l36 48H72l36-48z"/>
+  <rect x="124" y="176" width="252" height="108" rx="12" fill="#3655FF"/>
+  <rect x="144" y="196" width="212" height="68" rx="8" fill="#fff" opacity=".95"/>
+  <path stroke="#3655FF" stroke-width="6" stroke-linecap="round" d="M168 220h164M168 244h112"/>
+  <path fill="#22C55E" d="M372 312c0 19.882-16.118 36-36 36s-36-16.118-36-36 16.118-36 36-36 36 16.118 36 36z"/>
+  <path fill="#fff" d="M356 312l8 8 16-16" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="156" cy="348" r="24" fill="#2D3748"/>
+  <circle cx="156" cy="348" r="10" fill="#fff"/>
+  <circle cx="332" cy="348" r="24" fill="#2D3748"/>
+  <circle cx="332" cy="348" r="10" fill="#fff"/>
+  <path fill="#FFB347" d="M388 148c0 22.091-17.909 40-40 40s-40-17.909-40-40 17.909-40 40-40 40 17.909 40 40z" opacity=".85"/>
+</svg>

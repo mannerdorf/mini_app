@@ -1,5 +1,20 @@
-import React, { useEffect } from "react";
-import { X, ExternalLink, Smartphone, Building2, HelpCircle, MessageCircle, Calculator } from "lucide-react";
+import React from "react";
+import {
+  Building2,
+  Calculator,
+  ExternalLink,
+  HelpCircle,
+  MessageCircle,
+  Smartphone,
+} from "lucide-react";
+import { Button } from "../../components/shadcn/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "../../components/shadcn/sheet";
 import {
   HAULZ_EMAIL,
   HAULZ_MAX_SUPPORT_BOT_URL,
@@ -18,32 +33,23 @@ type Props = {
   onCalculator: () => void;
 };
 
+type MenuItem = {
+  id: string;
+  label: string;
+  hint?: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+};
+
 export function GuestHomeMenuSheet({ open, onClose, onLogin, onAbout, onFaq, onCalculator }: Props) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
   const isNativeAndroid = isCapacitorAndroidApp();
 
-  const items: Array<{
-    id: string;
-    label: string;
-    hint?: string;
-    icon: React.ReactNode;
-    onClick: () => void;
-  }> = [
+  const items: MenuItem[] = [
     {
       id: "login",
       label: "Войти в кабинет",
       hint: "Грузы, документы, калькулятор",
-      icon: <Building2 className="guest-menu-sheet__icon" />,
+      icon: <Building2 className="h-5 w-5" />,
       onClick: () => {
         onClose();
         onLogin();
@@ -53,7 +59,7 @@ export function GuestHomeMenuSheet({ open, onClose, onLogin, onAbout, onFaq, onC
       id: "calc",
       label: "Рассчитать перевозку",
       hint: "Ориентировочная стоимость",
-      icon: <Calculator className="guest-menu-sheet__icon" />,
+      icon: <Calculator className="h-5 w-5" />,
       onClick: () => {
         onClose();
         onCalculator();
@@ -62,7 +68,7 @@ export function GuestHomeMenuSheet({ open, onClose, onLogin, onAbout, onFaq, onC
     {
       id: "about",
       label: "О компании",
-      icon: <Building2 className="guest-menu-sheet__icon" />,
+      icon: <Building2 className="h-5 w-5" />,
       onClick: () => {
         onClose();
         onAbout();
@@ -71,7 +77,7 @@ export function GuestHomeMenuSheet({ open, onClose, onLogin, onAbout, onFaq, onC
     {
       id: "faq",
       label: "Вопросы и ответы",
-      icon: <HelpCircle className="guest-menu-sheet__icon" />,
+      icon: <HelpCircle className="h-5 w-5" />,
       onClick: () => {
         onClose();
         onFaq();
@@ -81,7 +87,7 @@ export function GuestHomeMenuSheet({ open, onClose, onLogin, onAbout, onFaq, onC
       id: "site",
       label: "Сайт haulz.pro",
       hint: "Услуги и контакты",
-      icon: <ExternalLink className="guest-menu-sheet__icon" />,
+      icon: <ExternalLink className="h-5 w-5" />,
       onClick: () => {
         window.open(HAULZ_WEBSITE_URL, "_blank", "noopener,noreferrer");
         onClose();
@@ -91,7 +97,7 @@ export function GuestHomeMenuSheet({ open, onClose, onLogin, onAbout, onFaq, onC
       id: "support",
       label: "Поддержка",
       hint: HAULZ_EMAIL,
-      icon: <MessageCircle className="guest-menu-sheet__icon" />,
+      icon: <MessageCircle className="h-5 w-5" />,
       onClick: () => {
         window.open(HAULZ_TG_SUPPORT_BOT_URL, "_blank", "noopener,noreferrer");
         onClose();
@@ -104,7 +110,7 @@ export function GuestHomeMenuSheet({ open, onClose, onLogin, onAbout, onFaq, onC
       id: "apk",
       label: "Скачать приложение",
       hint: "Android APK",
-      icon: <Smartphone className="guest-menu-sheet__icon" />,
+      icon: <Smartphone className="h-5 w-5" />,
       onClick: () => {
         window.open(ANDROID_RELEASE_DOWNLOAD_URL, "_blank", "noopener,noreferrer");
         onClose();
@@ -113,40 +119,51 @@ export function GuestHomeMenuSheet({ open, onClose, onLogin, onAbout, onFaq, onC
   }
 
   return (
-    <div className="guest-menu-sheet" role="dialog" aria-modal="true" aria-label="Меню">
-      <button type="button" className="guest-menu-sheet__backdrop" aria-label="Закрыть" onClick={onClose} />
-      <div className="guest-menu-sheet__panel">
-        <div className="guest-menu-sheet__header">
-          <span className="guest-menu-sheet__title">Меню</span>
-          <button type="button" className="guest-menu-sheet__close" aria-label="Закрыть" onClick={onClose}>
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="guest-menu-sheet__list">
+    <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
+      <SheetContent side="right" className="w-full sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>Меню</SheetTitle>
+          <SheetDescription>Навигация и быстрые действия HAULZ</SheetDescription>
+        </SheetHeader>
+        <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-2 pb-4">
           {items.map((item) => (
-            <button key={item.id} type="button" className="guest-menu-sheet__item" onClick={item.onClick}>
-              <span className="guest-menu-sheet__item-icon">{item.icon}</span>
-              <span className="guest-menu-sheet__item-text">
-                <span className="guest-menu-sheet__item-label">{item.label}</span>
-                {item.hint ? <span className="guest-menu-sheet__item-hint">{item.hint}</span> : null}
+            <button
+              key={item.id}
+              type="button"
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-[hsl(var(--guest-muted))]"
+              onClick={item.onClick}
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-haulz-brand-soft text-haulz-brand">
+                {item.icon}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">{item.label}</span>
+                {item.hint ? (
+                  <span className="block truncate text-xs text-[hsl(var(--guest-muted-foreground))]">{item.hint}</span>
+                ) : null}
               </span>
             </button>
           ))}
         </div>
-        <div className="guest-menu-sheet__footer">
-          <a href={`mailto:${HAULZ_EMAIL}`} className="guest-menu-sheet__footer-link">
-            {HAULZ_EMAIL}
-          </a>
-          <span className="guest-menu-sheet__footer-sep">·</span>
-          <a href={HAULZ_MAX_SUPPORT_BOT_URL} target="_blank" rel="noopener noreferrer" className="guest-menu-sheet__footer-link">
-            MAX
-          </a>
-          <span className="guest-menu-sheet__footer-sep">·</span>
-          <a href={HAULZ_TG_SUPPORT_BOT_URL} target="_blank" rel="noopener noreferrer" className="guest-menu-sheet__footer-link">
-            Telegram
-          </a>
+        <div className="border-t border-[hsl(var(--guest-border))] px-6 py-4 text-xs text-[hsl(var(--guest-muted-foreground))]">
+          <div className="flex flex-wrap items-center gap-2">
+            <a href={`mailto:${HAULZ_EMAIL}`} className="font-semibold text-haulz-brand">
+              {HAULZ_EMAIL}
+            </a>
+            <span>·</span>
+            <a href={HAULZ_MAX_SUPPORT_BOT_URL} target="_blank" rel="noopener noreferrer" className="font-semibold text-haulz-brand">
+              MAX
+            </a>
+            <span>·</span>
+            <a href={HAULZ_TG_SUPPORT_BOT_URL} target="_blank" rel="noopener noreferrer" className="font-semibold text-haulz-brand">
+              Telegram
+            </a>
+          </div>
+          <Button variant="default" className="mt-4 w-full" onClick={() => { onClose(); onLogin(); }}>
+            Войти
+          </Button>
         </div>
-      </div>
-    </div>
+      </SheetContent>
+    </Sheet>
   );
 }

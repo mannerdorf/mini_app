@@ -26,38 +26,44 @@ export function GuestAuthShell() {
 
   if (screen === "login") {
     return (
-      <LoginScreen
-        variant="sheet"
-        hint={loginHint}
-        onBack={() => {
-          setLoginHint(null);
-          setScreen("home");
-        }}
-        onOpenForgot={() => setScreen("forgot")}
-      />
+      <div className="guest-shell">
+        <LoginScreen
+          variant="sheet"
+          hint={loginHint}
+          onBack={() => {
+            setLoginHint(null);
+            setScreen("home");
+          }}
+          onOpenForgot={() => setScreen("forgot")}
+        />
+      </div>
     );
   }
 
   if (screen === "forgot") {
     return (
-      <Suspense
-        fallback={
+      <div className="guest-shell">
+        <Suspense
+          fallback={
+            <div className="guest-login-screen">
+              <Loader2 className="h-8 w-8 animate-spin guest-login-screen__loader" />
+            </div>
+          }
+        >
           <div className="guest-login-screen">
-            <Loader2 className="w-8 h-8 animate-spin guest-login-screen__loader" />
+            <ForgotPasswordPage onBackToLogin={() => setScreen("login")} />
           </div>
-        }
-      >
-        <div className="guest-login-screen">
-          <ForgotPasswordPage onBackToLogin={() => setScreen("login")} />
-        </div>
-      </Suspense>
+        </Suspense>
+      </div>
     );
   }
 
   if (screen === "about") {
     return (
-      <div className="guest-subpage-shell">
-        <AboutCompanyPage onBack={() => setScreen("home")} />
+      <div className="guest-shell min-h-[100dvh] px-4 py-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-guest">
+          <AboutCompanyPage onBack={() => setScreen("home")} />
+        </div>
       </div>
     );
   }
