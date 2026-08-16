@@ -10,8 +10,10 @@ import {
 import {
     disableAndroidPushNotifications,
     enableAndroidPushNotifications,
+    isAndroidFcmConfiguredInBuild,
     isAndroidPushEnvironment,
 } from "../lib/androidPushNotifications";
+import { isCapacitorAndroidApp } from "../lib/androidAppUpdate";
 import { CARGO_NOTIFICATION_STAGES, isCargoStageNotificationEnabled, type CargoStageEventId } from "../../lib/notificationCargoEvents";
 import { TapSwitch } from "../components/TapSwitch";
 
@@ -67,6 +69,7 @@ export function NotificationsPage({
 
     const login = activeAccount?.login?.trim().toLowerCase() || "";
     const isNativeAndroid = isAndroidPushEnvironment();
+    const isNativeAndroidWithoutFcm = isCapacitorAndroidApp() && !isAndroidFcmConfiguredInBuild();
 
     const isCargoPrefEnabled = useCallback(
         (channel: "push" | "email", eventId: CargoStageEventId) =>
@@ -243,7 +246,11 @@ export function NotificationsPage({
                         Push-уведомления
                     </Typography.Body>
                     <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                        {isNativeAndroid ? (
+                        {isNativeAndroidWithoutFcm ? (
+                            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #ef4444)" }}>
+                                Push недоступны в этой версии APK (Firebase не настроен). Установите обновление с app.haulz.space.
+                            </Typography.Body>
+                        ) : isNativeAndroid ? (
                             <>
                                 <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
                                     Уведомления о перевозках и документах на телефон через Firebase Cloud Messaging.

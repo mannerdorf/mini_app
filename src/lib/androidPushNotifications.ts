@@ -7,6 +7,10 @@ let listenersAttached = false;
 let currentLogin = "";
 let currentToken = "";
 
+function isAndroidFcmConfigured(): boolean {
+  return isAndroidFcmConfiguredInBuild();
+}
+
 function navigateFromNotification(data: Record<string, string | undefined>) {
   const url = String(data.url || "/").trim() || "/";
   if (typeof window !== "undefined") {
@@ -27,6 +31,13 @@ export async function enableAndroidPushNotifications(login: string): Promise<{ o
   }
   const normalizedLogin = String(login || "").trim().toLowerCase();
   if (!normalizedLogin) return { ok: false, error: "Не указан login." };
+  if (!isAndroidFcmConfigured()) {
+    return {
+      ok: false,
+      error:
+        "Push не настроены в этой сборке APK (нет Firebase). Установите обновление с app.haulz.space после пересборки с google-services.json.",
+    };
+  }
 
   try {
     const { PushNotifications } = await import("@capacitor/push-notifications");
@@ -87,7 +98,7 @@ export async function disableAndroidPushNotifications(login: string): Promise<{ 
 
 /** Повторная регистрация при смене аккаунта / входе в приложение. */
 export async function syncAndroidPushNotifications(login: string): Promise<void> {
-  if (!isCapacitorAndroidApp() || !login) return;
+  if (!isCapacitorAndroidApp() || !login || !isAndroidFcmConfiguredInBuild()) return;
   try {
     const { PushNotifications } = await import("@capacitor/push-notifications");
     const perm = await PushNotifications.checkPermissions();
@@ -98,6 +109,10 @@ export async function syncAndroidPushNotifications(login: string): Promise<void>
   }
 }
 
+export function isAndroidFcmConfiguredInBuild(): boolean {
+  return import.meta.env.VITE_ANDROID_FCM_CONFIGURED === "1";
+}
+
 export function isAndroidPushEnvironment(): boolean {
-  return Capacitor.isNativePlatform() && isCapacitorAndroidApp();
+  return Capacitor.isNativePlatform() && isCapacitorAndroidApp() && isAndroidFcmConfiguredInBuild();
 }
