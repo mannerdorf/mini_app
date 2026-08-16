@@ -168,7 +168,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         type: "cargo",
         places: quoteReq.places,
         chargeableWeightKg: quote.chargeable.chargeableWeightKg,
-        declaredValueRub: quoteReq.declaredValueRub,
+        declaredValueRub: quoteReq.declaredValueRub ?? 0,
       },
       {
         type: "quote_lines",
@@ -237,7 +237,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           places: quoteReq.places,
           mainlineMode,
           direction: quote.direction,
-          declaredValueRub: quoteReq.declaredValueRub,
+          declaredValueRub: quoteReq.declaredValueRub ?? 0,
           extraCodes: quoteReq.extraCodes ?? [],
           dataZabora,
         });
