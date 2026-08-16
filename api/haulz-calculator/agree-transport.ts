@@ -46,9 +46,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const result = await confirmTransportAgree(pool, token);
-    if (!result.ok) {
-      const reason = result.reason;
-      if (reason === "not_found") {
+    if (result.ok === false) {
+      if (result.reason === "not_found") {
         return res.status(404).send(renderAgreePage("Ссылка недействительна", "Заявка не найдена или ссылка устарела.", false));
       }
       return res.status(400).send(

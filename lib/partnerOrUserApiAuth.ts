@@ -57,6 +57,7 @@ export async function resolvePartnerOrUserApiAuth(
       secret_hash: string;
       scopes: string[];
       allowed_inns: string[];
+      disabled_at: string | Date | null;
     }>(
       `SELECT id, user_login, secret_hash, scopes, allowed_inns, disabled_at
        FROM user_api_keys
