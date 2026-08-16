@@ -11,11 +11,11 @@ import { Button } from "../../components/shadcn/button";
 import { GUEST_ILLUSTRATIONS } from "../../constants/guestIllustrations";
 import { isCapacitorAndroidApp } from "../../lib/androidAppUpdate";
 import { cn } from "../../lib/cn";
-import { GUEST_ROUTE_DIRECTIONS } from "./guestRouteContent";
 import { GUEST_WHY_CHOOSE_ITEMS } from "./guestWhyChooseContent";
 import { GUEST_PARTNERS } from "./guestPartnersContent";
 import { GuestFooter } from "./GuestFooter";
 import { GuestHomeMenuSheet } from "./GuestHomeMenuSheet";
+import { GuestRoutesSection } from "./GuestRoutesSection";
 
 type Props = {
   onLogin: () => void;
@@ -255,32 +255,7 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
           </div>
         </section>
 
-        <section className="guest-home-routes" aria-label="Направления HAULZ">
-          <div className="mb-5">
-            <p className="guest-section-title">Направления</p>
-            <h2 className="guest-section-heading sm:text-2xl">Москва ↔ Калининград</h2>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {GUEST_ROUTE_DIRECTIONS.map((route) => (
-              <article key={route.id} className="guest-home-route guest-lift">
-                <div className="mb-3 flex items-center gap-2 text-base font-bold text-[#111827] sm:text-lg">
-                  <span>{route.from}</span>
-                  <ArrowRight className="h-4 w-4 shrink-0 text-[#2563eb]" />
-                  <span>{route.to}</span>
-                </div>
-                <p className="text-sm leading-relaxed text-[#6b7280]">{route.summary}</p>
-                <ul className="mt-4 space-y-2 text-sm leading-relaxed text-[#6b7280]">
-                  {route.features.slice(0, 4).map((feature) => (
-                    <li key={feature} className="flex gap-2">
-                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#2563eb]" aria-hidden />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
-        </section>
+        <GuestRoutesSection onCalculator={onCalculator} />
       </main>
 
       <GuestFooter

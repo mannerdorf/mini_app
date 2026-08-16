@@ -1,19 +1,67 @@
+export type GuestRouteId = "mow_kgd" | "kgd_mow";
+
+export type GuestRouteStage = {
+  id: string;
+  title: string;
+  detail: string;
+};
+
 export type GuestRouteDirection = {
-  id: "mow_kgd" | "kgd_mow";
+  id: GuestRouteId;
   from: string;
   to: string;
+  fromCode: string;
+  toCode: string;
+  corridorLabel: string;
   summary: string;
+  focus: string;
+  modes: string[];
+  cargo: string[];
+  stages: GuestRouteStage[];
   features: string[];
 };
 
-/** Тексты маршрутов HAULZ. */
+/** Тексты и структура направлений HAULZ. */
 export const GUEST_ROUTE_DIRECTIONS: GuestRouteDirection[] = [
   {
     id: "mow_kgd",
     from: "Москва",
     to: "Калининград",
+    fromCode: "MOW",
+    toCode: "KGD",
+    corridorLabel: "Восток → Запад",
     summary:
       "Перевозка генеральных, режимных, акцизных, опасных и санкционных грузов. LTL, LCL (сборные) и FTL, FCL (полная загрузка).",
+    focus: "Полный цикл доставки в Калининград с таможенным сопровождением ЕАЭС и ЕС.",
+    modes: ["LTL", "LCL", "FTL", "FCL"],
+    cargo: ["Генеральные", "Режимные", "Акцизные", "Опасные", "Санкционные"],
+    stages: [
+      {
+        id: "pickup",
+        title: "Первая миля",
+        detail: "Забор у отправителя, консолидация и подготовка к магистрали",
+      },
+      {
+        id: "warehouse",
+        title: "Склад",
+        detail: "Обработка, упаковка и маркировка на складе HAULZ",
+      },
+      {
+        id: "linehaul",
+        title: "Магистраль",
+        detail: "Автомобильный или морской коридор до Калининграда",
+      },
+      {
+        id: "customs",
+        title: "Таможня",
+        detail: "Оформление по требованиям ЕАЭС и ЕС",
+      },
+      {
+        id: "lastmile",
+        title: "Последняя миля",
+        detail: "Доставка до конечного пункта назначения",
+      },
+    ],
     features: [
       "Заборная логистика (первая миля)",
       "Складская обработка, упаковка и маркировка груза",
@@ -27,8 +75,41 @@ export const GUEST_ROUTE_DIRECTIONS: GuestRouteDirection[] = [
     id: "kgd_mow",
     from: "Калининград",
     to: "Москва",
+    fromCode: "KGD",
+    toCode: "MOW",
+    corridorLabel: "Запад → Восток",
     summary:
       "Возврат товаров, ранее ввезённых или произведённых в особой экономической зоне Калининградской области или ЕАЭС. Перевозка товаров, импортируемых из ЕС.",
+    focus: "Возврат из ОЭЗ и импорт из ЕС с контролем документов на каждом этапе.",
+    modes: ["LTL", "LCL", "FTL", "FCL"],
+    cargo: ["Возврат ОЭЗ", "Производство КО", "Импорт ЕС", "ЕАЭС"],
+    stages: [
+      {
+        id: "origin",
+        title: "Отправление",
+        detail: "Забор в Калининграде: склад, производство или точка импорта",
+      },
+      {
+        id: "docs",
+        title: "Документы",
+        detail: "Подготовка комплекта для импорта и экспорта",
+      },
+      {
+        id: "corridor",
+        title: "Коридор",
+        detail: "Сборные и полные загрузки по маршруту в Москву",
+      },
+      {
+        id: "customs",
+        title: "Таможня",
+        detail: "Сопровождение процедур по законодательству ЕАЭС",
+      },
+      {
+        id: "delivery",
+        title: "Доставка",
+        detail: "Выдача на складе или до конечного адреса в Москве",
+      },
+    ],
     features: [
       "LTL, LCL (сборные грузы) и FTL, FCL (полная загрузка)",
       "Грузы, ввезённые в ОЭЗ Калининградской области из стран ЕАЭС и ЕС",
