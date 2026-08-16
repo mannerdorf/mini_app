@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useCallback, useState } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { LoginScreen } from "../../components/LoginScreen";
 import { AboutCompanyPage } from "../AboutCompanyPage";
@@ -23,6 +23,14 @@ export function GuestAuthShell() {
   const openCalculator = useCallback(() => {
     openLogin("После входа откройте калькулятор в профиле → HAULZ.");
   }, [openLogin]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add("guest-mode", "light-mode");
+    return () => {
+      root.classList.remove("guest-mode", "light-mode");
+    };
+  }, []);
 
   if (screen === "login") {
     return (

@@ -1,5 +1,17 @@
 @tailwind utilities;
 
+/* Светлая гостевая зона: переопределяет тёмный #root из theme.css */
+html.guest-mode,
+html.guest-mode body {
+  background: #f2f2f7;
+  color: #111827;
+}
+
+html.guest-mode #root {
+  background: #f2f2f7;
+  color: #111827;
+}
+
 .guest-shell {
   --guest-background: 240 20% 98%;
   --guest-foreground: 222 47% 11%;
@@ -52,12 +64,19 @@
 }
 
 @keyframes guest-slide-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { transform: translateY(8px); }
+  to { transform: translateY(0); }
 }
 
 .guest-animate-in {
-  animation: guest-slide-up 0.45s ease-out both;
+  opacity: 1;
+  animation: guest-slide-up 0.45s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guest-animate-in {
+    animation: none;
+  }
 }
 
 .guest-login-screen {
