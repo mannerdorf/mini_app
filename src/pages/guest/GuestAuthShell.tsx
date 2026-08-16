@@ -6,13 +6,14 @@ import { GuestAppDownloadPage } from "./GuestAppDownloadPage";
 import { GuestCalculatorPage } from "./GuestCalculatorPage";
 import { GuestFaqPage } from "./GuestFaqPage";
 import { GuestHomePage } from "./GuestHomePage";
+import { GuestWarehousesPage } from "./GuestWarehousesPage";
 import { GUEST_CONTACT_EMAIL_LABEL } from "./guestContactLabels";
 
 const ForgotPasswordPage = lazy(() =>
   import("../ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage })),
 );
 
-type GuestScreen = "home" | "login" | "about" | "faq" | "forgot" | "app" | "calculator";
+type GuestScreen = "home" | "login" | "about" | "warehouses" | "faq" | "forgot" | "app" | "calculator";
 
 export function GuestAuthShell() {
   const [screen, setScreen] = useState<GuestScreen>("home");
@@ -73,10 +74,18 @@ export function GuestAuthShell() {
     return (
       <div className="guest-shell min-h-[100dvh] px-4 py-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-guest">
-          <AboutCompanyPage onBack={() => setScreen("home")} emailLabel={GUEST_CONTACT_EMAIL_LABEL} />
+          <AboutCompanyPage
+            onBack={() => setScreen("home")}
+            emailLabel={GUEST_CONTACT_EMAIL_LABEL}
+            showWarehouses={false}
+          />
         </div>
       </div>
     );
+  }
+
+  if (screen === "warehouses") {
+    return <GuestWarehousesPage onBack={() => setScreen("home")} />;
   }
 
   if (screen === "faq") {
@@ -100,6 +109,7 @@ export function GuestAuthShell() {
     <GuestHomePage
       onLogin={() => openLogin()}
       onAbout={() => setScreen("about")}
+      onWarehouses={() => setScreen("warehouses")}
       onFaq={() => setScreen("faq")}
       onApp={() => setScreen("app")}
       onCalculator={openCalculator}

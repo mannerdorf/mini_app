@@ -1,57 +1,19 @@
 import React from "react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
-import { ArrowLeft, Share2, MapPin, Phone, Mail } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { HaulzWarehousePanel } from "../components/haulz/HaulzWarehousePanel";
+import { HAULZ_WEBSITE_URL } from "../constants/brand";
 import { ABOUT_HAULZ_TEXT } from "../constants/legalTexts";
-import { HAULZ_OFFICES, HAULZ_EMAIL } from "../constants/brand";
+import { GUEST_WAREHOUSE_ITEMS } from "./guest/guestWarehouseContent";
 
 type Props = {
     onBack: () => void;
     /** Подпись email в UI (без домена в гостевой зоне). */
     emailLabel?: string;
+    showWarehouses?: boolean;
 };
 
-export function AboutCompanyPage({ onBack, emailLabel = HAULZ_EMAIL }: Props) {
-    const normalizePhoneToTel = (phone: string) => {
-        const digits = phone.replace(/[^\d+]/g, "");
-        return digits.startsWith("+") ? digits : `+${digits}`;
-    };
-
-    const getMapsUrl = (address: string) => {
-        const q = encodeURIComponent(address);
-        return `https://yandex.ru/maps/?text=${q}`;
-    };
-
-    const shareText = async (title: string, text: string) => {
-        try {
-            if (typeof navigator !== "undefined" && (navigator as any).share) {
-                await (navigator as any).share({ title, text });
-                return;
-            }
-        } catch {
-            // ignore
-        }
-        try {
-            if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-                await navigator.clipboard.writeText(text);
-                alert("Скопировано");
-                return;
-            }
-        } catch {
-            // ignore
-        }
-        try {
-            const ta = document.createElement("textarea");
-            ta.value = text;
-            document.body.appendChild(ta);
-            ta.select();
-            document.execCommand("copy");
-            document.body.removeChild(ta);
-            alert("Скопировано");
-        } catch {
-            alert(text);
-        }
-    };
-
+export function AboutCompanyPage({ onBack, emailLabel, showWarehouses = true }: Props) {
     return (
         <div className="w-full">
             <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
@@ -67,108 +29,24 @@ export function AboutCompanyPage({ onBack, emailLabel = HAULZ_EMAIL }: Props) {
                 </Typography.Body>
             </Panel>
 
-            <Typography.Body style={{ marginBottom: "0.75rem", fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
-                Контакты
-            </Typography.Body>
+            {showWarehouses ? (
+                <>
+                    <Typography.Body style={{ marginBottom: "0.75rem", fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+                        Склады HAULZ
+                    </Typography.Body>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "0.75rem" }}>
-                {HAULZ_OFFICES.map((office) => (
-                    <Panel key={office.city} className="cargo-card" style={{ padding: "1rem" }}>
-                        <Flex align="center" justify="space-between" style={{ marginBottom: "0.5rem", gap: "0.5rem" }}>
-                            <Typography.Body style={{ fontSize: "0.95rem", fontWeight: 600 }}>{office.city}</Typography.Body>
-                            <Button
-                                className="filter-button"
-                                type="button"
-                                title="Поделиться"
-                                aria-label="Поделиться"
-                                style={{ padding: "0.25rem 0.5rem", minWidth: "auto" }}
-                                onClick={() => {
-                                    const text = `HAULZ — ${office.city}\nАдрес: ${office.address}\nТел.: ${office.phone}\n${emailLabel === HAULZ_EMAIL ? `Email: ${HAULZ_EMAIL}` : emailLabel}`;
-                                    shareText(`HAULZ — ${office.city}`, text);
-                                }}
-                            >
-                                <Share2 className="w-4 h-4" />
-                            </Button>
-                        </Flex>
-                        <a
-                            className="filter-button"
-                            href={getMapsUrl(`${office.city}, ${office.address}`)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                                width: "100%",
-                                justifyContent: "flex-start",
-                                gap: "0.5rem",
-                                padding: "0.5rem 0.75rem",
-                                marginBottom: "0.5rem",
-                                backgroundColor: "transparent",
-                                textDecoration: "none",
-                            }}
-                            title="Открыть маршрут"
-                        >
-                            <MapPin className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
-                            <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
-                                {office.address}
-                            </Typography.Body>
-                        </a>
-                        <a
-                            className="filter-button"
-                            href={`tel:${normalizePhoneToTel(office.phone)}`}
-                            style={{
-                                width: "100%",
-                                justifyContent: "flex-start",
-                                gap: "0.5rem",
-                                padding: "0.5rem 0.75rem",
-                                backgroundColor: "transparent",
-                                textDecoration: "none",
-                            }}
-                            title="Позвонить"
-                        >
-                            <Phone className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
-                            <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
-                                {office.phone}
-                            </Typography.Body>
-                        </a>
-                    </Panel>
-                ))}
-            </div>
-
-            <Panel className="cargo-card" style={{ padding: "1rem" }}>
-                <Flex align="center" justify="space-between" style={{ gap: "0.5rem" }}>
-                    <a
-                        className="filter-button"
-                        href={`mailto:${HAULZ_EMAIL}`}
-                        style={{
-                            width: "100%",
-                            justifyContent: "flex-start",
-                            gap: "0.5rem",
-                            padding: "0.5rem 0.75rem",
-                            backgroundColor: "transparent",
-                            textDecoration: "none",
-                            marginRight: "0.5rem",
-                        }}
-                        title="Написать письмо"
-                    >
-                        <Mail className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
-                        <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
-                            {emailLabel}
-                        </Typography.Body>
-                    </a>
-                    <Button
-                        className="filter-button"
-                        type="button"
-                        title="Поделиться"
-                        aria-label="Поделиться"
-                        style={{ padding: "0.25rem 0.5rem", minWidth: "auto", flexShrink: 0 }}
-                        onClick={() => {
-                            const text = `HAULZ\n${emailLabel === HAULZ_EMAIL ? `Email: ${HAULZ_EMAIL}` : emailLabel}\nТел.: ${HAULZ_OFFICES.map((o) => `${o.city}: ${o.phone}`).join(" | ")}`;
-                            shareText("HAULZ — контакты", text);
-                        }}
-                    >
-                        <Share2 className="w-4 h-4" />
-                    </Button>
-                </Flex>
-            </Panel>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "0.75rem" }}>
+                        {GUEST_WAREHOUSE_ITEMS.map((warehouse) => (
+                            <HaulzWarehousePanel
+                                key={warehouse.city}
+                                {...warehouse}
+                                emailLabel={emailLabel}
+                                websiteUrl={HAULZ_WEBSITE_URL}
+                            />
+                        ))}
+                    </div>
+                </>
+            ) : null}
         </div>
     );
 }

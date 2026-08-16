@@ -9,6 +9,7 @@ import { GuestLegalDisclosures } from "./GuestLegalDisclosures";
 
 type Props = {
   onAbout: () => void;
+  onWarehouses: () => void;
   onFaq: () => void;
   onApp: () => void;
   onCalculator: () => void;
@@ -17,15 +18,15 @@ type Props = {
 
 type LegalDoc = "offer" | "consent" | null;
 
-const NAV_LINKS: Array<{ label: string; onClick: keyof Pick<Props, "onAbout" | "onFaq" | "onApp" | "onCalculator" | "onLogin"> }> = [
-  { label: "Склады HAULZ", onClick: "onAbout" },
+const NAV_LINKS: Array<{ label: string; onClick: keyof Pick<Props, "onAbout" | "onWarehouses" | "onFaq" | "onApp" | "onCalculator" | "onLogin"> }> = [
+  { label: "Склады HAULZ", onClick: "onWarehouses" },
   { label: "FAQ", onClick: "onFaq" },
   { label: "Калькулятор", onClick: "onCalculator" },
   { label: "Приложение", onClick: "onApp" },
   { label: "Войти в кабинет", onClick: "onLogin" },
 ];
 
-export function GuestFooter({ onAbout, onFaq, onApp, onCalculator, onLogin }: Props) {
+export function GuestFooter({ onAbout, onWarehouses, onFaq, onApp, onCalculator, onLogin }: Props) {
   const [legalDoc, setLegalDoc] = React.useState<LegalDoc>(null);
   const [offerText, setOfferText] = React.useState(PUBLIC_OFFER_TEXT);
   const [consentText, setConsentText] = React.useState(PERSONAL_DATA_CONSENT_TEXT);
@@ -43,6 +44,7 @@ export function GuestFooter({ onAbout, onFaq, onApp, onCalculator, onLogin }: Pr
 
   const handlers: Record<(typeof NAV_LINKS)[number]["onClick"], () => void> = {
     onAbout,
+    onWarehouses,
     onFaq,
     onApp,
     onCalculator,

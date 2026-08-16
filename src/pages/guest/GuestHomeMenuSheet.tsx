@@ -3,6 +3,7 @@ import {
   Building2,
   Calculator,
   HelpCircle,
+  MapPin,
   Smartphone,
 } from "lucide-react";
 import { Button } from "../../components/shadcn/button";
@@ -24,6 +25,7 @@ type Props = {
   onClose: () => void;
   onLogin: () => void;
   onAbout: () => void;
+  onWarehouses: () => void;
   onFaq: () => void;
   onApp: () => void;
   onCalculator: () => void;
@@ -37,7 +39,7 @@ type MenuItem = {
   onClick: () => void;
 };
 
-export function GuestHomeMenuSheet({ open, onClose, onLogin, onAbout, onFaq, onApp, onCalculator }: Props) {
+export function GuestHomeMenuSheet({ open, onClose, onLogin, onAbout, onWarehouses, onFaq, onApp, onCalculator }: Props) {
   const isNativeAndroid = isCapacitorAndroidApp();
 
   const items: MenuItem[] = [
@@ -68,6 +70,16 @@ export function GuestHomeMenuSheet({ open, onClose, onLogin, onAbout, onFaq, onA
       onClick: () => {
         onClose();
         onAbout();
+      },
+    },
+    {
+      id: "warehouses",
+      label: "Склады HAULZ",
+      hint: "Адреса, телефоны, карта",
+      icon: <MapPin className="h-5 w-5" />,
+      onClick: () => {
+        onClose();
+        onWarehouses();
       },
     },
     {

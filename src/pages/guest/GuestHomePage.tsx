@@ -24,6 +24,7 @@ import { GuestHomeMenuSheet } from "./GuestHomeMenuSheet";
 type Props = {
   onLogin: () => void;
   onAbout: () => void;
+  onWarehouses: () => void;
   onFaq: () => void;
   onApp: () => void;
   onCalculator: () => void;
@@ -59,7 +60,7 @@ const BENEFITS = [
   },
 ] as const;
 
-export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: Props) {
+export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, onCalculator }: Props) {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const isNativeAndroid = isCapacitorAndroidApp();
 
@@ -163,11 +164,11 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
               className="guest-surface relative cursor-pointer overflow-hidden transition-colors hover:bg-[#eff6ff]"
               role="button"
               tabIndex={0}
-              onClick={onAbout}
+              onClick={onWarehouses}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  onAbout();
+                  onWarehouses();
                 }
               }}
             >
@@ -175,7 +176,7 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
                 <CardTitle className="text-xl">Склады HAULZ</CardTitle>
               </CardHeader>
               <CardContent className="flex items-end justify-between gap-3 pt-0">
-                <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); onAbout(); }}>
+                <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); onWarehouses(); }}>
                   Смотреть
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -292,6 +293,7 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
 
       <GuestFooter
         onAbout={onAbout}
+        onWarehouses={onWarehouses}
         onFaq={onFaq}
         onApp={onApp}
         onCalculator={onCalculator}
@@ -320,6 +322,7 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
         onClose={() => setMenuOpen(false)}
         onLogin={onLogin}
         onAbout={onAbout}
+        onWarehouses={onWarehouses}
         onFaq={onFaq}
         onApp={onApp}
         onCalculator={onCalculator}
