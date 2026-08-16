@@ -66,8 +66,11 @@ html.guest-mode #root {
   --calc-alert-success-text: #047857;
   --calc-alert-success-border: #a7f3d0;
   --calc-switch-off: #d1d5db;
+  /* Гостевой калькулятор без app-tabbar — док к самому низу экрана */
+  --haulz-app-tabbar-clearance: 0px;
+  --haulz-summary-fixed-bottom: 0px;
   max-width: 1180px;
-  padding-bottom: 2.5rem;
+  padding-bottom: 0;
 }
 
 .guest-shell--calc {
@@ -80,13 +83,33 @@ html.guest-mode #root {
 .guest-shell--calc .haulz-calc-page--cdek .haulz-calc-shell-bg {
   background: transparent;
   margin: 0;
-  padding: 1.15rem 1rem 2rem;
+  padding: 1.15rem 1rem 0;
   border-radius: 0;
+  min-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 @media (min-width: 640px) {
   .guest-shell--calc .haulz-calc-page--cdek .haulz-calc-shell-bg {
-    padding: 1.5rem 1.25rem 2.5rem;
+    padding: 1.5rem 1.25rem 0;
+  }
+}
+
+.guest-shell--calc .haulz-calc-mobile-hub__end-gap {
+  --haulz-mobile-card-gap: 1.05rem;
+}
+
+.guest-shell--calc .haulz-calc-mobile-dock {
+  left: 1rem;
+  right: 1rem;
+  bottom: 0;
+}
+
+@media (min-width: 640px) {
+  .guest-shell--calc .haulz-calc-mobile-dock {
+    left: 1.25rem;
+    right: 1.25rem;
   }
 }
 
