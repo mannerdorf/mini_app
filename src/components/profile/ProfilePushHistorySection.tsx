@@ -19,6 +19,9 @@ const CARGO_STAGE_SET = new Set<string>(CARGO_STAGE_EVENT_IDS);
 
 function pushHistoryHeadline(item: PushHistoryItem): string {
   const title = String(item.pushTitle || "").trim();
+  if (item.event === "broadcast") {
+    return title || "HAULZ";
+  }
   if (title) return title;
   return pushEventLabel(item.event);
 }
@@ -29,7 +32,7 @@ function pushHistorySubtitle(item: PushHistoryItem): string {
   if (item.event === "broadcast") {
     const legacy = String(item.cargoNumber || "").trim();
     if (legacy && legacy !== "HAULZ") return legacy;
-    return "Рассылка HAULZ";
+    return "";
   }
   if (item.cargoNumber) return `Груз ${item.cargoNumber}`;
   return "Без номера груза";
