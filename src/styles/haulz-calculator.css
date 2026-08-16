@@ -2430,15 +2430,19 @@ body.haulz-calc-map-screen-open {
 }
 
 .haulz-calc-page--mobile-flow .haulz-calc-shell-bg {
+  display: flex;
+  flex-direction: column;
   margin: 0 calc(-1 * var(--pad-page-h, 24px));
   padding: 0 var(--pad-page-h, 24px);
   min-height: calc(100dvh - var(--app-header-h, 4rem));
+  box-sizing: border-box;
 }
 
 .haulz-calc-mobile-hub {
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - var(--app-header-h, 4rem));
+  flex: 1;
+  min-height: 0;
 }
 
 .haulz-calc-mobile-hub__header {
@@ -2448,9 +2452,21 @@ body.haulz-calc-map-screen-open {
 
 .haulz-calc-mobile-hub__scroll {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: 0;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Зазор перед доком «Итого/Оформить» = как между карточками (и свёрнутый, и раскрытый док) */
+.haulz-calc-mobile-last-card {
+  margin-bottom: 0 !important;
+}
+
+.haulz-calc-mobile-hub__end-gap {
+  height: 1rem;
+  flex-shrink: 0;
+  pointer-events: none;
 }
 
 .haulz-calc-mobile-section {
@@ -2580,16 +2596,18 @@ body.haulz-calc-map-screen-open {
 }
 
 .haulz-calc-mobile-dock {
-  position: fixed;
-  z-index: 45;
-  left: max(var(--space-3, 12px), env(safe-area-inset-left, 0px));
-  right: max(var(--space-3, 12px), env(safe-area-inset-right, 0px));
-  bottom: var(--haulz-summary-fixed-bottom);
+  /* В потоке hub: всегда под скроллом, зазор = margin-bottom карточек */
+  position: relative;
+  z-index: 5;
+  flex-shrink: 0;
+  width: 100%;
+  margin: 0 0 var(--haulz-summary-fixed-bottom);
   padding: 0.65rem 0.85rem 0.75rem;
   border: 1px solid var(--calc-border);
   border-radius: var(--calc-radius-lg);
   background: var(--calc-card);
   box-shadow: var(--calc-shadow);
+  box-sizing: border-box;
 }
 
 .haulz-calc-mobile-dock__details {

@@ -590,7 +590,7 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
             ))}
         </section>
 
-        <label className="haulz-calc-field haulz-calc-mobile-section haulz-calc-card">
+        <label className="haulz-calc-field haulz-calc-mobile-section haulz-calc-card haulz-calc-mobile-last-card">
           <span className="haulz-calc-label">Дата забора</span>
           <input
             type="date"
@@ -601,6 +601,8 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
         </label>
 
         {orderMessage && <div className="haulz-calc-alert haulz-calc-alert--success">{orderMessage}</div>}
+        {/* Несхлопываемый зазор до дока = как margin-bottom между карточками */}
+        <div className="haulz-calc-mobile-hub__end-gap" aria-hidden />
       </div>
 
       <div className="haulz-calc-mobile-dock">
