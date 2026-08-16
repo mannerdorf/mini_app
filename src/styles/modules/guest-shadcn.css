@@ -36,6 +36,37 @@ html.guest-mode #root {
   text-rendering: optimizeLegibility;
 }
 
+/* Гостевой калькулятор — всегда светлая тема (не зависит от html.dark-mode) */
+.guest-shell--calc .haulz-calc-page--cdek {
+  --calc-bg: #eef1f6;
+  --calc-card: #ffffff;
+  --calc-surface-muted: #fafbfc;
+  --calc-border: #e3e6eb;
+  --calc-text: #1a1a1a;
+  --calc-text-secondary: #6b7280;
+  --calc-accent-soft: rgba(0, 113, 227, 0.1);
+  --calc-input-bg: #ffffff;
+  --calc-placeholder: #9ca3af;
+  --calc-segment-track: #f0f2f5;
+  --calc-row-divider: #f0f2f5;
+  --calc-suggest-hover: #f8fafc;
+  --calc-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 4px 16px rgba(16, 24, 40, 0.06);
+  --calc-alert-warn-bg: #fffbeb;
+  --calc-alert-warn-text: #92400e;
+  --calc-alert-warn-border: #fde68a;
+  --calc-alert-error-bg: #fef2f2;
+  --calc-alert-error-text: #b91c1c;
+  --calc-alert-error-border: #fecaca;
+  --calc-alert-success-bg: #ecfdf5;
+  --calc-alert-success-text: #047857;
+  --calc-alert-success-border: #a7f3d0;
+  --calc-switch-off: #d1d5db;
+}
+
+.guest-shell--calc .haulz-calc-page--cdek .haulz-calc-shell-bg {
+  background: var(--calc-bg);
+}
+
 .guest-shell *,
 .guest-shell *::before,
 .guest-shell *::after {

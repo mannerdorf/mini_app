@@ -1,19 +1,34 @@
-import React, { Suspense, lazy } from "react";
-import { Loader2 } from "lucide-react";
+import React from "react";
 import { AppRuntimeProvider } from "../../contexts/AppRuntimeContext";
-
-const HaulzCalculatorPage = lazy(() =>
-  import("../HaulzCalculatorPage").then((m) => ({ default: m.HaulzCalculatorPage })),
-);
+import { ErrorBoundary } from "../../components/ErrorBoundary";
+import { HaulzCalculatorPage } from "../HaulzCalculatorPage";
 
 type Props = {
   onBack: () => void;
   onLogin: () => void;
 };
 
+function GuestCalculatorErrorFallback() {
+  return (
+    <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 px-4 text-center">
+      <p className="text-base font-semibold text-[#111827]">Не удалось открыть калькулятор</p>
+      <p className="max-w-sm text-sm text-[#6b7280]">
+        Обновите страницу. Если ошибка повторяется — очистите кэш браузера.
+      </p>
+      <button
+        type="button"
+        className="rounded-xl bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white"
+        onClick={() => window.location.reload()}
+      >
+        Обновить
+      </button>
+    </div>
+  );
+}
+
 export function GuestCalculatorPage({ onBack, onLogin }: Props) {
   return (
-    <div className="guest-shell min-h-[100dvh]">
+    <div className="guest-shell guest-shell--calc light-mode min-h-[100dvh]">
       <AppRuntimeProvider
         value={{
           useServiceRequest: false,
@@ -23,20 +38,14 @@ export function GuestCalculatorPage({ onBack, onLogin }: Props) {
           showCustomerColumn: false,
         }}
       >
-        <Suspense
-          fallback={
-            <div className="flex min-h-[50vh] items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-haulz-brand" />
-            </div>
-          }
-        >
+        <ErrorBoundary fallback={<GuestCalculatorErrorFallback />}>
           <HaulzCalculatorPage
             auth={null}
             guestMode
             onBack={onBack}
             onRequireAuth={onLogin}
           />
-        </Suspense>
+        </ErrorBoundary>
       </AppRuntimeProvider>
     </div>
   );
