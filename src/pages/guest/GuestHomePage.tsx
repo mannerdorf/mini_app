@@ -13,6 +13,7 @@ import { isCapacitorAndroidApp } from "../../lib/androidAppUpdate";
 import { cn } from "../../lib/cn";
 import { GUEST_ROUTE_DIRECTIONS } from "./guestRouteContent";
 import { GUEST_WHY_CHOOSE_ITEMS } from "./guestWhyChooseContent";
+import { GUEST_PARTNERS } from "./guestPartnersContent";
 import { GuestFooter } from "./GuestFooter";
 import { GuestHomeMenuSheet } from "./GuestHomeMenuSheet";
 
@@ -209,6 +210,17 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
                   <p className="guest-why-choose__item-text">{item.text}</p>
                 </div>
               </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="guest-home-partners" aria-label="Наши партнеры">
+          <h2 className="guest-home-partners__title">Наши партнеры</h2>
+          <div className="guest-home-partners__grid">
+            {GUEST_PARTNERS.map((partner) => (
+              <div key={partner.id} className="guest-home-partners__item guest-lift">
+                <img src={partner.logo} alt={partner.name} loading="lazy" />
+              </div>
             ))}
           </div>
         </section>

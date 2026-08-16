@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 64" fill="none">
+  <rect x="36" y="8" width="88" height="24" rx="3" stroke="#1E4FD6" stroke-width="1.5"/>
+  <path d="M48 20h8M66 16l4 4-4 4M82 16v8M98 16l6 8h-8" stroke="#1E4FD6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="80" y="52" text-anchor="middle" fill="#1E4FD6" font-family="Georgia, Times, serif" font-size="22" font-weight="700">Major</text>
+</svg>
