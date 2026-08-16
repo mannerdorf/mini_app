@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 48" role="img" aria-label="Совкомбанк">
+  <rect x="2" y="8" width="32" height="32" rx="5" fill="#0057B8"/>
+  <path fill="#E31E24" d="M9 24l11-9v6h9v6h-9v6z"/>
+  <text x="44" y="32" fill="#1a1a1a" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" letter-spacing="0.8">СОВКОМБАНК</text>
+</svg>
