@@ -965,13 +965,6 @@ export function HaulzCalculatorPage({
           ) : null}
         </header>
 
-        {needsAccount && !guestOrderCompleted && (
-          <div className="haulz-calc-hint haulz-calc-hint--guest" style={{ marginBottom: "0.75rem" }}>
-            Расчёт доступен без входа. Нажмите «Оформить», укажите телефон и email — менеджер свяжется с вами, КП придёт на
-            почту.
-          </div>
-        )}
-
         {draftLoading && (
           <p className="haulz-calc-hint" style={{ marginBottom: "0.75rem" }}>
             <Loader2 className="w-3 h-3 animate-spin" style={{ display: "inline", marginRight: "0.25rem" }} />
