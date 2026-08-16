@@ -17,7 +17,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../..
 import {
   HAULZ_EMAIL,
   HAULZ_MAX_SUPPORT_BOT_URL,
-  HAULZ_OFFICES,
   HAULZ_TG_SUPPORT_BOT_URL,
 } from "../../constants/brand";
 import { GUEST_ILLUSTRATIONS } from "../../constants/guestIllustrations";
@@ -159,9 +158,9 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onCalculator }: Props) 
               }}
             >
               <CardHeader className="pb-2">
-                <CardTitle className="text-xl">Офисы HAULZ</CardTitle>
+                <CardTitle className="text-xl">Склады HAULZ</CardTitle>
                 <CardDescription>
-                  {HAULZ_OFFICES.length} города · адреса, телефоны и карта
+                  адреса, телефоны, карта
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex items-end justify-between gap-3 pt-0">
