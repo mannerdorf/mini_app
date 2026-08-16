@@ -58,20 +58,13 @@ export function GuestAppDownloadPage({ onBack }: Props) {
               </div>
             </div>
 
-            <div className="relative mx-auto flex w-full max-w-sm justify-center">
-              <div className="relative w-[15rem] rounded-[2.25rem] bg-[#111827] p-2.5">
-                <div className="overflow-hidden rounded-[1.75rem] bg-white">
-                  <div className="flex justify-center py-2">
-                    <span className="h-1.5 w-16 rounded-full bg-[#d1d5db]" />
-                  </div>
-                  <div className="px-5 pb-5 pt-3 text-center">
-                    <img src="/haulz-icon.svg" alt="HAULZ" className="mx-auto h-20 w-20 rounded-2xl" />
-                    <p className="mt-4 text-lg font-bold text-[#111827]">HAULZ</p>
-                    <p className="mt-1 text-xs leading-relaxed text-[#6b7280]">Логистика в вашем телефоне</p>
-                    <img src={GUEST_ILLUSTRATIONS.delivery} alt="" className="mt-4 w-full rounded-xl" />
-                  </div>
-                </div>
-              </div>
+            <div className="guest-about-visual mx-auto w-full max-w-md">
+              <img
+                src={GUEST_ILLUSTRATIONS.appVisual}
+                alt="Приложение HAULZ на смартфоне"
+                className="guest-about-visual__img aspect-[4/5] w-full object-cover sm:aspect-square"
+                loading="eager"
+              />
             </div>
           </div>
         </section>

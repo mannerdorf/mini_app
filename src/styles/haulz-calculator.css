@@ -2430,15 +2430,19 @@ body.haulz-calc-map-screen-open {
 }
 
 .haulz-calc-page--mobile-flow .haulz-calc-shell-bg {
+  display: flex;
+  flex-direction: column;
   margin: 0 calc(-1 * var(--pad-page-h, 24px));
   padding: 0 var(--pad-page-h, 24px);
   min-height: calc(100dvh - var(--app-header-h, 4rem));
+  box-sizing: border-box;
 }
 
 .haulz-calc-mobile-hub {
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - var(--app-header-h, 4rem));
+  flex: 1;
+  min-height: 0;
 }
 
 .haulz-calc-mobile-hub__header {
@@ -2448,9 +2452,22 @@ body.haulz-calc-map-screen-open {
 
 .haulz-calc-mobile-hub__scroll {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: 0;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Зазор перед доком «Итого/Оформить» = высота дока + как между карточками */
+.haulz-calc-mobile-last-card {
+  margin-bottom: 0 !important;
+}
+
+.haulz-calc-mobile-hub__end-gap {
+  --haulz-mobile-card-gap: 1rem;
+  height: calc(140px + var(--haulz-mobile-card-gap));
+  flex-shrink: 0;
+  pointer-events: none;
 }
 
 .haulz-calc-mobile-section {
@@ -2580,16 +2597,26 @@ body.haulz-calc-map-screen-open {
 }
 
 .haulz-calc-mobile-dock {
+  /* Прилипает к нижнему краю viewport при скролле содержимого */
   position: fixed;
   z-index: 45;
   left: max(var(--space-3, 12px), env(safe-area-inset-left, 0px));
   right: max(var(--space-3, 12px), env(safe-area-inset-right, 0px));
-  bottom: var(--haulz-summary-fixed-bottom);
-  padding: 0.65rem 0.85rem 0.75rem;
+  bottom: 0;
+  margin: 0;
+  padding: 0.65rem 0.85rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
   border: 1px solid var(--calc-border);
-  border-radius: var(--calc-radius-lg);
+  border-radius: var(--calc-radius-lg) var(--calc-radius-lg) 0 0;
   background: var(--calc-card);
   box-shadow: var(--calc-shadow);
+  box-sizing: border-box;
+}
+
+/* В приложении с tabbar — чуть выше панели вкладок */
+.app-container .haulz-calc-page--mobile-flow .haulz-calc-mobile-dock {
+  bottom: var(--haulz-app-tabbar-clearance);
+  border-radius: var(--calc-radius-lg);
+  padding-bottom: 0.75rem;
 }
 
 .haulz-calc-mobile-dock__details {

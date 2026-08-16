@@ -64,6 +64,29 @@ export async function unsubscribeFcmToken(body: {
   });
 }
 
+export type PushHistoryItem = {
+  id: string;
+  inn: string;
+  cargoNumber: string;
+  event: string;
+  sentAt: string;
+  success: boolean;
+  errorMessage?: string | null;
+};
+
+export async function fetchPushHistory(
+  login: string,
+  opts?: { limit?: number; signal?: AbortSignal },
+): Promise<PushHistoryItem[]> {
+  const limit = opts?.limit ?? 50;
+  const { ok, data } = await fetchJson<{ items?: PushHistoryItem[] }>(
+    `/api/push-history?login=${encodeURIComponent(login)}&limit=${limit}`,
+    { signal: opts?.signal },
+  );
+  if (!ok) return [];
+  return Array.isArray(data.items) ? data.items : [];
+}
+
 /** @deprecated use fetchNotificationPreferences */
 export const fetchWebpushPreferences = fetchNotificationPreferences;
 

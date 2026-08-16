@@ -11,11 +11,11 @@ import { Button } from "../../components/shadcn/button";
 import { GUEST_ILLUSTRATIONS } from "../../constants/guestIllustrations";
 import { isCapacitorAndroidApp } from "../../lib/androidAppUpdate";
 import { cn } from "../../lib/cn";
-import { GUEST_ROUTE_DIRECTIONS } from "./guestRouteContent";
-import { GUEST_WHY_CHOOSE_ITEMS } from "./guestWhyChooseContent";
 import { GUEST_PARTNERS } from "./guestPartnersContent";
 import { GuestFooter } from "./GuestFooter";
 import { GuestHomeMenuSheet } from "./GuestHomeMenuSheet";
+import { GuestRoutesSection } from "./GuestRoutesSection";
+import { GuestWhyChooseSection } from "./GuestWhyChooseSection";
 
 type Props = {
   onLogin: () => void;
@@ -114,7 +114,9 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
     <div className="guest-shell">
       <header className="guest-header guest-header--overlay">
         <div className="mx-auto flex max-w-guest items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8 lg:py-4">
-          <span className="guest-header__logo guest-header__logo--on-hero">HAULZ</span>
+          <span className="guest-header__logo guest-header__logo--on-hero" aria-label="HAULZ">
+            HAULZ
+          </span>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -146,14 +148,13 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
         />
         <div className="guest-home-hero__veil" aria-hidden />
         <div className="guest-home-hero__content mx-auto max-w-guest px-4 sm:px-6 lg:px-8">
-          <p className="guest-home-hero__brand guest-reveal guest-reveal--1">HAULZ</p>
-          <h1 className="guest-home-hero__title guest-reveal guest-reveal--2">
+          <h1 className="guest-home-hero__title guest-reveal guest-reveal--1">
             Отправить груз между Москвой и Калининградом
           </h1>
-          <p className="guest-home-hero__lead guest-reveal guest-reveal--3">
+          <p className="guest-home-hero__lead guest-reveal guest-reveal--2">
             B2B-логистика с расчётом, статусами и документами онлайн.
           </p>
-          <div className="guest-home-hero__actions guest-reveal guest-reveal--4">
+          <div className="guest-home-hero__actions guest-reveal guest-reveal--3">
             <Button size="lg" onClick={onLogin}>
               Войти и оформить
               <ArrowRight className="h-4 w-4" />
@@ -191,28 +192,7 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
           ))}
         </section>
 
-        <section className="guest-home-why" aria-label="Почему стоит выбрать HAULZ">
-          <div className="guest-home-why__intro">
-            <p className="guest-section-title">Почему HAULZ</p>
-            <h2 className="guest-section-heading sm:text-3xl">Логистика без лишней суеты</h2>
-            <p className="guest-section-lead max-w-2xl">
-              Прозрачные статусы, аккуратные документы и маршрут, в котором груз не теряется между складами и перепиской.
-            </p>
-          </div>
-          <div className="guest-why-choose__grid">
-            {GUEST_WHY_CHOOSE_ITEMS.map((item, index) => (
-              <article key={item.title} className="guest-why-choose__item guest-lift">
-                <span className="guest-why-choose__num" aria-hidden>
-                  {index + 1}
-                </span>
-                <div>
-                  <h3 className="guest-why-choose__item-title">{item.title}</h3>
-                  <p className="guest-why-choose__item-text">{item.text}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
+        <GuestWhyChooseSection onCalculator={onCalculator} />
 
         <section className="guest-home-partners" aria-label="Наши партнеры">
           <h2 className="guest-home-partners__title">Наши партнеры</h2>
@@ -225,14 +205,14 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
           </div>
         </section>
 
-        <section className="guest-home-benefits" aria-label="После входа в кабинет">
+        <section className="guest-home-benefits" aria-label="Для партнеров доступно">
           <div
             className="guest-home-benefits__panel"
             style={{ backgroundImage: `url(${GUEST_ILLUSTRATIONS.atmosphere})` }}
           >
             <div className="guest-home-benefits__veil" aria-hidden />
             <div className="guest-home-benefits__content">
-              <p className="guest-home-benefits__eyebrow">После входа</p>
+              <p className="guest-home-benefits__eyebrow">Для партнеров доступно</p>
               <h2 className="guest-home-benefits__title">Цифровая логистика HAULZ</h2>
               <p className="guest-home-benefits__lead">
                 Кабинет собирает перевозки, документы и уведомления в одном спокойном рабочем пространстве.
@@ -255,32 +235,7 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
           </div>
         </section>
 
-        <section className="guest-home-routes" aria-label="Направления HAULZ">
-          <div className="mb-5">
-            <p className="guest-section-title">Направления</p>
-            <h2 className="guest-section-heading sm:text-2xl">Москва ↔ Калининград</h2>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {GUEST_ROUTE_DIRECTIONS.map((route) => (
-              <article key={route.id} className="guest-home-route guest-lift">
-                <div className="mb-3 flex items-center gap-2 text-base font-bold text-[#111827] sm:text-lg">
-                  <span>{route.from}</span>
-                  <ArrowRight className="h-4 w-4 shrink-0 text-[#2563eb]" />
-                  <span>{route.to}</span>
-                </div>
-                <p className="text-sm leading-relaxed text-[#6b7280]">{route.summary}</p>
-                <ul className="mt-4 space-y-2 text-sm leading-relaxed text-[#6b7280]">
-                  {route.features.slice(0, 4).map((feature) => (
-                    <li key={feature} className="flex gap-2">
-                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#2563eb]" aria-hidden />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
-        </section>
+        <GuestRoutesSection onCalculator={onCalculator} />
       </main>
 
       <GuestFooter
