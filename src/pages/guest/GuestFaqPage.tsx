@@ -23,8 +23,7 @@ export function GuestFaqPage({ onBack }: Props) {
         <section className="overflow-hidden rounded-[1.75rem] bg-[#dbeafe]">
           <div className="grid items-center gap-7 px-6 py-9 sm:px-10 sm:py-12 lg:grid-cols-[1fr_auto] lg:px-14">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.17em] text-[#2563eb]">FAQ без канцелярита</p>
-              <h1 className="mt-3 max-w-3xl text-3xl font-bold leading-[1.08] tracking-[-0.035em] text-[#111827] sm:text-5xl">
+              <h1 className="mt-0 max-w-3xl text-3xl font-bold leading-[1.08] tracking-[-0.035em] text-[#111827] sm:text-5xl">
                 Всё, что вы хотели спросить о перевозке
               </h1>
               <p className="mt-5 max-w-2xl text-base leading-relaxed text-[#4b5563] sm:text-lg">
