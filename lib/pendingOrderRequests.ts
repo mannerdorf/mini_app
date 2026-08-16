@@ -457,10 +457,14 @@ async function resolvePendingInnFilter(
       "SELECT inn FROM account_companies WHERE login = $1",
       [normalizeLogin(login)],
     );
-    const allowed = new Set(acRows.rows.map((r) => normalizePendingOrderInn(r.inn)).filter(Boolean));
+    const allowed = new Set<string>(
+      acRows.rows
+        .map((r: { inn?: unknown }) => normalizePendingOrderInn(r.inn))
+        .filter(Boolean) as string[]
+    );
     const verifiedInn = normalizePendingOrderInn(verified.inn);
     if (verifiedInn) allowed.add(verifiedInn);
-    filterInns = allowed.size > 0 ? allowed : verifiedInn ? new Set([verifiedInn]) : null;
+    filterInns = allowed.size > 0 ? allowed : verifiedInn ? new Set<string>([verifiedInn]) : null;
   }
 
   if (filterInns === null) {

@@ -1,7 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import chatHandler from "./chat.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
+/**
+ * Legacy /api/ai entrypoint. The dedicated chat handler was removed;
+ * keep this route typed and return a stable error instead of a missing import.
+ */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const ctx = initRequestContext(req, res, "ai");
     if (req.method !== "POST") {
@@ -9,30 +12,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
-        let body: any = req.body;
-        if (typeof body === "string") {
-            try {
-                body = JSON.parse(body);
-            } catch {
-                body = {};
-            }
-        }
-
-        const { messages, context, sessionId, userId, message } = body ?? {};
-        const userMessage =
-            message ||
-            (Array.isArray(messages) && messages.length > 0
-                ? messages[messages.length - 1]?.content
-                : null);
-
-        req.body = {
-            sessionId,
-            userId,
-            message: userMessage,
-            context,
-        };
-
-        return chatHandler(req, res);
+        return res.status(410).json({
+            reply: "Чат временно недоступен. Используйте актуальный AI-эндпоинт.",
+            error: "chat_removed",
+            request_id: ctx.requestId,
+        });
     } catch (err: any) {
         logError(ctx, "ai_handler_failed", err);
         return res.status(500).json({

@@ -148,8 +148,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ok = true;
           appliedCargoNumber = candidate;
           break;
+        } else {
+          lastError = result.error;
         }
-        lastError = result.error;
       }
 
       return {

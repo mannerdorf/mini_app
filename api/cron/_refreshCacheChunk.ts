@@ -12,6 +12,7 @@ import {
   getRotatingDocumentKind,
   refreshDatedKindForWindow,
   ROTATING_DOCUMENT_KINDS,
+  type DatedDocumentCacheKind,
   type DocumentCacheKind,
 } from "../../lib/documentCacheRefreshCore.js";
 
@@ -129,7 +130,15 @@ export async function handleRefreshCacheRecent(req: VercelRequest, res: VercelRe
             chunkCountRows: 0,
             cacheCount: (await refreshCustomers(pool, credentials.login, credentials.password)).count,
           }
-        : await refreshDatedKindForWindow(pool, credentials.login, credentials.password, kind, dateFrom, dateTo, "recent");
+        : await refreshDatedKindForWindow(
+            pool,
+            credentials.login,
+            credentials.password,
+            kind as DatedDocumentCacheKind,
+            dateFrom,
+            dateTo,
+            "recent",
+          );
 
     logInfo(auth.ctx, "refresh_cache_recent_done", result);
     return res.status(200).json({
@@ -167,9 +176,9 @@ export async function handleRefreshCacheDeep(req: VercelRequest, res: VercelResp
     await ensureDocumentCacheTables(pool);
     const deepIntervalMs = 6 * 60 * 60 * 1000;
     const rawKind = getStringQuery(req, "kind") as DocumentCacheKind;
-    const kind =
+    const kind: DatedDocumentCacheKind =
       rawKind && (ROTATING_DOCUMENT_KINDS as string[]).includes(rawKind)
-        ? rawKind
+        ? (rawKind as Exclude<DocumentCacheKind, "customers">)
         : ROTATING_DOCUMENT_KINDS[Math.floor(Date.now() / deepIntervalMs) % ROTATING_DOCUMENT_KINDS.length] ?? "perevozki";
     const { dateFrom, dateTo } = getFixedWindowRange(CACHE_DEEP_DAYS);
 

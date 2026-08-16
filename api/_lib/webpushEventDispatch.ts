@@ -166,7 +166,7 @@ export async function dispatchWebPushCargoEvents(params: {
          and enabled = true
          and event_id = any($2::text[])
          and lower(trim(login)) = any($1::text[])`,
-      [missingLogins, Array.from(NOTIFICATION_EVENTS)]
+      [missingLogins, Array.from(NOTIFICATION_EVENTS) as string[]]
     );
     for (const row of prefsRows.rows) {
       const login = String(row.login || "").trim().toLowerCase();

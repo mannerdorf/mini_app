@@ -534,7 +534,7 @@ export async function queryCargoNumbersByVehicleInPeriod(
 ): Promise<string[]> {
   const vehicle = normalizeVehicleText(vehicleNormalized);
   if (!vehicle) return [];
-  const res = await pool.query<{ cargo_number: string }>(
+  const res = await pool.query(
     `select distinct cargo_number
      from cargo_sending_assignments
      where vehicle_normalized = $1
@@ -544,7 +544,7 @@ export async function queryCargoNumbersByVehicleInPeriod(
      order by cargo_number`,
     [vehicle, dateFrom, dateTo],
   );
-  return res.rows.map((r) => r.cargo_number).filter(Boolean);
+  return res.rows.map((r: { cargo_number?: string }) => r.cargo_number).filter(Boolean) as string[];
 }
 
 export async function upsertSendingsMetrics(pool: { query: (sql: string, params?: any[]) => Promise<{ rows: any[] }> }, rows: SendingMetricRow[]) {

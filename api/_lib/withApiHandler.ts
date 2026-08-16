@@ -1,7 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { respondCorsPreflight } from "./cors.js";
 
-export type ApiHandler = (req: VercelRequest, res: VercelResponse) => void | Promise<void>;
+export type ApiHandler = (
+  req: VercelRequest,
+  res: VercelResponse
+) => void | VercelResponse | Promise<void | VercelResponse>;
 
 export type WithApiHandlerOptions = {
   methods: string | string[];

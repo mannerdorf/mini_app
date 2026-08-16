@@ -19,7 +19,7 @@ export async function loadTemplateWorkbook(fileName: string) {
 }
 
 export function setCellValue(sheet: import("exceljs").Worksheet, row: number, col: number, value: unknown) {
-  sheet.getCell(row, col).value = value ?? "";
+  sheet.getCell(row, col).value = (value ?? "") as import("exceljs").CellValue;
 }
 
 export function clearCellBorders(sheet: import("exceljs").Worksheet, row: number, col: number) {

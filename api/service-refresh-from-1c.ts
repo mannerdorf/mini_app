@@ -53,23 +53,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
     if (!auth.ok) {
       return res.status(auth.status).json({ error: auth.error, request_id: ctx.requestId });
+    } else {
+      const results = await refreshDocumentCacheFrom1c(pool, auth.login, auth.password, dateFrom, dateTo, kinds);
+      const failed = results.filter((r) => r.error);
+      logInfo(ctx, "service_refresh_from_1c_done", { dateFrom, dateTo, kinds, results });
+
+      return res.status(200).json({
+        ok: failed.length === 0,
+        dateFrom,
+        dateTo,
+        kinds: results,
+        message:
+          failed.length === 0
+            ? "Данные загружены из 1С и записаны в кэш"
+            : `Частично: ошибки — ${failed.map((f) => f.kind).join(", ")}`,
+        request_id: ctx.requestId,
+      });
     }
-
-    const results = await refreshDocumentCacheFrom1c(pool, auth.login, auth.password, dateFrom, dateTo, kinds);
-    const failed = results.filter((r) => r.error);
-    logInfo(ctx, "service_refresh_from_1c_done", { dateFrom, dateTo, kinds, results });
-
-    return res.status(200).json({
-      ok: failed.length === 0,
-      dateFrom,
-      dateTo,
-      kinds: results,
-      message:
-        failed.length === 0
-          ? "Данные загружены из 1С и записаны в кэш"
-          : `Частично: ошибки — ${failed.map((f) => f.kind).join(", ")}`,
-      request_id: ctx.requestId,
-    });
   } catch (e: any) {
     logError(ctx, "service_refresh_from_1c_failed", e);
     return res.status(500).json({

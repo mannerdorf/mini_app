@@ -56,9 +56,11 @@ async function filterActsForRegisteredUser(
       "SELECT inn FROM account_companies WHERE login = $1",
       [String(login).trim().toLowerCase()],
     );
-    const allowed = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
+    const allowed = new Set<string>(
+      acRows.rows.map((r: { inn?: unknown }) => String(r.inn ?? "").trim()).filter(Boolean)
+    );
     if (verified.inn?.trim()) allowed.add(verified.inn.trim());
-    filterInns = allowed.size > 0 ? allowed : verified.inn ? new Set([verified.inn]) : null;
+    filterInns = allowed.size > 0 ? allowed : verified.inn ? new Set<string>([verified.inn]) : null;
   }
   const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
   const finalInns =
@@ -107,9 +109,11 @@ export async function readRegisteredActsFromCache(
         "SELECT inn FROM account_companies WHERE login = $1",
         [String(login).trim().toLowerCase()],
       );
-      const allowed = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
+      const allowed = new Set<string>(
+        acRows.rows.map((r: { inn?: unknown }) => String(r.inn ?? "").trim()).filter(Boolean)
+      );
       if (verified.inn?.trim()) allowed.add(verified.inn.trim());
-      filterInns = allowed.size > 0 ? allowed : verified.inn ? new Set([verified.inn]) : null;
+      filterInns = allowed.size > 0 ? allowed : verified.inn ? new Set<string>([verified.inn]) : null;
     }
     const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
     const finalInns =
@@ -200,11 +204,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         "SELECT inn FROM account_companies WHERE login = $1",
         [String(login).trim().toLowerCase()],
       );
-      const allowedInns = new Set(userInnsRow.rows.map((r) => r.inn.trim()).filter(Boolean));
+      const allowedInns = new Set<string>(
+        userInnsRow.rows.map((r: { inn?: unknown }) => String(r.inn ?? "").trim()).filter(Boolean)
+      );
       const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
       const filterInns = requestedInn
         ? allowedInns.has(requestedInn)
-          ? new Set([requestedInn])
+          ? new Set<string>([requestedInn])
           : new Set<string>()
         : allowedInns;
       if (filterInns.size > 0) {
