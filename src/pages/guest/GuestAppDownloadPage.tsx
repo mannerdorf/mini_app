@@ -161,13 +161,6 @@ export function GuestAppDownloadPage({ onBack }: Props) {
                 </a>{" "}
                 в Safari — приложение будет запускаться с рабочего стола как обычное мобильное приложение.
               </p>
-              <a
-                href={appUrl}
-                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-[#1d4ed8]"
-              >
-                Открыть haulz.space
-                <ExternalLink className="h-4 w-4" />
-              </a>
             </div>
 
             <ol className="grid gap-3">
