@@ -179,6 +179,14 @@ html.guest-mode #root {
   color: #fff;
 }
 
+.guest-faq-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.guest-faq-item[open] {
+  background: #fff;
+}
+
 @keyframes guest-slide-up {
   from { transform: translateY(8px); }
   to { transform: translateY(0); }
