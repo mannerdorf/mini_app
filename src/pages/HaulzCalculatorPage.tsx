@@ -1122,9 +1122,7 @@ export function HaulzCalculatorPage({
                 )}
 
                 <p className="haulz-calc-summary__disclaimer">
-                  Цена может измениться при оформлении. км МКАД: {quote.km.moscow.toFixed(1)} · км КАД:{" "}
-                  {quote.km.kaliningrad.toFixed(1)}
-                  {quote.quoteId ? ` · расчёт №${quote.quoteId}` : ""}
+                  Цена может измениться при оформлении.
                 </p>
 
                 <label className="haulz-calc-field">
