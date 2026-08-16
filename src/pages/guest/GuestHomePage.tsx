@@ -224,14 +224,14 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
           </div>
         </section>
 
-        <section className="guest-home-benefits" aria-label="После входа в кабинет">
+        <section className="guest-home-benefits" aria-label="Для партнеров доступно">
           <div
             className="guest-home-benefits__panel"
             style={{ backgroundImage: `url(${GUEST_ILLUSTRATIONS.atmosphere})` }}
           >
             <div className="guest-home-benefits__veil" aria-hidden />
             <div className="guest-home-benefits__content">
-              <p className="guest-home-benefits__eyebrow">После входа</p>
+              <p className="guest-home-benefits__eyebrow">Для партнеров доступно</p>
               <h2 className="guest-home-benefits__title">Цифровая логистика HAULZ</h2>
               <p className="guest-home-benefits__lead">
                 Кабинет собирает перевозки, документы и уведомления в одном спокойном рабочем пространстве.
