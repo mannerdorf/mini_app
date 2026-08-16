@@ -5,6 +5,7 @@
 @import "./modules/layout.css";
 @import "./modules/header-search.css";
 @import "./modules/auth.css";
+@import "./modules/guest-home.css";
 @import "./modules/platform.css";
 @import "./modules/controls-cms.css";
 @import "./modules/cargo-list.css";
