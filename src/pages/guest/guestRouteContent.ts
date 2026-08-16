@@ -2,7 +2,6 @@ export type GuestRouteDirection = {
   id: "mow_kgd" | "kgd_mow";
   from: string;
   to: string;
-  title: string;
   summary: string;
   features: string[];
 };
@@ -13,7 +12,6 @@ export const GUEST_ROUTE_DIRECTIONS: GuestRouteDirection[] = [
     id: "mow_kgd",
     from: "Москва",
     to: "Калининград",
-    title: "Москва – Калининград",
     summary:
       "Перевозка генеральных, режимных, акцизных, опасных и санкционных грузов. LTL, LCL (сборные) и FTL, FCL (полная загрузка).",
     features: [
@@ -29,7 +27,6 @@ export const GUEST_ROUTE_DIRECTIONS: GuestRouteDirection[] = [
     id: "kgd_mow",
     from: "Калининград",
     to: "Москва",
-    title: "Калининград – Москва",
     summary:
       "Возврат товаров, ранее ввезённых или произведённых в особой экономической зоне Калининградской области или ЕАЭС. Перевозка товаров, импортируемых из ЕС.",
     features: [
