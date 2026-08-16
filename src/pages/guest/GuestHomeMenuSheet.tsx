@@ -2,7 +2,6 @@ import React from "react";
 import {
   Building2,
   Calculator,
-  ExternalLink,
   HelpCircle,
   MessageCircle,
   Smartphone,
@@ -19,7 +18,6 @@ import {
   HAULZ_EMAIL,
   HAULZ_MAX_SUPPORT_BOT_URL,
   HAULZ_TG_SUPPORT_BOT_URL,
-  HAULZ_WEBSITE_URL,
 } from "../../constants/brand";
 import { ANDROID_RELEASE_DOWNLOAD_URL } from "../../constants/androidRelease";
 import { isCapacitorAndroidApp } from "../../lib/androidAppUpdate";
@@ -81,16 +79,6 @@ export function GuestHomeMenuSheet({ open, onClose, onLogin, onAbout, onFaq, onC
       onClick: () => {
         onClose();
         onFaq();
-      },
-    },
-    {
-      id: "site",
-      label: "Сайт haulz.pro",
-      hint: "Услуги и контакты",
-      icon: <ExternalLink className="h-5 w-5" />,
-      onClick: () => {
-        window.open(HAULZ_WEBSITE_URL, "_blank", "noopener,noreferrer");
-        onClose();
       },
     },
     {

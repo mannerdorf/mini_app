@@ -3,8 +3,8 @@ import {
   ArrowRight,
   Calculator,
   ChevronRight,
-  ExternalLink,
   FileText,
+  HelpCircle,
   Menu,
   Route,
   ShieldCheck,
@@ -19,9 +19,8 @@ import {
   HAULZ_MAX_SUPPORT_BOT_URL,
   HAULZ_OFFICES,
   HAULZ_TG_SUPPORT_BOT_URL,
-  HAULZ_WEBSITE_URL,
 } from "../../constants/brand";
-import { GUEST_ILLUSTRATIONS, GUEST_STORYSET_ATTRIBUTION } from "../../constants/guestIllustrations";
+import { GUEST_ILLUSTRATIONS } from "../../constants/guestIllustrations";
 import { ANDROID_RELEASE_DOWNLOAD_URL } from "../../constants/androidRelease";
 import { isCapacitorAndroidApp } from "../../lib/androidAppUpdate";
 import { cn } from "../../lib/cn";
@@ -35,11 +34,14 @@ type Props = {
   onCalculator: () => void;
 };
 
-const QUICK_ACTIONS = [
-  { id: "calc", label: "Калькулятор", icon: Calculator, onClickKey: "calculator" as const },
-  { id: "site", label: "haulz.pro", icon: Route, href: HAULZ_WEBSITE_URL },
+const QUICK_ACTIONS: Array<
+  | { id: string; label: string; icon: typeof Calculator; href: string }
+  | { id: string; label: string; icon: typeof Calculator; action: "calculator" | "faq" }
+> = [
+  { id: "calc", label: "Калькулятор", icon: Calculator, action: "calculator" },
+  { id: "faq", label: "FAQ", icon: HelpCircle, action: "faq" },
   { id: "support", label: "Поддержка", icon: Zap, href: HAULZ_TG_SUPPORT_BOT_URL },
-] as const;
+];
 
 const BENEFITS = [
   {
@@ -90,11 +92,6 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onCalculator }: Props) 
             </Button>
             <Button variant="ghost" size="sm" onClick={onFaq}>
               FAQ
-            </Button>
-            <Button variant="ghost" size="sm" asChild>
-              <a href={HAULZ_WEBSITE_URL} target="_blank" rel="noopener noreferrer">
-                haulz.pro
-              </a>
             </Button>
           </nav>
 
@@ -225,7 +222,7 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onCalculator }: Props) 
                   key={action.id}
                   type="button"
                   className="flex flex-col items-center gap-2 rounded-guest border border-[hsl(var(--guest-border))] bg-[hsl(var(--guest-card))] p-4 shadow-guest transition hover:-translate-y-0.5 hover:shadow-guest-lg"
-                  onClick={onCalculator}
+                  onClick={action.action === "faq" ? onFaq : onCalculator}
                 >
                   {content}
                 </button>
@@ -278,12 +275,6 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onCalculator }: Props) 
                 <ArrowRight className="h-4 w-4 text-[hsl(var(--guest-muted-foreground))]" />
                 <span>Калининград</span>
               </div>
-              <Button variant="outline" asChild>
-                <a href={HAULZ_WEBSITE_URL} target="_blank" rel="noopener noreferrer">
-                  Подробнее на haulz.pro
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-              </Button>
             </CardContent>
           </Card>
 
@@ -330,17 +321,7 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onCalculator }: Props) 
                   MAX
                 </a>
               </Button>
-              <Button variant="outline" size="sm" asChild>
-                <a href={HAULZ_WEBSITE_URL} target="_blank" rel="noopener noreferrer">
-                  haulz.pro
-                </a>
-              </Button>
             </div>
-            <p className="mt-4 text-xs text-[hsl(var(--guest-muted-foreground))]">
-              <a href={GUEST_STORYSET_ATTRIBUTION.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
-                {GUEST_STORYSET_ATTRIBUTION.label}
-              </a>
-            </p>
           </section>
         </div>
       </main>

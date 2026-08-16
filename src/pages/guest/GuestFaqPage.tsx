@@ -2,8 +2,6 @@ import React from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "../../components/shadcn/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/shadcn/card";
-import { GUEST_STORYSET_ATTRIBUTION } from "../../constants/guestIllustrations";
-import { HAULZ_WEBSITE_URL } from "../../constants/brand";
 import { GUEST_FAQ_ITEMS } from "./guestFaqContent";
 
 type Props = {
@@ -24,11 +22,7 @@ export function GuestFaqPage({ onBack }: Props) {
 
       <main className="mx-auto max-w-guest px-4 py-6 sm:px-6 lg:px-8">
         <p className="mb-6 max-w-3xl text-sm leading-relaxed text-[hsl(var(--guest-muted-foreground))] sm:text-base">
-          Ответы о перевозках HAULZ, входе в кабинет и поддержке. Подробнее — на{" "}
-          <a href={HAULZ_WEBSITE_URL} target="_blank" rel="noopener noreferrer" className="font-semibold text-haulz-brand underline-offset-2 hover:underline">
-            haulz.pro
-          </a>
-          .
+          Ответы о перевозках HAULZ, входе в кабинет и поддержке.
         </p>
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -43,12 +37,6 @@ export function GuestFaqPage({ onBack }: Props) {
             </Card>
           ))}
         </div>
-
-        <p className="mt-8 text-xs text-[hsl(var(--guest-muted-foreground))]">
-          <a href={GUEST_STORYSET_ATTRIBUTION.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
-            {GUEST_STORYSET_ATTRIBUTION.label}
-          </a>
-        </p>
       </main>
     </div>
   );

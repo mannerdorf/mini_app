@@ -1,9 +1,4 @@
-export const GUEST_STORYSET_ATTRIBUTION = {
-  label: "Illustrations by Storyset",
-  url: "https://storyset.com/",
-} as const;
-
-/** Storyset-style assets (delivery / logistics), hosted locally in /public. */
+/** Illustration assets for guest landing (local SVG). */
 export const GUEST_ILLUSTRATIONS = {
   delivery: "/guest/storyset/delivery-pana.svg",
   location: "/guest/storyset/location-pana.svg",
