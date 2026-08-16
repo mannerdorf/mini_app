@@ -17,6 +17,7 @@ import { GUEST_ILLUSTRATIONS } from "../../constants/guestIllustrations";
 import { isCapacitorAndroidApp } from "../../lib/androidAppUpdate";
 import { cn } from "../../lib/cn";
 import { GUEST_ROUTE_DIRECTIONS } from "./guestRouteContent";
+import { GUEST_WHY_CHOOSE_ITEMS } from "./guestWhyChooseContent";
 import { GuestFooter } from "./GuestFooter";
 import { GuestHomeMenuSheet } from "./GuestHomeMenuSheet";
 
@@ -210,6 +211,24 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
                 </button>
               );
             })}
+          </section>
+
+          {/* Why choose HAULZ */}
+          <section className="lg:col-span-12" aria-label="Почему стоит выбрать HAULZ">
+            <h2 className="guest-why-choose__title">Почему стоит выбрать HAULZ?</h2>
+            <div className="guest-why-choose__grid">
+              {GUEST_WHY_CHOOSE_ITEMS.map((item, index) => (
+                <article key={item.title} className="guest-why-choose__item">
+                  <span className="guest-why-choose__num" aria-hidden>
+                    {index + 1}
+                  </span>
+                  <div>
+                    <h3 className="guest-why-choose__item-title">{item.title}</h3>
+                    <p className="guest-why-choose__item-text">{item.text}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
           </section>
 
           {/* Benefits */}
