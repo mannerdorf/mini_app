@@ -26,7 +26,7 @@ async function assertRegisteredInnAccess(
       "SELECT inn FROM account_companies WHERE login = $1",
       [String(login).trim().toLowerCase()],
     );
-    const allowed = new Set(rows.map((r) => String(r.inn ?? "").trim()).filter(Boolean));
+    const allowed = new Set<string>(rows.map((r) => String(r.inn ?? "").trim()).filter(Boolean));
     if (verified.inn?.trim()) allowed.add(verified.inn.trim());
     if (!allowed.has(innNorm) && !allowed.has(inn.trim())) {
       return { ok: false, status: 403, error: "Нет доступа к этому заказчику" };
@@ -69,9 +69,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const access = await assertRegisteredInnAccess(authLogin, authPassword, innStr);
       if (!access.ok) {
         return res.status(access.status).json({ error: access.error, request_id: ctx.requestId });
+      } else {
+        authLogin = access.serviceLogin;
+        authPassword = access.servicePassword;
       }
-      authLogin = access.serviceLogin;
-      authPassword = access.servicePassword;
     } catch (e: unknown) {
       logError(ctx, "getcustomer_registered_user_failed", e);
       return res.status(500).json({

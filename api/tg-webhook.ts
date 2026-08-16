@@ -364,7 +364,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ]
       };
 
-      await sendTgMessageChunked(chatId, message, keyboard);
+      await sendTgMessageChunked(chatId, message, { replyMarkup: keyboard });
       return res.status(200).json({ ok: true, request_id: ctx.requestId });
     }
 
@@ -824,7 +824,11 @@ async function sendTgMessageChunked(
 
 async function downloadTelegramFile(fileId: string): Promise<string> {
   const metaRes = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/getFile?file_id=${encodeURIComponent(fileId)}`);
-  const meta = await metaRes.json().catch(() => ({}));
+  const meta = (await metaRes.json().catch(() => ({}))) as {
+    ok?: boolean;
+    description?: string;
+    result?: { file_path?: string };
+  };
   if (!metaRes.ok || !meta?.ok || !meta?.result?.file_path) {
     throw new Error(meta?.description || "getFile failed");
   }

@@ -16,6 +16,7 @@ type Body = {
   position?: string;
   accrualType?: "hour" | "shift" | "month" | string;
   accrualRate?: number | string;
+  shiftRate?: number | string;
   cooperationType?: "self_employed" | "ip" | "staff" | string;
   employeeRole?: "employee" | "department_head" | string;
   existingEmployeeId?: number | string;

@@ -6,6 +6,10 @@ function normalizeName(raw?: string | null): string {
   return String(raw ?? "").trim().toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ");
 }
 
+function generateFallbackId(): string {
+  return `fb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function mapDepartmentToPnl(raw?: string | null): { department: string; logisticsStage: string | null } {
   const source = String(raw ?? "").trim();
   const upper = source.toUpperCase();
@@ -594,6 +598,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           requestStatus: String(matchedRequest?.status ?? "approved").trim() || "approved",
           docNumber: String(matchedRequest?.docNumber ?? docFromPurpose).trim() || null,
           docDate: normalizeDocDateFromDb(matchedRequest?.docDate),
+          period: String(matchedRequest?.period ?? "").trim() || null,
+          vatRate: String(matchedRequest?.vatRate ?? "").trim() || null,
           employeeName: String(matchedRequest?.employeeName ?? "").trim() || null,
           vehicleText: String(matchedRequest?.vehicleText ?? "").trim() || null,
           supplierName: String(matchedRequest?.supplierName ?? "").trim() || null,
@@ -643,6 +649,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             requestStatus: String(row?.status ?? "approved").trim() || "approved",
             docNumber: String(row?.docNumber ?? "").trim() || null,
             docDate: normalizeDocDateFromDb(row?.docDate),
+            period: String(row?.period ?? "").trim() || null,
+            vatRate: String(row?.vatRate ?? "").trim() || null,
             employeeName: String(row?.employeeName ?? "").trim() || null,
             vehicleText: String(row?.vehicleText ?? "").trim() || null,
             supplierName: String(row?.supplierName ?? "").trim() || null,

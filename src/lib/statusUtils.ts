@@ -1,4 +1,4 @@
-import type { StatusFilter } from "../types";
+import type { StatusFilter } from "../types.js";
 
 function remapPostbStatusLabel(raw: string): string {
     const s = String(raw ?? "").trim();

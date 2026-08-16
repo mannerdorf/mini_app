@@ -25,7 +25,12 @@ export function isPinkListMatch(text: string): boolean {
 }
 
 export function stopColumnValue(ulData: string, stopRows?: HaulzSheetRow[]): string {
-  if (stopRows?.length) return lookupStopFromRows(ulData, stopRows);
+  if (stopRows?.length) {
+    return lookupStopFromRows(
+      ulData,
+      stopRows as { word?: unknown; result?: unknown; matchMode?: unknown }[],
+    );
+  }
   return lookupStopExact(ulData);
 }
 

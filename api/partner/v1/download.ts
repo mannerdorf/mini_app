@@ -26,11 +26,11 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
   const body = readPartnerJsonBody(req);
   const validated = validateGetFileParams({
-    metod: body.metod,
-    number: body.number,
-    dateDoc: body.dateDoc,
-    dateDog: body.dateDog,
-    inn: body.inn,
+    metod: body.metod != null ? String(body.metod) : undefined,
+    number: body.number != null ? String(body.number) : undefined,
+    dateDoc: body.dateDoc != null ? String(body.dateDoc) : undefined,
+    dateDog: body.dateDog != null ? String(body.dateDog) : undefined,
+    inn: body.inn != null ? String(body.inn) : undefined,
   });
   if (!validated.ok) {
     return res.status(validated.status).json({ error: validated.error, request_id: ctx.requestId });

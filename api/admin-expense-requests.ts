@@ -241,7 +241,7 @@ async function syncRequestOperationInPnl(client: any, row: RequestForPnlRow): Pr
 async function resolveExpenseCategoryIdForUpdate(pool: any, uid: string, rawValue: unknown): Promise<string | null> {
   const raw = String(rawValue ?? "").trim();
   if (!raw) {
-    const currentValid = await pool.query<{ category_id: string }>(
+    const currentValid = await pool.query(
       `SELECT er.category_id
        FROM expense_requests er
        JOIN expense_categories ec ON ec.id = er.category_id
@@ -253,13 +253,13 @@ async function resolveExpenseCategoryIdForUpdate(pool: any, uid: string, rawValu
     return "other";
   }
 
-  const exactById = await pool.query<{ id: string }>(
+  const exactById = await pool.query(
     `SELECT id FROM expense_categories WHERE id = $1 LIMIT 1`,
     [raw]
   );
   if (exactById.rows.length > 0) return String(exactById.rows[0].id || "").trim() || "other";
 
-  const byName = await pool.query<{ id: string }>(
+  const byName = await pool.query(
     `SELECT id FROM expense_categories WHERE lower(trim(name)) = lower(trim($1)) LIMIT 1`,
     [raw]
   );

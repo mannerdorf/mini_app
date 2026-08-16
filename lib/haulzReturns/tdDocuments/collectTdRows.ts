@@ -38,6 +38,13 @@ function cellStr(v: unknown): string {
   return String(v).trim();
 }
 
+function cellNumOrStr(v: unknown): string | number {
+  if (typeof v === "number") return v;
+  if (v === null || v === undefined) return "";
+  if (typeof v === "boolean") return v ? 1 : 0;
+  return String(v);
+}
+
 /** Наименование для таможенных документов: «Перевод», иначе «Данные УЛ». */
 export function itogProductNameForTd(row: HaulzSheetRow): string {
   return cellStr(row.translate) || cellStr(row.ulData);
@@ -142,9 +149,9 @@ export function collectFixRows(workbook: HaulzWorkbook): FixTdRow[] {
     id: cellStr(r.id),
     parcel: cellStr(r.parcel),
     name: itogProductNameForTd(r),
-    qty: r.qty ?? "",
-    weight: r.weight ?? "",
-    cost: r.cost ?? "",
+    qty: cellNumOrStr(r.qty),
+    weight: cellNumOrStr(r.weight),
+    cost: cellNumOrStr(r.cost),
     tdNumber:
       tdByUl.get(normalizeUlKey(r.ul)) ??
       tdByUl.get(cellStr(r.ul)) ??
@@ -179,12 +186,12 @@ export function collectWriteoffRowsForUl(
       id: cellStr(r.cargoPlace),
       parcel,
       airport: cellStr(r.airport),
-      weight: r.weight ?? "",
-      volume: r.volume ?? "",
+      weight: cellNumOrStr(r.weight),
+      volume: cellNumOrStr(r.volume),
       category: cellStr(r.category) || "<>",
       name,
-      qty: r.qty ?? "",
-      cost: r.cost ?? "",
+      qty: cellNumOrStr(r.qty),
+      cost: cellNumOrStr(r.cost),
     };
   });
 }

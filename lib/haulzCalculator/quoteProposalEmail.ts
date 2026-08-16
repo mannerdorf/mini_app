@@ -36,6 +36,8 @@ export type QuoteProposalEmailInput = {
   fromRequiresPvzCreation?: boolean;
   toRequiresPvzCreation?: boolean;
   recipientName?: string;
+  /** Ссылка «согласовать перевозку» в письме КП (если черновик уже сохранён). */
+  agreeUrl?: string;
 };
 
 const TILE_CELL_PAD = "6px";

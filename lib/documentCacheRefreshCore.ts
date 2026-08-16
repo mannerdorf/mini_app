@@ -32,7 +32,12 @@ export const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 export type DocumentCacheKind = "perevozki" | "sendings" | "invoices" | "acts" | "customers";
 export type DatedDocumentCacheKind = Exclude<DocumentCacheKind, "customers"> | "orders";
 
-export const ROTATING_DOCUMENT_KINDS: DocumentCacheKind[] = ["perevozki", "sendings", "invoices", "acts"];
+export const ROTATING_DOCUMENT_KINDS: Array<Exclude<DocumentCacheKind, "customers">> = [
+  "perevozki",
+  "sendings",
+  "invoices",
+  "acts",
+];
 
 export function isoDate(date: Date): string {
   return date.toISOString().split("T")[0];
@@ -393,7 +398,7 @@ function minMonthKey(...values: Array<string | null | undefined>): string | null
 function maxMonthKey(...values: Array<string | null | undefined>): string | null {
   const months = values.filter((v): v is string => !!v && /^\d{4}-\d{2}$/.test(v));
   if (months.length === 0) return null;
-  return months.sort().at(-1) ?? null;
+  return months.sort()[months.length - 1] ?? null;
 }
 
 export function listMonthsInclusive(fromMonth: string, toMonth: string): string[] {
@@ -511,7 +516,9 @@ export async function readCacheCoverageByMonth(
       backfillStatus: monthBackfillStatus(month, rangeStart, nextFrom, backfillDone),
     };
     for (const s of summaries) {
-      row[s.kind] = s.byMonth.get(month) ?? 0;
+      if (s.kind === "perevozki" || s.kind === "sendings" || s.kind === "invoices" || s.kind === "acts") {
+        row[s.kind] = s.byMonth.get(month) ?? 0;
+      }
     }
     return row;
   });
