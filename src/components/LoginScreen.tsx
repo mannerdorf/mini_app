@@ -30,6 +30,7 @@ import {
 } from "../utils";
 import * as dateUtils from "../lib/dateUtils";
 import type { Account, CustomerOption } from "../types";
+import { resolvePostLoginActiveTab } from "../lib/profileViewPersist";
 
 const ForgotPasswordPage = lazy(() =>
   import("../pages/ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage })),
@@ -59,11 +60,13 @@ type PendingLogin = {
 export function LoginScreen({
   variant = "fullscreen",
   hint = null,
+  heading = null,
   onBack,
   onOpenForgot,
 }: {
   variant?: "fullscreen" | "sheet";
   hint?: string | null;
+  heading?: string | null;
   onBack?: () => void;
   onOpenForgot?: () => void;
 } = {}) {
@@ -204,7 +207,7 @@ export function LoginScreen({
             setAccounts((prev) => [...prev, newAccount]);
             setActiveAccountId(accountId);
           }
-          setActiveTab((prev) => prev || "cargo");
+          setActiveTab((prev) => prev || resolvePostLoginActiveTab());
           recordLoginLegalAcceptance(loginKey, password, { skipLegal: cmsServiceMode });
           return true;
         }
@@ -274,7 +277,7 @@ export function LoginScreen({
           setAccounts((prev) => [...prev, newAccount]);
           setActiveAccountId(accountId);
         }
-        setActiveTab((prev) => prev || "cargo");
+        setActiveTab((prev) => prev || resolvePostLoginActiveTab());
         postCompaniesSave({ login: loginKey, customers })
           .then((data: unknown) => {
             const d = data as { saved?: number; warning?: string };
@@ -357,7 +360,7 @@ export function LoginScreen({
         const companyInn = detectedInn ?? "";
         const companyName = detectedCustomer || login.trim() || "Компания";
         postCompaniesSave({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }).catch(() => {});
-        setActiveTab((prev) => prev || "cargo");
+        setActiveTab((prev) => prev || resolvePostLoginActiveTab());
         recordLoginLegalAcceptance(loginKey, password);
         return true;
       };
@@ -432,7 +435,7 @@ export function LoginScreen({
       const customersToSave = pendingLogin.customers;
       const loginDisplay = pendingLogin.login?.trim() || "";
 
-      setActiveTab((prev) => prev || "cargo");
+      setActiveTab((prev) => prev || resolvePostLoginActiveTab());
       setTwoFactorPending(false);
       setPendingLogin(null);
       setTwoFactorCode("");
@@ -690,7 +693,7 @@ export function LoginScreen({
             <button type="button" className="guest-login-screen__back" aria-label="Назад" onClick={onBack}>
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <span className="guest-login-screen__heading">Вход</span>
+            <span className="guest-login-screen__heading">{heading ?? "Вход"}</span>
           </div>
         ) : null}
         {hint ? <div className="guest-login-screen__hint">{hint}</div> : null}

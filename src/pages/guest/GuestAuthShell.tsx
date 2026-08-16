@@ -4,12 +4,13 @@ import { LoginScreen } from "../../components/LoginScreen";
 import { AboutCompanyPage } from "../AboutCompanyPage";
 import { GuestFaqPage } from "./GuestFaqPage";
 import { GuestHomePage } from "./GuestHomePage";
+import { prepareGuestCalculatorNavigation } from "../../lib/profileViewPersist";
 
 const ForgotPasswordPage = lazy(() =>
   import("../ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage })),
 );
 
-type GuestScreen = "home" | "login" | "about" | "faq" | "forgot";
+type GuestScreen = "home" | "login" | "about" | "faq" | "forgot" | "calculator";
 
 export function GuestAuthShell() {
   const [screen, setScreen] = useState<GuestScreen>("home");
@@ -21,8 +22,9 @@ export function GuestAuthShell() {
   }, []);
 
   const openCalculator = useCallback(() => {
-    openLogin("После входа откройте калькулятор в профиле → HAULZ.");
-  }, [openLogin]);
+    prepareGuestCalculatorNavigation();
+    setScreen("calculator");
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -78,6 +80,20 @@ export function GuestAuthShell() {
 
   if (screen === "faq") {
     return <GuestFaqPage onBack={() => setScreen("home")} />;
+  }
+
+  if (screen === "calculator") {
+    return (
+      <div className="guest-shell">
+        <LoginScreen
+          variant="sheet"
+          heading="Калькулятор HAULZ"
+          hint="Войдите, чтобы рассчитать стоимость перевозки"
+          onBack={() => setScreen("home")}
+          onOpenForgot={() => setScreen("forgot")}
+        />
+      </div>
+    );
   }
 
   return (

@@ -1,4 +1,4 @@
-import type { ProfileView } from "../types";
+import type { ProfileView, Tab } from "../types";
 
 const PROFILE_VIEW_KEY = "haulz.profile.view";
 const PROFILE_HAULZ_BACK_KEY = "haulz.profile.haulzBackView";
@@ -111,6 +111,23 @@ export function readStoredHaulzCalcDraftId(): number | null {
   } catch {
     return null;
   }
+}
+
+/** Гостевая главная → калькулятор: после входа открыть профиль на том же экране, что «Профиль → HAULZ → Калькулятор». */
+export function prepareGuestCalculatorNavigation(): void {
+  persistProfileNavigation("haulzCalculator", "main", null);
+}
+
+const POST_LOGIN_PROFILE_VIEWS = new Set<ProfileView>([
+  "haulz",
+  "haulzCalculator",
+  "haulzCalcRequests",
+  "haulzReturns",
+]);
+
+export function resolvePostLoginActiveTab(): Tab {
+  const view = readStoredProfileView();
+  return POST_LOGIN_PROFILE_VIEWS.has(view) ? "profile" : "cargo";
 }
 
 export function persistProfileNavigation(
