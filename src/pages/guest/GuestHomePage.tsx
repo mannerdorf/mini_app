@@ -126,8 +126,38 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
             </CardContent>
           </Card>
 
-          {/* Secondary card — warehouses */}
-          <div className="lg:col-span-4">
+          {/* Secondary cards — about & warehouses */}
+          <div className="grid gap-4 lg:col-span-4">
+            <Card
+              className="guest-surface relative cursor-pointer overflow-hidden transition-colors hover:bg-[#eff6ff]"
+              role="button"
+              tabIndex={0}
+              onClick={onAbout}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onAbout();
+                }
+              }}
+            >
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xl">О компании</CardTitle>
+                <CardDescription>B2B-логистика Москва ↔ Калининград</CardDescription>
+              </CardHeader>
+              <CardContent className="flex items-end justify-between gap-3 pt-0">
+                <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); onAbout(); }}>
+                  Смотреть
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <img
+                  src={GUEST_ILLUSTRATIONS.logistics}
+                  alt=""
+                  className="h-24 w-24 object-contain"
+                  loading="lazy"
+                />
+              </CardContent>
+            </Card>
+
             <Card
               className="guest-surface relative cursor-pointer overflow-hidden transition-colors hover:bg-[#eff6ff]"
               role="button"
@@ -142,9 +172,6 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
             >
               <CardHeader className="pb-2">
                 <CardTitle className="text-xl">Склады HAULZ</CardTitle>
-                <CardDescription>
-                  адреса, телефоны, карта
-                </CardDescription>
               </CardHeader>
               <CardContent className="flex items-end justify-between gap-3 pt-0">
                 <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); onAbout(); }}>
