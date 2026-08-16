@@ -3,7 +3,7 @@ import { haulzCalculatorPreflight } from "./_preflight.js";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgTableExists } from "../_haulzReturns.js";
-import { resolveHaulzCalculatorAccess } from "../_haulzCalculator.js";
+import { HAULZ_CALC_GUEST_LOGIN_KEY, resolveHaulzCalculatorGuestQuoteAccess } from "../_haulzCalculator.js";
 import { getClientIp, isRateLimited, HAULZ_CALC_QUOTE_LIMIT } from "../../lib/rateLimit.js";
 import { buildQuote } from "../../lib/haulzCalculator/quoteEngine.js";
 import { saveQuoteSnapshot } from "../../lib/haulzCalculator/quoteSnapshot.js";
@@ -79,7 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
-  const access = await resolveHaulzCalculatorAccess(req, req.body);
+  const access = await resolveHaulzCalculatorGuestQuoteAccess(req, req.body);
   if (!access) {
     return res.status(401).json({ error: "Нет доступа", request_id: ctx.requestId });
   }
@@ -133,7 +133,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const quote = await buildQuote(pool, quoteReq);
-    if (quoteReq.saveQuote && (await pgTableExists(pool, "haulz_calc_quotes"))) {
+    if (quoteReq.saveQuote && access.loginKey !== HAULZ_CALC_GUEST_LOGIN_KEY && (await pgTableExists(pool, "haulz_calc_quotes"))) {
       quote.quoteId = await saveQuoteSnapshot(pool, access.loginKey, quoteReq, quote);
     }
     return res.status(200).json({ quote, request_id: ctx.requestId });

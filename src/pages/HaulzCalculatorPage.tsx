@@ -33,12 +33,16 @@ import { citiesForDirection, cityLabel } from "../../lib/haulzCalculator/directi
 import { warehouseForCity } from "../../lib/haulzCalculator/warehouses";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import { formatPhoneMask } from "../lib/formatPhoneMask";
+import { GUEST_CALCULATOR_AUTH } from "../constants/guestCalculatorAuth";
 
 type Props = {
   auth: AuthData | null;
   onBack: () => void;
   restoreDraftId?: number | null;
   onDraftConsumed?: () => void;
+  /** Гостевой режим: расчёт без входа, оформление — после авторизации. */
+  guestMode?: boolean;
+  onRequireAuth?: () => void;
 };
 
 const BOX_PRESETS: { label: string; weightKg: number; volumeM3: number }[] = [
@@ -65,8 +69,17 @@ function inferDirectionFromCities(from?: CityCode | null, to?: CityCode | null):
   return null;
 }
 
-export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsumed }: Props) {
+export function HaulzCalculatorPage({
+  auth,
+  onBack,
+  restoreDraftId,
+  onDraftConsumed,
+  guestMode = false,
+  onRequireAuth,
+}: Props) {
   const { useServiceRequest, activeInn, activeCustomerName } = useAppRuntime();
+  const calcAuth = auth ?? GUEST_CALCULATOR_AUTH;
+  const needsAccount = guestMode && !auth;
   const [fromQuery, setFromQuery] = useState("");
   const [toQuery, setToQuery] = useState("");
   const [fromAddr, setFromAddr] = useState<AddressSelection | null>(null);
@@ -165,9 +178,9 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
   const suggestCityTo = inferredDirection === "kgd_mow" ? "moscow" : "kaliningrad";
 
   useEffect(() => {
-    if (!auth) return;
+    if (!guestMode && !auth) return;
     let cancelled = false;
-    fetchHaulzCalculatorOptions(auth, inferredDirection, chargeableHint.ch)
+    fetchHaulzCalculatorOptions(calcAuth, inferredDirection, chargeableHint.ch)
       .then((o) => {
         if (!cancelled) setOptions(o);
       })
@@ -177,7 +190,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     return () => {
       cancelled = true;
     };
-  }, [auth, inferredDirection, chargeableHint.ch]);
+  }, [auth, guestMode, calcAuth, inferredDirection, chargeableHint.ch]);
 
   const buildFormState = useCallback((): HaulzCalculatorFormState => {
     return {
@@ -282,6 +295,11 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
   }, [auth, restoreDraftId, applyFormState, onDraftConsumed]);
 
   const saveDraft = useCallback(async () => {
+    if (needsAccount) {
+      onRequireAuth?.();
+      setError("Войдите в кабинет, чтобы сохранить черновик");
+      return;
+    }
     if (!auth) return;
     setDraftSaving(true);
     setDraftMessage(null);
@@ -300,7 +318,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     } finally {
       setDraftSaving(false);
     }
-  }, [auth, draftId, buildFormState, quote]);
+  }, [auth, needsAccount, onRequireAuth, draftId, buildFormState, quote]);
 
   const applyQuickCity = useCallback((side: "from" | "to", city: CityCode) => {
     const label = cityLabel(city);
@@ -353,7 +371,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     [fromMode, toMode],
   );
 
-  const canQuote = Boolean(auth && fromAddr?.point && toAddr?.point && chargeableHint.ch > 0);
+  const canQuote = Boolean(calcAuth && fromAddr?.point && toAddr?.point && chargeableHint.ch > 0);
 
   const canSubmitOrder = Boolean(canQuote && quote && !loading && !orderLoading);
   const canSendQuoteEmail = Boolean(quote && registeredNomerZayavki);
@@ -405,7 +423,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
       setLoading(true);
       setError(null);
       try {
-        const result = await fetchHaulzQuote(auth!, {
+        const result = await fetchHaulzQuote(calcAuth, {
           from: fromAddr!,
           to: toAddr!,
           places,
@@ -448,7 +466,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     debouncedQuoteDeps,
     autoQuoteEnabled,
     canQuote,
-    auth,
+    calcAuth,
     fromAddr,
     toAddr,
     places,
@@ -466,6 +484,11 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
   ]);
 
   const submitOrder = useCallback(async () => {
+    if (needsAccount) {
+      onRequireAuth?.();
+      setError("Войдите в кабинет, чтобы оформить заявку");
+      return;
+    }
     if (!auth || !fromAddr?.point || !toAddr?.point) return;
     setOrderLoading(true);
     setOrderMessage(null);
@@ -514,6 +537,8 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     }
   }, [
     auth,
+    needsAccount,
+    onRequireAuth,
     fromAddr,
     toAddr,
     places,
@@ -704,7 +729,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
     registeredNomerZayavki,
   ]);
 
-  if (!auth) {
+  if (!auth && !guestMode) {
     return (
       <div className="haulz-calc-page--cdek">
         <p>Нет авторизации</p>
@@ -715,7 +740,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
   const mainlineCards = quote?.mainlineOptions?.length ? quote.mainlineOptions : options?.mainlineOptions ?? [];
 
   const mobileFlowProps = {
-    auth,
+    auth: calcAuth,
     route: mobileRoute,
     setRoute: setMobileRoute,
     onBackFromCalc: onBack,
@@ -795,6 +820,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="haulz-calc-header__title">Расчёт доставки</h1>
+          {!needsAccount ? (
           <button
             type="button"
             className="haulz-calc-btn-secondary haulz-calc-header__save-draft"
@@ -804,7 +830,18 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
             {draftSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
             Сохранить черновик
           </button>
+          ) : null}
         </header>
+
+        {needsAccount && (
+          <div className="haulz-calc-hint" style={{ marginBottom: "0.75rem" }}>
+            Расчёт доступен без входа. Чтобы оформить заявку или сохранить черновик,{" "}
+            <button type="button" className="haulz-calc-link-btn" onClick={onRequireAuth}>
+              войдите в кабинет
+            </button>
+            .
+          </div>
+        )}
 
         {draftLoading && (
           <p className="haulz-calc-hint" style={{ marginBottom: "0.75rem" }}>
@@ -823,7 +860,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
               onDirectionChange={handleDirectionChange}
             />
 
-            {useServiceRequest && (
+            {useServiceRequest && auth && (
               <HaulzCalcCustomerBlock
                 auth={auth}
                 inn={customerInn}
@@ -837,7 +874,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
               title="Отправить"
               side="from"
               city={suggestCityFrom}
-              auth={auth}
+              auth={calcAuth}
               query={fromQuery}
               setQuery={setFromQuery}
               addr={fromAddr}
@@ -860,7 +897,7 @@ export function HaulzCalculatorPage({ auth, onBack, restoreDraftId, onDraftConsu
               title="Вручить"
               side="to"
               city={suggestCityTo}
-              auth={auth}
+              auth={calcAuth}
               query={toQuery}
               setQuery={setToQuery}
               addr={toAddr}

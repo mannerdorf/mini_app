@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { LoginScreen } from "../../components/LoginScreen";
 import { AboutCompanyPage } from "../AboutCompanyPage";
 import { GuestAppDownloadPage } from "./GuestAppDownloadPage";
+import { GuestCalculatorPage } from "./GuestCalculatorPage";
 import { GuestFaqPage } from "./GuestFaqPage";
 import { GuestHomePage } from "./GuestHomePage";
 import { GUEST_CONTACT_EMAIL_LABEL } from "./guestContactLabels";
@@ -11,7 +12,7 @@ const ForgotPasswordPage = lazy(() =>
   import("../ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage })),
 );
 
-type GuestScreen = "home" | "login" | "about" | "faq" | "forgot" | "app";
+type GuestScreen = "home" | "login" | "about" | "faq" | "forgot" | "app" | "calculator";
 
 export function GuestAuthShell() {
   const [screen, setScreen] = useState<GuestScreen>("home");
@@ -23,8 +24,8 @@ export function GuestAuthShell() {
   }, []);
 
   const openCalculator = useCallback(() => {
-    openLogin("После входа откройте калькулятор в профиле → HAULZ.");
-  }, [openLogin]);
+    setScreen("calculator");
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -84,6 +85,15 @@ export function GuestAuthShell() {
 
   if (screen === "app") {
     return <GuestAppDownloadPage onBack={() => setScreen("home")} />;
+  }
+
+  if (screen === "calculator") {
+    return (
+      <GuestCalculatorPage
+        onBack={() => setScreen("home")}
+        onLogin={() => openLogin("Войдите, чтобы оформить заявку или сохранить черновик")}
+      />
+    );
   }
 
   return (

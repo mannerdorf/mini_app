@@ -58,11 +58,14 @@ export type HaulzGeocodeResult = {
 };
 
 function authHeaders(auth: AuthData): Record<string, string> {
-  return {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "x-login": auth.login,
-    "x-password": auth.password,
   };
+  if (auth.login?.trim() && auth.password?.trim()) {
+    headers["x-login"] = auth.login;
+    headers["x-password"] = auth.password;
+  }
+  return headers;
 }
 
 function parseError(res: Response, data: unknown): string {

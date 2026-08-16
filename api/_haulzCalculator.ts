@@ -8,6 +8,9 @@ export type HaulzCalculatorAccess = {
   loginKey: string;
 };
 
+/** Анонимный расчёт на гостевой главной (без сохранения черновиков и заявок). */
+export const HAULZ_CALC_GUEST_LOGIN_KEY = "__guest__";
+
 /** Доступ к калькулятору: permissions.haulz (как у HAULZ возвратов). */
 export async function resolveHaulzCalculatorAccess(
   req: VercelRequest,
@@ -26,6 +29,16 @@ export async function resolveHaulzCalculatorAccess(
   const perms = rows[0]?.permissions;
   if (perms?.haulz !== true) return null;
   return { login, loginKey };
+}
+
+/** Авторизованный пользователь или гостевой расчёт (quote/options/адреса). */
+export async function resolveHaulzCalculatorGuestQuoteAccess(
+  req: VercelRequest,
+  body?: unknown,
+): Promise<HaulzCalculatorAccess | null> {
+  const access = await resolveHaulzCalculatorAccess(req, body);
+  if (access) return access;
+  return { login: "", loginKey: HAULZ_CALC_GUEST_LOGIN_KEY };
 }
 
 /** Менеджер заявок калькулятора: haulz + (supervisor или cms_access). */

@@ -3,8 +3,7 @@ import { haulzCalculatorPreflight } from "./_preflight.js";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgTableExists } from "../_haulzReturns.js";
-import { resolveHaulzCalculatorAccess } from "../_haulzCalculator.js";
-import { pickHaulzCredentials } from "../_haulzReturns.js";
+import { resolveHaulzCalculatorGuestQuoteAccess } from "../_haulzCalculator.js";
 import { getClientIp, isRateLimited, HAULZ_CALC_SUGGEST_LIMIT } from "../../lib/rateLimit.js";
 import { suggestAddresses } from "../../lib/haulzCalculator/addressSuggest.js";
 
@@ -41,12 +40,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
-  const access = await resolveHaulzCalculatorAccess(req, req.body);
+  const access = await resolveHaulzCalculatorGuestQuoteAccess(req, req.body);
   if (!access) {
-    const creds = pickHaulzCredentials(req, req.body);
-    if (!creds.login || !creds.password) {
-      return res.status(401).json({ error: "Нет доступа: укажите login и password", request_id: ctx.requestId });
-    }
     return res.status(401).json({ error: "Нет доступа", request_id: ctx.requestId });
   }
 

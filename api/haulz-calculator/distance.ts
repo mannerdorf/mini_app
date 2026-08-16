@@ -3,7 +3,7 @@ import { haulzCalculatorPreflight } from "./_preflight.js";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
 import { pgTableExists } from "../_haulzReturns.js";
-import { resolveHaulzCalculatorAccess } from "../_haulzCalculator.js";
+import { resolveHaulzCalculatorGuestQuoteAccess } from "../_haulzCalculator.js";
 import { kmBeyondRing } from "../../lib/haulzCalculator/mkadDistance.js";
 import type { CityCode, GeoPoint } from "../../lib/haulzCalculator/types.js";
 
@@ -26,7 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
-  const access = await resolveHaulzCalculatorAccess(req, req.body);
+  const access = await resolveHaulzCalculatorGuestQuoteAccess(req, req.body);
   if (!access) {
     return res.status(401).json({ error: "Нет доступа", request_id: ctx.requestId });
   }

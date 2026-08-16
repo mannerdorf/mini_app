@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { haulzCalculatorPreflight } from "./_preflight.js";
 import { initRequestContext } from "../_lib/observability.js";
-import { resolveHaulzCalculatorAccess } from "../_haulzCalculator.js";
+import { resolveHaulzCalculatorGuestQuoteAccess } from "../_haulzCalculator.js";
 
 const CITY_CENTER: Record<string, { lat: number; lon: number; zoom: number }> = {
   moscow: { lat: 55.7558, lon: 37.6173, zoom: 10 },
@@ -17,7 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
-  const access = await resolveHaulzCalculatorAccess(req, req.body);
+  const access = await resolveHaulzCalculatorGuestQuoteAccess(req, req.body);
   if (!access) {
     return res.status(401).json({ error: "Нет доступа", request_id: ctx.requestId });
   }
