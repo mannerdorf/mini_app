@@ -2,9 +2,10 @@
 export const GUEST_ILLUSTRATIONS = {
   delivery: "/guest/storyset/delivery-pana.svg",
   location: "/guest/storyset/location-pana.svg",
-  logistics: "/guest/storyset/logistics-pana.svg",
+  logistics: "/guest/generated/guest-about-corridor.webp",
   hero: "/guest/generated/guest-hero-kaliningrad.webp",
   atmosphere: "/guest/generated/guest-atmosphere-route.webp",
+  aboutVisual: "/guest/generated/guest-about-corridor.webp",
   iconCalculator: "/guest/generated/guest-icon-calculator.webp",
   iconFaq: "/guest/generated/guest-icon-faq.webp",
   iconApp: "/guest/generated/guest-icon-app.webp",
