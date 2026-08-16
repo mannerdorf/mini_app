@@ -266,7 +266,6 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
             {GUEST_ROUTE_DIRECTIONS.map((route) => (
               <Card key={route.id} className="guest-surface">
                 <CardHeader className="pb-3">
-                  <p className="guest-section-title">Маршрут</p>
                   <div className="mb-2 flex items-center gap-2 text-base font-bold text-[#111827] sm:text-lg">
                     <span>{route.from}</span>
                     <ArrowRight className="h-4 w-4 shrink-0 text-[#2563eb]" />
