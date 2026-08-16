@@ -145,14 +145,13 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
         />
         <div className="guest-home-hero__veil" aria-hidden />
         <div className="guest-home-hero__content mx-auto max-w-guest px-4 sm:px-6 lg:px-8">
-          <p className="guest-home-hero__brand guest-reveal guest-reveal--1">HAULZ</p>
-          <h1 className="guest-home-hero__title guest-reveal guest-reveal--2">
+          <h1 className="guest-home-hero__title guest-reveal guest-reveal--1">
             Отправить груз между Москвой и Калининградом
           </h1>
-          <p className="guest-home-hero__lead guest-reveal guest-reveal--3">
+          <p className="guest-home-hero__lead guest-reveal guest-reveal--2">
             B2B-логистика с расчётом, статусами и документами онлайн.
           </p>
-          <div className="guest-home-hero__actions guest-reveal guest-reveal--4">
+          <div className="guest-home-hero__actions guest-reveal guest-reveal--3">
             <Button size="lg" onClick={onLogin}>
               Войти и оформить
               <ArrowRight className="h-4 w-4" />
