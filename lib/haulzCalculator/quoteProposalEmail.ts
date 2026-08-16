@@ -231,7 +231,6 @@ export function renderHaulzQuoteProposalHtml(input: QuoteProposalEmailInput): st
     toParty,
     fromRequiresPvzCreation,
     toRequiresPvzCreation,
-    agreeUrl,
   } = input;
   const ch = quote.chargeable;
   const dirLabel = DIRECTION_LABELS[direction] ?? direction;
@@ -301,18 +300,6 @@ export function renderHaulzQuoteProposalHtml(input: QuoteProposalEmailInput): st
       ${sectionTitle("Наши склады и контакты")}
       ${renderWarehousesBlock()}
 
-      ${
-        agreeUrl
-          ? `<p style="margin:16px 0 8px;font-size:14px;color:#111827;line-height:1.55;">
-        Чтобы закрепить расчёт и запустить перевозку, нажмите кнопку «Согласовать перевозку» —
-        менеджер свяжется с вами для подтверждения деталей.
-      </p>
-      ${renderAgreeTransportButtonHtml(agreeUrl)}`
-          : `<p style="margin:16px 0 0;font-size:14px;color:#111827;line-height:1.55;">
-        Чтобы закрепить расчёт и запустить перевозку, оформите заявку в личном кабинете —
-        менеджер свяжется с вами для подтверждения деталей.
-      </p>`
-      }
       <p style="margin:8px 0 0;font-size:14px;color:#4b5563;line-height:1.5;">
         С уважением к вашему бизнесу,<br/><strong>команда HAULZ</strong>
       </p>

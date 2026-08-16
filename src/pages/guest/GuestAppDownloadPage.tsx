@@ -22,12 +22,12 @@ export function GuestAppDownloadPage({ onBack }: Props) {
 
   return (
     <div className="guest-shell min-h-[100dvh]">
-      <header className="sticky top-0 z-20 border-b border-[hsl(var(--guest-border))] bg-[hsl(var(--guest-background)/0.9)] backdrop-blur-xl">
+      <header className="guest-header">
         <div className="mx-auto flex max-w-guest items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
           <Button variant="outline" size="icon" aria-label="Назад" onClick={onBack}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl font-bold tracking-tight">Приложение HAULZ</h1>
+          <h1 className="guest-section-heading">Приложение HAULZ</h1>
         </div>
       </header>
 
