@@ -164,7 +164,7 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
               className="border-white/40 bg-white/10 text-white hover:bg-white/20"
               onClick={onCalculator}
             >
-              Рассчитать без входа
+              Рассчитать доставку
             </Button>
           </div>
         </div>
