@@ -106,10 +106,20 @@ html.guest-mode #root {
   bottom: 0;
 }
 
+/* Bitrix chat FAB sits over the dock's top-right — keep «Итого» + price clear of it */
+.guest-shell--calc .haulz-calc-mobile-dock__toggle {
+  padding-right: 3.75rem;
+  box-sizing: border-box;
+}
+
 @media (min-width: 640px) {
   .guest-shell--calc .haulz-calc-mobile-dock {
     left: 1.25rem;
     right: 1.25rem;
+  }
+
+  .guest-shell--calc .haulz-calc-mobile-dock__toggle {
+    padding-right: 4.25rem;
   }
 }
 

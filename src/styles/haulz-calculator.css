@@ -2643,22 +2643,31 @@ body.haulz-calc-map-screen-open {
   gap: 0.5rem;
   width: 100%;
   margin: 0 0 0.5rem;
-  padding: 0.15rem 0;
+  /* Запас справа: плавающая кнопка Bitrix-чата не перекрывает цену */
+  padding: 0.15rem 3.5rem 0.15rem 0;
   border: none;
   background: transparent;
   cursor: pointer;
   color: var(--calc-text);
+  box-sizing: border-box;
 }
 
 .haulz-calc-mobile-dock__total-label {
   font-size: 0.9375rem;
   font-weight: 600;
+  flex-shrink: 0;
 }
 
 .haulz-calc-mobile-dock__total-value {
   margin-left: auto;
+  margin-right: 0.15rem;
   font-size: 1.125rem;
   font-weight: 700;
+  text-align: right;
+  max-width: min(100%, 11rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .haulz-calc-mobile-dock__submit {
