@@ -30,8 +30,8 @@ export const HAULZ_WAREHOUSES: Record<CityCode, HaulzWarehouse> = {
     hours: "ежедневно 09:00–18:00",
     phone: "+7 (401) 227-95-55",
     email: "Info@haulz.pro",
-    // Железнодорожная ул., 12к4
-    point: { lat: 54.69293, lon: 20.50473 },
+    // Железнодорожная ул., 12к4 (здание 12 / логистический корпус)
+    point: { lat: 54.68866, lon: 20.50788 },
   },
 };
 
