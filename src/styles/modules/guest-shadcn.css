@@ -485,29 +485,30 @@ html.guest-mode #root {
 
 .guest-header__logo {
   display: inline-flex;
-  min-width: 6.5rem;
   align-items: center;
-  justify-content: center;
-  border-radius: 0.8rem;
-  background: linear-gradient(135deg, #1e3a8a, #2563eb);
-  padding: 0.55rem 1rem;
-  font-size: 1.05rem;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font-size: 1.15rem;
   font-weight: 800;
-  letter-spacing: 0.1em;
-  color: #fff;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1;
 }
 
 @media (min-width: 640px) {
   .guest-header__logo {
-    min-width: 7.5rem;
-    padding: 0.65rem 1.15rem;
-    font-size: 1.2rem;
+    font-size: 1.35rem;
   }
 }
 
 .guest-header__logo--on-hero {
-  background: rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(8px);
+  background: none;
+  backdrop-filter: none;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .guest-home-hero {
