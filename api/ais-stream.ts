@@ -120,7 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       });
 
-      ws.on("error", (err) => {
+      ws.on("error", (err: Error) => {
         logError(ctx, "ais_websocket_error", err);
         sendEvent("error", { error: err?.message || "WebSocket error" });
         clearTimeout(timeout);
