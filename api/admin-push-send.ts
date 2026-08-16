@@ -93,6 +93,21 @@ async function handler(req: VercelRequest, res: VercelResponse) {
           failures.push({ login, error: result.error });
         }
       }
+      try {
+        await pool.query(
+          `insert into notification_deliveries (
+            poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message
+          ) values (null, $1, '', $2, 'broadcast', 'push', null, $3, $4)`,
+          [
+            login,
+            title.slice(0, 120) || "HAULZ",
+            result.ok,
+            result.ok ? null : result.error || "send failed",
+          ],
+        );
+      } catch {
+        // History log is best-effort.
+      }
     }
 
     await writeAuditLog(pool, {
