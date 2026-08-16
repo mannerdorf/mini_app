@@ -2653,12 +2653,19 @@ body.haulz-calc-map-screen-open {
 .haulz-calc-mobile-dock__total-label {
   font-size: 0.9375rem;
   font-weight: 600;
+  flex-shrink: 0;
 }
 
 .haulz-calc-mobile-dock__total-value {
   margin-left: auto;
+  margin-right: 0.15rem;
   font-size: 1.125rem;
   font-weight: 700;
+  text-align: right;
+  max-width: min(100%, 11rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .haulz-calc-mobile-dock__submit {
