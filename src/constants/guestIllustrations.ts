@@ -7,6 +7,7 @@ export const GUEST_ILLUSTRATIONS = {
   atmosphere: "/guest/generated/guest-atmosphere-route.webp",
   aboutVisual: "/guest/generated/guest-about-corridor.webp",
   warehousesVisual: "/guest/generated/guest-warehouses-visual.webp",
+  faqVisual: "/guest/generated/guest-faq-visual.webp",
   iconCalculator: "/guest/generated/guest-icon-calculator.webp",
   iconFaq: "/guest/generated/guest-icon-faq.webp",
   iconApp: "/guest/generated/guest-icon-app.webp",

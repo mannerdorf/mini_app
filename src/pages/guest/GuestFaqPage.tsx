@@ -1,6 +1,16 @@
 import React from "react";
-import { ArrowLeft, Building2, Calculator, ChevronDown, PackagePlus, Route } from "lucide-react";
+import {
+  ArrowLeft,
+  Building2,
+  Calculator,
+  Check,
+  ChevronDown,
+  MessageCircle,
+  PackagePlus,
+  Route,
+} from "lucide-react";
 import { Button } from "../../components/shadcn/button";
+import { GUEST_ILLUSTRATIONS } from "../../constants/guestIllustrations";
 import { GUEST_FAQ_ITEMS } from "./guestFaqContent";
 
 type Props = {
@@ -20,25 +30,48 @@ export function GuestFaqPage({ onBack }: Props) {
           <span className="text-sm font-semibold text-[#374151]">Вопросы и ответы</span>
         </div>
 
-        <section className="overflow-hidden rounded-[1.75rem] bg-[#dbeafe]">
-          <div className="grid items-center gap-7 px-6 py-9 sm:px-10 sm:py-12 lg:grid-cols-[1fr_auto] lg:px-14">
+        <section className="guest-app-hero overflow-hidden rounded-[1.75rem]">
+          <div className="grid items-center gap-8 px-6 py-10 sm:px-10 sm:py-14 lg:grid-cols-[1.1fr_0.9fr] lg:px-14">
             <div>
-              <h1 className="mt-0 max-w-3xl text-3xl font-bold leading-[1.08] tracking-[-0.035em] text-[#111827] sm:text-5xl">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-200">FAQ · HAULZ</p>
+              <h1 className="mt-4 max-w-2xl text-3xl font-bold leading-[1.08] tracking-[-0.035em] text-white sm:text-5xl">
                 Всё, что вы хотели спросить о перевозке
               </h1>
-              <p className="mt-5 max-w-2xl text-base leading-relaxed text-[#4b5563] sm:text-lg">
+              <p className="mt-5 max-w-xl text-base leading-relaxed text-blue-100 sm:text-lg">
                 Коротко отвечаем на частые вопросы. Потому что груз может быть сложным, а объяснение — нет.
               </p>
+              <div className="mt-7 flex flex-wrap gap-2">
+                {["Отправка", "Отслеживание", "Склады", "Расчёт"].map((item) => (
+                  <span
+                    key={item}
+                    className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white"
+                  >
+                    <Check className="h-4 w-4 text-blue-200" />
+                    {item}
+                  </span>
+                ))}
+              </div>
             </div>
-            <img
-              src="/faq-support.svg"
-              alt=""
-              className="hidden h-32 w-32 rotate-[-3deg] rounded-3xl sm:block lg:h-40 lg:w-40"
-            />
+
+            <div className="guest-about-visual mx-auto w-full max-w-md">
+              <img
+                src={GUEST_ILLUSTRATIONS.faqVisual}
+                alt="Поддержка и ответы HAULZ"
+                className="guest-about-visual__img aspect-[4/5] w-full object-cover sm:aspect-square"
+                loading="eager"
+              />
+            </div>
           </div>
         </section>
 
         <section className="py-6">
+          <div className="mb-5">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2563eb]">Частые вопросы</p>
+            <h2 className="mt-2 text-2xl font-bold tracking-[-0.025em] text-[#111827] sm:text-3xl">
+              Ответы без лишних слов
+            </h2>
+          </div>
+
           <div className="grid gap-3">
             {GUEST_FAQ_ITEMS.map((item, index) => {
               const Icon = icons[index] ?? PackagePlus;
@@ -64,20 +97,25 @@ export function GuestFaqPage({ onBack }: Props) {
           </div>
         </section>
 
-        <section className="mb-6 flex flex-col items-start justify-between gap-4 rounded-2xl bg-[#1e3a8a] px-6 py-6 text-white sm:flex-row sm:items-center sm:px-8">
-          <div>
-            <p className="text-base font-bold">Не нашли свой вопрос?</p>
-            <p className="mt-1 text-sm text-blue-100">
-              Ничего страшного — логистика любит индивидуальный подход. Напишите в чате поддержки.
-            </p>
+        <section className="mb-6 rounded-[1.75rem] bg-[#dbeafe] p-6 sm:p-10">
+          <div className="grid gap-6 sm:grid-cols-[auto_1fr_auto] sm:items-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#2563eb] text-white">
+              <MessageCircle className="h-6 w-6" />
+            </span>
+            <div>
+              <p className="text-lg font-bold text-[#111827]">Не нашли свой вопрос?</p>
+              <p className="mt-1 text-sm leading-relaxed text-[#4b5563]">
+                Ничего страшного — логистика любит индивидуальный подход. Напишите в чате поддержки.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onBack}
+              className="rounded-xl bg-[#2563eb] px-5 py-3 text-sm font-bold text-white hover:bg-[#1d4ed8] sm:justify-self-end"
+            >
+              Вернуться на главную
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onBack}
-            className="rounded-xl bg-white px-5 py-2.5 text-sm font-bold text-[#1e3a8a]"
-          >
-            Вернуться на главную
-          </button>
         </section>
       </main>
     </div>
