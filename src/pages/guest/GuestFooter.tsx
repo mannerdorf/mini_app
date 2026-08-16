@@ -126,7 +126,6 @@ export function GuestFooter({ onAbout, onFaq, onApp, onCalculator, onLogin }: Pr
 
           <div className="guest-footer__bottom">
             <p>© {year} {HAULZ_LEGAL.name}. Все права защищены.</p>
-            <p className="guest-footer__bottom-meta">Маршрут Москва ↔ Калининград · haulz.space</p>
           </div>
         </div>
       </footer>
