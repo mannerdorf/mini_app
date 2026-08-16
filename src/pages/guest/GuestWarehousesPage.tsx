@@ -48,11 +48,12 @@ export function GuestWarehousesPage({ onBack }: Props) {
                 ))}
               </div>
             </div>
-            <div className="mx-auto w-full max-w-sm rounded-[1.5rem] bg-white p-3">
+            <div className="guest-about-visual mx-auto w-full max-w-md">
               <img
-                src={GUEST_ILLUSTRATIONS.location}
-                alt=""
-                className="aspect-square w-full rounded-[1.1rem] object-cover"
+                src={GUEST_ILLUSTRATIONS.warehousesVisual}
+                alt="Склад HAULZ"
+                className="guest-about-visual__img aspect-[4/5] w-full object-cover sm:aspect-square"
+                loading="eager"
               />
             </div>
           </div>
