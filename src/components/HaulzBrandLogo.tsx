@@ -1,5 +1,4 @@
 import React from "react";
-import { HAULZ_SPLASH_BACKGROUND } from "../constants/brand";
 
 type Props = {
   className?: string;
@@ -7,17 +6,29 @@ type Props = {
   maxWidth?: number | string;
 };
 
-/** Логотип HAULZ: белые буквы на синем фоне, без отдельной «плитки»/рамки. */
-export function HaulzBrandLogo({ className, maxWidth = 200 }: Props) {
+const LETTERS = ["H", "A", "U", "L", "Z"] as const;
+
+/** Анимированный wordmark HAULZ на белом фоне (без синего куба). */
+export function HaulzBrandLogo({ className, maxWidth = 240 }: Props) {
   const w = typeof maxWidth === "number" ? `${maxWidth}px` : maxWidth;
   return (
     <div
       className={className ? `haulz-brand-logo ${className}` : "haulz-brand-logo"}
-      style={{ maxWidth: w, background: HAULZ_SPLASH_BACKGROUND }}
+      style={{ maxWidth: w }}
       role="img"
       aria-label="HAULZ"
     >
-      <span className="haulz-brand-logo__word">HAULZ</span>
+      <span className="haulz-brand-logo__word" aria-hidden>
+        {LETTERS.map((letter, index) => (
+          <span
+            key={letter}
+            className="haulz-brand-logo__letter"
+            style={{ animationDelay: `${index * 0.14}s` }}
+          >
+            {letter}
+          </span>
+        ))}
+      </span>
     </div>
   );
 }
