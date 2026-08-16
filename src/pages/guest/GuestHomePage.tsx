@@ -11,11 +11,11 @@ import { Button } from "../../components/shadcn/button";
 import { GUEST_ILLUSTRATIONS } from "../../constants/guestIllustrations";
 import { isCapacitorAndroidApp } from "../../lib/androidAppUpdate";
 import { cn } from "../../lib/cn";
-import { GUEST_WHY_CHOOSE_ITEMS } from "./guestWhyChooseContent";
 import { GUEST_PARTNERS } from "./guestPartnersContent";
 import { GuestFooter } from "./GuestFooter";
 import { GuestHomeMenuSheet } from "./GuestHomeMenuSheet";
 import { GuestRoutesSection } from "./GuestRoutesSection";
+import { GuestWhyChooseSection } from "./GuestWhyChooseSection";
 
 type Props = {
   onLogin: () => void;
@@ -192,28 +192,7 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
           ))}
         </section>
 
-        <section className="guest-home-why" aria-label="Почему стоит выбрать HAULZ">
-          <div className="guest-home-why__intro">
-            <p className="guest-section-title">Почему HAULZ</p>
-            <h2 className="guest-section-heading sm:text-3xl">Логистика без лишней суеты</h2>
-            <p className="guest-section-lead max-w-2xl">
-              Прозрачные статусы, аккуратные документы и маршрут, в котором груз не теряется между складами и перепиской.
-            </p>
-          </div>
-          <div className="guest-why-choose__grid">
-            {GUEST_WHY_CHOOSE_ITEMS.map((item, index) => (
-              <article key={item.title} className="guest-why-choose__item guest-lift">
-                <span className="guest-why-choose__num" aria-hidden>
-                  {index + 1}
-                </span>
-                <div>
-                  <h3 className="guest-why-choose__item-title">{item.title}</h3>
-                  <p className="guest-why-choose__item-text">{item.text}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
+        <GuestWhyChooseSection onCalculator={onCalculator} />
 
         <section className="guest-home-partners" aria-label="Наши партнеры">
           <h2 className="guest-home-partners__title">Наши партнеры</h2>
