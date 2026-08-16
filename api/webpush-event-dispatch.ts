@@ -46,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       source,
       dedupeTtlSeconds,
     });
-    return res.status(200).json({ ok: true, ...result, request_id: ctx.requestId });
+    return res.status(200).json({ ...result, request_id: ctx.requestId });
   } catch (e: any) {
     logError(ctx, "webpush_event_dispatch_failed", e);
     return res.status(500).json({ ok: false, error: e?.message || String(e), request_id: ctx.requestId });

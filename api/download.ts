@@ -182,7 +182,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (isRegisteredUser && metod !== "РеестрКсчету" && !isWbAppMethod) {
       try {
         const pool = getPool();
-        const verified = await verifyRegisteredUser(pool, login, password);
+        const verified = await verifyRegisteredUser(pool, String(login), String(password));
         if (!verified) {
           return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
         }
@@ -193,7 +193,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const data = cacheRow.rows[0].data as any[];
           const list = Array.isArray(data) ? data : [];
           const item = list.find((i: any) => {
-            if (!transportAccessKeysMatch(i?.Number ?? i?.number ?? "", number)) return false;
+            if (!transportAccessKeysMatch(i?.Number ?? i?.number ?? "", String(number))) return false;
             if (verified.accessAllInns) return true;
             const itemInn = String(i?.INN ?? i?.Inn ?? i?.inn ?? "").trim();
             return itemInn === (verified.inn ?? "");
@@ -217,7 +217,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (isRegisteredUser && metod === "РеестрКсчету") {
       try {
         const pool = getPool();
-        const verified = await verifyRegisteredUser(pool, login, password);
+        const verified = await verifyRegisteredUser(pool, String(login), String(password));
         if (!verified) {
           return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
         }

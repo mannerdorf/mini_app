@@ -63,7 +63,7 @@ export function buildFixSheetFromItog(itogSheet: HaulzSheet): HaulzSheet {
   const rows = sortDataRows(
     stripSummaryRows(itogSheet.rows).map((r) => {
       const out: HaulzSheetRow = {
-        _rowId: r._rowId,
+        _rowId: r._rowId ?? "",
         englishOnly: r.englishOnly,
         au585: r.au585,
         digitsOnly: r.digitsOnly,

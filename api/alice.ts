@@ -597,7 +597,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ...(bind.inn ? { inn: bind.inn } : {}),
       }),
     }), PEREVOZKI_MS);
-    const payload = await resData.json();
+    const payload: any = await resData.json();
     const items = Array.isArray(payload) ? payload : payload?.items || [];
     return { items, ...range };
   };
@@ -742,7 +742,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           isRegisteredUser: true,
         }),
       }), PEREVOZKI_MS);
-      const shortData = await shortRes.json().catch(() => ({}));
+      const shortData: any = await shortRes.json().catch(() => ({}));
       if (shortRes.ok && shortData?.shortUrl) {
         return res.status(200).json(aliceResponse(`Подготовила ${documentType} по перевозке ${speechNumberPhrase(originalNumber)}. Ссылка в тексте ответа: ${shortData.shortUrl}`, {
           last_intent: "documents",
@@ -864,7 +864,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }),
     }), CHAT_MS);
     if (chatRes.ok) {
-      const data = await chatRes.json();
+      const data: any = await chatRes.json();
       if (data?.reply) {
         return res.status(200).json(aliceResponse(String(data.reply)));
       }

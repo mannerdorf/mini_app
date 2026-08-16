@@ -58,8 +58,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const versionIds: Partial<Record<LegalDocumentType, number>> = {};
-    if (Number.isFinite(offerId) && offerId > 0) versionIds.offer = offerId;
-    if (Number.isFinite(consentId) && consentId > 0) versionIds.consent = consentId;
+    if (offerId != null && Number.isFinite(offerId) && offerId > 0) versionIds.offer = offerId;
+    if (consentId != null && Number.isFinite(consentId) && consentId > 0) versionIds.consent = consentId;
 
     const ip =
       (typeof req.headers["x-forwarded-for"] === "string" ? req.headers["x-forwarded-for"].split(",")[0]?.trim() : null) ||

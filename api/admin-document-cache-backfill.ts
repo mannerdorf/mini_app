@@ -229,7 +229,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const stepPayload = {
         dateFrom,
         dateTo,
-        kind,
         ...kindResult,
         advancedWindow: isLastKindInWindow,
         done,
