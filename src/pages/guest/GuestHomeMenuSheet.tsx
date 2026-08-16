@@ -15,7 +15,6 @@ import {
 } from "../../components/shadcn/sheet";
 import {
   HAULZ_EMAIL,
-  HAULZ_MAX_SUPPORT_BOT_URL,
 } from "../../constants/brand";
 import { isCapacitorAndroidApp } from "../../lib/androidAppUpdate";
 import { GUEST_CONTACT_EMAIL_LABEL } from "./guestContactLabels";
@@ -127,10 +126,6 @@ export function GuestHomeMenuSheet({ open, onClose, onLogin, onAbout, onFaq, onA
           <div className="flex flex-wrap items-center gap-2">
             <a href={`mailto:${HAULZ_EMAIL}`} className="font-semibold text-haulz-brand">
               {GUEST_CONTACT_EMAIL_LABEL}
-            </a>
-            <span>·</span>
-            <a href={HAULZ_MAX_SUPPORT_BOT_URL} target="_blank" rel="noopener noreferrer" className="font-semibold text-haulz-brand">
-              MAX
             </a>
           </div>
           <Button variant="default" className="mt-4 w-full" onClick={() => { onClose(); onLogin(); }}>

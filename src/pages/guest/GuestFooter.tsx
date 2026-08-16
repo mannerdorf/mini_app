@@ -3,7 +3,6 @@ import { fetchLegalPublic } from "../../api/client/legal";
 import { LegalModal } from "../../components/modals/LegalModal";
 import {
   HAULZ_EMAIL,
-  HAULZ_MAX_SUPPORT_BOT_URL,
 } from "../../constants/brand";
 import { PERSONAL_DATA_CONSENT_TEXT, PUBLIC_OFFER_TEXT } from "../../constants/legalTexts";
 import { HAULZ_LEGAL } from "../../../lib/haulzLegal";
@@ -91,11 +90,6 @@ export function GuestFooter({ onAbout, onFaq, onApp, onCalculator, onLogin }: Pr
               <ul className="guest-footer__links">
                 <li>
                   <a href={`mailto:${HAULZ_EMAIL}`}>{GUEST_CONTACT_EMAIL_LABEL}</a>
-                </li>
-                <li>
-                  <a href={HAULZ_MAX_SUPPORT_BOT_URL} target="_blank" rel="noopener noreferrer">
-                    MAX
-                  </a>
                 </li>
               </ul>
               <div className="mt-4 space-y-1 text-xs text-[hsl(var(--guest-muted-foreground))]">
