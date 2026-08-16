@@ -249,19 +249,61 @@ html.guest-mode #root {
 
 .guest-footer {
   margin-top: 1rem;
-  background: #f3f4f6;
+  background-color: #1e3a8a;
+  background-image: linear-gradient(135deg, #1e3a8a, #2563eb);
+  color: #fff;
 }
 
-.guest-footer__content {
-  padding: 3rem 0 2rem;
+.guest-footer__inner {
+  padding: 2rem 1rem 1.75rem;
+}
+
+@media (min-width: 640px) {
+  .guest-footer__inner {
+    padding: 2.5rem 1.5rem 2rem;
+  }
+}
+
+.guest-footer__brand-title {
+  font-size: 1.375rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.guest-footer__brand-subtitle {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  opacity: 0.9;
+}
+
+.guest-footer__lead {
+  margin: 1rem 0 0;
+  max-width: 28rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  opacity: 0.88;
+}
+
+.guest-footer__grid {
+  display: grid;
+  gap: 1.75rem;
+  margin-top: 2rem;
+}
+
+@media (min-width: 768px) {
+  .guest-footer__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2rem;
+  }
 }
 
 .guest-footer__heading {
-  margin-bottom: 0.85rem;
+  margin: 0 0 0.85rem;
   font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1.35;
-  color: #374151;
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .guest-footer__links {
@@ -282,19 +324,40 @@ html.guest-mode #root {
   font: inherit;
   font-size: 0.875rem;
   line-height: 1.45;
-  color: #6b7280;
+  color: rgba(255, 255, 255, 0.82);
   cursor: pointer;
-  transition: color 0.15s ease;
+  transition: color 0.15s ease, opacity 0.15s ease;
 }
 
 .guest-footer__links a:hover,
 .guest-footer__links button:hover {
-  color: #2563eb;
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.guest-footer__phones {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.guest-footer__phones a {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.guest-footer__phones a:hover {
+  opacity: 0.9;
 }
 
 .guest-footer-disclosures {
   margin-top: 2rem;
-  padding-top: 0;
 }
 
 .guest-footer-disclosures__grid {
@@ -320,16 +383,18 @@ html.guest-mode #root {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.5rem;
   margin: 0;
 }
 
 .guest-footer-disclosures__item {
   display: grid;
   gap: 0.2rem 1rem;
-  padding: 0.75rem 0.875rem;
-  border-radius: 0.625rem;
-  background: #f9fafb;
+  padding: 0.65rem 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   font-size: 0.8125rem;
   line-height: 1.5;
 }
@@ -344,62 +409,33 @@ html.guest-mode #root {
 .guest-footer-disclosures__item dt {
   margin: 0;
   font-weight: 600;
-  color: #374151;
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .guest-footer-disclosures__item dd {
   margin: 0;
-  color: #6b7280;
+  color: rgba(255, 255, 255, 0.78);
   overflow-wrap: anywhere;
 }
 
-.guest-footer__brand {
-  background-color: #1e3a8a;
-  background-image: linear-gradient(135deg, #1e3a8a, #2563eb);
-  color: #fff;
-}
-
-.guest-footer__brand-inner {
-  padding: 1.75rem 1rem 1.5rem;
-}
-
-@media (min-width: 640px) {
-  .guest-footer__brand-inner {
-    padding: 2rem 1.5rem 1.75rem;
-  }
-}
-
-.guest-footer__brand-title {
-  font-size: 1.375rem;
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-.guest-footer__brand-subtitle {
-  margin-top: 0.25rem;
-  font-size: 0.875rem;
-  line-height: 1.45;
-  opacity: 0.9;
-}
-
-.guest-footer__brand-text {
+.guest-footer__meta {
   margin-top: 0.875rem;
   font-size: 0.75rem;
   line-height: 1.55;
   opacity: 0.92;
 }
 
-.guest-footer__brand-text a {
+.guest-footer__meta a {
   color: #fff;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
-.guest-footer__brand-note {
-  margin-top: 0.875rem;
+.guest-footer__note {
+  margin-top: 1rem;
   font-size: 0.6875rem;
   line-height: 1.45;
-  opacity: 0.8;
+  opacity: 0.78;
 }
 
 .guest-quick-action {
