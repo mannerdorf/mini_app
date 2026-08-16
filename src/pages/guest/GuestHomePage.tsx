@@ -17,6 +17,7 @@ import { GUEST_ILLUSTRATIONS } from "../../constants/guestIllustrations";
 import { isCapacitorAndroidApp } from "../../lib/androidAppUpdate";
 import { cn } from "../../lib/cn";
 import { GUEST_FAQ_ITEMS } from "./guestFaqContent";
+import { GUEST_ROUTE_DIRECTIONS } from "./guestRouteContent";
 import { GuestFooter } from "./GuestFooter";
 import { GuestHomeMenuSheet } from "./GuestHomeMenuSheet";
 
@@ -241,24 +242,34 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
             </div>
           </section>
 
-          {/* Route + FAQ */}
-          <Card className="lg:col-span-5">
-            <CardHeader>
-              <CardTitle>Маршрут Москва ↔ Калининград</CardTitle>
-              <CardDescription>
-                Экспедирование, консолидация и сопровождение грузов между материком и регионом.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-4 flex items-center gap-2 text-lg font-bold">
-                <span>Москва</span>
-                <ArrowRight className="h-4 w-4 text-[hsl(var(--guest-muted-foreground))]" />
-                <span>Калининград</span>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Routes */}
+          <section className="grid gap-4 md:grid-cols-2 lg:col-span-12" aria-label="Маршруты HAULZ">
+            {GUEST_ROUTE_DIRECTIONS.map((route) => (
+              <Card key={route.id} className="border-[hsl(var(--guest-border))] shadow-none">
+                <CardHeader className="pb-3">
+                  <div className="mb-3 flex items-center gap-2 text-base font-bold sm:text-lg">
+                    <span>{route.from}</span>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-haulz-brand" />
+                    <span>{route.to}</span>
+                  </div>
+                  <CardTitle className="text-lg leading-snug sm:text-xl">{route.title}</CardTitle>
+                  <CardDescription className="text-sm leading-relaxed">{route.summary}</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <ul className="space-y-2 text-sm leading-relaxed text-[hsl(var(--guest-muted-foreground))]">
+                    {route.features.map((feature) => (
+                      <li key={feature} className="flex gap-2">
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-haulz-brand" aria-hidden />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            ))}
+          </section>
 
-          <Card className="lg:col-span-7">
+          <Card className="lg:col-span-12">
             <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
               <div>
                 <CardTitle>Частые вопросы</CardTitle>
