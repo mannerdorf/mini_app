@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 100" fill="none" role="img" aria-label="Major">
+  <!-- four transport icon boxes -->
+  <g stroke="#2F6FB5" stroke-width="2" fill="none">
+    <rect x="28" y="8" width="36" height="36" rx="8"/>
+    <rect x="74" y="8" width="36" height="36" rx="8"/>
+    <rect x="120" y="8" width="36" height="36" rx="8"/>
+    <rect x="166" y="8" width="36" height="36" rx="8"/>
+  </g>
+  <g fill="#2F6FB5">
+    <!-- plane -->
+    <path d="M36 30l18-8 4 3-10 4 2 8-4 1-4-7-8 2z"/>
+    <!-- truck -->
+    <path d="M80 18h16v12h8l6 8v4h-4a4 4 0 01-8 0h-8a4 4 0 01-8 0H80V18zm22 14h-6v-6h4l2 6z"/>
+    <!-- train -->
+    <path d="M128 18h20v20h-4l-2 4h-4l-2-4h-8zm4 6h12v6h-12z"/>
+    <!-- ship -->
+    <path d="M174 34l8-12h16l6 12h-4l-4 6h-18l-4-6z"/>
+  </g>
+  <text x="120" y="78" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="800">
+    <tspan fill="#2F6FB5">Ma</tspan><tspan fill="#F04438">j</tspan><tspan fill="#2F6FB5">or</tspan>
+  </text>
+</svg>

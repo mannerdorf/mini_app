@@ -1,5 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 56" role="img" aria-label="Магнит">
-  <rect x="32" y="2" width="30" height="30" rx="7" fill="none" stroke="#E31E24" stroke-width="2.4"/>
-  <path fill="#E31E24" d="M38 26V8h5.2l5.3 10.5L54 8h5.2v18H54v-10l-5.3 10h-1.2L42.2 16v10H38z"/>
-  <text x="47" y="48" text-anchor="middle" fill="#1a1a1a" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="800" letter-spacing="1.6">МАГНИТ</text>
-</svg>

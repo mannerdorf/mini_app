@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 80" fill="none" role="img" aria-label="emex">
+  <defs>
+    <linearGradient id="emexGold" x1="48" y1="0" x2="220" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F5C518"/>
+      <stop offset="1" stop-color="#D4A017"/>
+    </linearGradient>
+  </defs>
+  <text x="16" y="40" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="700">e</text>
+  <text x="42" y="40" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="800" letter-spacing="0.02em">MEX</text>
+  <rect x="48" y="26" width="150" height="3" fill="url(#emexGold)"/>
+  <rect x="48" y="32" width="150" height="3" fill="url(#emexGold)"/>
+  <rect x="48" y="38" width="150" height="3" fill="url(#emexGold)"/>
+  <rect x="16" y="52" width="22" height="4" rx="1" fill="url(#emexGold)"/>
+  <text x="44" y="58" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="600">автозапчасти вовремя</text>
+</svg>

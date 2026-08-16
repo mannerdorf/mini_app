@@ -1050,8 +1050,8 @@ html.guest-mode #root {
 
 .guest-home-partners__item img {
   width: 100%;
-  max-width: 7.5rem;
-  height: 3rem;
+  max-width: 9rem;
+  height: 3.25rem;
   object-fit: contain;
   filter: none;
   opacity: 1;
