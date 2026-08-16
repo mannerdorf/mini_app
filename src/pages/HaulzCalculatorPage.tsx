@@ -1470,7 +1470,7 @@ export function HaulzCalculatorPage({
               <p className="haulz-calc-map-modal__hint haulz-calc-quote-preview__subject">Тема письма: {previewSubject}</p>
             )}
             <p className="haulz-calc-map-modal__hint">
-              Так будет выглядеть коммерческое предложение в письме. Кнопка «Согласовать перевозку» появится после отправки на почту.
+              Так будет выглядеть коммерческое предложение в письме.
             </p>
             {previewError && <p className="haulz-calc-map-modal__error">{previewError}</p>}
             {previewLoading && (

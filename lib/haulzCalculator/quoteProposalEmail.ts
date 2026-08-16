@@ -36,22 +36,7 @@ export type QuoteProposalEmailInput = {
   fromRequiresPvzCreation?: boolean;
   toRequiresPvzCreation?: boolean;
   recipientName?: string;
-  /** Ссылка «Согласовать перевозку» из письма */
-  agreeUrl?: string;
 };
-
-function renderAgreeTransportButtonHtml(agreeUrl: string): string {
-  return `
-    <table cellpadding="0" cellspacing="0" style="margin:16px 0 8px;">
-      <tr>
-        <td style="border-radius:10px;background:#2563eb;">
-          <a href="${escapeHtml(agreeUrl)}" style="display:inline-block;padding:14px 28px;color:#ffffff;font-weight:600;font-size:15px;text-decoration:none;">
-            Согласовать перевозку
-          </a>
-        </td>
-      </tr>
-    </table>`;
-}
 
 const TILE_CELL_PAD = "6px";
 const TILE_RADIUS = "8px";
