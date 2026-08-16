@@ -89,7 +89,8 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         url,
         delivery: {
           event: "broadcast",
-          cargoNumber: title.slice(0, 120) || "HAULZ",
+          title,
+          body: messageBody,
         },
       });
       if (result.ok) {

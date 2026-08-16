@@ -5,6 +5,8 @@ export type FcmDeliveryLog = {
   event: string;
   inn?: string;
   cargoNumber?: string;
+  title?: string;
+  body?: string;
 };
 
 type FcmPayload = {
@@ -20,15 +22,19 @@ export async function logPushDelivery(params: {
   delivery: FcmDeliveryLog;
   success: boolean;
   error?: string | null;
+  title?: string;
+  body?: string;
 }): Promise<void> {
   const login = String(params.login || "").trim().toLowerCase();
   if (!login) return;
+  const pushTitle = String(params.title ?? params.delivery.title ?? "").trim();
+  const pushBody = String(params.body ?? params.delivery.body ?? "").trim();
   try {
     const pool = getPool();
     await pool.query(
       `INSERT INTO notification_deliveries (
-         poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message
-       ) VALUES (NULL, $1, $2, $3, $4, 'push', NULL, $5, $6)`,
+         poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message, push_title, push_body
+       ) VALUES (NULL, $1, $2, $3, $4, 'push', NULL, $5, $6, $7, $8)`,
       [
         login,
         String(params.delivery.inn || "").trim(),
@@ -36,10 +42,31 @@ export async function logPushDelivery(params: {
         String(params.delivery.event || "push").trim() || "push",
         params.success,
         params.success ? null : params.error || "send failed",
+        pushTitle || null,
+        pushBody || null,
       ],
     );
-  } catch {
-    // History log is best-effort.
+  } catch (e: unknown) {
+    const code = (e as { code?: string })?.code;
+    if (code !== "42703") throw e;
+    try {
+      const pool = getPool();
+      await pool.query(
+        `INSERT INTO notification_deliveries (
+           poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message
+         ) VALUES (NULL, $1, $2, $3, $4, 'push', NULL, $5, $6)`,
+        [
+          login,
+          String(params.delivery.inn || "").trim(),
+          String(params.delivery.cargoNumber || "").trim(),
+          String(params.delivery.event || "push").trim() || "push",
+          params.success,
+          params.success ? null : params.error || "send failed",
+        ],
+      );
+    } catch {
+      // History log is best-effort.
+    }
   }
 }
 
@@ -169,7 +196,7 @@ export async function sendFcmToLogin(
   if (!messaging) {
     const error = messagingInitError || "FCM not configured";
     if (payload.delivery) {
-      await logPushDelivery({ login, delivery: payload.delivery, success: false, error });
+      await logPushDelivery({ login, delivery: payload.delivery, success: false, error, title: payload.title, body: payload.body });
     }
     return {
       ok: false,
@@ -184,7 +211,7 @@ export async function sendFcmToLogin(
   if (tokens.length === 0) {
     const error = "no FCM tokens";
     if (payload.delivery) {
-      await logPushDelivery({ login, delivery: payload.delivery, success: false, error });
+      await logPushDelivery({ login, delivery: payload.delivery, success: false, error, title: payload.title, body: payload.body });
     }
     return { ok: false, sent: 0, failed: 0, removed: 0, error };
   }
@@ -226,6 +253,8 @@ export async function sendFcmToLogin(
         delivery: payload.delivery,
         success: ok,
         error,
+        title: payload.title,
+        body: payload.body,
       });
     }
     return {
@@ -243,6 +272,8 @@ export async function sendFcmToLogin(
         delivery: payload.delivery,
         success: false,
         error,
+        title: payload.title,
+        body: payload.body,
       });
     }
     return {

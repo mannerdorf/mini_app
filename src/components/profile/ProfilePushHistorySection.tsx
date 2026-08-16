@@ -17,6 +17,20 @@ type Props = {
 
 const CARGO_STAGE_SET = new Set<string>(CARGO_STAGE_EVENT_IDS);
 
+function pushHistoryHeadline(item: PushHistoryItem): string {
+  const title = String(item.pushTitle || "").trim();
+  if (title) return title;
+  return pushEventLabel(item.event);
+}
+
+function pushHistorySubtitle(item: PushHistoryItem): string {
+  const body = String(item.pushBody || "").trim();
+  if (body) return body;
+  if (item.event === "broadcast") return item.cargoNumber || "Рассылка HAULZ";
+  if (item.cargoNumber) return `Груз ${item.cargoNumber}`;
+  return "Без номера груза";
+}
+
 function pushEventLabel(event: string): string {
   if (CARGO_STAGE_SET.has(event)) {
     return cargoStageEventLabel(event as CargoStageEventId);
@@ -140,21 +154,19 @@ export function ProfilePushHistorySection({ activeAccount, onBack }: Props) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <Typography.Body style={{ fontWeight: 700, margin: 0, fontSize: "0.92rem" }}>
-                    {pushEventLabel(item.event)}
+                    {pushHistoryHeadline(item)}
                   </Typography.Body>
                   <Typography.Body
                     style={{
                       margin: "0.25rem 0 0",
                       fontSize: "0.84rem",
                       color: "var(--color-text-secondary)",
+                      lineHeight: 1.45,
+                      wordBreak: "break-word",
                     }}
                   >
-                    {item.event === "broadcast"
-                      ? item.cargoNumber || "Рассылка HAULZ"
-                      : item.cargoNumber
-                        ? `Груз ${item.cargoNumber}`
-                        : "Без номера груза"}
-                    {item.inn ? ` · ИНН ${item.inn}` : ""}
+                    {pushHistorySubtitle(item)}
+                    {item.inn && !String(item.pushBody || "").trim() ? ` · ИНН ${item.inn}` : ""}
                   </Typography.Body>
                   <Flex
                     align="center"

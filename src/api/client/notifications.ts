@@ -72,6 +72,8 @@ export type PushHistoryItem = {
   sentAt: string;
   success: boolean;
   errorMessage?: string | null;
+  pushTitle?: string | null;
+  pushBody?: string | null;
 };
 
 export async function fetchPushHistory(

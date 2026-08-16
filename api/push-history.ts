@@ -41,8 +41,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       sent_at: string;
       success: boolean;
       error_message: string | null;
+      push_title: string | null;
+      push_body: string | null;
     }>(
-      `select id, inn, cargo_number, event, sent_at, success, error_message
+      `select id, inn, cargo_number, event, sent_at, success, error_message, push_title, push_body
        from notification_deliveries
        where lower(trim(login)) = $1 and channel = 'push'
        order by sent_at desc
@@ -60,6 +62,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         sentAt: row.sent_at,
         success: row.success,
         errorMessage: row.error_message,
+        pushTitle: row.push_title,
+        pushBody: row.push_body,
       })),
       request_id: ctx.requestId,
     });
