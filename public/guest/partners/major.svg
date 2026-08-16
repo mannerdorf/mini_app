@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 88" fill="none" role="img" aria-label="Major">
-  <!-- Геометрический знак Major из карточки партнёров -->
-  <rect x="58" y="8" width="84" height="42" rx="4" stroke="#2F6FB5" stroke-width="2" fill="none"/>
-  <path d="M72 22h20" stroke="#2F6FB5" stroke-width="3.2" stroke-linecap="round"/>
-  <path d="M98 18l14 10-14 10" fill="none" stroke="#2F6FB5" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M120 18v24" stroke="#2F6FB5" stroke-width="3.2" stroke-linecap="round"/>
-  <path d="M128 34v8h10" stroke="#2F6FB5" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="100" y="74" text-anchor="middle" fill="#2F6FB5" font-family="Georgia, 'Times New Roman', serif" font-size="26" font-weight="700">Major</text>
-</svg>
