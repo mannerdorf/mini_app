@@ -99,9 +99,6 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onCalculator }: Props) 
             <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={onLogin}>
               Войти
             </Button>
-            <Button size="sm" className="hidden lg:inline-flex" onClick={onLogin}>
-              Личный кабинет
-            </Button>
             <Button variant="outline" size="icon" className="lg:hidden" aria-label="Меню" onClick={() => setMenuOpen(true)}>
               <Menu className="h-5 w-5" />
             </Button>
