@@ -239,65 +239,70 @@ html.guest-mode #root {
   opacity: 0.85;
 }
 
-.guest-legal-disclosures {
-  display: grid;
-  gap: 1rem;
+.guest-footer-disclosures {
   margin-top: 2.5rem;
+  padding-top: 2rem;
+  border-top: 1px solid hsl(var(--guest-border));
+}
+
+.guest-footer-disclosures__grid {
+  display: grid;
+  gap: 2rem;
+  align-items: stretch;
 }
 
 @media (min-width: 768px) {
-  .guest-legal-disclosures {
+  .guest-footer-disclosures__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1.25rem;
+    gap: 2rem 2.5rem;
   }
 }
 
-.guest-legal-disclosure {
+.guest-footer-disclosures__panel {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+}
+
+.guest-footer-disclosures__list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  margin: 0;
   overflow: hidden;
   border: 1px solid hsl(var(--guest-border));
-  border-radius: var(--radius-guest, 0.75rem);
+  border-radius: 0.875rem;
   background: hsl(var(--guest-card));
 }
 
-.guest-legal-disclosure__header {
-  background: hsl(var(--guest-primary));
-  padding: 0.625rem 1rem;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: hsl(var(--guest-primary-foreground));
-}
-
-.guest-legal-disclosure__rows {
-  margin: 0;
-}
-
-.guest-legal-disclosure__row {
+.guest-footer-disclosures__item {
   display: grid;
-  gap: 0.35rem 0.75rem;
-  border-top: 1px solid hsl(var(--guest-border));
-  padding: 0.625rem 1rem;
+  flex: 1;
+  gap: 0.25rem 1rem;
+  border-bottom: 1px solid hsl(var(--guest-border));
+  padding: 0.75rem 1rem;
   font-size: 0.8125rem;
-  line-height: 1.45;
+  line-height: 1.5;
+}
+
+.guest-footer-disclosures__item:last-child {
+  border-bottom: none;
 }
 
 @media (min-width: 640px) {
-  .guest-legal-disclosure__row {
-    grid-template-columns: minmax(7.5rem, 38%) 1fr;
+  .guest-footer-disclosures__item {
+    grid-template-columns: minmax(7.5rem, 36%) 1fr;
     align-items: start;
   }
 }
 
-.guest-legal-disclosure__row:nth-child(odd) {
-  background: hsl(var(--guest-muted) / 0.45);
-}
-
-.guest-legal-disclosure__row dt {
+.guest-footer-disclosures__item dt {
   margin: 0;
   font-weight: 600;
   color: hsl(var(--guest-foreground));
 }
 
-.guest-legal-disclosure__row dd {
+.guest-footer-disclosures__item dd {
   margin: 0;
   color: hsl(var(--guest-muted-foreground));
   overflow-wrap: anywhere;
