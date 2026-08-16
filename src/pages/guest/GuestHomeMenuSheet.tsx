@@ -122,7 +122,7 @@ export function GuestHomeMenuSheet({ open, onClose, onLogin, onAbout, onFaq, onA
             </button>
           ))}
         </div>
-        <div className="border-t border-[hsl(var(--guest-border))] px-6 py-4 text-xs text-[hsl(var(--guest-muted-foreground))]">
+        <div className="border-t border-transparent bg-[#f9fafb] px-6 py-4 text-xs text-[#6b7280]">
           <div className="flex flex-wrap items-center gap-2">
             <a href={`mailto:${HAULZ_EMAIL}`} className="font-semibold text-haulz-brand">
               {GUEST_CONTACT_EMAIL_LABEL}

@@ -71,12 +71,10 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
 
   return (
     <div className="guest-shell guest-animate-in">
-      <header className="sticky top-0 z-30 border-b border-[hsl(var(--guest-border))] bg-[hsl(var(--guest-background)/0.85)] backdrop-blur-xl">
+      <header className="guest-header">
         <div className="mx-auto flex max-w-guest items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8 lg:py-4">
           <div className="flex items-center gap-3">
-            <span className="inline-flex min-w-[4.75rem] items-center justify-center rounded-xl bg-haulz-brand px-3 py-1.5 text-sm font-bold tracking-[0.12em] text-white">
-              HAULZ
-            </span>
+            <span className="guest-header__logo">HAULZ</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -94,7 +92,7 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
         <div className="grid gap-4 lg:grid-cols-12 lg:gap-6">
           {/* Hero — CDEK-style primary card */}
           <Card
-            className="group relative cursor-pointer overflow-hidden border-0 bg-gradient-to-br from-white to-haulz-brand-soft lg:col-span-8 lg:min-h-[18rem]"
+            className="group relative cursor-pointer overflow-hidden guest-surface--soft lg:col-span-8 lg:min-h-[18rem]"
             role="button"
             tabIndex={0}
             onClick={onLogin}
@@ -106,7 +104,7 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
             }}
           >
             <CardHeader className="relative z-[1] max-w-xl pb-2">
-              <Badge variant="secondary" className="mb-2 w-fit bg-white/80">
+              <Badge variant="secondary" className="mb-2 w-fit border-0 bg-white/90 text-[#374151]">
                 B2B-логистика
               </Badge>
               <CardTitle className="text-2xl sm:text-3xl lg:text-4xl">Отправить груз</CardTitle>
@@ -131,7 +129,7 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
           {/* Secondary card — warehouses */}
           <div className="lg:col-span-4">
             <Card
-              className="relative cursor-pointer overflow-hidden border-0 bg-white transition hover:shadow-guest-lg"
+              className="guest-surface relative cursor-pointer overflow-hidden transition-colors hover:bg-[#eff6ff]"
               role="button"
               tabIndex={0}
               onClick={onAbout}
@@ -171,17 +169,17 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
                 <button
                   key={action.id}
                   type="button"
-                  className="flex flex-col items-center gap-2 rounded-guest border border-[hsl(var(--guest-border))] bg-[hsl(var(--guest-card))] p-4 shadow-guest transition hover:-translate-y-0.5 hover:shadow-guest-lg"
+                  className="guest-quick-action"
                   onClick={() => {
                     if (action.action === "faq") onFaq();
                     else if (action.action === "app") onApp();
                     else onCalculator();
                   }}
                 >
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-haulz-brand text-white">
+                  <span className="guest-quick-action__icon">
                     <Icon className="h-5 w-5" />
                   </span>
-                  <span className="text-center text-xs font-semibold sm:text-sm">{action.label}</span>
+                  <span className="text-center text-xs font-semibold text-[#374151] sm:text-sm">{action.label}</span>
                 </button>
               );
             })}
@@ -191,10 +189,8 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
           <section className="lg:col-span-12" aria-label="Преимущества">
             <div className="mb-4 flex items-end justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Цифровая логистика HAULZ</h2>
-                <p className="mt-1 text-sm text-[hsl(var(--guest-muted-foreground))]">
-                  То, что клиенты получают после входа в кабинет
-                </p>
+                <p className="guest-section-title">После входа в кабинет</p>
+                <h2 className="guest-section-heading sm:text-2xl">Цифровая логистика HAULZ</h2>
               </div>
               <img src={GUEST_ILLUSTRATIONS.logistics} alt="" className="hidden h-20 w-20 object-contain md:block" loading="lazy" />
             </div>
@@ -202,14 +198,14 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
               {BENEFITS.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <Card key={item.title} className="border-[hsl(var(--guest-border))] shadow-none">
+                  <Card key={item.title} className="guest-surface">
                     <CardContent className="flex gap-3 p-5">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-haulz-brand-soft text-haulz-brand">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[0.625rem] bg-[#eff6ff] text-[#2563eb]">
                         <Icon className="h-5 w-5" />
                       </span>
                       <div>
-                        <h3 className="font-semibold">{item.title}</h3>
-                        <p className="mt-1 text-sm text-[hsl(var(--guest-muted-foreground))]">{item.text}</p>
+                        <h3 className="font-semibold text-[#111827]">{item.title}</h3>
+                        <p className="mt-1 text-sm text-[#6b7280]">{item.text}</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -221,20 +217,21 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
           {/* Routes */}
           <section className="grid gap-4 md:grid-cols-2 lg:col-span-12" aria-label="Маршруты HAULZ">
             {GUEST_ROUTE_DIRECTIONS.map((route) => (
-              <Card key={route.id} className="border-[hsl(var(--guest-border))] shadow-none">
+              <Card key={route.id} className="guest-surface">
                 <CardHeader className="pb-3">
-                  <div className="mb-3 flex items-center gap-2 text-base font-bold sm:text-lg">
+                  <p className="guest-section-title">Маршрут</p>
+                  <div className="mb-2 flex items-center gap-2 text-base font-bold text-[#111827] sm:text-lg">
                     <span>{route.from}</span>
-                    <ArrowRight className="h-4 w-4 shrink-0 text-haulz-brand" />
+                    <ArrowRight className="h-4 w-4 shrink-0 text-[#2563eb]" />
                     <span>{route.to}</span>
                   </div>
                   <CardDescription className="text-sm leading-relaxed">{route.summary}</CardDescription>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <ul className="space-y-2 text-sm leading-relaxed text-[hsl(var(--guest-muted-foreground))]">
+                  <ul className="space-y-2 text-sm leading-relaxed text-[#6b7280]">
                     {route.features.map((feature) => (
                       <li key={feature} className="flex gap-2">
-                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-haulz-brand" aria-hidden />
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#2563eb]" aria-hidden />
                         <span>{feature}</span>
                       </li>
                     ))}
@@ -257,16 +254,14 @@ export function GuestHomePage({ onLogin, onAbout, onFaq, onApp, onCalculator }: 
 
       {/* Mobile / tablet sticky login bar — CDEK pattern */}
       <div
-        className={cn(
-          "fixed inset-x-0 bottom-0 z-40 border-t border-[hsl(var(--guest-border))] bg-[hsl(var(--guest-card)/0.92)] backdrop-blur-xl lg:hidden",
-        )}
+        className={cn("guest-mobile-dock lg:hidden")}
         role="region"
         aria-label="Вход в кабинет"
       >
         <div className="mx-auto flex max-w-guest items-center justify-between gap-3 px-4 py-3 sm:px-6" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold">Войдите, чтобы смотреть перевозки</p>
-            <p className="truncate text-xs text-[hsl(var(--guest-muted-foreground))]">Грузы, документы и уведомления</p>
+            <p className="truncate text-sm font-semibold text-[#111827]">Войдите, чтобы смотреть перевозки</p>
+            <p className="truncate text-xs text-[#6b7280]">Грузы, документы и уведомления</p>
           </div>
           <Button variant="dark" size="sm" onClick={onLogin}>
             Войти

@@ -10,7 +10,7 @@ const buttonVariants = cva(
       variant: {
         default: "bg-[hsl(var(--guest-primary))] text-[hsl(var(--guest-primary-foreground))] hover:opacity-95",
         secondary: "bg-[hsl(var(--guest-secondary))] text-[hsl(var(--guest-secondary-foreground))] hover:bg-[hsl(var(--guest-muted))]",
-        outline: "border border-[hsl(var(--guest-border))] bg-[hsl(var(--guest-card))] hover:bg-[hsl(var(--guest-muted))]",
+        outline: "bg-[#fff] text-[#1f2937] hover:bg-[#f9fafb]",
         ghost: "hover:bg-[hsl(var(--guest-muted))] text-[hsl(var(--guest-foreground))]",
         dark: "bg-[hsl(var(--guest-foreground))] text-[hsl(var(--guest-card))] hover:opacity-90",
       },

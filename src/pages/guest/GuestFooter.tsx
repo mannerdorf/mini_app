@@ -1,9 +1,7 @@
 import React from "react";
 import { fetchLegalPublic } from "../../api/client/legal";
 import { LegalModal } from "../../components/modals/LegalModal";
-import {
-  HAULZ_EMAIL,
-} from "../../constants/brand";
+import { HAULZ_EMAIL } from "../../constants/brand";
 import { PERSONAL_DATA_CONSENT_TEXT, PUBLIC_OFFER_TEXT } from "../../constants/legalTexts";
 import { HAULZ_LEGAL } from "../../../lib/haulzLegal";
 import { GUEST_CONTACT_EMAIL_LABEL } from "./guestContactLabels";
@@ -52,24 +50,17 @@ export function GuestFooter({ onAbout, onFaq, onApp, onCalculator, onLogin }: Pr
   };
 
   const year = new Date().getFullYear();
+  const phones = HAULZ_LEGAL.offices.map((o) => `${o.city}: ${o.phone}`).join(" · ");
 
   return (
     <>
       <footer className="guest-footer" aria-label="Подвал сайта">
-        <div className="guest-footer__glow" aria-hidden />
-        <div className="mx-auto max-w-guest px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
-          <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-12 lg:gap-8">
+        <div className="guest-footer__content mx-auto max-w-guest px-4 sm:px-6 lg:px-8">
+          <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-12 lg:gap-8">
             <div className="lg:col-span-4">
-              <div className="inline-flex min-w-[4.75rem] items-center justify-center rounded-xl bg-haulz-brand px-3 py-1.5 text-sm font-bold tracking-[0.12em] text-white">
-                HAULZ
-              </div>
-              <p className="mt-4 max-w-sm text-sm leading-relaxed text-[hsl(var(--guest-muted-foreground))]">
-                B2B-логистика между Москвой и Калининградом: перевозки, документы, отслеживание и калькулятор в личном кабинете.
-              </p>
-              <p className="mt-4 text-xs leading-relaxed text-[hsl(var(--guest-muted-foreground))]">
-                {HAULZ_LEGAL.name}
-                <br />
-                ИНН {HAULZ_LEGAL.inn} · ОГРН {HAULZ_LEGAL.ogrn}
+              <p className="guest-section-lead max-w-sm">
+                B2B-логистика между Москвой и Калининградом: перевозки, документы, отслеживание и калькулятор в личном
+                кабинете.
               </p>
             </div>
 
@@ -93,11 +84,11 @@ export function GuestFooter({ onAbout, onFaq, onApp, onCalculator, onLogin }: Pr
                   <a href={`mailto:${HAULZ_EMAIL}`}>{GUEST_CONTACT_EMAIL_LABEL}</a>
                 </li>
               </ul>
-              <div className="mt-4 space-y-1 text-xs text-[hsl(var(--guest-muted-foreground))]">
+              <div className="mt-3 space-y-1 text-sm text-[#6b7280]">
                 {HAULZ_LEGAL.offices.map((office) => (
                   <p key={office.city}>
                     {office.city}:{" "}
-                    <a href={`tel:${office.phone.replace(/[^\d+]/g, "")}`} className="text-haulz-brand hover:underline">
+                    <a href={`tel:${office.phone.replace(/[^\d+]/g, "")}`} className="text-[#2563eb] hover:underline">
                       {office.phone}
                     </a>
                   </p>
@@ -119,16 +110,32 @@ export function GuestFooter({ onAbout, onFaq, onApp, onCalculator, onLogin }: Pr
                   </button>
                 </li>
               </ul>
-              <p className="mt-4 text-xs leading-relaxed text-[hsl(var(--guest-muted-foreground))]">
-                {HAULZ_LEGAL.address}
-              </p>
+              <p className="mt-3 text-sm leading-relaxed text-[#6b7280]">{HAULZ_LEGAL.address}</p>
             </div>
           </div>
 
           <GuestLegalDisclosures />
+        </div>
 
-          <div className="guest-footer__bottom">
-            <p>© {year} {HAULZ_LEGAL.name}. Все права защищены.</p>
+        <div className="guest-footer__brand">
+          <div className="guest-footer__brand-inner mx-auto max-w-guest px-4 sm:px-6 lg:px-8">
+            <div className="guest-footer__brand-title">HAULZ</div>
+            <div className="guest-footer__brand-subtitle">Логистика Москва ↔ Калининград</div>
+            <div className="guest-footer__brand-text">
+              {HAULZ_LEGAL.name} · ИНН {HAULZ_LEGAL.inn} · ОГРН {HAULZ_LEGAL.ogrn}
+              <br />
+              {HAULZ_LEGAL.address}
+            </div>
+            <div className="guest-footer__brand-text">
+              <a href={`mailto:${HAULZ_EMAIL}`}>{HAULZ_EMAIL}</a>
+            </div>
+            <div className="guest-footer__brand-text">{phones}</div>
+            <div className="guest-footer__brand-text">
+              Готовы уточнить детали, согласовать дату забора и закрепить тариф.
+            </div>
+            <div className="guest-footer__brand-note">
+              © {year} {HAULZ_LEGAL.name}. Все права защищены. Предварительный расчёт не является публичной офертой.
+            </div>
           </div>
         </div>
       </footer>
