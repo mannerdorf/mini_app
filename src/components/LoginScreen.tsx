@@ -1,5 +1,5 @@
 import React, { FormEvent, Suspense, lazy, useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Eye, EyeOff, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button, Container, Flex, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
 import { HaulzBrandLogo } from "./HaulzBrandLogo";
 import { LegalModal } from "./modals/LegalModal";
@@ -56,7 +56,17 @@ type PendingLogin = {
   twoFaMethod?: "google" | "telegram";
 };
 
-export function LoginScreen() {
+export function LoginScreen({
+  variant = "fullscreen",
+  hint = null,
+  onBack,
+  onOpenForgot,
+}: {
+  variant?: "fullscreen" | "sheet";
+  hint?: string | null;
+  onBack?: () => void;
+  onOpenForgot?: () => void;
+} = {}) {
   const { accounts, setAccounts, setActiveAccountId } = useAuth();
   const { setActiveTab } = useAppShell();
 
@@ -449,7 +459,7 @@ export function LoginScreen() {
     }
   };
 
-  if (showForgotPage) {
+  if (showForgotPage && variant === "fullscreen") {
     return (
       <Suspense
         fallback={
@@ -475,14 +485,27 @@ export function LoginScreen() {
     );
   }
 
-  return (
-    <>
-      <Container className="app-container login-form-wrapper">
-        <Panel mode="secondary" className="login-card">
-          <div className="login-brand">
-            <HaulzBrandLogo />
-            <Typography.Body className="tagline">Доставка грузов в Калининград и обратно</Typography.Body>
-          </div>
+  const openForgot = () => {
+    if (onOpenForgot) {
+      onOpenForgot();
+      return;
+    }
+    setShowForgotPage(true);
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.set("forgot", "1");
+      window.history.pushState(null, "", u.toString());
+    } catch {
+      // ignore
+    }
+  };
+
+  const loginCard = (
+    <Panel mode="secondary" className="login-card">
+        <div className="login-brand">
+          <HaulzBrandLogo />
+          <Typography.Body className="tagline">Доставка грузов в Калининград и обратно</Typography.Body>
+        </div>
           {twoFactorPending ? (
             <form onSubmit={handleTwoFactorSubmit} className="form">
               <Typography.Body style={{ marginBottom: "0.75rem", textAlign: "center", color: "var(--color-text-secondary)" }}>
@@ -633,16 +656,7 @@ export function LoginScreen() {
                     border: "none",
                     padding: 0,
                   }}
-                  onClick={() => {
-                    setShowForgotPage(true);
-                    try {
-                      const u = new URL(window.location.href);
-                      u.searchParams.set("forgot", "1");
-                      window.history.pushState(null, "", u.toString());
-                    } catch {
-                      // ignore
-                    }
-                  }}
+                  onClick={openForgot}
                 >
                   Забыли пароль?
                 </button>
@@ -665,8 +679,27 @@ export function LoginScreen() {
           >
             {loginConsentText}
           </LegalModal>
-        </Panel>
-      </Container>
-    </>
+    </Panel>
+  );
+
+  if (variant === "sheet") {
+    return (
+      <div className="guest-login-screen">
+        {onBack ? (
+          <div className="guest-login-screen__topbar">
+            <button type="button" className="guest-login-screen__back" aria-label="Назад" onClick={onBack}>
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <span className="guest-login-screen__heading">Вход</span>
+          </div>
+        ) : null}
+        {hint ? <div className="guest-login-screen__hint">{hint}</div> : null}
+        <Container className="app-container login-form-wrapper">{loginCard}</Container>
+      </div>
+    );
+  }
+
+  return (
+    <Container className="app-container login-form-wrapper">{loginCard}</Container>
   );
 }

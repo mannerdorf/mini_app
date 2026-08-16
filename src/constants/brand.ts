@@ -22,6 +22,9 @@ export const HAULZ_OFFICES: HaulzOffice[] = [
 
 export const HAULZ_EMAIL = "Info@haulz.pro";
 
+/** Публичный сайт компании. */
+export const HAULZ_WEBSITE_URL = "https://haulz.pro";
+
 /** Диплинки ботов поддержки (MAX / Telegram). */
 export const HAULZ_MAX_SUPPORT_BOT_URL = "https://max.ru/id9706037094_bot";
 export const HAULZ_TG_SUPPORT_BOT_URL = "https://t.me/HAULZinfobot";

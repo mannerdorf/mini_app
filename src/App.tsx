@@ -3,7 +3,7 @@ import { Loader2 } from "lucide-react";
 import "./styles.css";
 import { AppMainContent } from "./components/AppMainContent";
 import { AppAuthenticatedLayout } from "./components/AppAuthenticatedLayout";
-import { LoginScreen } from "./components/LoginScreen";
+import { GuestAuthShell } from "./pages/guest/GuestAuthShell";
 import { applyClientPlatformToDocument } from "./lib/clientPlatform";
 import { CMSStandalonePage, NotFoundPage } from "./app/lazyPages";
 import { AppRuntimeProvider } from "./contexts/AppRuntimeContext";
@@ -142,7 +142,7 @@ function AppRoot() {
     }
 
     if (!auth) {
-        return <LoginScreen />;
+        return <GuestAuthShell />;
     }
 
     if (isRedReturnsOnlyUser) {
