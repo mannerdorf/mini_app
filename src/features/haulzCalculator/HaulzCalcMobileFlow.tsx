@@ -123,6 +123,7 @@ export type HaulzCalcMobileFlowProps = {
   openQuotePreview: () => void;
   canSendQuoteEmail: boolean;
   registeredNomerZayavki: string | null;
+  guestOrderCompleted?: boolean;
 };
 
 function MobileSubScreen({
@@ -244,6 +245,7 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
     openEmailModal,
     openQuotePreview,
     canSendQuoteEmail,
+    guestOrderCompleted = false,
   } = props;
 
   const [summaryExpanded, setSummaryExpanded] = useState(false);
@@ -661,6 +663,10 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
           >
             <Mail className="w-4 h-4" />
             Отправить КП на почту
+          </button>
+        ) : guestOrderCompleted ? (
+          <button type="button" className="haulz-calc-btn-primary haulz-calc-mobile-dock__submit" disabled>
+            Заявка оформлена
           </button>
         ) : (
           <button

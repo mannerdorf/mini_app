@@ -427,3 +427,36 @@ export async function submitHaulzCalculatorOrder(
     quoteId: (data as { quoteId?: number }).quoteId ?? quote.quoteId,
   };
 }
+
+export async function submitGuestHaulzCalculatorOrder(
+  body: Parameters<typeof fetchHaulzQuote>[1] & {
+    dataZabora?: string;
+    formState: HaulzCalculatorFormState;
+    contactPhone: string;
+    contactEmail: string;
+  },
+): Promise<{
+  nomerZayavki: string;
+  quote: QuoteResult;
+  quoteId?: number;
+  draftId?: number;
+  message: string;
+}> {
+  const res = await fetch("/api/haulz-calculator/guest-order", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(parseError(res, data));
+  const nomerZayavki = String((data as { nomerZayavki?: string }).nomerZayavki ?? "");
+  const quote = (data as { quote?: QuoteResult }).quote;
+  if (!quote) throw new Error("Пустой ответ оформления");
+  return {
+    nomerZayavki,
+    quote,
+    quoteId: (data as { quoteId?: number }).quoteId ?? quote.quoteId,
+    draftId: (data as { draftId?: number }).draftId,
+    message: String((data as { message?: string }).message ?? "Заявка оформлена. Менеджер с вами свяжется."),
+  };
+}

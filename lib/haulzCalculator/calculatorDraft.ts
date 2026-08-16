@@ -28,6 +28,9 @@ export type HaulzCalculatorFormState = {
   directionOverride: import("./types.js").Direction | null;
   extraCodes: string[];
   dataZabora: string;
+  /** Контакт гостя с сайта (без входа в ЛК). */
+  guestContactPhone?: string;
+  guestContactEmail?: string;
   /** Источник адреса стороны маршрута (заявки из ЛК «Документы»). */
   fromAddressKind?: import("./orderAddressKind.js").OrderLegAddressKind;
   toAddressKind?: import("./orderAddressKind.js").OrderLegAddressKind;

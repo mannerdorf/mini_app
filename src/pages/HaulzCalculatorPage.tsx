@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Copy, Eye, Loader2, Mail, Plus, X } from "lucide-react";
+import { ArrowLeft, Copy, Eye, Loader2, Mail, Phone, Plus, X } from "lucide-react";
 import type { AuthData } from "../types";
 import type {
   AddressSelection,
@@ -18,6 +18,7 @@ import {
   previewHaulzQuoteEmail,
   sendHaulzQuoteEmail,
   submitHaulzCalculatorOrder,
+  submitGuestHaulzCalculatorOrder,
   type HaulzCalculatorFormState,
 } from "../api/client/haulzCalculator";
 import { HaulzCalcAddressField } from "../features/haulzCalculator/HaulzCalcAddressField";
@@ -67,6 +68,22 @@ function inferDirectionFromCities(from?: CityCode | null, to?: CityCode | null):
   if (from === "moscow") return "mow_kgd";
   if (to === "moscow" && to !== from) return "kgd_mow";
   return null;
+}
+
+function phoneDigits(value: string): string {
+  let digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("8")) digits = `7${digits.slice(1)}`;
+  if (!digits.startsWith("7")) digits = `7${digits}`;
+  return digits.slice(0, 11);
+}
+
+function isValidGuestPhone(value: string): boolean {
+  return phoneDigits(value).length === 11;
+}
+
+function isValidGuestEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
 export function HaulzCalculatorPage({
@@ -125,6 +142,11 @@ export function HaulzCalculatorPage({
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [registeredNomerZayavki, setRegisteredNomerZayavki] = useState<string | null>(null);
+  const [guestOrderModalOpen, setGuestOrderModalOpen] = useState(false);
+  const [guestContactPhone, setGuestContactPhone] = useState("");
+  const [guestContactEmail, setGuestContactEmail] = useState("");
+  const [guestOrderError, setGuestOrderError] = useState<string | null>(null);
+  const [guestOrderCompleted, setGuestOrderCompleted] = useState(false);
   const [mobileRoute, setMobileRoute] = useState<HaulzCalcMobileRoute>("hub");
   const isMobileLayout = useHaulzCalcMobile();
   const prevQuoteDepsRef = useRef<string | null>(null);
@@ -373,8 +395,8 @@ export function HaulzCalculatorPage({
 
   const canQuote = Boolean(calcAuth && fromAddr?.point && toAddr?.point && chargeableHint.ch > 0);
 
-  const canSubmitOrder = Boolean(canQuote && quote && !loading && !orderLoading);
-  const canSendQuoteEmail = Boolean(quote && registeredNomerZayavki);
+  const canSubmitOrder = Boolean(canQuote && quote && !loading && !orderLoading && !guestOrderCompleted);
+  const canSendQuoteEmail = Boolean(quote && registeredNomerZayavki && !needsAccount);
 
   const quoteDepsKey = useMemo(
     () =>
@@ -485,8 +507,8 @@ export function HaulzCalculatorPage({
 
   const submitOrder = useCallback(async () => {
     if (needsAccount) {
-      onRequireAuth?.();
-      setError("Войдите в кабинет, чтобы оформить заявку");
+      setGuestOrderError(null);
+      setGuestOrderModalOpen(true);
       return;
     }
     if (!auth || !fromAddr?.point || !toAddr?.point) return;
@@ -556,6 +578,83 @@ export function HaulzCalculatorPage({
     toName,
     draftId,
     buildFormState,
+  ]);
+
+  const submitGuestOrder = useCallback(async () => {
+    if (!needsAccount || !quote || !fromAddr?.point || !toAddr?.point) return;
+    const email = guestContactEmail.trim().toLowerCase();
+    if (!isValidGuestPhone(guestContactPhone)) {
+      setGuestOrderError("Укажите номер телефона");
+      return;
+    }
+    if (!isValidGuestEmail(email)) {
+      setGuestOrderError("Укажите корректный email");
+      return;
+    }
+    setOrderLoading(true);
+    setGuestOrderError(null);
+    setError(null);
+    try {
+      const formState: HaulzCalculatorFormState = {
+        ...buildFormState(),
+        guestContactPhone: formatPhoneMask(guestContactPhone),
+        guestContactEmail: email,
+      };
+      const result = await submitGuestHaulzCalculatorOrder({
+        from: fromAddr,
+        to: toAddr,
+        places,
+        mainlineMode,
+        direction: inferredDirection,
+        declaredValueRub: Number(declaredValue) || 0,
+        extraCodes,
+        dataZabora,
+        formState,
+        contactPhone: guestContactPhone,
+        contactEmail: email,
+        customerParty: buildCustomerParty(),
+        fromParty: {
+          mode: fromMode,
+          phone: fromPhone,
+          fullName: fromName,
+        },
+        toParty: {
+          mode: toMode,
+          phone: toPhone,
+          fullName: toName,
+        },
+      });
+      setQuote(result.quote);
+      setRegisteredNomerZayavki(result.nomerZayavki);
+      setGuestOrderCompleted(true);
+      setGuestOrderModalOpen(false);
+      setOrderMessage(`${result.message} КП отправлено на ${email}.`);
+    } catch (e) {
+      setGuestOrderError((e as Error)?.message || "Ошибка оформления");
+    } finally {
+      setOrderLoading(false);
+    }
+  }, [
+    needsAccount,
+    quote,
+    fromAddr,
+    toAddr,
+    guestContactPhone,
+    guestContactEmail,
+    places,
+    mainlineMode,
+    inferredDirection,
+    declaredValue,
+    extraCodes,
+    dataZabora,
+    buildFormState,
+    buildCustomerParty,
+    fromMode,
+    fromPhone,
+    fromName,
+    toMode,
+    toPhone,
+    toName,
   ]);
 
   const toggleExtra = (code: string) => {
@@ -803,6 +902,7 @@ export function HaulzCalculatorPage({
     openQuotePreview,
     canSendQuoteEmail,
     registeredNomerZayavki,
+    guestOrderCompleted,
   };
 
   return (
@@ -833,13 +933,9 @@ export function HaulzCalculatorPage({
           ) : null}
         </header>
 
-        {needsAccount && (
+        {needsAccount && !guestOrderCompleted && (
           <div className="haulz-calc-hint" style={{ marginBottom: "0.75rem" }}>
-            Расчёт доступен без входа. Чтобы оформить заявку или сохранить черновик,{" "}
-            <button type="button" className="haulz-calc-link-btn" onClick={onRequireAuth}>
-              войдите в кабинет
-            </button>
-            .
+            Расчёт доступен без входа. Нажмите «Оформить», укажите телефон и email — менеджер свяжется с вами, КП придёт на почту.
           </div>
         )}
 
@@ -1138,9 +1234,14 @@ export function HaulzCalculatorPage({
                 {orderMessage && <div className="haulz-calc-alert haulz-calc-alert--success">{orderMessage}</div>}
 
                 <div className="haulz-calc-summary__actions" style={{ marginTop: "1rem" }}>
-                  <button type="button" className="haulz-calc-btn-primary" disabled={!canSubmitOrder} onClick={() => void submitOrder()}>
+                  <button
+                    type="button"
+                    className="haulz-calc-btn-primary"
+                    disabled={!canSubmitOrder}
+                    onClick={() => void submitOrder()}
+                  >
                     {orderLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                    Оформить
+                    {guestOrderCompleted ? "Заявка оформлена" : "Оформить"}
                   </button>
                   <button type="button" className="haulz-calc-btn-secondary" disabled={!quote} onClick={copySummary}>
                     <Copy className="w-4 h-4" />
@@ -1164,9 +1265,14 @@ export function HaulzCalculatorPage({
                     <Mail className="w-4 h-4" />
                     Отправить на почту
                   </button>
-                  {!canSendQuoteEmail && quote && (
+                  {!canSendQuoteEmail && quote && !needsAccount && (
                     <p className="haulz-calc-field-hint" style={{ margin: 0 }}>
                       КП на почту доступно после оформления заявки.
+                    </p>
+                  )}
+                  {guestOrderCompleted && (
+                    <p className="haulz-calc-field-hint" style={{ margin: 0 }}>
+                      Коммерческое предложение отправлено на указанный email.
                     </p>
                   )}
                 </div>
@@ -1178,6 +1284,87 @@ export function HaulzCalculatorPage({
           </>
         )}
       </div>
+
+      {guestOrderModalOpen && (
+        <div
+          className="haulz-calc-map-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="haulz-calc-guest-order-title"
+          onClick={() => !orderLoading && setGuestOrderModalOpen(false)}
+        >
+          <div className="haulz-calc-map-modal haulz-calc-map-modal--email" onClick={(e) => e.stopPropagation()}>
+            <div className="haulz-calc-map-modal__head">
+              <div id="haulz-calc-guest-order-title" className="haulz-calc-map-modal__title">
+                Оформить заявку
+              </div>
+              <button
+                type="button"
+                className="haulz-calc-map-modal__close"
+                aria-label="Закрыть"
+                disabled={orderLoading}
+                onClick={() => setGuestOrderModalOpen(false)}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="haulz-calc-map-modal__hint">
+              Укажите контакты — менеджер свяжется с вами, расчёт отправим на email в виде коммерческого предложения.
+            </p>
+            <label className="haulz-calc-field haulz-calc-email-modal__field" htmlFor="haulz-calc-guest-phone-input">
+              <span className="haulz-calc-label">Телефон</span>
+              <input
+                id="haulz-calc-guest-phone-input"
+                type="tel"
+                className="haulz-calc-input"
+                autoComplete="tel"
+                placeholder="+7 (999) 123-45-67"
+                value={guestContactPhone}
+                disabled={orderLoading}
+                onChange={(e) => setGuestContactPhone(formatPhoneMask(e.target.value))}
+              />
+            </label>
+            <label className="haulz-calc-field haulz-calc-email-modal__field" htmlFor="haulz-calc-guest-email-input">
+              <span className="haulz-calc-label">Email</span>
+              <input
+                id="haulz-calc-guest-email-input"
+                type="email"
+                className="haulz-calc-input"
+                autoComplete="email"
+                placeholder="partner@company.ru"
+                value={guestContactEmail}
+                disabled={orderLoading}
+                onChange={(e) => setGuestContactEmail(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void submitGuestOrder();
+                }}
+              />
+            </label>
+            {guestOrderError && <p className="haulz-calc-map-modal__error">{guestOrderError}</p>}
+            <div className="haulz-calc-map-modal__actions">
+              <button
+                type="button"
+                className="haulz-calc-btn-secondary"
+                disabled={orderLoading}
+                onClick={() => setGuestOrderModalOpen(false)}
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                className="haulz-calc-btn-primary"
+                disabled={
+                  orderLoading || !isValidGuestPhone(guestContactPhone) || !isValidGuestEmail(guestContactEmail)
+                }
+                onClick={() => void submitGuestOrder()}
+              >
+                {orderLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Phone className="w-4 h-4" />}
+                Отправить заявку
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {emailModalOpen && (
         <div

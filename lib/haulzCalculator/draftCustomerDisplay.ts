@@ -6,6 +6,15 @@ export function formatHaulzCalcDraftCustomer(
   formState: HaulzCalculatorFormState | null | undefined,
   loginKey?: string | null,
 ): string {
+  const guestEmail = String(formState?.guestContactEmail ?? "").trim();
+  const guestPhone = String(formState?.guestContactPhone ?? "").trim();
+  if (loginKey === "__guest__" || loginKey === "") {
+    if (guestEmail && guestPhone) return `${guestEmail} · ${guestPhone}`;
+    if (guestEmail) return guestEmail;
+    if (guestPhone) return guestPhone;
+    return "Гость (сайт)";
+  }
+
   const name = String(formState?.customerCompanyName ?? "").trim();
   const inn = String(formState?.customerInn ?? "").replace(/\D/g, "").trim();
   if (name && inn) return `${name} · ИНН ${inn}`;
