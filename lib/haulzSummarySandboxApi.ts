@@ -165,7 +165,7 @@ export async function handleHaulzSummarySandboxRequest(
     login: body.login,
     password: body.password,
   });
-  if (!auth.ok) {
+  if (auth.ok === false) {
     res.status(auth.status).json({ error: auth.error, request_id: requestId });
     return true;
   }

@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "allowJs": true
+  },
+  "include": ["api/**/*.ts", "lib/**/*.ts", "src/lib/statusUtils.ts"],
+  "exclude": ["node_modules", "android", "dist", "**/*.test.ts", "**/*.spec.ts"]
+}

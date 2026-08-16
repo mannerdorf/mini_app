@@ -67,12 +67,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (isRegisteredUser) {
     try {
       const access = await assertRegisteredInnAccess(authLogin, authPassword, innStr);
-      if (!access.ok) {
+      if (access.ok === false) {
         return res.status(access.status).json({ error: access.error, request_id: ctx.requestId });
-      } else {
-        authLogin = access.serviceLogin;
-        authPassword = access.servicePassword;
       }
+      authLogin = access.serviceLogin;
+      authPassword = access.servicePassword;
     } catch (e: unknown) {
       logError(ctx, "getcustomer_registered_user_failed", e);
       return res.status(500).json({
