@@ -35,6 +35,9 @@ import { warehouseForCity } from "../../lib/haulzCalculator/warehouses";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import { formatPhoneMask } from "../lib/formatPhoneMask";
 import { GUEST_CALCULATOR_AUTH } from "../constants/guestCalculatorAuth";
+import { LegalModal } from "../components/modals/LegalModal";
+import { PERSONAL_DATA_CONSENT_TEXT, PUBLIC_OFFER_TEXT } from "../constants/legalTexts";
+import { fetchLegalPublic } from "../api/client/legal";
 
 type Props = {
   auth: AuthData | null;
@@ -145,6 +148,12 @@ export function HaulzCalculatorPage({
   const [guestOrderModalOpen, setGuestOrderModalOpen] = useState(false);
   const [guestContactPhone, setGuestContactPhone] = useState("");
   const [guestContactEmail, setGuestContactEmail] = useState("");
+  const [guestAgreeOffer, setGuestAgreeOffer] = useState(false);
+  const [guestAgreePersonal, setGuestAgreePersonal] = useState(false);
+  const [guestOfferOpen, setGuestOfferOpen] = useState(false);
+  const [guestConsentOpen, setGuestConsentOpen] = useState(false);
+  const [guestOfferText, setGuestOfferText] = useState(PUBLIC_OFFER_TEXT);
+  const [guestConsentText, setGuestConsentText] = useState(PERSONAL_DATA_CONSENT_TEXT);
   const [guestOrderError, setGuestOrderError] = useState<string | null>(null);
   const [guestOrderCompleted, setGuestOrderCompleted] = useState(false);
   const [mobileRoute, setMobileRoute] = useState<HaulzCalcMobileRoute>("hub");
@@ -580,6 +589,18 @@ export function HaulzCalculatorPage({
     buildFormState,
   ]);
 
+  useEffect(() => {
+    if (!guestOrderModalOpen) return;
+    void fetchLegalPublic()
+      .then((pub) => {
+        if (pub.offer?.body_text) setGuestOfferText(pub.offer.body_text);
+        if (pub.consent?.body_text) setGuestConsentText(pub.consent.body_text);
+      })
+      .catch(() => {
+        /* default texts */
+      });
+  }, [guestOrderModalOpen]);
+
   const submitGuestOrder = useCallback(async () => {
     if (!needsAccount || !quote || !fromAddr?.point || !toAddr?.point) return;
     const email = guestContactEmail.trim().toLowerCase();
@@ -589,6 +610,14 @@ export function HaulzCalculatorPage({
     }
     if (!isValidGuestEmail(email)) {
       setGuestOrderError("Укажите корректный email");
+      return;
+    }
+    if (!guestAgreeOffer) {
+      setGuestOrderError("Подтвердите согласие с публичной офертой");
+      return;
+    }
+    if (!guestAgreePersonal) {
+      setGuestOrderError("Подтвердите согласие на обработку персональных данных");
       return;
     }
     setOrderLoading(true);
@@ -641,6 +670,8 @@ export function HaulzCalculatorPage({
     toAddr,
     guestContactPhone,
     guestContactEmail,
+    guestAgreeOffer,
+    guestAgreePersonal,
     places,
     mainlineMode,
     inferredDirection,
@@ -1300,7 +1331,7 @@ export function HaulzCalculatorPage({
           aria-labelledby="haulz-calc-guest-order-title"
           onClick={() => !orderLoading && setGuestOrderModalOpen(false)}
         >
-          <div className="haulz-calc-map-modal haulz-calc-map-modal--email" onClick={(e) => e.stopPropagation()}>
+          <div className="haulz-calc-map-modal haulz-calc-map-modal--guest-order" onClick={(e) => e.stopPropagation()}>
             <div className="haulz-calc-map-modal__head">
               <div id="haulz-calc-guest-order-title" className="haulz-calc-map-modal__title">
                 Оформить заявку
@@ -1347,6 +1378,62 @@ export function HaulzCalculatorPage({
                 }}
               />
             </label>
+
+            <div className="haulz-calc-guest-consent">
+              <div className="haulz-calc-guest-consent__row">
+                <p className="haulz-calc-guest-consent__text">
+                  Согласие с{" "}
+                  <button
+                    type="button"
+                    className="haulz-calc-guest-consent__link"
+                    onClick={() => setGuestOfferOpen(true)}
+                  >
+                    публичной офертой
+                  </button>
+                </p>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={guestAgreeOffer}
+                  aria-label="Согласие с публичной офертой"
+                  className={`haulz-calc-guest-consent__switch${guestAgreeOffer ? " is-on" : ""}`}
+                  disabled={orderLoading}
+                  onClick={() => {
+                    setGuestAgreeOffer((v) => !v);
+                    setGuestOrderError(null);
+                  }}
+                >
+                  <span className="haulz-calc-guest-consent__knob" />
+                </button>
+              </div>
+              <div className="haulz-calc-guest-consent__row">
+                <p className="haulz-calc-guest-consent__text">
+                  Согласие на{" "}
+                  <button
+                    type="button"
+                    className="haulz-calc-guest-consent__link"
+                    onClick={() => setGuestConsentOpen(true)}
+                  >
+                    обработку данных
+                  </button>
+                </p>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={guestAgreePersonal}
+                  aria-label="Согласие на обработку данных"
+                  className={`haulz-calc-guest-consent__switch${guestAgreePersonal ? " is-on" : ""}`}
+                  disabled={orderLoading}
+                  onClick={() => {
+                    setGuestAgreePersonal((v) => !v);
+                    setGuestOrderError(null);
+                  }}
+                >
+                  <span className="haulz-calc-guest-consent__knob" />
+                </button>
+              </div>
+            </div>
+
             {guestOrderError && <p className="haulz-calc-map-modal__error">{guestOrderError}</p>}
             <div className="haulz-calc-map-modal__actions">
               <button
@@ -1361,7 +1448,11 @@ export function HaulzCalculatorPage({
                 type="button"
                 className="haulz-calc-btn-primary"
                 disabled={
-                  orderLoading || !isValidGuestPhone(guestContactPhone) || !isValidGuestEmail(guestContactEmail)
+                  orderLoading ||
+                  !isValidGuestPhone(guestContactPhone) ||
+                  !isValidGuestEmail(guestContactEmail) ||
+                  !guestAgreeOffer ||
+                  !guestAgreePersonal
                 }
                 onClick={() => void submitGuestOrder()}
               >
@@ -1372,6 +1463,18 @@ export function HaulzCalculatorPage({
           </div>
         </div>
       )}
+
+      <LegalModal isOpen={guestOfferOpen} onClose={() => setGuestOfferOpen(false)} title="Публичная оферта" stackAboveBlocker>
+        {guestOfferText}
+      </LegalModal>
+      <LegalModal
+        isOpen={guestConsentOpen}
+        onClose={() => setGuestConsentOpen(false)}
+        title="Согласие на обработку персональных данных"
+        stackAboveBlocker
+      >
+        {guestConsentText}
+      </LegalModal>
 
       {emailModalOpen && (
         <div
