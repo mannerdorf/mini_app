@@ -86,8 +86,19 @@ EOF
   echo "Wrote android/keystore.properties (local only, not committed)."
 fi
 
-echo "Building web bundle for Capacitor (API: $API_ORIGIN)..."
-VITE_API_ORIGIN="$API_ORIGIN" npm run build
+GOOGLE_SERVICES="$ANDROID_DIR/app/google-services.json"
+if [[ ! -f "$GOOGLE_SERVICES" ]]; then
+  echo ""
+  echo "ERROR: android/app/google-services.json not found." >&2
+  echo "Push notifications require Firebase config — see deploy/README-android-fcm.md" >&2
+  echo "Download google-services.json from Firebase Console (package ru.haulz.miniapp)" >&2
+  echo "and place it at android/app/google-services.json, then rebuild." >&2
+  echo "" >&2
+  exit 1
+fi
+
+echo "Building web bundle for Capacitor (API: $API_ORIGIN, FCM: enabled)..."
+VITE_API_ORIGIN="$API_ORIGIN" VITE_ANDROID_FCM_CONFIGURED=1 npm run build
 
 echo "Syncing Capacitor Android project..."
 npx cap sync android
