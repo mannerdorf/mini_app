@@ -22,7 +22,9 @@ test.describe("guest smoke", () => {
 
   test("home shows HAULZ brand in hero", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByLabel("HAULZ").first()).toBeVisible();
+    const heroBrand = page.locator(".guest-home-hero__brand");
+    await expect(heroBrand).toBeVisible();
+    await expect(heroBrand).toHaveText(/HAULZ/i);
     await expect(page.getByRole("heading", { name: /Москвой и Калининградом/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Рассчитать доставку/i })).toBeVisible();
   });

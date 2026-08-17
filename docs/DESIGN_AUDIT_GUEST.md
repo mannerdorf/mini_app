@@ -101,11 +101,10 @@ Guest home has a strong full-bleed photo hero and calm CTAs, but **HAULZ is not 
 
 ## Prioritized fix plan
 
-### Slice A — Home brand (P0)
-1. Put hero-level **HAULZ** in `.guest-home-hero__content` using existing `.guest-home-hero__brand` (or wordmark image).
-2. Keep headline secondary to brand (brand test).
-3. Soften overlay nav logo so it doesn’t compete (or keep minimal).
-4. Re-run `npm run test:e2e:guest`.
+### Slice A — Home brand (P0) — done 2026-08-17
+1. Hero-level **HAULZ** via `.guest-home-hero__brand` in content.
+2. Headline sized under brand; nav mark quiet (`guest-header__logo--quiet`).
+3. E2E asserts `.guest-home-hero__brand`.
 
 ### Slice B — Guest type (P1)
 1. Switch `guest-shell` font stack to Manrope / DM Sans (already in deps).
