@@ -122,6 +122,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const text = formatDailySummaryPlainText(stats);
+      // Android tray truncates long notification bodies; keep full text in FCM data via body.
+      const pushBody =
+        text.length > 220 ? `${text.slice(0, 217).trimEnd()}…` : text;
 
       if (prefs.telegram) {
         const chatId = chatIds.get(login);
@@ -145,9 +148,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (prefs.push) {
         const sendResult = await sendFcmToLogin(login, {
           title: "HAULZ: ежедневная сводка",
-          body: text,
-          url: "/",
-          delivery: { event: "daily_summary" },
+          body: pushBody,
+          url: "/#/notifications",
+          delivery: { event: "daily_summary", body: text, title: "HAULZ: ежедневная сводка" },
         });
         if (sendResult.ok && sendResult.sent > 0) sentPush += 1;
         else errors.push({ login, channel: "push", error: sendResult.error || "no active FCM tokens" });

@@ -55,7 +55,10 @@ Gradle автоматически подключит `com.google.gms.google-serv
 
 Токен сохраняется через `POST /api/fcm-subscribe`. Отправка:
 - **события перевозок** — из `notification-poll` (каждый час) и cache refresh;
-- **ежедневная сводка в 10:00** — из `/api/notification-daily-summary` (cron `0 10 * * *`, TZ `Europe/Moscow`).
+- **ежедневная сводка в 10:00** — из `/api/notification-daily-summary` (cron `0 10 * * *`, TZ `Europe/Moscow` на **cron-VPS** `194.87.140.125`).
+  - В профиле → Уведомления включите **Push → «Ежедневная сводка в 10:00»** (по умолчанию выкл.).
+  - На `main` до мержа PR push-сводка не отправлялась (только Telegram) — на cron-VPS нужен код с FCM daily summary.
+  - Лог вызовов cron: `/var/log/haulz-cron-call.log`.
 
 ## 6. Тестовая отправка
 

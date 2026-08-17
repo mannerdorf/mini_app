@@ -52,7 +52,7 @@ function pushEventLabel(event: string): string {
     case "weekly_summary":
       return "Еженедельная сводка";
     case "broadcast":
-      return "Сообщение HAULZ";
+      return "HAULZ";
     case "accepted":
       return "Принят";
     case "in_transit":

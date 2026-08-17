@@ -40,4 +40,20 @@ if [[ -z "$secret" ]]; then
   exit 1
 fi
 
-curl -fsS -H "Authorization: Bearer ${secret}" "${API_BASE}${path}" >/dev/null
+LOG_FILE="${HAULZ_CRON_LOG:-/var/log/haulz-cron-call.log}"
+mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
+ts="$(date -Is 2>/dev/null || date)"
+tmp="$(mktemp)"
+set +e
+http_code="$(curl -sS -o "$tmp" -w "%{http_code}" -H "Authorization: Bearer ${secret}" "${API_BASE}${path}")"
+code=$?
+set -e
+body="$(head -c 2000 "$tmp" | tr '\n' ' ')"
+rm -f "$tmp"
+{
+  echo "[$ts] path=$path http=$http_code curl_exit=$code body=${body}"
+} >>"$LOG_FILE" 2>/dev/null || true
+if [[ "$code" -ne 0 || "$http_code" != "200" ]]; then
+  echo "cron-call: failed path=$path http=$http_code curl_exit=$code body=${body}" >&2
+  exit 1
+fi
