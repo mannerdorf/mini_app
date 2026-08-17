@@ -286,8 +286,8 @@ export function AppMainContent({
                 ? (activeAccount?.isRegisteredUser ? true : (activeAccount?.roleCustomer ?? true))
                 : (activeAccount?.roleCustomer ?? true)
             }
-            roleSender={false}
-            roleReceiver={false}
+            roleSender={activeAccount?.roleSender ?? true}
+            roleReceiver={activeAccount?.roleReceiver ?? true}
             useServiceRequest={useServiceRequest}
             showSums={activeAccount?.financialAccess ?? true}
             onOpenInvoice={openInvoiceInPlace}

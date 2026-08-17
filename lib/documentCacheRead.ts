@@ -22,6 +22,7 @@ export type DocumentCacheReadOptions = {
   dateField?: CargoDateField;
   inns?: Set<string> | null;
   innColumn?: InnFilterColumn;
+  partyNameNorms?: Set<string> | null;
 };
 
 /** Загрузка legacy blob (fallback). */
@@ -43,7 +44,9 @@ export function innColumnForPerevozkiMode(mode?: unknown): InnFilterColumn {
   const m = String(mode ?? "").trim();
   if (m === "Sender") return "sender";
   if (m === "Receiver") return "receiver";
-  return "customer";
+  if (m === "Customer") return "customer";
+  // Без Mode — все роли контрагента (заказчик / отправитель / получатель).
+  return "any";
 }
 
 /**
@@ -63,6 +66,7 @@ export async function readDocumentsFromCacheByPeriod(
         dateField: options.dateField,
         inns: options.inns,
         innColumn: options.innColumn,
+        partyNameNorms: options.partyNameNorms,
       });
       return { items, fromNormalized: true };
     }
