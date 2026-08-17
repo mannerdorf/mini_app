@@ -31,12 +31,14 @@ const ROWS_TABLE: Record<NormalizedDocumentKind, string> = {
   acts: "cache_acts_rows",
 };
 
-export type InnFilterColumn = "customer" | "sender" | "receiver";
+export type InnFilterColumn = "customer" | "sender" | "receiver" | "any";
 
 export type NormalizedReadOptions = {
   dateField?: CargoDateField;
   inns?: Set<string> | null;
   innColumn?: InnFilterColumn;
+  /** Нормализованные наименования (без ООО/ИП) — fallback, если party INN в кэше пуст. */
+  partyNameNorms?: Set<string> | null;
 };
 
 const UPSERT_BATCH = 200;
@@ -162,6 +164,12 @@ export async function ensureNormalizedCacheTables(pool: Pool): Promise<void> {
   );
   await pool.query(
     `create index if not exists idx_cache_perevozki_rows_customer_inn_date on cache_perevozki_rows (customer_inn, doc_date)`,
+  );
+  await pool.query(
+    `create index if not exists idx_cache_perevozki_rows_sender_inn_date on cache_perevozki_rows (sender_inn, doc_date) where sender_inn is not null and sender_inn <> ''`,
+  );
+  await pool.query(
+    `create index if not exists idx_cache_perevozki_rows_receiver_inn_date on cache_perevozki_rows (receiver_inn, doc_date) where receiver_inn is not null and receiver_inn <> ''`,
   );
   await pool.query(
     `create index if not exists idx_cache_perevozki_rows_doc_number on cache_perevozki_rows (doc_number) where doc_number is not null and doc_number <> ''`,
@@ -388,10 +396,15 @@ export async function syncNormalizedWindow(
   }
 }
 
-function innColumnName(column: InnFilterColumn): string {
+function innColumnName(column: Exclude<InnFilterColumn, "any">): string {
   if (column === "sender") return "sender_inn";
   if (column === "receiver") return "receiver_inn";
   return "customer_inn";
+}
+
+/** Нормализация наименования контрагента в SQL (как normalizeCompanyName). */
+function sqlNormalizeCompanyName(expr: string): string {
+  return `lower(trim(both from regexp_replace(regexp_replace(coalesce(${expr}, ''), '[\"«»]', '', 'g'), '((ооо|оао|зао|пао|ип|ao|llc)[[:space:]]+)|([[:space:]]+(ооо|оао|зао|пао|ип|ao|llc))$', '', 'gi')))`;
 }
 
 function perevozkiDateSql(dateField: CargoDateField): { column: string; nullFallback: boolean } {
@@ -424,16 +437,135 @@ export async function readNormalizedByDateRange(
   }
 
   if (options.inns && options.inns.size > 0) {
-    const col = kind === "perevozki" ? innColumnName(options.innColumn ?? "customer") : "customer_inn";
     params.push(Array.from(options.inns));
-    where += ` and ${col} = any($${params.length}::text[])`;
+    const innsParam = `$${params.length}::text[]`;
+    if (kind === "perevozki") {
+      const column = options.innColumn ?? "customer";
+      const nameNorms =
+        options.partyNameNorms && options.partyNameNorms.size > 0
+          ? Array.from(options.partyNameNorms)
+          : [];
+      let nameParam = "";
+      if (nameNorms.length > 0) {
+        params.push(nameNorms);
+        nameParam = `$${params.length}::text[]`;
+      }
+      const nameMatchSql = (payloadKey: string) =>
+        nameParam
+          ? ` or ${sqlNormalizeCompanyName(`payload->>'${payloadKey}'`)} = any(${nameParam})`
+          : "";
+      if (column === "any") {
+        where += ` and (
+          customer_inn = any(${innsParam})
+          or sender_inn = any(${innsParam})
+          or receiver_inn = any(${innsParam})
+          ${nameMatchSql("Customer")}
+          ${nameMatchSql("Sender")}
+          ${nameMatchSql("Receiver")}
+        )`;
+      } else {
+        const col = innColumnName(column);
+        const payloadKey = column === "sender" ? "Sender" : column === "receiver" ? "Receiver" : "Customer";
+        where += ` and (
+          ${col} = any(${innsParam})
+          ${nameMatchSql(payloadKey)}
+        )`;
+      }
+    } else {
+      where += ` and customer_inn = any(${innsParam})`;
+    }
   }
 
-  const { rows } = await pool.query<{ payload: unknown }>(
-    `select payload from ${table} where ${where} order by doc_date desc nulls last`,
+  const { rows } = await pool.query<{
+    payload: unknown;
+    customer_inn: string | null;
+    sender_inn: string | null;
+    receiver_inn: string | null;
+  }>(
+    kind === "perevozki"
+      ? `select payload, customer_inn, sender_inn, receiver_inn from ${table} where ${where} order by doc_date desc nulls last`
+      : `select payload, customer_inn, null::text as sender_inn, null::text as receiver_inn from ${table} where ${where} order by doc_date desc nulls last`,
     params,
   );
-  return rows.map((r) => r.payload);
+  return rows.map((r) => {
+    const payload =
+      r.payload && typeof r.payload === "object" && !Array.isArray(r.payload)
+        ? ({ ...(r.payload as Record<string, unknown>) } as Record<string, unknown>)
+        : (r.payload as any);
+    if (!payload || typeof payload !== "object") return r.payload;
+    if (kind !== "perevozki") return payload;
+    if (!customerInn(payload) && r.customer_inn) {
+      payload.CustomerINN = r.customer_inn;
+      if (!payload.INN && !payload.Inn && !payload.inn) payload.INN = r.customer_inn;
+    }
+    if (!senderInn(payload) && r.sender_inn) payload.SenderINN = r.sender_inn;
+    if (!receiverInn(payload) && r.receiver_inn) payload.ReceiverINN = r.receiver_inn;
+    return payload;
+  });
+}
+
+/**
+ * Дозаполнить пустые sender_inn/receiver_inn из cache_customers / account_companies по наименованию.
+ * Нужно для старых строк кэша, где 1С отдала имя получателя без ReceiverINN.
+ */
+export async function backfillPerevozkiPartyInnsByName(
+  pool: Pool,
+  opts?: { inns?: Set<string> | null; dateFrom?: string; dateTo?: string },
+): Promise<number> {
+  await ensureNormalizedCacheTables(pool);
+  const params: unknown[] = [];
+  let directoryInnFilter = "";
+  if (opts?.inns && opts.inns.size > 0) {
+    params.push(Array.from(opts.inns));
+    directoryInnFilter = ` and trim(inn) = any($${params.length}::text[])`;
+  }
+  let dateFilter = "";
+  if (opts?.dateFrom && opts?.dateTo) {
+    params.push(opts.dateFrom, opts.dateTo);
+    dateFilter = ` and p.doc_date >= $${params.length - 1}::date and p.doc_date <= $${params.length}::date`;
+  }
+
+  const nameNormCustomers = sqlNormalizeCompanyName("customer_name");
+  const nameNormAccounts = sqlNormalizeCompanyName("name");
+  const receiverNorm = sqlNormalizeCompanyName("p.payload->>'Receiver'");
+  const senderNorm = sqlNormalizeCompanyName("p.payload->>'Sender'");
+
+  const directorySql = `
+    select distinct on (n.name_norm) n.inn, n.name_norm
+    from (
+      select trim(inn) as inn, ${nameNormCustomers} as name_norm
+      from cache_customers
+      where trim(coalesce(inn, '')) <> '' ${directoryInnFilter}
+      union all
+      select trim(inn) as inn, ${nameNormAccounts} as name_norm
+      from account_companies
+      where trim(coalesce(inn, '')) <> '' ${directoryInnFilter}
+    ) n
+    where n.name_norm <> ''
+    order by n.name_norm, length(n.inn) desc
+  `;
+
+  const receiverRes = await pool.query(
+    `update cache_perevozki_rows p
+     set receiver_inn = m.inn, updated_at = now()
+     from (${directorySql}) m
+     where (p.receiver_inn is null or p.receiver_inn = '')
+       and ${receiverNorm} = m.name_norm
+       ${dateFilter}`,
+    params,
+  );
+
+  const senderRes = await pool.query(
+    `update cache_perevozki_rows p
+     set sender_inn = m.inn, updated_at = now()
+     from (${directorySql}) m
+     where (p.sender_inn is null or p.sender_inn = '')
+       and ${senderNorm} = m.name_norm
+       ${dateFilter}`,
+    params,
+  );
+
+  return (receiverRes.rowCount ?? 0) + (senderRes.rowCount ?? 0);
 }
 
 export async function readNormalizedByDocNumbers(
