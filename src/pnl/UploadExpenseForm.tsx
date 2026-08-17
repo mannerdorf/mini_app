@@ -4,7 +4,12 @@ import { DEPARTMENT_LABELS, DIRECTION_LABELS, MONTHS } from './constants';
 import { CheckCircle, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 
 const MAINLINE_DIRECTIONS = ['MSK_TO_KGD', 'KGD_TO_MSK'] as const;
-const MAINLINE_TRANSPORT = [{ value: 'AUTO', label: 'авто' }, { value: 'FERRY', label: 'паром' }] as const;
+const MAINLINE_TRANSPORT = [{ value: 'AUTO', label: 'авто' }, { value: 'FERRY', label: 'паром' }, { value: 'AIR', label: 'авиа' }] as const;
+
+function mainlineTransportLabel(transport: string): string {
+  return MAINLINE_TRANSPORT.find((t) => t.value === transport)?.label
+    ?? (transport === 'FERRY' ? 'паром' : transport === 'AIR' ? 'авиа' : 'авто');
+}
 
 interface ExpenseCat { id: string; name: string; department: string; type: string; logisticsStage: string | null; }
 interface ExpenseRow { id: string; categoryId: string; amount: string; direction: string; transportType: string; }
@@ -664,7 +669,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                           )}
                         </td>
                         <td className="px-6 py-2 text-slate-600 text-sm">{getExpenseTypeLabel(typeValue)}</td>
-                        {isMainline && <td className="px-6 py-2 text-slate-600 text-sm">{dir && transport ? `${(DIRECTION_LABELS as Record<string, string>)[dir] ?? dir} ${transport === 'FERRY' ? 'паром' : 'авто'}` : '—'}</td>}
+                        {isMainline && <td className="px-6 py-2 text-slate-600 text-sm">{dir && transport ? `${(DIRECTION_LABELS as Record<string, string>)[dir] ?? dir} ${mainlineTransportLabel(transport)}` : '—'}</td>}
                         <td className="px-6 py-2 text-right">
                           {canEditRow && isEditingRow ? (
                             <input type="number" step="1" min="0" value={editingAmount} onChange={(ev) => setEditingAmount(ev.target.value)} className="w-28 text-right border border-slate-200 rounded px-2 py-1 text-slate-900 font-medium" />
@@ -735,7 +740,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                                   </button>
                                   <button
                                     onClick={async () => {
-                                      const directionLabel = dir && transport ? `${(DIRECTION_LABELS as Record<string, string>)[dir] ?? dir} ${transport === 'FERRY' ? 'паром' : 'авто'}` : '—';
+                                      const directionLabel = dir && transport ? `${(DIRECTION_LABELS as Record<string, string>)[dir] ?? dir} ${mainlineTransportLabel(transport)}` : '—';
                                       const copyText = [
                                         `Статья: ${e.categoryName || '—'}`,
                                         `Подразделение: ${subdivisionLabel}`,

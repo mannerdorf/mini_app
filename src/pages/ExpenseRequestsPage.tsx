@@ -68,6 +68,7 @@ const FALLBACK_CATEGORIES = [
     { id: "pickup_logistics", name: "Заборная логистика", costType: "COGS" as const },
     { id: "ferry", name: "Паром", costType: "COGS" as const },
     { id: "auto", name: "Авто", costType: "COGS" as const },
+    { id: "air", name: "Авиа", costType: "COGS" as const },
     { id: "other", name: "Прочее", costType: "OPEX" as const },
 ];
 
@@ -961,6 +962,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                         >
                             <option value="auto">Авто</option>
                             <option value="ferry">Паром</option>
+                            <option value="air">Авиа</option>
                         </select>
                     </div>
 

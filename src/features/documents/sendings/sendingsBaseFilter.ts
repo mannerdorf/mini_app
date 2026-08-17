@@ -4,6 +4,7 @@ import {
   sendingRowMatchesTransportFilter,
 } from "../lib/documentsPipeline";
 import type { RouteFilterKey, TypeFilterKey } from "../../../lib/sharedListFilters";
+import { getSendingRowTransportMode } from "./sendingsTransportHelpers";
 
 export type BuildSendingsForTransportOptionsParams = {
   sendingsItems: unknown[];
@@ -58,14 +59,11 @@ export function buildSendingsForTransportOptions({
       const vehicle = normalizeTransportDisplay(
         String(r?.АвтомобильCMRНаименование ?? r?.AutoReg ?? r?.AutoType ?? ""),
       );
-      const transportType = vehicle
-        ? /[A-ZА-Я][0-9]{3}[A-ZА-Я]{2}(?:\s*\/?\s*[0-9]{2,3})?/u.test(vehicle.toUpperCase())
-          ? "auto"
-          : "ferry"
-        : "";
+      const transportType = getSendingRowTransportMode(row, vehicle);
       return (
         (typeFilterSet.has("auto") && transportType === "auto") ||
-        (typeFilterSet.has("ferry") && transportType === "ferry")
+        (typeFilterSet.has("ferry") && transportType === "ferry") ||
+        (typeFilterSet.has("air") && transportType === "air")
       );
     });
   }

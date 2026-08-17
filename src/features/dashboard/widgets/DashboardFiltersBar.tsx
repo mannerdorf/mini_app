@@ -3,7 +3,7 @@ import { ChevronDown } from "lucide-react";
 import { Button, Typography } from "@maxhub/max-ui";
 import * as dateUtils from "../../../lib/dateUtils";
 import { BILL_STATUS_MAP } from "../../../lib/statusUtils";
-import { routeKeyToCargoLabel, type RouteFilterKey, type SharedBillStatusKey, type TypeFilterKey } from "../../../lib/sharedListFilters";
+import { routeKeyToCargoLabel, type RouteFilterKey, type SharedBillStatusKey, type TypeFilterKey, formatTypeFilterSetLabel } from "../../../lib/sharedListFilters";
 import { formatDateFilterButtonLabel } from "../../listWorkspace";
 import { FilterDropdownPortal } from "../../../components/ui/FilterDropdownPortal";
 import { CARGO_ROLE_FILTER_LABELS, type CargoRoleFilterKey } from "../../../lib/cargoUtils";
@@ -246,13 +246,14 @@ export function DashboardFiltersBar({
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
-                            Тип: {typeFilterSet.size === 0 ? 'Все' : typeFilterSet.size === 2 ? 'Паром, Авто' : typeFilterSet.has('ferry') ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
+                            Тип: {formatTypeFilterSetLabel(typeFilterSet)} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={typeButtonRef} isOpen={isTypeDropdownOpen} onClose={() => setIsTypeDropdownOpen(false)}>
                         <div className="dropdown-item" onClick={() => { setTypeFilterSet(new Set()); setIsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
                         <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setTypeFilterSet(prev => { const next = new Set(prev); if (next.has('ferry')) next.delete('ferry'); else next.add('ferry'); return next; }); }} style={{ background: typeFilterSet.has('ferry') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Паром {typeFilterSet.has('ferry') ? '✓' : ''}</Typography.Body></div>
                         <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setTypeFilterSet(prev => { const next = new Set(prev); if (next.has('auto')) next.delete('auto'); else next.add('auto'); return next; }); }} style={{ background: typeFilterSet.has('auto') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Авто {typeFilterSet.has('auto') ? '✓' : ''}</Typography.Body></div>
+                        <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setTypeFilterSet(prev => { const next = new Set(prev); if (next.has('air')) next.delete('air'); else next.add('air'); return next; }); }} style={{ background: typeFilterSet.has('air') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Авиа {typeFilterSet.has('air') ? '✓' : ''}</Typography.Body></div>
                     </FilterDropdownPortal>
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>

@@ -1,12 +1,19 @@
 import { useMemo } from "react";
 import { getSlaInfo } from "../../../lib/cargoUtils";
-import { isFerry } from "../../../lib/cargoUtils";
+import { getCargoTransportType } from "../../../lib/cargoTransportType";
 import type { WorkSchedule } from "../../../lib/slaWorkSchedule";
 import type { CargoItem } from "../../../types";
 
 export type UseDashboardSlaMetricsParams = {
     slaMonitorFilteredItems: CargoItem[];
     workScheduleByInn: Record<string, WorkSchedule>;
+};
+
+type SlaTypeStats = {
+    total: number;
+    onTime: number;
+    percentOnTime: number;
+    avgDelay: number;
 };
 
 export function useDashboardSlaMetrics({
@@ -34,9 +41,7 @@ export function useDashboardSlaMetrics({
     }, [slaMonitorFilteredItems, workScheduleByInn]);
 
     const slaStatsByType = useMemo(() => {
-        const autoItems = slaMonitorFilteredItems.filter((i) => !isFerry(i));
-        const ferryItems = slaMonitorFilteredItems.filter((i) => isFerry(i));
-        const calc = (arr: CargoItem[]) => {
+        const calc = (arr: CargoItem[]): SlaTypeStats => {
             const withSla = arr
                 .map((i) => getSlaInfo(i, workScheduleByInn))
                 .filter((s): s is NonNullable<ReturnType<typeof getSlaInfo>> => s != null);
@@ -49,7 +54,14 @@ export function useDashboardSlaMetrics({
                     : 0;
             return { total, onTime, percentOnTime: total ? Math.round((onTime / total) * 100) : 0, avgDelay };
         };
-        return { auto: calc(autoItems), ferry: calc(ferryItems) };
+        const autoItems = slaMonitorFilteredItems.filter((i) => getCargoTransportType(i) === "auto");
+        const ferryItems = slaMonitorFilteredItems.filter((i) => getCargoTransportType(i) === "ferry");
+        const airItems = slaMonitorFilteredItems.filter((i) => getCargoTransportType(i) === "air");
+        return {
+            auto: calc(autoItems),
+            ferry: calc(ferryItems),
+            air: calc(airItems),
+        };
     }, [slaMonitorFilteredItems, workScheduleByInn]);
 
     const outOfSlaByType = useMemo(() => {
@@ -60,8 +72,9 @@ export function useDashboardSlaMetrics({
                     x.sla != null && !x.sla.onTime,
             );
         return {
-            auto: withSla.filter((x) => !isFerry(x.item)),
-            ferry: withSla.filter((x) => isFerry(x.item)),
+            auto: withSla.filter((x) => getCargoTransportType(x.item) === "auto"),
+            ferry: withSla.filter((x) => getCargoTransportType(x.item) === "ferry"),
+            air: withSla.filter((x) => getCargoTransportType(x.item) === "air"),
         };
     }, [slaMonitorFilteredItems, workScheduleByInn]);
 
@@ -90,3 +103,5 @@ export function useDashboardSlaMetrics({
 }
 
 export type DashboardSlaMetricsState = ReturnType<typeof useDashboardSlaMetrics>;
+
+export type { SlaTypeStats };

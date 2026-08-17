@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, type Dispatch, type SetStateAction } f
 import * as dateUtils from "../../../lib/dateUtils";
 import { getFilterKeyByStatus, getPaymentFilterKey } from "../../../lib/statusUtils";
 import type { CargoStatusFilterKey, RouteFilterKey, SharedBillStatusKey, TypeFilterKey } from "../../../lib/sharedListFilters";
-import { getInnFromCargo, isFerry, type CargoRoleFilterKey } from "../../../lib/cargoUtils";
+import { getInnFromCargo, type CargoRoleFilterKey } from "../../../lib/cargoUtils";
+import { getCargoTransportType, type CargoTransportType } from "../../../lib/cargoTransportType";
 import { buildFilteredCargoItems } from "../../../pages/cargoPipeline";
 import { cityToCode } from "../../../lib/formatUtils";
 import { filterCargoItemsForHeaderCustomer } from "../../../features/documents/lib/documentsPipeline";
@@ -130,7 +131,7 @@ export function useDashboardCargoMetrics({
             const to = cityToCode(item.CityReceiver) || String(item.CityReceiver ?? "").trim().toUpperCase() || "—";
             return `${from}-${to}`;
         };
-        const typeKeyFor = (item: CargoItem): "ferry" | "auto" => (isFerry(item) ? "ferry" : "auto");
+        const typeKeyFor = (item: CargoItem): CargoTransportType => getCargoTransportType(item);
         (items || []).forEach((item) => {
             const start = getSendingStartDate(item);
             const actual = getActualDeliveryDate(item);
@@ -174,7 +175,7 @@ export function useDashboardCargoMetrics({
             if (!start) return null;
             const from = cityToCode(item.CitySender) || String(item.CitySender ?? "").trim().toUpperCase() || "—";
             const to = cityToCode(item.CityReceiver) || String(item.CityReceiver ?? "").trim().toUpperCase() || "—";
-            const type = isFerry(item) ? "ferry" : "auto";
+            const type = getCargoTransportType(item);
             const days = getRouteTypePlanDays.get(`${from}-${to}|${type}`);
             if (!days) return null;
             const planned = new Date(start);
@@ -240,6 +241,7 @@ export function useDashboardCargoMetrics({
                 vol: number;
                 ferry: { count: number; pw: number; mest: number; vol: number };
                 auto: { count: number; pw: number; mest: number; vol: number };
+                air: { count: number; pw: number; mest: number; vol: number };
             }
         >();
 
@@ -257,11 +259,12 @@ export function useDashboardCargoMetrics({
                 vol: 0,
                 ferry: emptyTransportStats(),
                 auto: emptyTransportStats(),
+                air: emptyTransportStats(),
             };
             const mest = toNumber(item.Mest);
             const pw = toNumber(item.PW);
             const vol = toNumber((item as Record<string, unknown>).Value ?? (item as Record<string, unknown>).Volume ?? (item as Record<string, unknown>).V);
-            const transportKey = isFerry(item) ? "ferry" : "auto";
+            const transportKey = getCargoTransportType(item);
             entry.count += 1;
             entry.pw += pw;
             entry.mest += mest;
@@ -298,6 +301,7 @@ export function useDashboardCargoMetrics({
                 vol: 0,
                 ferry: emptyTransportStats(),
                 auto: emptyTransportStats(),
+                air: emptyTransportStats(),
             };
             return {
                 key,
@@ -307,6 +311,7 @@ export function useDashboardCargoMetrics({
                 vol: values.vol,
                 ferry: values.ferry,
                 auto: values.auto,
+                air: values.air,
             };
         });
 

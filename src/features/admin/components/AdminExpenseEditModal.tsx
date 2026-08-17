@@ -110,6 +110,7 @@ export function AdminExpenseEditModal(props: AdminExpenseModalSharedProps) {
             <select className="admin-form-input" value={expenseEditTransportType} onChange={(e) => setExpenseEditTransportType(e.target.value === "ferry" ? "ferry" : "auto")} style={{ ...EXPENSE_EDIT_FIELD_INPUT, height: 36 }}>
               <option value="auto">Авто</option>
               <option value="ferry">Паром</option>
+              <option value="air">Авиа</option>
             </select>
           </div>
           <div>

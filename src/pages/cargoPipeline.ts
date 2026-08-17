@@ -7,6 +7,9 @@ import {
 } from "../lib/statusUtils";
 import { cityToCode, formatInvoiceNumber } from "../lib/formatUtils";
 import { cargoLastMileIsSelfPickup, cargoMatchesRoleFilter, cargoPickupLogisticsIsTerminalTo, type CargoRoleFilterKey } from "../lib/cargoUtils";
+import { getCargoTransportType } from "../lib/cargoTransportType";
+import type { TypeFilterKey } from "../lib/sharedListFilters";
+import { matchesTypeFilterSet } from "../lib/sharedListFilters";
 import { normCargoKey } from "../features/documents/lib/documentsPipeline";
 import { buildNomenclatureSearchTextFromCargoItem } from "../lib/perevozkaDetails";
 
@@ -29,7 +32,7 @@ export type CargoFilterPipelineParams = {
   billStatusFilterSet: Set<
     "paid" | "unpaid" | "partial" | "cancelled" | "unknown"
   >;
-  typeFilterSet: Set<"ferry" | "auto">;
+  typeFilterSet: Set<TypeFilterKey>;
   routeFilterSet: Set<"MSK-KGD" | "KGD-MSK">;
   /** Фильтр последней мили: самовывоз (ПВЗ Андреевское / ж/д) vs доставка. */
   lastMileFilter: "all" | "self_pickup" | "delivery";
@@ -246,14 +249,7 @@ export function buildFilteredCargoItems(
     res = res.filter((i) => billStatusFilterSet.has(getPaymentFilterKey(i.StateBill)));
   }
   if (typeFilterSet.size > 0) {
-    res = res.filter((i) => {
-      const isFerry =
-        i?.AK === true || i?.AK === "true" || i?.AK === "1" || i?.AK === 1;
-      return (
-        (typeFilterSet.has("ferry") && isFerry) ||
-        (typeFilterSet.has("auto") && !isFerry)
-      );
-    });
+    res = res.filter((i) => matchesTypeFilterSet(getCargoTransportType(i), typeFilterSet));
   }
   if (routeFilterSet.size > 0) {
     res = res.filter((i) => {

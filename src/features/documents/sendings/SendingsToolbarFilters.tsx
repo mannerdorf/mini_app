@@ -2,9 +2,10 @@ import React, { useRef, useState } from "react";
 import { Button, Typography } from "@maxhub/max-ui";
 import { ChevronDown } from "lucide-react";
 import { FilterDropdownPortal } from "../../../components/ui/FilterDropdownPortal";
-import { routeKeyToCargoLabel, type RouteFilterKey } from "../../../lib/sharedListFilters";
+import { formatTypeFilterSetLabel, routeKeyToCargoLabel, type RouteFilterKey } from "../../../lib/sharedListFilters";
 import { STATUS_MAP } from "../../../lib/statusUtils";
-import type { StatusFilter, TypeFilterKey } from "../../../types";
+import type { StatusFilter } from "../../../types";
+import type { TypeFilterKey } from "../../../lib/sharedListFilters";
 import { SendingsTransportFilter } from "./SendingsTransportFilter";
 
 type CloseOtherDropdowns = () => void;
@@ -80,15 +81,7 @@ export function SendingsToolbarFilters({
             setIsTypeDropdownOpen((open) => !open);
           }}
         >
-          Тип:{" "}
-          {typeFilterSet.size === 0
-            ? "Все"
-            : typeFilterSet.size === 2
-              ? "Паром, Авто"
-              : typeFilterSet.has("ferry")
-                ? "Паром"
-                : "Авто"}{" "}
-          <ChevronDown className="w-4 h-4" />
+          Тип: {formatTypeFilterSetLabel(typeFilterSet)} <ChevronDown className="w-4 h-4" />
         </Button>
       </div>
       <FilterDropdownPortal triggerRef={typeButtonRef} isOpen={isTypeDropdownOpen} onClose={() => setIsTypeDropdownOpen(false)}>
@@ -130,6 +123,21 @@ export function SendingsToolbarFilters({
           style={{ background: typeFilterSet.has("auto") ? "var(--color-bg-hover)" : undefined }}
         >
           <Typography.Body>Авто {typeFilterSet.has("auto") ? "✓" : ""}</Typography.Body>
+        </div>
+        <div
+          className="dropdown-item"
+          onClick={(e) => {
+            e.stopPropagation();
+            setTypeFilterSet((prev) => {
+              const next = new Set(prev);
+              if (next.has("air")) next.delete("air");
+              else next.add("air");
+              return next;
+            });
+          }}
+          style={{ background: typeFilterSet.has("air") ? "var(--color-bg-hover)" : undefined }}
+        >
+          <Typography.Body>Авиа {typeFilterSet.has("air") ? "✓" : ""}</Typography.Body>
         </div>
       </FilterDropdownPortal>
       <div ref={routeCargoButtonRef} style={{ display: "inline-flex" }}>

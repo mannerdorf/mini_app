@@ -2,6 +2,7 @@ import { cityToCode } from "../../../lib/formatUtils";
 import { STATUS_MAP } from "../../../lib/statusUtils";
 import type { StatusFilter } from "../../../types";
 import type { SendingsInfographicData } from "./SendingsInfographic";
+import { getSendingRowTransportMode } from "./sendingsTransportHelpers";
 
 export function buildSendingsInfographicData(
   sendingRowsSorted: unknown[],
@@ -10,6 +11,7 @@ export function buildSendingsInfographicData(
 ): SendingsInfographicData {
   let ferry = 0;
   let auto = 0;
+  let air = 0;
   const byRoute = new Map<string, number>();
   const statusCounts: Record<"in_transit" | "ready" | "delivering" | "delivered", number> = {
     in_transit: 0,
@@ -23,8 +25,9 @@ export function buildSendingsInfographicData(
     const vehicle = normalizeTransportDisplay(
       String(r?.АвтомобильCMRНаименование ?? r?.AutoReg ?? r?.AutoType ?? ""),
     );
-    const hasPlate = /[A-ZА-Я][0-9]{3}[A-ZА-Я]{2}(?:\s*\/?\s*[0-9]{2,3})?/u.test(vehicle.toUpperCase());
-    if (hasPlate) auto += 1;
+    const mode = getSendingRowTransportMode(row, vehicle);
+    if (mode === "air") air += 1;
+    else if (mode === "auto") auto += 1;
     else ferry += 1;
 
     const statusKey = getSendingStatusKey(row);
@@ -90,5 +93,5 @@ export function buildSendingsInfographicData(
     .map(([route, count]) => ({ route, count }))
     .sort((a, b) => b.count - a.count || a.route.localeCompare(b.route, "ru"));
 
-  return { ferry, auto, routes, statusBadges };
+  return { ferry, auto, air, routes, statusBadges };
 }

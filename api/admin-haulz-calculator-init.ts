@@ -3,7 +3,7 @@ import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js";
 import { writeAuditLog } from "../lib/adminAuditLog.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
-import { bootstrapHaulzCalculatorTariffs } from "../lib/haulzCalculator/bootstrapTariffs.js";
+import { bootstrapHaulzCalculatorTariffs, ensureAirMainlineTariffSets } from "../lib/haulzCalculator/bootstrapTariffs.js";
 import { pgTableExists } from "./_haulzReturns.js";
 
 function parseIsoDateOnly(value: unknown): string | null {
@@ -47,6 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const result = await bootstrapHaulzCalculatorTariffs(pool, { effectiveFrom });
+    await ensureAirMainlineTariffSets(pool, { effectiveFrom });
     await writeAuditLog(pool, {
       action: "haulz_calc_bootstrap",
       target_type: "haulz_calc_tariff_sets",

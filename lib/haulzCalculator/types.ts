@@ -4,7 +4,7 @@ export type { TariffBasis };
 
 export type CityCode = "moscow" | "kaliningrad";
 export type Direction = "mow_kgd" | "kgd_mow";
-export type MainlineMode = "ferry" | "auto";
+export type MainlineMode = "ferry" | "auto" | "air";
 
 export type GeoPoint = { lat: number; lon: number };
 

@@ -21,10 +21,10 @@ import type {
   AddressSelection,
   DeliveryParty,
   Direction,
-  MainlineMode,
   ParcelPlace,
   QuoteRequest,
 } from "../../lib/haulzCalculator/types.js";
+import { parseMainlineMode } from "../../lib/haulzCalculator/mainlineMode.js";
 
 function parseAddress(raw: unknown): AddressSelection | null {
   if (!raw || typeof raw !== "object") return null;
@@ -120,8 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  const modeRaw = String(body.mainlineMode ?? body.mainline_mode ?? "ferry").toLowerCase();
-  const mainlineMode: MainlineMode = modeRaw === "auto" ? "auto" : "ferry";
+  const mainlineMode = parseMainlineMode(body.mainlineMode ?? body.mainline_mode);
   const directionRaw = String(body.direction ?? "").toLowerCase();
   const direction: Direction =
     directionRaw === "kgd_mow" ? "kgd_mow" : directionRaw === "mow_kgd" ? "mow_kgd" : "mow_kgd";

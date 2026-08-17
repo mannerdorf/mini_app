@@ -137,12 +137,14 @@ function normalizeDocDateFromDb(value: unknown): string {
   return "";
 }
 
-function normalizeTransportType(value: unknown, categoryId?: string | null): "auto" | "ferry" {
+function normalizeTransportType(value: unknown, categoryId?: string | null): "auto" | "ferry" | "air" {
   const raw = String(value ?? "").trim().toLowerCase();
   if (raw === "ferry" || raw === "паром") return "ferry";
+  if (raw === "air" || raw === "авиа" || raw === "авиаперевозка") return "air";
   if (raw === "auto" || raw === "авто") return "auto";
   const categoryRaw = String(categoryId ?? "").trim().toLowerCase();
   if (categoryRaw === "ferry" || categoryRaw.includes("паром")) return "ferry";
+  if (categoryRaw === "air" || categoryRaw.includes("авиа")) return "air";
   return "auto";
 }
 
@@ -508,7 +510,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const vText = String(b?.vehicleOrEmployee ?? "").trim();
       add("vehicle_text", vText || null);
       const transportTypeRaw = String(b?.transportType ?? "").trim().toLowerCase();
-      add("transport_type", transportTypeRaw === "ferry" ? "ferry" : "auto");
+      add("transport_type", transportTypeRaw === "ferry" ? "ferry" : transportTypeRaw === "air" ? "air" : "auto");
       add("employee_name", String(b?.employeeName ?? "").trim());
       add("supplier_name", String(b?.supplierName ?? "").trim() || null);
       add("supplier_inn", String(b?.supplierInn ?? "").trim() || null);

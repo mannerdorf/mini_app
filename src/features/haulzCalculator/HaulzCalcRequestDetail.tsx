@@ -11,6 +11,7 @@ import {
   PVZ_CREATION_REQUIRED_NOTE,
 } from "../../../lib/haulzCalculator/orderAddressKind";
 import { formatHaulzCalcDraftCustomer } from "../../../lib/haulzCalculator/draftCustomerDisplay";
+import { mainlineModeLabelRu } from "../../../lib/haulzCalculator/mainlineMode";
 import { DocumentsRouteBadge } from "../documents/views/documentsViewBlocks";
 import { DateText } from "../../components/ui/DateText";
 import {
@@ -208,7 +209,7 @@ export function HaulzCalcRequestDetail({
                   }
                 />
                 {f.mainlineMode && (
-                  <DetailRow label="Перевозка" value={f.mainlineMode === "auto" ? "Авто" : "Паром"} />
+                  <DetailRow label="Перевозка" value={mainlineModeLabelRu(f.mainlineMode)} />
                 )}
               </dl>
             </section>

@@ -284,7 +284,7 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>Предпочтения по типу доставки</Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
-                        Доля паром vs авто по клиентам. Помогает выявить предпочтения и потенциал для переключения на другой тип.
+                        Доля паром / авто / авиа по клиентам. Помогает выявить предпочтения и потенциал для переключения на другой тип.
                     </Typography.Body>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                         {page.deliveryPreferences.map((c, di) => (
@@ -292,10 +292,13 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
                                 <Typography.Body style={{ fontSize: '0.72rem', width: 100, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</Typography.Body>
                                 <div style={{ flex: 1, height: 14, borderRadius: 7, background: 'var(--color-bg-hover)', overflow: 'hidden', display: 'flex' }}>
                                     {c.ferry > 0 && <DashboardChartBarH enabled={page.chartBarFillEnabled} widthPercent={c.ferryPct} delay={di * 0.04} style={{ background: '#3b82f6' }} />}
-                                    {c.auto > 0 && <DashboardChartBarH enabled={page.chartBarFillEnabled} widthPercent={100 - c.ferryPct} delay={di * 0.04 + 0.07} style={{ background: '#f59e0b' }} />}
+                                    {c.auto > 0 && <DashboardChartBarH enabled={page.chartBarFillEnabled} widthPercent={c.autoPct} delay={di * 0.04 + 0.05} style={{ background: '#f59e0b' }} />}
+                                    {c.air > 0 && <DashboardChartBarH enabled={page.chartBarFillEnabled} widthPercent={c.airPct} delay={di * 0.04 + 0.1} style={{ background: '#6366f1' }} />}
                                 </div>
-                                <Typography.Body style={{ fontSize: '0.65rem', minWidth: 60, textAlign: 'right' }}>
-                                    <span style={{ color: '#3b82f6' }}>{c.ferry}</span>/<span style={{ color: '#f59e0b' }}>{c.auto}</span>
+                                <Typography.Body style={{ fontSize: '0.65rem', minWidth: 72, textAlign: 'right' }}>
+                                    <span style={{ color: '#3b82f6' }}>{c.ferry}</span>/
+                                    <span style={{ color: '#f59e0b' }}>{c.auto}</span>/
+                                    <span style={{ color: '#6366f1' }}>{c.air}</span>
                                 </Typography.Body>
                             </div>
                         ))}
@@ -303,6 +306,7 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
                     <Flex gap="0.5rem" style={{ marginTop: '0.35rem' }}>
                         <Flex align="center" gap="0.2rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6' }} /><Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)' }}>Паром</Typography.Body></Flex>
                         <Flex align="center" gap="0.2rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} /><Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)' }}>Авто</Typography.Body></Flex>
+                        <Flex align="center" gap="0.2rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#6366f1' }} /><Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)' }}>Авиа</Typography.Body></Flex>
                     </Flex>
                 </Panel>
             )}

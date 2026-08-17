@@ -21,6 +21,7 @@ import {
   type SharedBillStatusKey,
   type TypeFilterKey,
 } from "../../../lib/sharedListFilters";
+import { getCargoTransportType } from "../../../lib/cargoTransportType";
 
 export const INVOICE_FAVORITES_VALUE = "__favorites__";
 
@@ -58,32 +59,50 @@ function normalizeInn(value: unknown): string {
   return digits || raw;
 }
 
+function firstPartyInn(item: any, keys: string[]): string {
+  for (const key of keys) {
+    const value = normalizeInn(item?.[key]);
+    if (value) return value;
+  }
+  return "";
+}
+
+/** ИНН заказчика в строке (для ЭДО / счетов — по-прежнему приоритет заказчика). */
 export function getItemInn(item: any): string {
   return normalizeInn(
     item?.INN ??
       item?.Inn ??
       item?.inn ??
       item?.ЗаказчикИНН ??
-      item?.ПолучательИНН ??
       item?.CustomerINN ??
       item?.CustomerInn ??
       item?.customerInn ??
       item?.INNCustomer ??
       item?.InnCustomer ??
-      item?.КонтрагентИНН
+      item?.КонтрагентИНН ??
+      item?.ПолучательИНН
   );
+}
+
+export function getItemPartyInns(item: any): string[] {
+  const inns = [
+    firstPartyInn(item, ["INN", "Inn", "inn", "ЗаказчикИНН", "CustomerINN", "CustomerInn", "customerInn", "INNCustomer", "InnCustomer", "КонтрагентИНН"]),
+    firstPartyInn(item, ["SenderINN", "senderINN", "SenderInn", "senderInn", "INNSender", "InnSender", "ОтправительИНН", "ИННОтправителя", "ИННОтправитель", "INN_SENDER"]),
+    firstPartyInn(item, ["ReceiverINN", "receiverINN", "ReceiverInn", "receiverInn", "INNReceiver", "InnReceiver", "ПолучательИНН", "ИННПолучателя", "ИННПолучатель", "INN_RECEIVER"]),
+  ].filter(Boolean);
+  return [...new Set(inns)];
 }
 
 /** Оставить только строки выбранной в шапке компании (по ИНН). */
 export function filterItemsByActiveInn<T>(items: T[], activeInn?: string): T[] {
   const normalizedActiveInn = normalizeInn(activeInn);
   if (!normalizedActiveInn) return items;
-  return items.filter((i) => getItemInn(i) === normalizedActiveInn);
+  return items.filter((i) => getItemPartyInns(i).includes(normalizedActiveInn) || getItemInn(i) === normalizedActiveInn);
 }
 
-/** Обычный режим (дашборд): перевозки по ИНН и/или наименованию из шапки. */
+/** Обычный режим (дашборд/грузы): перевозки, где выбранная компания — заказчик, отправитель или получатель. */
 export function filterItemsForHeaderCustomer(
-  items: Array<{ Customer?: string; customer?: string; [key: string]: unknown }>,
+  items: Array<{ Customer?: string; customer?: string; Sender?: string; sender?: string; Receiver?: string; receiver?: string; [key: string]: unknown }>,
   opts: { activeInn?: string; activeCustomerName?: string },
 ): typeof items {
   const inn = normalizeInn(opts.activeInn);
@@ -91,12 +110,18 @@ export function filterItemsForHeaderCustomer(
   if (!inn && !nameKey) return items;
 
   return items.filter((item) => {
-    const itemInn = getItemInn(item);
-    const itemName = stripOoo(String(item.Customer ?? item.customer ?? "")).toLowerCase();
-    if (inn && itemInn) return itemInn === inn;
-    if (nameKey && itemName) return itemName === nameKey;
+    const partyInns = getItemPartyInns(item);
+    if (inn && partyInns.length > 0) return partyInns.includes(inn);
+
+    const partyNames = [
+      stripOoo(String(item.Customer ?? item.customer ?? "")).toLowerCase(),
+      stripOoo(String(item.Sender ?? item.sender ?? "")).toLowerCase(),
+      stripOoo(String(item.Receiver ?? item.receiver ?? "")).toLowerCase(),
+    ].filter(Boolean);
+    if (nameKey && partyNames.length > 0) return partyNames.includes(nameKey);
+
     // Счета из API уже отфильтрованы по ИНН логина; в строке часто нет поля ИНН.
-    if (inn && !itemInn) return true;
+    if (inn && partyInns.length === 0) return true;
     return false;
   });
 }
@@ -551,7 +576,7 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
     res = res.filter((i) => billStatusFilterSet.has(getInvoicePaymentFilterKey(i)));
   }
   if (typeFilterSet.size > 0) {
-    res = res.filter((i) => matchesTypeFilterSet(i?.AK, typeFilterSet));
+    res = res.filter((i) => matchesTypeFilterSet(getCargoTransportType(i as never), typeFilterSet));
   }
   if (routeFilterSet.size > 0) {
     res = res.filter((i) => {
@@ -707,7 +732,7 @@ export function buildFilteredOrders(params: FilterOrdersParams) {
     res = res.filter((i) => ((i.Customer ?? i.customer ?? i.ЗаказчикНаименование ?? i.Заказчик ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? "").trim()) === customerFilter);
   }
   if (typeFilterSet.size > 0) {
-    res = res.filter((i) => matchesTypeFilterSet(i?.AK, typeFilterSet));
+    res = res.filter((i) => matchesTypeFilterSet(getCargoTransportType(i as never), typeFilterSet));
   }
   if (routeFilterSet.size > 0) {
     res = res.filter((i) =>

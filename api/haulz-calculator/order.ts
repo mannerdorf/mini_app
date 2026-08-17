@@ -10,10 +10,10 @@ import { saveQuoteSnapshot } from "../../lib/haulzCalculator/quoteSnapshot.js";
 import type {
   AddressSelection,
   DeliveryParty,
-  MainlineMode,
   ParcelPlace,
   QuoteRequest,
 } from "../../lib/haulzCalculator/types.js";
+import { parseMainlineMode } from "../../lib/haulzCalculator/mainlineMode.js";
 import { verifyRegisteredUser } from "../../lib/verifyRegisteredUser.js";
 
 const normalizeLogin = (v: unknown) => String(v ?? "").trim().toLowerCase();
@@ -105,8 +105,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "dataZabora: формат YYYY-MM-DD", request_id: ctx.requestId });
   }
 
-  const modeRaw = String(body.mainlineMode ?? body.mainline_mode ?? "ferry").toLowerCase();
-  const mainlineMode: MainlineMode = modeRaw === "auto" ? "auto" : "ferry";
+  const mainlineMode = parseMainlineMode(body.mainlineMode ?? body.mainline_mode);
 
   const quoteReq: QuoteRequest = {
     from,

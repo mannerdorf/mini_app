@@ -6,10 +6,10 @@ import { lookupCustomerInnByName } from "../lib/resolveCustomerInn.js";
 import type {
   AddressSelection,
   DeliveryParty,
-  MainlineMode,
   ParcelPlace,
   QuoteRequest,
 } from "../lib/haulzCalculator/types.js";
+import { parseMainlineMode } from "../lib/haulzCalculator/mainlineMode.js";
 import { resolveDocumentsCustomerName } from "../lib/haulzCalculator/draftCustomerDisplay.js";
 
 export const normalizeLogin = (v: unknown) => String(v ?? "").trim().toLowerCase();
@@ -115,8 +115,7 @@ export function buildQuoteRequestFromBody(
     return { error: "from и to с координатами обязательны" };
   }
 
-  const modeRaw = String(body.mainlineMode ?? body.mainline_mode ?? "ferry").toLowerCase();
-  const mainlineMode: MainlineMode = modeRaw === "auto" ? "auto" : "ferry";
+  const mainlineMode = parseMainlineMode(body.mainlineMode ?? body.mainline_mode);
 
   const quoteReq: QuoteRequest = {
     from,

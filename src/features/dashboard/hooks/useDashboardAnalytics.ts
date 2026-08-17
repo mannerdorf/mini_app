@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import * as dateUtils from "../../../lib/dateUtils";
 import { getFilterKeyByStatus, getPaymentFilterKey } from "../../../lib/statusUtils";
 import { stripOoo } from "../../../lib/formatUtils";
-import { isFerry } from "../../../lib/cargoUtils";
+import { getCargoTransportType } from "../../../lib/cargoTransportType";
 import { getActualDeliveryDate } from "./dashboardCargoDateHelpers";
 import type { DashboardChartPoint } from "../dashboardTypes";
 import type { CargoItem } from "../../../types";
@@ -213,6 +213,7 @@ const weekdayDistribution = useMemo(() => {
     const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
     const ferry = [0, 0, 0, 0, 0, 0, 0];
     const auto = [0, 0, 0, 0, 0, 0, 0];
+    const air = [0, 0, 0, 0, 0, 0, 0];
     const weights = [0, 0, 0, 0, 0, 0, 0];
     const sourceItems = weekdayDistributionMode === "issued" ? deliveryFactItems : dashboardTotalItems;
     sourceItems.forEach((item) => {
@@ -232,20 +233,24 @@ const weekdayDistribution = useMemo(() => {
         }
         if (!p) return;
         const dow = (p.getDay() + 6) % 7;
-        if (isFerry(item)) ferry[dow] += 1;
+        const type = getCargoTransportType(item);
+        if (type === "ferry") ferry[dow] += 1;
+        else if (type === "air") air[dow] += 1;
         else auto[dow] += 1;
         weights[dow] += typeof item.PW === "string" ? parseFloat(item.PW) || 0 : (item.PW || 0);
     });
-    const maxCount = Math.max(...ferry.map((f, i) => f + auto[i]), 1);
+    const maxCount = Math.max(...ferry.map((f, i) => f + auto[i] + air[i]), 1);
     return DAYS.map((label, i) => ({
         label,
-        count: ferry[i] + auto[i],
+        count: ferry[i] + auto[i] + air[i],
         ferry: ferry[i],
         auto: auto[i],
+        air: air[i],
         pw: weights[i],
-        percent: Math.round(((ferry[i] + auto[i]) / maxCount) * 100),
+        percent: Math.round(((ferry[i] + auto[i] + air[i]) / maxCount) * 100),
         ferryPct: Math.round((ferry[i] / maxCount) * 100),
         autoPct: Math.round((auto[i] / maxCount) * 100),
+        airPct: Math.round((air[i] / maxCount) * 100),
     }));
 }, [dashboardTotalItems, deliveryFactItems, useServiceRequest, weekdayDistributionMode, getActualDeliveryDate, apiDateRange.dateFrom, apiDateRange.dateTo]);
 const weekdayDistributionLoading = loading || (weekdayDistributionMode === "issued" && deliveryFactLookupLoading);
@@ -426,17 +431,24 @@ const avgCheckTrend = useMemo(() => {
 
 const deliveryPreferences = useMemo(() => {
     if (!useServiceRequest || clientItems.length === 0) return null;
-    const byCustomer = new Map<string, { ferry: number; auto: number; total: number }>();
+    const byCustomer = new Map<string, { ferry: number; auto: number; air: number; total: number }>();
     clientItems.forEach(item => {
         const name = getCustomerName(item);
         if (!name) return;
-        const entry = byCustomer.get(name) || { ferry: 0, auto: 0, total: 0 };
-        if (isFerry(item)) entry.ferry += 1; else entry.auto += 1;
+        const entry = byCustomer.get(name) || { ferry: 0, auto: 0, air: 0, total: 0 };
+        const type = getCargoTransportType(item);
+        entry[type] += 1;
         entry.total += 1;
         byCustomer.set(name, entry);
     });
     return [...byCustomer.entries()]
-        .map(([name, v]) => ({ name, ...v, ferryPct: Math.round((v.ferry / v.total) * 100) }))
+        .map(([name, v]) => ({
+            name,
+            ...v,
+            ferryPct: Math.round((v.ferry / v.total) * 100),
+            autoPct: Math.round((v.auto / v.total) * 100),
+            airPct: Math.round((v.air / v.total) * 100),
+        }))
         .sort((a, b) => b.total - a.total).slice(0, 15);
 }, [clientItems, useServiceRequest]);
 

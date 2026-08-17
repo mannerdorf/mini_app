@@ -4,7 +4,7 @@ import { MONTHS, DIRECTION_LABELS } from './constants';
 import { Save, CheckCircle, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
 
 type Direction = 'MSK_TO_KGD' | 'KGD_TO_MSK';
-type TransportType = 'AUTO' | 'FERRY';
+type TransportType = 'AUTO' | 'FERRY' | 'AIR';
 
 interface AutoRow {
   customer: string;
@@ -26,7 +26,7 @@ interface GroupTotals {
   rows: AutoRow[];
 }
 
-const TRANSPORT_LABELS: Record<TransportType, string> = { AUTO: 'Авто', FERRY: 'Паром' };
+const TRANSPORT_LABELS: Record<TransportType, string> = { AUTO: 'Авто', FERRY: 'Паром', AIR: 'Авиа' };
 
 function fmt(n: number): string {
   return n.toLocaleString('ru-RU', { maximumFractionDigits: 1 });

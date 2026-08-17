@@ -9,6 +9,7 @@ const TRANSPORT_TYPES = [
   { value: 'all', label: 'Все' },
   { value: 'AUTO', label: 'Авто' },
   { value: 'FERRY', label: 'Паром' },
+  { value: 'AIR', label: 'Авиа' },
 ];
 
 export interface FiltersState {

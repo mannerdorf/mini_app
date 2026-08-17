@@ -4,7 +4,7 @@ import { cityToCode } from "./formatUtils";
 import { type DateFilterState, loadDateFilterState as loadDateFilterStateBase } from "./dateUtils";
 
 export type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;
-export type TypeFilterKey = "ferry" | "auto";
+export type TypeFilterKey = "ferry" | "auto" | "air";
 export type RouteFilterKey = "MSK-KGD" | "KGD-MSK";
 export type SharedBillStatusKey = Exclude<BillStatusFilterKey, "all">;
 
@@ -27,7 +27,12 @@ const EMPTY_SHARED: SharedListFiltersState = {
 
 const CARGO_STATUS_KEYS: CargoStatusFilterKey[] = ["in_transit", "ready", "delivering", "delivered"];
 const BILL_STATUS_KEYS: SharedBillStatusKey[] = ["paid", "unpaid", "partial", "cancelled", "unknown"];
-const TYPE_KEYS: TypeFilterKey[] = ["ferry", "auto"];
+const TYPE_KEYS: TypeFilterKey[] = ["ferry", "auto", "air"];
+const TYPE_FILTER_LABELS: Record<TypeFilterKey, string> = {
+  ferry: "Паром",
+  auto: "Авто",
+  air: "Авиа",
+};
 const ROUTE_KEYS: RouteFilterKey[] = ["MSK-KGD", "KGD-MSK"];
 
 function isCargoStatusKey(v: unknown): v is CargoStatusFilterKey {
@@ -39,7 +44,7 @@ function isBillStatusKey(v: unknown): v is SharedBillStatusKey {
 }
 
 function isTypeKey(v: unknown): v is TypeFilterKey {
-  return v === "ferry" || v === "auto";
+  return v === "ferry" || v === "auto" || v === "air";
 }
 
 function isRouteKey(v: unknown): v is RouteFilterKey {
@@ -160,10 +165,27 @@ export function initSharedFilterSets(): {
   };
 }
 
-export function matchesTypeFilterSet(ak: unknown, typeFilterSet: Set<TypeFilterKey>): boolean {
+export function formatTypeFilterSetLabel(typeFilterSet: Set<TypeFilterKey>): string {
+  if (typeFilterSet.size === 0) return "Все";
+  const ordered = TYPE_KEYS.filter((k) => typeFilterSet.has(k)).map((k) => TYPE_FILTER_LABELS[k]);
+  if (ordered.length === 0) return "Все";
+  return ordered.join(", ");
+}
+
+export function matchesTypeFilterSet(
+  transportOrAk: TypeFilterKey | unknown,
+  typeFilterSet: Set<TypeFilterKey>,
+): boolean {
   if (typeFilterSet.size === 0) return true;
-  const isFerry = ak === true || ak === "true" || ak === "1" || ak === 1;
-  return (typeFilterSet.has("ferry") && isFerry) || (typeFilterSet.has("auto") && !isFerry);
+  let type: TypeFilterKey;
+  if (transportOrAk === "ferry" || transportOrAk === "auto" || transportOrAk === "air") {
+    type = transportOrAk;
+  } else {
+    // legacy: только AK → паром/авто (авиа пока не выводится из AK)
+    const isFerry = transportOrAk === true || transportOrAk === "true" || transportOrAk === "1" || transportOrAk === 1;
+    type = isFerry ? "ferry" : "auto";
+  }
+  return typeFilterSet.has(type);
 }
 
 export function matchesRouteFilterSet(

@@ -89,6 +89,7 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                                 >
                                     {d.ferry > 0 && <div style={{ flex: d.ferry, background: '#3b82f6' }} title={`Паром: ${d.ferry}`} />}
                                     {d.auto > 0 && <div style={{ flex: d.auto, background: '#f59e0b' }} title={`Авто: ${d.auto}`} />}
+                                    {d.air > 0 && <div style={{ flex: d.air, background: '#6366f1' }} title={`Авиа: ${d.air}`} />}
                                     {d.count === 0 && <div style={{ flex: 1, background: 'var(--color-bg-hover)' }} />}
                                 </motion.div>
                             </div>
@@ -107,6 +108,7 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                     <Flex gap="0.75rem">
                         <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: 2, background: '#3b82f6' }} /><Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)' }}>Паром</Typography.Body></Flex>
                         <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: 2, background: '#f59e0b' }} /><Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)' }}>Авто</Typography.Body></Flex>
+                        <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: 2, background: '#6366f1' }} /><Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)' }}>Авиа</Typography.Body></Flex>
                     </Flex>
                 </Panel>
             )}

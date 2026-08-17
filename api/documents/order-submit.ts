@@ -19,7 +19,6 @@ import {
 } from "../../lib/haulzCalculator/quoteProposalEmail.js";
 import { sendHaulzEmail } from "../../lib/sendRegistrationEmail.js";
 import { HAULZ_LEGAL } from "../../lib/haulzLegal.js";
-import type { MainlineMode } from "../../lib/haulzCalculator/types.js";
 import {
   buildQuoteRequestFromBody,
   defaultPickupDate,
@@ -94,8 +93,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const { quoteReq, from, to } = parsed;
-  const modeRaw = String(body.mainlineMode ?? body.mainline_mode ?? "ferry").toLowerCase();
-  const mainlineMode: MainlineMode = modeRaw === "auto" ? "auto" : "ferry";
+  const mainlineMode = quoteReq.mainlineMode;
 
   const legacyTableRows = Array.isArray(body.tableRows) ? body.tableRows : [];
   const fivepostBatchId = Number(body.fivepostBatchId ?? body.fivepost_batch_id);

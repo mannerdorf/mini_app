@@ -10,6 +10,7 @@ import type {
   ParcelPlace,
   QuoteResult,
 } from "../../lib/haulzCalculator/types";
+import { parseMainlineMode } from "../../lib/haulzCalculator/mainlineMode";
 import {
   fetchHaulzCalcDraft,
   fetchHaulzCalculatorOptions,
@@ -291,7 +292,7 @@ export function HaulzCalculatorPage({
     setPlaces(f.places?.length ? f.places : [{ weightKg: 100, volumeM3: 0.5 }]);
     setActivePresetIdx(f.activePresetIdx ?? { 0: "XL" });
     setDeclaredValue(f.declaredValue ?? "");
-    setMainlineMode(f.mainlineMode === "auto" ? "auto" : "ferry");
+    setMainlineMode(parseMainlineMode(f.mainlineMode));
     setDirectionOverride(f.directionOverride ?? null);
     setExtraCodes(Array.isArray(f.extraCodes) ? f.extraCodes : []);
     if (f.dataZabora) setDataZabora(f.dataZabora);

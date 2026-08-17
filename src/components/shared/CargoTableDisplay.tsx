@@ -1,5 +1,6 @@
 import React from "react";
 import { Ship, Truck } from "lucide-react";
+import { PlaneIcon } from "../icons/PlaneIcon";
 import { AppBadge } from "./AppBadge";
 import { StatusBadge, StatusBillBadge } from "./StatusBadges";
 import { cityToCode } from "../../lib/formatUtils";
@@ -10,8 +11,8 @@ import {
   CARGO_PICKUP_LABEL_TERMINAL_TO,
   getCargoPickupLogisticsLabel,
   getCargoRoleSet,
-  isFerry,
 } from "../../lib/cargoUtils";
+import { getCargoTransportType } from "../../lib/cargoTransportType";
 import type { CargoItem } from "../../types";
 
 export function formatRouteLabel(from?: string | null, to?: string | null): string {
@@ -74,18 +75,26 @@ export function CargoTransportTypeIcon({
   size?: number;
   className?: string;
 }) {
-  const ferry = item != null ? isFerry(item as CargoItem) : isAkFerry(ak);
+  const type =
+    item != null
+      ? getCargoTransportType(item)
+      : isAkFerry(ak)
+        ? "ferry"
+        : "auto";
   const iconClass = className ?? "w-4 h-4";
   const iconStyle: React.CSSProperties = {
-    color: ferry ? "var(--color-primary-blue)" : "var(--color-text-secondary)",
+    color: type === "auto" ? "var(--color-text-secondary)" : "var(--color-primary-blue)",
     display: "inline-block",
     verticalAlign: "middle",
+    flexShrink: 0,
   };
-  return ferry ? (
-    <Ship className={iconClass} width={size} height={size} style={iconStyle} title="Паром" />
-  ) : (
-    <Truck className={iconClass} width={size} height={size} style={iconStyle} title="Авто" />
-  );
+  if (type === "air") {
+    return <PlaneIcon className={iconClass} width={size} height={size} style={iconStyle} title="Авиа" />;
+  }
+  if (type === "ferry") {
+    return <Ship className={iconClass} width={size} height={size} style={iconStyle} title="Паром" />;
+  }
+  return <Truck className={iconClass} width={size} height={size} style={iconStyle} title="Авто" />;
 }
 
 /** Заборная логистика (пикап / terminal-to). */

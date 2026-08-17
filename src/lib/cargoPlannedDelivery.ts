@@ -4,7 +4,7 @@
 import * as dateUtils from "./dateUtils";
 import { cityToCode } from "./formatUtils";
 import type { CargoItem } from "../types";
-import { isFerry } from "./cargoUtils";
+import { getCargoTransportType } from "./cargoTransportType";
 
 function parseDateOnly(value: unknown): Date | null {
     const raw = String(value ?? "").trim();
@@ -94,7 +94,7 @@ export function buildRouteTypePlanDaysMap(items: CargoItem[]): Map<string, numbe
         const to = cityToCode(item.CityReceiver) || String(item.CityReceiver ?? "").trim().toUpperCase() || "—";
         return `${from}-${to}`;
     };
-    const typeKeyFor = (item: CargoItem): "ferry" | "auto" => (isFerry(item) ? "ferry" : "auto");
+    const typeKeyFor = (item: CargoItem) => getCargoTransportType(item);
     (items || []).forEach((item) => {
         const start = getSendingStartDateForPlan(item);
         const actual = getActualDeliveryDateForPlan(item);
@@ -137,7 +137,7 @@ export function getEffectivePlannedDeliveryDate(item: CargoItem, planDaysByBucke
     if (!start) return null;
     const from = cityToCode(item.CitySender) || String(item.CitySender ?? "").trim().toUpperCase() || "—";
     const to = cityToCode(item.CityReceiver) || String(item.CityReceiver ?? "").trim().toUpperCase() || "—";
-    const type = isFerry(item) ? "ferry" : "auto";
+    const type = getCargoTransportType(item);
     const days = planDaysByBucket.get(`${from}-${to}|${type}`);
     if (!days) return null;
     const planned = new Date(start);
