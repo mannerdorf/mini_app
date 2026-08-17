@@ -20,6 +20,16 @@ import {
   readDocumentsFromCacheByPeriod,
   readPerevozkiByNumbersFromCache,
 } from "../lib/documentCacheRead.js";
+import { backfillPerevozkiPartyInnsByName } from "../lib/documentCacheNormalized.js";
+import { normalizeCompanyName } from "../lib/orderCustomerScope.js";
+import {
+  annotatePerevozkiRoles,
+  perevozkiCustomerInn,
+  perevozkiReceiverInn,
+  perevozkiSenderInn,
+  resolvePerevozkiRolesForInns,
+  type PerevozkiPartyRole,
+} from "../lib/perevozkiPartyMatch.js";
 
 function parseCargoDateField(raw: unknown): CargoDateField {
   const v = String(raw ?? "").trim().toLowerCase();
@@ -41,57 +51,54 @@ const CACHE_FRESH_MINUTES = 15;
 
 type PerevozkiMode = "Customer" | "Sender" | "Receiver";
 
-function firstInn(item: any, keys: string[]): string {
-  for (const key of keys) {
-    const raw = item?.[key];
-    const value = String(raw ?? "").replace(/\D/g, "").trim();
-    if (value) return value;
-  }
-  return "";
-}
-
 function itemInn(item: any, mode?: unknown): string {
   const normalizedMode = String(mode ?? "").trim() as PerevozkiMode | "";
-  if (normalizedMode === "Sender") {
-    return firstInn(item, [
-      "SenderINN",
-      "senderINN",
-      "SenderInn",
-      "senderInn",
-      "INNSender",
-      "InnSender",
-      "ОтправительИНН",
-      "ИННОтправителя",
-      "ИННОтправитель",
-      "INN_SENDER",
+  if (normalizedMode === "Sender") return perevozkiSenderInn(item);
+  if (normalizedMode === "Receiver") return perevozkiReceiverInn(item);
+  if (normalizedMode === "Customer") return perevozkiCustomerInn(item);
+  return perevozkiCustomerInn(item) || perevozkiSenderInn(item) || perevozkiReceiverInn(item);
+}
+
+function itemMatchesRegisteredInns(
+  item: Record<string, unknown>,
+  inns: Set<string>,
+  mode?: unknown,
+  nameNorms?: Set<string>,
+): boolean {
+  const roles = resolvePerevozkiRolesForInns(item, inns, nameNorms);
+  if (roles.length === 0) return false;
+  const normalizedMode = String(mode ?? "").trim() as PerevozkiMode | "";
+  if (!normalizedMode) return true;
+  return roles.includes(normalizedMode as PerevozkiPartyRole);
+}
+
+async function loadPartyNameNormsForInns(pool: Pool, inns: Set<string>): Promise<Set<string>> {
+  const out = new Set<string>();
+  if (inns.size === 0) return out;
+  const innList = Array.from(inns);
+  try {
+    const [customers, accounts] = await Promise.all([
+      pool.query<{ customer_name: string }>(
+        `select customer_name from cache_customers where trim(inn) = any($1::text[])`,
+        [innList],
+      ),
+      pool.query<{ name: string }>(
+        `select name from account_companies where trim(inn) = any($1::text[])`,
+        [innList],
+      ),
     ]);
+    for (const row of customers.rows) {
+      const n = normalizeCompanyName(row.customer_name);
+      if (n) out.add(n);
+    }
+    for (const row of accounts.rows) {
+      const n = normalizeCompanyName(row.name);
+      if (n) out.add(n);
+    }
+  } catch {
+    // справочники могут отсутствовать
   }
-  if (normalizedMode === "Receiver") {
-    return firstInn(item, [
-      "ReceiverINN",
-      "receiverINN",
-      "ReceiverInn",
-      "receiverInn",
-      "INNReceiver",
-      "InnReceiver",
-      "ПолучательИНН",
-      "ИННПолучателя",
-      "ИННПолучатель",
-      "INN_RECEIVER",
-    ]);
-  }
-  const v =
-    item?.INN ??
-    item?.Inn ??
-    item?.inn ??
-    item?.CustomerINN ??
-    item?.CustomerInn ??
-    item?.customerInn ??
-    item?.INNCustomer ??
-    item?.InnCustomer ??
-    item?.ЗаказчикИНН ??
-    "";
-  return String(v).trim();
+  return out;
 }
 
 function itemDate(item: any): string {
@@ -172,6 +179,7 @@ function filterPerevozkiListForRegistered(
   mode?: unknown,
   allowedInnsFromDb?: Set<string>,
   dateField: CargoDateField = "default",
+  partyNameNorms?: Set<string>,
 ): any[] {
   const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
   const isServiceMode = !!serviceMode;
@@ -192,13 +200,18 @@ function filterPerevozkiListForRegistered(
           ? new Set([requestedInn])
           : new Set<string>()
         : filterInns;
-  return list.filter((item) => {
-    if (finalInns !== null) {
-      const itemInnVal = itemInn(item, mode);
-      if (!finalInns.has(itemInnVal)) return false;
-    }
-    return isCargoInDateRangeForField(item, dateFrom, dateTo, dateField);
-  });
+  return list
+    .filter((item) => {
+      if (finalInns !== null) {
+        if (!itemMatchesRegisteredInns(item, finalInns, mode, partyNameNorms)) return false;
+      }
+      return isCargoInDateRangeForField(item, dateFrom, dateTo, dateField);
+    })
+    .map((item) => {
+      if (!finalInns || finalInns.size === 0) return item;
+      const roles = resolvePerevozkiRolesForInns(item, finalInns, partyNameNorms);
+      return annotatePerevozkiRoles(item, roles);
+    });
 }
 
 /** Кэш перевозок для зарегистрированного пользователя (без 1С). Используется из `/api/perevozki` и partner/v1 с пользовательским ключом. */
@@ -244,12 +257,41 @@ export async function readRegisteredPerevozkiFromCache(
             : new Set<string>()
           : filterInns;
 
+    const partyNameNorms =
+      finalInns && finalInns.size > 0 ? await loadPartyNameNormsForInns(pool, finalInns) : new Set<string>();
+
+    if (finalInns && finalInns.size > 0) {
+      try {
+        await backfillPerevozkiPartyInnsByName(pool, {
+          inns: finalInns,
+          dateFrom,
+          dateTo,
+        });
+      } catch {
+        // backfill best-effort
+      }
+    }
+
     const { items, fromNormalized } = await readDocumentsFromCacheByPeriod(pool, "perevozki", dateFrom, dateTo, {
       dateField,
       inns: finalInns,
       innColumn: innColumnForPerevozkiMode(mode),
+      partyNameNorms: partyNameNorms.size > 0 ? partyNameNorms : null,
     });
-    if (fromNormalized) return items;
+    if (fromNormalized) {
+      if (!finalInns || finalInns.size === 0) return items;
+      return items
+        .map((item) => {
+          const roles = resolvePerevozkiRolesForInns(item, finalInns, partyNameNorms);
+          return annotatePerevozkiRoles(item, roles);
+        })
+        .filter((item) => {
+          const normalizedMode = String(mode ?? "").trim() as PerevozkiMode | "";
+          if (!normalizedMode) return true;
+          const roles = (item._roles as PerevozkiPartyRole[] | undefined) ?? [];
+          return roles.includes(normalizedMode as PerevozkiPartyRole);
+        });
+    }
 
     return filterPerevozkiListForRegistered(
       items,
@@ -262,6 +304,7 @@ export async function readRegisteredPerevozkiFromCache(
       mode,
       allowedInnsFromDb,
       dateField,
+      partyNameNorms,
     );
   } catch {
     return [];
@@ -412,8 +455,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const filtered = fromNormalized
             ? items
             : items.filter((item) => {
-                const itemInnVal = itemInn(item, mode);
-                if (!filterInns!.has(itemInnVal)) return false;
+                if (!itemMatchesRegisteredInns(item, filterInns!, mode)) return false;
                 return isCargoInDateRangeForField(item, dateFrom, dateTo, dateField);
               });
           return res.status(200).json(Array.isArray(filtered) ? filtered : []);
