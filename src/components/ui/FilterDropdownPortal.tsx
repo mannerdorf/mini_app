@@ -82,6 +82,13 @@ export function FilterDropdownPortal({ triggerRef, isOpen, onClose, children }: 
             ref={containerRef}
             className="filter-dropdown filter-dropdown-portal"
             style={{ top: rect.top, left: rect.left, minWidth: rect.width, maxHeight: rect.maxHeight }}
+            onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            }}
+            onSelectStart={(e) => {
+                e.preventDefault();
+            }}
         >
             {children}
         </div>,
