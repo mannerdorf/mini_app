@@ -65,7 +65,8 @@ export function buildSendingsForTransportOptions({
         : "";
       return (
         (typeFilterSet.has("auto") && transportType === "auto") ||
-        (typeFilterSet.has("ferry") && transportType === "ferry")
+        (typeFilterSet.has("ferry") && transportType === "ferry") ||
+        (typeFilterSet.has("air") && transportType === "air")
       );
     });
   }

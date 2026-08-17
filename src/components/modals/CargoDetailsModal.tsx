@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
-import { Loader2, X, Truck, Ship, Heart, Share2, Layers, Scale, Weight, List, Download, Info, ClipboardList } from "lucide-react";
+import { Loader2, X, Heart, Share2, Layers, Scale, Weight, List, Download, Info, ClipboardList } from "lucide-react";
 import { fetchPerevozkaDetails } from "../../lib/perevozkaDetails";
 import { ShipmentStatusPanel } from "../ShipmentStatusScreen";
 import { getWebApp, isMaxWebApp } from "../../webApp";
@@ -12,7 +12,8 @@ import { formatPerevozkaNumberForApi } from "../../lib/perevozkaNumber";
 import { normalizeStatus, getFilterKeyByStatus, getSumColorByPaymentStatus } from "../../lib/statusUtils";
 import { formatDate } from "../../lib/dateUtils";
 import { getPlanDays, getCargoDisplayRoleLabel, getCargoRoleSet, cargoLastMileIsSelfPickup } from "../../lib/cargoUtils";
-import { CargoPickupLogisticsBadge } from "../shared/CargoTableDisplay";
+import { cargoTransportTypeLabel, getCargoTransportType } from "../../lib/cargoTransportType";
+import { CargoPickupLogisticsBadge, CargoTransportTypeIcon } from "../shared/CargoTableDisplay";
 import { ClickableActNumber, ClickableInvoiceNumber } from "../ui/EntityLinks";
 import { DetailItem } from "../ui/DetailItem";
 import { DateText } from "../ui/DateText";
@@ -314,8 +315,13 @@ export function CargoDetailsModal({
                 <div className="modal-header">
                     <div className="modal-header-main">
                         {(() => {
-                            const isFerry = item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
-                            return isFerry ? <Ship className="modal-header-transport-icon" style={{ color: 'var(--color-primary-blue)', width: 24, height: 24, flexShrink: 0 }} title="Паром" /> : <Truck className="modal-header-transport-icon" style={{ color: 'var(--color-primary-blue)', width: 24, height: 24, flexShrink: 0 }} title="Авто" />;
+                            return (
+                                <CargoTransportTypeIcon
+                                    item={item}
+                                    size={24}
+                                    className="modal-header-transport-icon"
+                                />
+                            );
                         })()}
                         {roleLabel && (
                             <span className="role-badge modal-header-role-badge">
@@ -339,7 +345,7 @@ export function CargoDetailsModal({
                                         if (item.Sender) lines.push(`Отправитель: ${stripOoo(item.Sender)}`);
                                         if (item.Customer) lines.push(`Заказчик: ${stripOoo(item.Customer)}`);
                                         if (item.Receiver ?? (item as any).receiver) lines.push(`Получатель: ${stripOoo(item.Receiver ?? (item as any).receiver)}`);
-                                        lines.push(`Тип перевозки: ${item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1 ? 'Паром' : 'Авто'}`);
+                                        lines.push(`Тип перевозки: ${cargoTransportTypeLabel(getCargoTransportType(item))}`);
                                         const fromC = cityToCode(item.CitySender);
                                         const toC = cityToCode(item.CityReceiver);
                                         lines.push(`Место отправления: ${fromC || '-'}`);
@@ -581,7 +587,7 @@ export function CargoDetailsModal({
                             if (val === undefined || val === null || val === "" || (typeof val === 'string' && val.trim() === "") || (typeof val === 'object' && val !== null && Object.keys(val).length === 0)) return null;
                             if (val === 0 && key.toLowerCase().includes('date') === false) return null;
                             if (key === 'AutoReg' && !useServiceRequest) return null;
-                            const isFerry = item?.AK === true || item?.AK === "true" || item?.AK === "1" || item?.AK === 1;
+                            const transportType = getCargoTransportType(item);
                             const lk = key.toLowerCase();
                             const label =
                                 FIELD_LABELS[key]
@@ -589,8 +595,8 @@ export function CargoDetailsModal({
                             let value: React.ReactNode;
                             if (lk === 'upd' || lk === 'billnum' || lk === 'bill_number') {
                                 value = formatInvoiceNumber(String(val ?? ''));
-                            } else if ((key === 'TypeOfTranzit' || key === 'TypeOfTransit') && isFerry) {
-                                value = 'Паром';
+                            } else if (key === 'TypeOfTranzit' || key === 'TypeOfTransit') {
+                                value = cargoTransportTypeLabel(transportType);
                             } else if (key === 'CitySender' || key === 'CityReceiver') {
                                 value = cityToCode(val) || renderValue(val);
                             } else {

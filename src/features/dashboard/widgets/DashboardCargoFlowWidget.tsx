@@ -27,6 +27,7 @@ export type DashboardCargoFlowByPlan = {
         vol: number;
         ferry: { count: number; pw: number; mest: number; vol: number };
         auto: { count: number; pw: number; mest: number; vol: number };
+        air: { count: number; pw: number; mest: number; vol: number };
     }[];
 };
 
@@ -128,6 +129,7 @@ export function DashboardCargoFlowWidget({
                                     <Typography.Body style={DASH_PLAN_FACT_TYPO.tileLine}>Всего: {row.count}</Typography.Body>
                                     <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.tileLine, color: '#2563eb' }}>Паром: {row.ferry.count}</Typography.Body>
                                     <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.tileLine, color: '#16a34a' }}>Авто: {row.auto.count}</Typography.Body>
+                                    <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.tileLine, color: '#6366f1' }}>Авиа: {row.air?.count ?? 0}</Typography.Body>
                                     <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.tileLine, color: 'var(--color-text-secondary)' }}>Мест: {Math.round(row.mest).toLocaleString('ru-RU')}</Typography.Body>
                                     <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.tileLine, color: 'var(--color-text-secondary)' }}>Вес: {Math.round(row.pw).toLocaleString('ru-RU')} кг</Typography.Body>
                                     <Typography.Body style={{ ...DASH_PLAN_FACT_TYPO.tileLine, color: 'var(--color-text-secondary)' }}>Объём: {row.vol.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} м³</Typography.Body>

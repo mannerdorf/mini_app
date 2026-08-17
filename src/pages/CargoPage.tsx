@@ -20,11 +20,12 @@ import {
     buildGroupedByCustomer,
     sortGroupedByCustomer,
 } from "./cargoPipeline";
-import { initSharedFilterSets, saveSharedListFilters, sharedFromFilterSets } from "../lib/sharedListFilters";
+import { formatTypeFilterSetLabel, initSharedFilterSets, saveSharedListFilters, sharedFromFilterSets } from "../lib/sharedListFilters";
 import { buildTransportOptionsFromSendingsInPeriod, buildTransportLinkedCargoNumbersInPeriod, collectSendingFreightCargoNumbers, filterItemsForHeaderCustomer, normCargoKey } from "../features/documents/lib/documentsPipeline";
 import { useCargoTransportFilter, usePerevozkiMultiAccounts, useSendings } from "../hooks/useApi";
 import { useCargoNomenclatureSearch } from "../hooks/useCargoNomenclatureSearch";
 import { CARGO_ROLE_FILTER_LABELS, pickupLogisticsFilterLabel, type CargoRoleFilterKey } from "../lib/cargoUtils";
+import { cargoTransportTypeLabel, getCargoTransportType } from "../lib/cargoTransportType";
 import { buildRouteTypePlanDaysMap, getEffectivePlannedDeliveryDate } from "../lib/cargoPlannedDelivery";
 import { ServiceRefreshFrom1cButton } from "../components/ServiceRefreshFrom1cButton";
 import { CargoSummaryCard, CargoStateBlocks } from "./cargoViewBlocks";
@@ -579,7 +580,7 @@ export function CargoPage({
         lines.push(`Доставка: ${getFilterKeyByStatus(item.State) === 'delivered' && item.DateVr ? formatDate(item.DateVr) : '-'}`);
         if (item.Sender) lines.push(`Отправитель: ${stripOoo(item.Sender)}`);
         if (item.Customer) lines.push(`Заказчик: ${stripOoo(item.Customer)}`);
-        lines.push(`Тип перевозки: ${item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1 ? 'Паром' : 'Авто'}`);
+        lines.push(`Тип перевозки: ${cargoTransportTypeLabel(getCargoTransportType(item))}`);
         const fromCity = cityToCode(item.CitySender);
         const toCity = cityToCode(item.CityReceiver);
         lines.push(`Место отправления: ${fromCity || '-'}`);
@@ -977,13 +978,14 @@ export function CargoPage({
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); setIsPickupLogisticsDropdownOpen(false); setIsRoleDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
-                            Тип: {typeFilterSet.size === 0 ? 'Все' : typeFilterSet.size === 2 ? 'Паром, Авто' : typeFilterSet.has('ferry') ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
+                            Тип: {formatTypeFilterSetLabel(typeFilterSet)} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={typeButtonRef} isOpen={isTypeDropdownOpen} onClose={() => setIsTypeDropdownOpen(false)}>
                         <div className="dropdown-item" onClick={() => { setTypeFilterSet(new Set()); setIsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
                         <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setTypeFilterSet(prev => { const next = new Set(prev); if (next.has('ferry')) next.delete('ferry'); else next.add('ferry'); return next; }); }} style={{ background: typeFilterSet.has('ferry') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Паром {typeFilterSet.has('ferry') ? '✓' : ''}</Typography.Body></div>
                         <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setTypeFilterSet(prev => { const next = new Set(prev); if (next.has('auto')) next.delete('auto'); else next.add('auto'); return next; }); }} style={{ background: typeFilterSet.has('auto') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Авто {typeFilterSet.has('auto') ? '✓' : ''}</Typography.Body></div>
+                        <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setTypeFilterSet(prev => { const next = new Set(prev); if (next.has('air')) next.delete('air'); else next.add('air'); return next; }); }} style={{ background: typeFilterSet.has('air') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Авиа {typeFilterSet.has('air') ? '✓' : ''}</Typography.Body></div>
                     </FilterDropdownPortal>
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>

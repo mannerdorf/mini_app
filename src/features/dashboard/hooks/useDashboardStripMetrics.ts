@@ -2,6 +2,12 @@ import { useCallback, useMemo } from "react";
 import * as dateUtils from "../../../lib/dateUtils";
 import { getFilterKeyByStatus } from "../../../lib/statusUtils";
 import { formatCurrency, stripOoo } from "../../../lib/formatUtils";
+import {
+  CARGO_TRANSPORT_TYPE_COLORS,
+  CARGO_TRANSPORT_TYPE_LABELS,
+  getCargoTransportType,
+  type CargoTransportType,
+} from "../../../lib/cargoTransportType";
 import { calcStripDynamics } from "../StripDynamicsBadge";
 import type { DashboardChartPoint } from "../dashboardTypes";
 import type { CargoItem } from "../../../types";
@@ -51,8 +57,21 @@ export function useDashboardStripMetrics({
     return Array.from(dataMap.values()).sort((a, b) => (a.dateKey || a.date).localeCompare(b.dateKey || b.date));
     }, [dashboardTotalItems]);
 
-    const DIAGRAM_COLORS = ['#06b6d4', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#3b82f6', '#ef4444', '#84cc16'];
-    const stripTotals = useMemo(() => {
+const DIAGRAM_COLORS = ['#06b6d4', '#f59e0b', '#6366f1', '#10b981', '#ec4899', '#8b5cf6', '#3b82f6', '#ef4444', '#84cc16'];
+const TYPE_ORDER: CargoTransportType[] = ["auto", "ferry", "air"];
+
+function accumulateByTransportType(
+  items: CargoItem[],
+  getVal: (item: CargoItem) => number,
+): Record<CargoTransportType, number> {
+  const out: Record<CargoTransportType, number> = { auto: 0, ferry: 0, air: 0 };
+  for (const item of items) {
+    out[getCargoTransportType(item)] += getVal(item);
+  }
+  return out;
+}
+
+const stripTotals = useMemo(() => {
     let sum = 0, pw = 0, w = 0, vol = 0, mest = 0;
     dashboardTotalItems.forEach(item => {
         sum += typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
@@ -88,17 +107,14 @@ const deliveryStripTotals = useMemo(() => {
     return { sum, pw, w, vol, mest };
 }, [deliveryFilteredItems]);
 const deliveryStripDiagramByType = useMemo(() => {
-    let autoVal = 0, ferryVal = 0;
-    deliveryFilteredItems.forEach(item => {
-        const v = getValForChart(item);
-        if (item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1) ferryVal += v;
-        else autoVal += v;
-    });
-    const total = autoVal + ferryVal || 1;
-    return [
-        { label: 'Авто', value: autoVal, percent: Math.round((autoVal / total) * 100), color: DIAGRAM_COLORS[0] },
-        { label: 'Паром', value: ferryVal, percent: Math.round((ferryVal / total) * 100), color: DIAGRAM_COLORS[1] },
-    ];
+    const vals = accumulateByTransportType(deliveryFilteredItems, getValForChart);
+    const total = vals.auto + vals.ferry + vals.air || 1;
+    return TYPE_ORDER.map((type) => ({
+        label: CARGO_TRANSPORT_TYPE_LABELS[type],
+        value: vals[type],
+        percent: Math.round((vals[type] / total) * 100),
+        color: CARGO_TRANSPORT_TYPE_COLORS[type],
+    }));
 }, [deliveryFilteredItems, chartType, getValForChart]);
 const deliveryStripDiagramBySender = useMemo(() => {
     const map = new Map<string, number>();
@@ -124,26 +140,19 @@ const deliveryStripDiagramByReceiver = useMemo(() => {
 }, [deliveryFilteredItems, chartType, getValForChart]);
 
 const stripDiagramByType = useMemo(() => {
-    let autoVal = 0, ferryVal = 0;
-    dashboardTotalItems.forEach(item => {
-        const v = getValForChart(item);
-        if (item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1) ferryVal += v;
-        else autoVal += v;
-    });
-    let autoPrev = 0, ferryPrev = 0;
+    const vals = accumulateByTransportType(dashboardTotalItems, getValForChart);
     const hasPrev = useServiceRequest && dashboardTotalPrevPeriodItems.length > 0;
-    if (hasPrev) {
-        dashboardTotalPrevPeriodItems.forEach(item => {
-            const v = getValForChart(item);
-            if (item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1) ferryPrev += v;
-            else autoPrev += v;
-        });
-    }
-    const total = autoVal + ferryVal || 1;
-    return [
-        { label: 'Авто', value: autoVal, percent: Math.round((autoVal / total) * 100), color: DIAGRAM_COLORS[0], dynamics: calcStripDynamics(autoVal, autoPrev, hasPrev) },
-        { label: 'Паром', value: ferryVal, percent: Math.round((ferryVal / total) * 100), color: DIAGRAM_COLORS[1], dynamics: calcStripDynamics(ferryVal, ferryPrev, hasPrev) },
-    ];
+    const prevVals = hasPrev
+        ? accumulateByTransportType(dashboardTotalPrevPeriodItems, getValForChart)
+        : { auto: 0, ferry: 0, air: 0 };
+    const total = vals.auto + vals.ferry + vals.air || 1;
+    return TYPE_ORDER.map((type) => ({
+        label: CARGO_TRANSPORT_TYPE_LABELS[type],
+        value: vals[type],
+        percent: Math.round((vals[type] / total) * 100),
+        color: CARGO_TRANSPORT_TYPE_COLORS[type],
+        dynamics: calcStripDynamics(vals[type], prevVals[type], hasPrev),
+    }));
 }, [dashboardTotalItems, dashboardTotalPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
 
 const stripDiagramBySender = useMemo(() => {

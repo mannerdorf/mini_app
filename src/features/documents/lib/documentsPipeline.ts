@@ -21,6 +21,7 @@ import {
   type SharedBillStatusKey,
   type TypeFilterKey,
 } from "../../../lib/sharedListFilters";
+import { getCargoTransportType } from "../../../lib/cargoTransportType";
 
 export const INVOICE_FAVORITES_VALUE = "__favorites__";
 
@@ -551,7 +552,7 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
     res = res.filter((i) => billStatusFilterSet.has(getInvoicePaymentFilterKey(i)));
   }
   if (typeFilterSet.size > 0) {
-    res = res.filter((i) => matchesTypeFilterSet(i?.AK, typeFilterSet));
+    res = res.filter((i) => matchesTypeFilterSet(getCargoTransportType(i as never), typeFilterSet));
   }
   if (routeFilterSet.size > 0) {
     res = res.filter((i) => {
@@ -707,7 +708,7 @@ export function buildFilteredOrders(params: FilterOrdersParams) {
     res = res.filter((i) => ((i.Customer ?? i.customer ?? i.ЗаказчикНаименование ?? i.Заказчик ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? "").trim()) === customerFilter);
   }
   if (typeFilterSet.size > 0) {
-    res = res.filter((i) => matchesTypeFilterSet(i?.AK, typeFilterSet));
+    res = res.filter((i) => matchesTypeFilterSet(getCargoTransportType(i as never), typeFilterSet));
   }
   if (routeFilterSet.size > 0) {
     res = res.filter((i) =>
