@@ -17,6 +17,27 @@ type Props = {
 
 const CARGO_STAGE_SET = new Set<string>(CARGO_STAGE_EVENT_IDS);
 
+function pushHistoryHeadline(item: PushHistoryItem): string {
+  const title = String(item.pushTitle || "").trim();
+  if (item.event === "broadcast") {
+    return title || "HAULZ";
+  }
+  if (title) return title;
+  return pushEventLabel(item.event);
+}
+
+function pushHistorySubtitle(item: PushHistoryItem): string {
+  const body = String(item.pushBody || "").trim();
+  if (body) return body;
+  if (item.event === "broadcast") {
+    const legacy = String(item.cargoNumber || "").trim();
+    if (legacy && legacy !== "HAULZ") return legacy;
+    return "";
+  }
+  if (item.cargoNumber) return `Груз ${item.cargoNumber}`;
+  return "Без номера груза";
+}
+
 function pushEventLabel(event: string): string {
   if (CARGO_STAGE_SET.has(event)) {
     return cargoStageEventLabel(event as CargoStageEventId);
@@ -31,7 +52,7 @@ function pushEventLabel(event: string): string {
     case "weekly_summary":
       return "Еженедельная сводка";
     case "broadcast":
-      return "Сообщение HAULZ";
+      return "HAULZ";
     case "accepted":
       return "Принят";
     case "in_transit":
@@ -59,8 +80,9 @@ export function ProfilePushHistorySection({ activeAccount, onBack }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const next = await fetchPushHistory(login, { limit: 50 });
-      setItems(next);
+      const result = await fetchPushHistory(login, { limit: 50 });
+      setItems(result.items);
+      if (result.error) setError(result.error);
     } catch (e) {
       setError((e as { message?: string })?.message || "Не удалось загрузить историю");
       setItems([]);
@@ -97,8 +119,11 @@ export function ProfilePushHistorySection({ activeAccount, onBack }: Props) {
                 lineHeight: 1.45,
               }}
             >
-              Здесь отображаются push, отправленные в Android-приложение HAULZ по этапам перевозки и счетам.
+              Push из приложения: этапы перевозки, счета, сводка и тестовые рассылки HAULZ.
             </Typography.Body>
+            <Button className="button-secondary" type="button" onClick={() => void load()} disabled={loading} style={{ marginTop: "0.75rem" }}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Обновить"}
+            </Button>
           </div>
         </Flex>
       </Panel>
@@ -136,21 +161,19 @@ export function ProfilePushHistorySection({ activeAccount, onBack }: Props) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <Typography.Body style={{ fontWeight: 700, margin: 0, fontSize: "0.92rem" }}>
-                    {pushEventLabel(item.event)}
+                    {pushHistoryHeadline(item)}
                   </Typography.Body>
                   <Typography.Body
                     style={{
                       margin: "0.25rem 0 0",
                       fontSize: "0.84rem",
                       color: "var(--color-text-secondary)",
+                      lineHeight: 1.45,
+                      wordBreak: "break-word",
                     }}
                   >
-                    {item.event === "broadcast"
-                      ? item.cargoNumber || "Рассылка HAULZ"
-                      : item.cargoNumber
-                        ? `Груз ${item.cargoNumber}`
-                        : "Без номера груза"}
-                    {item.inn ? ` · ИНН ${item.inn}` : ""}
+                    {pushHistorySubtitle(item)}
+                    {item.inn && !String(item.pushBody || "").trim() ? ` · ИНН ${item.inn}` : ""}
                   </Typography.Body>
                   <Flex
                     align="center"

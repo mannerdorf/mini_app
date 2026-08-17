@@ -10,6 +10,7 @@
 
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+TZ=Europe/Moscow
 HAULZ_CRON_API_BASE=http://127.0.0.1:3000
 
 # refresh-cache: раз в 10 минут, сдвиг по минутам

@@ -72,19 +72,26 @@ export type PushHistoryItem = {
   sentAt: string;
   success: boolean;
   errorMessage?: string | null;
+  pushTitle?: string | null;
+  pushBody?: string | null;
 };
 
 export async function fetchPushHistory(
   login: string,
   opts?: { limit?: number; signal?: AbortSignal },
-): Promise<PushHistoryItem[]> {
+): Promise<{ items: PushHistoryItem[]; error?: string }> {
   const limit = opts?.limit ?? 50;
-  const { ok, data } = await fetchJson<{ items?: PushHistoryItem[] }>(
+  const { ok, status, data } = await fetchJson<{ items?: PushHistoryItem[]; error?: string }>(
     `/api/push-history?login=${encodeURIComponent(login)}&limit=${limit}`,
     { signal: opts?.signal },
   );
-  if (!ok) return [];
-  return Array.isArray(data.items) ? data.items : [];
+  if (!ok) {
+    if (status === 404) {
+      return { items: [], error: "История push недоступна на сервере — нужен деплой API." };
+    }
+    return { items: [], error: apiErrorMessage(data, `Ошибка загрузки (${status})`) };
+  }
+  return { items: Array.isArray(data.items) ? data.items : [] };
 }
 
 /** @deprecated use fetchNotificationPreferences */
