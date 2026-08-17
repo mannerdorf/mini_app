@@ -752,10 +752,6 @@ html.guest-mode #root {
   color: rgba(255, 255, 255, 0.88);
 }
 
-.guest-reveal .guest-home-hero__lead {
-  margin-top: 0;
-}
-
 .guest-home-hero__actions {
   display: flex;
   flex-wrap: wrap;
