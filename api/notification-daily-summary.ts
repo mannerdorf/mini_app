@@ -1,16 +1,19 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
-import {
-  fetchPerevozkiByInn,
-  fetchInvoicesByInn,
-  getPaymentKey,
-} from "../lib/notificationPoll.js";
+import { sendFcmToLogin } from "./_lib/fcmDelivery.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import {
+  computeDailySummaryStatsFromCache,
+  formatDailySummaryPlainText,
+  loadDailySummaryCacheIndex,
+  loadDailySummaryPrefsByLogin,
+  loadLoginInns,
+  loadTelegramChatIds,
+  sendDailySummaryEmail,
+} from "../lib/notificationDailySummary.js";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
-const POLL_SERVICE_LOGIN = process.env.POLL_SERVICE_LOGIN;
-const POLL_SERVICE_PASSWORD = process.env.POLL_SERVICE_PASSWORD;
 
 async function sendTelegramMessage(chatId: string, text: string): Promise<{ ok: boolean; error?: string }> {
   if (!TG_BOT_TOKEN) return { ok: false, error: "TG_BOT_TOKEN not set" };
@@ -23,24 +26,32 @@ async function sendTelegramMessage(chatId: string, text: string): Promise<{ ok: 
     const data = (await res.json().catch(() => ({}))) as { ok?: boolean; description?: string };
     if (!res.ok || !data?.ok) return { ok: false, error: data?.description || String(res.status) };
     return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: e?.message || String(e) };
+  } catch (e: unknown) {
+    return { ok: false, error: (e as { message?: string })?.message || String(e) };
   }
 }
 
-function normalizeInn(v: unknown): string {
-  return String(v ?? "").trim();
-}
-
-function normalizeStatus(state: unknown): string {
-  const s = String(state ?? "").trim();
-  return s || "Без статуса";
-}
-
-function invoiceSum(item: any): number {
-  const v = item?.SumDoc ?? item?.Sum ?? item?.sum ?? item?.Amount ?? item?.Сумма ?? 0;
-  const n = typeof v === "number" ? v : parseFloat(String(v).replace(",", "."));
-  return Number.isFinite(n) ? n : 0;
+async function logDelivery(
+  pool: Awaited<ReturnType<typeof getPool>>,
+  params: {
+    login: string;
+    inn: string;
+    channel: "telegram" | "push" | "email";
+    success: boolean;
+    error?: string | null;
+    telegramChatId?: string | null;
+  },
+) {
+  try {
+    await pool.query(
+      `INSERT INTO notification_deliveries (
+         poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message
+       ) VALUES (NULL, $1, $2, '', 'daily_summary', $3, $4, $5, $6)`,
+      [params.login, params.inn, params.channel, params.telegramChatId || null, params.success, params.error || null],
+    );
+  } catch {
+    // best-effort
+  }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -58,13 +69,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "Unauthorized", request_id: ctx.requestId });
   }
 
-  if (!POLL_SERVICE_LOGIN || !POLL_SERVICE_PASSWORD) {
-    return res.status(503).json({ error: "POLL_SERVICE_LOGIN and POLL_SERVICE_PASSWORD are required", request_id: ctx.requestId });
-  }
-  if (!TG_BOT_TOKEN) {
-    return res.status(503).json({ error: "HAULZ_TELEGRAM_BOT_TOKEN is required", request_id: ctx.requestId });
-  }
-
   let pool: Awaited<ReturnType<typeof getPool>>;
   try {
     pool = getPool();
@@ -73,145 +77,110 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const linksRes = await pool.query<{ login: string; telegram_chat_id: string; inn: string | null }>(
-      `select lower(trim(login)) as login, telegram_chat_id, inn
-       from telegram_chat_links
-       where chat_status = 'active' and telegram_chat_id is not null and telegram_chat_id <> ''`
-    );
-    if (linksRes.rows.length === 0) {
-      return res.status(200).json({ ok: true, sent: 0, reason: "no active telegram links", request_id: ctx.requestId });
+    const started = Date.now();
+    const loginInns = await loadLoginInns(pool);
+    if (loginInns.size === 0) {
+      return res.status(200).json({ ok: true, sent: 0, reason: "no logins with INN", request_id: ctx.requestId });
     }
 
-    const summaryPrefs = new Map<string, boolean>();
-    const linkedLogins = [...new Set(linksRes.rows.map((r) => String(r.login || "").trim().toLowerCase()).filter(Boolean))];
-    const loadedFromState = new Set<string>();
-    if (linkedLogins.length > 0) {
-      try {
-        const stateRes = await pool.query<{ login: string; preferences: any }>(
-          `select login, preferences
-           from notification_preferences_state
-           where login = any($1::text[])`,
-          [linkedLogins]
-        );
-        for (const row of stateRes.rows) {
-          const login = String(row.login || "").trim().toLowerCase();
-          if (!login) continue;
-          const raw = row.preferences || {};
-          const telegram = raw?.telegram && typeof raw.telegram === "object" ? raw.telegram : {};
-          summaryPrefs.set(login, !!telegram.daily_summary);
-          loadedFromState.add(login);
-        }
-      } catch {
-        // Fallback to legacy table.
-      }
-    }
-    const missingLogins = linkedLogins.filter((login) => !loadedFromState.has(login));
-    if (missingLogins.length > 0) {
-      const summaryPrefsRes = await pool.query<{ login: string; enabled: boolean }>(
-        `select lower(trim(login)) as login, enabled
-         from notification_preferences
-         where channel = 'telegram' and event_id = 'daily_summary' and lower(trim(login)) = any($1::text[])`,
-        [missingLogins]
-      );
-      for (const row of summaryPrefsRes.rows) {
-        if (row.login) summaryPrefs.set(row.login, !!row.enabled);
-      }
-    }
+    const logins = [...loginInns.keys()];
+    const prefsByLogin = await loadDailySummaryPrefsByLogin(pool, logins);
+    const chatIds = await loadTelegramChatIds(pool, logins);
+    const cacheIndex = await loadDailySummaryCacheIndex(pool);
 
-    let sent = 0;
-    const errors: Array<{ login: string; error: string }> = [];
+    let sentTelegram = 0;
+    let sentPush = 0;
+    let sentEmail = 0;
     let skippedByPrefs = 0;
+    let skippedNoChannel = 0;
+    const errors: Array<{ login: string; channel: string; error: string }> = [];
 
-    for (const link of linksRes.rows) {
-      const login = link.login;
-      const chatId = String(link.telegram_chat_id || "").trim();
-      if (!login || !chatId) continue;
-      const enabled = summaryPrefs.get(login);
-      if (enabled === false) {
+    for (const login of logins) {
+      const prefs = prefsByLogin.get(login) || { telegram: true, push: false, email: false };
+      const chatId = chatIds.get(login);
+      const willTelegram = prefs.telegram && !!chatId;
+      const willPush = prefs.push === true;
+      const willEmail = prefs.email === true;
+
+      if (!prefs.telegram && !prefs.push && !prefs.email) {
         skippedByPrefs += 1;
         continue;
       }
-
-      const innsRes = await pool.query<{ inn: string }>(
-        "select inn from account_companies where lower(trim(login)) = $1 and inn is not null and inn <> ''",
-        [login]
-      );
-      const inns = new Set(
-        innsRes.rows.map((r) => normalizeInn(r.inn)).filter(Boolean)
-      );
-      if (link.inn) inns.add(normalizeInn(link.inn));
-      if (inns.size === 0) continue;
-
-      const activeStatusCounts = new Map<string, number>();
-      let unpaidCount = 0;
-      let unpaidSum = 0;
-
-      for (const inn of inns) {
-        try {
-          const { items: cargoItems } = await fetchPerevozkiByInn(
-            inn,
-            POLL_SERVICE_LOGIN,
-            POLL_SERVICE_PASSWORD
-          );
-          for (const item of cargoItems) {
-            const status = normalizeStatus(item?.State);
-            const statusLower = status.toLowerCase();
-            const isDelivered = statusLower.includes("достав") || statusLower.includes("заверш");
-            if (isDelivered) continue;
-            activeStatusCounts.set(status, (activeStatusCounts.get(status) || 0) + 1);
-          }
-        } catch (e: any) {
-          errors.push({ login, error: `cargo ${inn}: ${e?.message || String(e)}` });
-        }
-
-        try {
-          const { items: invoiceItems } = await fetchInvoicesByInn(
-            inn,
-            POLL_SERVICE_LOGIN,
-            POLL_SERVICE_PASSWORD
-          );
-          for (const inv of invoiceItems) {
-            const paymentKey = getPaymentKey(inv?.StateBill ?? inv?.Status ?? inv?.State);
-            if (paymentKey === "paid") continue;
-            unpaidCount += 1;
-            unpaidSum += invoiceSum(inv);
-          }
-        } catch (e: any) {
-          errors.push({ login, error: `invoices ${inn}: ${e?.message || String(e)}` });
-        }
+      // Prefer real deliverable channels; skip logins that only "want" telegram but have no link.
+      if (!willTelegram && !willPush && !willEmail) {
+        skippedNoChannel += 1;
+        continue;
       }
 
-      const statuses = Array.from(activeStatusCounts.entries()).sort((a, b) => b[1] - a[1]);
-      const statusLine =
-        statuses.length > 0
-          ? statuses.map(([name, count]) => `${name}: ${count}`).join("; ")
-          : "нет активных перевозок";
-      const sumFmt = new Intl.NumberFormat("ru-RU").format(Math.round(unpaidSum));
+      const inns = loginInns.get(login);
+      if (!inns || inns.size === 0) continue;
+      const primaryInn = [...inns][0] || "";
 
-      const text =
-        `Доброе утро! Ежедневная сводка на 10:00.\n` +
-        `Активные перевозки: ${statusLine}.\n` +
-        `Неоплаченные счета: ${unpaidCount} шт. на сумму ${sumFmt} ₽.`;
+      const stats = computeDailySummaryStatsFromCache(inns, cacheIndex);
+      const text = formatDailySummaryPlainText(stats);
+      const pushBody = text.length > 220 ? `${text.slice(0, 217).trimEnd()}…` : text;
 
-      const sendRes = await sendTelegramMessage(chatId, text);
-      if (sendRes.ok) {
-        sent += 1;
-      } else {
-        errors.push({ login, error: sendRes.error || "send failed" });
+      if (willTelegram && chatId) {
+        const sendRes = await sendTelegramMessage(chatId, text);
+        await logDelivery(pool, {
+          login,
+          inn: primaryInn,
+          channel: "telegram",
+          success: sendRes.ok,
+          error: sendRes.error || null,
+          telegramChatId: chatId,
+        });
+        if (sendRes.ok) sentTelegram += 1;
+        else errors.push({ login, channel: "telegram", error: sendRes.error || "send failed" });
+      }
+
+      if (willPush) {
+        const sendResult = await sendFcmToLogin(login, {
+          title: "HAULZ: ежедневная сводка",
+          body: pushBody,
+          url: "/#/notifications",
+          delivery: { event: "daily_summary", body: text, title: "HAULZ: ежедневная сводка" },
+        });
+        if (sendResult.ok && sendResult.sent > 0) sentPush += 1;
+        else errors.push({ login, channel: "push", error: sendResult.error || "no active FCM tokens" });
+      }
+
+      if (willEmail) {
+        const emailRes = await sendDailySummaryEmail(pool, { login, inn: primaryInn });
+        await logDelivery(pool, {
+          login,
+          inn: primaryInn,
+          channel: "email",
+          success: emailRes.ok,
+          error: emailRes.error || null,
+        });
+        if (emailRes.ok) sentEmail += 1;
+        else if (emailRes.error && emailRes.error !== "already sent today") {
+          errors.push({ login, channel: "email", error: emailRes.error });
+        }
       }
     }
 
     return res.status(200).json({
       ok: true,
-      sent,
+      sent_telegram: sentTelegram,
+      sent_push: sentPush,
+      sent_email: sentEmail,
       skipped_by_preferences: skippedByPrefs,
+      skipped_no_channel: skippedNoChannel,
+      duration_ms: Date.now() - started,
+      cache_cargo_inns: cacheIndex.cargoByInn.size,
+      cache_invoice_inns: cacheIndex.invoicesByInn.size,
       errors_count: errors.length,
-      errors: errors.slice(0, 20),
+      errors: errors.slice(0, 30),
       request_id: ctx.requestId,
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     logError(ctx, "notification_daily_summary_failed", e);
-    return res.status(500).json({ ok: false, error: e?.message || String(e), request_id: ctx.requestId });
+    return res.status(500).json({
+      ok: false,
+      error: (e as { message?: string })?.message || String(e),
+      request_id: ctx.requestId,
+    });
   }
 }
-

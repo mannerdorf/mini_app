@@ -334,13 +334,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   channel: "push",
                 }))
               ) {
-                const sendResult = await sendFcmToLogin(sub.login, { title, body: text, url: "/" });
+                const sendResult = await sendFcmToLogin(sub.login, {
+                  title,
+                  body: text,
+                  url: "/",
+                  delivery: { event, inn, cargoNumber: number, title, body: text },
+                });
                 notificationsSent += 1;
-                await pool.query(
-                  `insert into notification_deliveries (poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message)
-                   values ($1, $2, $3, $4, $5, 'push', null, $6, $7)`,
-                  [runId, sub.login, inn, number, event, sendResult.ok, sendResult.error || null]
-                );
                 if (!sendResult.ok) status = "partial";
               }
             }

@@ -43,9 +43,11 @@ const REQUEST_HARD_TIMEOUT_MS = Number(process.env.HAULZ_REQUEST_TIMEOUT_MS || 9
 const FIVEPOST_TRANSLATE_TIMEOUT_MS = Number(
   process.env.HAULZ_FIVEPOST_TRANSLATE_TIMEOUT_MS || 300_000,
 );
+const DAILY_SUMMARY_TIMEOUT_MS = Number(process.env.HAULZ_DAILY_SUMMARY_TIMEOUT_MS || 300_000);
 
 function requestHardTimeoutMs(pathname: string): number {
   if (pathname === "/api/documents/fivepost-translate") return FIVEPOST_TRANSLATE_TIMEOUT_MS;
+  if (pathname === "/api/notification-daily-summary") return DAILY_SUMMARY_TIMEOUT_MS;
   return REQUEST_HARD_TIMEOUT_MS;
 }
 
@@ -140,7 +142,11 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.requestTimeout = REQUEST_HARD_TIMEOUT_MS + 5_000;
+server.requestTimeout = Math.max(
+  REQUEST_HARD_TIMEOUT_MS,
+  FIVEPOST_TRANSLATE_TIMEOUT_MS,
+  DAILY_SUMMARY_TIMEOUT_MS,
+) + 5_000;
 server.headersTimeout = Math.min(60_000, REQUEST_HARD_TIMEOUT_MS);
 server.keepAliveTimeout = 65_000;
 server.maxRequestsPerSocket = 100;

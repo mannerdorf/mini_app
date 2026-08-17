@@ -351,20 +351,17 @@ export async function dispatchWebPushCargoEvents(params: {
           title: "HAULZ",
           body,
           url: eventUrl(event, item.cargoNumber),
+          delivery: {
+            event,
+            inn: String(item.inn || "").trim(),
+            cargoNumber: item.cargoNumber,
+            title: "HAULZ",
+            body,
+          },
         });
         if (sendResult.sent > 0) delivered += 1;
         if (!sendResult.ok) failed += 1;
         cleanedSubscriptions += sendResult.removed || 0;
-        try {
-          await pool.query(
-            `insert into notification_deliveries (
-              poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message
-            ) values ($1,$2,$3,$4,$5,'push',null,$6,$7)`,
-            [null, login, item.inn, item.cargoNumber, event, sendResult.ok, sendResult.error || null]
-          );
-        } catch {
-          // Delivery log is best-effort.
-        }
       }
     }
 
