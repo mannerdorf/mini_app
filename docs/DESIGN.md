@@ -39,11 +39,9 @@ Use existing CSS variables. Do not hardcode one-off purples or cream themes.
 
 ## Typography
 
-| Context | Fonts |
-| --- | --- |
+| Guest (preferred) | `Manrope` (headings/brand), `DM Sans` (body) — see `guest-shadcn.css` |
 | App (preferred) | `Manrope`, `DM Sans` — see `design-tokens.css` |
-| Guest (current) | Inter stack in `guest-shadcn.css` — keep on small edits |
-| New guest marketing | Prefer Manrope / DM Sans when doing a visual refresh; do not add Roboto/Arial as a “design choice” |
+| New guest marketing | Prefer Manrope / DM Sans; do not add Roboto/Arial/Inter as a “design choice” |
 
 Scale (app tokens): `--text-xs` … `--text-2xl` in `src/design-tokens.css`.
 

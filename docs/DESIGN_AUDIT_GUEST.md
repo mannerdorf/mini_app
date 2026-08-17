@@ -106,18 +106,19 @@ Guest home has a strong full-bleed photo hero and calm CTAs, but **HAULZ is not 
 2. Headline sized under brand; nav mark quiet (`guest-header__logo--quiet`).
 3. E2E asserts `.guest-home-hero__brand`.
 
-### Slice B — Guest type (P1)
-1. Switch `guest-shell` font stack to Manrope / DM Sans (already in deps).
-2. Spot-check calc + secondary pages.
+### Slice B — Guest type (P1) — done 2026-08-17
+1. `guest-shell` → DM Sans body + Manrope headings/brand.
+2. Import Manrope 800 for hero brand weight.
 
-### Slice C — Secondary page hero template (P1)
-1. One shared guest subpage hero: full-bleed or single composition; **remove pill clusters** from first viewport.
-2. Move chips/meta below the fold or into content sections.
-3. Raise HAULZ signal (wordmark or large brand line) above the page H1.
+### Slice C — Secondary page hero template (P1) — done 2026-08-17
+1. Shared `GuestPageHero`: full-bleed photo, HAULZ brand, title, lead.
+2. Removed pill clusters and side-panel media from FAQ / склады / about / app.
+3. Meta (hours/regions) moved under content headings where needed.
 
-### Slice D — Static cards → lists (P1)
-1. Home benefits: drop card chrome; simple stacked rows or one panel.
-2. About advantages: same treatment unless each card becomes a CTA.
+### Slice D — Static cards → lists (P1) — partial 2026-08-17
+1. Home benefits → stacked rows.
+2. About advantages → stacked rows.
+3. Interactive cards (warehouse contacts, app install, FAQ accordion) kept.
 
 ### Slice E — Motion / dock polish (P2)
 1. Cap home motion to 2–3 (hero drift + 1–2 reveals).

@@ -1,9 +1,10 @@
 import React from "react";
-import { ArrowLeft, Check, FileCheck2, Network, Route, ShieldCheck } from "lucide-react";
+import { ArrowLeft, FileCheck2, Network, Route, ShieldCheck } from "lucide-react";
 import { Button } from "../components/shadcn/button";
 import { HaulzWarehousePanel } from "../components/haulz/HaulzWarehousePanel";
 import { HAULZ_WEBSITE_URL } from "../constants/brand";
 import { GUEST_ILLUSTRATIONS } from "../constants/guestIllustrations";
+import { GuestPageHero } from "./guest/GuestPageHero";
 import { GUEST_WAREHOUSE_ITEMS } from "./guest/guestWarehouseContent";
 
 type Props = {
@@ -46,48 +47,21 @@ const APPROACH_STEPS = [
 export function AboutCompanyPage({ onBack, emailLabel, showWarehouses = true }: Props) {
   return (
     <div className="guest-shell min-h-[100dvh]">
-      <main className="mx-auto max-w-guest px-4 py-4 sm:px-6 lg:px-8">
-        <div className="mb-4 flex items-center gap-3">
-          <Button variant="outline" size="icon" aria-label="Назад" onClick={onBack} className="bg-white">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <span className="whitespace-nowrap text-sm font-semibold text-[#374151]">О компании</span>
-        </div>
+      <div className="guest-page-back mx-auto max-w-guest px-4 sm:px-6 lg:px-8">
+        <Button variant="outline" size="icon" aria-label="Назад" onClick={onBack} className="bg-white">
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <span className="whitespace-nowrap text-sm font-semibold text-[#374151]">О компании</span>
+      </div>
 
-        <section className="guest-app-hero overflow-hidden rounded-[1.75rem]">
-          <div className="grid items-center gap-8 px-6 py-10 sm:px-10 sm:py-14 lg:grid-cols-[1.1fr_0.9fr] lg:px-14">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-200">HAULZ · B2B-логистика</p>
-              <h1 className="mt-4 max-w-2xl text-3xl font-bold leading-[1.08] tracking-[-0.035em] text-white sm:text-5xl">
-                Соединяем бизнес Москвы и Калининграда
-              </h1>
-              <p className="mt-5 max-w-xl text-base leading-relaxed text-blue-100 sm:text-lg">
-                Берём на себя всю цепочку перевозки — от первого расчёта и забора груза до доставки, контроля статусов и
-                закрывающих документов.
-              </p>
-              <div className="mt-7 flex flex-wrap gap-2">
-                {["Сборные и комплектные грузы", "Цифровые документы", "Прозрачные статусы"].map((item) => (
-                  <span
-                    key={item}
-                    className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white"
-                  >
-                    <Check className="h-4 w-4 text-blue-200" />
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div className="guest-about-visual mx-auto w-full max-w-md">
-              <img
-                src={GUEST_ILLUSTRATIONS.aboutVisual}
-                alt="Складской и портовый коридор HAULZ"
-                className="guest-about-visual__img aspect-[4/5] w-full object-cover sm:aspect-square"
-                loading="eager"
-              />
-            </div>
-          </div>
-        </section>
+      <GuestPageHero
+        title="Соединяем бизнес Москвы и Калининграда"
+        lead="Берём на себя всю цепочку перевозки — от первого расчёта и забора груза до доставки, контроля статусов и закрывающих документов."
+        imageSrc={GUEST_ILLUSTRATIONS.aboutVisual}
+        imageAlt="Складской и портовый коридор HAULZ"
+      />
 
+      <main className="mx-auto max-w-guest px-4 pb-8 pt-2 sm:px-6 lg:px-8">
         <section className="py-6">
           <div className="mb-5">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2563eb]">Что мы делаем</p>
@@ -100,14 +74,16 @@ export function AboutCompanyPage({ onBack, emailLabel, showWarehouses = true }: 
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="guest-advantage-list">
             {ADVANTAGES.map(({ icon: Icon, title, text }) => (
-              <article key={title} className="rounded-[1.5rem] bg-white p-6 sm:p-8">
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#eff6ff] text-[#2563eb]">
-                  <Icon className="h-6 w-6" />
+              <article key={title} className="guest-advantage-row">
+                <span className="guest-advantage-row__icon">
+                  <Icon className="h-5 w-5" />
                 </span>
-                <h3 className="mt-6 text-xl font-bold text-[#111827]">{title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-[#6b7280]">{text}</p>
+                <div>
+                  <h3>{title}</h3>
+                  <p>{text}</p>
+                </div>
               </article>
             ))}
           </div>

@@ -218,16 +218,18 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
               <p className="guest-home-benefits__lead">
                 Кабинет собирает перевозки, документы и уведомления в одном спокойном рабочем пространстве.
               </p>
-              <div className="guest-home-benefits__grid">
+              <div className="guest-home-benefits__list">
                 {BENEFITS.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <article key={item.title} className="guest-home-benefits__card">
+                    <article key={item.title} className="guest-home-benefits__row">
                       <span className="guest-home-benefits__icon">
                         <Icon className="h-5 w-5" />
                       </span>
-                      <h3>{item.title}</h3>
-                      <p>{item.text}</p>
+                      <div>
+                        <h3>{item.title}</h3>
+                        <p>{item.text}</p>
+                      </div>
                     </article>
                   );
                 })}

@@ -1,6 +1,6 @@
 @tailwind utilities;
 
-/* Гостевая зона — типографика и палитра как в КП (Inter, #f3f4f6, #2563eb) */
+/* Гостевая зона — Manrope / DM Sans (см. docs/DESIGN.md) */
 html.guest-mode,
 html.guest-mode body {
   background: #f3f4f6;
@@ -31,9 +31,19 @@ html.guest-mode #root {
   min-height: 100dvh;
   background: #f3f4f6;
   color: #1f2937;
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: "DM Sans", "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+.guest-shell h1,
+.guest-shell h2,
+.guest-shell h3,
+.guest-shell .guest-home-hero__brand,
+.guest-shell .guest-subpage-hero__brand,
+.guest-shell .guest-header__logo,
+.guest-shell .guest-section-heading {
+  font-family: "Manrope", "DM Sans", system-ui, sans-serif;
 }
 
 /* Гостевой калькулятор — всегда светлая тема + стиль как у гостевой главной */
@@ -378,6 +388,122 @@ html.guest-mode #root {
 
 .guest-app-hero h1 {
   color: #fff;
+}
+
+/* Subpage full-bleed hero (FAQ / warehouses / about / app) — no pills, no side panel */
+.guest-subpage-hero {
+  position: relative;
+  isolation: isolate;
+  min-height: min(58dvh, 28rem);
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  color: #fff;
+  margin-bottom: 0.5rem;
+}
+
+.guest-subpage-hero__media {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.guest-subpage-hero__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.35) 0%, rgba(30, 58, 138, 0.55) 45%, rgba(15, 23, 42, 0.88) 100%),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.5) 0%, rgba(15, 23, 42, 0.15) 70%, transparent 100%);
+}
+
+.guest-subpage-hero__content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  padding-top: 5.5rem;
+  padding-bottom: 2.25rem;
+}
+
+.guest-subpage-hero__brand {
+  margin: 0 0 0.75rem;
+  font-size: clamp(2.1rem, 7vw, 3.75rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 0.95;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 2px 24px rgba(15, 23, 42, 0.35);
+}
+
+.guest-subpage-hero__title {
+  margin: 0;
+  max-width: 18ch;
+  font-size: clamp(1.45rem, 3.8vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: #fff;
+}
+
+.guest-subpage-hero__lead {
+  margin: 0.9rem 0 0;
+  max-width: 34rem;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.guest-page-back {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding-top: 1rem;
+}
+
+.guest-advantage-list {
+  display: grid;
+  gap: 0;
+  border-top: 1px solid rgba(15, 28, 46, 0.08);
+}
+
+.guest-advantage-row {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1.15rem 0;
+  border-bottom: 1px solid rgba(15, 28, 46, 0.08);
+}
+
+.guest-advantage-row__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+  border-radius: 0.75rem;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.guest-advantage-row h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.guest-advantage-row p {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #6b7280;
 }
 
 .guest-about-visual {
@@ -1137,29 +1263,26 @@ html.guest-mode #root {
   color: rgba(255, 255, 255, 0.86);
 }
 
-.guest-home-benefits__grid {
+.guest-home-benefits__list {
   display: grid;
-  gap: 0.85rem;
+  gap: 0;
   margin-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
 }
 
-@media (min-width: 768px) {
-  .guest-home-benefits__grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-.guest-home-benefits__card {
-  border-radius: 1.15rem;
-  background: rgba(255, 255, 255, 0.12);
-  padding: 1rem 1.05rem;
-  backdrop-filter: blur(8px);
+.guest-home-benefits__row {
+  display: flex;
+  gap: 0.95rem;
+  align-items: flex-start;
+  padding: 1rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .guest-home-benefits__icon {
   display: inline-flex;
   width: 2.4rem;
   height: 2.4rem;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   border-radius: 0.75rem;
@@ -1167,13 +1290,13 @@ html.guest-mode #root {
   color: #fff;
 }
 
-.guest-home-benefits__card h3 {
-  margin: 0.8rem 0 0;
+.guest-home-benefits__row h3 {
+  margin: 0;
   font-size: 1rem;
   font-weight: 700;
 }
 
-.guest-home-benefits__card p {
+.guest-home-benefits__row p {
   margin: 0.35rem 0 0;
   font-size: 0.85rem;
   line-height: 1.45;
