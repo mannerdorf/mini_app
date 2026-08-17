@@ -23,10 +23,10 @@ import { sendHaulzEmail } from "../../lib/sendRegistrationEmail.js";
 import type {
   AddressSelection,
   DeliveryParty,
-  MainlineMode,
   ParcelPlace,
   QuoteRequest,
 } from "../../lib/haulzCalculator/types.js";
+import { parseMainlineMode } from "../../lib/haulzCalculator/mainlineMode.js";
 
 function parseAddress(raw: unknown): AddressSelection | null {
   if (!raw || typeof raw !== "object") return null;
@@ -179,8 +179,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "dataZabora: формат YYYY-MM-DD", request_id: ctx.requestId });
   }
 
-  const modeRaw = String(body.mainlineMode ?? body.mainline_mode ?? formState.mainlineMode ?? "ferry").toLowerCase();
-  const mainlineMode: MainlineMode = modeRaw === "auto" ? "auto" : "ferry";
+  const mainlineMode = parseMainlineMode(
+    body.mainlineMode ?? body.mainline_mode ?? formState.mainlineMode,
+  );
 
   const quoteReq: QuoteRequest = {
     from,

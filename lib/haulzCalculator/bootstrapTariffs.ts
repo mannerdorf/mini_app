@@ -104,8 +104,10 @@ export async function bootstrapHaulzCalculatorTariffs(
   const mainlines = [
     { code: "mainline_mow_kgd_ferry", name: "Магистраль MOW→KGD паром", direction: "mow_kgd", mode: "ferry", price_per_kg: 35, delivery_days: 12 },
     { code: "mainline_mow_kgd_auto", name: "Магистраль MOW→KGD авто", direction: "mow_kgd", mode: "auto", price_per_kg: 60, delivery_days: 7 },
+    { code: "mainline_mow_kgd_air", name: "Магистраль MOW→KGD авиа", direction: "mow_kgd", mode: "air", price_per_kg: 120, delivery_days: 3 },
     { code: "mainline_kgd_mow_ferry", name: "Магистраль KGD→MOW паром", direction: "kgd_mow", mode: "ferry", price_per_kg: 100, delivery_days: 20 },
     { code: "mainline_kgd_mow_auto", name: "Магистраль KGD→MOW авто", direction: "kgd_mow", mode: "auto", price_per_kg: 60, delivery_days: 7 },
+    { code: "mainline_kgd_mow_air", name: "Магистраль KGD→MOW авиа", direction: "kgd_mow", mode: "air", price_per_kg: 250, delivery_days: 4 },
   ] as const;
 
   for (const m of mainlines) {
@@ -130,6 +132,28 @@ export async function bootstrapHaulzCalculatorTariffs(
     versionsWritten: Number(verRows[0]?.n) || 0,
     wasEmpty: setsBefore === 0,
   };
+}
+
+const AIR_MAINLINES = [
+  { code: "mainline_mow_kgd_air", name: "Магистраль MOW→KGD авиа", direction: "mow_kgd", mode: "air", price_per_kg: 120, delivery_days: 3 },
+  { code: "mainline_kgd_mow_air", name: "Магистраль KGD→MOW авиа", direction: "kgd_mow", mode: "air", price_per_kg: 250, delivery_days: 4 },
+] as const;
+
+/** Добавляет наборы авиа, если их ещё нет (идемпотентно). */
+export async function ensureAirMainlineTariffSets(
+  pool: Pool,
+  opts?: { effectiveFrom?: string },
+): Promise<void> {
+  const effectiveFrom = opts?.effectiveFrom || "2020-01-01";
+  for (const m of AIR_MAINLINES) {
+    const id = await upsertTariffSet(pool, m.code, m.name, "mainline", m.direction);
+    await ensureInitialVersion(pool, id, effectiveFrom, {
+      mode: m.mode,
+      price_per_kg: m.price_per_kg,
+      direction: m.direction,
+      delivery_days: m.delivery_days,
+    });
+  }
 }
 
 export async function ensureTariffSetExists(pool: Pool, code: string): Promise<number> {

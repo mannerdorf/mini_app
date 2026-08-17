@@ -7,6 +7,7 @@ import type {
   TariffSetRow,
   TariffVersionRow,
 } from "./types.js";
+import { ensureAirMainlineTariffSets } from "./bootstrapTariffs.js";
 
 export function todayDateMoscow(): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -72,7 +73,14 @@ export async function getActiveVersionByCode(
 
 export async function loadCalculatorTariffs(pool: Pool, asOfDate?: string) {
   const day = asOfDate || todayDateMoscow();
-  const sets = await listTariffSets(pool);
+  let sets = await listTariffSets(pool);
+  if (
+    sets.some((s) => s.block === "mainline") &&
+    !sets.some((s) => s.code === "mainline_mow_kgd_air" || s.code === "mainline_kgd_mow_air")
+  ) {
+    await ensureAirMainlineTariffSets(pool);
+    sets = await listTariffSets(pool);
+  }
   const byCode: Record<string, { set: TariffSetRow; version: TariffVersionRow | null }> = {};
   for (const set of sets) {
     byCode[set.code] = { set, version: await getActiveVersion(pool, set.id, day) };

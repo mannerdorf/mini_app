@@ -14,6 +14,8 @@ describe("clientMainlineTariff", () => {
   it("maps transport type to mainline mode", () => {
     expect(transportTypeToMainlineMode("Паром")).toBe("ferry");
     expect(transportTypeToMainlineMode("Авто")).toBe("auto");
+    expect(transportTypeToMainlineMode("Авиа")).toBe("air");
+    expect(transportTypeToMainlineMode("Авиаперевозка")).toBe("air");
     expect(transportTypeToMainlineMode("")).toBeNull();
   });
 });

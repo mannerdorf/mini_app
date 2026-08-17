@@ -31,6 +31,8 @@ export function directionCityCodes(direction: Direction): { from: string; to: st
 export function transportTypeToMainlineMode(transportType: string): MainlineMode | null {
   const t = String(transportType || "").trim().toLowerCase();
   if (!t) return null;
+  // Авиа до авто: «авиа» не должна пересекаться с эвристиками авто.
+  if (t.includes("авиа") || t.includes("air") || t.includes("самол")) return "air";
   if (t.includes("паром") || t.includes("ferry") || t.includes("морск") || t === "море") return "ferry";
   if (t.includes("авто") || t.includes("auto") || t.includes("автомоб")) return "auto";
   return null;

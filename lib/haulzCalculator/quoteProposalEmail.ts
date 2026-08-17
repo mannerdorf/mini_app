@@ -21,6 +21,7 @@ import type {
   ParcelPlace,
   QuoteResult,
 } from "./types.js";
+import { mainlineModeLabelEmail } from "./mainlineMode.js";
 
 export type QuoteProposalEmailInput = {
   quote: QuoteResult;
@@ -47,11 +48,6 @@ const TILE_INNER_PAD = "14px 10px";
 const DIRECTION_LABELS: Record<Direction, string> = {
   mow_kgd: "Москва — Калининград",
   kgd_mow: "Калининград — Москва",
-};
-
-const MAINLINE_LABELS: Record<MainlineMode, string> = {
-  ferry: "Паром",
-  auto: "Автоперевозка",
 };
 
 function formatMoney(n: number): string {
@@ -236,7 +232,7 @@ export function renderHaulzQuoteProposalHtml(input: QuoteProposalEmailInput): st
   } = input;
   const ch = quote.chargeable;
   const dirLabel = DIRECTION_LABELS[direction] ?? direction;
-  const mainlineLabel = MAINLINE_LABELS[mainlineMode] ?? mainlineMode;
+  const mainlineLabel = mainlineModeLabelEmail(mainlineMode);
   const deliveryHint = quote.deliveryDays ? `ориентировочно ${quote.deliveryDays} раб. дн.` : "";
   const dateLabel = dataZabora ? formatRuDate(dataZabora) : "по согласованию";
 

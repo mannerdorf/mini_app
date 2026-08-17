@@ -64,7 +64,7 @@ function describeExtraService(s: ExtraServicePayload): string {
 
 function describeMainline(p: MainlinePayload): string {
   const dir = DIRECTION_RU[p.direction] ?? p.direction;
-  const mode = p.mode === "ferry" ? "паром" : "авто";
+  const mode = p.mode === "ferry" ? "паром" : p.mode === "air" ? "авиа" : "авто";
   return `${dir}, ${mode}: ${p.price_per_kg} ₽/кг, срок ~${p.delivery_days} дн.`;
 }
 

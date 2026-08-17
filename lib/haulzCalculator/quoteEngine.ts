@@ -32,6 +32,7 @@ import {
 } from "./clientMainlineTariff.js";
 import { resolveNearestHub } from "./hubResolve.js";
 import { lookupPartnerDirectoryByInn } from "./partnerDirectory.js";
+import { mainlineModeLabelQuoteLine } from "./mainlineMode.js";
 import { loadCalculatorTariffs } from "./tariffStore.js";
 
 function inferCityFromAddress(addr: AddressSelection): CityCode | null {
@@ -60,11 +61,7 @@ export function isLastMileLegCharged(req: Pick<QuoteRequest, "toParty">): boolea
 }
 
 function pickMainline(mainlines: MainlinePayload[], direction: Direction, mode: MainlineMode): MainlinePayload | null {
-  return (
-    mainlines.find((m) => m.direction === direction && m.mode === mode) ??
-    mainlines.find((m) => m.direction === direction) ??
-    null
-  );
+  return mainlines.find((m) => m.direction === direction && m.mode === mode) ?? null;
 }
 
 function calcExtras(
@@ -227,7 +224,7 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
 
   lines.push({
     key: "mainline",
-    label: `Магистраль ${req.mainlineMode === "ferry" ? "паром" : "авто"}`,
+    label: `Магистраль ${mainlineModeLabelQuoteLine(req.mainlineMode)}`,
     amountRub: Math.round(mainlineAmount * 100) / 100,
     meta: {
       pricePerKg: mainlineRate,
