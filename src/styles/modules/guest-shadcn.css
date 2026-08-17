@@ -1,6 +1,6 @@
 @tailwind utilities;
 
-/* Гостевая зона — типографика и палитра как в КП (Inter, #f3f4f6, #2563eb) */
+/* Гостевая зона — Manrope / DM Sans (см. docs/DESIGN.md) */
 html.guest-mode,
 html.guest-mode body {
   background: #f3f4f6;
@@ -31,9 +31,19 @@ html.guest-mode #root {
   min-height: 100dvh;
   background: #f3f4f6;
   color: #1f2937;
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: "DM Sans", "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+.guest-shell h1,
+.guest-shell h2,
+.guest-shell h3,
+.guest-shell .guest-home-hero__brand,
+.guest-shell .guest-subpage-hero__brand,
+.guest-shell .guest-header__logo,
+.guest-shell .guest-section-heading {
+  font-family: "Manrope", "DM Sans", system-ui, sans-serif;
 }
 
 /* Гостевой калькулятор — всегда светлая тема + стиль как у гостевой главной */
@@ -380,6 +390,122 @@ html.guest-mode #root {
   color: #fff;
 }
 
+/* Subpage full-bleed hero (FAQ / warehouses / about / app) — no pills, no side panel */
+.guest-subpage-hero {
+  position: relative;
+  isolation: isolate;
+  min-height: min(58dvh, 28rem);
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  color: #fff;
+  margin-bottom: 0.5rem;
+}
+
+.guest-subpage-hero__media {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.guest-subpage-hero__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.35) 0%, rgba(30, 58, 138, 0.55) 45%, rgba(15, 23, 42, 0.88) 100%),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.5) 0%, rgba(15, 23, 42, 0.15) 70%, transparent 100%);
+}
+
+.guest-subpage-hero__content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  padding-top: 5.5rem;
+  padding-bottom: 2.25rem;
+}
+
+.guest-subpage-hero__brand {
+  margin: 0 0 0.75rem;
+  font-size: clamp(2.1rem, 7vw, 3.75rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 0.95;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 2px 24px rgba(15, 23, 42, 0.35);
+}
+
+.guest-subpage-hero__title {
+  margin: 0;
+  max-width: 18ch;
+  font-size: clamp(1.45rem, 3.8vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: #fff;
+}
+
+.guest-subpage-hero__lead {
+  margin: 0.9rem 0 0;
+  max-width: 34rem;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.guest-page-back {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding-top: 1rem;
+}
+
+.guest-advantage-list {
+  display: grid;
+  gap: 0;
+  border-top: 1px solid rgba(15, 28, 46, 0.08);
+}
+
+.guest-advantage-row {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1.15rem 0;
+  border-bottom: 1px solid rgba(15, 28, 46, 0.08);
+}
+
+.guest-advantage-row__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+  border-radius: 0.75rem;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.guest-advantage-row h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.guest-advantage-row p {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
 .guest-about-visual {
   position: relative;
   overflow: hidden;
@@ -544,6 +670,20 @@ html.guest-mode #root {
   color: rgba(255, 255, 255, 0.7);
 }
 
+/* Quiet nav mark — hero brand carries the signal */
+.guest-header__logo--quiet {
+  font-size: 0.95rem;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.38);
+  font-weight: 700;
+}
+
+@media (min-width: 640px) {
+  .guest-header__logo--quiet {
+    font-size: 1.05rem;
+  }
+}
+
 .guest-home-hero {
   position: relative;
   isolation: isolate;
@@ -562,8 +702,8 @@ html.guest-mode #root {
   height: 100%;
   object-fit: cover;
   object-position: center;
-  transform: scale(1.04);
-  animation: guest-hero-drift 18s ease-in-out infinite alternate;
+  transform: scale(1.03);
+  animation: guest-hero-drift 22s ease-in-out infinite alternate;
 }
 
 .guest-home-hero__veil {
@@ -584,21 +724,24 @@ html.guest-mode #root {
 }
 
 .guest-home-hero__brand {
-  margin: 0 0 1rem;
-  font-size: clamp(2.4rem, 8vw, 5.5rem);
+  margin: 0 0 0.85rem;
+  font-size: clamp(2.75rem, 9vw, 5.75rem);
   font-weight: 800;
   letter-spacing: 0.08em;
-  line-height: 0.95;
+  line-height: 0.92;
   text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 2px 28px rgba(15, 23, 42, 0.35);
 }
 
 .guest-home-hero__title {
   margin: 0;
-  max-width: 16ch;
-  font-size: clamp(1.65rem, 4.2vw, 3rem);
-  font-weight: 700;
-  letter-spacing: -0.035em;
-  line-height: 1.08;
+  max-width: 18ch;
+  font-size: clamp(1.45rem, 3.6vw, 2.35rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
+  color: rgba(255, 255, 255, 0.96);
 }
 
 .guest-home-hero__lead {
@@ -801,8 +944,8 @@ html.guest-mode #root {
   border-radius: 999px;
   background: #7dd3fc;
   transform: translate(-50%, -50%);
-  box-shadow: 0 0 0 0 rgba(125, 211, 252, 0.5);
-  animation: guest-why-pulse 1.8s ease-in-out infinite;
+  box-shadow: 0 0 0 6px rgba(125, 211, 252, 0.18);
+  animation: none;
   pointer-events: none;
   transition: left 0.35s ease;
 }
@@ -1120,29 +1263,26 @@ html.guest-mode #root {
   color: rgba(255, 255, 255, 0.86);
 }
 
-.guest-home-benefits__grid {
+.guest-home-benefits__list {
   display: grid;
-  gap: 0.85rem;
+  gap: 0;
   margin-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
 }
 
-@media (min-width: 768px) {
-  .guest-home-benefits__grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-.guest-home-benefits__card {
-  border-radius: 1.15rem;
-  background: rgba(255, 255, 255, 0.12);
-  padding: 1rem 1.05rem;
-  backdrop-filter: blur(8px);
+.guest-home-benefits__row {
+  display: flex;
+  gap: 0.95rem;
+  align-items: flex-start;
+  padding: 1rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .guest-home-benefits__icon {
   display: inline-flex;
   width: 2.4rem;
   height: 2.4rem;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   border-radius: 0.75rem;
@@ -1150,13 +1290,13 @@ html.guest-mode #root {
   color: #fff;
 }
 
-.guest-home-benefits__card h3 {
-  margin: 0.8rem 0 0;
+.guest-home-benefits__row h3 {
+  margin: 0;
   font-size: 1rem;
   font-weight: 700;
 }
 
-.guest-home-benefits__card p {
+.guest-home-benefits__row p {
   margin: 0.35rem 0 0;
   font-size: 0.85rem;
   line-height: 1.45;
@@ -1340,13 +1480,14 @@ html.guest-mode #root {
   height: 0.55rem;
   border-radius: 999px;
   background: #7dd3fc;
-  box-shadow: 0 0 0 0 rgba(125, 211, 252, 0.55);
+  box-shadow: 0 0 0 6px rgba(125, 211, 252, 0.2);
   transform: translateY(-50%);
-  animation: guest-routes-pulse 2.4s ease-in-out infinite;
+  animation: none;
 }
 
 .guest-routes__board[data-direction="kgd_mow"] .guest-routes__spine-pulse {
-  animation-name: guest-routes-pulse-reverse;
+  left: auto;
+  right: 8%;
 }
 
 .guest-routes__spine-modes {
@@ -1561,23 +1702,15 @@ html.guest-mode #root {
   padding: 1.25rem 1.2rem;
 }
 
-.guest-lift {
-  transition: transform 0.25s ease, background-color 0.2s ease;
-}
-
-.guest-lift:hover {
-  transform: translateY(-3px);
-}
-
 @keyframes guest-hero-drift {
-  from { transform: scale(1.04) translate3d(0, 0, 0); }
-  to { transform: scale(1.08) translate3d(-1.2%, -0.8%, 0); }
+  from { transform: scale(1.03) translate3d(0, 0, 0); }
+  to { transform: scale(1.05) translate3d(-0.6%, -0.4%, 0); }
 }
 
 @keyframes guest-reveal-up {
   from {
     opacity: 0;
-    transform: translateY(18px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -1587,14 +1720,20 @@ html.guest-mode #root {
 
 .guest-reveal {
   opacity: 0;
-  animation: guest-reveal-up 0.7s ease forwards;
+  animation: guest-reveal-up 0.55s ease forwards;
 }
 
-.guest-reveal--1 { animation-delay: 0.05s; }
-.guest-reveal--2 { animation-delay: 0.16s; }
-.guest-reveal--3 { animation-delay: 0.28s; }
-.guest-reveal--4 { animation-delay: 0.4s; }
-.guest-reveal--5 { animation-delay: 0.5s; }
+.guest-reveal--1 { animation-delay: 0.04s; }
+.guest-reveal--2 { animation-delay: 0.12s; }
+.guest-reveal--3 { animation-delay: 0.2s; }
+
+.guest-lift {
+  transition: background-color 0.2s ease;
+}
+
+.guest-lift:hover {
+  transform: none;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .guest-home-hero__media,

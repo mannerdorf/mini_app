@@ -10,7 +10,6 @@ import {
 import { Button } from "../../components/shadcn/button";
 import { GUEST_ILLUSTRATIONS } from "../../constants/guestIllustrations";
 import { isCapacitorAndroidApp } from "../../lib/androidAppUpdate";
-import { cn } from "../../lib/cn";
 import { GUEST_PARTNERS } from "./guestPartnersContent";
 import { GuestFooter } from "./GuestFooter";
 import { GuestHomeMenuSheet } from "./GuestHomeMenuSheet";
@@ -114,7 +113,7 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
     <div className="guest-shell">
       <header className="guest-header guest-header--overlay">
         <div className="mx-auto flex max-w-guest items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8 lg:py-4">
-          <span className="guest-header__logo guest-header__logo--on-hero" aria-label="HAULZ">
+          <span className="guest-header__logo guest-header__logo--on-hero guest-header__logo--quiet" aria-hidden="true">
             HAULZ
           </span>
           <div className="flex items-center gap-2">
@@ -148,36 +147,39 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
         />
         <div className="guest-home-hero__veil" aria-hidden />
         <div className="guest-home-hero__content mx-auto max-w-guest px-4 sm:px-6 lg:px-8">
-          <h1 className="guest-home-hero__title guest-reveal guest-reveal--1">
+          <p className="guest-home-hero__brand guest-reveal guest-reveal--1">HAULZ</p>
+          <h1 className="guest-home-hero__title guest-reveal guest-reveal--2">
             Отправить груз между Москвой и Калининградом
           </h1>
-          <p className="guest-home-hero__lead guest-reveal guest-reveal--2">
-            B2B-логистика с расчётом, статусами и документами онлайн.
-          </p>
-          <div className="guest-home-hero__actions guest-reveal guest-reveal--3">
-            <Button size="lg" onClick={onLogin}>
-              Войти и оформить
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="border-white/40 bg-white/10 text-white hover:bg-white/20"
-              onClick={onCalculator}
-            >
-              Рассчитать доставку
-            </Button>
+          <div className="guest-reveal guest-reveal--3">
+            <p className="guest-home-hero__lead">
+              B2B-логистика с расчётом, статусами и документами онлайн.
+            </p>
+            <div className="guest-home-hero__actions">
+              <Button size="lg" onClick={onLogin}>
+                Войти и оформить
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-white/40 bg-white/10 text-white hover:bg-white/20"
+                onClick={onCalculator}
+              >
+                Рассчитать доставку
+              </Button>
+            </div>
           </div>
         </div>
       </section>
 
-      <main className="mx-auto max-w-guest px-4 pb-28 pt-8 sm:px-6 lg:px-8 lg:pb-16">
+      <main className="mx-auto max-w-guest px-4 pb-16 pt-8 sm:px-6 lg:px-8">
         <section className="guest-home-actions" aria-label="Быстрые действия">
-          {quickActions.map((action, index) => (
+          {quickActions.map((action) => (
             <button
               key={action.id}
               type="button"
-              className={cn("guest-home-action guest-reveal", `guest-reveal--${Math.min(index + 1, 5)}`)}
+              className="guest-home-action"
               onClick={() => runQuickAction(action.action)}
             >
               <span className="guest-home-action__visual">
@@ -198,7 +200,7 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
           <h2 className="guest-home-partners__title">Наши партнеры</h2>
           <div className="guest-home-partners__grid">
             {GUEST_PARTNERS.map((partner) => (
-              <div key={partner.id} className="guest-home-partners__item guest-lift">
+              <div key={partner.id} className="guest-home-partners__item">
                 <img src={partner.logo} alt={partner.name} loading="lazy" />
               </div>
             ))}
@@ -217,16 +219,18 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
               <p className="guest-home-benefits__lead">
                 Кабинет собирает перевозки, документы и уведомления в одном спокойном рабочем пространстве.
               </p>
-              <div className="guest-home-benefits__grid">
+              <div className="guest-home-benefits__list">
                 {BENEFITS.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <article key={item.title} className="guest-home-benefits__card">
+                    <article key={item.title} className="guest-home-benefits__row">
                       <span className="guest-home-benefits__icon">
                         <Icon className="h-5 w-5" />
                       </span>
-                      <h3>{item.title}</h3>
-                      <p>{item.text}</p>
+                      <div>
+                        <h3>{item.title}</h3>
+                        <p>{item.text}</p>
+                      </div>
                     </article>
                   );
                 })}
@@ -246,21 +250,6 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
         onCalculator={onCalculator}
         onLogin={onLogin}
       />
-
-      <div className={cn("guest-mobile-dock lg:hidden")} role="region" aria-label="Вход в кабинет">
-        <div
-          className="mx-auto flex max-w-guest items-center justify-between gap-3 px-4 py-3 sm:px-6"
-          style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
-        >
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-[#111827]">Войдите, чтобы смотреть перевозки</p>
-            <p className="truncate text-xs text-[#6b7280]">Грузы, документы и уведомления</p>
-          </div>
-          <Button variant="dark" size="sm" onClick={onLogin}>
-            Войти
-          </Button>
-        </div>
-      </div>
 
       <GuestHomeMenuSheet
         open={menuOpen}

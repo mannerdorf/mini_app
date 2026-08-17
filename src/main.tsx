@@ -11,6 +11,7 @@ import "@fontsource/dm-sans/600.css";
 import "@fontsource/dm-sans/700.css";
 import "@fontsource/manrope/600.css";
 import "@fontsource/manrope/700.css";
+import "@fontsource/manrope/800.css";
 import "./design-tokens.css";
 import "./styles.css";
 import "./components/shipment-status.css";
