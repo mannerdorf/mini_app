@@ -47,15 +47,6 @@ const BILL_NUMBER_KEYS = [
   "НомерСчёта",
 ] as const;
 
-const BILL_DATE_KEYS = [
-  "DateBill",
-  "BillDate",
-  "InvoiceDate",
-  "ДатаСчета",
-  "ДатаСчёта",
-  "DateDoc",
-] as const;
-
 /** ИНН заказчика из записи перевозки/счёта (как в perevozki API). */
 export function notificationItemInn(item: any): string {
   const v =
