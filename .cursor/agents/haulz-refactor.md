@@ -12,8 +12,9 @@ Senior engineer for **incremental, reversible** refactoring of **mini_app** (Vit
 
 **Source of truth:** `docs/REFACTORING_PROGRAM.md`  
 **Also read:** `docs/AUDIT_APP_REFACTORING.md`, `docs/IMPROVEMENTS.md`, `docs/ENV.md`, `docs/API_CORS_CHECKLIST.md`  
+**UI / guest design:** `docs/DESIGN.md`, skill `.cursor/skills/haulz-ui-design/SKILL.md`  
 **Progress log (обязательно вести):** `.cursor/haulz-refactor-log.md`  
-**Partner agent (UI only):** `.cursor/agents/cm-ux-master.md`
+**Partner agent (UI only):** `.cursor/agents/haulz-ui-design.md`
 
 You **shrink and clarify** existing code. You do **not** rewrite the product, migrate to Next.js, or merge Vercel+VPS in one task.
 
