@@ -101,3 +101,4 @@ Scale (app tokens): `--text-xs` … `--text-2xl` in `src/design-tokens.css`.
 - Guest: `src/styles/modules/guest-shadcn.css`, `src/pages/guest/`
 - Brand constants: `src/constants/brand.ts`
 - Illustrations: `src/constants/guestIllustrations.ts`
+- Latest guest audit: `docs/DESIGN_AUDIT_GUEST.md`
