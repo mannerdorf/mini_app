@@ -120,9 +120,11 @@ Guest home has a strong full-bleed photo hero and calm CTAs, but **HAULZ is not 
 2. About advantages → stacked rows.
 3. Interactive cards (warehouse contacts, app install, FAQ accordion) kept.
 
-### Slice E — Motion / dock polish (P2)
-1. Cap home motion to 2–3 (hero drift + 1–2 reveals).
-2. Align mobile dock copy with hero CTAs; reduce duplicate “войти” noise.
+### Slice E — Motion / dock polish (P2) — done 2026-08-17
+1. Hero motion capped: subtle drift + 3 reveals (brand / title / lead+CTA).
+2. Removed staggered reveals on quick actions; no partner lift bounce.
+3. Disabled infinite why/routes pulse loops.
+4. Removed sticky mobile «Войти» dock (duplicate of hero CTA).
 
 ---
 
