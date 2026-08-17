@@ -1,8 +1,10 @@
 import type { Pool } from "pg";
-import { fetchInvoicesByInn, fetchPerevozkiByInn, getPaymentKey } from "./notificationPoll.js";
+import { getPaymentKey } from "./notificationPoll.js";
 import { buildNotificationEmailPreview } from "./notificationEmailPreview.js";
 import { isEmailNotificationEnabled } from "./notificationEmailPrefs.js";
 import { hasSummaryEmailSentToday } from "./haulzSummaryEmailDailyLimit.js";
+import { readCacheRow } from "./documentCacheRefreshCore.js";
+import { perevozkiItemInn } from "../api/perevozki.js";
 
 export type DailySummaryStats = {
   activeStatusCounts: Map<string, number>;
@@ -20,6 +22,10 @@ export function normalizeInn(v: unknown): string {
   return String(v ?? "").trim();
 }
 
+function normalizeInnCanon(inn: string): string {
+  return String(inn ?? "").replace(/\D/g, "").trim() || String(inn ?? "").trim();
+}
+
 export function normalizeStatus(state: unknown): string {
   const s = String(state ?? "").trim();
   return s || "Без статуса";
@@ -31,11 +37,81 @@ export function invoiceSum(item: Record<string, unknown>): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function invoiceItemInn(item: Record<string, unknown>): string {
+  return normalizeInnCanon(String(item.INN ?? item.Inn ?? item.inn ?? ""));
+}
+
+/** Preloaded cache indexes for one daily-summary run (avoids live 1C + repeated blob scans). */
+export type DailySummaryCacheIndex = {
+  cargoByInn: Map<string, Record<string, unknown>[]>;
+  invoicesByInn: Map<string, Record<string, unknown>[]>;
+};
+
+export async function loadDailySummaryCacheIndex(pool: Pool): Promise<DailySummaryCacheIndex> {
+  const cargoByInn = new Map<string, Record<string, unknown>[]>();
+  const invoicesByInn = new Map<string, Record<string, unknown>[]>();
+
+  const cargoRows = await readCacheRow(pool, "cache_perevozki");
+  for (const raw of cargoRows) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as Record<string, unknown>;
+    const inn = normalizeInnCanon(perevozkiItemInn(item));
+    if (!inn) continue;
+    if (!cargoByInn.has(inn)) cargoByInn.set(inn, []);
+    cargoByInn.get(inn)!.push(item);
+  }
+
+  const invoiceRows = await readCacheRow(pool, "cache_invoices");
+  for (const raw of invoiceRows) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as Record<string, unknown>;
+    const inn = invoiceItemInn(item);
+    if (!inn) continue;
+    if (!invoicesByInn.has(inn)) invoicesByInn.set(inn, []);
+    invoicesByInn.get(inn)!.push(item);
+  }
+
+  return { cargoByInn, invoicesByInn };
+}
+
+export function computeDailySummaryStatsFromCache(
+  inns: Iterable<string>,
+  index: DailySummaryCacheIndex,
+): DailySummaryStats {
+  const activeStatusCounts = new Map<string, number>();
+  let unpaidCount = 0;
+  let unpaidSum = 0;
+
+  for (const innRaw of inns) {
+    const inn = normalizeInnCanon(normalizeInn(innRaw));
+    if (!inn) continue;
+
+    for (const item of index.cargoByInn.get(inn) || []) {
+      const status = normalizeStatus(item?.State);
+      const statusLower = status.toLowerCase();
+      const isDelivered = statusLower.includes("достав") || statusLower.includes("заверш");
+      if (isDelivered) continue;
+      activeStatusCounts.set(status, (activeStatusCounts.get(status) || 0) + 1);
+    }
+
+    for (const inv of index.invoicesByInn.get(inn) || []) {
+      const paymentKey = getPaymentKey(String(inv?.StateBill ?? inv?.Status ?? inv?.State ?? ""));
+      if (paymentKey === "paid") continue;
+      unpaidCount += 1;
+      unpaidSum += invoiceSum(inv);
+    }
+  }
+
+  return { activeStatusCounts, unpaidCount, unpaidSum };
+}
+
+/** @deprecated Prefer cache-based compute for cron; kept for tests/manual. */
 export async function computeDailySummaryStats(
   inns: Iterable<string>,
   serviceLogin: string,
   servicePassword: string,
 ): Promise<{ stats: DailySummaryStats; errors: string[] }> {
+  const { fetchInvoicesByInn, fetchPerevozkiByInn } = await import("./notificationPoll.js");
   const activeStatusCounts = new Map<string, number>();
   let unpaidCount = 0;
   let unpaidSum = 0;
@@ -100,6 +176,7 @@ export async function loadDailySummaryPrefsByLogin(
   for (const login of logins) {
     const key = String(login || "").trim().toLowerCase();
     if (!key) continue;
+    // Defaults: telegram on (legacy), push/email opt-in.
     result.set(key, { telegram: true, push: false, email: false });
   }
   if (logins.length === 0) return result;

@@ -3,8 +3,9 @@ import { getPool } from "./_db.js";
 import { sendFcmToLogin } from "./_lib/fcmDelivery.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import {
-  computeDailySummaryStats,
+  computeDailySummaryStatsFromCache,
   formatDailySummaryPlainText,
+  loadDailySummaryCacheIndex,
   loadDailySummaryPrefsByLogin,
   loadLoginInns,
   loadTelegramChatIds,
@@ -13,8 +14,6 @@ import {
 
 const CRON_SECRET = process.env.CRON_SECRET;
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
-const POLL_SERVICE_LOGIN = process.env.POLL_SERVICE_LOGIN;
-const POLL_SERVICE_PASSWORD = process.env.POLL_SERVICE_PASSWORD;
 
 async function sendTelegramMessage(chatId: string, text: string): Promise<{ ok: boolean; error?: string }> {
   if (!TG_BOT_TOKEN) return { ok: false, error: "TG_BOT_TOKEN not set" };
@@ -70,13 +69,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "Unauthorized", request_id: ctx.requestId });
   }
 
-  if (!POLL_SERVICE_LOGIN || !POLL_SERVICE_PASSWORD) {
-    return res.status(503).json({
-      error: "POLL_SERVICE_LOGIN and POLL_SERVICE_PASSWORD are required",
-      request_id: ctx.requestId,
-    });
-  }
-
   let pool: Awaited<ReturnType<typeof getPool>>;
   try {
     pool = getPool();
@@ -85,6 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    const started = Date.now();
     const loginInns = await loadLoginInns(pool);
     if (loginInns.size === 0) {
       return res.status(200).json({ ok: true, sent: 0, reason: "no logins with INN", request_id: ctx.requestId });
@@ -93,18 +86,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const logins = [...loginInns.keys()];
     const prefsByLogin = await loadDailySummaryPrefsByLogin(pool, logins);
     const chatIds = await loadTelegramChatIds(pool, logins);
+    const cacheIndex = await loadDailySummaryCacheIndex(pool);
 
     let sentTelegram = 0;
     let sentPush = 0;
     let sentEmail = 0;
     let skippedByPrefs = 0;
+    let skippedNoChannel = 0;
     const errors: Array<{ login: string; channel: string; error: string }> = [];
 
     for (const login of logins) {
       const prefs = prefsByLogin.get(login) || { telegram: true, push: false, email: false };
-      const wantsAny = prefs.telegram || prefs.push || prefs.email;
-      if (!wantsAny) {
+      const chatId = chatIds.get(login);
+      const willTelegram = prefs.telegram && !!chatId;
+      const willPush = prefs.push === true;
+      const willEmail = prefs.email === true;
+
+      if (!prefs.telegram && !prefs.push && !prefs.email) {
         skippedByPrefs += 1;
+        continue;
+      }
+      // Prefer real deliverable channels; skip logins that only "want" telegram but have no link.
+      if (!willTelegram && !willPush && !willEmail) {
+        skippedNoChannel += 1;
+        if (prefs.telegram && !chatId) {
+          errors.push({ login, channel: "telegram", error: "no active telegram link" });
+        }
         continue;
       }
 
@@ -112,40 +119,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!inns || inns.size === 0) continue;
       const primaryInn = [...inns][0] || "";
 
-      const { stats, errors: computeErrors } = await computeDailySummaryStats(
-        inns,
-        POLL_SERVICE_LOGIN,
-        POLL_SERVICE_PASSWORD,
-      );
-      for (const err of computeErrors) {
-        errors.push({ login, channel: "compute", error: err });
-      }
-
+      const stats = computeDailySummaryStatsFromCache(inns, cacheIndex);
       const text = formatDailySummaryPlainText(stats);
-      // Android tray truncates long notification bodies; keep full text in FCM data via body.
-      const pushBody =
-        text.length > 220 ? `${text.slice(0, 217).trimEnd()}…` : text;
+      const pushBody = text.length > 220 ? `${text.slice(0, 217).trimEnd()}…` : text;
 
-      if (prefs.telegram) {
-        const chatId = chatIds.get(login);
-        if (!chatId) {
-          errors.push({ login, channel: "telegram", error: "no active telegram link" });
-        } else {
-          const sendRes = await sendTelegramMessage(chatId, text);
-          await logDelivery(pool, {
-            login,
-            inn: primaryInn,
-            channel: "telegram",
-            success: sendRes.ok,
-            error: sendRes.error || null,
-            telegramChatId: chatId,
-          });
-          if (sendRes.ok) sentTelegram += 1;
-          else errors.push({ login, channel: "telegram", error: sendRes.error || "send failed" });
-        }
+      if (willTelegram && chatId) {
+        const sendRes = await sendTelegramMessage(chatId, text);
+        await logDelivery(pool, {
+          login,
+          inn: primaryInn,
+          channel: "telegram",
+          success: sendRes.ok,
+          error: sendRes.error || null,
+          telegramChatId: chatId,
+        });
+        if (sendRes.ok) sentTelegram += 1;
+        else errors.push({ login, channel: "telegram", error: sendRes.error || "send failed" });
       }
 
-      if (prefs.push) {
+      if (willPush) {
         const sendResult = await sendFcmToLogin(login, {
           title: "HAULZ: ежедневная сводка",
           body: pushBody,
@@ -156,7 +148,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         else errors.push({ login, channel: "push", error: sendResult.error || "no active FCM tokens" });
       }
 
-      if (prefs.email) {
+      if (willEmail) {
         const emailRes = await sendDailySummaryEmail(pool, { login, inn: primaryInn });
         await logDelivery(pool, {
           login,
@@ -178,6 +170,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       sent_push: sentPush,
       sent_email: sentEmail,
       skipped_by_preferences: skippedByPrefs,
+      skipped_no_channel: skippedNoChannel,
+      duration_ms: Date.now() - started,
+      cache_cargo_inns: cacheIndex.cargoByInn.size,
+      cache_invoice_inns: cacheIndex.invoicesByInn.size,
       errors_count: errors.length,
       errors: errors.slice(0, 30),
       request_id: ctx.requestId,
