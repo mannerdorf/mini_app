@@ -28,6 +28,7 @@ export type DashboardSlaStats = {
 export type DashboardSlaStatsByType = {
     auto: { total: number; onTime: number; percentOnTime: number; avgDelay: number };
     ferry: { total: number; onTime: number; percentOnTime: number; avgDelay: number };
+    air: { total: number; onTime: number; percentOnTime: number; avgDelay: number };
 };
 
 export type DashboardSlaOutOfSlaRow = {
@@ -42,7 +43,7 @@ export type DashboardSlaMonitorProps = {
     slaStats: DashboardSlaStats;
     slaStatsByType: DashboardSlaStatsByType;
     slaTrend: 'up' | 'down' | null;
-    outOfSlaByType: { auto: DashboardSlaOutOfSlaRow[]; ferry: DashboardSlaOutOfSlaRow[] };
+    outOfSlaByType: { auto: DashboardSlaOutOfSlaRow[]; ferry: DashboardSlaOutOfSlaRow[]; air: DashboardSlaOutOfSlaRow[] };
     onOpenCargo?: (cargoNumber: string, prefetchedItem?: CargoItem) => void;
     normalizeTimelineErrorMessage: (message?: string | null) => string;
 };
@@ -140,6 +141,10 @@ export function DashboardSlaMonitor({
     const sortedOutOfSlaFerry = useMemo(
         () => sortOutOfSlaRows(outOfSlaByType.ferry, slaTableSortColumn, slaTableSortOrder),
         [outOfSlaByType.ferry, slaTableSortColumn, slaTableSortOrder],
+    );
+    const sortedOutOfSlaAir = useMemo(
+        () => sortOutOfSlaRows(outOfSlaByType.air, slaTableSortColumn, slaTableSortOrder),
+        [outOfSlaByType.air, slaTableSortColumn, slaTableSortOrder],
     );
 
     useEffect(() => {
@@ -371,6 +376,49 @@ export function DashboardSlaMonitor({
                                     <tbody>
                                         {sortedOutOfSlaFerry.map(({ item, sla }, idx) => (
                                             <tr key={`ferry-${item.Number ?? idx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                <td style={{ padding: '0.35rem 0.3rem', color: '#ef4444' }}>{item.Number ?? '—'}</td>
+                                                <td style={{ padding: '0.35rem 0.3rem' }}><DateText value={item.DatePrih} /></td>
+                                                <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
+                                                <td className="customer-col" style={{ padding: '0.35rem 0.3rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo((item.Customer ?? (item as any).customer) || '')}>{stripOoo((item.Customer ?? (item as any).customer) || '') || '—'}</td>
+                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
+                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
+                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
+                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.actualDays}</td>
+                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.planDays}</td>
+                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', color: '#ef4444' }}>+{sla.delayDays} дн.</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                    <div style={{ marginTop: '0.75rem' }}>
+                        <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>Авиа{'   '}</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'inline' }}>
+                            {slaStatsByType.air.percentOnTime}% ({slaStatsByType.air.onTime}/{slaStatsByType.air.total}), ср. {slaStatsByType.air.avgDelay} дн.
+                        </Typography.Body>
+                        {outOfSlaByType.air.length > 0 && (
+                            <div style={{ marginTop: '0.5rem', overflowX: 'auto' }}>
+                                <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Перевозки вне SLA:</Typography.Body>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                            <SlaSortHeader column="number" label="Номер" sortColumn={slaTableSortColumn} sortOrder={slaTableSortOrder} onSort={handleSlaTableSort} />
+                                            <SlaSortHeader column="date" label="Дата прихода" sortColumn={slaTableSortColumn} sortOrder={slaTableSortOrder} onSort={handleSlaTableSort} />
+                                            <SlaSortHeader column="status" label="Статус" sortColumn={slaTableSortColumn} sortOrder={slaTableSortOrder} onSort={handleSlaTableSort} />
+                                            <th className="customer-col" style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleSlaTableSort('customer'); }} title="Сортировка">Заказчик{slaTableSortColumn === 'customer' && (slaTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                            <SlaSortHeader column="mest" label="Мест" sortColumn={slaTableSortColumn} sortOrder={slaTableSortOrder} onSort={handleSlaTableSort} />
+                                            <SlaSortHeader column="pw" label="Плат. вес" sortColumn={slaTableSortColumn} sortOrder={slaTableSortOrder} onSort={handleSlaTableSort} />
+                                            <SlaSortHeader column="sum" label="Сумма" sortColumn={slaTableSortColumn} sortOrder={slaTableSortOrder} onSort={handleSlaTableSort} />
+                                            <SlaSortHeader column="days" label="Дней" sortColumn={slaTableSortColumn} sortOrder={slaTableSortOrder} onSort={handleSlaTableSort} />
+                                            <SlaSortHeader column="plan" label="План" sortColumn={slaTableSortColumn} sortOrder={slaTableSortOrder} onSort={handleSlaTableSort} />
+                                            <SlaSortHeader column="delay" label="Просрочка" sortColumn={slaTableSortColumn} sortOrder={slaTableSortOrder} onSort={handleSlaTableSort} />
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {sortedOutOfSlaAir.map(({ item, sla }, idx) => (
+                                            <tr key={`air-${item.Number ?? idx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                 <td style={{ padding: '0.35rem 0.3rem', color: '#ef4444' }}>{item.Number ?? '—'}</td>
                                                 <td style={{ padding: '0.35rem 0.3rem' }}><DateText value={item.DatePrih} /></td>
                                                 <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>

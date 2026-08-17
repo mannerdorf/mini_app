@@ -8,13 +8,22 @@ import { mapTimelineStageLabel } from "./perevozkaDetails";
 import type { CargoItem } from "../types";
 import type { PerevozkiRole } from "../types";
 
-/** Плановые сроки доставки (дней): MSK-KGD авто 7 / паром 20; KGD-MSK авто и паром 60 */
+/** Плановые сроки доставки (дней): MSK-KGD авто 7 / паром 20 / авиа 3; KGD-MSK 60 */
 export const AUTO_PLAN_DAYS = 7;
 export const FERRY_PLAN_DAYS = 20;
+export const AIR_PLAN_DAYS = 3;
 export const KGD_MSK_PLAN_DAYS = 60;
 
 export function isFerry(item: CargoItem): boolean {
     return item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
+}
+
+/**
+ * Определение авиа-перевозки.
+ * TODO: подключить правило от продукта — пока всегда false.
+ */
+export function isAir(_item: Pick<CargoItem, "AK"> | Record<string, unknown> | null | undefined): boolean {
+    return false;
 }
 
 export function isRouteKgdMsk(item: CargoItem): boolean {
@@ -85,6 +94,7 @@ export function applyCargoRolesToItem(item: CargoItem, roles: Iterable<Perevozki
 
 export function getPlanDays(item: CargoItem): number {
     if (isRouteKgdMsk(item)) return KGD_MSK_PLAN_DAYS;
+    if (isAir(item)) return AIR_PLAN_DAYS;
     return isFerry(item) ? FERRY_PLAN_DAYS : AUTO_PLAN_DAYS;
 }
 

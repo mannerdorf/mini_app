@@ -411,15 +411,7 @@ export function DocumentsEdoCargoCard({ item, onOpen, onOpenCargo, isFavorite, o
   const rawStatus = invoice.Status ?? invoice.State ?? invoice.state ?? invoice.Статус ?? "";
   const st = (normalizeInvoiceStatus(rawStatus) || rawStatus) as string;
   const badgeStyle = invoicePaymentBadgeStyle(st);
-  const isFerry =
-    cargo?.AK === true ||
-    cargo?.AK === "true" ||
-    cargo?.AK === "1" ||
-    cargo?.AK === 1 ||
-    invoice.AK === true ||
-    invoice.AK === "true" ||
-    invoice.AK === "1" ||
-    invoice.AK === 1;
+  const transportSource = (cargo ?? { AK: invoice.AK }) as { AK?: unknown };
   const routeFromCargo = [cityToCode(cargo?.CitySender), cityToCode(cargo?.CityReceiver)].filter(Boolean).join(" – ");
   const routeFromInvoice = [cityToCode(invoice.CitySender), cityToCode(invoice.CityReceiver)].filter(Boolean).join(" – ");
   const route = routeFromCargo || routeFromInvoice;
@@ -518,7 +510,7 @@ export function DocumentsEdoCargoCard({ item, onOpen, onOpenCargo, isFavorite, o
         </Flex>
         <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }}>
           {route ? <RouteBadge route={route} /> : null}
-          <CargoTransportTypeIcon ak={isFerry} />
+          <CargoTransportTypeIcon item={transportSource} />
         </Flex>
       </Flex>
       {invNum ? (

@@ -1,5 +1,6 @@
 import React from "react";
 import { ArrowRight, Ship, Truck } from "lucide-react";
+import { PlaneIcon } from "../../components/icons/PlaneIcon";
 import { Button } from "../../components/shadcn/button";
 import { cn } from "../../lib/cn";
 import {
@@ -77,6 +78,7 @@ export function GuestRoutesSection({ onCalculator }: Props) {
               <span className="guest-routes__spine-modes">
                 <Truck className="h-4 w-4" />
                 <Ship className="h-4 w-4" />
+                <PlaneIcon className="h-4 w-4" width={16} height={16} />
               </span>
             </div>
             <div className="guest-routes__endpoint guest-routes__endpoint--to">

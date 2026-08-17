@@ -1,9 +1,9 @@
 /**
  * Тип магистральной перевозки для грузов / дашборда / фильтров.
- * Правило распознавания «авиа» будет задано отдельно — пока isAir всегда false.
+ * Правило распознавания «авиа» будет задано в isAir (cargoUtils).
  */
 import type { CargoItem } from "../types";
-import { isFerry } from "./cargoUtils";
+import { isAir, isFerry } from "./cargoUtils";
 
 export type CargoTransportType = "ferry" | "auto" | "air";
 
@@ -19,13 +19,7 @@ export const CARGO_TRANSPORT_TYPE_COLORS: Record<CargoTransportType, string> = {
   air: "#6366f1",
 };
 
-/**
- * Определение авиа-перевозки.
- * TODO: подключить правило от продукта (поле 1С / эвристика) — пока всегда false.
- */
-export function isAir(_item: Pick<CargoItem, "AK"> | Record<string, unknown> | null | undefined): boolean {
-  return false;
-}
+export { isAir };
 
 export function getCargoTransportType(
   item: Pick<CargoItem, "AK"> | Record<string, unknown> | null | undefined,

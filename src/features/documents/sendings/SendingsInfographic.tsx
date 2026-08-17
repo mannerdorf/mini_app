@@ -1,11 +1,13 @@
 import React from "react";
 import { Ship, Truck } from "lucide-react";
+import { PlaneIcon } from "../../../components/icons/PlaneIcon";
 import { AppBadge } from "../../../components/shared/AppBadge";
 import type { StatusFilter } from "../../../types";
 
 export type SendingsInfographicData = {
   ferry: number;
   auto: number;
+  air: number;
   routes: { route: string; count: number }[];
   statusBadges: {
     key: string;
@@ -32,6 +34,9 @@ export function SendingsInfographic({ data, deliveryStatusFilterSet, setDelivery
         </AppBadge>
         <AppBadge tone="neutral" style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", flex: "0 0 auto" }}>
           <Truck className="w-3 h-3" /> {data.auto}
+        </AppBadge>
+        <AppBadge tone="info" style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", flex: "0 0 auto" }}>
+          <PlaneIcon className="w-3 h-3" width={12} height={12} /> {data.air}
         </AppBadge>
         {data.routes.map((item) => (
           <AppBadge key={item.route} tone="neutral" style={{ flex: "0 0 auto" }}>

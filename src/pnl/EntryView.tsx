@@ -4,7 +4,7 @@ import { DEPARTMENT_LABELS, DIRECTION_LABELS, MONTHS } from './constants';
 import { Save } from 'lucide-react';
 
 const REVENUE_DIRECTIONS = ['MSK_TO_KGD', 'KGD_TO_MSK'] as const;
-const REVENUE_TRANSPORT = [{ value: 'AUTO', label: 'авто' }, { value: 'FERRY', label: 'паром' }] as const;
+const REVENUE_TRANSPORT = [{ value: 'AUTO', label: 'авто' }, { value: 'FERRY', label: 'паром' }, { value: 'AIR', label: 'авиа' }] as const;
 function revenueKey(categoryId: string, direction: string, transportType: string) { return `${categoryId}:${direction}:${transportType}`; }
 function formatRub(n: number) { return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n) + ' ₽'; }
 

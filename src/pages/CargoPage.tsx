@@ -20,7 +20,7 @@ import {
     buildGroupedByCustomer,
     sortGroupedByCustomer,
 } from "./cargoPipeline";
-import { formatTypeFilterSetLabel, initSharedFilterSets, saveSharedListFilters, sharedFromFilterSets } from "../lib/sharedListFilters";
+import { formatTypeFilterSetLabel, initSharedFilterSets, saveSharedListFilters, sharedFromFilterSets, type TypeFilterKey } from "../lib/sharedListFilters";
 import { buildTransportOptionsFromSendingsInPeriod, buildTransportLinkedCargoNumbersInPeriod, collectSendingFreightCargoNumbers, filterItemsForHeaderCustomer, normCargoKey } from "../features/documents/lib/documentsPipeline";
 import { useCargoTransportFilter, usePerevozkiMultiAccounts, useSendings } from "../hooks/useApi";
 import { useCargoNomenclatureSearch } from "../hooks/useCargoNomenclatureSearch";
@@ -194,7 +194,7 @@ export function CargoPage({
     const sharedFiltersInit = initSharedFilterSets();
     const [statusFilterSet, setStatusFilterSet] = useState<Set<CargoStatusFilterKey>>(() => sharedFiltersInit.statusFilterSet);
     const [billStatusFilterSet, setBillStatusFilterSet] = useState<Set<BillStatusFilterKey>>(() => sharedFiltersInit.billStatusFilterSet);
-    const [typeFilterSet, setTypeFilterSet] = useState<Set<'ferry' | 'auto'>>(() => sharedFiltersInit.typeFilterSet);
+    const [typeFilterSet, setTypeFilterSet] = useState<Set<TypeFilterKey>>(() => sharedFiltersInit.typeFilterSet);
     const [routeFilterSet, setRouteFilterSet] = useState<Set<'MSK-KGD' | 'KGD-MSK'>>(() => sharedFiltersInit.routeFilterSet);
     useEffect(() => {
         saveSharedListFilters(sharedFromFilterSets({ statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet }));

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronUp, Copy, Heart, Loader2, AlertTriangle, Share2, Ship, Truck } from "lucide-react";
+import { PlaneIcon } from "../../../components/icons/PlaneIcon";
 import { invoiceDocSum } from "../../../../lib/invoiceAmounts.js";
 import { cityToCode, formatCurrency, formatInvoiceNumber, normalizeInvoiceStatus, stripOoo } from "../../../lib/formatUtils";
 import { ClickableCargoNumber, ClickableInvoiceNumber } from "../../../components/ui/EntityLinks";
@@ -202,7 +203,12 @@ export function isTariffTransportFerry(transportType?: string | null): boolean {
   return t.includes("паром") || t.includes("ferry") || t.includes("морск") || t === "море";
 }
 
-/** Иконка типа перевозки в тарифах: паром / авто. */
+export function isTariffTransportAir(transportType?: string | null): boolean {
+  const t = String(transportType || "").trim().toLowerCase();
+  return t.includes("авиа") || t.includes("air") || t.includes("самол");
+}
+
+/** Иконка типа перевозки в тарифах: паром / авиа / авто. */
 export function TariffTransportTypeIcon({
   transportType,
   size = 20,
@@ -212,8 +218,8 @@ export function TariffTransportTypeIcon({
 }) {
   const label = String(transportType || "").trim();
   if (!label) return <span>—</span>;
+  const air = isTariffTransportAir(label);
   const ferry = isTariffTransportFerry(label);
-  const Icon = ferry ? Ship : Truck;
   return (
     <span
       className="doc-tariff-transport-icon"
@@ -226,7 +232,13 @@ export function TariffTransportTypeIcon({
         color: "var(--color-primary-blue, #2563eb)",
       }}
     >
-      <Icon style={{ width: size, height: size }} strokeWidth={2} aria-hidden />
+      {air ? (
+        <PlaneIcon width={size} height={size} title={label} />
+      ) : ferry ? (
+        <Ship style={{ width: size, height: size }} strokeWidth={2} aria-hidden />
+      ) : (
+        <Truck style={{ width: size, height: size }} strokeWidth={2} aria-hidden />
+      )}
     </span>
   );
 }

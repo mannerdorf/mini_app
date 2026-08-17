@@ -3,7 +3,7 @@ import { pnlGet, pnlPost, pnlPatch, pnlDelete } from './api';
 import { DIRECTION_LABELS, DIRECTIONS } from './constants';
 import { Plus, Trash2 } from 'lucide-react';
 
-const TRANSPORT_OPTIONS = [{ value: '', label: '—' }, { value: 'AUTO', label: 'авто' }, { value: 'FERRY', label: 'паром' }] as const;
+const TRANSPORT_OPTIONS = [{ value: '', label: '—' }, { value: 'AUTO', label: 'авто' }, { value: 'FERRY', label: 'паром' }, { value: 'AIR', label: 'авиа' }] as const;
 
 interface Category { id: string; name: string; direction: string; transportType: string; sortOrder: number; }
 
