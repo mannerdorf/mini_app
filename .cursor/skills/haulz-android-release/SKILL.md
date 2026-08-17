@@ -1,37 +1,63 @@
 ---
 name: haulz-android-release
 description: >-
-  HAULZ Android APK version bump and publish scheme. Use whenever shipping
-  Capacitor/Android UI, native, push, or guest changes that should land in the
-  APK — always bump versionCode/versionName without waiting for the user to ask.
+  HAULZ Android APK publish algorithm (Mac). Always bump versionCode/versionName
+  without waiting for the user to ask. Follow this publish scheme exactly — do
+  not invent alternative scp/deploy paths.
 ---
 
 # HAULZ Android release
 
-## Standing rule (owner)
+## Standing rules (owner)
 
-**Always bump** `android/app/build.gradle` `versionCode` (+1) and `versionName` (semver patch unless told otherwise) when preparing an APK that should update over the live build on `app.haulz.space`. Do **not** wait for the user to ask.
+1. **Always bump** `android/app/build.gradle`: `versionCode` (+1 vs live) and `versionName` when shipping an APK. Do not wait for the user to ask.
+2. Before bumping, check live: `curl -sS https://app.haulz.space/version.json`
+3. Publish **only** with the algorithm below. Do not invent other upload schemes.
 
-Before bumping, check live:
+## Algorithm (always)
 
-```bash
-curl -sS https://app.haulz.space/version.json
-```
-
-New `versionCode` must be **greater** than remote `versionCode`.
-
-## Publish scheme (Mac only — do not invent alternatives)
+### 1) Mac — собрать
 
 ```bash
 cd ~/mini_app
-git pull
+git fetch origin
+git checkout -B <release-branch> origin/<release-branch>
+# or for main: git checkout -B main origin/main
+
+export JAVA_HOME="/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"
+export PATH="$JAVA_HOME/bin:$PATH"
+export ANDROID_HOME="/Volumes/Cursor/haulz-build/android-sdk"
+
 npm run android:release
+
+export ANDROID_RELEASE_NOTES='…краткие notes…'
 ./scripts/deploy-android-release.sh dist/haulz-miniapp-release.apk --local
-scp -r ~/mini_app/dist/android-release/* root@200.165.236.49:/var/www/app.haulz.space/
+cat dist/android-release/version.json
+```
+
+Ожидай в `version.json` новые `versionName` / `versionCode` из `build.gradle`.
+
+### 2) Mac → VPS APK (`200.165.236.49`) — выложить
+
+```bash
+ssh root@200.165.236.49 'mkdir -p /var/www/app.haulz.space/releases'
+
+scp ~/mini_app/dist/android-release/latest.apk \
+    ~/mini_app/dist/android-release/version.json \
+    ~/mini_app/dist/android-release/index.html \
+    root@200.165.236.49:/var/www/app.haulz.space/
+
+scp ~/mini_app/dist/android-release/releases/haulz-miniapp-<versionName>.apk \
+    root@200.165.236.49:/var/www/app.haulz.space/releases/
+```
+
+### 3) Mac — проверить
+
+```bash
 curl -sS https://app.haulz.space/version.json
 ```
 
 ## Repo
 
-- Version source: `android/app/build.gradle` (`versionCode`, `versionName`)
-- Commit the bump with the feature that needs a new APK, then push `main` (or the release branch).
+- Version source: `android/app/build.gradle`
+- Commit the bump with the feature that needs a new APK, push `main` (or the release branch) before Mac build.
