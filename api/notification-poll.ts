@@ -13,8 +13,10 @@ import {
   getPaymentKey,
   fetchPerevozkiByInn,
   formatTelegramMessage,
+  hasBillSignal,
   isCargoStageNotificationEnabled,
 } from "../lib/notificationPoll.js";
+import { wasSuccessfulNotificationDelivery } from "./_lib/notificationDeliveryDedupe.js";
 
 const CRON_SECRET = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
@@ -26,15 +28,6 @@ const NOTIFICATION_EVENTS: CargoEvent[] = [...CARGO_STAGE_EVENT_IDS, "bill_creat
 function isNotificationEventEnabled(prefs: Record<string, boolean>, event: CargoEvent): boolean {
   if (event === "bill_created" || event === "bill_paid") return prefs[event] === true;
   return isCargoStageNotificationEnabled(prefs, event as CargoStageEventId);
-}
-
-function hasBillData(item: any): boolean {
-  const number = String(
-    item?.NumberBill ?? item?.BillNumber ?? item?.Invoice ?? item?.InvoiceNumber ?? item?.["Счет"] ?? item?.["Счёт"] ?? ""
-  ).trim();
-  if (number) return true;
-  const stateBill = String(item?.StateBill ?? item?.StatusBill ?? "").trim();
-  return !!stateBill;
 }
 
 async function sendTelegramMessage(
@@ -261,16 +254,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const currentStateBill = item?.StateBill ?? null;
         const payKey = getPaymentKey(currentStateBill);
         const last = lastByNumber.get(number);
+        const isFirstSeen = !last;
 
+        // First sighting: baseline cargo_last_state only — no historical flood.
         const eventsToSend: CargoEvent[] = [
-          ...getCargoStageEventsOnStateChange(last?.state, currentState, !last),
+          ...getCargoStageEventsOnStateChange(last?.state, currentState, isFirstSeen),
         ];
-        if (!last) {
-          if (hasBillData(item)) eventsToSend.push("bill_created");
-          if (payKey === "paid") eventsToSend.push("bill_paid");
-        } else {
-          const prevPayKey = getPaymentKey(last.state_bill ?? undefined);
-          if (prevPayKey === "unknown" && hasBillData(item)) eventsToSend.push("bill_created");
+        if (!isFirstSeen && hasBillSignal(item)) {
+          const prevPayKey = getPaymentKey(last?.state_bill ?? undefined);
+          if (prevPayKey === "unknown") eventsToSend.push("bill_created");
           if (payKey === "paid" && prevPayKey !== "paid") eventsToSend.push("bill_paid");
         }
 
@@ -293,34 +285,64 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
           for (const sub of subscribers) {
             if (isNotificationEventEnabled(sub.prefsTelegram, event) && sub.telegramChatId) {
-              const sendResult = await sendTelegramMessage(sub.telegramChatId, text, docButton);
-              notificationsSent += 1;
-              await pool.query(
-                `insert into notification_deliveries (poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message)
-                 values ($1, $2, $3, $4, $5, 'telegram', $6, $7, $8)`,
-                [runId, sub.login, inn, number, event, sub.telegramChatId, sendResult.ok, sendResult.error || null]
-              );
-              if (!sendResult.ok) status = "partial";
+              if (
+                !(await wasSuccessfulNotificationDelivery(pool, {
+                  login: sub.login,
+                  inn,
+                  cargoNumber: number,
+                  event,
+                  channel: "telegram",
+                }))
+              ) {
+                const sendResult = await sendTelegramMessage(sub.telegramChatId, text, docButton);
+                notificationsSent += 1;
+                await pool.query(
+                  `insert into notification_deliveries (poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message)
+                   values ($1, $2, $3, $4, $5, 'telegram', $6, $7, $8)`,
+                  [runId, sub.login, inn, number, event, sub.telegramChatId, sendResult.ok, sendResult.error || null]
+                );
+                if (!sendResult.ok) status = "partial";
+              }
             }
             if (isNotificationEventEnabled(sub.prefsWeb, event)) {
-              const sendResult = await sendWebPushToLogin(sub.login, { title, body: text, url: "/" });
-              notificationsSent += 1;
-              await pool.query(
-                `insert into notification_deliveries (poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message)
-                 values ($1, $2, $3, $4, $5, 'web', null, $6, $7)`,
-                [runId, sub.login, inn, number, event, sendResult.ok, sendResult.error || null]
-              );
-              if (!sendResult.ok) status = "partial";
+              if (
+                !(await wasSuccessfulNotificationDelivery(pool, {
+                  login: sub.login,
+                  inn,
+                  cargoNumber: number,
+                  event,
+                  channel: "web",
+                }))
+              ) {
+                const sendResult = await sendWebPushToLogin(sub.login, { title, body: text, url: "/" });
+                notificationsSent += 1;
+                await pool.query(
+                  `insert into notification_deliveries (poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message)
+                   values ($1, $2, $3, $4, $5, 'web', null, $6, $7)`,
+                  [runId, sub.login, inn, number, event, sendResult.ok, sendResult.error || null]
+                );
+                if (!sendResult.ok) status = "partial";
+              }
             }
             if (isNotificationEventEnabled(sub.prefsPush, event)) {
-              const sendResult = await sendFcmToLogin(sub.login, { title, body: text, url: "/" });
-              notificationsSent += 1;
-              await pool.query(
-                `insert into notification_deliveries (poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message)
-                 values ($1, $2, $3, $4, $5, 'push', null, $6, $7)`,
-                [runId, sub.login, inn, number, event, sendResult.ok, sendResult.error || null]
-              );
-              if (!sendResult.ok) status = "partial";
+              if (
+                !(await wasSuccessfulNotificationDelivery(pool, {
+                  login: sub.login,
+                  inn,
+                  cargoNumber: number,
+                  event,
+                  channel: "push",
+                }))
+              ) {
+                const sendResult = await sendFcmToLogin(sub.login, { title, body: text, url: "/" });
+                notificationsSent += 1;
+                await pool.query(
+                  `insert into notification_deliveries (poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message)
+                   values ($1, $2, $3, $4, $5, 'push', null, $6, $7)`,
+                  [runId, sub.login, inn, number, event, sendResult.ok, sendResult.error || null]
+                );
+                if (!sendResult.ok) status = "partial";
+              }
             }
           }
         }

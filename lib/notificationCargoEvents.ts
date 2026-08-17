@@ -61,7 +61,8 @@ export function getCargoStageEventsOnStateChange(
 ): CargoStageEventId[] {
   const next = getCargoStageEventIdFromState(currentState ?? undefined);
   if (!next) return [];
-  if (isFirstSeen) return [next];
+  // First sighting only baselines cargo_last_state — no push for historical backlog.
+  if (isFirstSeen) return [];
   const prev = getCargoStageEventIdFromState(previousState ?? undefined);
   if (prev === next) return [];
   return [next];

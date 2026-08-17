@@ -36,6 +36,50 @@ function pickFirst(item: any, keys: string[]): unknown {
   return undefined;
 }
 
+const BILL_NUMBER_KEYS = [
+  "NumberBill",
+  "BillNumber",
+  "Invoice",
+  "InvoiceNumber",
+  "Счет",
+  "Счёт",
+  "НомерСчета",
+  "НомерСчёта",
+] as const;
+
+/** ИНН заказчика из записи перевозки/счёта (как в perevozki API). */
+export function notificationItemInn(item: any): string {
+  const v =
+    item?.INN ??
+    item?.Inn ??
+    item?.inn ??
+    item?.CustomerINN ??
+    item?.CustomerInn ??
+    item?.customerInn ??
+    item?.INNCustomer ??
+    item?.InnCustomer ??
+    item?.ЗаказчикИНН ??
+    "";
+  return String(v).trim();
+}
+
+/** Номер счёта строго из полей счёта — без подстановки номера перевозки. */
+export function pickBillNumber(item: any): string {
+  return String(pickFirst(item, [...BILL_NUMBER_KEYS]) ?? "").trim();
+}
+
+/** В данных есть явный номер счёта (не номер перевозки). */
+export function hasRealBillNumber(item: any): boolean {
+  return pickBillNumber(item).length > 0;
+}
+
+/** Признак выставленного счёта: номер счёта и/или StateBill из 1С. */
+export function hasBillSignal(item: any): boolean {
+  if (hasRealBillNumber(item)) return true;
+  const stateBill = String(item?.StateBill ?? item?.stateBill ?? item?.StatusBill ?? "").trim();
+  return stateBill.length > 0;
+}
+
 /** State 1С → ключ события перевозки (как в alice getFilterKeyByStatus). */
 export function getCargoStatusKey(state: string | undefined): LegacyCargoStatusKey | null {
   if (!state) return null;
@@ -167,26 +211,17 @@ export function formatTelegramMessage(
   const sender = String(item?.Sender || "—").trim() || "—";
   const receiver = String(item?.Receiver || item?.Poluchatel || "—").trim() || "—";
   const details = `№ ${n} - мест: ${mest}, платный вес: ${pw}, вес: ${w}, объём: ${volume}, отправитель: ${sender}, получатель: ${receiver}.`;
-  const billNumber = String(
-    pickFirst(anyItem, ["NumberBill", "BillNumber", "Invoice", "InvoiceNumber", "Счет", "Счёт"]) ?? n
-  ).trim() || n;
-  const billDate = String(
-    pickFirst(anyItem, ["DateBill", "BillDate", "InvoiceDate", "ДатаСчета", "ДатаСчёта", "Date"]) ?? "—"
-  ).trim() || "—";
-  const billSumRaw = pickFirst(anyItem, ["SumDoc", "Sum", "Amount", "Сумма"]);
-  const billVatRaw = pickFirst(anyItem, ["SumNDS", "NDS", "VAT", "НДС"]);
+  const billSumRaw = pickFirst(anyItem, ["SumDoc", "SumBill", "AmountBill", "СуммаДокумента", "Sum", "Amount", "Сумма"]);
   const billSumNum = typeof billSumRaw === "number" ? billSumRaw : parseFloat(String(billSumRaw ?? "").replace(",", "."));
-  const billVatNum = typeof billVatRaw === "number" ? billVatRaw : parseFloat(String(billVatRaw ?? "").replace(",", "."));
   const billSum = Number.isFinite(billSumNum) ? new Intl.NumberFormat("ru-RU").format(Math.round(billSumNum)) : "—";
-  const billVat = Number.isFinite(billVatNum) ? new Intl.NumberFormat("ru-RU").format(Math.round(billVatNum)) : "—";
   if (CARGO_STAGE_EVENT_IDS.includes(event as CargoStageEventId)) {
     return `${cargoStageEventLabel(event as CargoStageEventId)}. № ${n}`;
   }
   switch (event) {
     case "bill_created":
-      return `Создан счет (${billNumber}) от ${billDate} на сумму ${billSum} ₽, в том числе НДС ${billVat} ₽.`;
+      return `Вам выставлен счет по перевозке № ${n} на сумму ${billSum} ₽.`;
     case "bill_paid":
-      return `Счет (${billNumber}) оплачен.`;
+      return `Счет по перевозке № ${n} оплачен.`;
     default:
       return `Обновление статуса перевозки. ${details}`;
   }
