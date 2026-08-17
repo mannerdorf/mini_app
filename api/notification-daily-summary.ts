@@ -109,9 +109,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Prefer real deliverable channels; skip logins that only "want" telegram but have no link.
       if (!willTelegram && !willPush && !willEmail) {
         skippedNoChannel += 1;
-        if (prefs.telegram && !chatId) {
-          errors.push({ login, channel: "telegram", error: "no active telegram link" });
-        }
         continue;
       }
 
