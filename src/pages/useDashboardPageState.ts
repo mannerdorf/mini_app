@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useReducedMotion } from "motion/react";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
-import { usePerevozki, usePrevPeriodPerevozki } from "../hooks/useApi";
+import { usePerevozki, usePerevozkiMulti, usePrevPeriodPerevozki } from "../hooks/useApi";
 import { getWebApp, isMaxWebApp } from "../webApp";
 import { sendMaxTestMessage } from "../api/client/dashboard";
 import { fetchMyPaymentCalendar } from "../api/client/scheduling";
@@ -20,6 +20,7 @@ import { useDashboardAnalytics } from "../features/dashboard/hooks/useDashboardA
 import { useDashboardMaChartLayout } from "../features/dashboard/hooks/useDashboardMaChartLayout";
 import { useDashboardMainChartLayout } from "../features/dashboard/hooks/useDashboardMainChartLayout";
 import { getLastStatusDateKey } from "../features/dashboard/hooks/dashboardCargoDateHelpers";
+import { getCargoRoleSet } from "../lib/cargoUtils";
 export type { DashboardPageProps } from "../features/dashboard/hooks/dashboardPageTypes";
 import type { DashboardPageProps } from "../features/dashboard/hooks/dashboardPageTypes";
 
@@ -33,6 +34,9 @@ export function useDashboardPageState({
     useServiceRequest = false,
     hasAnalytics = false,
     hasDashboard = true,
+    roleCustomer = true,
+    roleSender = true,
+    roleReceiver = true,
     saasDashboardMotion = false,
     onOpenCargo,
     onOpenInvoice,
@@ -118,13 +122,23 @@ export function useDashboardPageState({
         console.log("[testMaxMessage]", logs);
     };
 
-    const { items, error, loading, mutate: mutatePerevozki } = usePerevozki({
+    const { items, error, loading, mutate: mutatePerevozki } = usePerevozkiMulti({
         auth,
         dateFrom: filters.apiDateRange.dateFrom,
         dateTo: filters.apiDateRange.dateTo,
         useServiceRequest,
         inn: !useServiceRequest ? auth.inn : undefined,
+        roleCustomer,
+        roleSender,
+        roleReceiver,
     });
+
+    useEffect(() => {
+        if (filters.chartType !== "money" || items.length === 0) return;
+        const hasCustomerRole = items.some((item) => getCargoRoleSet(item).has("Customer"));
+        if (!hasCustomerRole) filters.setChartType("paidWeight");
+    }, [items, filters.chartType, filters.setChartType]);
+
     const {
         items: deliveryFactLookupItems,
         loading: deliveryFactLookupLoading,

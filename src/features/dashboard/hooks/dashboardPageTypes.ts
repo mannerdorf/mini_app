@@ -8,6 +8,10 @@ export type DashboardPageProps = {
     useServiceRequest?: boolean;
     hasAnalytics?: boolean;
     hasDashboard?: boolean;
+    /** Роли из профиля — дашборд должен тянуть те же Mode, что и «Грузы». */
+    roleCustomer?: boolean;
+    roleSender?: boolean;
+    roleReceiver?: boolean;
     /** Stagger + spring по блокам (только при глобальном SaaS-стиле). */
     saasDashboardMotion?: boolean;
     onOpenCargo?: (cargoNumber: string, prefetchedItem?: CargoItem) => void;
