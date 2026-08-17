@@ -17,7 +17,9 @@
     "api:dev": "tsx server/index.ts",
     "api:start": "node --import tsx server/index.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e:guest": "playwright test e2e/guest-smoke.spec.ts",
+    "test:e2e:guest:install": "playwright install chromium"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.2",
@@ -65,6 +67,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.2",
+    "@playwright/test": "^1.62.1",
     "@types/formidable": "^3.5.1",
     "@types/nodemailer": "^7.0.9",
     "@types/pg": "^8.21.0",

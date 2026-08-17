@@ -1,7 +1,6 @@
 import React from "react";
 import {
   ArrowLeft,
-  Check,
   Clock3,
   Download,
   Share2,
@@ -13,6 +12,7 @@ import { Button } from "../../components/shadcn/button";
 import { ANDROID_RELEASE_DOWNLOAD_URL, ANDROID_RELEASE_ORIGIN } from "../../constants/androidRelease";
 import { GUEST_ILLUSTRATIONS } from "../../constants/guestIllustrations";
 import { DEFAULT_APP_URL } from "../../../lib/haulzDomains";
+import { GuestPageHero } from "./GuestPageHero";
 
 type Props = {
   onBack: () => void;
@@ -30,45 +30,21 @@ export function GuestAppDownloadPage({ onBack }: Props) {
 
   return (
     <div className="guest-shell min-h-[100dvh]">
-      <main className="mx-auto max-w-guest px-4 py-4 sm:px-6 lg:px-8">
-        <div className="mb-4 flex items-center gap-3">
-          <Button variant="outline" size="icon" aria-label="Назад" onClick={onBack} className="bg-white">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <span className="text-sm font-semibold text-[#374151]">Приложение HAULZ</span>
-        </div>
+      <div className="guest-page-back mx-auto max-w-guest px-4 sm:px-6 lg:px-8">
+        <Button variant="outline" size="icon" aria-label="Назад" onClick={onBack} className="bg-white">
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <span className="text-sm font-semibold text-[#374151]">Приложение HAULZ</span>
+      </div>
 
-        <section className="guest-app-hero overflow-hidden rounded-[1.75rem]">
-          <div className="grid items-center gap-8 px-6 py-10 sm:px-10 sm:py-14 lg:grid-cols-[1.1fr_0.9fr] lg:px-14">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-200">HAULZ всегда рядом</p>
-              <h1 className="mt-4 max-w-2xl text-3xl font-bold leading-[1.08] tracking-[-0.035em] text-white sm:text-5xl">
-                Управляйте логистикой прямо со смартфона
-              </h1>
-              <p className="mt-5 max-w-xl text-base leading-relaxed text-blue-100 sm:text-lg">
-                Рассчитывайте доставку, оформляйте заявки, следите за грузом и получайте документы — где бы вы ни находились.
-              </p>
-              <div className="mt-7 flex flex-wrap gap-2">
-                {["Расчёт доставки", "Статусы груза", "Документы"].map((item) => (
-                  <span key={item} className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white">
-                    <Check className="h-4 w-4 text-blue-200" />
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </div>
+      <GuestPageHero
+        title="Управляйте логистикой прямо со смартфона"
+        lead="Рассчитывайте доставку, оформляйте заявки, следите за грузом и получайте документы — где бы вы ни находились."
+        imageSrc={GUEST_ILLUSTRATIONS.appVisual}
+        imageAlt="Приложение HAULZ на смартфоне"
+      />
 
-            <div className="guest-about-visual mx-auto w-full max-w-md">
-              <img
-                src={GUEST_ILLUSTRATIONS.appVisual}
-                alt="Приложение HAULZ на смартфоне"
-                className="guest-about-visual__img aspect-[4/5] w-full object-cover sm:aspect-square"
-                loading="eager"
-              />
-            </div>
-          </div>
-        </section>
-
+      <main className="mx-auto max-w-guest px-4 pb-8 pt-2 sm:px-6 lg:px-8">
         <section className="py-6">
           <div className="mb-5">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2563eb]">Выберите способ установки</p>
@@ -156,13 +132,13 @@ export function GuestAppDownloadPage({ onBack }: Props) {
             </div>
 
             <ol className="grid gap-3">
-              {IOS_STEPS.map((step) => (
+              {IOS_STEPS.map((step, index) => (
                 <li key={step} className="flex items-start gap-4 rounded-2xl bg-white/80 p-4">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#2563eb] text-sm font-bold text-white">
-                    {IOS_STEPS.indexOf(step) + 1}
+                    {index + 1}
                   </span>
                   <span className="pt-1 text-sm font-medium leading-relaxed text-[#1f2937]">{step}</span>
-                  {IOS_STEPS.indexOf(step) === 1 ? <Share2 className="ml-auto mt-1 h-4 w-4 shrink-0 text-[#2563eb]" /> : null}
+                  {index === 1 ? <Share2 className="ml-auto mt-1 h-4 w-4 shrink-0 text-[#2563eb]" /> : null}
                 </li>
               ))}
             </ol>

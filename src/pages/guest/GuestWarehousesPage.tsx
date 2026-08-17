@@ -1,9 +1,10 @@
 import React from "react";
-import { ArrowLeft, Clock3, Mail, MapPin, Phone } from "lucide-react";
+import { ArrowLeft, Mail, MapPin, Phone } from "lucide-react";
 import { Button } from "../../components/shadcn/button";
 import { GUEST_ILLUSTRATIONS } from "../../constants/guestIllustrations";
 import { yandexMapEmbedUrl, yandexMapsOpenUrl } from "../../lib/yandexMaps";
 import { GUEST_CONTACT_EMAIL_LABEL } from "./guestContactLabels";
+import { GuestPageHero } from "./GuestPageHero";
 import { GUEST_WAREHOUSE_ITEMS } from "./guestWarehouseContent";
 
 type Props = {
@@ -18,53 +19,28 @@ function normalizePhoneToTel(phone: string): string {
 export function GuestWarehousesPage({ onBack }: Props) {
   return (
     <div className="guest-shell min-h-[100dvh]">
-      <main className="mx-auto max-w-guest px-4 py-4 sm:px-6 lg:px-8">
-        <div className="mb-4 flex items-center gap-3">
-          <Button variant="outline" size="icon" aria-label="Назад" onClick={onBack} className="bg-white">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <span className="text-sm font-semibold text-[#374151]">Склады HAULZ</span>
-        </div>
+      <div className="guest-page-back mx-auto max-w-guest px-4 sm:px-6 lg:px-8">
+        <Button variant="outline" size="icon" aria-label="Назад" onClick={onBack} className="bg-white">
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <span className="text-sm font-semibold text-[#374151]">Склады HAULZ</span>
+      </div>
 
-        <section className="guest-app-hero overflow-hidden rounded-[1.75rem]">
-          <div className="grid items-center gap-8 px-6 py-10 sm:px-10 sm:py-14 lg:grid-cols-[1.1fr_0.9fr] lg:px-14">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-200">Москва и Калининград</p>
-              <h1 className="mt-4 max-w-2xl text-3xl font-bold leading-[1.08] tracking-[-0.035em] text-white sm:text-5xl">
-                Склады HAULZ рядом с вашим грузом
-              </h1>
-              <p className="mt-5 max-w-xl text-base leading-relaxed text-blue-100 sm:text-lg">
-                Адреса, режим работы и контакты — всё в одном месте. Позвоните, напишите или постройте маршрут на карте.
-              </p>
-              <div className="mt-7 flex flex-wrap gap-2">
-                {["Приёмка и выдача", "Ежедневно 09:00–18:00", "Два региона"].map((item) => (
-                  <span
-                    key={item}
-                    className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm font-medium text-white"
-                  >
-                    <Clock3 className="h-4 w-4 text-blue-200" />
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div className="guest-about-visual mx-auto w-full max-w-md">
-              <img
-                src={GUEST_ILLUSTRATIONS.warehousesVisual}
-                alt="Склад HAULZ"
-                className="guest-about-visual__img aspect-[4/5] w-full object-cover sm:aspect-square"
-                loading="eager"
-              />
-            </div>
-          </div>
-        </section>
+      <GuestPageHero
+        title="Склады рядом с вашим грузом"
+        lead="Адреса, режим работы и контакты — всё в одном месте. Позвоните, напишите или постройте маршрут на карте."
+        imageSrc={GUEST_ILLUSTRATIONS.warehousesVisual}
+        imageAlt="Склад HAULZ"
+      />
 
+      <main className="mx-auto max-w-guest px-4 pb-8 pt-2 sm:px-6 lg:px-8">
         <section className="py-6">
           <div className="mb-5">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2563eb]">Контакты складов</p>
             <h2 className="mt-2 text-2xl font-bold tracking-[-0.025em] text-[#111827] sm:text-3xl">
               Где забрать и куда привезти
             </h2>
+            <p className="mt-2 text-sm text-[#6b7280]">Москва и Калининград · ежедневно 09:00–18:00</p>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
