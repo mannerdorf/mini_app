@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Trash2 } from "lucide-react";
-import type { ExtraServicePayload, MainlinePayload, PickupMatrixPayload, PickupTier } from "../../../../lib/haulzCalculator/types";
+import type { ExtraServicePayload, MainlineMode, MainlinePayload, PickupMatrixPayload, PickupTier } from "../../../../lib/haulzCalculator/types";
+import { mainlineModeLabelRu, parseMainlineMode } from "../../../../lib/haulzCalculator/mainlineMode";
 import {
   fetchAdminHaulzCalculatorTariffs,
   fetchAdminHaulzTariffHistory,
@@ -52,6 +53,26 @@ function todayIso(): string {
 function versionPayload(set: AdminHaulzTariffSet | undefined): unknown | undefined {
   if (!set) return undefined;
   return set.active_version?.payload ?? set.latest_version?.payload;
+}
+
+function mainlineModeFromSet(set: AdminHaulzTariffSet, payload?: MainlinePayload | null): MainlineMode {
+  if (payload?.mode) return parseMainlineMode(payload.mode);
+  const code = String(set.code || "").toLowerCase();
+  if (code.endsWith("_air") || code.includes("_air_")) return "air";
+  if (code.endsWith("_ferry") || code.includes("_ferry_")) return "ferry";
+  if (code.endsWith("_auto") || code.includes("_auto_")) return "auto";
+  return parseMainlineMode(undefined);
+}
+
+function mainlineDirectionFromSet(
+  set: AdminHaulzTariffSet,
+  payload?: MainlinePayload | null,
+): MainlinePayload["direction"] {
+  if (payload?.direction === "mow_kgd" || payload?.direction === "kgd_mow") return payload.direction;
+  if (set.direction === "mow_kgd" || set.direction === "kgd_mow") return set.direction;
+  const code = String(set.code || "").toLowerCase();
+  if (code.includes("kgd_mow")) return "kgd_mow";
+  return "mow_kgd";
 }
 
 function TierTable({ tiers, onChange }: { tiers: PickupTier[]; onChange: (t: PickupTier[]) => void }) {
@@ -144,7 +165,28 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
     setLoading(true);
     setError(null);
     try {
-      const list = await fetchAdminHaulzCalculatorTariffs(adminToken);
+      let list = await fetchAdminHaulzCalculatorTariffs(adminToken);
+      const hasAir = list.some(
+        (s) =>
+          s.block === "mainline" &&
+          (s.code.toLowerCase().includes("_air") ||
+            (versionPayload(s) as MainlinePayload | undefined)?.mode === "air"),
+      );
+      if (list.some((s) => s.block === "mainline") && !hasAir) {
+        await initAdminHaulzCalculator(adminToken, todayIso());
+        list = await fetchAdminHaulzCalculatorTariffs(adminToken);
+        const airOk = list.some(
+          (s) =>
+            s.block === "mainline" &&
+            (s.code.toLowerCase().includes("_air") ||
+              (versionPayload(s) as MainlinePayload | undefined)?.mode === "air"),
+        );
+        if (airOk) {
+          setMessage("Добавлены наборы магистрали «Авиа» (можно задать ₽/кг и срок).");
+        } else {
+          setError('Не удалось добавить «Авиа». Нажмите «Создать структуру тарифов».');
+        }
+      }
       setSets(list);
       const pickup = list.find((s) => s.code === "pickup_matrix");
       const lastMile = list.find((s) => s.code === "last_mile_matrix");
@@ -171,8 +213,15 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
       }
       const ml: MainlinePayload[] = [];
       for (const s of list.filter((x) => x.block === "mainline")) {
-        const p = versionPayload(s) as MainlinePayload | undefined;
-        if (p?.mode) ml.push(p);
+        const raw = versionPayload(s) as MainlinePayload | undefined;
+        const mode = mainlineModeFromSet(s, raw);
+        const direction = mainlineDirectionFromSet(s, raw);
+        ml.push({
+          mode,
+          direction,
+          price_per_kg: Number(raw?.price_per_kg) || 0,
+          delivery_days: Number(raw?.delivery_days) || 0,
+        });
       }
       setMainlineDrafts(ml);
     } catch (e) {
@@ -394,13 +443,36 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
             <tbody>
               {sets
                 .filter((s) => s.block === "mainline")
+                .slice()
+                .sort((a, b) => {
+                  const pa = (versionPayload(a) ?? {}) as MainlinePayload;
+                  const pb = (versionPayload(b) ?? {}) as MainlinePayload;
+                  const da = mainlineDirectionFromSet(a, pa);
+                  const db = mainlineDirectionFromSet(b, pb);
+                  if (da !== db) return da.localeCompare(db);
+                  const order = { auto: 0, ferry: 1, air: 2 } as const;
+                  return (
+                    (order[mainlineModeFromSet(a, pa)] ?? 9) - (order[mainlineModeFromSet(b, pb)] ?? 9)
+                  );
+                })
                 .map((s) => {
-                  const p = (versionPayload(s) ?? {}) as MainlinePayload;
-                  const draft = mainlineDrafts.find((d) => d.direction === p.direction && d.mode === p.mode) ?? p;
+                  const raw = (versionPayload(s) ?? {}) as MainlinePayload;
+                  const mode = mainlineModeFromSet(s, raw);
+                  const direction = mainlineDirectionFromSet(s, raw);
+                  const p: MainlinePayload = {
+                    mode,
+                    direction,
+                    price_per_kg: Number(raw.price_per_kg) || 0,
+                    delivery_days: Number(raw.delivery_days) || 0,
+                  };
+                  const draft =
+                    mainlineDrafts.find((d) => d.direction === p.direction && d.mode === p.mode) ?? p;
                   return (
                     <tr key={s.id}>
                       <td>{s.name}</td>
-                      <td>{p.mode}</td>
+                      <td>
+                        {mainlineModeLabelRu(p.mode)} <span style={{ opacity: 0.55 }}>({p.mode})</span>
+                      </td>
                       <td>{p.direction}</td>
                       <td>
                         <input
@@ -437,8 +509,14 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
                           type="button"
                           className="filter-button"
                           onClick={() => {
-                            const d = mainlineDrafts.find((m) => m.direction === p.direction && m.mode === p.mode) ?? p;
-                            void publish(s.code, d).catch((e) => setError((e as Error).message));
+                            const d =
+                              mainlineDrafts.find((m) => m.direction === p.direction && m.mode === p.mode) ?? p;
+                            void publish(s.code, {
+                              mode: p.mode,
+                              direction: p.direction,
+                              price_per_kg: d.price_per_kg,
+                              delivery_days: d.delivery_days,
+                            }).catch((e) => setError((e as Error).message));
                           }}
                         >
                           Версия

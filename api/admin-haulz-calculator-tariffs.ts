@@ -48,7 +48,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ history, active, request_id: ctx.requestId });
       }
 
-      await ensureAirMainlineTariffSets(pool);
+      try {
+        await ensureAirMainlineTariffSets(pool);
+      } catch (ensureErr) {
+        logError(ctx, "ensure_air_mainline_failed", ensureErr);
+      }
       const sets = await listTariffSets(pool);
       const day = todayDateMoscow();
       const enriched = [];

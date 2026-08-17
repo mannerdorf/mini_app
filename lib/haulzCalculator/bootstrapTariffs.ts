@@ -143,17 +143,41 @@ const AIR_MAINLINES = [
 export async function ensureAirMainlineTariffSets(
   pool: Pool,
   opts?: { effectiveFrom?: string },
-): Promise<void> {
+): Promise<{ created: number }> {
   const effectiveFrom = opts?.effectiveFrom || "2020-01-01";
+  let created = 0;
   for (const m of AIR_MAINLINES) {
+    const before = await pool.query<{ id: string }>(
+      `select id::text from haulz_calc_tariff_sets where code = $1`,
+      [m.code],
+    );
     const id = await upsertTariffSet(pool, m.code, m.name, "mainline", m.direction);
-    await ensureInitialVersion(pool, id, effectiveFrom, {
-      mode: m.mode,
-      price_per_kg: m.price_per_kg,
-      direction: m.direction,
-      delivery_days: m.delivery_days,
-    });
+    const hadSet = Boolean(before.rows[0]?.id);
+    const { rows: ver } = await pool.query(
+      `select 1 from haulz_calc_tariff_versions where tariff_set_id = $1 limit 1`,
+      [id],
+    );
+    if (ver.length === 0) {
+      await pool.query(
+        `insert into haulz_calc_tariff_versions (tariff_set_id, effective_from, payload, created_by, comment)
+         values ($1, $2::date, $3::jsonb, 'bootstrap', 'bootstrap air defaults')`,
+        [
+          id,
+          effectiveFrom,
+          JSON.stringify({
+            mode: m.mode,
+            price_per_kg: m.price_per_kg,
+            direction: m.direction,
+            delivery_days: m.delivery_days,
+          }),
+        ],
+      );
+      created += 1;
+    } else if (!hadSet) {
+      created += 1;
+    }
   }
+  return { created };
 }
 
 export async function ensureTariffSetExists(pool: Pool, code: string): Promise<number> {
