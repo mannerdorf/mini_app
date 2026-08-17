@@ -55,6 +55,10 @@ Gradle автоматически подключит `com.google.gms.google-serv
 
 Токен сохраняется через `POST /api/fcm-subscribe`. Отправка — из `notification-poll` и cache refresh через `sendFcmToLogin`.
 
+Иконка в шторке Android: белый силуэт `ic_stat_haulz` + цвет `#3655FF` через
+`com.google.firebase.messaging.default_notification_icon` / `default_notification_color`
+в `AndroidManifest.xml`. Без этого Android показывает системную заглушку.
+
 ## 6. Тестовая отправка
 
 После подписки можно проверить доставку, вызвав cron poll или дождаться изменения статуса перевозки.
