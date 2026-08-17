@@ -18,10 +18,10 @@ npm run dev
 Terminal B:
 
 ```bash
-PLAYWRIGHT_BASE_URL=http://127.0.0.1:5173 npm run test:e2e:guest
+PLAYWRIGHT_BASE_URL=http://localhost:5173 npm run test:e2e:guest
 ```
 
-If the dev server is down, tests **skip** (do not fail the suite).
+If the dev server is down, or the URL host mismatches (`127.0.0.1` vs `localhost` on macOS), tests **skip** (do not fail the suite).
 
 ## What it checks
 

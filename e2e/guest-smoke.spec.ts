@@ -14,7 +14,10 @@ async function guestReachable(request: { get: (url: string) => Promise<{ ok: () 
 
 test.describe("guest smoke", () => {
   test.beforeEach(async ({ request }) => {
-    test.skip(!(await guestReachable(request)), "Dev server not reachable — start vite, then re-run test:e2e:guest");
+    test.skip(
+      !(await guestReachable(request)),
+      "Dev server not reachable — keep `npm run dev` running, use PLAYWRIGHT_BASE_URL=http://localhost:5173",
+    );
   });
 
   test("home shows HAULZ brand in hero", async ({ page }) => {
