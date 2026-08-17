@@ -77,9 +77,16 @@ export function pickBillNumber(item: any): string {
   return String(pickFirst(item, [...BILL_NUMBER_KEYS]) ?? "").trim();
 }
 
-/** Счёт «создан» только при реальном номере счёта в данных (StateBill без номера — не событие). */
+/** В данных есть явный номер счёта (не номер перевозки). */
 export function hasRealBillNumber(item: any): boolean {
   return pickBillNumber(item).length > 0;
+}
+
+/** Признак выставленного счёта: номер счёта и/или StateBill из 1С. */
+export function hasBillSignal(item: any): boolean {
+  if (hasRealBillNumber(item)) return true;
+  const stateBill = String(item?.StateBill ?? item?.stateBill ?? item?.StatusBill ?? "").trim();
+  return stateBill.length > 0;
 }
 
 /** State 1С → ключ события перевозки (как в alice getFilterKeyByStatus). */
@@ -213,22 +220,17 @@ export function formatTelegramMessage(
   const sender = String(item?.Sender || "—").trim() || "—";
   const receiver = String(item?.Receiver || item?.Poluchatel || "—").trim() || "—";
   const details = `№ ${n} - мест: ${mest}, платный вес: ${pw}, вес: ${w}, объём: ${volume}, отправитель: ${sender}, получатель: ${receiver}.`;
-  const billNumber = pickBillNumber(anyItem) || "—";
-  const billDate = String(pickFirst(anyItem, [...BILL_DATE_KEYS]) ?? "—").trim() || "—";
   const billSumRaw = pickFirst(anyItem, ["SumDoc", "SumBill", "AmountBill", "СуммаДокумента", "Sum", "Amount", "Сумма"]);
-  const billVatRaw = pickFirst(anyItem, ["SumNDS", "NDS", "VAT", "НДС"]);
   const billSumNum = typeof billSumRaw === "number" ? billSumRaw : parseFloat(String(billSumRaw ?? "").replace(",", "."));
-  const billVatNum = typeof billVatRaw === "number" ? billVatRaw : parseFloat(String(billVatRaw ?? "").replace(",", "."));
   const billSum = Number.isFinite(billSumNum) ? new Intl.NumberFormat("ru-RU").format(Math.round(billSumNum)) : "—";
-  const billVat = Number.isFinite(billVatNum) ? new Intl.NumberFormat("ru-RU").format(Math.round(billVatNum)) : "—";
   if (CARGO_STAGE_EVENT_IDS.includes(event as CargoStageEventId)) {
     return `${cargoStageEventLabel(event as CargoStageEventId)}. № ${n}`;
   }
   switch (event) {
     case "bill_created":
-      return `Создан счет (${billNumber}) от ${billDate} на сумму ${billSum} ₽, в том числе НДС ${billVat} ₽.`;
+      return `Вам выставлен счет по перевозке № ${n} на сумму ${billSum} ₽.`;
     case "bill_paid":
-      return `Счет (${billNumber}) оплачен.`;
+      return `Счет по перевозке № ${n} оплачен.`;
     default:
       return `Обновление статуса перевозки. ${details}`;
   }

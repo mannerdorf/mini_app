@@ -4,10 +4,9 @@ import {
   formatTelegramMessage,
   getCargoStageEventsOnStateChange,
   getPaymentKey,
-  hasRealBillNumber,
+  hasBillSignal,
   isCargoStageNotificationEnabled,
   notificationItemInn,
-  pickBillNumber,
   type CargoStageEventId,
 } from "../../lib/notificationPoll.js";
 import { acquireWebPushDedupeKey, sendWebPushToLogin } from "./webpushDelivery.js";
@@ -44,10 +43,10 @@ function normalizeCargoNumber(item: CargoSnapshotItem): string {
   return String(item.cargoNumber ?? item.Number ?? item.number ?? "").trim();
 }
 
-function eventUrl(event: NotificationEvent, cargoNumber: string, billNumber?: string): string {
-  const number = encodeURIComponent(String((event === "bill_created" || event === "bill_paid" ? billNumber || cargoNumber : cargoNumber) || "").trim());
+function eventUrl(event: NotificationEvent, cargoNumber: string): string {
+  const number = encodeURIComponent(String(cargoNumber || "").trim());
   if (event === "bill_created" || event === "bill_paid") return `/documents?section=Счета&cargo=${number}`;
-  return `/documents?section=Отправки&cargo=${encodeURIComponent(String(cargoNumber || "").trim())}`;
+  return `/documents?section=Отправки&cargo=${number}`;
 }
 
 function billEventsOnChange(
@@ -57,7 +56,7 @@ function billEventsOnChange(
 ): NotificationEvent[] {
   // Historical first sighting: baseline only, no bill pushes.
   if (isFirstSeen) return [];
-  if (!hasRealBillNumber(item)) return [];
+  if (!hasBillSignal(item)) return [];
   const payKey = getPaymentKey(String(item.StateBill ?? item.stateBill ?? "").trim() || undefined);
   const prevPayKey = getPaymentKey(prevStateBill ?? undefined);
   const events: NotificationEvent[] = [];
@@ -260,7 +259,6 @@ export async function dispatchWebPushCargoEvents(params: {
 
     const subscribers = subscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
     const pushSubscribers = pushSubscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
-    const billNumber = pickBillNumber(item.raw);
 
     for (const event of eventsToSend) {
       for (const [login, eventsEnabled] of subscribers.entries()) {
@@ -299,8 +297,8 @@ export async function dispatchWebPushCargoEvents(params: {
         const sendResult = await sendWebPushToLogin(login, {
           title: "HAULZ",
           body,
-          url: eventUrl(event, item.cargoNumber, billNumber),
-          tag: `${event}:${billNumber || item.cargoNumber}`,
+          url: eventUrl(event, item.cargoNumber),
+          tag: `${event}:${item.cargoNumber}`,
         });
         if (sendResult.sent > 0) delivered += 1;
         if (!sendResult.ok) failed += 1;
@@ -352,7 +350,7 @@ export async function dispatchWebPushCargoEvents(params: {
         const sendResult = await sendFcmToLogin(login, {
           title: "HAULZ",
           body,
-          url: eventUrl(event, item.cargoNumber, billNumber),
+          url: eventUrl(event, item.cargoNumber),
         });
         if (sendResult.sent > 0) delivered += 1;
         if (!sendResult.ok) failed += 1;
