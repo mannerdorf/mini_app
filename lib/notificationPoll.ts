@@ -36,6 +36,52 @@ function pickFirst(item: any, keys: string[]): unknown {
   return undefined;
 }
 
+const BILL_NUMBER_KEYS = [
+  "NumberBill",
+  "BillNumber",
+  "Invoice",
+  "InvoiceNumber",
+  "Счет",
+  "Счёт",
+  "НомерСчета",
+  "НомерСчёта",
+] as const;
+
+const BILL_DATE_KEYS = [
+  "DateBill",
+  "BillDate",
+  "InvoiceDate",
+  "ДатаСчета",
+  "ДатаСчёта",
+  "DateDoc",
+] as const;
+
+/** ИНН заказчика из записи перевозки/счёта (как в perevozki API). */
+export function notificationItemInn(item: any): string {
+  const v =
+    item?.INN ??
+    item?.Inn ??
+    item?.inn ??
+    item?.CustomerINN ??
+    item?.CustomerInn ??
+    item?.customerInn ??
+    item?.INNCustomer ??
+    item?.InnCustomer ??
+    item?.ЗаказчикИНН ??
+    "";
+  return String(v).trim();
+}
+
+/** Номер счёта строго из полей счёта — без подстановки номера перевозки. */
+export function pickBillNumber(item: any): string {
+  return String(pickFirst(item, [...BILL_NUMBER_KEYS]) ?? "").trim();
+}
+
+/** Счёт «создан» только при реальном номере счёта в данных (StateBill без номера — не событие). */
+export function hasRealBillNumber(item: any): boolean {
+  return pickBillNumber(item).length > 0;
+}
+
 /** State 1С → ключ события перевозки (как в alice getFilterKeyByStatus). */
 export function getCargoStatusKey(state: string | undefined): LegacyCargoStatusKey | null {
   if (!state) return null;
@@ -167,13 +213,9 @@ export function formatTelegramMessage(
   const sender = String(item?.Sender || "—").trim() || "—";
   const receiver = String(item?.Receiver || item?.Poluchatel || "—").trim() || "—";
   const details = `№ ${n} - мест: ${mest}, платный вес: ${pw}, вес: ${w}, объём: ${volume}, отправитель: ${sender}, получатель: ${receiver}.`;
-  const billNumber = String(
-    pickFirst(anyItem, ["NumberBill", "BillNumber", "Invoice", "InvoiceNumber", "Счет", "Счёт"]) ?? n
-  ).trim() || n;
-  const billDate = String(
-    pickFirst(anyItem, ["DateBill", "BillDate", "InvoiceDate", "ДатаСчета", "ДатаСчёта", "Date"]) ?? "—"
-  ).trim() || "—";
-  const billSumRaw = pickFirst(anyItem, ["SumDoc", "Sum", "Amount", "Сумма"]);
+  const billNumber = pickBillNumber(anyItem) || "—";
+  const billDate = String(pickFirst(anyItem, [...BILL_DATE_KEYS]) ?? "—").trim() || "—";
+  const billSumRaw = pickFirst(anyItem, ["SumDoc", "SumBill", "AmountBill", "СуммаДокумента", "Sum", "Amount", "Сумма"]);
   const billVatRaw = pickFirst(anyItem, ["SumNDS", "NDS", "VAT", "НДС"]);
   const billSumNum = typeof billSumRaw === "number" ? billSumRaw : parseFloat(String(billSumRaw ?? "").replace(",", "."));
   const billVatNum = typeof billVatRaw === "number" ? billVatRaw : parseFloat(String(billVatRaw ?? "").replace(",", "."));

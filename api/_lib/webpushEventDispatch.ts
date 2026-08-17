@@ -4,12 +4,15 @@ import {
   formatTelegramMessage,
   getCargoStageEventsOnStateChange,
   getPaymentKey,
+  hasRealBillNumber,
   isCargoStageNotificationEnabled,
-  type CargoEvent,
+  notificationItemInn,
+  pickBillNumber,
   type CargoStageEventId,
 } from "../../lib/notificationPoll.js";
 import { acquireWebPushDedupeKey, sendWebPushToLogin } from "./webpushDelivery.js";
 import { sendFcmToLogin } from "./fcmDelivery.js";
+import { wasSuccessfulNotificationDelivery } from "./notificationDeliveryDedupe.js";
 
 type CargoSnapshotItem = {
   inn?: unknown;
@@ -34,26 +37,33 @@ function isNotificationEventEnabled(prefs: Record<string, boolean>, event: Notif
 }
 
 function normalizeInn(item: CargoSnapshotItem): string {
-  return String(item.inn ?? item.INN ?? item.Inn ?? "").trim();
+  return notificationItemInn(item);
 }
 
 function normalizeCargoNumber(item: CargoSnapshotItem): string {
   return String(item.cargoNumber ?? item.Number ?? item.number ?? "").trim();
 }
 
-function hasBillData(item: CargoSnapshotItem): boolean {
-  const number = String(
-    item?.NumberBill ?? item?.BillNumber ?? item?.Invoice ?? item?.InvoiceNumber ?? item?.["Счет"] ?? item?.["Счёт"] ?? ""
-  ).trim();
-  if (number) return true;
-  const stateBill = String(item?.StateBill ?? item?.stateBill ?? "").trim();
-  return !!stateBill;
+function eventUrl(event: NotificationEvent, cargoNumber: string, billNumber?: string): string {
+  const number = encodeURIComponent(String((event === "bill_created" || event === "bill_paid" ? billNumber || cargoNumber : cargoNumber) || "").trim());
+  if (event === "bill_created" || event === "bill_paid") return `/documents?section=Счета&cargo=${number}`;
+  return `/documents?section=Отправки&cargo=${encodeURIComponent(String(cargoNumber || "").trim())}`;
 }
 
-function eventUrl(event: NotificationEvent, cargoNumber: string): string {
-  const number = encodeURIComponent(String(cargoNumber || "").trim());
-  if (event === "bill_created" || event === "bill_paid") return `/documents?section=Счета&cargo=${number}`;
-  return `/documents?section=Отправки&cargo=${number}`;
+function billEventsOnChange(
+  isFirstSeen: boolean,
+  prevStateBill: string | null | undefined,
+  item: CargoSnapshotItem
+): NotificationEvent[] {
+  // Historical first sighting: baseline only, no bill pushes.
+  if (isFirstSeen) return [];
+  if (!hasRealBillNumber(item)) return [];
+  const payKey = getPaymentKey(String(item.StateBill ?? item.stateBill ?? "").trim() || undefined);
+  const prevPayKey = getPaymentKey(prevStateBill ?? undefined);
+  const events: NotificationEvent[] = [];
+  if (prevPayKey === "unknown") events.push("bill_created");
+  if (payKey === "paid" && prevPayKey !== "paid") events.push("bill_paid");
+  return events;
 }
 
 async function ensureNotificationTables(pool: Pool) {
@@ -241,25 +251,32 @@ export async function dispatchWebPushCargoEvents(params: {
   for (const item of prepared) {
     const key = `${item.inn}::${item.cargoNumber}`;
     const prev = lastState.get(key);
-    const payKey = getPaymentKey(item.stateBill ?? undefined);
+    const isFirstSeen = !prev;
     const eventsToSend: NotificationEvent[] = [
-      ...getCargoStageEventsOnStateChange(prev?.state, item.state, !prev),
+      ...getCargoStageEventsOnStateChange(prev?.state, item.state, isFirstSeen),
+      ...billEventsOnChange(isFirstSeen, prev?.stateBill, item.raw),
     ];
-    if (!prev) {
-      if (hasBillData(item.raw)) eventsToSend.push("bill_created");
-      if (payKey === "paid") eventsToSend.push("bill_paid");
-    } else {
-      const prevPayKey = getPaymentKey(prev.stateBill ?? undefined);
-      if (prevPayKey === "unknown" && hasBillData(item.raw)) eventsToSend.push("bill_created");
-      if (payKey === "paid" && prevPayKey !== "paid") eventsToSend.push("bill_paid");
-    }
     if (eventsToSend.length > 0) changed += 1;
 
     const subscribers = subscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
     const pushSubscribers = pushSubscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
+    const billNumber = pickBillNumber(item.raw);
+
     for (const event of eventsToSend) {
       for (const [login, eventsEnabled] of subscribers.entries()) {
         if (!isNotificationEventEnabled(eventsEnabled, event)) continue;
+        if (
+          await wasSuccessfulNotificationDelivery(pool, {
+            login,
+            inn: item.inn,
+            cargoNumber: item.cargoNumber,
+            event,
+            channel: "web",
+          })
+        ) {
+          deduped += 1;
+          continue;
+        }
         const dedupeKey = [
           "webpush",
           "dedupe",
@@ -282,8 +299,8 @@ export async function dispatchWebPushCargoEvents(params: {
         const sendResult = await sendWebPushToLogin(login, {
           title: "HAULZ",
           body,
-          url: eventUrl(event, item.cargoNumber),
-          tag: `${event}:${item.cargoNumber}`,
+          url: eventUrl(event, item.cargoNumber, billNumber),
+          tag: `${event}:${billNumber || item.cargoNumber}`,
         });
         if (sendResult.sent > 0) delivered += 1;
         if (!sendResult.ok) failed += 1;
@@ -301,6 +318,18 @@ export async function dispatchWebPushCargoEvents(params: {
       }
       for (const [login, eventsEnabled] of pushSubscribers.entries()) {
         if (!isNotificationEventEnabled(eventsEnabled, event)) continue;
+        if (
+          await wasSuccessfulNotificationDelivery(pool, {
+            login,
+            inn: item.inn,
+            cargoNumber: item.cargoNumber,
+            event,
+            channel: "push",
+          })
+        ) {
+          deduped += 1;
+          continue;
+        }
         const dedupeKey = [
           "fcm",
           "dedupe",
@@ -323,7 +352,7 @@ export async function dispatchWebPushCargoEvents(params: {
         const sendResult = await sendFcmToLogin(login, {
           title: "HAULZ",
           body,
-          url: eventUrl(event, item.cargoNumber),
+          url: eventUrl(event, item.cargoNumber, billNumber),
         });
         if (sendResult.sent > 0) delivered += 1;
         if (!sendResult.ok) failed += 1;
