@@ -216,6 +216,9 @@ export function AppMainContent({
             useServiceRequest={useServiceRequest}
             hasAnalytics={true}
             hasDashboard={true}
+            roleCustomer={activeAccount?.isRegisteredUser ? true : (activeAccount?.roleCustomer ?? true)}
+            roleSender={activeAccount?.roleSender ?? true}
+            roleReceiver={activeAccount?.roleReceiver ?? true}
             saasDashboardMotion={profileSaasShellActive}
             onOpenCargo={openCargoInPlace}
             onOpenInvoice={openInvoiceInPlace}
@@ -349,6 +352,9 @@ export function AppMainContent({
             useServiceRequest={useServiceRequest}
             hasAnalytics={activeAccount?.permissions?.analytics === true}
             hasDashboard={true}
+            roleCustomer={activeAccount?.isRegisteredUser ? true : (activeAccount?.roleCustomer ?? true)}
+            roleSender={activeAccount?.roleSender ?? true}
+            roleReceiver={activeAccount?.roleReceiver ?? true}
             saasDashboardMotion={profileSaasShellActive}
             onOpenCargo={openCargoInPlace}
             onOpenInvoice={openInvoiceInPlace}
