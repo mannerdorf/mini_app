@@ -101,6 +101,16 @@ describe("applyPushPreferenceToggle", () => {
     expect(saved.in_transit).toBeUndefined();
     expect(saved.accepted).toBeUndefined();
   });
+
+  it("forces delivered=true on enable even after legacy-shaped existing", () => {
+    const saved = applyPushPreferenceToggle(
+      { sent: true, delivery_scheduled: true, delivered: false },
+      "delivered",
+      true,
+    );
+    expect(saved.delivered).toBe(true);
+    expect(saved.delivery_scheduled).toBe(true);
+  });
 });
 
 describe("buildPushPreferencesSavePayload", () => {
@@ -132,6 +142,12 @@ describe("pushPreferencesForClient", () => {
     const client = pushPreferencesForClient({ delivered: true });
     expect(client.delivered).toBe(true);
     expect(client.delivery_scheduled).toBe(false);
+  });
+
+  it("keeps explicit delivered=false on read", () => {
+    const client = pushPreferencesForClient({ sent: true, delivered: false });
+    expect(client.delivered).toBe(false);
+    expect(client.sent).toBe(true);
   });
 
   it("keeps delivery_scheduled and delivered together on read", () => {

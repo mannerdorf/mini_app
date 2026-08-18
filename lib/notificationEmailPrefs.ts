@@ -136,10 +136,10 @@ export function mergePushPreferencesForSave(
 
 /** Сохранённый push для БД: granular-этапы + счета, без legacy accepted/in_transit. */
 export function finalizePushSavedState(raw: Record<string, boolean> | undefined): Record<string, boolean> {
-  const migrated = migrateLegacyPushPreferences(raw);
+  const src = raw && typeof raw === "object" ? raw : {};
   const out: Record<string, boolean> = {};
   for (const eventId of PUSH_NOTIFICATION_EVENTS) {
-    if (typeof migrated[eventId] === "boolean") out[eventId] = migrated[eventId];
+    if (typeof src[eventId] === "boolean") out[eventId] = src[eventId];
   }
   return out;
 }
@@ -154,7 +154,11 @@ export function applyPushPreferenceToggle(
   if (!(PUSH_NOTIFICATION_EVENTS as readonly string[]).includes(key)) {
     return finalizePushSavedState(existingRaw);
   }
-  return finalizePushSavedState(mergePushPreferencesForSave(existingRaw, { [key]: enabled }));
+  const merged = mergePushPreferencesForSave(existingRaw, { [key]: enabled });
+  const finalized = finalizePushSavedState(merged);
+  if (enabled) finalized[key] = true;
+  else delete finalized[key];
+  return finalized;
 }
 
 /** Payload от клиента: только включённые этапы + счета/сводка (без массовых false). */
@@ -182,7 +186,15 @@ export function buildPushPreferencesSavePayload(
 
 /** Для UI/отправки: дефолты счетов/сводки + явные этапы груза. */
 export function pushPreferencesForClient(raw: Record<string, boolean> | undefined): Record<string, boolean> {
-  return mergePushPreferences(migrateLegacyPushPreferences(raw));
+  const src = raw && typeof raw === "object" ? { ...raw } : {};
+  const explicitDelivered = src.delivered;
+  const migrated = migrateLegacyPushPreferences(src);
+  if (explicitDelivered === true && !isLegacyCoarseDeliveredFlag(src)) {
+    migrated.delivered = true;
+  } else if (explicitDelivered === false) {
+    migrated.delivered = false;
+  }
+  return mergePushPreferences(migrated);
 }
 
 export function shouldSendDailySummaryPush(push: Record<string, boolean> | undefined): boolean {
