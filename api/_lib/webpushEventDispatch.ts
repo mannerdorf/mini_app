@@ -6,9 +6,12 @@ import {
   getPaymentKey,
   hasBillSignal,
   isCargoStageNotificationEnabled,
+  isRecentNotificationItem,
   notificationItemInn,
   type CargoStageEventId,
 } from "../../lib/notificationPoll.js";
+import { isPushNotificationEnabled } from "../../lib/notificationEmailPrefs.js";
+import { invertScopesByInn, loadPushLoginScopes, normalizeNotificationInn } from "../../lib/notificationInnScope.js";
 import { acquireWebPushDedupeKey, sendWebPushToLogin } from "./webpushDelivery.js";
 import { sendFcmToLogin } from "./fcmDelivery.js";
 import { wasSuccessfulNotificationDelivery } from "./notificationDeliveryDedupe.js";
@@ -30,7 +33,7 @@ type CargoSnapshotItem = {
 const NOTIFICATION_EVENTS = [...CARGO_STAGE_EVENT_IDS, "bill_created", "bill_paid"] as const;
 type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
-function isNotificationEventEnabled(prefs: Record<string, boolean>, event: NotificationEvent): boolean {
+function isOptInNotificationEventEnabled(prefs: Record<string, boolean>, event: NotificationEvent): boolean {
   if (event === "bill_created" || event === "bill_paid") return prefs[event] === true;
   return isCargoStageNotificationEnabled(prefs, event as CargoStageEventId);
 }
@@ -52,13 +55,13 @@ function eventUrl(event: NotificationEvent, cargoNumber: string): string {
 function billEventsOnChange(
   isFirstSeen: boolean,
   prevStateBill: string | null | undefined,
-  item: CargoSnapshotItem
+  item: CargoSnapshotItem,
+  notifyFirstSeen: boolean,
 ): NotificationEvent[] {
-  // Historical first sighting: baseline only, no bill pushes.
-  if (isFirstSeen) return [];
   if (!hasBillSignal(item)) return [];
+  if (isFirstSeen && !notifyFirstSeen) return [];
   const payKey = getPaymentKey(String(item.StateBill ?? item.stateBill ?? "").trim() || undefined);
-  const prevPayKey = getPaymentKey(prevStateBill ?? undefined);
+  const prevPayKey = isFirstSeen ? "unknown" : getPaymentKey(prevStateBill ?? undefined);
   const events: NotificationEvent[] = [];
   if (prevPayKey === "unknown") events.push("bill_created");
   if (payKey === "paid" && prevPayKey !== "paid") events.push("bill_paid");
@@ -134,13 +137,15 @@ export async function dispatchWebPushCargoEvents(params: {
   const cargoNumbers = Array.from(new Set(prepared.map((x) => x.cargoNumber)));
   const subscriberByInn = new Map<string, Map<string, Record<string, boolean>>>();
   const pushSubscriberByInn = new Map<string, Map<string, Record<string, boolean>>>();
-  const accountRows = await pool.query<{ login: string; inn: string }>(
-    `select distinct lower(trim(login)) as login, inn
-     from account_companies
-     where inn = any($1::text[])`,
-    [inns]
-  );
-  const logins = [...new Set(accountRows.rows.map((r) => String(r.login || "").trim().toLowerCase()).filter(Boolean))];
+  const scopes = await loadPushLoginScopes(pool);
+  const loginsByInn = invertScopesByInn(scopes);
+  const scopedPairs: Array<{ login: string; inn: string }> = [];
+  for (const inn of inns) {
+    for (const login of loginsByInn.get(inn) || []) {
+      scopedPairs.push({ login, inn });
+    }
+  }
+  const logins = [...new Set(scopedPairs.map((r) => r.login))];
   const prefsByLogin = new Map<string, Record<string, boolean>>();
   const pushPrefsByLogin = new Map<string, Record<string, boolean>>();
   const loadedFromState = new Set<string>();
@@ -192,28 +197,24 @@ export async function dispatchWebPushCargoEvents(params: {
       }
     }
   }
-  for (const row of accountRows.rows) {
-    const inn = String(row.inn || "").trim();
+  for (const row of scopedPairs) {
+    const inn = normalizeNotificationInn(row.inn);
     const login = String(row.login || "").trim().toLowerCase();
-    const enabledEvents = prefsByLogin.get(login);
-    const enabledPushEvents = pushPrefsByLogin.get(login);
+    const enabledEvents = prefsByLogin.get(login) || {};
+    const enabledPushEvents = pushPrefsByLogin.get(login) || {};
     if (!inn || !login) continue;
-    if (enabledEvents && Object.keys(enabledEvents).length > 0) {
-      let byLogin = subscriberByInn.get(inn);
-      if (!byLogin) {
-        byLogin = new Map<string, Record<string, boolean>>();
-        subscriberByInn.set(inn, byLogin);
-      }
-      byLogin.set(login, enabledEvents);
+    let byLogin = subscriberByInn.get(inn);
+    if (!byLogin) {
+      byLogin = new Map<string, Record<string, boolean>>();
+      subscriberByInn.set(inn, byLogin);
     }
-    if (enabledPushEvents && Object.keys(enabledPushEvents).length > 0) {
-      let byLogin = pushSubscriberByInn.get(inn);
-      if (!byLogin) {
-        byLogin = new Map<string, Record<string, boolean>>();
-        pushSubscriberByInn.set(inn, byLogin);
-      }
-      byLogin.set(login, enabledPushEvents);
+    byLogin.set(login, enabledEvents);
+    let pushByLogin = pushSubscriberByInn.get(inn);
+    if (!pushByLogin) {
+      pushByLogin = new Map<string, Record<string, boolean>>();
+      pushSubscriberByInn.set(inn, pushByLogin);
     }
+    pushByLogin.set(login, enabledPushEvents);
   }
   if (subscriberByInn.size === 0 && pushSubscriberByInn.size === 0) {
     return {
@@ -232,12 +233,17 @@ export async function dispatchWebPushCargoEvents(params: {
   const lastStateRows = await pool.query<{ inn: string; cargo_number: string; state: string | null; state_bill: string | null }>(
     `select inn, cargo_number, state, state_bill
      from cargo_last_state
-     where inn = any($1::text[]) and cargo_number = any($2::text[])`,
+     where cargo_number = any($2::text[])
+       and (
+         inn = any($1::text[])
+         or regexp_replace(coalesce(inn, ''), '\\D', '', 'g') = any($1::text[])
+       )`,
     [inns, cargoNumbers]
   );
   const lastState = new Map<string, { state: string | null; stateBill: string | null }>();
   for (const row of lastStateRows.rows) {
-    lastState.set(`${row.inn}::${row.cargo_number}`, { state: row.state, stateBill: row.state_bill });
+    const innKey = normalizeNotificationInn(row.inn) || String(row.inn || "").trim();
+    lastState.set(`${innKey}::${row.cargo_number}`, { state: row.state, stateBill: row.state_bill });
   }
 
   let changed = 0;
@@ -251,9 +257,10 @@ export async function dispatchWebPushCargoEvents(params: {
     const key = `${item.inn}::${item.cargoNumber}`;
     const prev = lastState.get(key);
     const isFirstSeen = !prev;
+    const notifyFirstSeen = isRecentNotificationItem(item.raw as Record<string, unknown>);
     const eventsToSend: NotificationEvent[] = [
-      ...getCargoStageEventsOnStateChange(prev?.state, item.state, isFirstSeen),
-      ...billEventsOnChange(isFirstSeen, prev?.stateBill, item.raw),
+      ...getCargoStageEventsOnStateChange(prev?.state, item.state, isFirstSeen, { notifyFirstSeen }),
+      ...billEventsOnChange(isFirstSeen, prev?.stateBill, item.raw, notifyFirstSeen),
     ];
     if (eventsToSend.length > 0) changed += 1;
 
@@ -262,7 +269,7 @@ export async function dispatchWebPushCargoEvents(params: {
 
     for (const event of eventsToSend) {
       for (const [login, eventsEnabled] of subscribers.entries()) {
-        if (!isNotificationEventEnabled(eventsEnabled, event)) continue;
+        if (!isOptInNotificationEventEnabled(eventsEnabled, event)) continue;
         if (
           await wasSuccessfulNotificationDelivery(pool, {
             login,
@@ -315,7 +322,7 @@ export async function dispatchWebPushCargoEvents(params: {
         }
       }
       for (const [login, eventsEnabled] of pushSubscribers.entries()) {
-        if (!isNotificationEventEnabled(eventsEnabled, event)) continue;
+        if (!isPushNotificationEnabled(eventsEnabled, event)) continue;
         if (
           await wasSuccessfulNotificationDelivery(pool, {
             login,

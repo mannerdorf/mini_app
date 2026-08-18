@@ -1,10 +1,13 @@
 import type { Pool } from "pg";
 import { getPaymentKey } from "./notificationPoll.js";
 import { buildNotificationEmailPreview } from "./notificationEmailPreview.js";
-import { isEmailNotificationEnabled } from "./notificationEmailPrefs.js";
+import { isEmailNotificationEnabled, shouldSendDailySummaryPush } from "./notificationEmailPrefs.js";
+
+export { shouldSendDailySummaryPush };
 import { hasSummaryEmailSentToday } from "./haulzSummaryEmailDailyLimit.js";
 import { readCacheRow } from "./documentCacheRefreshCore.js";
 import { perevozkiItemInn } from "../api/perevozki.js";
+import { loadPushLoginScopes, normalizeNotificationInn } from "./notificationInnScope.js";
 
 export type DailySummaryStats = {
   activeStatusCounts: Map<string, number>;
@@ -19,11 +22,11 @@ export type DailySummaryChannelPrefs = {
 };
 
 export function normalizeInn(v: unknown): string {
-  return String(v ?? "").trim();
+  return normalizeNotificationInn(v) || String(v ?? "").trim();
 }
 
 function normalizeInnCanon(inn: string): string {
-  return String(inn ?? "").replace(/\D/g, "").trim() || String(inn ?? "").trim();
+  return normalizeNotificationInn(inn) || String(inn ?? "").trim();
 }
 
 export function normalizeStatus(state: unknown): string {
@@ -176,8 +179,8 @@ export async function loadDailySummaryPrefsByLogin(
   for (const login of logins) {
     const key = String(login || "").trim().toLowerCase();
     if (!key) continue;
-    // Defaults: telegram on (legacy), push/email opt-in.
-    result.set(key, { telegram: true, push: false, email: false });
+    // Defaults: telegram + push summary on; email opt-in.
+    result.set(key, { telegram: true, push: true, email: false });
   }
   if (logins.length === 0) return result;
 
@@ -198,7 +201,7 @@ export async function loadDailySummaryPrefsByLogin(
       const email = raw.email && typeof raw.email === "object" ? (raw.email as Record<string, boolean>) : {};
       result.set(login, {
         telegram: telegram.daily_summary !== false,
-        push: push.daily_summary === true,
+        push: shouldSendDailySummaryPush(push),
         email: email.daily_summary === true,
       });
       loadedFromState.add(login);
@@ -219,9 +222,9 @@ export async function loadDailySummaryPrefsByLogin(
       for (const row of legacyRes.rows) {
         const login = String(row.login || "").trim().toLowerCase();
         if (!login) continue;
-        const current = result.get(login) || { telegram: true, push: false, email: false };
+        const current = result.get(login) || { telegram: true, push: true, email: false };
         if (row.channel === "telegram") current.telegram = !!row.enabled;
-        if (row.channel === "push") current.push = !!row.enabled;
+        if (row.channel === "push") current.push = row.enabled !== false;
         if (row.channel === "email") current.email = !!row.enabled;
         result.set(login, current);
       }
@@ -235,17 +238,10 @@ export async function loadDailySummaryPrefsByLogin(
 
 export async function loadLoginInns(pool: Pool): Promise<Map<string, Set<string>>> {
   const byLogin = new Map<string, Set<string>>();
-  const { rows } = await pool.query<{ login: string; inn: string }>(
-    `SELECT lower(trim(login)) AS login, inn
-     FROM account_companies
-     WHERE inn IS NOT NULL AND trim(inn) <> ''`,
-  );
-  for (const row of rows) {
-    const login = String(row.login || "").trim().toLowerCase();
-    const inn = normalizeInn(row.inn);
-    if (!login || !inn) continue;
-    if (!byLogin.has(login)) byLogin.set(login, new Set());
-    byLogin.get(login)!.add(inn);
+  const scopes = await loadPushLoginScopes(pool);
+  for (const scope of scopes.values()) {
+    if (scope.inns.size === 0) continue;
+    byLogin.set(scope.login, new Set(scope.inns));
   }
   return byLogin;
 }
