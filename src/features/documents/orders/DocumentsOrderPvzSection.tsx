@@ -259,8 +259,8 @@ export function DocumentsOrderPvzSection({
               {!pvzLoading && !geocodeLoading && !pvzError && pvzList.length === 0 && (
                 <p className="haulz-calc-hint haulz-calc-hint--error">
                   {pvzCatalogEmpty || pvzTotalCount === 0
-                    ? "Справочник ПВЗ пуст. Обновите его в CMS (Справочник ПВЗ → «Обновить из 1С»)."
-                    : `Нет ПВЗ в ${CITY_LABELS[defaultCity]} для этого маршрута. Нажмите «Новый адрес» или выберите другой пункт.`}
+                    ? "Нет ПВЗ у выбранного заказчика. Проверьте заказчика в шапке или обновите справочник в CMS."
+                    : `Нет ПВЗ в ${CITY_LABELS[defaultCity]} для этого заказчика и маршрута. Нажмите «Новый адрес» или выберите другой пункт.`}
                 </p>
               )}
 

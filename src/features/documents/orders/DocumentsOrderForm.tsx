@@ -193,12 +193,12 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
   const { from: suggestCityFrom, to: suggestCityTo } = useMemo(() => citiesForDirection(direction), [direction]);
 
   const fromPvzList = useMemo(
-    () => filterDocumentsOrderPvzByCity(pvzList, suggestCityFrom),
-    [pvzList, suggestCityFrom],
+    () => filterDocumentsOrderPvzByCity(pvzList, suggestCityFrom, activeInn),
+    [pvzList, suggestCityFrom, activeInn],
   );
   const toPvzList = useMemo(
-    () => filterDocumentsOrderPvzByCity(pvzList, suggestCityTo),
-    [pvzList, suggestCityTo],
+    () => filterDocumentsOrderPvzByCity(pvzList, suggestCityTo, activeInn),
+    [pvzList, suggestCityTo, activeInn],
   );
 
   const handleDirectionChange = useCallback((next: Direction) => {
