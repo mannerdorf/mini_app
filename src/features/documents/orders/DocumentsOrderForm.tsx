@@ -14,9 +14,11 @@ import {
   fetchDocumentsOrderQuote,
   fileToBase64,
   submitDocumentsOrder,
+  submitOrderTo1c,
   type DocumentsAuthScope,
   type DocumentsOrderQuotePayload,
 } from "../../../api/client/documentsOrder";
+import { buildDocumentsOrderZayavkaPayload } from "../../../../lib/documentsOrderZayavkaPayload";
 import { warehouseForCity } from "../../../../lib/haulzCalculator/warehouses";
 import { citiesForDirection } from "../../../../lib/haulzCalculator/direction";
 import { HaulzCalcDirectionCard } from "../../haulzCalculator/HaulzCalcDirectionCard";
@@ -358,6 +360,39 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
         });
       }
 
+      const zayavkaPayload = buildDocumentsOrderZayavkaPayload({
+        customerInn: authScope.inn,
+        senderInn: fromParty.inn,
+        receiverInn: toParty.inn,
+        punktOtpravki,
+        punktNaznacheniya,
+        dataZabora,
+        nomerZayavkiKlienta: nomerZayavki.trim() || undefined,
+        declaredValueRub: Number(cargo.declaredValue) || 0,
+        placeCount: places.length,
+        fivepostRows: cargo.fivepostRows.length
+          ? cargo.fivepostRows.map((row) => ({
+              omniBarcode: row.omniBarcode,
+              teBarcode: row.teBarcode,
+              clientOrderNo: row.clientOrderNo,
+              partnerOrderNo: row.partnerOrderNo,
+              itemNameRu: row.itemNameRu,
+              itemName: row.itemName,
+              unitCost: row.unitCost,
+              totalCost: row.totalCost,
+              placesCount: row.placesCount,
+            }))
+          : undefined,
+        tableRows: cargo.tableRows.length
+          ? cargo.tableRows.map((row) => ({
+              posylka: row.posylka,
+              perevozka: row.perevozka,
+            }))
+          : undefined,
+      });
+
+      const result1c = await submitOrderTo1c(authScope, zayavkaPayload);
+
       const result = await submitDocumentsOrder(authScope, {
         from: fromAddr,
         to: toAddr,
@@ -381,7 +416,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
         attachments: attachments.length ? attachments : undefined,
       });
 
-      setSubmittedNomerZayavki(result.nomerZayavki);
+      setSubmittedNomerZayavki(result1c.nomerZayavki || result.nomerZayavki);
     } catch (e) {
       setError((e as Error)?.message || "Ошибка оформления");
     } finally {
@@ -405,6 +440,8 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     toParty,
     nomerZayavki,
     dataZabora,
+    fivepostCustomer,
+    extraCodes,
   ]);
 
   const dismissSuccessModal = useCallback(() => {
