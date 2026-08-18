@@ -96,7 +96,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const errors: Array<{ login: string; channel: string; error: string }> = [];
 
     for (const login of logins) {
-      const prefs = prefsByLogin.get(login) || { telegram: true, push: false, email: false };
+      const prefs = prefsByLogin.get(login) || { telegram: true, push: true, email: false };
       const chatId = chatIds.get(login);
       const willTelegram = prefs.telegram && !!chatId;
       const willPush = prefs.push === true;
@@ -139,7 +139,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           title: "HAULZ: ежедневная сводка",
           body: pushBody,
           url: "/#/notifications",
-          delivery: { event: "daily_summary", body: text, title: "HAULZ: ежедневная сводка" },
+          delivery: {
+            event: "daily_summary",
+            inn: primaryInn,
+            body: text,
+            title: "HAULZ: ежедневная сводка",
+          },
         });
         if (sendResult.ok && sendResult.sent > 0) sentPush += 1;
         else errors.push({ login, channel: "push", error: sendResult.error || "no active FCM tokens" });

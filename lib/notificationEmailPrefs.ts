@@ -2,6 +2,7 @@ import type { Pool } from "pg";
 
 import {
   CARGO_STAGE_EVENT_IDS,
+  isCargoStageNotificationEnabled,
   type CargoStageEventId,
 } from "./notificationCargoEvents.js";
 
@@ -38,6 +39,40 @@ export const PUSH_NOTIFICATION_EVENTS = [
   "bill_paid",
   "daily_summary",
 ] as const;
+
+/** Push по умолчанию включён: этапы, счета и ежедневная сводка. */
+export const DEFAULT_PUSH_PREFS: Record<string, boolean> = Object.fromEntries(
+  PUSH_NOTIFICATION_EVENTS.map((id) => [id, true]),
+);
+
+export function isLegacyImplicitDailySummaryOff(push: Record<string, boolean> | undefined): boolean {
+  const src = push && typeof push === "object" ? push : {};
+  if (src.daily_summary !== false) return false;
+  return !CARGO_STAGE_EVENT_IDS.some((id) => typeof src[id] === "boolean");
+}
+
+export function mergePushPreferences(saved: Record<string, boolean> | undefined): Record<string, boolean> {
+  const src = saved && typeof saved === "object" ? saved : {};
+  const merged = { ...DEFAULT_PUSH_PREFS, ...src };
+  if (isLegacyImplicitDailySummaryOff(src)) merged.daily_summary = true;
+  return merged;
+}
+
+export function shouldSendDailySummaryPush(push: Record<string, boolean> | undefined): boolean {
+  const src = push && typeof push === "object" ? push : {};
+  if (src.daily_summary === true) return true;
+  if (src.daily_summary === false && isLegacyImplicitDailySummaryOff(src)) return true;
+  return src.daily_summary !== false;
+}
+
+/** Push: выключено только явно. Незаданные этапы/счета/сводка — включены. */
+export function isPushNotificationEnabled(prefs: Record<string, boolean>, eventId: string): boolean {
+  const merged = mergePushPreferences(prefs);
+  if (eventId === "bill_created" || eventId === "bill_paid" || eventId === "daily_summary") {
+    return merged[eventId] !== false;
+  }
+  return isCargoStageNotificationEnabled(merged, eventId as CargoStageEventId);
+}
 
 export type NotificationPreferencesState = {
   telegram: Record<string, boolean>;

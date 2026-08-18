@@ -7,6 +7,7 @@ import {
   cargoStageEventLabel,
   type CargoStageEventId,
 } from "./notificationCargoEvents.js";
+import { normalizeNotificationInn } from "./notificationInnScope.js";
 
 export type { CargoStageEventId } from "./notificationCargoEvents.js";
 export {
@@ -15,6 +16,9 @@ export {
   getCargoStageEventIdFromState,
   getCargoStageEventsOnStateChange,
   isCargoStageNotificationEnabled,
+  isRecentNotificationItem,
+  notificationItemDate,
+  RECENT_CARGO_NOTIFY_DAYS,
 } from "./notificationCargoEvents.js";
 
 const PEREVOZKI_BASE =
@@ -60,7 +64,7 @@ export function notificationItemInn(item: any): string {
     item?.InnCustomer ??
     item?.ЗаказчикИНН ??
     "";
-  return String(v).trim();
+  return normalizeNotificationInn(v);
 }
 
 /** Номер счёта строго из полей счёта — без подстановки номера перевозки. */

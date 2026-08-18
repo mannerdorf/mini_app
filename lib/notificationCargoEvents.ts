@@ -54,15 +54,59 @@ export function getCargoStageEventIdFromState(state: string | undefined): CargoS
   return null;
 }
 
+export const RECENT_CARGO_NOTIFY_DAYS = 3;
+
+function parseLooseDate(raw: unknown): Date | null {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const d = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const ru = s.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
+  if (ru) {
+    const d = new Date(Number(ru[3]), Number(ru[2]) - 1, Number(ru[1]));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const parsed = new Date(s);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+/** Дата перевозки для окна «не слать исторический backlog». */
+export function notificationItemDate(item: Record<string, unknown> | null | undefined): Date | null {
+  if (!item) return null;
+  return (
+    parseLooseDate(item.DatePrih) ||
+    parseLooseDate(item.DateVr) ||
+    parseLooseDate(item.DateDoc) ||
+    parseLooseDate(item.Date) ||
+    parseLooseDate(item.date) ||
+    parseLooseDate(item["Дата"])
+  );
+}
+
+export function isRecentNotificationItem(
+  item: Record<string, unknown> | null | undefined,
+  nowMs = Date.now(),
+  days = RECENT_CARGO_NOTIFY_DAYS,
+): boolean {
+  const date = notificationItemDate(item);
+  if (!date) return false;
+  const diff = nowMs - date.getTime();
+  return diff >= 0 && diff <= days * 24 * 60 * 60 * 1000;
+}
+
 export function getCargoStageEventsOnStateChange(
   previousState: string | null | undefined,
   currentState: string | null | undefined,
   isFirstSeen: boolean,
+  options?: { notifyFirstSeen?: boolean },
 ): CargoStageEventId[] {
   const next = getCargoStageEventIdFromState(currentState ?? undefined);
   if (!next) return [];
-  // First sighting only baselines cargo_last_state — no push for historical backlog.
-  if (isFirstSeen) return [];
+  // Исторический backlog не пушим; свежие грузы — текущий этап сразу.
+  if (isFirstSeen) return options?.notifyFirstSeen ? [next] : [];
   const prev = getCargoStageEventIdFromState(previousState ?? undefined);
   if (prev === next) return [];
   return [next];

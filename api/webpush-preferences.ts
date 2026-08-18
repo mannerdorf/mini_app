@@ -3,15 +3,17 @@ import { getPool } from "./_db.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import {
   DEFAULT_EMAIL_PREFS,
+  DEFAULT_PUSH_PREFS,
   EMAIL_NOTIFICATION_EVENTS,
   PUSH_NOTIFICATION_EVENTS,
+  mergePushPreferences,
   normalizeNotificationPreferencesState,
 } from "../lib/notificationEmailPrefs.js";
 
 const DEFAULT_PREFS = {
   telegram: { daily_summary: true } as Record<string, boolean>,
   webpush: { daily_summary: false } as Record<string, boolean>,
-  push: { daily_summary: false } as Record<string, boolean>,
+  push: { ...DEFAULT_PUSH_PREFS } as Record<string, boolean>,
   email: { ...DEFAULT_EMAIL_PREFS } as Record<string, boolean>,
 };
 
@@ -36,7 +38,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const login = String(req.query?.login || "").trim().toLowerCase();
     if (!login) return res.status(400).json({ error: "login is required", request_id: ctx.requestId });
 
-    const prefs = { ...DEFAULT_PREFS, email: { ...DEFAULT_EMAIL_PREFS } };
+    const prefs = {
+      telegram: { ...DEFAULT_PREFS.telegram },
+      webpush: { ...DEFAULT_PREFS.webpush },
+      push: { ...DEFAULT_PUSH_PREFS },
+      email: { ...DEFAULT_EMAIL_PREFS },
+    };
     try {
       try {
         const stateRes = await pool.query<{ preferences: unknown }>(
@@ -48,7 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(200).json({
             telegram: { ...DEFAULT_PREFS.telegram, ...normalized.telegram },
             webpush: { ...DEFAULT_PREFS.webpush, ...normalized.webpush },
-            push: { ...DEFAULT_PREFS.push, ...normalized.push },
+            push: mergePushPreferences(normalized.push),
             email: { ...DEFAULT_EMAIL_PREFS, ...normalized.email },
             request_id: ctx.requestId,
           });
@@ -116,7 +123,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const current = normalizeNotificationPreferencesState({
     telegram: { ...DEFAULT_PREFS.telegram, ...telegram },
     webpush: { ...DEFAULT_PREFS.webpush, ...webpush },
-    push: { ...DEFAULT_PREFS.push, ...push },
+    push: mergePushPreferences(push),
     email: { ...DEFAULT_EMAIL_PREFS, ...email },
   });
 

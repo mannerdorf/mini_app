@@ -15,7 +15,10 @@ import {
   formatTelegramMessage,
   hasBillSignal,
   isCargoStageNotificationEnabled,
+  isRecentNotificationItem,
 } from "../lib/notificationPoll.js";
+import { isPushNotificationEnabled } from "../lib/notificationEmailPrefs.js";
+import { loadPushLoginScopes, normalizeNotificationInn } from "../lib/notificationInnScope.js";
 import { wasSuccessfulNotificationDelivery } from "./_lib/notificationDeliveryDedupe.js";
 
 const CRON_SECRET = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
@@ -25,7 +28,7 @@ const POLL_SERVICE_PASSWORD = process.env.POLL_SERVICE_PASSWORD;
 
 const NOTIFICATION_EVENTS: CargoEvent[] = [...CARGO_STAGE_EVENT_IDS, "bill_created", "bill_paid"];
 
-function isNotificationEventEnabled(prefs: Record<string, boolean>, event: CargoEvent): boolean {
+function isOptInNotificationEventEnabled(prefs: Record<string, boolean>, event: CargoEvent): boolean {
   if (event === "bill_created" || event === "bill_paid") return prefs[event] === true;
   return isCargoStageNotificationEnabled(prefs, event as CargoStageEventId);
 }
@@ -99,10 +102,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const appDomain = getPublicApiOrigin();
 
   try {
-    const companiesResult = await pool.query<{ login: string; inn: string }>(
-      "SELECT login, inn FROM account_companies WHERE inn IS NOT NULL AND inn != ''"
-    );
-    const loginInnPairs = companiesResult.rows;
+    const scopes = await loadPushLoginScopes(pool);
+    const loginInnPairs: Array<{ login: string; inn: string }> = [];
+    for (const scope of scopes.values()) {
+      for (const inn of scope.inns) {
+        loginInnPairs.push({ login: scope.login, inn });
+      }
+    }
     const prefsByLogin = new Map<
       string,
       { telegram: Record<string, boolean>; web: Record<string, boolean>; push: Record<string, boolean> }
@@ -196,15 +202,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     >();
     for (const { login, inn } of loginInnPairs) {
       const key = login.toLowerCase();
-      const prefs = prefsByLogin.get(key);
-      if (!prefs) continue;
+      const prefs = prefsByLogin.get(key) || { telegram: {}, web: {}, push: {} };
       const hasAny =
         NOTIFICATION_EVENTS.some((ev) => prefs.telegram[ev]) ||
         NOTIFICATION_EVENTS.some((ev) => prefs.web[ev]) ||
-        NOTIFICATION_EVENTS.some((ev) => prefs.push[ev]);
+        NOTIFICATION_EVENTS.some((ev) => isPushNotificationEnabled(prefs.push, ev));
       if (!hasAny) continue;
       const telegramChatId = chatIdByLogin.get(key) || null;
-      const list = subscribersByInn.get(inn) || [];
+      const innKey = normalizeNotificationInn(inn);
+      if (!innKey) continue;
+      const list = subscribersByInn.get(innKey) || [];
       list.push({
         login: key,
         telegramChatId,
@@ -212,7 +219,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         prefsWeb: prefs.web,
         prefsPush: prefs.push,
       });
-      subscribersByInn.set(inn, list);
+      subscribersByInn.set(innKey, list);
     }
 
     const innsToPoll = [...subscribersByInn.keys()];
@@ -255,13 +262,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const payKey = getPaymentKey(currentStateBill);
         const last = lastByNumber.get(number);
         const isFirstSeen = !last;
+        const notifyFirstSeen = isRecentNotificationItem(item);
 
-        // First sighting: baseline cargo_last_state only — no historical flood.
         const eventsToSend: CargoEvent[] = [
-          ...getCargoStageEventsOnStateChange(last?.state, currentState, isFirstSeen),
+          ...getCargoStageEventsOnStateChange(last?.state, currentState, isFirstSeen, { notifyFirstSeen }),
         ];
-        if (!isFirstSeen && hasBillSignal(item)) {
-          const prevPayKey = getPaymentKey(last?.state_bill ?? undefined);
+        if (hasBillSignal(item) && (!isFirstSeen || notifyFirstSeen)) {
+          const prevPayKey = isFirstSeen ? "unknown" : getPaymentKey(last?.state_bill ?? undefined);
           if (prevPayKey === "unknown") eventsToSend.push("bill_created");
           if (payKey === "paid" && prevPayKey !== "paid") eventsToSend.push("bill_paid");
         }
@@ -284,7 +291,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             docButton = { inline_keyboard: [[{ text: "Скачать УПД", url: updUrl }]] };
           }
           for (const sub of subscribers) {
-            if (isNotificationEventEnabled(sub.prefsTelegram, event) && sub.telegramChatId) {
+            if (isOptInNotificationEventEnabled(sub.prefsTelegram, event) && sub.telegramChatId) {
               if (
                 !(await wasSuccessfulNotificationDelivery(pool, {
                   login: sub.login,
@@ -304,7 +311,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (!sendResult.ok) status = "partial";
               }
             }
-            if (isNotificationEventEnabled(sub.prefsWeb, event)) {
+            if (isOptInNotificationEventEnabled(sub.prefsWeb, event)) {
               if (
                 !(await wasSuccessfulNotificationDelivery(pool, {
                   login: sub.login,
@@ -324,7 +331,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (!sendResult.ok) status = "partial";
               }
             }
-            if (isNotificationEventEnabled(sub.prefsPush, event)) {
+            if (isPushNotificationEnabled(sub.prefsPush, event)) {
               if (
                 !(await wasSuccessfulNotificationDelivery(pool, {
                   login: sub.login,

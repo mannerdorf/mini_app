@@ -82,7 +82,14 @@ type FirebaseMessaging = {
     tokens: string[];
     notification?: { title?: string; body?: string };
     data?: Record<string, string>;
-    android?: { priority?: "normal" | "high" };
+    android?: {
+      priority?: "normal" | "high";
+      notification?: {
+        icon?: string;
+        color?: string;
+        channelId?: string;
+      };
+    };
   }): Promise<{
     successCount: number;
     failureCount: number;
@@ -235,7 +242,13 @@ export async function sendFcmToLogin(
         title: payload.title || "HAULZ",
         body: payload.body || "",
       },
-      android: { priority: "high" },
+      android: {
+        priority: "high",
+        notification: {
+          icon: "ic_stat_haulz",
+          color: "#3655FF",
+        },
+      },
     });
 
     const invalidTokens: string[] = [];
