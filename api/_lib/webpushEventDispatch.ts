@@ -10,11 +10,15 @@ import {
   notificationItemInn,
   type CargoStageEventId,
 } from "../../lib/notificationPoll.js";
-import { isPushNotificationEnabled } from "../../lib/notificationEmailPrefs.js";
 import { invertScopesByInn, loadPushLoginScopes, normalizeNotificationInn } from "../../lib/notificationInnScope.js";
 import { acquireWebPushDedupeKey, sendWebPushToLogin } from "./webpushDelivery.js";
 import { sendFcmToLogin } from "./fcmDelivery.js";
 import { wasSuccessfulNotificationDelivery } from "./notificationDeliveryDedupe.js";
+import {
+  isPushEventAllowedForInn,
+  listLoginsWithFcmTokens,
+  loadPushActivationByLogins,
+} from "../../lib/pushControl.js";
 
 type CargoSnapshotItem = {
   inn?: unknown;
@@ -149,6 +153,8 @@ export async function dispatchWebPushCargoEvents(params: {
   const prefsByLogin = new Map<string, Record<string, boolean>>();
   const pushPrefsByLogin = new Map<string, Record<string, boolean>>();
   const loadedFromState = new Set<string>();
+  const loginsWithToken = await listLoginsWithFcmTokens(pool, logins);
+  const activationByLogin = await loadPushActivationByLogins(pool, logins);
   if (logins.length > 0) {
     try {
       const stateRows = await pool.query<{ login: string; preferences: any }>(
@@ -209,11 +215,13 @@ export async function dispatchWebPushCargoEvents(params: {
       subscriberByInn.set(inn, byLogin);
     }
     byLogin.set(login, enabledEvents);
+    if (!loginsWithToken.has(login)) continue;
     let pushByLogin = pushSubscriberByInn.get(inn);
     if (!pushByLogin) {
       pushByLogin = new Map<string, Record<string, boolean>>();
       pushSubscriberByInn.set(inn, pushByLogin);
     }
+    // Маркер: наличие prefs; реальная проверка — через activation в цикле отправки.
     pushByLogin.set(login, enabledPushEvents);
   }
   if (subscriberByInn.size === 0 && pushSubscriberByInn.size === 0) {
@@ -322,7 +330,16 @@ export async function dispatchWebPushCargoEvents(params: {
         }
       }
       for (const [login, eventsEnabled] of pushSubscribers.entries()) {
-        if (!isPushNotificationEnabled(eventsEnabled, event)) continue;
+        const activation = activationByLogin.get(login)?.get(item.inn) || null;
+        if (
+          !isPushEventAllowedForInn({
+            activation,
+            prefs: eventsEnabled,
+            eventId: event,
+          })
+        ) {
+          continue;
+        }
         if (
           await wasSuccessfulNotificationDelivery(pool, {
             login,

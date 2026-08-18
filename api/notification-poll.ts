@@ -16,10 +16,15 @@ import {
   hasBillSignal,
   isCargoStageNotificationEnabled,
   isRecentNotificationItem,
+  notificationItemInn,
 } from "../lib/notificationPoll.js";
-import { isPushNotificationEnabled } from "../lib/notificationEmailPrefs.js";
 import { loadPushLoginScopes, normalizeNotificationInn } from "../lib/notificationInnScope.js";
 import { wasSuccessfulNotificationDelivery } from "./_lib/notificationDeliveryDedupe.js";
+import {
+  isPushEventAllowedForInn,
+  listLoginsWithFcmTokens,
+  loadPushActivationByLogins,
+} from "../lib/pushControl.js";
 
 const CRON_SECRET = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
@@ -198,19 +203,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         prefsTelegram: Record<string, boolean>;
         prefsWeb: Record<string, boolean>;
         prefsPush: Record<string, boolean>;
+        pushActivation: Record<string, boolean> | null;
+        hasFcmToken: boolean;
       }>
     >();
+    const loginsWithToken = await listLoginsWithFcmTokens(pool, uniqueLogins);
+    const activationByLogin = await loadPushActivationByLogins(pool, uniqueLogins);
     for (const { login, inn } of loginInnPairs) {
       const key = login.toLowerCase();
       const prefs = prefsByLogin.get(key) || { telegram: {}, web: {}, push: {} };
+      const innKey = normalizeNotificationInn(inn);
+      if (!innKey) continue;
+      const activation = activationByLogin.get(key)?.get(innKey) || null;
+      const hasFcmToken = loginsWithToken.has(key);
+      const pushWanted = NOTIFICATION_EVENTS.some((ev) =>
+        isPushEventAllowedForInn({ activation, prefs: prefs.push, eventId: ev }),
+      );
       const hasAny =
         NOTIFICATION_EVENTS.some((ev) => prefs.telegram[ev]) ||
         NOTIFICATION_EVENTS.some((ev) => prefs.web[ev]) ||
-        NOTIFICATION_EVENTS.some((ev) => isPushNotificationEnabled(prefs.push, ev));
+        (hasFcmToken && pushWanted);
       if (!hasAny) continue;
       const telegramChatId = chatIdByLogin.get(key) || null;
-      const innKey = normalizeNotificationInn(inn);
-      if (!innKey) continue;
       const list = subscribersByInn.get(innKey) || [];
       list.push({
         login: key,
@@ -218,6 +232,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         prefsTelegram: prefs.telegram,
         prefsWeb: prefs.web,
         prefsPush: prefs.push,
+        pushActivation: activation,
+        hasFcmToken,
       });
       subscribersByInn.set(innKey, list);
     }
@@ -257,6 +273,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       for (const item of items) {
         const number = String(item?.Number ?? item?.number ?? "").trim();
         if (!number) continue;
+        const itemInn = notificationItemInn(item);
+        if (itemInn && itemInn !== inn) {
+          // 1С вернула чужой ИНН в выборке по заказчику — не шлём.
+          continue;
+        }
         const currentState = item?.State ?? null;
         const currentStateBill = item?.StateBill ?? null;
         const payKey = getPaymentKey(currentStateBill);
@@ -331,7 +352,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (!sendResult.ok) status = "partial";
               }
             }
-            if (isPushNotificationEnabled(sub.prefsPush, event)) {
+            if (
+              sub.hasFcmToken &&
+              isPushEventAllowedForInn({
+                activation: sub.pushActivation,
+                prefs: sub.prefsPush,
+                eventId: event,
+              })
+            ) {
               if (
                 !(await wasSuccessfulNotificationDelivery(pool, {
                   login: sub.login,

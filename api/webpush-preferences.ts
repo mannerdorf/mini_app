@@ -9,6 +9,7 @@ import {
   mergePushPreferences,
   normalizeNotificationPreferencesState,
 } from "../lib/notificationEmailPrefs.js";
+import { syncPushActivationForLogin, writePushControlJournal } from "../lib/pushControl.js";
 
 const DEFAULT_PREFS = {
   telegram: { daily_summary: true } as Record<string, boolean>,
@@ -183,6 +184,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (code === "23514" || code === "42P01") continue;
         throw e;
       }
+    }
+
+    try {
+      const synced = await syncPushActivationForLogin(pool, login, current.push, {
+        source: "prefs_save",
+      });
+      await writePushControlJournal(pool, {
+        login,
+        inn: synced.inns[0] || "",
+        action: "prefs_save",
+        meta: {
+          request_id: ctx.requestId,
+          push: current.push,
+          push_inns: synced.inns,
+          enabled_events: synced.events.filter((e) => e.enabled).map((e) => e.eventId),
+        },
+      });
+    } catch (e: unknown) {
+      logError(ctx, "webpush_preferences_push_control_failed", e);
     }
 
     return res.status(200).json({ ok: true, preferences: current, request_id: ctx.requestId });

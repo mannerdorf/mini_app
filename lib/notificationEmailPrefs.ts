@@ -40,10 +40,16 @@ export const PUSH_NOTIFICATION_EVENTS = [
   "daily_summary",
 ] as const;
 
-/** Push по умолчанию включён: этапы, счета и ежедневная сводка. */
-export const DEFAULT_PUSH_PREFS: Record<string, boolean> = Object.fromEntries(
-  PUSH_NOTIFICATION_EVENTS.map((id) => [id, true]),
-);
+/**
+ * Push по умолчанию: счета и сводка — да; этапы груза — нет.
+ * Иначе при одном ИНН на логин устройство засыпается всеми статусами всех перевозок компании.
+ */
+export const DEFAULT_PUSH_PREFS: Record<string, boolean> = {
+  ...Object.fromEntries(CARGO_STAGE_EVENT_IDS.map((id) => [id, false])),
+  bill_created: true,
+  bill_paid: true,
+  daily_summary: true,
+};
 
 export function isLegacyImplicitDailySummaryOff(push: Record<string, boolean> | undefined): boolean {
   const src = push && typeof push === "object" ? push : {};
@@ -65,7 +71,7 @@ export function shouldSendDailySummaryPush(push: Record<string, boolean> | undef
   return src.daily_summary !== false;
 }
 
-/** Push: выключено только явно. Незаданные этапы/счета/сводка — включены. */
+/** Push: счета/сводка по умолчанию вкл; этапы груза — только явное включение. */
 export function isPushNotificationEnabled(prefs: Record<string, boolean>, eventId: string): boolean {
   const merged = mergePushPreferences(prefs);
   if (eventId === "bill_created" || eventId === "bill_paid" || eventId === "daily_summary") {

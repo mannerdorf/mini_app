@@ -7,14 +7,14 @@ import {
 } from "./notificationEmailPrefs.js";
 
 describe("mergePushPreferences", () => {
-  it("turns cargo stages and daily summary on when only bills were saved", () => {
+  it("keeps cargo stages off when only bills were saved", () => {
     const merged = mergePushPreferences({
       bill_created: true,
       bill_paid: true,
       daily_summary: false,
     });
-    expect(merged.received_at_warehouse).toBe(true);
-    expect(merged.sent).toBe(true);
+    expect(merged.received_at_warehouse).toBe(false);
+    expect(merged.sent).toBe(false);
     expect(merged.daily_summary).toBe(true);
     expect(merged.bill_created).toBe(true);
   });
@@ -39,9 +39,16 @@ describe("isLegacyImplicitDailySummaryOff", () => {
 });
 
 describe("isPushNotificationEnabled", () => {
-  it("defaults unset cargo stages to on", () => {
-    expect(isPushNotificationEnabled({ bill_created: true }, "sent")).toBe(true);
+  it("defaults unset cargo stages to off", () => {
+    expect(isPushNotificationEnabled({ bill_created: true }, "sent")).toBe(false);
     expect(isPushNotificationEnabled({ sent: false }, "sent")).toBe(false);
+    expect(isPushNotificationEnabled({ sent: true }, "sent")).toBe(true);
+  });
+
+  it("keeps bills and daily summary on by default", () => {
+    expect(isPushNotificationEnabled({}, "bill_created")).toBe(true);
+    expect(isPushNotificationEnabled({}, "daily_summary")).toBe(true);
+    expect(isPushNotificationEnabled({ bill_created: false }, "bill_created")).toBe(false);
   });
 });
 
