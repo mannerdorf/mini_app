@@ -134,6 +134,16 @@ export function mergePushPreferencesForSave(
   return out;
 }
 
+/** Сохранённый push для БД: granular-этапы + счета, без legacy accepted/in_transit. */
+export function finalizePushSavedState(raw: Record<string, boolean> | undefined): Record<string, boolean> {
+  const migrated = migrateLegacyPushPreferences(raw);
+  const out: Record<string, boolean> = {};
+  for (const eventId of PUSH_NOTIFICATION_EVENTS) {
+    if (typeof migrated[eventId] === "boolean") out[eventId] = migrated[eventId];
+  }
+  return out;
+}
+
 /** Атомарное переключение одного push-события поверх сохранённого состояния. */
 export function applyPushPreferenceToggle(
   existingRaw: Record<string, boolean> | undefined,
@@ -142,9 +152,9 @@ export function applyPushPreferenceToggle(
 ): Record<string, boolean> {
   const key = String(eventId || "").trim();
   if (!(PUSH_NOTIFICATION_EVENTS as readonly string[]).includes(key)) {
-    return mergePushPreferencesForSave(existingRaw, {});
+    return finalizePushSavedState(existingRaw);
   }
-  return mergePushPreferencesForSave(migrateLegacyPushPreferences(existingRaw), { [key]: enabled });
+  return finalizePushSavedState(mergePushPreferencesForSave(existingRaw, { [key]: enabled }));
 }
 
 /** Payload от клиента: только включённые этапы + счета/сводка (без массовых false). */

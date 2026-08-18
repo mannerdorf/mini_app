@@ -93,7 +93,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           prefs[ch][r.event_id] = r.enabled;
         }
       }
-      return res.status(200).json({ ...prefs, request_id: ctx.requestId });
+      return res.status(200).json({
+        ...prefs,
+        push: pushPreferencesForClient(prefs.push),
+        request_id: ctx.requestId,
+      });
     } catch (e: unknown) {
       const code = (e as { code?: string })?.code;
       if (code === "42P01") {

@@ -94,6 +94,13 @@ describe("applyPushPreferenceToggle", () => {
     expect(saved.arrived).toBeUndefined();
     expect(saved.sent).toBe(true);
   });
+
+  it("stores granular delivered without legacy keys", () => {
+    const saved = applyPushPreferenceToggle({ in_transit: true, delivered: true }, "delivered", true);
+    expect(saved.delivered).toBe(true);
+    expect(saved.in_transit).toBeUndefined();
+    expect(saved.accepted).toBeUndefined();
+  });
 });
 
 describe("buildPushPreferencesSavePayload", () => {

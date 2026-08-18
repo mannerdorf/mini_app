@@ -65,6 +65,8 @@ export function NotificationsPage({
     const prefsDirtyRef = useRef(false);
     const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
     const pendingSavesRef = useRef(0);
+    const lastSaveAtRef = useRef(0);
+    const initialFetchStartedAtRef = useRef(0);
 
     const login = activeAccount?.login?.trim().toLowerCase() || "";
     const isNativeAndroid = isAndroidPushEnvironment();
@@ -76,7 +78,7 @@ export function NotificationsPage({
     );
 
     const isPushCargoPrefEnabled = useCallback(
-        (eventId: CargoStageEventId) => prefs.push[eventId] === true,
+        (eventId: CargoStageEventId) => isCargoStageNotificationEnabled(prefs.push, eventId),
         [prefs.push],
     );
 
@@ -92,6 +94,8 @@ export function NotificationsPage({
             return;
         }
         let cancelled = false;
+        const fetchStartedAt = Date.now();
+        initialFetchStartedAtRef.current = fetchStartedAt;
         const hardStop = setTimeout(() => {
             if (!cancelled) setPrefsLoading(false);
         }, FETCH_TIMEOUT_MS + 2000);
@@ -105,12 +109,13 @@ export function NotificationsPage({
                 if (prefsData) {
                     setPrefs((prev) => {
                         if (prefsDirtyRef.current) return prev;
+                        if (lastSaveAtRef.current >= fetchStartedAt) return prev;
                         return {
                             push: prefsData.push || {},
                             email: prefsData.email || {},
                         };
                     });
-                } else {
+                } else if (lastSaveAtRef.current < fetchStartedAt) {
                     setPrefs({ push: {}, email: {} });
                 }
                 if (isNativeAndroid) {
@@ -153,6 +158,7 @@ export function NotificationsPage({
                     ...prev,
                     push: { ...data.push, [eventId]: value },
                 }));
+                lastSaveAtRef.current = Date.now();
                 prefsDirtyRef.current = false;
             }
         } catch {
@@ -194,6 +200,7 @@ export function NotificationsPage({
                             : serverPush,
                     email: serverEmail,
                 });
+                lastSaveAtRef.current = Date.now();
                 prefsDirtyRef.current = false;
             }
         } catch {
@@ -271,26 +278,10 @@ export function NotificationsPage({
 
     const flushPrefsOnExit = useCallback(() => {
         if (!login || !prefsDirtyRef.current || pendingSavesRef.current > 0) return;
-        const payload = JSON.stringify({
-            login,
-            preferences: {
-                push: buildPushPreferencesSavePayload(prefsRef.current.push),
-                email: prefsRef.current.email,
-            },
-        });
-        try {
-            if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
-                const blob = new Blob([payload], { type: "application/json" });
-                const queued = navigator.sendBeacon("/api/webpush-preferences", blob);
-                if (queued) {
-                    prefsDirtyRef.current = false;
-                    return;
-                }
-            }
-        } catch {
-            // fallback below
-        }
-        void saveNotificationPreferencesKeepalive(login, prefsRef.current).then(() => {
+        void saveNotificationPreferencesKeepalive(login, {
+            push: buildPushPreferencesSavePayload(prefsRef.current.push),
+            email: prefsRef.current.email,
+        }).then(() => {
             prefsDirtyRef.current = false;
         }).catch(() => {});
     }, [login]);
