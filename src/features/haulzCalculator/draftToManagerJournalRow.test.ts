@@ -61,4 +61,25 @@ describe("draftToManagerJournalRow", () => {
     expect(row.АдресОтправки).toContain("Московская");
     expect(row._fivepostRows).toHaveLength(1);
   });
+
+  it("keeps guest contact phone in the customer journal cell", () => {
+    const row = draftToManagerJournalRow({
+      ...baseDraft(),
+      nomerZayavki: "HAULZ-G-23",
+      loginKey: "__guest__",
+      documentsOrderJournal: undefined,
+      formState: {
+        ...baseDraft().formState,
+        guestContactEmail: "365656@gmail.com",
+        guestContactPhone: "+7 (999) 111-22-33",
+        customerCompanyName: "",
+        customerInn: "",
+        directionOverride: "kgd_mow",
+      },
+    });
+
+    expect(row.ЗаказчикНаименование).toBe("365656@gmail.com · +7 (999) 111-22-33");
+    expect(row.CitySender).toBe("KGD");
+    expect(row.CityReceiver).toBe("MSK");
+  });
 });

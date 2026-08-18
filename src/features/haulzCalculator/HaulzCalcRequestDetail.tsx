@@ -170,8 +170,21 @@ export function HaulzCalcRequestDetail({
             <DetailRow label="ID" value={String(d.id)} />
             {managerMode && (
               <>
-                <DetailRow label="Заказчик" value={formatHaulzCalcDraftCustomer(f, d.loginKey)} />
-                {d.loginKey && <DetailRow label="Логин ЛК" value={d.loginKey} />}
+                <DetailRow
+                  label="Заказчик"
+                  value={
+                    d.loginKey === "__guest__"
+                      ? String(f.guestContactEmail || "").trim() || "Гость (сайт)"
+                      : formatHaulzCalcDraftCustomer(f, d.loginKey)
+                  }
+                />
+                {d.loginKey && d.loginKey !== "__guest__" && <DetailRow label="Логин ЛК" value={d.loginKey} />}
+                {d.loginKey === "__guest__" && (
+                  <>
+                    <DetailRow label="Телефон" value={f.guestContactPhone} />
+                    <DetailRow label="Email" value={f.guestContactEmail} />
+                  </>
+                )}
               </>
             )}
             <DetailRow label="Создано" value={formatWhen(d.createdAt)} />
