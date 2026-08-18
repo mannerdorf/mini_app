@@ -85,14 +85,13 @@ export async function disableAndroidPushNotifications(login: string): Promise<{ 
   }
 }
 
-/** При входе: зарегистрировать FCM; при первом входе запросить разрешение Android. */
+/** Повторная регистрация при смене аккаунта / входе в приложение. */
 export async function syncAndroidPushNotifications(login: string): Promise<void> {
   if (!isCapacitorAndroidApp() || !login) return;
   try {
     const { PushNotifications } = await import("@capacitor/push-notifications");
     const perm = await PushNotifications.checkPermissions();
-    // Явный отказ — не показываем диалог снова; включить можно в «Уведомления».
-    if (perm.receive === "denied") return;
+    if (perm.receive !== "granted") return;
     await enableAndroidPushNotifications(login);
   } catch {
     /* ignore background sync errors */
