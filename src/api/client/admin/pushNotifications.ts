@@ -63,6 +63,46 @@ export async function postAdminPushPreview(
   return data;
 }
 
+export type AdminPushSubscriberCompany = {
+  inn: string;
+  name: string;
+};
+
+export type AdminPushSubscriber = {
+  login: string;
+  companyName: string;
+  deviceCount: number;
+  lastSeen: string | null;
+  platforms: string[];
+  serviceWide: boolean;
+  boundFromProfile: boolean;
+  pushCompanies: AdminPushSubscriberCompany[];
+  accountCompanies: AdminPushSubscriberCompany[];
+};
+
+export type AdminPushSubscribersResult = {
+  ok: boolean;
+  users: number;
+  devices: number;
+  companies: number;
+  subscribers: AdminPushSubscriber[];
+};
+
+export async function fetchAdminPushSubscribers(adminToken: string): Promise<AdminPushSubscribersResult> {
+  const res = await fetch("/api/admin-push-subscribers", {
+    headers: adminAuthHeaders(adminToken),
+  });
+  const data = (await res.json().catch(() => ({}))) as AdminPushSubscribersResult & { error?: string };
+  if (!res.ok) throw new Error(formatAdminPushApiError(data, "Ошибка загрузки пользователей с push"));
+  return {
+    ok: true,
+    users: Number(data.users) || 0,
+    devices: Number(data.devices) || 0,
+    companies: Number(data.companies) || 0,
+    subscribers: Array.isArray(data.subscribers) ? data.subscribers : [],
+  };
+}
+
 export async function postAdminPushSend(
   adminToken: string,
   payload: {
