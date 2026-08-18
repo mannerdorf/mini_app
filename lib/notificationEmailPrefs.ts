@@ -134,6 +134,19 @@ export function mergePushPreferencesForSave(
   return out;
 }
 
+/** Атомарное переключение одного push-события поверх сохранённого состояния. */
+export function applyPushPreferenceToggle(
+  existingRaw: Record<string, boolean> | undefined,
+  eventId: string,
+  enabled: boolean,
+): Record<string, boolean> {
+  const key = String(eventId || "").trim();
+  if (!(PUSH_NOTIFICATION_EVENTS as readonly string[]).includes(key)) {
+    return mergePushPreferencesForSave(existingRaw, {});
+  }
+  return mergePushPreferencesForSave(migrateLegacyPushPreferences(existingRaw), { [key]: enabled });
+}
+
 /** Payload от клиента: только включённые этапы + счета/сводка (без массовых false). */
 export function buildPushPreferencesSavePayload(
   push: Record<string, boolean> | undefined,

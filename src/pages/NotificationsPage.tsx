@@ -103,9 +103,12 @@ export function NotificationsPage({
                 ).catch(() => null);
                 if (cancelled) return;
                 if (prefsData) {
-                    setPrefs({
-                        push: prefsData.push || {},
-                        email: prefsData.email || {},
+                    setPrefs((prev) => {
+                        if (prefsDirtyRef.current) return prev;
+                        return {
+                            push: prefsData.push || {},
+                            email: prefsData.email || {},
+                        };
                     });
                 } else {
                     setPrefs({ push: {}, email: {} });
@@ -145,15 +148,24 @@ export function NotificationsPage({
         const res = await fetch("/api/webpush-preferences", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ login, preferences: payload }),
+            body: JSON.stringify({
+                login,
+                preferences: payload,
+                pushToggle: touch?.channel === "push" ? { eventId: touch.eventId, enabled: touch.value } : undefined,
+            }),
         });
         if (!res.ok) return false;
         try {
             const data = (await res.json()) as { preferences?: { push?: Record<string, boolean>; email?: Record<string, boolean> } };
             if (data.preferences?.push || data.preferences?.email) {
+                const serverPush = data.preferences.push || nextPrefs.push;
+                const serverEmail = data.preferences.email || nextPrefs.email;
                 setPrefs({
-                    push: data.preferences.push || nextPrefs.push,
-                    email: data.preferences.email || nextPrefs.email,
+                    push:
+                        touch?.channel === "push"
+                            ? { ...serverPush, [touch.eventId]: touch.value }
+                            : serverPush,
+                    email: serverEmail,
                 });
                 prefsDirtyRef.current = false;
             }
@@ -181,7 +193,8 @@ export function NotificationsPage({
             saveQueueRef.current = saveQueueRef.current
                 .catch(() => {})
                 .then(async () => {
-                    const ok = await persistPrefs(nextPrefs, { channel, eventId, value });
+                    const snapshot = prefsRef.current;
+                    const ok = await persistPrefs(snapshot, { channel, eventId, value });
                     if (!ok) throw new Error("save_failed");
                     prefsDirtyRef.current = false;
                 })
@@ -229,7 +242,13 @@ export function NotificationsPage({
 
     const flushPrefsOnExit = useCallback(() => {
         if (!login || !prefsDirtyRef.current || pendingSavesRef.current > 0) return;
-        const payload = JSON.stringify({ login, preferences: prefsRef.current });
+        const payload = JSON.stringify({
+            login,
+            preferences: {
+                push: buildPushPreferencesSavePayload(prefsRef.current.push),
+                email: prefsRef.current.email,
+            },
+        });
         try {
             if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
                 const blob = new Blob([payload], { type: "application/json" });

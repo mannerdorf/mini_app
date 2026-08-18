@@ -6,6 +6,7 @@ import {
   DEFAULT_PUSH_PREFS,
   EMAIL_NOTIFICATION_EVENTS,
   PUSH_NOTIFICATION_EVENTS,
+  applyPushPreferenceToggle,
   buildPushPreferencesSavePayload,
   loadNotificationPreferencesState,
   mergePushPreferences,
@@ -126,8 +127,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const pushRaw = prefObj.push && typeof prefObj.push === "object" ? (prefObj.push as Record<string, boolean>) : {};
   const email = prefObj.email && typeof prefObj.email === "object" ? (prefObj.email as Record<string, boolean>) : {};
   const existingState = await loadNotificationPreferencesState(pool, login);
-  const pushIncoming = buildPushPreferencesSavePayload(pushRaw);
-  const pushSaved = mergePushPreferencesForSave(existingState.push, pushIncoming);
+  const pushToggleRaw = bodyObj.pushToggle;
+  const pushToggle =
+    pushToggleRaw && typeof pushToggleRaw === "object"
+      ? (pushToggleRaw as Record<string, unknown>)
+      : null;
+  const toggleEventId = String(pushToggle?.eventId || "").trim();
+  const toggleEnabled = pushToggle?.enabled === true;
+  const pushSaved =
+    toggleEventId && (PUSH_NOTIFICATION_EVENTS as readonly string[]).includes(toggleEventId)
+      ? applyPushPreferenceToggle(existingState.push, toggleEventId, toggleEnabled)
+      : mergePushPreferencesForSave(
+          existingState.push,
+          buildPushPreferencesSavePayload(pushRaw, {
+            eventId: toggleEventId,
+            value: toggleEnabled,
+          }),
+        );
   const pushEffective = mergePushPreferences(pushSaved);
   const current = normalizeNotificationPreferencesState({
     telegram: { ...DEFAULT_PREFS.telegram, ...telegram },

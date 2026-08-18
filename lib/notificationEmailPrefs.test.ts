@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyPushPreferenceToggle,
   isLegacyImplicitDailySummaryOff,
   isPushNotificationEnabled,
   buildPushPreferencesSavePayload,
@@ -59,6 +60,39 @@ describe("mergePushPreferencesForSave", () => {
     );
     expect(saved.arrived).toBe(true);
     expect(saved.delivery_scheduled).toBeUndefined();
+  });
+});
+
+describe("applyPushPreferenceToggle", () => {
+  it("turns on arrived without wiping other enabled stages", () => {
+    const saved = applyPushPreferenceToggle(
+      { sent: true, loaded: true, arrived: false },
+      "arrived",
+      true,
+    );
+    expect(saved.sent).toBe(true);
+    expect(saved.loaded).toBe(true);
+    expect(saved.arrived).toBe(true);
+  });
+
+  it("turns on delivery_scheduled over legacy delivered=false", () => {
+    const saved = applyPushPreferenceToggle(
+      { sent: true, delivery_scheduled: false },
+      "delivery_scheduled",
+      true,
+    );
+    expect(saved.sent).toBe(true);
+    expect(saved.delivery_scheduled).toBe(true);
+  });
+
+  it("turns off a single stage explicitly", () => {
+    const saved = applyPushPreferenceToggle(
+      { arrived: true, sent: true },
+      "arrived",
+      false,
+    );
+    expect(saved.arrived).toBeUndefined();
+    expect(saved.sent).toBe(true);
   });
 });
 
