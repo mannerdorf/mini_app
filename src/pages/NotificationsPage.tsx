@@ -12,7 +12,7 @@ import {
     enableAndroidPushNotifications,
     isAndroidPushEnvironment,
 } from "../lib/androidPushNotifications";
-import { CARGO_NOTIFICATION_STAGES, isCargoStageNotificationEnabled, type CargoStageEventId } from "../../lib/notificationCargoEvents";
+import { CARGO_NOTIFICATION_STAGES, CARGO_STAGE_EVENT_IDS, isCargoStageNotificationEnabled, type CargoStageEventId } from "../../lib/notificationCargoEvents";
 import { buildPushPreferencesSavePayload, isPushNotificationEnabled } from "../../lib/notificationEmailPrefs";
 import { TapSwitch } from "../components/TapSwitch";
 
@@ -134,6 +134,33 @@ export function NotificationsPage({
         prefsRef.current = prefs;
     }, [prefs]);
 
+    const persistPushCargoToggle = useCallback(async (eventId: CargoStageEventId, value: boolean) => {
+        if (!login) return false;
+        const res = await fetch("/api/push-preference-toggle", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ login, eventId, enabled: value }),
+        });
+        if (!res.ok) return false;
+        try {
+            const data = (await res.json()) as {
+                push?: Record<string, boolean>;
+                enabled?: boolean;
+                eventId?: string;
+            };
+            if (data.push) {
+                setPrefs((prev) => ({
+                    ...prev,
+                    push: { ...data.push, [eventId]: value },
+                }));
+                prefsDirtyRef.current = false;
+            }
+        } catch {
+            // keep optimistic local state
+        }
+        return true;
+    }, [login]);
+
     const persistPrefs = useCallback(async (
         nextPrefs: { push: Record<string, boolean>; email: Record<string, boolean> },
         touch?: { channel: "push" | "email"; eventId: string; value: boolean },
@@ -193,8 +220,10 @@ export function NotificationsPage({
             saveQueueRef.current = saveQueueRef.current
                 .catch(() => {})
                 .then(async () => {
-                    const snapshot = prefsRef.current;
-                    const ok = await persistPrefs(snapshot, { channel, eventId, value });
+                    const ok =
+                        channel === "push" && (CARGO_STAGE_EVENT_IDS as readonly string[]).includes(eventId)
+                            ? await persistPushCargoToggle(eventId as CargoStageEventId, value)
+                            : await persistPrefs(prefsRef.current, { channel, eventId, value });
                     if (!ok) throw new Error("save_failed");
                     prefsDirtyRef.current = false;
                 })
@@ -207,7 +236,7 @@ export function NotificationsPage({
                     if (pendingSavesRef.current === 0) setPrefsSaving(false);
                 });
         },
-        [login, persistPrefs],
+        [login, persistPrefs, persistPushCargoToggle],
     );
 
     const enablePush = useCallback(async () => {

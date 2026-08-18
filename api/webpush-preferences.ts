@@ -223,7 +223,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await writePushControlJournal(pool, {
         login,
         inn: synced.inns[0] || "",
-        action: "prefs_save",
+        action: toggleEventId ? "push_toggle" : "prefs_save",
+        eventId: toggleEventId || undefined,
+        enabled: toggleEventId ? toggleEnabled : null,
         meta: {
           request_id: ctx.requestId,
           push: pushSaved,
