@@ -45,9 +45,10 @@ export function getCargoStageEventIdFromState(state: string | undefined): CargoS
   if (/отправленаваэропорт|загружена/.test(key)) return "loaded";
   if (/улетела/.test(key)) return "sent";
   if (/квручению|прибыла/.test(key)) return "arrived";
-  if (/поставленанадоставку|вместеприбытия/.test(key)) return "delivery_scheduled";
+  if (/запланирован|поставленанадоставку|вместеприбытия/.test(key)) return "delivery_scheduled";
   if (/доставлен|заверш/.test(key)) return "delivered";
-  if (/пути|отправлен/.test(key)) return "sent";
+  if (/пути/.test(key)) return "sent";
+  if (/^отправлен/.test(key)) return "sent";
   if (/полученаотзаказчика|полученанаскладе|получена/.test(key)) return "received_at_warehouse";
   if (/готовквыдаче|квыдаче/.test(key)) return "delivery_scheduled";
   if (/готов|принят|ответ/.test(key)) return "received_at_warehouse";

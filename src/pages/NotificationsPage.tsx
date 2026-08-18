@@ -13,7 +13,7 @@ import {
     isAndroidPushEnvironment,
 } from "../lib/androidPushNotifications";
 import { CARGO_NOTIFICATION_STAGES, isCargoStageNotificationEnabled, type CargoStageEventId } from "../../lib/notificationCargoEvents";
-import { isPushNotificationEnabled } from "../../lib/notificationEmailPrefs";
+import { buildPushPreferencesSavePayload, isPushNotificationEnabled } from "../../lib/notificationEmailPrefs";
 import { TapSwitch } from "../components/TapSwitch";
 
 const NOTIF_DOCS: { id: string; label: string }[] = [
@@ -75,6 +75,11 @@ export function NotificationsPage({
         [prefs],
     );
 
+    const isPushCargoPrefEnabled = useCallback(
+        (eventId: CargoStageEventId) => prefs.push[eventId] === true,
+        [prefs.push],
+    );
+
     const isPushPrefEnabled = useCallback(
         (eventId: string) => isPushNotificationEnabled(prefs.push, eventId),
         [prefs.push],
@@ -126,12 +131,21 @@ export function NotificationsPage({
         prefsRef.current = prefs;
     }, [prefs]);
 
-    const persistPrefs = useCallback(async (nextPrefs: { push: Record<string, boolean>; email: Record<string, boolean> }) => {
+    const persistPrefs = useCallback(async (
+        nextPrefs: { push: Record<string, boolean>; email: Record<string, boolean> },
+        touch?: { channel: "push" | "email"; eventId: string; value: boolean },
+    ) => {
         if (!login) return false;
+        const payload = {
+            push: touch?.channel === "push"
+                ? buildPushPreferencesSavePayload(nextPrefs.push, { eventId: touch.eventId, value: touch.value })
+                : nextPrefs.push,
+            email: nextPrefs.email,
+        };
         const res = await fetch("/api/webpush-preferences", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ login, preferences: nextPrefs }),
+            body: JSON.stringify({ login, preferences: payload }),
         });
         if (!res.ok) return false;
         try {
@@ -167,7 +181,7 @@ export function NotificationsPage({
             saveQueueRef.current = saveQueueRef.current
                 .catch(() => {})
                 .then(async () => {
-                    const ok = await persistPrefs(nextPrefs);
+                    const ok = await persistPrefs(nextPrefs, { channel, eventId, value });
                     if (!ok) throw new Error("save_failed");
                     prefsDirtyRef.current = false;
                 })
@@ -304,8 +318,8 @@ export function NotificationsPage({
                             <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
                                 <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
                                 <TapSwitch
-                                    checked={isCargoPrefEnabled("push", ev.id)}
-                                    onToggle={() => savePrefs("push", ev.id, !isCargoPrefEnabled("push", ev.id))}
+                                    checked={isPushCargoPrefEnabled(ev.id)}
+                                    onToggle={() => savePrefs("push", ev.id, !isPushCargoPrefEnabled(ev.id))}
                                     aria-label={`Push: ${ev.label}`}
                                 />
                             </Flex>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getCargoStageEventIdFromState,
   getCargoStageEventsOnStateChange,
   isRecentNotificationItem,
 } from "./notificationCargoEvents.js";
@@ -15,6 +16,13 @@ describe("isRecentNotificationItem", () => {
     const now = Date.parse("2026-08-18T12:00:00Z");
     expect(isRecentNotificationItem({ DatePrih: "2026-01-01" }, now)).toBe(false);
     expect(isRecentNotificationItem({ Number: "1" }, now)).toBe(false);
+  });
+});
+
+describe("getCargoStageEventIdFromState", () => {
+  it("maps planned delivery and arrived labels from 1C", () => {
+    expect(getCargoStageEventIdFromState("Запланирована доставка")).toBe("delivery_scheduled");
+    expect(getCargoStageEventIdFromState("Прибыла в город назначения")).toBe("arrived");
   });
 });
 

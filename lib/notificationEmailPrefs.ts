@@ -6,6 +6,8 @@ import {
   type CargoStageEventId,
 } from "./notificationCargoEvents.js";
 
+const PUSH_BILL_AND_SUMMARY = ["bill_created", "bill_paid", "daily_summary"] as const;
+
 export const EMAIL_NOTIFICATION_EVENTS = [
   ...CARGO_STAGE_EVENT_IDS,
   "bill_created",
@@ -74,9 +76,90 @@ export function sanitizePushPreferencesForSave(raw: Record<string, boolean> | un
   return out;
 }
 
+/** Перенос legacy accepted / in_transit / delivered → новые этапы. */
+export function migrateLegacyPushPreferences(raw: Record<string, boolean> | undefined): Record<string, boolean> {
+  const src = raw && typeof raw === "object" ? { ...raw } : {};
+  if (src.accepted === true) {
+    for (const id of ["info_received", "received_at_warehouse", "measured", "consolidation"] as const) {
+      if (src[id] !== false) src[id] = true;
+    }
+  }
+  if (src.in_transit === true) {
+    for (const id of ["loaded", "sent", "arrived"] as const) {
+      if (src[id] !== false) src[id] = true;
+    }
+  }
+  if (src.delivered === true) {
+    for (const id of ["delivery_scheduled", "delivered"] as const) {
+      if (src[id] !== false) src[id] = true;
+    }
+  }
+  delete src.accepted;
+  delete src.in_transit;
+  delete src.delivered;
+  return src;
+}
+
+/**
+ * Слияние push при сохранении: не затираем уже включённые этапы «ложным false» из GET-дефолтов.
+ * incoming: true — вкл; false — явное выкл; отсутствие ключа — не менять.
+ */
+export function mergePushPreferencesForSave(
+  existingRaw: Record<string, boolean> | undefined,
+  incomingRaw: Record<string, boolean> | undefined,
+): Record<string, boolean> {
+  const existing = migrateLegacyPushPreferences(existingRaw);
+  const incoming = incomingRaw && typeof incomingRaw === "object" ? incomingRaw : {};
+  const out: Record<string, boolean> = {};
+
+  for (const eventId of PUSH_BILL_AND_SUMMARY) {
+    if (typeof incoming[eventId] === "boolean") out[eventId] = incoming[eventId];
+    else if (typeof existing[eventId] === "boolean") out[eventId] = existing[eventId];
+  }
+
+  const falseCargoIncoming = CARGO_STAGE_EVENT_IDS.filter((id) => incoming[id] === false);
+  const ignoreIncomingFalse = falseCargoIncoming.length > 1;
+
+  for (const eventId of CARGO_STAGE_EVENT_IDS) {
+    if (incoming[eventId] === true) {
+      out[eventId] = true;
+      continue;
+    }
+    if (incoming[eventId] === false && !ignoreIncomingFalse) {
+      continue;
+    }
+    if (existing[eventId] === true) out[eventId] = true;
+  }
+
+  return out;
+}
+
+/** Payload от клиента: только включённые этапы + счета/сводка (без массовых false). */
+export function buildPushPreferencesSavePayload(
+  push: Record<string, boolean> | undefined,
+  touch?: { eventId: string; value: boolean },
+): Record<string, boolean> {
+  const src = push && typeof push === "object" ? push : {};
+  const out: Record<string, boolean> = {};
+
+  for (const eventId of CARGO_STAGE_EVENT_IDS) {
+    if (src[eventId] === true) out[eventId] = true;
+  }
+  if (touch && (CARGO_STAGE_EVENT_IDS as readonly string[]).includes(touch.eventId)) {
+    if (touch.value) out[touch.eventId] = true;
+    else out[touch.eventId] = false;
+  }
+
+  for (const eventId of PUSH_BILL_AND_SUMMARY) {
+    if (typeof src[eventId] === "boolean") out[eventId] = src[eventId];
+  }
+
+  return out;
+}
+
 /** Для UI/отправки: дефолты счетов/сводки + явные этапы груза. */
 export function pushPreferencesForClient(raw: Record<string, boolean> | undefined): Record<string, boolean> {
-  return mergePushPreferences(sanitizePushPreferencesForSave(raw));
+  return mergePushPreferences(migrateLegacyPushPreferences(raw));
 }
 
 export function shouldSendDailySummaryPush(push: Record<string, boolean> | undefined): boolean {

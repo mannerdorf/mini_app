@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   isLegacyImplicitDailySummaryOff,
   isPushNotificationEnabled,
+  buildPushPreferencesSavePayload,
   mergePushPreferences,
+  mergePushPreferencesForSave,
   pushPreferencesForClient,
-  sanitizePushPreferencesForSave,
   shouldSendDailySummaryPush,
 } from "./notificationEmailPrefs.js";
 
@@ -31,17 +32,44 @@ describe("mergePushPreferences", () => {
   });
 });
 
-describe("sanitizePushPreferencesForSave", () => {
-  it("stores only explicit push keys", () => {
+describe("mergePushPreferencesForSave", () => {
+  it("keeps previously enabled stages when saving a new one without resending false defaults", () => {
+    const saved = mergePushPreferencesForSave(
+      { arrived: true, sent: true },
+      { delivery_scheduled: true },
+    );
+    expect(saved.arrived).toBe(true);
+    expect(saved.sent).toBe(true);
+    expect(saved.delivery_scheduled).toBe(true);
+  });
+
+  it("turns off a stage only on explicit false", () => {
+    const saved = mergePushPreferencesForSave(
+      { arrived: true, delivery_scheduled: true },
+      { arrived: false, delivery_scheduled: true },
+    );
+    expect(saved.arrived).toBeUndefined();
+    expect(saved.delivery_scheduled).toBe(true);
+  });
+
+  it("does not wipe enabled stages when incoming carries false from UI defaults", () => {
+    const saved = mergePushPreferencesForSave(
+      { arrived: true },
+      { arrived: false, delivery_scheduled: false, sent: false },
+    );
+    expect(saved.arrived).toBe(true);
+    expect(saved.delivery_scheduled).toBeUndefined();
+  });
+});
+
+describe("buildPushPreferencesSavePayload", () => {
+  it("sends only enabled cargo keys plus touched toggle", () => {
     expect(
-      sanitizePushPreferencesForSave({
-        sent: true,
-        arrived: true,
-        delivery_scheduled: true,
-        bill_created: true,
-      }),
+      buildPushPreferencesSavePayload(
+        { arrived: true, sent: false, delivery_scheduled: false, bill_created: true },
+        { eventId: "delivery_scheduled", value: true },
+      ),
     ).toEqual({
-      sent: true,
       arrived: true,
       delivery_scheduled: true,
       bill_created: true,

@@ -6,10 +6,12 @@ import {
   DEFAULT_PUSH_PREFS,
   EMAIL_NOTIFICATION_EVENTS,
   PUSH_NOTIFICATION_EVENTS,
+  buildPushPreferencesSavePayload,
+  loadNotificationPreferencesState,
   mergePushPreferences,
+  mergePushPreferencesForSave,
   normalizeNotificationPreferencesState,
   pushPreferencesForClient,
-  sanitizePushPreferencesForSave,
 } from "../lib/notificationEmailPrefs.js";
 import { syncPushActivationForLogin, writePushControlJournal } from "../lib/pushControl.js";
 
@@ -123,7 +125,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const webpush = prefObj.webpush && typeof prefObj.webpush === "object" ? (prefObj.webpush as Record<string, boolean>) : {};
   const pushRaw = prefObj.push && typeof prefObj.push === "object" ? (prefObj.push as Record<string, boolean>) : {};
   const email = prefObj.email && typeof prefObj.email === "object" ? (prefObj.email as Record<string, boolean>) : {};
-  const pushSaved = sanitizePushPreferencesForSave(pushRaw);
+  const existingState = await loadNotificationPreferencesState(pool, login);
+  const pushIncoming = buildPushPreferencesSavePayload(pushRaw);
+  const pushSaved = mergePushPreferencesForSave(existingState.push, pushIncoming);
   const pushEffective = mergePushPreferences(pushSaved);
   const current = normalizeNotificationPreferencesState({
     telegram: { ...DEFAULT_PREFS.telegram, ...telegram },
