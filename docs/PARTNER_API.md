@@ -153,6 +153,8 @@ curl -s -X POST "https://api.haulz.ru/api/partner/v1/orders/create" \
 ## Ограничения v1
 
 - **Чтение** из Postgres-кэша (как в приложении). **Запись заявки** — `POST /api/partner/v1/orders/create` (scope `orders:write`, прямой вызов 1С).
+- Ключ привязан к пользователю; при отзыве (`revoked_at`) перестаёт работать.
+- Поле `last_used_at` обновляется при успешной авторизации Partner API.
 
 ---
 
