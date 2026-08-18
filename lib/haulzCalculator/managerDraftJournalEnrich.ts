@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import { buildPendingOrderJournalItem } from "../pendingOrderRequests.js";
 import type { HaulzCalcDraftRow } from "./calculatorDraft.js";
-import { formatHaulzCalcDraftCustomer } from "./draftCustomerDisplay.js";
+import { formatHaulzCalcDraftCustomer, journalCustomerDisplayName } from "./draftCustomerDisplay.js";
 import { directionCityCodes } from "./clientMainlineTariff.js";
 import type { Direction } from "./types.js";
 
@@ -46,7 +46,7 @@ function journalFromFormState(draft: HaulzCalcDraftRow): DocumentsOrderJournalVi
   const direction = (f.directionOverride ?? draft.quoteResult?.direction ?? "mow_kgd") as Direction;
   const { from, to } = directionCityCodes(direction);
   const customerLabel = formatHaulzCalcDraftCustomer(f, draft.loginKey);
-  const customerName = customerLabel.includes(" · ") ? customerLabel.split(" · ")[0] : customerLabel;
+  const customerName = journalCustomerDisplayName(customerLabel);
 
   return {
     customerName: customerName === "—" ? String(f.customerCompanyName ?? "").trim() : customerName,

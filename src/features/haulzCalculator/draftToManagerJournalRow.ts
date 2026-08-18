@@ -1,5 +1,8 @@
 import type { HaulzCalcDraft } from "../../api/client/haulzCalculator";
-import { formatHaulzCalcDraftCustomer } from "../../../lib/haulzCalculator/draftCustomerDisplay";
+import {
+  formatHaulzCalcDraftCustomer,
+  journalCustomerDisplayName,
+} from "../../../lib/haulzCalculator/draftCustomerDisplay";
 import { directionCityCodes } from "../../../lib/haulzCalculator/clientMainlineTariff";
 import type { Direction } from "../../../lib/haulzCalculator/types";
 import type { PendingFivepostRow, PendingLegacyTableRow } from "../documents/orders/DocumentsOrdersPendingCargo";
@@ -17,9 +20,10 @@ function splitRoute(routeLabel: string): { from: string; to: string } {
 export function draftToManagerJournalRow(draft: HaulzCalcDraft): ManagerJournalRow {
   const journal = draft.documentsOrderJournal;
   const f = draft.formState;
-  const customerFromLabel = formatHaulzCalcDraftCustomer(f, draft.loginKey);
-  const customerName = journal?.customerName
-    || (customerFromLabel.includes(" · ") ? customerFromLabel.split(" · ")[0] : customerFromLabel);
+  const customerName = journalCustomerDisplayName(
+    formatHaulzCalcDraftCustomer(f, draft.loginKey),
+    journal?.customerName,
+  );
 
   if (journal) {
     const { from, to } = splitRoute(journal.routeLabel);
