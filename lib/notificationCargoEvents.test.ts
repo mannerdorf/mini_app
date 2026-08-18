@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   getCargoStageEventIdFromState,
   getCargoStageEventsOnStateChange,
+  isCargoStageNotificationEnabled,
+  isLegacyCoarseDeliveredFlag,
   isRecentNotificationItem,
 } from "./notificationCargoEvents.js";
 
@@ -23,6 +25,18 @@ describe("getCargoStageEventIdFromState", () => {
   it("maps planned delivery and arrived labels from 1C", () => {
     expect(getCargoStageEventIdFromState("Запланирована доставка")).toBe("delivery_scheduled");
     expect(getCargoStageEventIdFromState("Прибыла в город назначения")).toBe("arrived");
+  });
+});
+
+describe("isLegacyCoarseDeliveredFlag", () => {
+  it("treats delivered-only save as granular stage", () => {
+    expect(isLegacyCoarseDeliveredFlag({ delivered: true })).toBe(false);
+    expect(isCargoStageNotificationEnabled({ delivered: true }, "delivered")).toBe(true);
+    expect(isCargoStageNotificationEnabled({ delivered: true }, "delivery_scheduled")).toBe(false);
+  });
+
+  it("detects old coarse delivered with in_transit", () => {
+    expect(isLegacyCoarseDeliveredFlag({ in_transit: true, delivered: true })).toBe(true);
   });
 });
 

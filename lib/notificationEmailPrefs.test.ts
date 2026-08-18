@@ -120,6 +120,29 @@ describe("pushPreferencesForClient", () => {
     expect(client.info_received).toBe(false);
     expect(client.bill_created).toBe(true);
   });
+
+  it("keeps granular delivered stage on read (not legacy coarse flag)", () => {
+    const client = pushPreferencesForClient({ delivered: true });
+    expect(client.delivered).toBe(true);
+    expect(client.delivery_scheduled).toBe(false);
+  });
+
+  it("keeps delivery_scheduled and delivered together on read", () => {
+    const client = pushPreferencesForClient({
+      sent: true,
+      delivery_scheduled: true,
+      delivered: true,
+    });
+    expect(client.delivery_scheduled).toBe(true);
+    expect(client.delivered).toBe(true);
+  });
+
+  it("expands legacy coarse delivered with in_transit", () => {
+    const client = pushPreferencesForClient({ in_transit: true, delivered: true });
+    expect(client.delivery_scheduled).toBe(true);
+    expect(client.delivered).toBe(true);
+    expect(client.sent).toBe(true);
+  });
 });
 
 describe("isLegacyImplicitDailySummaryOff", () => {

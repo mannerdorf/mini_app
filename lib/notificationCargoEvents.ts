@@ -122,6 +122,17 @@ const LEGACY_ACCEPTED_STAGES: CargoStageEventId[] = [
 const LEGACY_IN_TRANSIT_STAGES: CargoStageEventId[] = ["loaded", "sent", "arrived"];
 const LEGACY_DELIVERED_STAGES: CargoStageEventId[] = ["delivery_scheduled", "delivered"];
 
+/** Старый coarse-ключ delivered (не granular-этап «Доставлена»). */
+export function isLegacyCoarseDeliveredFlag(prefs: Record<string, boolean> | undefined): boolean {
+  const src = prefs && typeof prefs === "object" ? prefs : {};
+  if (src.delivered !== true) return false;
+  const hasOtherGranularStages = CARGO_STAGE_EVENT_IDS.some(
+    (id) => id !== "delivered" && typeof src[id] === "boolean",
+  );
+  if (hasOtherGranularStages) return false;
+  return src.accepted === true || src.in_transit === true;
+}
+
 /** Учитывает старые ключи accepted / in_transit / delivered в сохранённых настройках. */
 export function isCargoStageNotificationEnabled(
   prefs: Record<string, boolean>,
@@ -131,7 +142,7 @@ export function isCargoStageNotificationEnabled(
   if (prefs[eventId] === false) return false;
   if (LEGACY_ACCEPTED_STAGES.includes(eventId) && prefs.accepted === true) return true;
   if (LEGACY_IN_TRANSIT_STAGES.includes(eventId) && prefs.in_transit === true) return true;
-  if (LEGACY_DELIVERED_STAGES.includes(eventId) && prefs.delivered === true) return true;
+  if (LEGACY_DELIVERED_STAGES.includes(eventId) && isLegacyCoarseDeliveredFlag(prefs)) return true;
   return false;
 }
 

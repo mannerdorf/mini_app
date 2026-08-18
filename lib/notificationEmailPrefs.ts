@@ -3,6 +3,7 @@ import type { Pool } from "pg";
 import {
   CARGO_STAGE_EVENT_IDS,
   isCargoStageNotificationEnabled,
+  isLegacyCoarseDeliveredFlag,
   type CargoStageEventId,
 } from "./notificationCargoEvents.js";
 
@@ -79,6 +80,7 @@ export function sanitizePushPreferencesForSave(raw: Record<string, boolean> | un
 /** Перенос legacy accepted / in_transit / delivered → новые этапы. */
 export function migrateLegacyPushPreferences(raw: Record<string, boolean> | undefined): Record<string, boolean> {
   const src = raw && typeof raw === "object" ? { ...raw } : {};
+  const legacyCoarseDelivered = isLegacyCoarseDeliveredFlag(src);
   if (src.accepted === true) {
     for (const id of ["info_received", "received_at_warehouse", "measured", "consolidation"] as const) {
       if (src[id] !== false) src[id] = true;
@@ -89,14 +91,12 @@ export function migrateLegacyPushPreferences(raw: Record<string, boolean> | unde
       if (src[id] !== false) src[id] = true;
     }
   }
-  if (src.delivered === true) {
-    for (const id of ["delivery_scheduled", "delivered"] as const) {
-      if (src[id] !== false) src[id] = true;
-    }
+  if (legacyCoarseDelivered) {
+    if (src.delivery_scheduled !== false) src.delivery_scheduled = true;
+    src.delivered = true;
   }
   delete src.accepted;
   delete src.in_transit;
-  delete src.delivered;
   return src;
 }
 
