@@ -4,13 +4,11 @@ import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
 const normalizeLogin = (v: unknown) => String(v ?? "").trim().toLowerCase();
+const normalizeInn = (v: unknown) => String(v ?? "").replace(/\D/g, "").trim();
 
 /**
- * POST /api/pvz-list — справочник ПВЗ для заявок (из cache_pvz).
+ * POST /api/pvz-list — ПВЗ заказчика из шапки (ВладелецИНН = active INN).
  * Требуется авторизация зарегистрированного пользователя.
- *
- * ВладелецИНН в 1С — это владелец пункта (логистический партнёр), а не заказчик.
- * Список общий для всех авторизованных пользователей; фильтр по городу — на клиенте.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "pvz-list");
@@ -31,6 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const login = normalizeLogin(body?.login ?? req.headers["x-login"]);
   const password = String(body?.password ?? req.headers["x-password"] ?? "").trim();
+  const requestedInn = normalizeInn(body?.inn);
 
   if (!login || !password) {
     return res.status(400).json({ error: "login and password required", request_id: ctx.requestId });
@@ -41,6 +40,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const verified = await verifyRegisteredUser(pool, login, password);
     if (!verified) {
       return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
+    }
+
+    if (!requestedInn) {
+      return res.status(200).json({ pvz: [], request_id: ctx.requestId });
+    }
+
+    if (!verified.accessAllInns) {
+      const acRows = await pool.query<{ inn: string }>(
+        "SELECT inn FROM account_companies WHERE login = $1",
+        [login],
+      );
+      const allowed = new Set(acRows.rows.map((r) => normalizeInn(r.inn)).filter(Boolean));
+      if (verified.inn) allowed.add(normalizeInn(verified.inn));
+      if (!allowed.has(requestedInn)) {
+        return res.status(200).json({ pvz: [], request_id: ctx.requestId });
+      }
     }
 
     const geoExclude = "AND lower(naimenovanie) NOT LIKE '%геологистика%'";
@@ -55,8 +70,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `SELECT ssylka, naimenovanie, kod_dlya_pechati, gorod, region,
               vladelec_inn, vladelec_naimenovanie, otpravitel_poluchatel, kontaktnoe_litso
        FROM cache_pvz
-       WHERE 1=1 ${geoExclude} ${zelenoeExclude} ${haulzWarehouseExclude}
+       WHERE regexp_replace(coalesce(vladelec_inn, ''), '[^0-9]', '', 'g') = $1
+       ${geoExclude} ${zelenoeExclude} ${haulzWarehouseExclude}
        ORDER BY sort_order ASC, naimenovanie ASC`,
+      [requestedInn],
     );
 
     const pvz = rows.map((r: Record<string, string>) => {

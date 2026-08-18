@@ -2,18 +2,19 @@ import { describe, expect, it } from "vitest";
 import type { PvzItem } from "../../../api/client/documentsOrders";
 import {
   filterDocumentsOrderPvzByCity,
+  filterDocumentsOrderPvzByOwnerInn,
   filterDocumentsOrderPvzList,
   inferPvzCityCode,
   isExcludedDocumentsOrderPvz,
 } from "./documentsOrderPvzFilter";
 
-const item = (name: string, city = ""): PvzItem => ({
+const item = (name: string, city = "", ownerInn = ""): PvzItem => ({
   Ссылка: "1",
   Наименование: name,
   КодДляПечати: "",
   ГородНаименование: city,
   РегионНаименование: "",
-  ВладелецИНН: "",
+  ВладелецИНН: ownerInn,
   ВладелецНаименование: "",
   ОтправительПолучательНаименование: "",
   КонтактноеЛицо: "",
@@ -45,5 +46,18 @@ describe("documentsOrderPvzFilter", () => {
     expect(filterDocumentsOrderPvzByCity(list, "moscow")).toHaveLength(1);
     expect(filterDocumentsOrderPvzByCity(list, "moscow")[0].Наименование).toBe("Мск офис");
     expect(filterDocumentsOrderPvzByCity(list, "kaliningrad")).toHaveLength(1);
+  });
+
+  it("keeps only PVZ of the header customer INN", () => {
+    const list = [
+      item("Свой ПВЗ", "Москва", "7820046291"),
+      item("Чужой ПВЗ", "Москва", "7707083893"),
+      item("Кгд свой", "Калининград", "7820046291"),
+    ];
+    expect(filterDocumentsOrderPvzByOwnerInn(list, "7820 046291")).toHaveLength(2);
+    expect(filterDocumentsOrderPvzByCity(list, "moscow", "7820046291")).toEqual([
+      expect.objectContaining({ Наименование: "Свой ПВЗ" }),
+    ]);
+    expect(filterDocumentsOrderPvzByOwnerInn(list, "")).toEqual([]);
   });
 });
