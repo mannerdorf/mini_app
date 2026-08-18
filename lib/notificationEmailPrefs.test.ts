@@ -3,6 +3,7 @@ import {
   applyPushPreferenceToggle,
   isLegacyImplicitDailySummaryOff,
   isPushNotificationEnabled,
+  buildAllPushPreferencesEnabled,
   buildPushPreferencesSavePayload,
   mergePushPreferences,
   mergePushPreferencesForSave,
@@ -110,6 +111,17 @@ describe("applyPushPreferenceToggle", () => {
     );
     expect(saved.delivered).toBe(true);
     expect(saved.delivery_scheduled).toBe(true);
+  });
+});
+
+describe("buildAllPushPreferencesEnabled", () => {
+  it("enables every push event including cargo stages", () => {
+    const all = buildAllPushPreferencesEnabled();
+    expect(all.sent).toBe(true);
+    expect(all.delivered).toBe(true);
+    expect(all.bill_created).toBe(true);
+    expect(all.daily_summary).toBe(true);
+    expect(Object.keys(all).length).toBeGreaterThanOrEqual(12);
   });
 });
 

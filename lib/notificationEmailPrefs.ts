@@ -54,6 +54,11 @@ export const DEFAULT_PUSH_PREFS: Record<string, boolean> = {
   daily_summary: true,
 };
 
+/** Все типы push вкл. — при первом согласии пользователя на Android. */
+export function buildAllPushPreferencesEnabled(): Record<string, boolean> {
+  return Object.fromEntries(PUSH_NOTIFICATION_EVENTS.map((id) => [id, true]));
+}
+
 export function isLegacyImplicitDailySummaryOff(push: Record<string, boolean> | undefined): boolean {
   const src = push && typeof push === "object" ? push : {};
   if (src.daily_summary !== false) return false;
