@@ -43,6 +43,7 @@ Authorization: Bearer haulz_a1b2c3d4e5f6_0123456789abcdef...
 | `cargo:read` | `POST /api/partner/v1/cargo` | Список перевозок из кэша |
 | `sendings:read` | `POST /api/partner/v1/sendings` | Список отправок из кэша |
 | `orders:read` | `POST /api/partner/v1/orders` | Список заявок из кэша |
+| `orders:write` | `POST /api/partner/v1/orders/create` | Загрузка заявки в 1С (JSON) |
 
 При создании ключа можно выбрать один или несколько scope. Опционально — ограничение по **ИНН** (`allowed_inns`).
 
@@ -100,6 +101,37 @@ curl -s -X POST "https://api.haulz.ru/api/partner/v1/orders" \
   }'
 ```
 
+### Создание заявки в 1С (`orders:write`)
+
+```bash
+curl -s -X POST "https://api.haulz.ru/api/partner/v1/orders/create" \
+  -H "Authorization: Bearer haulz_YOUR_FULL_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ЗаказчикИНН": "7701234567",
+    "ОтправительИНН": "",
+    "ПолучательИНН": "5401123456",
+    "ПунктОтправки": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "ПунктНазначения": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+    "ДатаЗабораПлан": "2026-08-20",
+    "ОГ": false,
+    "НомерЗаявкиКлиента": "ORD-2026-00041",
+    "Посылки": [{
+      "ШтрихкодЗаказчика": "1234567890123",
+      "Товары": [{
+        "ИДОтправления": "POST-9001",
+        "ID": "sku-001",
+        "Name": "Футболка",
+        "ТМЦ": "Футболка хлопок 48",
+        "Количество": 2,
+        "ОбъявленнаяСтоимостьТовара": 1500
+      }]
+    }]
+  }'
+```
+
+Метод 1С настраивается через `ONE_C_ZAYAVKA_UPLOAD_METOD` (по умолчанию `LoadZayavka`).
+
 **Тело запроса:** как у соответствующих кэшированных методов приложения (`/api/perevozki`, `/api/sendings`, `/api/orders`) для зарегистрированного пользователя, **без** `login` / `password` в JSON.
 
 **Даты:** формат `YYYY-MM-DD`.
@@ -120,10 +152,7 @@ curl -s -X POST "https://api.haulz.ru/api/partner/v1/orders" \
 
 ## Ограничения v1
 
-- **Только чтение** из Postgres-кэша (как в приложении). Прямые вызовы 1С по умолчанию на Vercel **не** выполняются.
-- Ключ привязан к пользователю; при отзыве (`revoked_at`) перестаёт работать.
-- Поле `last_used_at` обновляется при успешной авторизации Partner API.
-- Запись данных (создание заявок, документов) через Partner API v1 **не поддерживается**.
+- **Чтение** из Postgres-кэша (как в приложении). **Запись заявки** — `POST /api/partner/v1/orders/create` (scope `orders:write`, прямой вызов 1С).
 
 ---
 
