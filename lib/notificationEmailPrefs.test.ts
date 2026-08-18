@@ -3,6 +3,8 @@ import {
   isLegacyImplicitDailySummaryOff,
   isPushNotificationEnabled,
   mergePushPreferences,
+  pushPreferencesForClient,
+  sanitizePushPreferencesForSave,
   shouldSendDailySummaryPush,
 } from "./notificationEmailPrefs.js";
 
@@ -26,6 +28,35 @@ describe("mergePushPreferences", () => {
     });
     expect(merged.daily_summary).toBe(false);
     expect(merged.sent).toBe(true);
+  });
+});
+
+describe("sanitizePushPreferencesForSave", () => {
+  it("stores only explicit push keys", () => {
+    expect(
+      sanitizePushPreferencesForSave({
+        sent: true,
+        arrived: true,
+        delivery_scheduled: true,
+        bill_created: true,
+      }),
+    ).toEqual({
+      sent: true,
+      arrived: true,
+      delivery_scheduled: true,
+      bill_created: true,
+    });
+  });
+});
+
+describe("pushPreferencesForClient", () => {
+  it("applies defaults for unset keys on read", () => {
+    const client = pushPreferencesForClient({ sent: true, arrived: true, delivery_scheduled: true });
+    expect(client.sent).toBe(true);
+    expect(client.arrived).toBe(true);
+    expect(client.delivery_scheduled).toBe(true);
+    expect(client.info_received).toBe(false);
+    expect(client.bill_created).toBe(true);
   });
 });
 

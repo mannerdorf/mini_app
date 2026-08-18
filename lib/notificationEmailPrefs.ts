@@ -64,6 +64,21 @@ export function mergePushPreferences(saved: Record<string, boolean> | undefined)
   return merged;
 }
 
+/** Сохраняем только явные значения клиента, без подмешивания DEFAULT (иначе «выкл» затирает включённые этапы). */
+export function sanitizePushPreferencesForSave(raw: Record<string, boolean> | undefined): Record<string, boolean> {
+  const src = raw && typeof raw === "object" ? raw : {};
+  const out: Record<string, boolean> = {};
+  for (const eventId of PUSH_NOTIFICATION_EVENTS) {
+    if (typeof src[eventId] === "boolean") out[eventId] = src[eventId];
+  }
+  return out;
+}
+
+/** Для UI/отправки: дефолты счетов/сводки + явные этапы груза. */
+export function pushPreferencesForClient(raw: Record<string, boolean> | undefined): Record<string, boolean> {
+  return mergePushPreferences(sanitizePushPreferencesForSave(raw));
+}
+
 export function shouldSendDailySummaryPush(push: Record<string, boolean> | undefined): boolean {
   const src = push && typeof push === "object" ? push : {};
   if (src.daily_summary === true) return true;

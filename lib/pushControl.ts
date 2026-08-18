@@ -4,6 +4,7 @@ import {
   PUSH_NOTIFICATION_EVENTS,
   isPushNotificationEnabled,
   mergePushPreferences,
+  sanitizePushPreferencesForSave,
 } from "./notificationEmailPrefs.js";
 
 export type PushControlAction =
@@ -115,7 +116,7 @@ export async function syncPushActivationForLogin(
   const scopes = await loadPushLoginScopes(pool);
   const scope = scopes.get(login);
   const inns = [...(scope?.inns || [])].map((inn) => normalizeNotificationInn(inn)).filter(Boolean);
-  const merged = mergePushPreferences(pushPrefs);
+  const merged = mergePushPreferences(sanitizePushPreferencesForSave(pushPrefs));
   const events = PUSH_NOTIFICATION_EVENTS.map((eventId) => ({
     eventId,
     enabled: isPushNotificationEnabled(merged, eventId),

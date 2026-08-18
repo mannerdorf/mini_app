@@ -13,6 +13,7 @@ import {
     isAndroidPushEnvironment,
 } from "../lib/androidPushNotifications";
 import { CARGO_NOTIFICATION_STAGES, isCargoStageNotificationEnabled, type CargoStageEventId } from "../../lib/notificationCargoEvents";
+import { isPushNotificationEnabled } from "../../lib/notificationEmailPrefs";
 import { TapSwitch } from "../components/TapSwitch";
 
 const NOTIF_DOCS: { id: string; label: string }[] = [
@@ -74,6 +75,11 @@ export function NotificationsPage({
         [prefs],
     );
 
+    const isPushPrefEnabled = useCallback(
+        (eventId: string) => isPushNotificationEnabled(prefs.push, eventId),
+        [prefs.push],
+    );
+
     useEffect(() => {
         if (!login) {
             setPrefsLoading(false);
@@ -122,7 +128,25 @@ export function NotificationsPage({
 
     const persistPrefs = useCallback(async (nextPrefs: { push: Record<string, boolean>; email: Record<string, boolean> }) => {
         if (!login) return false;
-        return saveNotificationPreferences(login, nextPrefs);
+        const res = await fetch("/api/webpush-preferences", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ login, preferences: nextPrefs }),
+        });
+        if (!res.ok) return false;
+        try {
+            const data = (await res.json()) as { preferences?: { push?: Record<string, boolean>; email?: Record<string, boolean> } };
+            if (data.preferences?.push || data.preferences?.email) {
+                setPrefs({
+                    push: data.preferences.push || nextPrefs.push,
+                    email: data.preferences.email || nextPrefs.email,
+                });
+                prefsDirtyRef.current = false;
+            }
+        } catch {
+            // keep optimistic local state
+        }
+        return true;
     }, [login]);
 
     const savePrefs = useCallback(
@@ -190,7 +214,7 @@ export function NotificationsPage({
     }, [login]);
 
     const flushPrefsOnExit = useCallback(() => {
-        if (!login || !prefsDirtyRef.current) return;
+        if (!login || !prefsDirtyRef.current || pendingSavesRef.current > 0) return;
         const payload = JSON.stringify({ login, preferences: prefsRef.current });
         try {
             if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
@@ -293,8 +317,8 @@ export function NotificationsPage({
                             <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
                                 <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
                                 <TapSwitch
-                                    checked={!!prefs.push[ev.id]}
-                                    onToggle={() => savePrefs("push", ev.id, !prefs.push[ev.id])}
+                                    checked={isPushPrefEnabled(ev.id)}
+                                    onToggle={() => savePrefs("push", ev.id, !isPushPrefEnabled(ev.id))}
                                     aria-label={`Push: ${ev.label}`}
                                 />
                             </Flex>
@@ -306,8 +330,8 @@ export function NotificationsPage({
                             <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
                                 <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
                                 <TapSwitch
-                                    checked={!!prefs.push[ev.id]}
-                                    onToggle={() => savePrefs("push", ev.id, !prefs.push[ev.id])}
+                                    checked={isPushPrefEnabled(ev.id)}
+                                    onToggle={() => savePrefs("push", ev.id, !isPushPrefEnabled(ev.id))}
                                     aria-label={`Push: ${ev.label}`}
                                 />
                             </Flex>
