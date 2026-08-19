@@ -16,7 +16,6 @@ import {
   hasBillSignal,
   isCargoStageNotificationEnabled,
   isRecentNotificationItem,
-  notificationItemInn,
 } from "../lib/notificationPoll.js";
 import { loadPushLoginScopes, normalizeNotificationInn } from "../lib/notificationInnScope.js";
 import { wasSuccessfulNotificationDelivery } from "./_lib/notificationDeliveryDedupe.js";
@@ -25,6 +24,11 @@ import {
   listLoginsWithFcmTokens,
   loadPushActivationByLogins,
 } from "../lib/pushControl.js";
+import {
+  loadCargoCustomerInnByNumbers,
+  notificationCargoBelongsToInn,
+  resolveNotificationCargoOwnerInn,
+} from "../lib/notificationCargoOwnerInn.js";
 
 const CRON_SECRET = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
@@ -260,6 +264,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (items.length === 0) continue;
 
       const cargoNumbers = items.map((i: any) => String(i?.Number ?? i?.number ?? "").trim()).filter(Boolean);
+      const ownerInnByCargo = await loadCargoCustomerInnByNumbers(pool, cargoNumbers);
       const lastStateResult = await pool.query<{ cargo_number: string; state: string | null; state_bill: string | null }>(
         "SELECT cargo_number, state, state_bill FROM cargo_last_state WHERE inn = $1 AND cargo_number = ANY($2)",
         [inn, cargoNumbers]
@@ -273,11 +278,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       for (const item of items) {
         const number = String(item?.Number ?? item?.number ?? "").trim();
         if (!number) continue;
-        const itemInn = notificationItemInn(item);
-        if (itemInn && itemInn !== inn) {
-          // 1С вернула чужой ИНН в выборке по заказчику — не шлём.
+        if (!notificationCargoBelongsToInn(item, inn, ownerInnByCargo)) {
           continue;
         }
+        const ownerInn = resolveNotificationCargoOwnerInn(item, ownerInnByCargo) || inn;
         const currentState = item?.State ?? null;
         const currentStateBill = item?.StateBill ?? null;
         const payKey = getPaymentKey(currentStateBill);
@@ -313,10 +317,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
           for (const sub of subscribers) {
             if (isOptInNotificationEventEnabled(sub.prefsTelegram, event) && sub.telegramChatId) {
-              if (
+                if (
                 !(await wasSuccessfulNotificationDelivery(pool, {
                   login: sub.login,
-                  inn,
+                  inn: ownerInn,
                   cargoNumber: number,
                   event,
                   channel: "telegram",
@@ -327,7 +331,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 await pool.query(
                   `insert into notification_deliveries (poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message)
                    values ($1, $2, $3, $4, $5, 'telegram', $6, $7, $8)`,
-                  [runId, sub.login, inn, number, event, sub.telegramChatId, sendResult.ok, sendResult.error || null]
+                  [runId, sub.login, ownerInn, number, event, sub.telegramChatId, sendResult.ok, sendResult.error || null]
                 );
                 if (!sendResult.ok) status = "partial";
               }
@@ -336,7 +340,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               if (
                 !(await wasSuccessfulNotificationDelivery(pool, {
                   login: sub.login,
-                  inn,
+                  inn: ownerInn,
                   cargoNumber: number,
                   event,
                   channel: "web",
@@ -347,7 +351,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 await pool.query(
                   `insert into notification_deliveries (poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message)
                    values ($1, $2, $3, $4, $5, 'web', null, $6, $7)`,
-                  [runId, sub.login, inn, number, event, sendResult.ok, sendResult.error || null]
+                  [runId, sub.login, ownerInn, number, event, sendResult.ok, sendResult.error || null]
                 );
                 if (!sendResult.ok) status = "partial";
               }
@@ -363,7 +367,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               if (
                 !(await wasSuccessfulNotificationDelivery(pool, {
                   login: sub.login,
-                  inn,
+                  inn: ownerInn,
                   cargoNumber: number,
                   event,
                   channel: "push",
@@ -373,7 +377,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   title,
                   body: text,
                   url: "/",
-                  delivery: { event, inn, cargoNumber: number, title, body: text },
+                  delivery: { event, inn: ownerInn, cargoNumber: number, title, body: text },
                 });
                 notificationsSent += 1;
                 if (!sendResult.ok) status = "partial";
@@ -386,7 +390,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           `insert into cargo_last_state (inn, cargo_number, state, state_bill, updated_at)
            values ($1, $2, $3, $4, now())
            on conflict (inn, cargo_number) do update set state = excluded.state, state_bill = excluded.state_bill, updated_at = now()`,
-          [inn, number, currentState, currentStateBill]
+          [ownerInn, number, currentState, currentStateBill]
         );
       }
     }

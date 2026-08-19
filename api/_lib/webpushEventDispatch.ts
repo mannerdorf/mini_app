@@ -19,6 +19,10 @@ import {
   listLoginsWithFcmTokens,
   loadPushActivationByLogins,
 } from "../../lib/pushControl.js";
+import {
+  loadCargoCustomerInnByNumbers,
+  resolveNotificationCargoOwnerInn,
+} from "../../lib/notificationCargoOwnerInn.js";
 
 type CargoSnapshotItem = {
   inn?: unknown;
@@ -118,17 +122,34 @@ export async function dispatchWebPushCargoEvents(params: {
 }> {
   const { pool, source = "event_dispatch", dedupeTtlSeconds = 300 } = params;
   const input = Array.isArray(params.items) ? params.items : [];
-  const prepared = input
+  const rawPrepared = input
     .map((item) => ({
-      inn: normalizeInn(item),
       cargoNumber: normalizeCargoNumber(item),
       state: String(item.state ?? item.State ?? "").trim() || null,
       stateBill: String(item.stateBill ?? item.StateBill ?? "").trim() || null,
       raw: item,
     }))
-    .filter((x) => x.inn && x.cargoNumber);
-  if (prepared.length === 0) {
+    .filter((x) => x.cargoNumber);
+
+  if (rawPrepared.length === 0) {
     return { ok: true, source, scanned: 0, changed: 0, attempted: 0, delivered: 0, failed: 0, deduped: 0, cleanedSubscriptions: 0 };
+  }
+
+  const ownerInnByCargo = await loadCargoCustomerInnByNumbers(
+    pool,
+    rawPrepared.map((x) => x.cargoNumber),
+  );
+  const prepared = rawPrepared
+    .map((row) => {
+      const inn =
+        resolveNotificationCargoOwnerInn(row.raw as Record<string, unknown>, ownerInnByCargo) ||
+        normalizeInn(row.raw as CargoSnapshotItem);
+      return { ...row, inn };
+    })
+    .filter((x) => x.inn && x.cargoNumber);
+
+  if (prepared.length === 0) {
+    return { ok: true, source, scanned: rawPrepared.length, changed: 0, attempted: 0, delivered: 0, failed: 0, deduped: 0, cleanedSubscriptions: 0 };
   }
 
   try {
