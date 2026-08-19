@@ -10,6 +10,8 @@ import {
   pickBillNumber,
   type CargoEvent,
 } from "./notificationPoll.js";
+import { extractCargoLastMileMeta } from "./cargoLastMileMeta.js";
+import { formatInvoiceNumberDisplay } from "./weeklySummaryInvoiceTable.js";
 
 export { PUSH_NOTIFICATION_EVENTS };
 
@@ -71,6 +73,26 @@ export const PUSH_TEMPLATE_VARIABLES = [
   {
     key: "bill_sum",
     hint: "Сумма счёта в рублях с форматированием (из 1С: SumDoc, SumBill и др.)",
+  },
+  {
+    key: "bill_number",
+    hint: "Номер счёта без префикса 0000- (из 1С: BillNum, NumberBill, BillNumber и др.)",
+  },
+  {
+    key: "auto_reg",
+    hint: "Гос. номер автомобиля последней мили (из 1С: LMAutoReg, без региона после «/»)",
+  },
+  {
+    key: "auto_type",
+    hint: "Марка автомобиля (из 1С: LMAutoType или AutoType)",
+  },
+  {
+    key: "driver",
+    hint: "Экспедитор / водитель последней мили (из 1С: LMDriver или Driver)",
+  },
+  {
+    key: "driver_tel",
+    hint: "Телефон экспедитора (из 1С: LMDriverTel или DriverTel)",
   },
 ] as const;
 
@@ -144,6 +166,9 @@ export function buildPushTemplateContext(
   const stageLabel = CARGO_NOTIFICATION_STAGES.some((s) => s.id === event)
     ? cargoStageEventLabel(event as CargoStageEventId)
     : eventLabel(event as PushNotificationTemplateEventId);
+  const lastMile = extractCargoLastMileMeta(anyItem);
+  const billNumberRaw = pickBillNumber(anyItem);
+  const billNumber = billNumberRaw ? formatInvoiceNumberDisplay(billNumberRaw) : "—";
 
   return {
     cargo_number: n,
@@ -156,7 +181,11 @@ export function buildPushTemplateContext(
     sender: String(anyItem.Sender ?? "—").trim() || "—",
     receiver: String(anyItem.Receiver ?? anyItem.Poluchatel ?? "—").trim() || "—",
     bill_sum: billSum,
-    bill_number: pickBillNumber(anyItem) || n,
+    bill_number: billNumber,
+    auto_reg: lastMile.autoReg || "—",
+    auto_type: lastMile.autoType || "—",
+    driver: lastMile.driver || "—",
+    driver_tel: lastMile.driverTel || "—",
   };
 }
 
@@ -200,6 +229,7 @@ export function formatPushNotificationMessage(
 
 export const PUSH_TEMPLATE_SAMPLE_ITEM: Record<string, unknown> = {
   Number: "000141572",
+  BillNum: "000001529",
   Mest: 251,
   W: 1473,
   PW: 1500,
@@ -207,6 +237,10 @@ export const PUSH_TEMPLATE_SAMPLE_ITEM: Record<string, unknown> = {
   Sender: "ООО Автопитер",
   Receiver: "Гончаров Р.О. ИП",
   SumDoc: 125000,
+  LMAutoReg: "У706АР/39",
+  LMAutoType: "Мерседес",
+  LMDriver: "Ругалев Иван Федорович",
+  LMDriverTel: "+79953889445",
 };
 
 export async function ensurePushNotificationTemplatesTable(pool: {

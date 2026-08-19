@@ -44,6 +44,10 @@ function pickFirst(item: any, keys: string[]): unknown {
 const BILL_NUMBER_KEYS = [
   "NumberBill",
   "BillNumber",
+  "BillNum",
+  "Bill_Number",
+  "billnum",
+  "bill_number",
   "Invoice",
   "InvoiceNumber",
   "Счет",

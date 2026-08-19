@@ -63,4 +63,19 @@ describe("buildPushTemplateContext", () => {
     const ctx = buildPushTemplateContext("bill_created", "1", { SumDoc: 125000 });
     expect(ctx.bill_sum).toMatch(/125/);
   });
+
+  it("includes bill number and last mile fields", () => {
+    const ctx = buildPushTemplateContext("delivery_scheduled", "000141572", {
+      BillNum: "000001529",
+      LMAutoReg: "У706АР/39",
+      LMAutoType: "Мерседес",
+      LMDriver: "Ругалев Иван Федорович",
+      LMDriverTel: "+79953889445",
+    });
+    expect(ctx.bill_number).toBe("1529");
+    expect(ctx.auto_reg).toBe("У706АР");
+    expect(ctx.auto_type).toBe("Мерседес");
+    expect(ctx.driver).toBe("Ругалев Иван Федорович");
+    expect(ctx.driver_tel).toBe("+79953889445");
+  });
 });
