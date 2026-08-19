@@ -8,6 +8,7 @@ import {
 } from "../../../api/client/admin/pushNotifications";
 import {
   PUSH_TEMPLATE_SAMPLE_ITEM,
+  PUSH_TEMPLATE_VARIABLES,
   buildPushTemplateContext,
   formatPushNotificationMessage,
   renderPushTemplateString,
@@ -140,11 +141,46 @@ export function AdminPushTemplatesSection({ adminToken, onError }: Props) {
         отправке.
       </Typography.Body>
 
-      {variables.length > 0 ? (
-        <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
-          Переменные:{" "}
-          {variables.map((v) => `{${v.key}}`).join(", ")}
-        </Typography.Body>
+      {(variables.length > 0 ? variables : PUSH_TEMPLATE_VARIABLES).length > 0 ? (
+        <Panel
+          style={{
+            padding: "0.65rem 0.75rem",
+            marginBottom: "0.75rem",
+            border: "1px solid var(--color-border)",
+            background: "var(--color-bg-secondary, #f8fafc)",
+          }}
+        >
+          <Typography.Body style={{ fontWeight: 600, fontSize: "0.8rem", marginBottom: "0.45rem" }}>
+            Переменные шаблона
+          </Typography.Body>
+          <Typography.Body
+            style={{
+              fontSize: "0.72rem",
+              color: "var(--color-text-secondary)",
+              marginBottom: "0.55rem",
+              lineHeight: 1.45,
+            }}
+          >
+            Вставляйте в текст в фигурных скобках — при отправке подставятся данные перевозки из 1С.
+          </Typography.Body>
+          <div style={{ display: "grid", gap: "0.35rem" }}>
+            {(variables.length > 0 ? variables : PUSH_TEMPLATE_VARIABLES).map((v) => (
+              <div
+                key={v.key}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(7rem, auto) 1fr",
+                  gap: "0.5rem",
+                  alignItems: "start",
+                  fontSize: "0.75rem",
+                }}
+              >
+                <code style={{ whiteSpace: "nowrap" }}>{`{${v.key}}`}</code>
+                <span style={{ color: "var(--color-text-secondary)", lineHeight: 1.4 }}>{v.hint}</span>
+              </div>
+            ))}
+          </div>
+        </Panel>
       ) : null}
 
       {notice ? (

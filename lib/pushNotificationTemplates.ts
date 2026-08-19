@@ -5,13 +5,13 @@ import {
   type CargoStageEventId,
 } from "./notificationCargoEvents.js";
 import { PUSH_NOTIFICATION_EVENTS } from "./notificationEmailPrefs.js";
-
-export { PUSH_NOTIFICATION_EVENTS };
 import {
   formatTelegramMessage,
   pickBillNumber,
   type CargoEvent,
 } from "./notificationPoll.js";
+
+export { PUSH_NOTIFICATION_EVENTS };
 
 export type PushNotificationTemplateEventId = (typeof PUSH_NOTIFICATION_EVENTS)[number];
 
@@ -32,16 +32,46 @@ export type PushNotificationTemplateMap = Map<
 >;
 
 export const PUSH_TEMPLATE_VARIABLES = [
-  { key: "cargo_number", hint: "Номер перевозки" },
-  { key: "number", hint: "Номер перевозки (алиас)" },
-  { key: "stage_label", hint: "Название этапа" },
-  { key: "mest", hint: "Число мест" },
-  { key: "w", hint: "Вес, кг" },
-  { key: "pw", hint: "Платный вес, кг" },
-  { key: "volume", hint: "Объём" },
-  { key: "sender", hint: "Отправитель" },
-  { key: "receiver", hint: "Получатель" },
-  { key: "bill_sum", hint: "Сумма счёта, ₽" },
+  {
+    key: "cargo_number",
+    hint: "Номер перевозки из 1С (поле Number), как в карточке груза",
+  },
+  {
+    key: "number",
+    hint: "То же, что {cargo_number} — алиас для совместимости со старыми шаблонами",
+  },
+  {
+    key: "stage_label",
+    hint: "Название события или этапа: «Доставлена», «Отправлена», «Создан счёт» и т.п.",
+  },
+  {
+    key: "mest",
+    hint: "Количество мест (из 1С, поле Mest)",
+  },
+  {
+    key: "w",
+    hint: "Фактический вес груза, кг (из 1С, поле W)",
+  },
+  {
+    key: "pw",
+    hint: "Платный (расчётный) вес, кг (из 1С, поле PW)",
+  },
+  {
+    key: "volume",
+    hint: "Объём груза, м³ (из 1С, поле Value)",
+  },
+  {
+    key: "sender",
+    hint: "Отправитель (из 1С, поле Sender)",
+  },
+  {
+    key: "receiver",
+    hint: "Получатель (из 1С, поле Receiver или Poluchatel)",
+  },
+  {
+    key: "bill_sum",
+    hint: "Сумма счёта в рублях с форматированием (из 1С: SumDoc, SumBill и др.)",
+  },
 ] as const;
 
 function eventLabel(eventId: PushNotificationTemplateEventId): string {

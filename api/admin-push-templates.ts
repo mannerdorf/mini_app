@@ -9,6 +9,7 @@ import { withErrorLog } from "../lib/requestErrorLog.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import {
   PUSH_NOTIFICATION_EVENTS,
+  PUSH_TEMPLATE_VARIABLES,
   type PushNotificationTemplateEventId,
   listPushNotificationTemplates,
   savePushNotificationTemplates,
@@ -54,18 +55,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         ok: true,
         templates,
         notice,
-        variables: [
-          { key: "cargo_number", hint: "Номер перевозки" },
-          { key: "number", hint: "Номер перевозки (алиас)" },
-          { key: "stage_label", hint: "Название этапа" },
-          { key: "mest", hint: "Число мест" },
-          { key: "w", hint: "Вес, кг" },
-          { key: "pw", hint: "Платный вес, кг" },
-          { key: "volume", hint: "Объём" },
-          { key: "sender", hint: "Отправитель" },
-          { key: "receiver", hint: "Получатель" },
-          { key: "bill_sum", hint: "Сумма счёта" },
-        ],
+        variables: PUSH_TEMPLATE_VARIABLES.map(({ key, hint }) => ({ key, hint })),
         request_id: ctx.requestId,
       });
     }
