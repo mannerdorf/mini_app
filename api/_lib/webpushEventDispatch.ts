@@ -21,6 +21,7 @@ import {
 import {
   loadCargoCustomerInnByNumbers,
   resolveNotificationCargoOwnerInn,
+  shouldDeliverNotificationToSubscriber,
 } from "../../lib/notificationCargoOwnerInn.js";
 import { loadPushNotificationTemplates, formatPushNotificationMessage } from "../../lib/pushNotificationTemplates.js";
 
@@ -96,6 +97,7 @@ async function ensureNotificationTables(pool: Pool) {
       cargo_number text not null,
       event text not null,
       channel text not null default 'web',
+      cargo_inn text,
       sent_at timestamptz not null default now(),
       telegram_chat_id text,
       success boolean not null default true,
@@ -135,21 +137,35 @@ export async function dispatchWebPushCargoEvents(params: {
     return { ok: true, source, scanned: 0, changed: 0, attempted: 0, delivered: 0, failed: 0, deduped: 0, cleanedSubscriptions: 0 };
   }
 
-  const ownerInnByCargo = await loadCargoCustomerInnByNumbers(
+  const { byNumber: ownerInnByCargo, loaded: ownerInnCacheLoaded } = await loadCargoCustomerInnByNumbers(
     pool,
     rawPrepared.map((x) => x.cargoNumber),
   );
   const prepared = rawPrepared
     .map((row) => {
-      const inn =
-        resolveNotificationCargoOwnerInn(row.raw as Record<string, unknown>, ownerInnByCargo) ||
-        normalizeInn(row.raw as CargoSnapshotItem);
-      return { ...row, inn };
+      const cargoInn = resolveNotificationCargoOwnerInn(row.raw as Record<string, unknown>, ownerInnByCargo, {
+        strictCache: ownerInnCacheLoaded,
+      });
+      return { ...row, inn: cargoInn };
     })
     .filter((x) => x.inn && x.cargoNumber);
 
   if (prepared.length === 0) {
     return { ok: true, source, scanned: rawPrepared.length, changed: 0, attempted: 0, delivered: 0, failed: 0, deduped: 0, cleanedSubscriptions: 0 };
+  }
+
+  if (!ownerInnCacheLoaded) {
+    return {
+      ok: true,
+      source,
+      scanned: rawPrepared.length,
+      changed: 0,
+      attempted: 0,
+      delivered: 0,
+      failed: 0,
+      deduped: 0,
+      cleanedSubscriptions: 0,
+    };
   }
 
   try {
@@ -300,6 +316,15 @@ export async function dispatchWebPushCargoEvents(params: {
 
     for (const event of eventsToSend) {
       for (const [login, eventsEnabled] of subscribers.entries()) {
+        if (
+          !shouldDeliverNotificationToSubscriber({
+            subscriberInn: item.inn,
+            cargoInn: item.inn,
+            loginScope: scopes.get(login),
+          })
+        ) {
+          continue;
+        }
         if (!isOptInNotificationEventEnabled(eventsEnabled, event)) continue;
         if (
           await wasSuccessfulNotificationDelivery(pool, {
@@ -344,15 +369,24 @@ export async function dispatchWebPushCargoEvents(params: {
         try {
           await pool.query(
             `insert into notification_deliveries (
-              poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message
-            ) values ($1,$2,$3,$4,$5,'web',null,$6,$7)`,
-            [null, login, item.inn, item.cargoNumber, event, sendResult.ok, sendResult.error || null]
+              poll_run_id, login, inn, cargo_inn, cargo_number, event, channel, telegram_chat_id, success, error_message
+            ) values ($1,$2,$3,$4,$5,$6,'web',null,$7,$8)`,
+            [null, login, item.inn, item.inn, item.cargoNumber, event, sendResult.ok, sendResult.error || null]
           );
         } catch {
           // Delivery log is best-effort.
         }
       }
       for (const [login, eventsEnabled] of pushSubscribers.entries()) {
+        if (
+          !shouldDeliverNotificationToSubscriber({
+            subscriberInn: item.inn,
+            cargoInn: item.inn,
+            loginScope: scopes.get(login),
+          })
+        ) {
+          continue;
+        }
         const activation = activationByLogin.get(login)?.get(item.inn) || null;
         if (
           !isPushEventAllowedForInn({
@@ -401,6 +435,7 @@ export async function dispatchWebPushCargoEvents(params: {
           delivery: {
             event,
             inn: String(item.inn || "").trim(),
+            cargoInn: String(item.inn || "").trim(),
             cargoNumber: item.cargoNumber,
             title: message.title,
             body: message.body,

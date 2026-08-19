@@ -3,6 +3,7 @@ import {
   cargoNumberLookupKeys,
   notificationCargoBelongsToInn,
   resolveNotificationCargoOwnerInn,
+  shouldDeliverNotificationToSubscriber,
 } from "./notificationCargoOwnerInn.js";
 
 describe("cargoNumberLookupKeys", () => {
@@ -14,7 +15,7 @@ describe("cargoNumberLookupKeys", () => {
 });
 
 describe("resolveNotificationCargoOwnerInn", () => {
-  it("reads INN from item fields", () => {
+  it("reads INN from item fields when cache is not strict", () => {
     expect(resolveNotificationCargoOwnerInn({ INN: "7820046291", Number: "1" })).toBe("7820046291");
   });
 
@@ -23,6 +24,17 @@ describe("resolveNotificationCargoOwnerInn", () => {
     expect(
       resolveNotificationCargoOwnerInn({ Number: "000141572" }, cache),
     ).toBe("170110375480");
+  });
+
+  it("does not trust item INN when strict cache misses", () => {
+    const cache = new Map<string, string>();
+    expect(
+      resolveNotificationCargoOwnerInn(
+        { Number: "000141572", INN: "7820046291" },
+        cache,
+        { strictCache: true },
+      ),
+    ).toBe("");
   });
 });
 
@@ -52,7 +64,28 @@ describe("notificationCargoBelongsToInn", () => {
     ).toBe(true);
   });
 
-  it("rejects when owner unknown", () => {
-    expect(notificationCargoBelongsToInn({ Number: "999999999" }, "7820046291")).toBe(false);
+  it("rejects when owner unknown in strict cache mode", () => {
+    expect(
+      notificationCargoBelongsToInn({ Number: "999999999" }, "7820046291", new Map(), {
+        cacheLoaded: true,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("shouldDeliverNotificationToSubscriber", () => {
+  it("requires subscriber and cargo INN to match", () => {
+    expect(
+      shouldDeliverNotificationToSubscriber({
+        subscriberInn: "7820046291",
+        cargoInn: "170110375480",
+      }),
+    ).toBe(false);
+    expect(
+      shouldDeliverNotificationToSubscriber({
+        subscriberInn: "7820046291",
+        cargoInn: "7820046291",
+      }),
+    ).toBe(true);
   });
 });
