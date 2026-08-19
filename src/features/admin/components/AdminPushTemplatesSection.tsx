@@ -60,7 +60,6 @@ export function AdminPushTemplatesSection({ adminToken, onError }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [rows, setRows] = useState<EditableRow[]>([]);
-  const [variables, setVariables] = useState<Array<{ key: string; hint: string }>>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
@@ -73,14 +72,12 @@ export function AdminPushTemplatesSection({ adminToken, onError }: Props) {
     try {
       const data = await fetchAdminPushTemplates(adminToken);
       setRows(data.templates);
-      setVariables(data.variables);
       setNotice(data.notice ?? null);
       if (!data.templates.length) {
         setLoadError("API вернул пустой список шаблонов");
       }
     } catch (e: unknown) {
       setRows([]);
-      setVariables([]);
       const message = (e as Error)?.message || "Не удалось загрузить шаблоны push";
       setLoadError(message);
       onError?.(message);
@@ -141,47 +138,45 @@ export function AdminPushTemplatesSection({ adminToken, onError }: Props) {
         отправке.
       </Typography.Body>
 
-      {(variables.length > 0 ? variables : PUSH_TEMPLATE_VARIABLES).length > 0 ? (
-        <Panel
+      <Panel
+        style={{
+          padding: "0.65rem 0.75rem",
+          marginBottom: "0.75rem",
+          border: "1px solid var(--color-border)",
+          background: "var(--color-bg-secondary, #f8fafc)",
+        }}
+      >
+        <Typography.Body style={{ fontWeight: 600, fontSize: "0.8rem", marginBottom: "0.45rem" }}>
+          Переменные шаблона
+        </Typography.Body>
+        <Typography.Body
           style={{
-            padding: "0.65rem 0.75rem",
-            marginBottom: "0.75rem",
-            border: "1px solid var(--color-border)",
-            background: "var(--color-bg-secondary, #f8fafc)",
+            fontSize: "0.72rem",
+            color: "var(--color-text-secondary)",
+            marginBottom: "0.55rem",
+            lineHeight: 1.45,
           }}
         >
-          <Typography.Body style={{ fontWeight: 600, fontSize: "0.8rem", marginBottom: "0.45rem" }}>
-            Переменные шаблона
-          </Typography.Body>
-          <Typography.Body
-            style={{
-              fontSize: "0.72rem",
-              color: "var(--color-text-secondary)",
-              marginBottom: "0.55rem",
-              lineHeight: 1.45,
-            }}
-          >
-            Вставляйте в текст в фигурных скобках — при отправке подставятся данные перевозки из 1С.
-          </Typography.Body>
-          <div style={{ display: "grid", gap: "0.35rem" }}>
-            {(variables.length > 0 ? variables : PUSH_TEMPLATE_VARIABLES).map((v) => (
-              <div
-                key={v.key}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(7rem, auto) 1fr",
-                  gap: "0.5rem",
-                  alignItems: "start",
-                  fontSize: "0.75rem",
-                }}
-              >
-                <code style={{ whiteSpace: "nowrap" }}>{`{${v.key}}`}</code>
-                <span style={{ color: "var(--color-text-secondary)", lineHeight: 1.4 }}>{v.hint}</span>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      ) : null}
+          Вставляйте в текст в фигурных скobках — при отправке подставятся данные перевозки из 1С.
+        </Typography.Body>
+        <div style={{ display: "grid", gap: "0.35rem" }}>
+          {PUSH_TEMPLATE_VARIABLES.map((v) => (
+            <div
+              key={v.key}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(7rem, auto) 1fr",
+                gap: "0.5rem",
+                alignItems: "start",
+                fontSize: "0.75rem",
+              }}
+            >
+              <code style={{ whiteSpace: "nowrap" }}>{`{${v.key}}`}</code>
+              <span style={{ color: "var(--color-text-secondary)", lineHeight: 1.4 }}>{v.hint}</span>
+            </div>
+          ))}
+        </div>
+      </Panel>
 
       {notice ? (
         <Typography.Body style={{ fontSize: "0.78rem", color: "#b45309", marginBottom: "0.75rem" }}>
