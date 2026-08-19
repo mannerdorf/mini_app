@@ -239,6 +239,12 @@ export async function loadPushNotificationTemplates(pool: Pool): Promise<PushNot
 }
 
 export async function listPushNotificationTemplates(pool: Pool): Promise<PushNotificationTemplateRow[]> {
+  try {
+    await ensurePushNotificationTemplatesTable(pool);
+  } catch {
+    // best-effort: таблица может быть создана миграцией или ensure на первом GET
+  }
+
   const defaults = defaultPushNotificationTemplates();
   const fromDb = await loadPushNotificationTemplates(pool);
   return defaults.map((row) => {

@@ -69,6 +69,7 @@ export type AdminPushTemplatesResult = {
   ok: boolean;
   templates: AdminPushTemplateRow[];
   variables: AdminPushTemplateVariable[];
+  notice?: string;
 };
 
 export async function fetchAdminPushTemplates(adminToken: string): Promise<AdminPushTemplatesResult> {
@@ -81,6 +82,7 @@ export async function fetchAdminPushTemplates(adminToken: string): Promise<Admin
     ok: true,
     templates: Array.isArray(data.templates) ? data.templates : [],
     variables: Array.isArray(data.variables) ? data.variables : [],
+    notice: data.notice,
   };
 }
 

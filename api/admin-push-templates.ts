@@ -12,6 +12,7 @@ import {
   type PushNotificationTemplateEventId,
   listPushNotificationTemplates,
   savePushNotificationTemplates,
+  defaultPushNotificationTemplates,
 } from "../lib/pushNotificationTemplates.js";
 
 function parseJsonBody(req: VercelRequest): Record<string, unknown> {
@@ -40,10 +41,19 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const pool = getPool();
 
     if (req.method === "GET") {
-      const templates = await listPushNotificationTemplates(pool);
+      let templates;
+      let notice: string | undefined;
+      try {
+        templates = await listPushNotificationTemplates(pool);
+      } catch (e: unknown) {
+        templates = defaultPushNotificationTemplates();
+        notice = `Не удалось прочитать шаблоны из БД: ${(e as Error)?.message || String(e)}. Показаны значения по умолчанию.`;
+        logError(ctx, "admin_push_templates_list_fallback", e);
+      }
       return res.status(200).json({
         ok: true,
         templates,
+        notice,
         variables: [
           { key: "cargo_number", hint: "Номер перевозки" },
           { key: "number", hint: "Номер перевозки (алиас)" },

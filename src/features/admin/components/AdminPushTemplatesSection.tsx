@@ -60,18 +60,29 @@ export function AdminPushTemplatesSection({ adminToken, onError }: Props) {
   const [saving, setSaving] = useState(false);
   const [rows, setRows] = useState<EditableRow[]>([]);
   const [variables, setVariables] = useState<Array<{ key: string; hint: string }>>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
+    setNotice(null);
     onError?.(null);
     try {
       const data = await fetchAdminPushTemplates(adminToken);
       setRows(data.templates);
       setVariables(data.variables);
+      setNotice(data.notice ?? null);
+      if (!data.templates.length) {
+        setLoadError("API вернул пустой список шаблонов");
+      }
     } catch (e: unknown) {
       setRows([]);
-      onError?.((e as Error)?.message || "Не удалось загрузить шаблоны push");
+      setVariables([]);
+      const message = (e as Error)?.message || "Не удалось загрузить шаблоны push";
+      setLoadError(message);
+      onError?.(message);
     } finally {
       setLoading(false);
     }
@@ -136,15 +147,33 @@ export function AdminPushTemplatesSection({ adminToken, onError }: Props) {
         </Typography.Body>
       ) : null}
 
+      {notice ? (
+        <Typography.Body style={{ fontSize: "0.78rem", color: "#b45309", marginBottom: "0.75rem" }}>
+          {notice}
+        </Typography.Body>
+      ) : null}
+
       {loading ? (
         <Flex align="center" gap="0.5rem">
           <Loader2 className="w-4 h-4 animate-spin" />
           <Typography.Body style={{ fontSize: "0.85rem" }}>Загрузка шаблонов…</Typography.Body>
         </Flex>
-      ) : rows.length === 0 ? (
-        <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-          Шаблоны не загружены. Примените миграцию 095_push_notification_templates.sql на API-VPS.
-        </Typography.Body>
+      ) : loadError || rows.length === 0 ? (
+        <div>
+          <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #dc2626)", marginBottom: "0.75rem" }}>
+            {loadError || "Шаблоны не загружены"}
+          </Typography.Body>
+          <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+            На API-VPS:{" "}
+            <code style={{ fontSize: "0.75rem" }}>
+              source /opt/haulz/.env && psql &quot;$DATABASE_URL&quot; -f
+              /opt/haulz/app/migrations/095_push_notification_templates.sql
+            </code>
+          </Typography.Body>
+          <Button type="button" className="filter-button" onClick={() => void load()}>
+            Повторить
+          </Button>
+        </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
           {rows.map((row) => {
