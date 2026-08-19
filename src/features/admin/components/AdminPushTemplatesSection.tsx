@@ -160,16 +160,35 @@ export function AdminPushTemplatesSection({ adminToken, onError }: Props) {
         </Flex>
       ) : loadError || rows.length === 0 ? (
         <div>
-          <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #dc2626)", marginBottom: "0.75rem" }}>
+          <Typography.Body
+            style={{
+              display: "block",
+              fontSize: "0.85rem",
+              color: "var(--color-error, #dc2626)",
+              marginBottom: "0.75rem",
+            }}
+          >
             {loadError || "Шаблоны не загружены"}
           </Typography.Body>
-          <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
-            На API-VPS:{" "}
-            <code style={{ fontSize: "0.75rem" }}>
-              source /opt/haulz/.env && psql &quot;$DATABASE_URL&quot; -f
-              /opt/haulz/app/migrations/095_push_notification_templates.sql
-            </code>
-          </Typography.Body>
+          {loadError &&
+          (loadError.includes("Internal server error") ||
+            loadError.toLowerCase().includes("relation") ||
+            loadError.toLowerCase().includes("бд")) ? (
+            <Typography.Body
+              style={{
+                display: "block",
+                fontSize: "0.78rem",
+                color: "var(--color-text-secondary)",
+                marginBottom: "0.75rem",
+              }}
+            >
+              Если после обновления API ошибка сохраняется, на haulzbackend выполните:{" "}
+              <code style={{ display: "block", fontSize: "0.75rem", marginTop: "0.35rem" }}>
+                source /opt/haulz/.env && psql &quot;$DATABASE_URL&quot; -f
+                /opt/haulz/app/migrations/095_push_notification_templates.sql
+              </code>
+            </Typography.Body>
+          ) : null}
           <Button type="button" className="filter-button" onClick={() => void load()}>
             Повторить
           </Button>
