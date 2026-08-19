@@ -12,7 +12,6 @@ import {
   getCargoStageEventsOnStateChange,
   getPaymentKey,
   fetchPerevozkiByInn,
-  formatTelegramMessage,
   hasBillSignal,
   isCargoStageNotificationEnabled,
   isRecentNotificationItem,
@@ -29,6 +28,7 @@ import {
   notificationCargoBelongsToInn,
   resolveNotificationCargoOwnerInn,
 } from "../lib/notificationCargoOwnerInn.js";
+import { loadPushNotificationTemplates, formatPushNotificationMessage } from "../lib/pushNotificationTemplates.js";
 
 const CRON_SECRET = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
@@ -112,6 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const scopes = await loadPushLoginScopes(pool);
+    const pushTemplates = await loadPushNotificationTemplates(pool);
     const loginInnPairs: Array<{ login: string; inn: string }> = [];
     for (const scope of scopes.values()) {
       for (const inn of scope.inns) {
@@ -299,8 +300,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         for (const event of eventsToSend) {
-          const text = formatTelegramMessage(event, number, item);
-          const title = "HAULZ";
+          const message = formatPushNotificationMessage(event, number, item, pushTemplates);
+          const text = message.body;
+          const title = message.title;
           let docButton: Record<string, unknown> | undefined;
           if (event === "info_received" || event === "received_at_warehouse") {
             const erUrl = `${appDomain}/api/doc-short?metod=${encodeURIComponent("ЭР")}&number=${encodeURIComponent(number)}`;

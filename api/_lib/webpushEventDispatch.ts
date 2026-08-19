@@ -1,7 +1,6 @@
 import type { Pool } from "pg";
 import {
   CARGO_STAGE_EVENT_IDS,
-  formatTelegramMessage,
   getCargoStageEventsOnStateChange,
   getPaymentKey,
   hasBillSignal,
@@ -23,6 +22,7 @@ import {
   loadCargoCustomerInnByNumbers,
   resolveNotificationCargoOwnerInn,
 } from "../../lib/notificationCargoOwnerInn.js";
+import { loadPushNotificationTemplates, formatPushNotificationMessage } from "../../lib/pushNotificationTemplates.js";
 
 type CargoSnapshotItem = {
   inn?: unknown;
@@ -157,6 +157,8 @@ export async function dispatchWebPushCargoEvents(params: {
   } catch {
     // Continue even if DDL was rejected by permissions.
   }
+
+  const pushTemplates = await loadPushNotificationTemplates(pool);
 
   const inns = Array.from(new Set(prepared.map((x) => x.inn)));
   const cargoNumbers = Array.from(new Set(prepared.map((x) => x.cargoNumber)));
@@ -329,10 +331,10 @@ export async function dispatchWebPushCargoEvents(params: {
           continue;
         }
         attempted += 1;
-        const body = formatTelegramMessage(event, item.cargoNumber, item.raw as any);
+        const message = formatPushNotificationMessage(event, item.cargoNumber, item.raw as Record<string, unknown>, pushTemplates);
         const sendResult = await sendWebPushToLogin(login, {
-          title: "HAULZ",
-          body,
+          title: message.title,
+          body: message.body,
           url: eventUrl(event, item.cargoNumber),
           tag: `${event}:${item.cargoNumber}`,
         });
@@ -391,17 +393,17 @@ export async function dispatchWebPushCargoEvents(params: {
           continue;
         }
         attempted += 1;
-        const body = formatTelegramMessage(event, item.cargoNumber, item.raw as any);
+        const message = formatPushNotificationMessage(event, item.cargoNumber, item.raw as Record<string, unknown>, pushTemplates);
         const sendResult = await sendFcmToLogin(login, {
-          title: "HAULZ",
-          body,
+          title: message.title,
+          body: message.body,
           url: eventUrl(event, item.cargoNumber),
           delivery: {
             event,
             inn: String(item.inn || "").trim(),
             cargoNumber: item.cargoNumber,
-            title: "HAULZ",
-            body,
+            title: message.title,
+            body: message.body,
           },
         });
         if (sendResult.sent > 0) delivered += 1;

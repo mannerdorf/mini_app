@@ -49,6 +49,64 @@ export type AdminPushSendResult = {
   failures?: Array<{ login: string; error?: string }>;
 };
 
+export type AdminPushTemplateVariable = {
+  key: string;
+  hint: string;
+};
+
+export type AdminPushTemplateRow = {
+  eventId: string;
+  label: string;
+  titleTemplate: string;
+  bodyTemplate: string;
+  enabled: boolean;
+  isDefault: boolean;
+  updatedAt: string | null;
+  updatedBy: string | null;
+};
+
+export type AdminPushTemplatesResult = {
+  ok: boolean;
+  templates: AdminPushTemplateRow[];
+  variables: AdminPushTemplateVariable[];
+};
+
+export async function fetchAdminPushTemplates(adminToken: string): Promise<AdminPushTemplatesResult> {
+  const res = await fetch("/api/admin-push-templates", {
+    headers: adminAuthHeaders(adminToken),
+  });
+  const data = (await res.json().catch(() => ({}))) as AdminPushTemplatesResult & { error?: string };
+  if (!res.ok) throw new Error(formatAdminPushApiError(data, "Ошибка загрузки шаблонов push"));
+  return {
+    ok: true,
+    templates: Array.isArray(data.templates) ? data.templates : [],
+    variables: Array.isArray(data.variables) ? data.variables : [],
+  };
+}
+
+export async function saveAdminPushTemplates(
+  adminToken: string,
+  templates: Array<{
+    eventId: string;
+    titleTemplate: string;
+    bodyTemplate: string;
+    enabled: boolean;
+  }>,
+): Promise<AdminPushTemplatesResult> {
+  const res = await fetch("/api/admin-push-templates", {
+    method: "PUT",
+    headers: adminAuthHeaders(adminToken, { "Content-Type": "application/json" }),
+    body: JSON.stringify({ templates }),
+  });
+  const data = (await res.json().catch(() => ({}))) as AdminPushTemplatesResult & { error?: string };
+  if (!res.ok) throw new Error(formatAdminPushApiError(data, "Ошибка сохранения шаблонов push"));
+  return {
+    ok: true,
+    templates: Array.isArray(data.templates) ? data.templates : [],
+    variables: Array.isArray(data.variables) ? data.variables : [],
+  };
+}
+
 export async function postAdminPushPreview(
   adminToken: string,
   audience: AdminPushAudience,
