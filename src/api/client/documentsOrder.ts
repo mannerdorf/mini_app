@@ -180,22 +180,62 @@ export type DocumentsOrder1cSubmitPayload = {
   }>;
 };
 
+export type DocumentsOrder1cSubmitResult = {
+  ok: boolean;
+  status: number;
+  nomerZayavki: string | null;
+  message: string;
+  error?: string;
+  /** Сырой ответ 1С / API (для песочницы в форме заявки). */
+  upstream?: unknown;
+  request_id?: string;
+  raw?: unknown;
+};
+
+export class DocumentsOrder1cSubmitError extends Error {
+  status: number;
+  upstream?: unknown;
+  request_id?: string;
+  raw?: unknown;
+
+  constructor(message: string, opts: { status: number; upstream?: unknown; request_id?: string; raw?: unknown }) {
+    super(message);
+    this.name = "DocumentsOrder1cSubmitError";
+    this.status = opts.status;
+    this.upstream = opts.upstream;
+    this.request_id = opts.request_id;
+    this.raw = opts.raw;
+  }
+}
+
 export async function submitOrderTo1c(
   auth: DocumentsAuthScope,
   order: DocumentsOrder1cSubmitPayload,
-): Promise<{ ok: true; nomerZayavki: string | null; message: string }> {
+): Promise<DocumentsOrder1cSubmitResult> {
   const res = await fetch("/api/orders/submit-1c", {
     method: "POST",
     headers: authHeaders(auth),
-    body: authBody(auth, order),
+    body: authBody(auth, { order }),
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(parseError(res, data));
-  const d = data as { nomerZayavki?: string | null; message?: string };
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  const upstream = data.upstream ?? data;
+  const requestId = typeof data.request_id === "string" ? data.request_id : undefined;
+  if (!res.ok) {
+    throw new DocumentsOrder1cSubmitError(parseError(res, data), {
+      status: res.status,
+      upstream,
+      request_id: requestId,
+      raw: data,
+    });
+  }
   return {
     ok: true,
-    nomerZayavki: d.nomerZayavki ?? null,
-    message: d.message || "Заявка передана в 1С",
+    status: res.status,
+    nomerZayavki: (data.nomerZayavki as string | null | undefined) ?? null,
+    message: typeof data.message === "string" ? data.message : "Заявка передана в 1С",
+    upstream,
+    request_id: requestId,
+    raw: data,
   };
 }
 
