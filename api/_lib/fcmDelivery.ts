@@ -3,7 +3,10 @@ import { getPool } from "../_db.js";
 
 export type FcmDeliveryLog = {
   event: string;
+  /** ИНН подписчика (скоуп login). */
   inn?: string;
+  /** ИНН заказчика перевозки из cache. */
+  cargoInn?: string;
   cargoNumber?: string;
   title?: string;
   body?: string;
@@ -30,6 +33,8 @@ export async function logPushDelivery(params: {
   const pushTitle = String(params.title ?? params.delivery.title ?? "").trim();
   const pushBody = String(params.body ?? params.delivery.body ?? "").trim();
   const event = String(params.delivery.event || "push").trim() || "push";
+  const subscriberInn = String(params.delivery.inn || "").trim();
+  const cargoInn = String(params.delivery.cargoInn || params.delivery.inn || "").trim();
   const explicitCargo = String(params.delivery.cargoNumber || "").trim();
   // cargo_number — fallback для старых APK/схемы: для broadcast кладём текст сообщения.
   const cargoNumber =
@@ -40,11 +45,12 @@ export async function logPushDelivery(params: {
     const pool = getPool();
     await pool.query(
       `INSERT INTO notification_deliveries (
-         poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message, push_title, push_body
-       ) VALUES (NULL, $1, $2, $3, $4, 'push', NULL, $5, $6, $7, $8)`,
+         poll_run_id, login, inn, cargo_inn, cargo_number, event, channel, telegram_chat_id, success, error_message, push_title, push_body
+       ) VALUES (NULL, $1, $2, $3, $4, $5, 'push', NULL, $6, $7, $8, $9)`,
       [
         login,
-        String(params.delivery.inn || "").trim(),
+        subscriberInn,
+        cargoInn || null,
         cargoNumber,
         event,
         params.success,
@@ -64,7 +70,7 @@ export async function logPushDelivery(params: {
          ) VALUES (NULL, $1, $2, $3, $4, 'push', NULL, $5, $6)`,
         [
           login,
-          String(params.delivery.inn || "").trim(),
+          subscriberInn,
           cargoNumber,
           event,
           params.success,
@@ -205,6 +211,16 @@ export async function sendFcmToLogin(
 ): Promise<{ ok: boolean; sent: number; failed: number; removed: number; error?: string }> {
   const login = String(loginRaw || "").trim().toLowerCase();
   if (!login) return { ok: false, sent: 0, failed: 0, removed: 0, error: "login is required" };
+
+  if (payload.delivery) {
+    const subscriberInn = String(payload.delivery.inn || "").replace(/\D/g, "").trim();
+    const cargoInn = String(payload.delivery.cargoInn || payload.delivery.inn || "").replace(/\D/g, "").trim();
+    if (subscriberInn && cargoInn && subscriberInn !== cargoInn) {
+      const error = "cargo INN mismatch";
+      await logPushDelivery({ login, delivery: payload.delivery, success: false, error, title: payload.title, body: payload.body });
+      return { ok: false, sent: 0, failed: 0, removed: 0, error };
+    }
+  }
 
   const messaging = await getMessaging();
   if (!messaging) {

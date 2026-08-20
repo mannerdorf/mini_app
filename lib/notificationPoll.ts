@@ -7,6 +7,7 @@ import {
   cargoStageEventLabel,
   type CargoStageEventId,
 } from "./notificationCargoEvents.js";
+import { getOrderCustomerInn } from "./orderCustomerScope.js";
 import { normalizeNotificationInn } from "./notificationInnScope.js";
 
 export type { CargoStageEventId } from "./notificationCargoEvents.js";
@@ -43,6 +44,10 @@ function pickFirst(item: any, keys: string[]): unknown {
 const BILL_NUMBER_KEYS = [
   "NumberBill",
   "BillNumber",
+  "BillNum",
+  "Bill_Number",
+  "billnum",
+  "bill_number",
   "Invoice",
   "InvoiceNumber",
   "Счет",
@@ -53,15 +58,20 @@ const BILL_NUMBER_KEYS = [
 
 /** ИНН заказчика из записи перевозки/счёта (как в perevozki API). */
 export function notificationItemInn(item: any): string {
+  const fromOrder = getOrderCustomerInn(item);
+  if (fromOrder) return fromOrder;
   const v =
-    item?.INN ??
-    item?.Inn ??
-    item?.inn ??
+    item?.КлиентИНН ??
+    item?.КлиентИнн ??
+    item?.ИННЗаказчика ??
     item?.CustomerINN ??
     item?.CustomerInn ??
     item?.customerInn ??
     item?.INNCustomer ??
     item?.InnCustomer ??
+    item?.INN ??
+    item?.Inn ??
+    item?.inn ??
     item?.ЗаказчикИНН ??
     "";
   return normalizeNotificationInn(v);

@@ -1,6 +1,12 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import {
+  deviceTokenSuffix,
+  ensurePushControlTables,
+  writePushControlJournal,
+} from "../lib/pushControl.js";
+import { loadPushLoginScopes } from "../lib/notificationInnScope.js";
 
 /** POST { login, token? } — удалить FCM token (или все токены login, если token не передан). */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -33,12 +39,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    try {
+      await ensurePushControlTables(pool);
+    } catch {
+      // optional
+    }
+
     if (token) {
       await pool.query("delete from fcm_device_tokens where login = $1 and token = $2", [login, token]);
     } else {
       await pool.query("delete from fcm_device_tokens where login = $1", [login]);
     }
-    return res.status(200).json({ ok: true, request_id: ctx.requestId });
+
+    let inns: string[] = [];
+    try {
+      const scopes = await loadPushLoginScopes(pool);
+      inns = [...(scopes.get(login)?.inns || [])];
+    } catch {
+      inns = [];
+    }
+
+    const remaining = await pool.query<{ n: string }>(
+      "select count(*)::text as n from fcm_device_tokens where login = $1",
+      [login],
+    );
+    const devicesLeft = Number(remaining.rows[0]?.n || 0) || 0;
+
+    for (const inn of inns.length > 0 ? inns : [""]) {
+      await writePushControlJournal(pool, {
+        login,
+        inn,
+        action: "fcm_unsubscribe",
+        deviceTokenSuffix: deviceTokenSuffix(token),
+        meta: {
+          request_id: ctx.requestId,
+          all_tokens: !token,
+          devices_left: devicesLeft,
+        },
+      });
+    }
+
+    return res.status(200).json({ ok: true, devices_left: devicesLeft, request_id: ctx.requestId });
   } catch (e: unknown) {
     const code = (e as { code?: string })?.code;
     if (code === "42P01") {

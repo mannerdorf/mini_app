@@ -1,7 +1,8 @@
 import { Capacitor } from "@capacitor/core";
 import type { ActionPerformed, PushNotificationSchema, Token } from "@capacitor/push-notifications";
 import { isCapacitorAndroidApp } from "./androidAppUpdate";
-import { subscribeFcmToken, unsubscribeFcmToken } from "../api/client/notifications";
+import { saveNotificationPreferences, subscribeFcmToken, unsubscribeFcmToken } from "../api/client/notifications";
+import { buildAllPushPreferencesEnabled } from "../../lib/notificationEmailPrefs";
 
 let listenersAttached = false;
 let currentLogin = "";
@@ -85,14 +86,24 @@ export async function disableAndroidPushNotifications(login: string): Promise<{ 
   }
 }
 
-/** Повторная регистрация при смене аккаунта / входе в приложение. */
+/** При входе: запросить разрешение Android (первый раз), зарегистрировать FCM, включить все push-типы. */
 export async function syncAndroidPushNotifications(login: string): Promise<void> {
   if (!isCapacitorAndroidApp() || !login) return;
   try {
     const { PushNotifications } = await import("@capacitor/push-notifications");
     const perm = await PushNotifications.checkPermissions();
-    if (perm.receive !== "granted") return;
-    await enableAndroidPushNotifications(login);
+    // Явный отказ — не показываем диалог снова; включить можно в «Уведомления».
+    if (perm.receive === "denied") return;
+    const isFirstPrompt =
+      perm.receive === "prompt" || perm.receive === "prompt-with-rationale";
+    const result = await enableAndroidPushNotifications(login);
+    if (!result.ok) return;
+    if (isFirstPrompt) {
+      await saveNotificationPreferences(login, {
+        push: buildAllPushPreferencesEnabled(),
+        email: {},
+      }).catch(() => null);
+    }
   } catch {
     /* ignore background sync errors */
   }

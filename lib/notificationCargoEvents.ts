@@ -45,9 +45,10 @@ export function getCargoStageEventIdFromState(state: string | undefined): CargoS
   if (/отправленаваэропорт|загружена/.test(key)) return "loaded";
   if (/улетела/.test(key)) return "sent";
   if (/квручению|прибыла/.test(key)) return "arrived";
-  if (/поставленанадоставку|вместеприбытия/.test(key)) return "delivery_scheduled";
+  if (/запланирован|поставленанадоставку|вместеприбытия/.test(key)) return "delivery_scheduled";
   if (/доставлен|заверш/.test(key)) return "delivered";
-  if (/пути|отправлен/.test(key)) return "sent";
+  if (/пути/.test(key)) return "sent";
+  if (/^отправлен/.test(key)) return "sent";
   if (/полученаотзаказчика|полученанаскладе|получена/.test(key)) return "received_at_warehouse";
   if (/готовквыдаче|квыдаче/.test(key)) return "delivery_scheduled";
   if (/готов|принят|ответ/.test(key)) return "received_at_warehouse";
@@ -121,6 +122,19 @@ const LEGACY_ACCEPTED_STAGES: CargoStageEventId[] = [
 const LEGACY_IN_TRANSIT_STAGES: CargoStageEventId[] = ["loaded", "sent", "arrived"];
 const LEGACY_DELIVERED_STAGES: CargoStageEventId[] = ["delivery_scheduled", "delivered"];
 
+/** Старый coarse-ключ delivered (не granular-этап «Доставлена»). */
+export function isLegacyCoarseDeliveredFlag(prefs: Record<string, boolean> | undefined): boolean {
+  const src = prefs && typeof prefs === "object" ? prefs : {};
+  if (src.delivered !== true) return false;
+  // delivered:true без accepted/in_transit — granular-этап «Доставлена», не legacy.
+  if (src.accepted !== true && src.in_transit !== true) return false;
+  const hasOtherGranularStages = CARGO_STAGE_EVENT_IDS.some(
+    (id) => id !== "delivered" && typeof src[id] === "boolean",
+  );
+  if (hasOtherGranularStages) return false;
+  return true;
+}
+
 /** Учитывает старые ключи accepted / in_transit / delivered в сохранённых настройках. */
 export function isCargoStageNotificationEnabled(
   prefs: Record<string, boolean>,
@@ -130,7 +144,7 @@ export function isCargoStageNotificationEnabled(
   if (prefs[eventId] === false) return false;
   if (LEGACY_ACCEPTED_STAGES.includes(eventId) && prefs.accepted === true) return true;
   if (LEGACY_IN_TRANSIT_STAGES.includes(eventId) && prefs.in_transit === true) return true;
-  if (LEGACY_DELIVERED_STAGES.includes(eventId) && prefs.delivered === true) return true;
+  if (LEGACY_DELIVERED_STAGES.includes(eventId) && isLegacyCoarseDeliveredFlag(prefs)) return true;
   return false;
 }
 

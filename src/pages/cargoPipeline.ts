@@ -5,7 +5,7 @@ import {
   getPaymentFilterKey,
   getFilterKeyByStatus,
 } from "../lib/statusUtils";
-import { cityToCode, formatInvoiceNumber } from "../lib/formatUtils";
+import { cityToCode, formatInvoiceNumber, parseCargoNumbersFromText } from "../lib/formatUtils";
 import { cargoLastMileIsSelfPickup, cargoMatchesRoleFilter, cargoPickupLogisticsIsTerminalTo, type CargoRoleFilterKey } from "../lib/cargoUtils";
 import { getCargoTransportType } from "../lib/cargoTransportType";
 import type { TypeFilterKey } from "../lib/sharedListFilters";
@@ -158,6 +158,48 @@ function cargoItemSearchHaystack(item: CargoItem): string {
   return parts.join(" ");
 }
 
+type CargoSearchQuery =
+  | { mode: "cargo_number"; normalizedKeys: Set<string> }
+  | { mode: "text"; lower: string };
+
+function cargoNumberLookupKeys(raw: string): string[] {
+  const trimmed = String(raw ?? "").trim();
+  if (!trimmed) return [];
+  const keys = new Set<string>();
+  keys.add(normCargoKey(trimmed));
+  keys.add(normCargoKey(formatInvoiceNumber(trimmed)));
+  keys.add(normCargoKey(trimmed.replace(/^0000-/, "")));
+  return [...keys].filter(Boolean);
+}
+
+/** Если введён номер перевозки — ищем только по Number, без подстроки по суммам и прочим полям. */
+export function resolveCargoSearchQuery(searchText: string): CargoSearchQuery {
+  const trimmed = searchText.trim();
+  if (!trimmed) return { mode: "text", lower: "" };
+
+  if (/^(0000-)?\d{5,9}$/.test(trimmed)) {
+    return { mode: "cargo_number", normalizedKeys: new Set(cargoNumberLookupKeys(trimmed)) };
+  }
+
+  const parts = parseCargoNumbersFromText(trimmed);
+  const cargoParts = parts.filter((p) => p.type === "cargo");
+  const hasOtherText = parts.some((p) => p.type === "text" && p.value.trim());
+  if (!hasOtherText && cargoParts.length > 0) {
+    const normalizedKeys = new Set<string>();
+    for (const part of cargoParts) {
+      for (const key of cargoNumberLookupKeys(part.value)) normalizedKeys.add(key);
+    }
+    for (const key of cargoNumberLookupKeys(trimmed)) normalizedKeys.add(key);
+    return { mode: "cargo_number", normalizedKeys };
+  }
+
+  return { mode: "text", lower: trimmed.toLowerCase() };
+}
+
+function cargoItemMatchesCargoNumberKeys(item: CargoItem, normalizedKeys: Set<string>): boolean {
+  return cargoNumberLookupKeys(String(item.Number ?? "")).some((key) => normalizedKeys.has(key));
+}
+
 const getCargoTransportCandidates = (item: CargoItem): string[] => {
   const explicit = [
     (item as any)?.AutoReg,
@@ -208,12 +250,17 @@ export function buildFilteredCargoItems(
   }
 
   if (searchText) {
-    const lower = searchText.toLowerCase();
-    res = res.filter((i) => {
-      const cargoKey = normCargoKey(String(i.Number ?? ""));
-      const linkedSearchText = cargoSearchTextByNumber?.get(cargoKey) ?? "";
-      return `${cargoItemSearchHaystack(i)} ${linkedSearchText}`.toLowerCase().includes(lower);
-    });
+    const query = resolveCargoSearchQuery(searchText);
+    if (query.mode === "cargo_number") {
+      res = res.filter((i) => cargoItemMatchesCargoNumberKeys(i, query.normalizedKeys));
+    } else {
+      const lower = query.lower;
+      res = res.filter((i) => {
+        const cargoKey = normCargoKey(String(i.Number ?? ""));
+        const linkedSearchText = cargoSearchTextByNumber?.get(cargoKey) ?? "";
+        return `${cargoItemSearchHaystack(i)} ${linkedSearchText}`.toLowerCase().includes(lower);
+      });
+    }
   }
 
   if (statusFilterSet.size > 0) {

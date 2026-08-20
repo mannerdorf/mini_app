@@ -156,6 +156,49 @@ export type DocumentsOrderSubmitPayload = DocumentsOrderQuotePayload & {
   attachments?: DocumentsOrderAttachment[];
 };
 
+export type DocumentsOrder1cSubmitPayload = {
+  ЗаказчикИНН: string;
+  ОтправительИНН?: string;
+  ПолучательИНН?: string;
+  ПунктОтправки: string;
+  ПунктНазначения: string;
+  ДатаЗабораПлан: string;
+  ОГ?: boolean;
+  НомерЗаявкиКлиента?: string;
+  Посылки: Array<{
+    ШтрихкодЗаказчика: string;
+    ШтрихкодЗаказчика2?: string;
+    Ид?: string;
+    Товары: Array<{
+      ИДОтправления?: string;
+      ID?: string;
+      Name: string;
+      ТМЦ?: string;
+      Количество: number;
+      ОбъявленнаяСтоимостьТовара: number;
+    }>;
+  }>;
+};
+
+export async function submitOrderTo1c(
+  auth: DocumentsAuthScope,
+  order: DocumentsOrder1cSubmitPayload,
+): Promise<{ ok: true; nomerZayavki: string | null; message: string }> {
+  const res = await fetch("/api/orders/submit-1c", {
+    method: "POST",
+    headers: authHeaders(auth),
+    body: authBody(auth, order),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(parseError(res, data));
+  const d = data as { nomerZayavki?: string | null; message?: string };
+  return {
+    ok: true,
+    nomerZayavki: d.nomerZayavki ?? null,
+    message: d.message || "Заявка передана в 1С",
+  };
+}
+
 export async function submitDocumentsOrder(
   auth: DocumentsAuthScope,
   payload: DocumentsOrderSubmitPayload,

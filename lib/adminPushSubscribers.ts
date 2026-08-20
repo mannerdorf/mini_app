@@ -18,6 +18,8 @@ export type AdminPushSubscriber = {
   pushCompanies: AdminPushSubscriberCompany[];
   /** Все привязки в account_companies + ИНН профиля. */
   accountCompanies: AdminPushSubscriberCompany[];
+  /** Включённые типы автопуша по реестру push_activation (или пусто — legacy prefs). */
+  enabledEvents: string[];
 };
 
 type TokenRow = {
@@ -143,6 +145,26 @@ export async function loadAdminPushSubscribers(pool: Pool): Promise<AdminPushSub
     }
   }
 
+  const enabledEventsByLogin = new Map<string, Set<string>>();
+  try {
+    const act = await pool.query<{ login: string; event_id: string }>(
+      `SELECT lower(trim(login)) AS login, event_id
+       FROM push_activation
+       WHERE lower(trim(login)) = ANY($1::text[])
+         AND enabled = true`,
+      [logins],
+    );
+    for (const row of act.rows) {
+      const login = String(row.login || "").trim().toLowerCase();
+      const eventId = String(row.event_id || "").trim();
+      if (!login || !eventId) continue;
+      if (!enabledEventsByLogin.has(login)) enabledEventsByLogin.set(login, new Set());
+      enabledEventsByLogin.get(login)!.add(eventId);
+    }
+  } catch {
+    // push_activation may be missing before migration 092
+  }
+
   return tokenRows.rows.map((row) => {
     const login = String(row.login || "").trim().toLowerCase();
     const scope = scopes.get(login);
@@ -164,6 +186,7 @@ export async function loadAdminPushSubscribers(pool: Pool): Promise<AdminPushSub
       boundFromProfile: scope?.boundFromProfile === true,
       pushCompanies: mergeCompanyNames(scope?.inns || [], nameByInn),
       accountCompanies: mergeCompanyNames(accountInns, nameByInn),
+      enabledEvents: [...(enabledEventsByLogin.get(login) || [])].sort(),
     };
   });
 }
