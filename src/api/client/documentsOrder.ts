@@ -215,13 +215,9 @@ export async function submitOrderTo1c(
   auth: DocumentsAuthScope,
   order: DocumentsOrder1cSubmitPayload,
 ): Promise<DocumentsOrder1cSubmitResult> {
-  // VPS уже обслуживает /api/orders/submit-1c; flat/documents — после sync / на Vercel.
-  const endpoints = [
-    "/api/orders/submit-1c",
-    "/api/order-submit-1c",
-    "/api/documents/order-submit-1c",
-  ] as const;
-  let lastError: DocumentsOrder1cSubmitError | null = null;
+  // На VPS (haulz.space) сейчас живёт только этот путь. Остальные — после sync staging.
+  const endpoints = ["/api/orders/submit-1c"] as const;
+  const attempts: Array<Record<string, unknown>> = [];
   const body = authBody(auth, { order });
   const headers = authHeaders(auth);
 
@@ -239,15 +235,9 @@ export async function submitOrderTo1c(
       received_method: data.received_method ?? null,
       http_status: res.status,
     };
+    attempts.push({ ...meta, error: data.error ?? null });
 
-    // На Vercel старый nested path может отдавать 405 из‑за конфликта с api/orders.
     if (res.status === 404 || res.status === 405) {
-      lastError = new DocumentsOrder1cSubmitError(parseError(res.status, data), {
-        status: res.status,
-        upstream,
-        request_id: requestId,
-        raw: { ...data, ...meta },
-      });
       continue;
     }
 
@@ -256,7 +246,7 @@ export async function submitOrderTo1c(
         status: res.status,
         upstream,
         request_id: requestId,
-        raw: { ...data, ...meta },
+        raw: { ...data, ...meta, attempts },
       });
     }
 
@@ -267,13 +257,19 @@ export async function submitOrderTo1c(
       message: typeof data.message === "string" ? data.message : "Заявка передана в 1С",
       upstream,
       request_id: requestId,
-      raw: { ...data, ...meta },
+      raw: { ...data, ...meta, attempts },
     };
   }
 
-  throw (
-    lastError ||
-    new DocumentsOrder1cSubmitError("Не найден API оформления заявки в 1С", { status: 404 })
+  const last = attempts[attempts.length - 1] || {};
+  throw new DocumentsOrder1cSubmitError(
+    String(last.error || "API оформления заявки в 1С недоступен") +
+      " — нужен sync VPS: cd /opt/haulz/app && git fetch origin staging && git reset --hard origin/staging && bash deploy/vps-sync-main.sh",
+    {
+      status: Number(last.http_status) || 404,
+      upstream: last,
+      raw: { attempts, hint: "VPS must serve POST /api/orders/submit-1c" },
+    },
   );
 }
 
