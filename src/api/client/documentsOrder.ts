@@ -181,8 +181,6 @@ export type DocumentsOrder1cSubmitPayload = {
   }>;
 };
 
-import { postJsonXhr } from "./postJsonXhr";
-
 export type DocumentsOrder1cSubmitResult = {
   ok: boolean;
   status: number;
@@ -215,23 +213,31 @@ export async function submitOrderTo1c(
   auth: DocumentsAuthScope,
   order: DocumentsOrder1cSubmitPayload,
 ): Promise<DocumentsOrder1cSubmitResult> {
-  // На VPS (haulz.space) сейчас живёт только этот путь. Остальные — после sync staging.
-  const endpoints = ["/api/orders/submit-1c"] as const;
+  // Как order-quote / order-submit: same-origin на Vercel (без конфликта api/orders.ts).
+  // /api/orders/submit-1c на Vercel ломается; на VPS его можно держать как запасной путь.
+  const endpoints = [
+    "/api/documents/order-submit-1c",
+    "/api/order-submit-1c",
+    "/api/orders/submit-1c",
+  ] as const;
   const attempts: Array<Record<string, unknown>> = [];
   const body = authBody(auth, { order });
   const headers = authHeaders(auth);
 
   for (const endpoint of endpoints) {
-    const res = await postJsonXhr(endpoint, headers, body);
-    const data =
-      res.data && typeof res.data === "object" && !Array.isArray(res.data)
-        ? (res.data as Record<string, unknown>)
-        : ({ raw: res.data } as Record<string, unknown>);
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers,
+      body,
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     const upstream = data.upstream ?? data;
     const requestId = typeof data.request_id === "string" ? data.request_id : undefined;
     const meta = {
-      endpoint: res.url,
-      client_method: res.method,
+      endpoint,
+      client_method: "POST",
       received_method: data.received_method ?? null,
       http_status: res.status,
     };
@@ -241,7 +247,7 @@ export async function submitOrderTo1c(
       continue;
     }
 
-    if (res.status < 200 || res.status >= 300) {
+    if (!res.ok) {
       throw new DocumentsOrder1cSubmitError(parseError(res.status, data), {
         status: res.status,
         upstream,
@@ -262,15 +268,11 @@ export async function submitOrderTo1c(
   }
 
   const last = attempts[attempts.length - 1] || {};
-  throw new DocumentsOrder1cSubmitError(
-    String(last.error || "API оформления заявки в 1С недоступен") +
-      " — нужен sync VPS: cd /opt/haulz/app && git fetch origin staging && git reset --hard origin/staging && bash deploy/vps-sync-main.sh",
-    {
-      status: Number(last.http_status) || 404,
-      upstream: last,
-      raw: { attempts, hint: "VPS must serve POST /api/orders/submit-1c" },
-    },
-  );
+  throw new DocumentsOrder1cSubmitError(String(last.error || "API оформления заявки в 1С недоступен"), {
+    status: Number(last.http_status) || 404,
+    upstream: last,
+    raw: { attempts },
+  });
 }
 
 export async function submitDocumentsOrder(
