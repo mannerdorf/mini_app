@@ -13,6 +13,7 @@ import {
   fetchDocumentsOrderOptions,
   fetchDocumentsOrderQuote,
   fileToBase64,
+  DocumentsOrder1cSubmitError,
   submitDocumentsOrder,
   submitOrderTo1c,
   type DocumentsAuthScope,
@@ -33,7 +34,10 @@ import {
   DocumentsOrderCargoSection,
   type DocumentsOrderCargoState,
 } from "./DocumentsOrderCargoSection";
-import { DocumentsOrderQuoteSummary } from "./DocumentsOrderQuoteSummary";
+import {
+  DocumentsOrderQuoteSummary,
+  type Order1cSandboxSnapshot,
+} from "./DocumentsOrderQuoteSummary";
 import { DocumentsOrderSuccessModal } from "./DocumentsOrderSuccessModal";
 import { useDocumentsOrderSummaryTopSync } from "./useDocumentsOrderSummaryTopSync";
 import { filterDocumentsOrderPvzByCity, inferPvzCityCode } from "./documentsOrderPvzFilter";
@@ -173,6 +177,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
   const [error, setError] = useState<string | null>(null);
   const [orderLoading, setOrderLoading] = useState(false);
   const [submittedNomerZayavki, setSubmittedNomerZayavki] = useState<string | null>(null);
+  const [oneCSandbox, setOneCSandbox] = useState<Order1cSandboxSnapshot | null>(null);
   const [nomerZayavki, setNomerZayavki] = useState("");
   const [dataZabora, setDataZabora] = useState(() => {
     const d = new Date();
@@ -340,9 +345,13 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
   };
 
   const submitOrder = useCallback(async () => {
-    if (!canSubmit || !quote || !fromAddr || !toAddr) return;
+    if (!canSubmit || !quote || !fromAddr || !toAddr) {
+      setError("Нельзя оформить: заполните адреса, груз и дождитесь расчёта.");
+      return;
+    }
     setOrderLoading(true);
     setError(null);
+    let sandboxRequest: unknown = null;
     try {
       const attachments: { name: string; mimeType?: string; base64: string }[] = [];
       if (cargo.attachEnabled && cargo.fileUpd) {
@@ -390,8 +399,23 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
             }))
           : undefined,
       });
+      sandboxRequest = zayavkaPayload;
+      setOneCSandbox({
+        at: new Date().toISOString(),
+        ok: false,
+        request: zayavkaPayload,
+        response: { status: "sending…" },
+      });
 
       const result1c = await submitOrderTo1c(authScope, zayavkaPayload);
+      setOneCSandbox({
+        at: new Date().toISOString(),
+        ok: true,
+        status: result1c.status,
+        request: zayavkaPayload,
+        response: result1c.upstream ?? result1c.raw ?? result1c,
+        requestId: result1c.request_id,
+      });
 
       const result = await submitDocumentsOrder(authScope, {
         from: fromAddr,
@@ -418,7 +442,27 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
 
       setSubmittedNomerZayavki(result1c.nomerZayavki || result.nomerZayavki);
     } catch (e) {
-      setError((e as Error)?.message || "Ошибка оформления");
+      const msg = (e as Error)?.message || "Ошибка оформления";
+      setError(msg);
+      if (e instanceof DocumentsOrder1cSubmitError) {
+        setOneCSandbox({
+          at: new Date().toISOString(),
+          ok: false,
+          status: e.status,
+          error: msg,
+          request: sandboxRequest,
+          response: e.upstream ?? e.raw ?? { error: msg },
+          requestId: e.request_id,
+        });
+      } else if (sandboxRequest != null) {
+        setOneCSandbox({
+          at: new Date().toISOString(),
+          ok: false,
+          error: msg,
+          request: sandboxRequest,
+          response: { error: msg },
+        });
+      }
     } finally {
       setOrderLoading(false);
     }
@@ -574,6 +618,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
           setNomerZayavki={setNomerZayavki}
           emptyHint={emptyHint}
           onSubmit={() => void submitOrder()}
+          oneCSandbox={oneCSandbox}
         />
         </div>
       </div>

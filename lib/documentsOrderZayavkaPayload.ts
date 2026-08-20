@@ -152,7 +152,7 @@ function buildSyntheticParcel(input: BuildDocumentsOrderZayavkaInput): ZayavkaPa
   ];
 }
 
-/** Собирает JSON заявки для POST /api/orders/submit-1c из данных формы ЛК. */
+/** Собирает JSON заявки для POST /api/documents/order-submit-1c из данных формы ЛК. */
 export function buildDocumentsOrderZayavkaPayload(
   input: BuildDocumentsOrderZayavkaInput,
 ): ZayavkaUploadPayload {
