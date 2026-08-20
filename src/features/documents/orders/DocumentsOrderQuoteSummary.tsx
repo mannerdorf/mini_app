@@ -4,6 +4,16 @@ import type { QuoteResult } from "../../../../lib/haulzCalculator/types";
 import { formatQuoteVatLine } from "../../../../lib/haulzCalculator/quoteVat";
 import { HaulzCalcTariffBasisFootnote } from "../../haulzCalculator/HaulzCalcTariffBasisFootnote";
 
+export type Order1cSandboxSnapshot = {
+  at: string;
+  ok: boolean;
+  status?: number;
+  error?: string | null;
+  request: unknown;
+  response: unknown;
+  requestId?: string;
+};
+
 type Props = {
   quote: QuoteResult | null;
   loading: boolean;
@@ -17,7 +27,19 @@ type Props = {
   setNomerZayavki: (v: string) => void;
   emptyHint: string;
   onSubmit: () => void;
+  /** Песочница: запрос в 1С и сырой ответ после «Оформить». */
+  oneCSandbox?: Order1cSandboxSnapshot | null;
 };
+
+function formatSandboxJson(value: unknown): string {
+  if (value == null) return "—";
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
 
 export function DocumentsOrderQuoteSummary({
   quote,
@@ -32,6 +54,7 @@ export function DocumentsOrderQuoteSummary({
   setNomerZayavki,
   emptyHint,
   onSubmit,
+  oneCSandbox = null,
 }: Props) {
   return (
     <aside className="haulz-calc-summary-wrap" aria-label="Ваш расчёт">
@@ -108,7 +131,7 @@ export function DocumentsOrderQuoteSummary({
           />
         </label>
 
-        {error && !canQuote && <div className="haulz-calc-alert haulz-calc-alert--error">{error}</div>}
+        {error ? <div className="haulz-calc-alert haulz-calc-alert--error">{error}</div> : null}
 
         <div className="haulz-calc-summary__actions" style={{ marginTop: "1rem" }}>
           <button
@@ -120,6 +143,46 @@ export function DocumentsOrderQuoteSummary({
             {orderLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
             Оформить
           </button>
+        </div>
+
+        <div className="haulz-calc-1c-sandbox" aria-label="Песочница ответа 1С">
+          <div className="haulz-calc-1c-sandbox__title">Песочница 1С</div>
+          <p className="haulz-calc-1c-sandbox__hint">
+            После «Оформить» здесь видно тело запроса LoadZayavka и сырой ответ 1С / API.
+          </p>
+          {!oneCSandbox ? (
+            <p className="haulz-calc-1c-sandbox__empty">Пока пусто — нажмите «Оформить».</p>
+          ) : (
+            <>
+              <p
+                className={`haulz-calc-1c-sandbox__status${
+                  oneCSandbox.ok ? " haulz-calc-1c-sandbox__status--ok" : " haulz-calc-1c-sandbox__status--err"
+                }`}
+              >
+                {oneCSandbox.ok ? "OK" : "Ошибка"}
+                {oneCSandbox.status != null ? ` · HTTP ${oneCSandbox.status}` : ""}
+                {oneCSandbox.requestId ? ` · ${oneCSandbox.requestId}` : ""}
+                {oneCSandbox.at ? ` · ${new Date(oneCSandbox.at).toLocaleString("ru-RU")}` : ""}
+              </p>
+              {oneCSandbox.error ? (
+                <p className="haulz-calc-1c-sandbox__error">{oneCSandbox.error}</p>
+              ) : null}
+              <label className="haulz-calc-1c-sandbox__label">Запрос в 1С</label>
+              <textarea
+                className="haulz-calc-1c-sandbox__pre"
+                readOnly
+                rows={8}
+                value={formatSandboxJson(oneCSandbox.request)}
+              />
+              <label className="haulz-calc-1c-sandbox__label">Ответ 1С / API</label>
+              <textarea
+                className="haulz-calc-1c-sandbox__pre"
+                readOnly
+                rows={10}
+                value={formatSandboxJson(oneCSandbox.response)}
+              />
+            </>
+          )}
         </div>
       </div>
     </aside>

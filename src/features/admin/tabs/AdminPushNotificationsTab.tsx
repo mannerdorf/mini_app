@@ -9,6 +9,8 @@ import {
   type AdminPushSendResult,
 } from "../../../api/client/admin/pushNotifications";
 import { AdminPushSubscribersSection } from "../components/AdminPushSubscribersSection";
+import { AdminPushControlJournalSection } from "../components/AdminPushControlJournalSection";
+import { AdminPushTemplatesSection } from "../components/AdminPushTemplatesSection";
 
 type Props = {
   adminToken: string;
@@ -126,6 +128,8 @@ export function AdminPushNotificationsTab({ adminToken, onError }: Props) {
   return (
     <>
     <AdminPushSubscribersSection adminToken={adminToken} onError={onError} />
+    <AdminPushTemplatesSection adminToken={adminToken} onError={onError} />
+    <AdminPushControlJournalSection adminToken={adminToken} onError={onError} />
     <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
       <Flex align="center" gap="0.5rem" style={{ marginBottom: "0.5rem" }}>
         <Bell className="w-5 h-5" />

@@ -83,8 +83,8 @@ export function AdminPushSubscribersSection({ adminToken, onError }: Props) {
     <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)", marginBottom: "1rem" }}>
       <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Кто включил push</Typography.Body>
       <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem", lineHeight: 1.45 }}>
-        Пользователи с активным FCM-токеном в Android-приложении и компании, по которым им уходят автоматические
-        уведомления (счета, этапы, сводка).
+        Пользователи с активным FCM-токеном, ИНН из скоупа автопуша и включённые типы из реестра{" "}
+        <code>push_activation</code> (журнал ниже).
       </Typography.Body>
 
       <div
@@ -151,6 +151,7 @@ export function AdminPushSubscribersSection({ adminToken, onError }: Props) {
               <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
                 <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Пользователь</th>
                 <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Компании (автопуш)</th>
+                <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Типы пуша</th>
                 <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Устройства</th>
                 <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Активность</th>
               </tr>
@@ -193,6 +194,17 @@ export function AdminPushSubscribersSection({ adminToken, onError }: Props) {
                           В приложении ещё: {extraCompanies.map(companyLine).join("; ")}
                         </div>
                       ) : null}
+                    </td>
+                    <td style={{ padding: "0.45rem 0.5rem", maxWidth: "14rem" }}>
+                      {row.enabledEvents.length > 0 ? (
+                        <div style={{ fontSize: "0.72rem", lineHeight: 1.35 }}>
+                          {row.enabledEvents.join(", ")}
+                        </div>
+                      ) : (
+                        <div style={{ color: "var(--color-text-secondary)", fontSize: "0.72rem" }}>
+                          Реестр пуст — legacy prefs / ещё не синхронизирован
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: "0.45rem 0.5rem", whiteSpace: "nowrap" }}>
                       {row.deviceCount}
