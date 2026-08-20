@@ -1,7 +1,6 @@
 import type { Pool } from "pg";
 import {
   CARGO_STAGE_EVENT_IDS,
-  formatTelegramMessage,
   getCargoStageEventsOnStateChange,
   getPaymentKey,
   hasBillSignal,
@@ -10,11 +9,21 @@ import {
   notificationItemInn,
   type CargoStageEventId,
 } from "../../lib/notificationPoll.js";
-import { isPushNotificationEnabled } from "../../lib/notificationEmailPrefs.js";
 import { invertScopesByInn, loadPushLoginScopes, normalizeNotificationInn } from "../../lib/notificationInnScope.js";
 import { acquireWebPushDedupeKey, sendWebPushToLogin } from "./webpushDelivery.js";
 import { sendFcmToLogin } from "./fcmDelivery.js";
 import { wasSuccessfulNotificationDelivery } from "./notificationDeliveryDedupe.js";
+import {
+  isPushEventAllowedForInn,
+  listLoginsWithFcmTokens,
+  loadPushActivationByLogins,
+} from "../../lib/pushControl.js";
+import {
+  loadCargoCustomerInnByNumbers,
+  resolveNotificationCargoOwnerInn,
+  shouldDeliverNotificationToSubscriber,
+} from "../../lib/notificationCargoOwnerInn.js";
+import { loadPushNotificationTemplates, formatPushNotificationMessage } from "../../lib/pushNotificationTemplates.js";
 
 type CargoSnapshotItem = {
   inn?: unknown;
@@ -88,6 +97,7 @@ async function ensureNotificationTables(pool: Pool) {
       cargo_number text not null,
       event text not null,
       channel text not null default 'web',
+      cargo_inn text,
       sent_at timestamptz not null default now(),
       telegram_chat_id text,
       success boolean not null default true,
@@ -114,17 +124,48 @@ export async function dispatchWebPushCargoEvents(params: {
 }> {
   const { pool, source = "event_dispatch", dedupeTtlSeconds = 300 } = params;
   const input = Array.isArray(params.items) ? params.items : [];
-  const prepared = input
+  const rawPrepared = input
     .map((item) => ({
-      inn: normalizeInn(item),
       cargoNumber: normalizeCargoNumber(item),
       state: String(item.state ?? item.State ?? "").trim() || null,
       stateBill: String(item.stateBill ?? item.StateBill ?? "").trim() || null,
       raw: item,
     }))
-    .filter((x) => x.inn && x.cargoNumber);
-  if (prepared.length === 0) {
+    .filter((x) => x.cargoNumber);
+
+  if (rawPrepared.length === 0) {
     return { ok: true, source, scanned: 0, changed: 0, attempted: 0, delivered: 0, failed: 0, deduped: 0, cleanedSubscriptions: 0 };
+  }
+
+  const { byNumber: ownerInnByCargo, loaded: ownerInnCacheLoaded } = await loadCargoCustomerInnByNumbers(
+    pool,
+    rawPrepared.map((x) => x.cargoNumber),
+  );
+  const prepared = rawPrepared
+    .map((row) => {
+      const cargoInn = resolveNotificationCargoOwnerInn(row.raw as Record<string, unknown>, ownerInnByCargo, {
+        strictCache: ownerInnCacheLoaded,
+      });
+      return { ...row, inn: cargoInn };
+    })
+    .filter((x) => x.inn && x.cargoNumber);
+
+  if (prepared.length === 0) {
+    return { ok: true, source, scanned: rawPrepared.length, changed: 0, attempted: 0, delivered: 0, failed: 0, deduped: 0, cleanedSubscriptions: 0 };
+  }
+
+  if (!ownerInnCacheLoaded) {
+    return {
+      ok: true,
+      source,
+      scanned: rawPrepared.length,
+      changed: 0,
+      attempted: 0,
+      delivered: 0,
+      failed: 0,
+      deduped: 0,
+      cleanedSubscriptions: 0,
+    };
   }
 
   try {
@@ -132,6 +173,8 @@ export async function dispatchWebPushCargoEvents(params: {
   } catch {
     // Continue even if DDL was rejected by permissions.
   }
+
+  const pushTemplates = await loadPushNotificationTemplates(pool);
 
   const inns = Array.from(new Set(prepared.map((x) => x.inn)));
   const cargoNumbers = Array.from(new Set(prepared.map((x) => x.cargoNumber)));
@@ -149,6 +192,8 @@ export async function dispatchWebPushCargoEvents(params: {
   const prefsByLogin = new Map<string, Record<string, boolean>>();
   const pushPrefsByLogin = new Map<string, Record<string, boolean>>();
   const loadedFromState = new Set<string>();
+  const loginsWithToken = await listLoginsWithFcmTokens(pool, logins);
+  const activationByLogin = await loadPushActivationByLogins(pool, logins);
   if (logins.length > 0) {
     try {
       const stateRows = await pool.query<{ login: string; preferences: any }>(
@@ -209,11 +254,13 @@ export async function dispatchWebPushCargoEvents(params: {
       subscriberByInn.set(inn, byLogin);
     }
     byLogin.set(login, enabledEvents);
+    if (!loginsWithToken.has(login)) continue;
     let pushByLogin = pushSubscriberByInn.get(inn);
     if (!pushByLogin) {
       pushByLogin = new Map<string, Record<string, boolean>>();
       pushSubscriberByInn.set(inn, pushByLogin);
     }
+    // Маркер: наличие prefs; реальная проверка — через activation в цикле отправки.
     pushByLogin.set(login, enabledPushEvents);
   }
   if (subscriberByInn.size === 0 && pushSubscriberByInn.size === 0) {
@@ -269,6 +316,15 @@ export async function dispatchWebPushCargoEvents(params: {
 
     for (const event of eventsToSend) {
       for (const [login, eventsEnabled] of subscribers.entries()) {
+        if (
+          !shouldDeliverNotificationToSubscriber({
+            subscriberInn: item.inn,
+            cargoInn: item.inn,
+            loginScope: scopes.get(login),
+          })
+        ) {
+          continue;
+        }
         if (!isOptInNotificationEventEnabled(eventsEnabled, event)) continue;
         if (
           await wasSuccessfulNotificationDelivery(pool, {
@@ -300,10 +356,10 @@ export async function dispatchWebPushCargoEvents(params: {
           continue;
         }
         attempted += 1;
-        const body = formatTelegramMessage(event, item.cargoNumber, item.raw as any);
+        const message = formatPushNotificationMessage(event, item.cargoNumber, item.raw as Record<string, unknown>, pushTemplates);
         const sendResult = await sendWebPushToLogin(login, {
-          title: "HAULZ",
-          body,
+          title: message.title,
+          body: message.body,
           url: eventUrl(event, item.cargoNumber),
           tag: `${event}:${item.cargoNumber}`,
         });
@@ -313,16 +369,34 @@ export async function dispatchWebPushCargoEvents(params: {
         try {
           await pool.query(
             `insert into notification_deliveries (
-              poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message
-            ) values ($1,$2,$3,$4,$5,'web',null,$6,$7)`,
-            [null, login, item.inn, item.cargoNumber, event, sendResult.ok, sendResult.error || null]
+              poll_run_id, login, inn, cargo_inn, cargo_number, event, channel, telegram_chat_id, success, error_message
+            ) values ($1,$2,$3,$4,$5,$6,'web',null,$7,$8)`,
+            [null, login, item.inn, item.inn, item.cargoNumber, event, sendResult.ok, sendResult.error || null]
           );
         } catch {
           // Delivery log is best-effort.
         }
       }
       for (const [login, eventsEnabled] of pushSubscribers.entries()) {
-        if (!isPushNotificationEnabled(eventsEnabled, event)) continue;
+        if (
+          !shouldDeliverNotificationToSubscriber({
+            subscriberInn: item.inn,
+            cargoInn: item.inn,
+            loginScope: scopes.get(login),
+          })
+        ) {
+          continue;
+        }
+        const activation = activationByLogin.get(login)?.get(item.inn) || null;
+        if (
+          !isPushEventAllowedForInn({
+            activation,
+            prefs: eventsEnabled,
+            eventId: event,
+          })
+        ) {
+          continue;
+        }
         if (
           await wasSuccessfulNotificationDelivery(pool, {
             login,
@@ -353,17 +427,18 @@ export async function dispatchWebPushCargoEvents(params: {
           continue;
         }
         attempted += 1;
-        const body = formatTelegramMessage(event, item.cargoNumber, item.raw as any);
+        const message = formatPushNotificationMessage(event, item.cargoNumber, item.raw as Record<string, unknown>, pushTemplates);
         const sendResult = await sendFcmToLogin(login, {
-          title: "HAULZ",
-          body,
+          title: message.title,
+          body: message.body,
           url: eventUrl(event, item.cargoNumber),
           delivery: {
             event,
             inn: String(item.inn || "").trim(),
+            cargoInn: String(item.inn || "").trim(),
             cargoNumber: item.cargoNumber,
-            title: "HAULZ",
-            body,
+            title: message.title,
+            body: message.body,
           },
         });
         if (sendResult.sent > 0) delivered += 1;

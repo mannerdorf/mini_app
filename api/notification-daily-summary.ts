@@ -11,6 +11,12 @@ import {
   loadTelegramChatIds,
   sendDailySummaryEmail,
 } from "../lib/notificationDailySummary.js";
+import {
+  isPushEventAllowedForInn,
+  listLoginsWithFcmTokens,
+  loadPushActivationByLogins,
+} from "../lib/pushControl.js";
+import { normalizeNotificationInn } from "../lib/notificationInnScope.js";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
@@ -87,6 +93,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const prefsByLogin = await loadDailySummaryPrefsByLogin(pool, logins);
     const chatIds = await loadTelegramChatIds(pool, logins);
     const cacheIndex = await loadDailySummaryCacheIndex(pool);
+    const loginsWithToken = await listLoginsWithFcmTokens(pool, logins);
+    const activationByLogin = await loadPushActivationByLogins(pool, logins);
 
     let sentTelegram = 0;
     let sentPush = 0;
@@ -98,8 +106,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for (const login of logins) {
       const prefs = prefsByLogin.get(login) || { telegram: true, push: true, email: false };
       const chatId = chatIds.get(login);
+      const inns = loginInns.get(login);
+      if (!inns || inns.size === 0) continue;
+      const primaryInn = normalizeNotificationInn([...inns][0] || "") || [...inns][0] || "";
+      const activation = activationByLogin.get(login)?.get(primaryInn) || null;
+      const pushAllowed = isPushEventAllowedForInn({
+        activation,
+        prefs: { daily_summary: prefs.push !== false },
+        eventId: "daily_summary",
+      });
       const willTelegram = prefs.telegram && !!chatId;
-      const willPush = prefs.push === true;
+      const willPush = pushAllowed && loginsWithToken.has(login);
       const willEmail = prefs.email === true;
 
       if (!prefs.telegram && !prefs.push && !prefs.email) {
@@ -111,10 +128,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         skippedNoChannel += 1;
         continue;
       }
-
-      const inns = loginInns.get(login);
-      if (!inns || inns.size === 0) continue;
-      const primaryInn = [...inns][0] || "";
 
       const stats = computeDailySummaryStatsFromCache(inns, cacheIndex);
       const text = formatDailySummaryPlainText(stats);
