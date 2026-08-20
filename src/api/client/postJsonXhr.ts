@@ -5,6 +5,15 @@ function toAbsoluteApiUrl(pathOrUrl: string): string {
   if (!raw) return raw;
   if (/^https?:\/\//i.test(raw)) return raw;
   const path = raw.startsWith("/") ? raw : `/${raw}`;
+
+  // Preview/Production на Vercel: всегда боевой API (VPS), иначе Functions дают 404/405.
+  if (typeof window !== "undefined") {
+    const host = String(window.location.hostname || "").toLowerCase();
+    if (host === "vercel.app" || host.endsWith(".vercel.app")) {
+      return `https://haulz.space${path}`;
+    }
+  }
+
   const origin = resolveApiOrigin().replace(/\/+$/, "");
   if (!origin) return path;
   if (typeof window !== "undefined") {
