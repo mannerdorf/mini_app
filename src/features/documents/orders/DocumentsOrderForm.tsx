@@ -413,7 +413,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
         ok: true,
         status: result1c.status,
         request: zayavkaPayload,
-        response: result1c.upstream ?? result1c.raw ?? result1c,
+        response: result1c.raw ?? result1c.upstream ?? result1c,
         requestId: result1c.request_id,
       });
 
@@ -451,7 +451,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
           status: e.status,
           error: msg,
           request: sandboxRequest,
-          response: e.upstream ?? e.raw ?? { error: msg },
+          response: e.raw ?? e.upstream ?? { error: msg },
           requestId: e.request_id,
         });
       } else if (sandboxRequest != null) {
