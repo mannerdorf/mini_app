@@ -7,11 +7,22 @@ function toAbsoluteApiUrl(pathOrUrl: string): string {
   const path = raw.startsWith("/") ? raw : `/${raw}`;
 
   // Preview/Production на Vercel: всегда боевой API (VPS), иначе Functions дают 404/405.
+  // Для submit-1c тоже форсим VPS — nested /api/orders/* на Vercel ломается.
   if (typeof window !== "undefined") {
     const host = String(window.location.hostname || "").toLowerCase();
     if (host === "vercel.app" || host.endsWith(".vercel.app")) {
       return `https://haulz.space${path}`;
     }
+  }
+
+  // Оформление в 1С: на VPS live только /api/orders/submit-1c (origin/main).
+  // Всегда бьём в haulz.space, чтобы не зависеть от same-origin Vercel/preview.
+  if (
+    path === "/api/orders/submit-1c" ||
+    path === "/api/documents/order-submit-1c" ||
+    path === "/api/order-submit-1c"
+  ) {
+    return `https://haulz.space${path}`;
   }
 
   const origin = resolveApiOrigin().replace(/\/+$/, "");

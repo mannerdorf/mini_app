@@ -10,6 +10,7 @@ import type {
 } from "../../../lib/haulzCalculator/types";
 import type { FivepostParsedRow } from "../../../lib/fivepost/types";
 import type { TableRow } from "../../features/documents/orders/NewOrderModal";
+import { postJsonXhr } from "./postJsonXhr";
 
 export type DocumentsSuggestItem = {
   id?: string;
@@ -213,31 +214,28 @@ export async function submitOrderTo1c(
   auth: DocumentsAuthScope,
   order: DocumentsOrder1cSubmitPayload,
 ): Promise<DocumentsOrder1cSubmitResult> {
-  // Как order-quote / order-submit: same-origin на Vercel (без конфликта api/orders.ts).
-  // /api/orders/submit-1c на Vercel ломается; на VPS его можно держать как запасной путь.
+  // Боевой API (VPS / origin/main) сейчас обслуживает только /api/orders/submit-1c.
+  // /api/documents/order-submit-1c и /api/order-submit-1c есть на staging, но ещё не на VPS → 404.
+  // XHR + абсолютный https://haulz.space: на Vercel nested /api/orders/* даёт 405, same-origin fetch
+  // иногда доходит как GET (в песочнице как раз Method not allowed без received_method).
   const endpoints = [
+    "/api/orders/submit-1c",
     "/api/documents/order-submit-1c",
     "/api/order-submit-1c",
-    "/api/orders/submit-1c",
   ] as const;
   const attempts: Array<Record<string, unknown>> = [];
   const body = authBody(auth, { order });
   const headers = authHeaders(auth);
 
   for (const endpoint of endpoints) {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers,
-      body,
-      cache: "no-store",
-      credentials: "same-origin",
-    });
-    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    const res = await postJsonXhr(endpoint, headers, body);
+    const data = (res.data && typeof res.data === "object" ? res.data : {}) as Record<string, unknown>;
     const upstream = data.upstream ?? data;
     const requestId = typeof data.request_id === "string" ? data.request_id : undefined;
     const meta = {
       endpoint,
-      client_method: "POST",
+      url: res.url,
+      client_method: res.method,
       received_method: data.received_method ?? null,
       http_status: res.status,
     };
@@ -247,7 +245,7 @@ export async function submitOrderTo1c(
       continue;
     }
 
-    if (!res.ok) {
+    if (res.status < 200 || res.status >= 300) {
       throw new DocumentsOrder1cSubmitError(parseError(res.status, data), {
         status: res.status,
         upstream,
