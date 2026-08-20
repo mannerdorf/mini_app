@@ -215,10 +215,10 @@ export async function submitOrderTo1c(
   auth: DocumentsAuthScope,
   order: DocumentsOrder1cSubmitPayload,
 ): Promise<DocumentsOrder1cSubmitResult> {
-  // 1) путь, который уже есть на VPS; 2–3) запасные после sync.
+  // flat — без конфликта на Vercel; затем пути на VPS; 405/404 → следующий.
   const endpoints = [
-    "/api/orders/submit-1c",
     "/api/order-submit-1c",
+    "/api/orders/submit-1c",
     "/api/documents/order-submit-1c",
   ] as const;
   let lastError: DocumentsOrder1cSubmitError | null = null;
@@ -240,7 +240,8 @@ export async function submitOrderTo1c(
       http_status: res.status,
     };
 
-    if (res.status === 404) {
+    // На Vercel старый nested path может отдавать 405 из‑за конфликта с api/orders.
+    if (res.status === 404 || res.status === 405) {
       lastError = new DocumentsOrder1cSubmitError(parseError(res.status, data), {
         status: res.status,
         upstream,

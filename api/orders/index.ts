@@ -1,20 +1,20 @@
 import type { Pool } from "pg";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getPool } from "./_db.js";
-import { verifyRegisteredUser, type VerifiedRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { getPool } from "../_db.js";
+import { verifyRegisteredUser, type VerifiedRegisteredUser } from "../../lib/verifyRegisteredUser.js";
 import {
   getPerevozkiServiceCredentials,
   shouldServeFromDocumentCache,
-} from "../lib/cacheHistoryDays.js";
-import { respondCorsPreflight } from "./_lib/cors.js";
-import { initRequestContext, logError } from "./_lib/observability.js";
-import { appendPendingOrdersForUser } from "../lib/pendingOrderRequests.js";
+} from "../../lib/cacheHistoryDays.js";
+import { respondCorsPreflight } from "../_lib/cors.js";
+import { initRequestContext, logError } from "../_lib/observability.js";
+import { appendPendingOrdersForUser } from "../../lib/pendingOrderRequests.js";
 import {
   getOrderCustomerInn,
   normalizeCompanyName,
   normalizeOrderInn,
   orderMatchesCustomerScope,
-} from "../lib/orderCustomerScope.js";
+} from "../../lib/orderCustomerScope.js";
 
 /**
  * Прокси для GetZayavki в разделе "Заявки".
