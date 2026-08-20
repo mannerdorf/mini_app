@@ -1,4 +1,4 @@
-import { usesSameOriginBrowserApi } from "../../lib/haulzDomains";
+import { DEFAULT_APP_URL, usesSameOriginBrowserApi } from "../../lib/haulzDomains";
 import { PARTNER_API_PUBLIC_ORIGIN } from "../constants/partnerApi";
 
 const FALLBACK_API_ORIGIN = PARTNER_API_PUBLIC_ORIGIN;
@@ -27,6 +27,7 @@ const isCapacitorNative = (): boolean => {
 /**
  * Базовый origin для fetch `/api/*`.
  * Web на haulz.space / haulz.ru → same-origin (nginx /api → VPS).
+ * Vercel preview / *.vercel.app → https://haulz.space (иначе Functions 405 на nested routes).
  * Capacitor / VITE_API_ORIGIN → api.haulz.space.
  */
 export function resolveApiOrigin(): string {
@@ -35,6 +36,14 @@ export function resolveApiOrigin(): string {
   if (typeof window !== "undefined" && !isCapacitorNative()) {
     const pageOrigin = normalizeOrigin(window.location.origin);
     if (usesSameOriginBrowserApi(pageOrigin)) return pageOrigin;
+    try {
+      const host = new URL(pageOrigin).hostname.toLowerCase();
+      if (host === "vercel.app" || host.endsWith(".vercel.app")) {
+        return normalizeApiOrigin(DEFAULT_APP_URL) || "https://haulz.space";
+      }
+    } catch {
+      // ignore
+    }
     return pageOrigin;
   }
   return FALLBACK_API_ORIGIN;

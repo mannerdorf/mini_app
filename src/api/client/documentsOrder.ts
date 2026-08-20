@@ -215,10 +215,10 @@ export async function submitOrderTo1c(
   auth: DocumentsAuthScope,
   order: DocumentsOrder1cSubmitPayload,
 ): Promise<DocumentsOrder1cSubmitResult> {
-  // flat — без конфликта на Vercel; затем пути на VPS; 405/404 → следующий.
+  // VPS уже обслуживает /api/orders/submit-1c; flat/documents — после sync / на Vercel.
   const endpoints = [
-    "/api/order-submit-1c",
     "/api/orders/submit-1c",
+    "/api/order-submit-1c",
     "/api/documents/order-submit-1c",
   ] as const;
   let lastError: DocumentsOrder1cSubmitError | null = null;

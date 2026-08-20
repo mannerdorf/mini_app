@@ -1,14 +1,32 @@
+import { resolveApiOrigin } from "../../lib/resolveApiOrigin";
+
+function toAbsoluteApiUrl(pathOrUrl: string): string {
+  const raw = String(pathOrUrl || "").trim();
+  if (!raw) return raw;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  const path = raw.startsWith("/") ? raw : `/${raw}`;
+  const origin = resolveApiOrigin().replace(/\/+$/, "");
+  if (!origin) return path;
+  if (typeof window !== "undefined") {
+    const page = String(window.location.origin || "").replace(/\/+$/, "");
+    if (page && page === origin) return path;
+  }
+  return `${origin}${path}`;
+}
+
 /**
- * POST JSON с явным методом через XHR (fetch в WebView иногда уходит как GET → 405).
+ * POST JSON с явным методом через XHR.
+ * URL резолвится через resolveApiOrigin (Vercel preview → haulz.space API).
  */
 export function postJsonXhr(
   url: string,
   headers: Record<string, string>,
   body: string,
 ): Promise<{ status: number; data: unknown; responseText: string; url: string; method: "POST" }> {
+  const absoluteUrl = toAbsoluteApiUrl(url);
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", url, true);
+    xhr.open("POST", absoluteUrl, true);
     xhr.setRequestHeader("Content-Type", "application/json");
     for (const [key, value] of Object.entries(headers)) {
       if (key.toLowerCase() === "content-type") continue;
@@ -22,10 +40,10 @@ export function postJsonXhr(
       } catch {
         data = { raw: responseText };
       }
-      resolve({ status: xhr.status, data, responseText, url, method: "POST" });
+      resolve({ status: xhr.status, data, responseText, url: absoluteUrl, method: "POST" });
     };
-    xhr.onerror = () => reject(new Error(`Network error: POST ${url}`));
-    xhr.ontimeout = () => reject(new Error(`Timeout: POST ${url}`));
+    xhr.onerror = () => reject(new Error(`Network error: POST ${absoluteUrl}`));
+    xhr.ontimeout = () => reject(new Error(`Timeout: POST ${absoluteUrl}`));
     xhr.timeout = 120_000;
     xhr.send(body);
   });

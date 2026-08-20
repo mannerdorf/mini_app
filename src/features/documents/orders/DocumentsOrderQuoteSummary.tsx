@@ -138,7 +138,19 @@ export function DocumentsOrderQuoteSummary({
           />
         </label>
 
-        {error ? <div className="haulz-calc-alert haulz-calc-alert--error">{error}</div> : null}
+        {error ? (
+          <div className="haulz-calc-alert haulz-calc-alert--error">
+            <div>{error}</div>
+            {oneCSandbox?.response != null ? (
+              <pre
+                className="haulz-calc-1c-sandbox__pre"
+                style={{ marginTop: "0.55rem", maxHeight: "12rem", marginBottom: 0 }}
+              >
+                {formatSandboxJson(oneCSandbox.response)}
+              </pre>
+            ) : null}
+          </div>
+        ) : null}
 
         <div
           ref={sandboxRef}
