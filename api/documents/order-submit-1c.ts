@@ -56,7 +56,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const method = String(req.method || "").toUpperCase();
   if (method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
+    return res.status(405).json({
+      error: "Method not allowed",
+      received_method: method || null,
+      allow: "POST",
+      hint: "Ожидается POST /api/documents/order-submit-1c с JSON-телом заявки",
+      request_id: ctx.requestId,
+    });
   }
 
   const body = parseJsonBody(req);

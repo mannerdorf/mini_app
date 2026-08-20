@@ -50,9 +50,10 @@ function authHeaders(auth: DocumentsAuthScope): Record<string, string> {
   };
 }
 
-function parseError(res: Response, data: unknown): string {
+function parseError(resOrStatus: Response | number, data: unknown): string {
   if (typeof (data as { error?: string })?.error === "string") return (data as { error: string }).error;
-  return `HTTP ${res.status}`;
+  const status = typeof resOrStatus === "number" ? resOrStatus : resOrStatus.status;
+  return `HTTP ${status}`;
 }
 
 export async function fetchDocumentsAddressSuggest(
@@ -180,6 +181,8 @@ export type DocumentsOrder1cSubmitPayload = {
   }>;
 };
 
+import { postJsonXhr } from "./postJsonXhr";
+
 export type DocumentsOrder1cSubmitResult = {
   ok: boolean;
   status: number;
@@ -212,39 +215,47 @@ export async function submitOrderTo1c(
   auth: DocumentsAuthScope,
   order: DocumentsOrder1cSubmitPayload,
 ): Promise<DocumentsOrder1cSubmitResult> {
-  // VPS уже обслуживает /api/orders/submit-1c; documents-путь — после sync staging на API.
-  const endpoints = ["/api/orders/submit-1c", "/api/documents/order-submit-1c"] as const;
+  // 1) путь, который уже есть на VPS; 2–3) запасные после sync.
+  const endpoints = [
+    "/api/orders/submit-1c",
+    "/api/order-submit-1c",
+    "/api/documents/order-submit-1c",
+  ] as const;
   let lastError: DocumentsOrder1cSubmitError | null = null;
+  const body = authBody(auth, { order });
+  const headers = authHeaders(auth);
 
   for (const endpoint of endpoints) {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: authHeaders(auth),
-      body: authBody(auth, { order }),
-      cache: "no-store",
-      redirect: "error",
-    });
-    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    const res = await postJsonXhr(endpoint, headers, body);
+    const data =
+      res.data && typeof res.data === "object" && !Array.isArray(res.data)
+        ? (res.data as Record<string, unknown>)
+        : ({ raw: res.data } as Record<string, unknown>);
     const upstream = data.upstream ?? data;
     const requestId = typeof data.request_id === "string" ? data.request_id : undefined;
+    const meta = {
+      endpoint: res.url,
+      client_method: res.method,
+      received_method: data.received_method ?? null,
+      http_status: res.status,
+    };
 
-    // Старый API без роута → пробуем запасной путь.
     if (res.status === 404) {
-      lastError = new DocumentsOrder1cSubmitError(parseError(res, data), {
+      lastError = new DocumentsOrder1cSubmitError(parseError(res.status, data), {
         status: res.status,
         upstream,
         request_id: requestId,
-        raw: { ...data, endpoint },
+        raw: { ...data, ...meta },
       });
       continue;
     }
 
-    if (!res.ok) {
-      throw new DocumentsOrder1cSubmitError(parseError(res, data), {
+    if (res.status < 200 || res.status >= 300) {
+      throw new DocumentsOrder1cSubmitError(parseError(res.status, data), {
         status: res.status,
         upstream,
         request_id: requestId,
-        raw: { ...data, endpoint, method: "POST" },
+        raw: { ...data, ...meta },
       });
     }
 
@@ -255,7 +266,7 @@ export async function submitOrderTo1c(
       message: typeof data.message === "string" ? data.message : "Заявка передана в 1С",
       upstream,
       request_id: requestId,
-      raw: { ...data, endpoint },
+      raw: { ...data, ...meta },
     };
   }
 

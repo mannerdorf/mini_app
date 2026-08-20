@@ -166,19 +166,19 @@ export function DocumentsOrderQuoteSummary({
               {oneCSandbox.error ? (
                 <p className="haulz-calc-1c-sandbox__error">{oneCSandbox.error}</p>
               ) : null}
-              <label className="haulz-calc-1c-sandbox__label">Запрос в 1С</label>
-              <textarea
-                className="haulz-calc-1c-sandbox__pre"
-                readOnly
-                rows={6}
-                value={formatSandboxJson(oneCSandbox.request)}
-              />
               <label className="haulz-calc-1c-sandbox__label">Ответ 1С / API</label>
               <textarea
                 className="haulz-calc-1c-sandbox__pre"
                 readOnly
-                rows={8}
+                rows={10}
                 value={formatSandboxJson(oneCSandbox.response)}
+              />
+              <label className="haulz-calc-1c-sandbox__label">Запрос в 1С</label>
+              <textarea
+                className="haulz-calc-1c-sandbox__pre"
+                readOnly
+                rows={5}
+                value={formatSandboxJson(oneCSandbox.request)}
               />
             </>
           )}
