@@ -663,10 +663,16 @@
     bottom: var(--haulz-summary-fixed-bottom);
     top: auto;
     width: auto;
-    max-height: min(72vh, calc(100dvh - 100px - var(--haulz-summary-fixed-bottom)));
-    overflow-y: auto;
+    max-height: min(82vh, calc(100dvh - 72px - var(--haulz-summary-fixed-bottom)));
+    overflow-x: hidden;
+    overflow-y: scroll;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+
+  .documents-order-form .haulz-calc-summary-wrap > .haulz-calc-summary {
+    overflow: visible;
   }
 }
 
