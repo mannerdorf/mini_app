@@ -212,31 +212,57 @@ export async function submitOrderTo1c(
   auth: DocumentsAuthScope,
   order: DocumentsOrder1cSubmitPayload,
 ): Promise<DocumentsOrder1cSubmitResult> {
-  const res = await fetch("/api/documents/order-submit-1c", {
-    method: "POST",
-    headers: authHeaders(auth),
-    body: authBody(auth, { order }),
-  });
-  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  const upstream = data.upstream ?? data;
-  const requestId = typeof data.request_id === "string" ? data.request_id : undefined;
-  if (!res.ok) {
-    throw new DocumentsOrder1cSubmitError(parseError(res, data), {
+  // VPS уже обслуживает /api/orders/submit-1c; documents-путь — после sync staging на API.
+  const endpoints = ["/api/orders/submit-1c", "/api/documents/order-submit-1c"] as const;
+  let lastError: DocumentsOrder1cSubmitError | null = null;
+
+  for (const endpoint of endpoints) {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: authHeaders(auth),
+      body: authBody(auth, { order }),
+      cache: "no-store",
+      redirect: "error",
+    });
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    const upstream = data.upstream ?? data;
+    const requestId = typeof data.request_id === "string" ? data.request_id : undefined;
+
+    // Старый API без роута → пробуем запасной путь.
+    if (res.status === 404) {
+      lastError = new DocumentsOrder1cSubmitError(parseError(res, data), {
+        status: res.status,
+        upstream,
+        request_id: requestId,
+        raw: { ...data, endpoint },
+      });
+      continue;
+    }
+
+    if (!res.ok) {
+      throw new DocumentsOrder1cSubmitError(parseError(res, data), {
+        status: res.status,
+        upstream,
+        request_id: requestId,
+        raw: { ...data, endpoint, method: "POST" },
+      });
+    }
+
+    return {
+      ok: true,
       status: res.status,
+      nomerZayavki: (data.nomerZayavki as string | null | undefined) ?? null,
+      message: typeof data.message === "string" ? data.message : "Заявка передана в 1С",
       upstream,
       request_id: requestId,
-      raw: data,
-    });
+      raw: { ...data, endpoint },
+    };
   }
-  return {
-    ok: true,
-    status: res.status,
-    nomerZayavki: (data.nomerZayavki as string | null | undefined) ?? null,
-    message: typeof data.message === "string" ? data.message : "Заявка передана в 1С",
-    upstream,
-    request_id: requestId,
-    raw: data,
-  };
+
+  throw (
+    lastError ||
+    new DocumentsOrder1cSubmitError("Не найден API оформления заявки в 1С", { status: 404 })
+  );
 }
 
 export async function submitDocumentsOrder(

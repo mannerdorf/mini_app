@@ -3109,7 +3109,11 @@ body.haulz-calc-map-screen-open {
     width: var(--haulz-summary-col-width);
     max-width: var(--haulz-summary-col-width);
     z-index: 5;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: scroll;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
@@ -3122,6 +3126,7 @@ body.haulz-calc-map-screen-open {
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
 }
 

@@ -81,9 +81,9 @@ export function useHaulzCalcSummaryLayoutSync(
 
       const bottomClearance = readBottomClearancePx(root);
       const viewportMaxBottom = window.innerHeight - bottomClearance;
-      const mainBottom = main.getBoundingClientRect().bottom;
-      const cappedBottom = Math.min(mainBottom, viewportMaxBottom);
-      const maxHeight = Math.max(160, Math.round(cappedBottom - top));
+      // Не ограничиваем высоту низом левой колонки — иначе «Ваш расчёт» сжимается
+      // и песочницу/ответ 1С нельзя проскроллить.
+      const maxHeight = Math.max(280, Math.round(viewportMaxBottom - top));
       root.style.setProperty("--haulz-docs-summary-sync-max-height", `${maxHeight}px`);
     };
 

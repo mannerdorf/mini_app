@@ -46,12 +46,12 @@ async function assertUserMaySubmitInn(login: string, customerInn: string, access
 }
 
 /**
- * POST /api/documents/order-submit-1c — загрузка заявки в 1С (JSON формат PostB).
+ * POST /api/orders/submit-1c — загрузка заявки в 1С (JSON формат PostB).
  * Тело: заявка в корне или { order: { … } }, плюс login/password.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (respondCorsPreflight(req, res)) return;
-  const ctx = initRequestContext(req, res, "documents_order_submit_1c");
+  const ctx = initRequestContext(req, res, "orders_submit_1c");
 
   const method = String(req.method || "").toUpperCase();
   if (method !== "POST") {
@@ -85,7 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const upload = await uploadZayavkaTo1c(normalized.payload);
     if (!upload.ok) {
-      logError(ctx, "documents_order_submit_1c_upstream_failed", new Error(upload.error), {
+      logError(ctx, "orders_submit_1c_upstream_failed", new Error(upload.error), {
         status: upload.status,
         response: upload.responseText?.slice(0, 500),
       });
@@ -107,7 +107,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       request_id: ctx.requestId,
     });
   } catch (e) {
-    logError(ctx, "documents_order_submit_1c_failed", e);
+    logError(ctx, "orders_submit_1c_failed", e);
     return res.status(500).json({
       error: (e as Error)?.message || "Ошибка загрузки заявки",
       request_id: ctx.requestId,
