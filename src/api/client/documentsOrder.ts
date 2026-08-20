@@ -212,7 +212,7 @@ export async function submitOrderTo1c(
   auth: DocumentsAuthScope,
   order: DocumentsOrder1cSubmitPayload,
 ): Promise<DocumentsOrder1cSubmitResult> {
-  const res = await fetch("/api/orders/submit-1c", {
+  const res = await fetch("/api/documents/order-submit-1c", {
     method: "POST",
     headers: authHeaders(auth),
     body: authBody(auth, { order }),

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import type { QuoteResult } from "../../../../lib/haulzCalculator/types";
 import { formatQuoteVatLine } from "../../../../lib/haulzCalculator/quoteVat";
@@ -56,6 +56,13 @@ export function DocumentsOrderQuoteSummary({
   onSubmit,
   oneCSandbox = null,
 }: Props) {
+  const sandboxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!oneCSandbox) return;
+    sandboxRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [oneCSandbox]);
+
   return (
     <aside className="haulz-calc-summary-wrap" aria-label="Ваш расчёт">
       <div className="haulz-calc-summary">
@@ -133,22 +140,14 @@ export function DocumentsOrderQuoteSummary({
 
         {error ? <div className="haulz-calc-alert haulz-calc-alert--error">{error}</div> : null}
 
-        <div className="haulz-calc-summary__actions" style={{ marginTop: "1rem" }}>
-          <button
-            type="button"
-            className="haulz-calc-btn-primary"
-            disabled={!canSubmit || orderLoading}
-            onClick={onSubmit}
-          >
-            {orderLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            Оформить
-          </button>
-        </div>
-
-        <div className="haulz-calc-1c-sandbox" aria-label="Песочница ответа 1С">
+        <div
+          ref={sandboxRef}
+          className="haulz-calc-1c-sandbox"
+          aria-label="Песочница ответа 1С"
+        >
           <div className="haulz-calc-1c-sandbox__title">Песочница 1С</div>
           <p className="haulz-calc-1c-sandbox__hint">
-            После «Оформить» здесь видно тело запроса LoadZayavka и сырой ответ 1С / API.
+            Запрос LoadZayavka и сырой ответ API/1С после «Оформить».
           </p>
           {!oneCSandbox ? (
             <p className="haulz-calc-1c-sandbox__empty">Пока пусто — нажмите «Оформить».</p>
@@ -171,18 +170,30 @@ export function DocumentsOrderQuoteSummary({
               <textarea
                 className="haulz-calc-1c-sandbox__pre"
                 readOnly
-                rows={8}
+                rows={6}
                 value={formatSandboxJson(oneCSandbox.request)}
               />
               <label className="haulz-calc-1c-sandbox__label">Ответ 1С / API</label>
               <textarea
                 className="haulz-calc-1c-sandbox__pre"
                 readOnly
-                rows={10}
+                rows={8}
                 value={formatSandboxJson(oneCSandbox.response)}
               />
             </>
           )}
+        </div>
+
+        <div className="haulz-calc-summary__actions" style={{ marginTop: "1rem" }}>
+          <button
+            type="button"
+            className="haulz-calc-btn-primary"
+            disabled={!canSubmit || orderLoading}
+            onClick={onSubmit}
+          >
+            {orderLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            Оформить
+          </button>
         </div>
       </div>
     </aside>
