@@ -18,6 +18,7 @@ import "./components/shipment-status.css";
 import "./styles/haulz-calculator.css";
 import { clearChunkReloadState, isChunkLoadError, reloadForStaleChunks } from "./lib/chunkLoadRecovery";
 import { resolveApiOrigin } from "./lib/resolveApiOrigin";
+import { setupNativeTextSelectionBlock } from "./lib/nativeTextSelection";
 
 const swrConfig = {
     revalidateOnFocus: false,
@@ -169,6 +170,8 @@ const isLikelyLocalDev = (): boolean => {
  * haulz.space / haulz.ru → same-origin /api/* (nginx → api.haulz.space).
  */
 if (typeof window !== "undefined") {
+  setupNativeTextSelectionBlock();
+
   const apiOrigin = resolveApiOrigin();
   const pageOrigin = normalizeOrigin(window.location.origin);
   if (apiOrigin !== pageOrigin) {

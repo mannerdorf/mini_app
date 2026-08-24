@@ -1,3 +1,33 @@
+/* Capacitor (Android APK / iOS shell): без системного «Копировать» при long-press. */
+html.haulz-native-shell,
+html[data-client-platform-source="capacitor"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html.haulz-native-shell body,
+html[data-client-platform-source="capacitor"] body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+html.haulz-native-shell input,
+html.haulz-native-shell textarea,
+html.haulz-native-shell select,
+html.haulz-native-shell [contenteditable="true"],
+html.haulz-native-shell [contenteditable=""],
+html.haulz-native-shell .allow-text-select,
+html[data-client-platform-source="capacitor"] input,
+html[data-client-platform-source="capacitor"] textarea,
+html[data-client-platform-source="capacitor"] select,
+html[data-client-platform-source="capacitor"] [contenteditable="true"],
+html[data-client-platform-source="capacitor"] [contenteditable=""],
+html[data-client-platform-source="capacitor"] .allow-text-select {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
 /* --- iOS/MAX: prevent viewport zoom ("jump") on input focus ---
    iOS auto-zooms when input font-size < 16px. We keep compact sizes on desktop,
    but force 16px on iOS so the screen doesn't zoom in/out when the cursor appears. */
