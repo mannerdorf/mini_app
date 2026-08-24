@@ -35,4 +35,19 @@ describe("extractCargoLastMileMeta", () => {
     expect(meta.driver).toBe("Иванов");
     expect(meta.driverTel).toBe("+79001234567");
   });
+
+  it("reads nested GetPerevozka response", () => {
+    const meta = extractCargoLastMileMeta({
+      Response: {
+        LMDriver: "Петров",
+        LMDriverTel: "+79991112233",
+        LMAutoReg: "X123XX/77",
+        LMAutoType: "Ford",
+      },
+    });
+    expect(meta.driver).toBe("Петров");
+    expect(meta.driverTel).toBe("+79991112233");
+    expect(meta.autoReg).toBe("X123XX");
+    expect(meta.autoType).toBe("Ford");
+  });
 });
