@@ -132,13 +132,20 @@ function resetLegStateForCity(prev: PvzSelectionState, city: CityCode): PvzSelec
 }
 
 function defaultPvzState(city: CityCode): PvzSelectionState {
+  const wh = warehouseForCity(city);
   return {
-    deliveryMode: "courier",
+    deliveryMode: "point",
     addressKind: "pvz",
     pvzRef: "",
     pvzItem: null,
-    addr: null,
-    query: "",
+    addr: {
+      label: wh.label,
+      fullAddress: wh.fullAddress,
+      point: wh.point,
+      city,
+      sourceId: wh.code,
+    },
+    query: wh.fullAddress,
     city,
     ...emptyPvzContactFields,
   };
@@ -329,6 +336,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
   const canSubmit = Boolean(
     canQuote &&
       quote &&
+      quote.mainlineMode === mainlineMode &&
       !loading &&
       !orderLoading &&
       punktOtpravki &&
@@ -336,11 +344,40 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
       dataZabora,
   );
 
+  const submitBlockReason = useMemo((): string | null => {
+    if (orderLoading) return null;
+    if (!fromAddr?.point || !toAddr?.point) {
+      return "Укажите адреса отправки и назначения";
+    }
+    if (chargeableHint.ch <= 0) return "Укажите вес или объём груза";
+    if (!dataZabora) return "Укажите дату забора";
+    if (!punktOtpravki || !punktNaznacheniya) return "Укажите пункты отправки и назначения";
+    if (loading) return "Дождитесь окончания расчёта";
+    if (!quote) return "Дождитесь расчёта стоимости";
+    if (quote.mainlineMode !== mainlineMode) return "Дождитесь пересчёта выбранного тарифа";
+    return null;
+  }, [
+    orderLoading,
+    fromAddr?.point,
+    toAddr?.point,
+    chargeableHint.ch,
+    dataZabora,
+    punktOtpravki,
+    punktNaznacheniya,
+    loading,
+    quote,
+    mainlineMode,
+  ]);
+
   const toggleExtra = (code: string) => {
     setExtraCodes((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
   };
 
   const submitOrder = useCallback(async () => {
+    if (submitBlockReason) {
+      setError(submitBlockReason);
+      return;
+    }
     if (!canSubmit || !quote || !fromAddr || !toAddr) {
       setError("Нельзя оформить: заполните адреса, груз и дождитесь расчёта.");
       return;
@@ -419,7 +456,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
         zayavkaPayload,
       });
 
-      setSubmittedNomerZayavki(result.nomerZayavki);
+      setSubmittedNomerZayavki(result.nomerZayavki.trim());
     } catch (e) {
       setError((e as Error)?.message || "Ошибка оформления");
     } finally {
@@ -427,6 +464,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     }
   }, [
     canSubmit,
+    submitBlockReason,
     quote,
     fromAddr,
     toAddr,
@@ -569,7 +607,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
           loading={loading}
           error={error}
           canQuote={canQuote}
-          canSubmit={canSubmit}
+          submitBlockReason={submitBlockReason}
           orderLoading={orderLoading}
           dataZabora={dataZabora}
           setDataZabora={setDataZabora}

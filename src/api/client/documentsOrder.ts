@@ -279,21 +279,21 @@ export async function submitDocumentsOrder(
   auth: DocumentsAuthScope,
   payload: DocumentsOrderSubmitPayload,
 ): Promise<{ nomerZayavki: string; quote: QuoteResult; emailSent: boolean; message: string }> {
-  const res = await fetch("/api/documents/order-submit", {
-    method: "POST",
-    headers: authHeaders(auth),
-    body: authBody(auth, payload),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(parseError(res, data));
+  const body = authBody(auth, payload);
+  const { status, data } = await postJsonXhr("/api/documents/order-submit", authHeaders(auth), body);
+  if (status < 200 || status >= 300) throw new Error(parseError(status, data));
   const d = data as {
-    nomerZayavki: string;
-    quote: QuoteResult;
+    nomerZayavki?: string;
+    quote?: QuoteResult;
     emailSent?: boolean;
     message?: string;
+    error?: string;
   };
+  const nomerZayavki = String(d.nomerZayavki ?? "").trim();
+  if (!nomerZayavki) throw new Error(d.error || "Пустой ответ сервера");
+  if (!d.quote) throw new Error(d.error || "Пустой ответ сервера");
   return {
-    nomerZayavki: d.nomerZayavki,
+    nomerZayavki,
     quote: d.quote,
     emailSent: d.emailSent === true,
     message: d.message || "Заявка зарегистрирована",

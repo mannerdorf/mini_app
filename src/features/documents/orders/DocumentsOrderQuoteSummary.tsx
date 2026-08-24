@@ -31,7 +31,7 @@ type Props = {
   loading: boolean;
   error: string | null;
   canQuote: boolean;
-  canSubmit: boolean;
+  submitBlockReason?: string | null;
   orderLoading: boolean;
   dataZabora: string;
   setDataZabora: (v: string) => void;
@@ -46,7 +46,7 @@ export function DocumentsOrderQuoteSummary({
   loading,
   error,
   canQuote,
-  canSubmit,
+  submitBlockReason = null,
   orderLoading,
   dataZabora,
   setDataZabora,
@@ -55,6 +55,9 @@ export function DocumentsOrderQuoteSummary({
   emptyHint,
   onSubmit,
 }: Props) {
+  const buttonLabel = orderLoading ? "Оформление…" : loading ? "Пересчёт…" : "Оформить";
+  const buttonBlocked = Boolean(submitBlockReason) && !orderLoading;
+
   return (
     <aside className="haulz-calc-summary-wrap" aria-label="Ваш расчёт">
       <div className="haulz-calc-summary">
@@ -137,14 +140,18 @@ export function DocumentsOrderQuoteSummary({
         </p>
 
         <div className="haulz-calc-summary__actions" style={{ marginTop: "1rem" }}>
+          {buttonBlocked && submitBlockReason ? (
+            <p className="haulz-calc-summary__submit-hint">{submitBlockReason}</p>
+          ) : null}
           <button
             type="button"
-            className="haulz-calc-btn-primary"
-            disabled={!canSubmit || orderLoading}
+            className={`haulz-calc-btn-primary${buttonBlocked ? " haulz-calc-btn-primary--blocked" : ""}`}
+            disabled={orderLoading}
+            aria-disabled={buttonBlocked || undefined}
             onClick={onSubmit}
           >
-            {orderLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            Оформить
+            {orderLoading || loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            {buttonLabel}
           </button>
         </div>
       </div>

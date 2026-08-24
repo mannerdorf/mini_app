@@ -674,6 +674,11 @@
   .documents-order-form .haulz-calc-summary-wrap > .haulz-calc-summary {
     overflow: visible;
   }
+
+  .documents-order-form .haulz-calc-summary__actions .haulz-calc-btn-primary {
+    touch-action: manipulation;
+    min-height: 44px;
+  }
 }
 
 /* ——— Карточка секции (как CDEK) ——— */
@@ -1883,6 +1888,21 @@ body.haulz-calc-map-screen-open {
 .haulz-calc-btn-primary:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.haulz-calc-btn-primary--blocked {
+  opacity: 0.72;
+}
+
+.haulz-calc-btn-primary--blocked:not(:disabled) {
+  cursor: pointer;
+}
+
+.haulz-calc-summary__submit-hint {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--calc-text-secondary, #64748b);
 }
 
 .haulz-calc-btn-secondary {
