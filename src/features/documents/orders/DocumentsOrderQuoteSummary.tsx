@@ -4,12 +4,24 @@ import type { QuoteResult } from "../../../../lib/haulzCalculator/types";
 import { formatQuoteVatLine } from "../../../../lib/haulzCalculator/quoteVat";
 import { HaulzCalcTariffBasisFootnote } from "../../haulzCalculator/HaulzCalcTariffBasisFootnote";
 
+export type Order1cUpstreamRequestMeta = {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body: unknown;
+};
+
 export type Order1cSandboxSnapshot = {
   at: string;
   ok: boolean;
   status?: number;
   error?: string | null;
+  /** JSON-тело заявки (legacy / дублирует upstreamRequest.body) */
   request: unknown;
+  /** Полный HTTP-запрос бэкенда в 1С */
+  upstreamRequest?: Order1cUpstreamRequestMeta | null;
+  /** Какой наш API-маршрут вызывался */
+  apiRoute?: string;
   response: unknown;
   requestId?: string;
 };

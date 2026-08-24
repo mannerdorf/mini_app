@@ -7,6 +7,7 @@ import { resolveHaulzCalcManagerAccess } from "../_haulzCalculator.js";
 import { pickHaulzCredentials } from "../_haulzReturns.js";
 import { getClientIp, isRateLimited, HAULZ_CALC_QUOTE_LIMIT } from "../../lib/rateLimit.js";
 import { submitPendingDocumentsOrderTo1c } from "../../lib/documentsOrderSubmitPending1c.js";
+import { sendSubmitPendingDocumentsOrderTo1cJson } from "../../lib/documentsOrderSubmitPending1cApi.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (haulzCalculatorPreflight(req, res)) return;
@@ -44,29 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const result = await submitPendingDocumentsOrderTo1c(pool, id);
-    if (!result.ok) {
-      if (result.request) {
-        return res.status(result.status).json({
-          ok: false,
-          error: result.error,
-          request: result.request,
-          upstream: result.upstream ?? null,
-          nomerZayavki: result.nomerZayavki ?? null,
-          request_id: ctx.requestId,
-        });
-      }
-      return res.status(result.status).json({ ok: false, error: result.error, request_id: ctx.requestId });
-    }
-
-    return res.status(200).json({
-      ok: true,
-      message: "Заявка передана в 1С",
-      nomerZayavki: result.nomerZayavki,
-      request: result.request,
-      upstream: result.upstream,
-      draft: result.draft,
-      request_id: ctx.requestId,
-    });
+    sendSubmitPendingDocumentsOrderTo1cJson(res, result, ctx.requestId);
   } catch (e) {
     logError(ctx, "haulz_calc_submit_pending_1c_failed", e);
     return res.status(500).json({

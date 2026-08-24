@@ -33,6 +33,9 @@ export function DocumentsOrder1cSandboxModal({ snapshot, onClose }: Props) {
     };
   }, [onClose]);
 
+  const upstream = snapshot.upstreamRequest;
+  const requestBody = upstream?.body ?? snapshot.request;
+
   return createPortal(
     <div
       className="haulz-calc-map-overlay documents-order-1c-sandbox-overlay"
@@ -66,6 +69,37 @@ export function DocumentsOrder1cSandboxModal({ snapshot, onClose }: Props) {
             {snapshot.at ? ` · ${new Date(snapshot.at).toLocaleString("ru-RU")}` : ""}
           </p>
           {snapshot.error ? <p className="documents-order-1c-sandbox-modal__error">{snapshot.error}</p> : null}
+          {snapshot.apiRoute ? (
+            <p className="documents-order-1c-sandbox-modal__meta">
+              API: <code>{snapshot.apiRoute}</code>
+            </p>
+          ) : null}
+
+          {upstream ? (
+            <>
+              <label className="documents-order-1c-sandbox-modal__label">HTTP-запрос бэкенда в 1С</label>
+              <p className="documents-order-1c-sandbox-modal__meta">
+                <strong>{upstream.method}</strong> {upstream.url}
+              </p>
+              <label className="documents-order-1c-sandbox-modal__label">Заголовки</label>
+              <textarea
+                className="documents-order-1c-sandbox-modal__pre documents-order-1c-sandbox-modal__pre--request"
+                readOnly
+                spellCheck={false}
+                value={formatSandboxJson(upstream.headers)}
+              />
+            </>
+          ) : null}
+
+          <label className="documents-order-1c-sandbox-modal__label">
+            {upstream ? "Тело JSON (LoadZayavka)" : "Запрос в 1С"}
+          </label>
+          <textarea
+            className="documents-order-1c-sandbox-modal__pre documents-order-1c-sandbox-modal__pre--request"
+            readOnly
+            spellCheck={false}
+            value={formatSandboxJson(requestBody)}
+          />
 
           <label className="documents-order-1c-sandbox-modal__label">Ответ 1С / API</label>
           <textarea
@@ -73,14 +107,6 @@ export function DocumentsOrder1cSandboxModal({ snapshot, onClose }: Props) {
             readOnly
             spellCheck={false}
             value={formatSandboxJson(snapshot.response)}
-          />
-
-          <label className="documents-order-1c-sandbox-modal__label">Запрос в 1С</label>
-          <textarea
-            className="documents-order-1c-sandbox-modal__pre documents-order-1c-sandbox-modal__pre--request"
-            readOnly
-            spellCheck={false}
-            value={formatSandboxJson(snapshot.request)}
           />
         </div>
 

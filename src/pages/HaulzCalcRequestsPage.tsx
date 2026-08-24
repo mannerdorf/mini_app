@@ -139,9 +139,11 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
       setOneCSandbox({
         at: new Date().toISOString(),
         ok: result.ok,
-        status: result.ok ? 200 : undefined,
+        status: result.httpStatus ?? (result.ok ? 200 : undefined),
         error: result.error ?? null,
         request: result.request ?? null,
+        upstreamRequest: result.upstreamRequest ?? null,
+        apiRoute: result.apiRoute,
         response: result.upstream ?? result,
         requestId: result.request_id,
       });

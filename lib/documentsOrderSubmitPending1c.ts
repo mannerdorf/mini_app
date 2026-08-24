@@ -1,6 +1,11 @@
 import type { Pool } from "pg";
 import { setDraftStatusByManager, type HaulzCalcDraftRow } from "./haulzCalculator/calculatorDraftAgree.js";
-import { uploadZayavkaTo1c, type ZayavkaUploadPayload } from "./post1cZayavkaUpload.js";
+import {
+  buildZayavkaUpstreamRequestMeta,
+  uploadZayavkaTo1c,
+  type ZayavkaUploadPayload,
+  type ZayavkaUpstreamRequestMeta,
+} from "./post1cZayavkaUpload.js";
 import { resolveZayavkaPayloadForPendingOrder } from "./documentsOrderPending1c.js";
 import { type PendingOrderDbRow } from "./pendingOrderRequests.js";
 
@@ -10,6 +15,7 @@ export type SubmitPendingDocumentsOrderTo1cResult =
       status: number;
       nomerZayavki: string | null;
       request: ZayavkaUploadPayload;
+      upstreamRequest: ZayavkaUpstreamRequestMeta;
       upstream: unknown;
       draft: HaulzCalcDraftRow;
     }
@@ -18,6 +24,7 @@ export type SubmitPendingDocumentsOrderTo1cResult =
       status: number;
       error: string;
       request?: ZayavkaUploadPayload;
+      upstreamRequest?: ZayavkaUpstreamRequestMeta;
       upstream?: unknown;
       nomerZayavki?: string | null;
     };
@@ -65,6 +72,7 @@ export async function submitPendingDocumentsOrderTo1c(
     return { ok: false, status: 400, error: "Не удалось собрать JSON заявки для 1С" };
   }
 
+  const upstreamRequest = buildZayavkaUpstreamRequestMeta(request);
   const upload = await uploadZayavkaTo1c(request);
   if (!upload.ok) {
     return {
@@ -72,6 +80,7 @@ export async function submitPendingDocumentsOrderTo1c(
       status: upload.status && upload.status >= 400 ? upload.status : 502,
       error: upload.error || "Ошибка загрузки в 1С",
       request,
+      upstreamRequest: upload.upstreamRequest ?? upstreamRequest,
       upstream: upload.raw ?? upload.responseText,
       nomerZayavki: null,
     };
@@ -84,6 +93,7 @@ export async function submitPendingDocumentsOrderTo1c(
       status: 500,
       error: "Заявка отправлена в 1С, но не удалось обновить статус",
       request,
+      upstreamRequest: upload.upstreamRequest ?? upstreamRequest,
       upstream: upload.raw,
       nomerZayavki: upload.nomerZayavki ?? nomer,
     };
@@ -94,6 +104,7 @@ export async function submitPendingDocumentsOrderTo1c(
     status: upload.status,
     nomerZayavki: upload.nomerZayavki ?? nomer,
     request,
+    upstreamRequest: upload.upstreamRequest ?? upstreamRequest,
     upstream: upload.raw,
     draft,
   };

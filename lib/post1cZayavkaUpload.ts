@@ -35,9 +35,30 @@ export type ZayavkaUploadPayload = {
   Посылки: ZayavkaParcelRow[];
 };
 
+export type ZayavkaUpstreamRequestMeta = {
+  method: "POST";
+  url: string;
+  headers: Record<string, string>;
+  body: ZayavkaUploadPayload;
+};
+
 export type ZayavkaUploadResult =
-  | { ok: true; status: number; nomerZayavki?: string; raw: unknown; responseText: string }
-  | { ok: false; status?: number; error: string; raw?: unknown; responseText?: string };
+  | {
+      ok: true;
+      status: number;
+      nomerZayavki?: string;
+      raw: unknown;
+      responseText: string;
+      upstreamRequest: ZayavkaUpstreamRequestMeta;
+    }
+  | {
+      ok: false;
+      status?: number;
+      error: string;
+      raw?: unknown;
+      responseText?: string;
+      upstreamRequest?: ZayavkaUpstreamRequestMeta;
+    };
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const UUIDish_RE =
@@ -187,13 +208,29 @@ export function get1cOrderUploadCredentials(): { login: string; password: string
   return { login, password };
 }
 
-function buildUploadUrl(): string {
+export function buildZayavkaUploadUrl(): string {
   const explicit = String(process.env.ONE_C_ZAYAVKA_UPLOAD_URL ?? "").trim();
   if (explicit) return explicit;
   const metod = String(process.env.ONE_C_ZAYAVKA_UPLOAD_METOD ?? "LoadZayavka").trim() || "LoadZayavka";
   const url = new URL(GETAPI_BASE);
   url.searchParams.set("metod", metod);
   return url.toString();
+}
+
+/** Метаданные HTTP-запроса, который бэкенд отправляет в 1С (для песочницы). */
+export function buildZayavkaUpstreamRequestMeta(payload: ZayavkaUploadPayload): ZayavkaUpstreamRequestMeta {
+  const creds = get1cOrderUploadCredentials();
+  return {
+    method: "POST",
+    url: buildZayavkaUploadUrl(),
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      Accept: "application/json, text/plain, */*",
+      Auth: creds ? `Basic ${creds.login}:${creds.password}` : "(PEREVOZKI_SERVICE_LOGIN/PASSWORD не заданы)",
+      Authorization: GETAPI_SERVICE_AUTH,
+    },
+    body: payload,
+  };
 }
 
 function parseJsonLoose(text: string): unknown {
@@ -230,25 +267,22 @@ function extract1cError(raw: unknown, fallback: string): string {
 
 /** POST JSON заявки в 1С. */
 export async function uploadZayavkaTo1c(payload: ZayavkaUploadPayload): Promise<ZayavkaUploadResult> {
+  const upstreamRequest = buildZayavkaUpstreamRequestMeta(payload);
   const creds = get1cOrderUploadCredentials();
   if (!creds) {
     return {
       ok: false,
       error:
         "Не настроены учётные данные 1С (PEREVOZKI_SERVICE_LOGIN/PASSWORD или HAULZ_1C_SERVICE_*)",
+      upstreamRequest,
     };
   }
 
-  const url = buildUploadUrl();
+  const url = upstreamRequest.url;
   try {
     const upstream = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        Accept: "application/json, text/plain, */*",
-        Auth: `Basic ${creds.login}:${creds.password}`,
-        Authorization: GETAPI_SERVICE_AUTH,
-      },
+      method: upstreamRequest.method,
+      headers: upstreamRequest.headers,
       body: JSON.stringify(payload),
     });
     const text = await upstream.text();
@@ -261,6 +295,7 @@ export async function uploadZayavkaTo1c(payload: ZayavkaUploadPayload): Promise<
         error: extract1cError(parsed, text || upstream.statusText || `HTTP ${upstream.status}`),
         raw: parsed,
         responseText: text,
+        upstreamRequest,
       };
     }
 
@@ -271,6 +306,7 @@ export async function uploadZayavkaTo1c(payload: ZayavkaUploadPayload): Promise<
         error: extract1cError(parsed, "1С отклонила заявку"),
         raw: parsed,
         responseText: text,
+        upstreamRequest,
       };
     }
 
@@ -280,9 +316,14 @@ export async function uploadZayavkaTo1c(payload: ZayavkaUploadPayload): Promise<
       nomerZayavki: extractNomerZayavki(parsed),
       raw: parsed,
       responseText: text,
+      upstreamRequest,
     };
   } catch (e: unknown) {
-    return { ok: false, error: (e as Error)?.message || "Network error calling 1C" };
+    return {
+      ok: false,
+      error: (e as Error)?.message || "Network error calling 1C",
+      upstreamRequest,
+    };
   }
 }
 
