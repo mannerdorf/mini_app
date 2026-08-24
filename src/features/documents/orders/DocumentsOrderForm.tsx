@@ -336,7 +336,6 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
   const canSubmit = Boolean(
     canQuote &&
       quote &&
-      quote.mainlineMode === mainlineMode &&
       !loading &&
       !orderLoading &&
       punktOtpravki &&
@@ -354,7 +353,6 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     if (!punktOtpravki || !punktNaznacheniya) return "Укажите пункты отправки и назначения";
     if (loading) return "Дождитесь окончания расчёта";
     if (!quote) return "Дождитесь расчёта стоимости";
-    if (quote.mainlineMode !== mainlineMode) return "Дождитесь пересчёта выбранного тарифа";
     return null;
   }, [
     orderLoading,
@@ -366,7 +364,6 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     punktNaznacheniya,
     loading,
     quote,
-    mainlineMode,
   ]);
 
   const toggleExtra = (code: string) => {
