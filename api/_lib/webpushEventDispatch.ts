@@ -25,6 +25,7 @@ import {
 } from "../../lib/notificationCargoOwnerInn.js";
 import {
   loadCargoPayloadsByNumbers,
+  loadInvoicePayloadsByCargoNumbers,
   resolveCargoItemForPushTemplate,
 } from "../../lib/notificationCargoPayloadEnrich.js";
 import { getPerevozkiServiceCredentials } from "../../lib/cacheHistoryDays.js";
@@ -306,7 +307,18 @@ export async function dispatchWebPushCargoEvents(params: {
   let cleanedSubscriptions = 0;
   const nowBucket = Math.floor(Date.now() / (1000 * dedupeTtlSeconds));
   const payloadByNumber = await loadCargoPayloadsByNumbers(pool, cargoNumbers);
+  const cargoNumbersByInn = new Map<string, string[]>();
+  for (const row of prepared) {
+    const list = cargoNumbersByInn.get(row.inn) || [];
+    if (!list.includes(row.cargoNumber)) list.push(row.cargoNumber);
+    cargoNumbersByInn.set(row.inn, list);
+  }
+  const invoiceByInnAndCargo = new Map<string, Map<string, Record<string, unknown>>>();
+  for (const [inn, nums] of cargoNumbersByInn) {
+    invoiceByInnAndCargo.set(inn, await loadInvoicePayloadsByCargoNumbers(pool, inn, nums));
+  }
   const perevozkaDetailCache = new Map<string, Record<string, unknown> | null>();
+  const invoiceLiveCache = new Map<string, Record<string, unknown> | null>();
   const perevozkaCreds = getPerevozkiServiceCredentials();
   for (const item of prepared) {
     const key = `${item.inn}::${item.cargoNumber}`;
@@ -327,10 +339,12 @@ export async function dispatchWebPushCargoEvents(params: {
         item: item.raw as Record<string, unknown>,
         event,
         payloadByNumber,
+        invoiceByCargoNumber: invoiceByInnAndCargo.get(item.inn),
         customerInn: item.inn,
         serviceLogin: perevozkaCreds?.login,
         servicePassword: perevozkaCreds?.password,
         perevozkaCache: perevozkaDetailCache,
+        invoiceLiveCache,
       });
       const message = formatPushNotificationMessage(event, item.cargoNumber, templateItem, pushTemplates);
       for (const [login, eventsEnabled] of subscribers.entries()) {

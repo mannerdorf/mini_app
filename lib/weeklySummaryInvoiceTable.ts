@@ -101,6 +101,22 @@ export function getFirstCargoNumberFromInvoice(inv: Record<string, unknown>): st
   return null;
 }
 
+/** Все номера перевозок, связанные со счётом (List + первая строка). */
+export function collectInvoiceLinkedCargoNumbers(inv: Record<string, unknown>): string[] {
+  const cargoNums = new Set<string>();
+  const first = getFirstCargoNumberFromInvoice(inv);
+  if (first) cargoNums.add(first);
+  const list = Array.isArray(inv.List) ? (inv.List as Array<Record<string, unknown>>) : [];
+  for (const row of list) {
+    const text = String(row?.Operation ?? row?.Name ?? "").trim();
+    if (!text) continue;
+    for (const part of parseCargoNumbersFromText(text)) {
+      if (part.type === "cargo" && part.value) cargoNums.add(part.value);
+    }
+  }
+  return [...cargoNums];
+}
+
 export function buildCargoStateByNumber(perevozkiItems: Record<string, unknown>[]): Map<string, string> {
   const m = new Map<string, string>();
   for (const c of perevozkiItems) {
