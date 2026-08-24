@@ -107,15 +107,23 @@ export function useDocumentsPageNavigation({
         return defaultDocSection;
     });
 
-    useEffect(() => {
-        if (!documentsOrderFormOpen || docSection === "Заявки") return;
-        setDocSection("Заявки");
+    const syncDocSectionUrl = useCallback((section: DocSectionKey) => {
         try {
-            localStorage.setItem(DOCS_SECTION_KEY, "Заявки");
+            const url = new URL(window.location.href);
+            url.searchParams.set("section", section);
+            window.history.replaceState(null, "", url.toString());
         } catch {
             /* ignore */
         }
-    }, [documentsOrderFormOpen, docSection]);
+    }, []);
+
+    const selectDocSection = useCallback(
+        (section: DocSectionKey) => {
+            setDocSection(section);
+            syncDocSectionUrl(section);
+        },
+        [syncDocSectionUrl],
+    );
 
     useEffect(() => {
         const isAllowed = allowedDocSections.some(({ key }) => key === docSection);
@@ -139,7 +147,7 @@ export function useDocumentsPageNavigation({
 
     return {
         docSection,
-        setDocSection,
+        setDocSection: selectDocSection,
         allowedDocSections,
         tableModeByCustomer,
         setTableModeByCustomer,
