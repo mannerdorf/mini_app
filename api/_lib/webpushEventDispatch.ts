@@ -23,6 +23,11 @@ import {
   resolveNotificationCargoOwnerInn,
   shouldDeliverNotificationToSubscriber,
 } from "../../lib/notificationCargoOwnerInn.js";
+import {
+  loadCargoPayloadsByNumbers,
+  resolveCargoItemForPushTemplate,
+} from "../../lib/notificationCargoPayloadEnrich.js";
+import { getPerevozkiServiceCredentials } from "../../lib/cacheHistoryDays.js";
 import { loadPushNotificationTemplates, formatPushNotificationMessage } from "../../lib/pushNotificationTemplates.js";
 
 type CargoSnapshotItem = {
@@ -300,6 +305,9 @@ export async function dispatchWebPushCargoEvents(params: {
   let deduped = 0;
   let cleanedSubscriptions = 0;
   const nowBucket = Math.floor(Date.now() / (1000 * dedupeTtlSeconds));
+  const payloadByNumber = await loadCargoPayloadsByNumbers(pool, cargoNumbers);
+  const perevozkaDetailCache = new Map<string, Record<string, unknown> | null>();
+  const perevozkaCreds = getPerevozkiServiceCredentials();
   for (const item of prepared) {
     const key = `${item.inn}::${item.cargoNumber}`;
     const prev = lastState.get(key);
@@ -315,6 +323,16 @@ export async function dispatchWebPushCargoEvents(params: {
     const pushSubscribers = pushSubscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
 
     for (const event of eventsToSend) {
+      const templateItem = await resolveCargoItemForPushTemplate({
+        item: item.raw as Record<string, unknown>,
+        event,
+        payloadByNumber,
+        customerInn: item.inn,
+        serviceLogin: perevozkaCreds?.login,
+        servicePassword: perevozkaCreds?.password,
+        perevozkaCache: perevozkaDetailCache,
+      });
+      const message = formatPushNotificationMessage(event, item.cargoNumber, templateItem, pushTemplates);
       for (const [login, eventsEnabled] of subscribers.entries()) {
         if (
           !shouldDeliverNotificationToSubscriber({
@@ -356,7 +374,6 @@ export async function dispatchWebPushCargoEvents(params: {
           continue;
         }
         attempted += 1;
-        const message = formatPushNotificationMessage(event, item.cargoNumber, item.raw as Record<string, unknown>, pushTemplates);
         const sendResult = await sendWebPushToLogin(login, {
           title: message.title,
           body: message.body,
@@ -427,7 +444,6 @@ export async function dispatchWebPushCargoEvents(params: {
           continue;
         }
         attempted += 1;
-        const message = formatPushNotificationMessage(event, item.cargoNumber, item.raw as Record<string, unknown>, pushTemplates);
         const sendResult = await sendFcmToLogin(login, {
           title: message.title,
           body: message.body,

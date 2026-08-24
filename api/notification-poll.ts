@@ -29,6 +29,10 @@ import {
   resolveNotificationCargoOwnerInn,
   shouldDeliverNotificationToSubscriber,
 } from "../lib/notificationCargoOwnerInn.js";
+import {
+  loadCargoPayloadsByNumbers,
+  resolveCargoItemForPushTemplate,
+} from "../lib/notificationCargoPayloadEnrich.js";
 import { loadPushNotificationTemplates, formatPushNotificationMessage } from "../lib/pushNotificationTemplates.js";
 
 const CRON_SECRET = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
@@ -284,6 +288,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
 
       const subscribers = subscribersByInn.get(inn) || [];
+      const payloadByNumber = await loadCargoPayloadsByNumbers(pool, cargoNumbers);
+      const perevozkaDetailCache = new Map<string, Record<string, unknown> | null>();
 
       for (const item of items) {
         const number = String(item?.Number ?? item?.number ?? "").trim();
@@ -312,7 +318,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         for (const event of eventsToSend) {
-          const message = formatPushNotificationMessage(event, number, item, pushTemplates);
+          const templateItem = await resolveCargoItemForPushTemplate({
+            item: item as Record<string, unknown>,
+            event,
+            payloadByNumber,
+            customerInn: cargoInn,
+            serviceLogin: POLL_SERVICE_LOGIN,
+            servicePassword: POLL_SERVICE_PASSWORD,
+            perevozkaCache: perevozkaDetailCache,
+          });
+          const message = formatPushNotificationMessage(event, number, templateItem, pushTemplates);
           const text = message.body;
           const title = message.title;
           let docButton: Record<string, unknown> | undefined;
