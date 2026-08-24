@@ -13,9 +13,7 @@ import {
   fetchDocumentsOrderOptions,
   fetchDocumentsOrderQuote,
   fileToBase64,
-  DocumentsOrder1cSubmitError,
   submitDocumentsOrder,
-  submitOrderTo1c,
   type DocumentsAuthScope,
   type DocumentsOrderQuotePayload,
 } from "../../../api/client/documentsOrder";
@@ -36,7 +34,6 @@ import {
 } from "./DocumentsOrderCargoSection";
 import {
   DocumentsOrderQuoteSummary,
-  type Order1cSandboxSnapshot,
 } from "./DocumentsOrderQuoteSummary";
 import { DocumentsOrderSuccessModal } from "./DocumentsOrderSuccessModal";
 import { useDocumentsOrderSummaryTopSync } from "./useDocumentsOrderSummaryTopSync";
@@ -177,7 +174,6 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
   const [error, setError] = useState<string | null>(null);
   const [orderLoading, setOrderLoading] = useState(false);
   const [submittedNomerZayavki, setSubmittedNomerZayavki] = useState<string | null>(null);
-  const [oneCSandbox, setOneCSandbox] = useState<Order1cSandboxSnapshot | null>(null);
   const [nomerZayavki, setNomerZayavki] = useState("");
   const [dataZabora, setDataZabora] = useState(() => {
     const d = new Date();
@@ -351,7 +347,6 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     }
     setOrderLoading(true);
     setError(null);
-    let sandboxRequest: unknown = null;
     try {
       const attachments: { name: string; mimeType?: string; base64: string }[] = [];
       if (cargo.attachEnabled && cargo.fileUpd) {
@@ -399,23 +394,6 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
             }))
           : undefined,
       });
-      sandboxRequest = zayavkaPayload;
-      setOneCSandbox({
-        at: new Date().toISOString(),
-        ok: false,
-        request: zayavkaPayload,
-        response: { status: "sending…" },
-      });
-
-      const result1c = await submitOrderTo1c(authScope, zayavkaPayload);
-      setOneCSandbox({
-        at: new Date().toISOString(),
-        ok: true,
-        status: result1c.status,
-        request: zayavkaPayload,
-        response: result1c.raw ?? result1c.upstream ?? result1c,
-        requestId: result1c.request_id,
-      });
 
       const result = await submitDocumentsOrder(authScope, {
         from: fromAddr,
@@ -438,31 +416,12 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
         tableRows: cargo.tableRows,
         fivepostBatchId: fivepostCustomer && cargo.fivepostBatchId ? cargo.fivepostBatchId : undefined,
         attachments: attachments.length ? attachments : undefined,
+        zayavkaPayload,
       });
 
-      setSubmittedNomerZayavki(result1c.nomerZayavki || result.nomerZayavki);
+      setSubmittedNomerZayavki(result.nomerZayavki);
     } catch (e) {
-      const msg = (e as Error)?.message || "Ошибка оформления";
-      setError(msg);
-      if (e instanceof DocumentsOrder1cSubmitError) {
-        setOneCSandbox({
-          at: new Date().toISOString(),
-          ok: false,
-          status: e.status,
-          error: msg,
-          request: sandboxRequest,
-          response: e.raw ?? e.upstream ?? { error: msg },
-          requestId: e.request_id,
-        });
-      } else if (sandboxRequest != null) {
-        setOneCSandbox({
-          at: new Date().toISOString(),
-          ok: false,
-          error: msg,
-          request: sandboxRequest,
-          response: { error: msg },
-        });
-      }
+      setError((e as Error)?.message || "Ошибка оформления");
     } finally {
       setOrderLoading(false);
     }
@@ -618,7 +577,6 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
           setNomerZayavki={setNomerZayavki}
           emptyHint={emptyHint}
           onSubmit={() => void submitOrder()}
-          oneCSandbox={oneCSandbox}
         />
         </div>
       </div>

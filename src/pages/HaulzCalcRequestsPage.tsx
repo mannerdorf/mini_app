@@ -8,6 +8,7 @@ import {
   fetchHaulzCalcDraftsManager,
   fetchHaulzCalcSavedDrafts,
   patchHaulzCalcDraftStatus,
+  submitPendingOrderTo1c,
   type HaulzCalcDraft,
 } from "../api/client/haulzCalculator";
 import { HAULZ_CALC_DRAFT_STATUS_LABELS, type HaulzCalcDraftStatus } from "../../lib/haulzCalculator/draftStatus";
@@ -15,6 +16,8 @@ import { haulzCalcDraftStatusBadgeClass } from "../features/haulzCalculator/haul
 import { formatHaulzCalcDraftCustomer } from "../../lib/haulzCalculator/draftCustomerDisplay";
 import { HaulzCalcRequestDetail } from "../features/haulzCalculator/HaulzCalcRequestDetail";
 import { ManagerOrdersJournalSection } from "../features/haulzCalculator/ManagerOrdersJournalSection";
+import { DocumentsOrder1cSandboxModal } from "../features/documents/orders/DocumentsOrder1cSandboxModal";
+import type { Order1cSandboxSnapshot } from "../features/documents/orders/DocumentsOrderQuoteSummary";
 import {
   persistHaulzCalcRequestsTab,
   readStoredHaulzCalcRequestsTab,
@@ -52,6 +55,8 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [statusLoadingId, setStatusLoadingId] = useState<number | null>(null);
+  const [submitTo1cLoadingId, setSubmitTo1cLoadingId] = useState<number | null>(null);
+  const [oneCSandbox, setOneCSandbox] = useState<Order1cSandboxSnapshot | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const list = tab === "saved" ? savedDrafts : requests;
@@ -123,6 +128,35 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
       setError((e as Error)?.message || "Не удалось обновить статус");
     } finally {
       setStatusLoadingId(null);
+    }
+  };
+
+  const handleManagerSubmitTo1c = async (id: number) => {
+    setSubmitTo1cLoadingId(id);
+    setError(null);
+    try {
+      const result = await submitPendingOrderTo1c(auth, id);
+      setOneCSandbox({
+        at: new Date().toISOString(),
+        ok: result.ok,
+        status: result.ok ? 200 : undefined,
+        error: result.error ?? null,
+        request: result.request ?? null,
+        response: result.upstream ?? result,
+        requestId: result.request_id,
+      });
+      if (result.ok && result.draft) {
+        setRequests((prev) => prev.map((d) => (d.id === id ? result.draft! : d)));
+        if (selectedId === id) {
+          setSelectedId(result.draft.id);
+        }
+      } else if (!result.ok) {
+        setError(result.error || "Не удалось отправить заявку в 1С");
+      }
+    } catch (e) {
+      setError((e as Error)?.message || "Не удалось отправить заявку в 1С");
+    } finally {
+      setSubmitTo1cLoadingId(null);
     }
   };
 
@@ -280,7 +314,9 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
           drafts={requests}
           statusLoadingId={statusLoadingId}
           deletingId={deletingId}
+          submitTo1cLoadingId={submitTo1cLoadingId}
           onStatusChange={(id, status) => void handleManagerStatus(id, status)}
+          onSubmitTo1c={(id) => void handleManagerSubmitTo1c(id)}
           onEdit={(id) => handleOpenCalculator(id)}
           onDelete={(id) => void handleManagerDelete(id)}
         />
@@ -357,9 +393,13 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
                 draft={selected}
                 managerMode={managerMode}
                 statusLoading={statusLoadingId === selected.id}
+                submitTo1cLoading={submitTo1cLoadingId === selected.id}
                 onClose={() => setSelectedId(null)}
                 onAgreed={() => void handleManagerStatus(selected.id, "agreed")}
                 onRejected={() => void handleManagerStatus(selected.id, "rejected")}
+                onSubmitTo1c={
+                  selected.status === "agreed" ? () => void handleManagerSubmitTo1c(selected.id) : undefined
+                }
                 onContinue={() => handleOpenCalculator(selected.id)}
               />
             ) : (
@@ -370,6 +410,10 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
           </aside>
         </div>
       )}
+
+      {oneCSandbox ? (
+        <DocumentsOrder1cSandboxModal snapshot={oneCSandbox} onClose={() => setOneCSandbox(null)} />
+      ) : null}
     </div>
   );
 }

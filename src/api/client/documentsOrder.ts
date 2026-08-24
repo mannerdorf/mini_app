@@ -156,6 +156,8 @@ export type DocumentsOrderSubmitPayload = DocumentsOrderQuotePayload & {
   tableRows?: TableRow[];
   fivepostBatchId?: number | null;
   attachments?: DocumentsOrderAttachment[];
+  /** JSON для 1С — сохраняется в pending_order_requests, отправка после согласования менеджером. */
+  zayavkaPayload?: DocumentsOrder1cSubmitPayload;
 };
 
 export type DocumentsOrder1cSubmitPayload = {

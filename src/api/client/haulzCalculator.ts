@@ -404,6 +404,48 @@ export async function patchHaulzCalcDraftStatus(
   return draft;
 }
 
+export type SubmitPendingOrderTo1cResult = {
+  ok: boolean;
+  message?: string;
+  nomerZayavki?: string | null;
+  request?: unknown;
+  upstream?: unknown;
+  error?: string;
+  request_id?: string;
+  draft?: HaulzCalcDraft;
+};
+
+export async function submitPendingOrderTo1c(
+  auth: AuthData,
+  draftId: number,
+): Promise<SubmitPendingOrderTo1cResult> {
+  const res = await fetch("/api/haulz-calculator/submit-pending-1c", {
+    method: "POST",
+    headers: authHeaders(auth),
+    body: JSON.stringify({ id: draftId }),
+  });
+  const data = (await res.json().catch(() => ({}))) as SubmitPendingOrderTo1cResult & { error?: string };
+  if (!res.ok) {
+    return {
+      ok: false,
+      error: data.error || parseError(res, data),
+      request: data.request,
+      upstream: data.upstream,
+      nomerZayavki: data.nomerZayavki ?? null,
+      request_id: typeof data.request_id === "string" ? data.request_id : undefined,
+    };
+  }
+  return {
+    ok: true,
+    message: data.message,
+    nomerZayavki: data.nomerZayavki ?? null,
+    request: data.request,
+    upstream: data.upstream,
+    draft: data.draft,
+    request_id: typeof data.request_id === "string" ? data.request_id : undefined,
+  };
+}
+
 export async function submitHaulzCalculatorOrder(
   auth: AuthData,
   body: Parameters<typeof fetchHaulzQuote>[1] & {

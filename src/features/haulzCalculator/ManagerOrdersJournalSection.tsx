@@ -26,7 +26,9 @@ type Props = {
   drafts: HaulzCalcDraft[];
   statusLoadingId: number | null;
   deletingId: number | null;
+  submitTo1cLoadingId?: number | null;
   onStatusChange: (id: number, status: HaulzCalcDraftStatus) => void;
+  onSubmitTo1c?: (id: number) => void;
   onEdit: (id: number) => void;
   onDelete: (id: number) => void;
 };
@@ -35,7 +37,9 @@ export function ManagerOrdersJournalSection({
   drafts,
   statusLoadingId,
   deletingId,
+  submitTo1cLoadingId = null,
   onStatusChange,
+  onSubmitTo1c,
   onEdit,
   onDelete,
 }: Props) {
@@ -85,6 +89,7 @@ export function ManagerOrdersJournalSection({
               const legacyRows = (row._legacyTableRows as PendingLegacyTableRow[]) ?? [];
               const statusBusy = statusLoadingId === draft.id;
               const deleteBusy = deletingId === draft.id;
+              const submitBusy = submitTo1cLoadingId === draft.id;
 
               return (
                 <React.Fragment key={rowKey}>
@@ -164,6 +169,12 @@ export function ManagerOrdersJournalSection({
                           managerStatus={draft.status}
                           managerStatusLoading={statusBusy}
                           onStatusChange={(status) => onStatusChange(draft.id, status)}
+                          onSubmitTo1c={
+                            draft.status === "agreed" && onSubmitTo1c
+                              ? () => onSubmitTo1c(draft.id)
+                              : undefined
+                          }
+                          submitTo1cLoading={submitBusy}
                           onEdit={() => onEdit(draft.id)}
                           onDelete={() => onDelete(draft.id)}
                           deleteLoading={deleteBusy}

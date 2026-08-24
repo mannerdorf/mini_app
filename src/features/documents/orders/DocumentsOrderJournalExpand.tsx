@@ -35,6 +35,8 @@ type Props = {
   managerStatus?: HaulzCalcDraftStatus;
   managerStatusLoading?: boolean;
   onStatusChange?: (status: HaulzCalcDraftStatus) => void;
+  onSubmitTo1c?: () => void;
+  submitTo1cLoading?: boolean;
   onEdit?: () => void;
   onDelete?: () => void;
   deleteLoading?: boolean;
@@ -54,6 +56,8 @@ export function DocumentsOrderJournalExpand({
   managerStatus,
   managerStatusLoading,
   onStatusChange,
+  onSubmitTo1c,
+  submitTo1cLoading,
   onEdit,
   onDelete,
   deleteLoading,
@@ -167,6 +171,17 @@ export function DocumentsOrderJournalExpand({
                 Не согласовано
               </button>
             </>
+          )}
+          {managerStatus === "agreed" && onSubmitTo1c && (
+            <button
+              type="button"
+              className="haulz-calc-btn-primary"
+              disabled={submitTo1cLoading || managerStatusLoading}
+              onClick={onSubmitTo1c}
+            >
+              {submitTo1cLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Отправить в 1С
+            </button>
           )}
           {onEdit && (
             <button type="button" className="haulz-calc-btn-secondary" onClick={onEdit}>

@@ -32,6 +32,8 @@ type PendingOrderDbRow = {
   created_at: Date | string;
 };
 
+export type { PendingOrderDbRow };
+
 function normalizeLogin(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();
 }
@@ -214,7 +216,7 @@ export function mapFivepostRecordToClientRow(record: FivepostRowRecord): Record<
   };
 }
 
-async function loadFivepostRowsByBatchIds(pool: Pool, batchIds: number[]): Promise<Map<number, Record<string, unknown>[]>> {
+export async function loadFivepostRowsByBatchIds(pool: Pool, batchIds: number[]): Promise<Map<number, Record<string, unknown>[]>> {
   const out = new Map<number, Record<string, unknown>[]>();
   if (!batchIds.length) return out;
 

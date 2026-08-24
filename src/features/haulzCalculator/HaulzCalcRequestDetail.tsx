@@ -43,9 +43,11 @@ type Props = {
   draft: HaulzCalcDraft;
   managerMode?: boolean;
   statusLoading: boolean;
+  submitTo1cLoading?: boolean;
   onClose?: () => void;
   onAgreed: () => void;
   onRejected: () => void;
+  onSubmitTo1c?: () => void;
   onContinue: () => void;
 };
 
@@ -134,9 +136,11 @@ export function HaulzCalcRequestDetail({
   draft: d,
   managerMode,
   statusLoading,
+  submitTo1cLoading,
   onClose,
   onAgreed,
   onRejected,
+  onSubmitTo1c,
   onContinue,
 }: Props) {
   const f = d.formState;
@@ -309,6 +313,19 @@ export function HaulzCalcRequestDetail({
               onClick={onRejected}
             >
               Не согласовано
+            </button>
+          </div>
+        )}
+        {managerMode && d.status === "agreed" && onSubmitTo1c && (
+          <div className="haulz-calc-requests-detail__footer-actions">
+            <button
+              type="button"
+              className="haulz-calc-btn-primary"
+              disabled={submitTo1cLoading || statusLoading}
+              onClick={onSubmitTo1c}
+            >
+              {submitTo1cLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Отправить в 1С
             </button>
           </div>
         )}
