@@ -3219,6 +3219,18 @@ body.haulz-calc-map-screen-open {
   word-break: break-word;
 }
 
+.documents-order-1c-sandbox-modal__meta {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--calc-text-secondary, #64748b);
+  word-break: break-all;
+}
+
+.documents-order-1c-sandbox-modal__meta code {
+  font-size: 0.78rem;
+}
+
 .documents-order-1c-sandbox-modal__label {
   display: block;
   margin: 0.5rem 0 0;
