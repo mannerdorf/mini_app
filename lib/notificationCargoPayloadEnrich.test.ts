@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  enrichBillItemForPushTemplate,
   enrichCargoItemForPushTemplate,
+  invoiceFieldsForPushMerge,
   mergeCargoItemForPushTemplate,
   shouldFetchPerevozkaLastMileForPush,
 } from "./notificationCargoPayloadEnrich.js";
+import { buildPushTemplateContext } from "./pushNotificationTemplates.js";
 
 describe("mergeCargoItemForPushTemplate", () => {
   it("fills empty LM fields from overlay", () => {
@@ -46,5 +49,34 @@ describe("shouldFetchPerevozkaLastMileForPush", () => {
         LMDriverTel: "+79990001122",
       }),
     ).toBe(false);
+  });
+});
+
+describe("enrichBillItemForPushTemplate", () => {
+  it("fills bill number from linked invoice without overwriting cargo number", () => {
+    const invoiceByCargo = new Map([
+      [
+        "141896",
+        {
+          Number: "000001234",
+          SumDoc: 44941,
+          List: [{ Operation: "Перевозка 000141896" }],
+        },
+      ],
+    ]);
+    const enriched = enrichBillItemForPushTemplate({ Number: "000141896", Sum: 44941 }, invoiceByCargo);
+    expect(enriched.Number).toBe("000141896");
+    expect(enriched.BillNum).toBe("000001234");
+    const ctx = buildPushTemplateContext("bill_created", "000141896", enriched);
+    expect(ctx.bill_number).toBe("1234");
+    expect(ctx.bill_sum).toMatch(/44/);
+  });
+});
+
+describe("invoiceFieldsForPushMerge", () => {
+  it("maps invoice Number to BillNum", () => {
+    const fields = invoiceFieldsForPushMerge({ Number: "000001529", SumDoc: 125000 });
+    expect(fields.BillNum).toBe("000001529");
+    expect(fields.SumDoc).toBe(125000);
   });
 });
