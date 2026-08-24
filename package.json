@@ -18,7 +18,8 @@
     "api:start": "node --import tsx server/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e:guest": "playwright test e2e/guest-smoke.spec.ts",
+    "store:screenshots": "node scripts/capture-rustore-screenshots.mjs",
+    "store:screenshots:app": "node scripts/capture-rustore-screenshots.mjs --app",
     "test:e2e:guest:install": "playwright install chromium"
   },
   "dependencies": {
