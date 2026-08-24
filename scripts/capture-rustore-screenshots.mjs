@@ -10,12 +10,17 @@
  *   STORE_LOGIN=... STORE_PASSWORD=... node scripts/capture-rustore-screenshots.mjs --app
  */
 
-import { chromium } from "playwright";
+import { chromium, devices } from "playwright";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+/** Итоговый PNG для RuStore (9:16). */
 const WIDTH = 1080;
 const HEIGHT = 1920;
+/** CSS-viewport телефона (≤768px), иначе грузится desktop-вёрстка guest/app. */
+const VIEWPORT_W = 360;
+const VIEWPORT_H = 640;
+const DEVICE_SCALE = WIDTH / VIEWPORT_W; // 3 → PNG ровно 1080×1920
 const BASE_URL = (process.env.STORESHOT_BASE_URL || "https://haulz.space").replace(/\/$/, "");
 const OUT_DIR = path.resolve("store/rustore/screenshots");
 const WITH_APP = process.argv.includes("--app");
@@ -126,20 +131,20 @@ async function captureAppSet(page) {
 }
 
 const browser = await chromium.launch({ headless: true });
+const pixel = devices["Pixel 7"];
 const context = await browser.newContext({
-  viewport: { width: WIDTH, height: HEIGHT },
-  deviceScaleFactor: 1,
+  ...pixel,
+  viewport: { width: VIEWPORT_W, height: VIEWPORT_H },
+  deviceScaleFactor: DEVICE_SCALE,
   locale: "ru-RU",
   colorScheme: "light",
-  isMobile: true,
-  hasTouch: true,
-  userAgent:
-    "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
 });
 const page = await context.newPage();
 
 await fs.mkdir(OUT_DIR, { recursive: true });
-console.log(`Capturing RuStore screenshots (${WIDTH}×${HEIGHT}) from ${BASE_URL}`);
+console.log(
+  `Capturing RuStore screenshots (${WIDTH}×${HEIGHT} PNG, CSS viewport ${VIEWPORT_W}×${VIEWPORT_H}, scale ${DEVICE_SCALE.toFixed(2)}) from ${BASE_URL}`,
+);
 console.log(`Output: ${OUT_DIR}/`);
 
 try {
