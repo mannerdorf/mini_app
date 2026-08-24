@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { extractZayavkaBody, normalizeZayavkaUploadPayload } from "./post1cZayavkaUpload.js";
+import {
+  extractZayavkaBody,
+  normalizeZayavkaUploadPayload,
+  sanitizeZayavkaUpstreamRequestForSandbox,
+  buildZayavkaUpstreamRequestMeta,
+} from "./post1cZayavkaUpload.js";
 
 const SAMPLE = {
   ЗаказчикИНН: "7701234567",
@@ -59,5 +64,19 @@ describe("normalizeZayavkaUploadPayload", () => {
   it("rejects empty parcels", () => {
     const r = normalizeZayavkaUploadPayload({ ...SAMPLE, Посылки: [] });
     expect(r.ok).toBe(false);
+  });
+});
+
+describe("sanitizeZayavkaUpstreamRequestForSandbox", () => {
+  it("masks Auth and Authorization headers", () => {
+    const norm = normalizeZayavkaUploadPayload(SAMPLE);
+    expect(norm.ok).toBe(true);
+    if (!norm.ok) return;
+    const meta = buildZayavkaUpstreamRequestMeta(norm.payload);
+    meta.headers.Auth = "Basic user@example.com:secret123";
+    meta.headers.Authorization = "Basic YWRtaW46anVlYmZueWU=";
+    const safe = sanitizeZayavkaUpstreamRequestForSandbox(meta);
+    expect(safe?.headers.Auth).toBe("Basic user@example.com:***");
+    expect(safe?.headers.Authorization).toBe("Basic ***");
   });
 });

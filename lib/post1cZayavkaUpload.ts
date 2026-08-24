@@ -233,6 +233,31 @@ export function buildZayavkaUpstreamRequestMeta(payload: ZayavkaUploadPayload): 
   };
 }
 
+/** Убирает пароли из заголовков перед показом в UI-песочнице. */
+export function sanitizeZayavkaUpstreamRequestForSandbox(
+  meta: ZayavkaUpstreamRequestMeta | undefined | null,
+): ZayavkaUpstreamRequestMeta | null {
+  if (!meta) return null;
+  const headers = { ...meta.headers };
+  for (const key of ["Auth", "Authorization"] as const) {
+    const raw = headers[key];
+    if (!raw) continue;
+    const basic = raw.match(/^Basic\s+(.+)$/i);
+    if (!basic) {
+      headers[key] = "***";
+      continue;
+    }
+    const cred = basic[1];
+    if (cred.includes(":")) {
+      const login = cred.split(":")[0];
+      headers[key] = `Basic ${login}:***`;
+    } else {
+      headers[key] = "Basic ***";
+    }
+  }
+  return { ...meta, headers };
+}
+
 function parseJsonLoose(text: string): unknown {
   const trimmed = text.trim();
   if (!trimmed) return null;
