@@ -189,6 +189,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       duration_ms: Date.now() - started,
       cache_cargo_inns: cacheIndex.cargoByInn.size,
       cache_invoice_inns: cacheIndex.invoicesByInn.size,
+      cache_source: cacheIndex.source,
       errors_count: errors.length,
       errors: errors.slice(0, 30),
       request_id: ctx.requestId,
