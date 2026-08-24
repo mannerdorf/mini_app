@@ -70,13 +70,6 @@ export function useDocumentsPageNavigation({
     const tableModeFlatDirect = tableModeByCustomer && !tableModeGroupedByCustomer;
     const tableModeEffective = tableModeByCustomer;
 
-    const [documentsOrderFormOpen, setDocumentsOrderFormOpen] = useState(() => readDocumentsNewOrderOpen());
-
-    const setDocumentsOrderFormOpenPersist = useCallback((open: boolean) => {
-        setDocumentsOrderFormOpen(open);
-        persistDocumentsNewOrderOpen(open);
-    }, [persistDocumentsNewOrderOpen]);
-
     const allowedDocSections = useMemo(() => {
         const sendingsAllowed =
             effectiveServiceMode &&
@@ -92,7 +85,7 @@ export function useDocumentsPageNavigation({
 
     const defaultDocSection = allowedDocSections[0]?.key ?? "ЭДО";
 
-    const [docSection, setDocSection] = useState<DocSectionKey>(() => {
+    const [docSection, setDocSectionState] = useState<DocSectionKey>(() => {
         try {
             const url = new URL(window.location.href);
             const fromUrl = url.searchParams.get("section")?.trim();
@@ -107,25 +100,32 @@ export function useDocumentsPageNavigation({
         return defaultDocSection;
     });
 
-    useEffect(() => {
-        if (!documentsOrderFormOpen || docSection === "Заявки") return;
-        setDocSection("Заявки");
+    const [documentsOrderFormOpen, setDocumentsOrderFormOpen] = useState(() => readDocumentsNewOrderOpen());
+
+    const selectDocSection = useCallback((section: DocSectionKey) => {
+        setDocSectionState(section);
         try {
-            localStorage.setItem(DOCS_SECTION_KEY, "Заявки");
+            const url = new URL(window.location.href);
+            url.searchParams.set("section", section);
+            window.history.replaceState(null, "", url.toString());
+            localStorage.setItem(DOCS_SECTION_KEY, section);
         } catch {
             /* ignore */
         }
-    }, [documentsOrderFormOpen, docSection]);
+    }, []);
+
+    const setDocumentsOrderFormOpenPersist = useCallback((open: boolean) => {
+        setDocumentsOrderFormOpen(open);
+        persistDocumentsNewOrderOpen(open);
+        if (open) {
+            selectDocSection("Заявки");
+        }
+    }, [persistDocumentsNewOrderOpen, selectDocSection]);
 
     useEffect(() => {
         const isAllowed = allowedDocSections.some(({ key }) => key === docSection);
         if (!isAllowed && allowedDocSections.length > 0) {
-            setDocSection(defaultDocSection);
-            try {
-                localStorage.setItem(DOCS_SECTION_KEY, defaultDocSection);
-            } catch {
-                /* ignore */
-            }
+            selectDocSection(defaultDocSection);
         } else {
             try {
                 localStorage.setItem(DOCS_SECTION_KEY, docSection);
@@ -133,13 +133,13 @@ export function useDocumentsPageNavigation({
                 /* ignore */
             }
         }
-    }, [allowedDocSections, docSection, defaultDocSection]);
+    }, [allowedDocSections, docSection, defaultDocSection, selectDocSection]);
 
     const serviceModeForCurrentDocSection = effectiveServiceMode;
 
     return {
         docSection,
-        setDocSection,
+        setDocSection: selectDocSection,
         allowedDocSections,
         tableModeByCustomer,
         setTableModeByCustomer,
