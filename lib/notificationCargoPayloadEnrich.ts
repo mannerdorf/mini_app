@@ -2,6 +2,7 @@ import { cargoNumberLookupKeys, notificationCargoNumber } from "./notificationCa
 import { normalizeCargoNumberForLookup } from "./documentCacheNormalized.js";
 import { hasCargoLastMileMeta } from "./cargoLastMileMeta.js";
 import { fetchPerevozkaRecordForPush } from "./fetchPerevozkaLastMile.js";
+import { fetchInvoicesByInn, hasRealBillNumber } from "./notificationPoll.js";
 import { normalizeNotificationInn } from "./notificationInnScope.js";
 import { collectInvoiceLinkedCargoNumbers } from "./weeklySummaryInvoiceTable.js";
 import type { CargoEvent } from "./notificationPoll.js";
@@ -265,6 +266,38 @@ function perevozkaCacheKey(cargoNumber: string, customerInn: string): string {
   return `${cargoNumber}::${customerInn}`;
 }
 
+function invoiceLiveCacheKey(cargoNumber: string, customerInn: string): string {
+  return `inv::${cargoNumber}::${customerInn}`;
+}
+
+async function fetchInvoiceForCargoFrom1c(params: {
+  cargoNumber: string;
+  customerInn: string;
+  serviceLogin: string;
+  servicePassword: string;
+}): Promise<Record<string, unknown> | null> {
+  const cargoNumber = String(params.cargoNumber || "").trim();
+  const customerInn = String(params.customerInn || "").trim();
+  const serviceLogin = String(params.serviceLogin || "").trim();
+  const servicePassword = String(params.servicePassword || "").trim();
+  if (!cargoNumber || !customerInn || !serviceLogin || !servicePassword) return null;
+
+  try {
+    const { items } = await fetchInvoicesByInn(customerInn, serviceLogin, servicePassword);
+    const wantedKeys = new Set(cargoNumberLookupKeys(cargoNumber));
+    for (const inv of items) {
+      if (!inv || typeof inv !== "object") continue;
+      const record = inv as Record<string, unknown>;
+      const linked = collectInvoiceLinkedCargoNumbers(record);
+      const matches = linked.some((num) => cargoNumberLookupKeys(num).some((key) => wantedKeys.has(key)));
+      if (matches) return record;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 /** Готовит запись перевозки для push-шаблона: cache → merge → при необходимости GetPerevozka. */
 export async function resolveCargoItemForPushTemplate(params: {
   item: Record<string, unknown>;
@@ -275,10 +308,38 @@ export async function resolveCargoItemForPushTemplate(params: {
   serviceLogin?: string;
   servicePassword?: string;
   perevozkaCache?: Map<string, Record<string, unknown> | null>;
+  invoiceLiveCache?: Map<string, Record<string, unknown> | null>;
 }): Promise<Record<string, unknown>> {
   let merged = enrichCargoItemForPushTemplate(params.item, params.payloadByNumber);
-  if (BILL_PUSH_EVENTS.has(params.event) && params.invoiceByCargoNumber && params.invoiceByCargoNumber.size > 0) {
-    merged = enrichBillItemForPushTemplate(merged, params.invoiceByCargoNumber);
+  if (BILL_PUSH_EVENTS.has(params.event)) {
+    if (params.invoiceByCargoNumber && params.invoiceByCargoNumber.size > 0) {
+      merged = enrichBillItemForPushTemplate(merged, params.invoiceByCargoNumber);
+    }
+    if (!hasRealBillNumber(merged)) {
+      const cargoNumber = notificationCargoNumber(merged);
+      const customerInn = String(params.customerInn || "").trim();
+      const login = String(params.serviceLogin || "").trim();
+      const password = String(params.servicePassword || "").trim();
+      if (cargoNumber && customerInn && login && password) {
+        const liveKey = invoiceLiveCacheKey(cargoNumber, customerInn);
+        const liveCache = params.invoiceLiveCache;
+        let liveInvoice: Record<string, unknown> | null = null;
+        if (liveCache?.has(liveKey)) {
+          liveInvoice = liveCache.get(liveKey) ?? null;
+        } else {
+          liveInvoice = await fetchInvoiceForCargoFrom1c({
+            cargoNumber,
+            customerInn,
+            serviceLogin: login,
+            servicePassword: password,
+          });
+          liveCache?.set(liveKey, liveInvoice);
+        }
+        if (liveInvoice) {
+          merged = mergeCargoItemForPushTemplate(merged, invoiceFieldsForPushMerge(liveInvoice));
+        }
+      }
+    }
   }
   if (!shouldFetchPerevozkaLastMileForPush(params.event, merged)) return merged;
 

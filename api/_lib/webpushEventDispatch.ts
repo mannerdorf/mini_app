@@ -318,6 +318,7 @@ export async function dispatchWebPushCargoEvents(params: {
     invoiceByInnAndCargo.set(inn, await loadInvoicePayloadsByCargoNumbers(pool, inn, nums));
   }
   const perevozkaDetailCache = new Map<string, Record<string, unknown> | null>();
+  const invoiceLiveCache = new Map<string, Record<string, unknown> | null>();
   const perevozkaCreds = getPerevozkiServiceCredentials();
   for (const item of prepared) {
     const key = `${item.inn}::${item.cargoNumber}`;
@@ -343,6 +344,7 @@ export async function dispatchWebPushCargoEvents(params: {
         serviceLogin: perevozkaCreds?.login,
         servicePassword: perevozkaCreds?.password,
         perevozkaCache: perevozkaDetailCache,
+        invoiceLiveCache,
       });
       const message = formatPushNotificationMessage(event, item.cargoNumber, templateItem, pushTemplates);
       for (const [login, eventsEnabled] of subscribers.entries()) {

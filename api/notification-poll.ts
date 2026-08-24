@@ -292,6 +292,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const payloadByNumber = await loadCargoPayloadsByNumbers(pool, cargoNumbers);
       const invoiceByCargoNumber = await loadInvoicePayloadsByCargoNumbers(pool, inn, cargoNumbers);
       const perevozkaDetailCache = new Map<string, Record<string, unknown> | null>();
+      const invoiceLiveCache = new Map<string, Record<string, unknown> | null>();
 
       for (const item of items) {
         const number = String(item?.Number ?? item?.number ?? "").trim();
@@ -329,6 +330,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             serviceLogin: POLL_SERVICE_LOGIN,
             servicePassword: POLL_SERVICE_PASSWORD,
             perevozkaCache: perevozkaDetailCache,
+            invoiceLiveCache,
           });
           const message = formatPushNotificationMessage(event, number, templateItem, pushTemplates);
           const text = message.body;
