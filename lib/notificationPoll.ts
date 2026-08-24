@@ -41,6 +41,26 @@ function pickFirst(item: any, keys: string[]): unknown {
   return undefined;
 }
 
+const NESTED_RECORD_KEYS = ["Response", "Data", "Result", "result", "data", "items", "Items"] as const;
+
+function billRecordCandidates(item: any): Record<string, unknown>[] {
+  if (!item || typeof item !== "object") return [{}];
+  const out: Record<string, unknown>[] = [item as Record<string, unknown>];
+  for (const key of NESTED_RECORD_KEYS) {
+    const nested = item[key];
+    if (Array.isArray(nested)) {
+      for (const row of nested) {
+        if (row && typeof row === "object" && !Array.isArray(row)) out.push(row as Record<string, unknown>);
+      }
+      continue;
+    }
+    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+      out.push(nested as Record<string, unknown>);
+    }
+  }
+  return out;
+}
+
 const BILL_NUMBER_KEYS = [
   "NumberBill",
   "BillNumber",
@@ -79,7 +99,13 @@ export function notificationItemInn(item: any): string {
 
 /** Номер счёта строго из полей счёта — без подстановки номера перевозки. */
 export function pickBillNumber(item: any): string {
-  return String(pickFirst(item, [...BILL_NUMBER_KEYS]) ?? "").trim();
+  for (const record of billRecordCandidates(item)) {
+    const hit = pickFirst(record, [...BILL_NUMBER_KEYS]);
+    if (hit !== undefined && hit !== null && String(hit).trim() !== "") {
+      return String(hit).trim();
+    }
+  }
+  return "";
 }
 
 /** В данных есть явный номер счёта (не номер перевозки). */

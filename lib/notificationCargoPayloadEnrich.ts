@@ -2,6 +2,8 @@ import { cargoNumberLookupKeys, notificationCargoNumber } from "./notificationCa
 import { normalizeCargoNumberForLookup } from "./documentCacheNormalized.js";
 import { hasCargoLastMileMeta } from "./cargoLastMileMeta.js";
 import { fetchPerevozkaRecordForPush } from "./fetchPerevozkaLastMile.js";
+import { normalizeNotificationInn } from "./notificationInnScope.js";
+import { collectInvoiceLinkedCargoNumbers } from "./weeklySummaryInvoiceTable.js";
 import type { CargoEvent } from "./notificationPoll.js";
 import type { CargoStageEventId } from "./notificationCargoEvents.js";
 
@@ -17,6 +19,27 @@ const LAST_MILE_PUSH_EVENTS = new Set<CargoEvent | CargoStageEventId>([
   "delivered",
   "arrived",
 ]);
+
+const BILL_PUSH_EVENTS = new Set<CargoEvent | CargoStageEventId>(["bill_created", "bill_paid"]);
+
+const INVOICE_BILL_NUMBER_KEYS = [
+  "NumberBill",
+  "BillNumber",
+  "BillNum",
+  "Bill_Number",
+  "billnum",
+  "bill_number",
+  "Invoice",
+  "InvoiceNumber",
+  "Number",
+  "number",
+  "Номер",
+  "N",
+] as const;
+
+const INVOICE_SUM_KEYS = ["SumDoc", "SumBill", "AmountBill", "Sum", "Amount", "СуммаДокумента", "Сумма"] as const;
+
+const INVOICE_STATE_KEYS = ["StateBill", "stateBill", "StatusBill", "Status", "State"] as const;
 
 function isNonEmptyFieldValue(value: unknown): boolean {
   if (value === undefined || value === null) return false;
@@ -81,6 +104,134 @@ export async function loadCargoPayloadsByNumbers(
   return byNumber;
 }
 
+function pickFirstField(record: Record<string, unknown>, keys: readonly string[]): unknown {
+  for (const key of keys) {
+    const value = record[key];
+    if (!isNonEmptyFieldValue(value)) continue;
+    return value;
+  }
+  return undefined;
+}
+
+/** Поля счёта для merge в перевозку: номер и сумма без перезаписи Number (номер груза). */
+export function invoiceFieldsForPushMerge(invoice: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  const billNum = pickFirstField(invoice, INVOICE_BILL_NUMBER_KEYS);
+  if (billNum !== undefined) {
+    out.BillNum = billNum;
+    out.NumberBill = billNum;
+  }
+  for (const key of INVOICE_SUM_KEYS) {
+    const value = invoice[key];
+    if (isNonEmptyFieldValue(value)) out[key] = value;
+  }
+  for (const key of INVOICE_STATE_KEYS) {
+    const value = invoice[key];
+    if (isNonEmptyFieldValue(value)) out[key] = value;
+  }
+  return out;
+}
+
+function indexInvoicePayloadByCargo(
+  invoice: Record<string, unknown>,
+  wantedKeys: ReadonlySet<string>,
+  byCargo: Map<string, Record<string, unknown>>,
+): void {
+  const linked = collectInvoiceLinkedCargoNumbers(invoice);
+  for (const num of linked) {
+    const keysForNum = cargoNumberLookupKeys(num);
+    if (!keysForNum.some((key) => wantedKeys.has(key))) continue;
+    for (const key of keysForNum) {
+      if (!byCargo.has(key)) byCargo.set(key, invoice);
+    }
+  }
+}
+
+/** Пакетная загрузка счетов из cache_invoices_rows по номерам перевозок. */
+export async function loadInvoicePayloadsByCargoNumbers(
+  pool: Queryable,
+  customerInn: string,
+  cargoNumbers: string[],
+): Promise<Map<string, Record<string, unknown>>> {
+  const wantedKeys = new Set<string>();
+  for (const number of cargoNumbers) {
+    for (const key of cargoNumberLookupKeys(number)) wantedKeys.add(key);
+    const normalized = normalizeCargoNumberForLookup(number);
+    if (normalized) wantedKeys.add(normalized);
+  }
+  const byCargo = new Map<string, Record<string, unknown>>();
+  if (wantedKeys.size === 0) return byCargo;
+
+  const innCanon = normalizeNotificationInn(customerInn);
+  const innRaw = String(customerInn || "").trim();
+  const inns = [...new Set([innCanon, innRaw].filter(Boolean))];
+
+  const indexRows = (rows: Array<{ payload: unknown }>) => {
+    for (const row of rows) {
+      const payload =
+        row.payload && typeof row.payload === "object" && !Array.isArray(row.payload)
+          ? (row.payload as Record<string, unknown>)
+          : null;
+      if (payload) indexInvoicePayloadByCargo(payload, wantedKeys, byCargo);
+    }
+  };
+
+  try {
+    const { rows } = await pool.query<{ payload: unknown }>(
+      `SELECT payload
+       FROM cache_invoices_rows
+       WHERE customer_inn = ANY($1::text[])
+       ORDER BY doc_date DESC NULLS LAST`,
+      [inns],
+    );
+    indexRows(rows);
+  } catch {
+    // cache_invoices_rows may be unavailable
+  }
+
+  if (byCargo.size === 0) {
+    try {
+      const { readCacheRow } = await import("./documentCacheRefreshCore.js");
+      const blob = (await readCacheRow(pool as Parameters<typeof readCacheRow>[0], "cache_invoices")) as Record<
+        string,
+        unknown
+      >[];
+      for (const inv of blob) {
+        if (!inv || typeof inv !== "object") continue;
+        const invInn = normalizeNotificationInn(String(inv.INN ?? inv.Inn ?? inv.inn ?? ""));
+        if (invInn !== innCanon && invInn !== innRaw) continue;
+        indexInvoicePayloadByCargo(inv, wantedKeys, byCargo);
+      }
+    } catch {
+      // legacy blob unavailable
+    }
+  }
+
+  return byCargo;
+}
+
+export function resolveCachedInvoicePayload(
+  item: Record<string, unknown>,
+  invoiceByCargoNumber: ReadonlyMap<string, Record<string, unknown>>,
+): Record<string, unknown> | null {
+  const number = notificationCargoNumber(item);
+  if (!number) return null;
+  for (const key of cargoNumberLookupKeys(number)) {
+    const hit = invoiceByCargoNumber.get(key);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+export function enrichBillItemForPushTemplate(
+  item: Record<string, unknown>,
+  invoiceByCargoNumber: ReadonlyMap<string, Record<string, unknown>>,
+): Record<string, unknown> {
+  const invoice = resolveCachedInvoicePayload(item, invoiceByCargoNumber);
+  if (!invoice) return item;
+  return mergeCargoItemForPushTemplate(item, invoiceFieldsForPushMerge(invoice));
+}
+
 export function resolveCachedCargoPayload(
   item: Record<string, unknown>,
   payloadByNumber: ReadonlyMap<string, Record<string, unknown>>,
@@ -119,12 +270,16 @@ export async function resolveCargoItemForPushTemplate(params: {
   item: Record<string, unknown>;
   event: CargoEvent | CargoStageEventId;
   payloadByNumber: ReadonlyMap<string, Record<string, unknown>>;
+  invoiceByCargoNumber?: ReadonlyMap<string, Record<string, unknown>>;
   customerInn?: string;
   serviceLogin?: string;
   servicePassword?: string;
   perevozkaCache?: Map<string, Record<string, unknown> | null>;
 }): Promise<Record<string, unknown>> {
   let merged = enrichCargoItemForPushTemplate(params.item, params.payloadByNumber);
+  if (BILL_PUSH_EVENTS.has(params.event) && params.invoiceByCargoNumber && params.invoiceByCargoNumber.size > 0) {
+    merged = enrichBillItemForPushTemplate(merged, params.invoiceByCargoNumber);
+  }
   if (!shouldFetchPerevozkaLastMileForPush(params.event, merged)) return merged;
 
   const cargoNumber = notificationCargoNumber(merged);
