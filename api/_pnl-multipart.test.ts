@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Readable } from "node:stream";
 import { parseMultipart } from "./_pnl-multipart.js";
 import type { VercelRequest } from "@vercel/node";
 
@@ -63,5 +64,34 @@ describe("parseMultipart", () => {
     expect(parsed.files).toHaveLength(1);
     expect(parsed.files[0]?.originalFilename).toBe("02676723 отправка.xlsx");
     expect(parsed.files[0]?.buffer.toString("utf8")).toBe("PK-fake-xlsx");
+  });
+
+  it("parses live stream without pre-buffered body (skip-buffer VPS path)", async () => {
+    const boundary = "----HaulzLiveStreamBoundary";
+    const body = buildMultipartBody(
+      boundary,
+      { jobId: "7", fileRole: "otpravka" },
+      {
+        fieldName: "file",
+        filename: "отправка.xlsx",
+        contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        content: Buffer.from("live-xlsx-bytes"),
+      },
+    );
+
+    const stream = Readable.from(body);
+    Object.assign(stream, {
+      method: "POST",
+      url: "/api/haulz-returns/job-file",
+      headers: {
+        "content-type": `multipart/form-data; boundary=${boundary}`,
+        "content-length": String(body.length),
+      },
+    });
+
+    const parsed = await parseMultipart(stream as unknown as VercelRequest);
+    expect(parsed.fields.jobId).toBe("7");
+    expect(parsed.files[0]?.originalFilename).toBe("отправка.xlsx");
+    expect(parsed.files[0]?.buffer.toString("utf8")).toBe("live-xlsx-bytes");
   });
 });
