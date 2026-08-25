@@ -2,6 +2,8 @@ import type { AuthData } from "../../types";
 import type { HaulzWorkbook } from "../../../lib/haulzReturns/types";
 import { normalizeWorkbookUlTdDates, workbookNeedsUlTdDateBackfill } from "../../../lib/haulzReturns/tdDocuments/parseUlTdNumber";
 import { compactWorkbookForPatch } from "../../../lib/haulzReturns/workbookApi";
+import { resolveApiOrigin } from "../../lib/resolveApiOrigin";
+import { DEFAULT_APP_URL } from "../../../lib/haulzDomains";
 
 export type HaulzReturnsJobSummary = {
   id: string;
@@ -33,11 +35,36 @@ function authHeaders(auth: AuthData): Record<string, string> {
 }
 
 function parseJson(res: Response, data: unknown): string {
-  if (typeof (data as { error?: string })?.error === "string") return (data as { error: string }).error;
+  if (typeof (data as { error?: string })?.error === "string") {
+    const err = (data as { error: string }).error;
+    const timeoutMs = (data as { timeout_ms?: number }).timeout_ms;
+    if (timeoutMs != null && Number.isFinite(timeoutMs)) {
+      return `${err} (${Math.round(timeoutMs / 1000)}s)`;
+    }
+    return err;
+  }
   if (typeof data === "string" && data.includes("FUNCTION_INVOCATION_FAILED")) {
     return "сервер перевода не запустился (нужен деплой API или проверка логов Vercel)";
   }
   return `HTTP ${res.status}`;
+}
+
+/** Absolute API URL for heavy haulz-returns uploads (Vercel nested routes / flaky same-origin). */
+function haulzReturnsApiUrl(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  if (typeof window !== "undefined") {
+    const host = String(window.location.hostname || "").toLowerCase();
+    if (host === "vercel.app" || host.endsWith(".vercel.app")) {
+      return `https://haulz.space${normalized}`;
+    }
+  }
+  const origin = resolveApiOrigin().replace(/\/+$/, "");
+  if (!origin) return normalized;
+  if (typeof window !== "undefined") {
+    const page = String(window.location.origin || "").replace(/\/+$/, "");
+    if (page && page === origin) return normalized;
+  }
+  return `${origin || DEFAULT_APP_URL}${normalized}`;
 }
 
 function isWorkbookVersionConflictResponse(res: Response, data: unknown): boolean {
@@ -80,14 +107,21 @@ export async function uploadHaulzReturnsFile(
   fileRole: "otpravka" | "ul_prio1" | "ul_prio2",
   file: File,
 ): Promise<void> {
-  const fd = new FormData();
-  fd.append("jobId", jobId);
-  fd.append("fileRole", fileRole);
-  fd.append("file", file);
-  const res = await fetch("/api/haulz-returns/job-file", {
+  // Сырые байты (не multipart): на VPS formidable раньше зависал после buffering → 504 Gateway timeout.
+  const qs = new URLSearchParams({
+    jobId,
+    fileRole,
+    fileName: file.name,
+  });
+  const url = haulzReturnsApiUrl(`/api/haulz-returns/job-file?${qs.toString()}`);
+  const res = await fetch(url, {
     method: "POST",
-    headers: { "x-login": auth.login, "x-password": auth.password },
-    body: fd,
+    headers: {
+      "Content-Type": "application/octet-stream",
+      "x-login": auth.login,
+      "x-password": auth.password,
+    },
+    body: file,
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`[загрузка «${file.name}»] ${parseJson(res, data)}`);
