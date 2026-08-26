@@ -1,7 +1,7 @@
 import type { Pool } from "pg";
 import { buildPendingOrderJournalItem } from "../pendingOrderRequests.js";
 import type { HaulzCalcDraftRow } from "./calculatorDraft.js";
-import { formatHaulzCalcDraftCustomer, journalCustomerDisplayName } from "./draftCustomerDisplay.js";
+import { enrichDraftCustomerFields, formatHaulzCalcDraftCustomer, journalCustomerDisplayName } from "./draftCustomerDisplay.js";
 import { directionCityCodes } from "./clientMainlineTariff.js";
 import type { Direction } from "./types.js";
 
@@ -80,4 +80,12 @@ export async function enrichDraftWithDocumentsOrderJournal(
   }
 
   return { ...draft, documentsOrderJournal: journalFromFormState(draft) };
+}
+
+/** Полный enrich для ответов API менеджера (статус, 1С) — сохраняет табличную часть. */
+export async function enrichManagerDraftForApi(
+  pool: Pool,
+  draft: HaulzCalcDraftRow,
+): Promise<HaulzCalcDraftRow & { documentsOrderJournal?: DocumentsOrderJournalView }> {
+  return enrichDraftWithDocumentsOrderJournal(pool, await enrichDraftCustomerFields(pool, draft));
 }

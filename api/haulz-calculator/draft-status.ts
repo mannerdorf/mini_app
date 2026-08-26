@@ -8,6 +8,7 @@ import { pickHaulzCredentials } from "../_haulzReturns.js";
 import { getClientIp, isRateLimited, HAULZ_CALC_QUOTE_LIMIT } from "../../lib/rateLimit.js";
 import { setDraftStatusByManager } from "../../lib/haulzCalculator/calculatorDraftAgree.js";
 import { parseHaulzCalcDraftStatus } from "../../lib/haulzCalculator/draftStatus.js";
+import { enrichManagerDraftForApi } from "../../lib/haulzCalculator/managerDraftJournalEnrich.js";
 import { submitPendingDocumentsOrderTo1c } from "../../lib/documentsOrderSubmitPending1c.js";
 import { sendSubmitPendingDocumentsOrderTo1cJson } from "../../lib/documentsOrderSubmitPending1cApi.js";
 
@@ -80,7 +81,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         request_id: ctx.requestId,
       });
     }
-    return res.status(200).json({ draft, request_id: ctx.requestId });
+    const enriched = await enrichManagerDraftForApi(pool, draft);
+    return res.status(200).json({ draft: enriched, request_id: ctx.requestId });
   } catch (e) {
     logError(ctx, "haulz_calc_draft_status_failed", e);
     return res.status(500).json({

@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { setDraftStatusByManager, type HaulzCalcDraftRow } from "./haulzCalculator/calculatorDraftAgree.js";
+import { enrichManagerDraftForApi } from "./haulzCalculator/managerDraftJournalEnrich.js";
 import {
   buildZayavkaUpstreamRequestMeta,
   uploadZayavkaTo1c,
@@ -99,6 +100,8 @@ export async function submitPendingDocumentsOrderTo1c(
     };
   }
 
+  const enrichedDraft = await enrichManagerDraftForApi(pool, draft);
+
   return {
     ok: true,
     status: upload.status,
@@ -106,6 +109,6 @@ export async function submitPendingDocumentsOrderTo1c(
     request,
     upstreamRequest: upload.upstreamRequest ?? upstreamRequest,
     upstream: upload.raw,
-    draft,
+    draft: enrichedDraft,
   };
 }

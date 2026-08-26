@@ -123,7 +123,16 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
     setError(null);
     try {
       const updated = await patchHaulzCalcDraftStatus(auth, id, status);
-      setRequests((prev) => prev.map((d) => (d.id === id ? updated : d)));
+      setRequests((prev) =>
+        prev.map((d) =>
+          d.id === id
+            ? {
+                ...updated,
+                documentsOrderJournal: updated.documentsOrderJournal ?? d.documentsOrderJournal,
+              }
+            : d,
+        ),
+      );
     } catch (e) {
       setError((e as Error)?.message || "Не удалось обновить статус");
     } finally {
@@ -148,7 +157,17 @@ export function HaulzCalcRequestsPage({ auth, onBack, onOpenCalculator, managerM
         requestId: result.request_id,
       });
       if (result.ok && result.draft) {
-        setRequests((prev) => prev.map((d) => (d.id === id ? result.draft! : d)));
+        setRequests((prev) =>
+          prev.map((d) =>
+            d.id === id
+              ? {
+                  ...result.draft!,
+                  documentsOrderJournal:
+                    result.draft!.documentsOrderJournal ?? d.documentsOrderJournal,
+                }
+              : d,
+          ),
+        );
         if (selectedId === id) {
           setSelectedId(result.draft.id);
         }
