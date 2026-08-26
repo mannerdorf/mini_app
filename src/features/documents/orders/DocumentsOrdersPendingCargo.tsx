@@ -20,6 +20,8 @@ export type PendingFivepostRow = {
 export type PendingLegacyTableRow = {
   n?: number;
   posylka?: string;
+  idOtpravleniya?: string;
+  id_otpravleniya?: string;
   otskanirvano?: boolean;
   dataSkanirovaniya?: string;
   perevozka?: string;
@@ -89,6 +91,7 @@ export function DocumentsOrdersPendingCargo({ fivepostRows, legacyRows }: Props)
           <thead>
             <tr style={{ borderBottom: "1px solid var(--color-border)", background: "var(--color-bg-hover)" }}>
               <th style={{ padding: "0.35rem 0.3rem", textAlign: "left" }}>N</th>
+              <th style={{ padding: "0.35rem 0.3rem", textAlign: "left" }}>ИД отправления</th>
               <th style={{ padding: "0.35rem 0.3rem", textAlign: "left" }}>Посылка</th>
               <th style={{ padding: "0.35rem 0.3rem", textAlign: "left" }}>Перевозка</th>
             </tr>
@@ -97,6 +100,15 @@ export function DocumentsOrdersPendingCargo({ fivepostRows, legacyRows }: Props)
             {legacyRows.map((row, idx) => (
               <tr key={row.n ?? idx} style={{ borderBottom: "1px solid var(--color-border)" }}>
                 <td style={{ padding: "0.35rem 0.3rem" }}>{row.n ?? idx + 1}</td>
+                <td
+                  style={{
+                    padding: "0.35rem 0.3rem",
+                    fontFamily: "ui-monospace, monospace",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {row.idOtpravleniya || row.id_otpravleniya || "—"}
+                </td>
                 <td style={{ padding: "0.35rem 0.3rem" }}>{row.posylka || "—"}</td>
                 <td style={{ padding: "0.35rem 0.3rem" }}>{row.perevozka || "—"}</td>
               </tr>

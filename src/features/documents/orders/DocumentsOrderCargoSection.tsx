@@ -477,6 +477,7 @@ export function DocumentsOrderCargoSection({
                 <thead>
                   <tr>
                     <th>N</th>
+                    <th>ИД отправления</th>
                     <th>Посылка</th>
                   </tr>
                 </thead>
@@ -484,6 +485,9 @@ export function DocumentsOrderCargoSection({
                   {state.tableRows.map((row) => (
                     <tr key={row.n}>
                       <td>{row.n}</td>
+                      <td style={{ fontFamily: "ui-monospace, monospace", whiteSpace: "nowrap" }}>
+                        {row.idOtpravleniya || "—"}
+                      </td>
                       <td>{row.posylka || "—"}</td>
                     </tr>
                   ))}
