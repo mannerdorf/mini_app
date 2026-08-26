@@ -19,6 +19,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useAppShell } from "../contexts/AppShellContext";
 import { useAccountActions } from "../hooks/useAccountActions";
 import { isGlobalSearchTab, isWildberriesTab, useResetGlobalSearchOnWildberries } from "../wb/appWb";
+import { isAndroidPushEnvironment } from "../lib/androidPushNotifications";
 
 type Props = {
   searchText: string;
@@ -258,14 +259,16 @@ export function AppHeader({
               {isSearchExpanded ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
             </Button>
           )}
-          <Button
-            className="search-toggle-button"
-            onClick={() => requestProfileView("push")}
-            title="История push-уведомлений"
-            aria-label="История push-уведомлений"
-          >
-            <Bell className="w-5 h-5" />
-          </Button>
+          {isAndroidPushEnvironment() && (
+            <Button
+              className="search-toggle-button"
+              onClick={() => requestProfileView("push")}
+              title="История push-уведомлений"
+              aria-label="История push-уведомлений"
+            >
+              <Bell className="w-5 h-5" />
+            </Button>
+          )}
           <Button
             className="search-toggle-button"
             onClick={() => setTheme((prev) => (prev === "light" ? "dark" : "light"))}
