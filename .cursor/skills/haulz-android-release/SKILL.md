@@ -26,7 +26,8 @@ git checkout -B <release-branch> origin/<release-branch>
 
 export JAVA_HOME="/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"
 export PATH="$JAVA_HOME/bin:$PATH"
-export ANDROID_HOME="/Volumes/Cursor/haulz-build/android-sdk"
+export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+# External disk (optional): export ANDROID_HOME="/Volumes/Cursor/haulz-build/android-sdk"
 
 npm run android:release
 
