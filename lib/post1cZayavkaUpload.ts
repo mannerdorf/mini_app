@@ -1,10 +1,11 @@
 /**
  * Загрузка заявки в 1С (DeliveryWebService) — формат PostB/HAULZ.
- * Метод по умолчанию: GETAPI?metod=LoadZayavka (POST JSON).
- * Переопределение: ONE_C_ZAYAVKA_UPLOAD_METOD / ONE_C_ZAYAVKA_UPLOAD_URL.
+ * По умолчанию: POST JSON → …/PostZayavka2.
+ * Переопределение: ONE_C_ZAYAVKA_UPLOAD_URL или legacy ONE_C_ZAYAVKA_UPLOAD_METOD (GETAPI?metod=…).
  */
 
 export const GETAPI_BASE = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
+export const POST_ZAYAVKA_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/PostZayavka2";
 export const GETAPI_SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
 export type ZayavkaGoodsRow = {
@@ -211,10 +212,14 @@ export function get1cOrderUploadCredentials(): { login: string; password: string
 export function buildZayavkaUploadUrl(): string {
   const explicit = String(process.env.ONE_C_ZAYAVKA_UPLOAD_URL ?? "").trim();
   if (explicit) return explicit;
-  const metod = String(process.env.ONE_C_ZAYAVKA_UPLOAD_METOD ?? "LoadZayavka").trim() || "LoadZayavka";
-  const url = new URL(GETAPI_BASE);
-  url.searchParams.set("metod", metod);
-  return url.toString();
+  // Legacy: явный metod → GETAPI?metod=… (раньше LoadZayavka).
+  const metod = String(process.env.ONE_C_ZAYAVKA_UPLOAD_METOD ?? "").trim();
+  if (metod) {
+    const url = new URL(GETAPI_BASE);
+    url.searchParams.set("metod", metod);
+    return url.toString();
+  }
+  return POST_ZAYAVKA_URL;
 }
 
 /** Метаданные HTTP-запроса, который бэкенд отправляет в 1С (для песочницы). */
