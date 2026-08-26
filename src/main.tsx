@@ -53,7 +53,7 @@ const setupDebugOverlay = () => {
     background: "transparent",
     color: "#fff",
     padding: "16px",
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    fontFamily: 'ui-monospace, "Liberation Mono", monospace',
     fontSize: "12px",
     whiteSpace: "pre-wrap",
     opacity: "0",
@@ -227,7 +227,7 @@ const startApp = async () => {
     const rootEl = document.getElementById("root");
     if (rootEl && rootEl.childElementCount === 0) {
       rootEl.innerHTML =
-        '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f3f4f6;color:#111827;font-family:Inter,system-ui,sans-serif;text-align:center">' +
+        '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f3f4f6;color:#111827;font-family:Manrope,DM Sans,system-ui,sans-serif;text-align:center">' +
         '<div><p style="font-size:18px;font-weight:700;margin:0 0 8px">Не удалось загрузить приложение</p>' +
         '<p style="font-size:14px;margin:0 0 16px;color:#6b7280">Обновите страницу или очистите кэш браузера.</p>' +
         '<button type="button" onclick="location.reload()" style="border:0;border-radius:12px;background:#2563eb;color:#fff;font-size:14px;font-weight:600;padding:10px 18px;cursor:pointer">Обновить</button></div></div>';

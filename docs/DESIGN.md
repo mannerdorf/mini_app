@@ -41,7 +41,8 @@ Use existing CSS variables. Do not hardcode one-off purples or cream themes.
 
 | Guest (preferred) | `Manrope` (headings/brand), `DM Sans` (body) — see `guest-shadcn.css` |
 | App (preferred) | `Manrope`, `DM Sans` — see `design-tokens.css` |
-| New guest marketing | Prefer Manrope / DM Sans; do not add Roboto/Arial/Inter as a “design choice” |
+| Emails | `Inter` (SIL OFL) via Google Fonts — see `lib/emailTypography.ts` |
+| License policy | **Only free/OFL fonts.** Bundled UI: Manrope + DM Sans (`@fontsource`, SIL OFL). Do **not** use Arial, Helvetica, SF Pro, Segoe UI, or other proprietary faces as design fonts. Fallback after OFL faces: `system-ui, sans-serif` only. |
 
 Scale (app tokens): `--text-xs` … `--text-2xl` in `src/design-tokens.css`.
 

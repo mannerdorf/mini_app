@@ -12,7 +12,7 @@ function renderAgreePage(title: string, message: string, ok: boolean): string {
   return `<!DOCTYPE html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${title}</title></head>
-<body style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f3f4f6;color:#111827;">
+<body style="margin:0;font-family:system-ui,sans-serif;background:#f3f4f6;color:#111827;">
   <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:2rem 1rem;">
     <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:1.5rem;box-shadow:0 4px 20px rgba(0,0,0,.08);">
       <div style="font-size:1.25rem;font-weight:700;color:#1e3a8a;margin-bottom:0.75rem;">HAULZ</div>
