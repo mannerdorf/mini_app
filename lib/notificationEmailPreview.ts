@@ -21,6 +21,7 @@ import {
   getPreviousCalendarWeekRange,
   renderWeeklySummaryHtml,
 } from "./weeklySummary.js";
+import { formatDailySummaryPlainText } from "./notificationDailySummary.js";
 
 export type NotificationEmailPreviewKind = EmailNotificationEventId;
 
@@ -189,27 +190,19 @@ async function buildDailySummaryPreview(
     unpaidSum += invoiceSum(inv);
   }
 
-  const statuses = Array.from(activeStatusCounts.entries()).sort((a, b) => b[1] - a[1]);
-  const statusLine =
-    statuses.length > 0
-      ? statuses.map(([name, count]) => `${escapeHtml(name)}: ${count}`).join("; ")
-      : "нет активных перевозок";
-  const sumFmt = new Intl.NumberFormat("ru-RU").format(Math.round(unpaidSum));
+  const summaryText = formatDailySummaryPlainText({ activeStatusCounts, unpaidCount, unpaidSum });
+  const summaryLines = summaryText.split("\n").map((line) => {
+    const colonIdx = line.indexOf(":");
+    const label = colonIdx >= 0 ? line.slice(0, colonIdx + 1) : line;
+    const value = colonIdx >= 0 ? line.slice(colonIdx + 1).trim() : "";
+    return `<div style="font-size:14px;color:#111827;line-height:1.6;"><span style="font-weight:600;">${escapeHtml(label)}</span> ${escapeHtml(value)}</div>`;
+  }).join("");
   const companyLine = `${escapeHtml(params.companyName || params.inn)}${params.inn ? ` (ИНН ${escapeHtml(params.inn)})` : ""}`;
 
   const bodyHtml = `
-    <p style="margin:0 0 12px;font-size:16px;font-weight:600;color:#111827;">Доброе утро!</p>
-    <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.55;">Ежедневная сводка на 10:00.</p>
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;">
-      <tr><td style="padding:12px;background:#eff6ff;border-radius:8px;">
-        <div style="font-size:12px;font-weight:600;color:#1d4ed8;margin-bottom:6px;">Активные перевозки</div>
-        <div style="font-size:14px;color:#111827;line-height:1.5;">${statusLine}</div>
-      </td></tr>
-    </table>
     <table width="100%" cellpadding="0" cellspacing="0">
-      <tr><td style="padding:12px;background:#fef2f2;border-radius:8px;">
-        <div style="font-size:12px;font-weight:600;color:#b91c1c;margin-bottom:6px;">Неоплаченные счета</div>
-        <div style="font-size:14px;color:#111827;line-height:1.5;">${unpaidCount} шт. на сумму ${sumFmt} ₽</div>
+      <tr><td style="padding:12px;background:#f8fafc;border-radius:8px;">
+        ${summaryLines}
       </td></tr>
     </table>`;
 

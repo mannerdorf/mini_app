@@ -251,18 +251,34 @@ export async function computeDailySummaryStats(
   };
 }
 
+export function aggregateDailySummaryCargoCounts(
+  activeStatusCounts: Map<string, number>,
+): { inTransit: number; readyForPickup: number } {
+  let inTransit = 0;
+  let readyForPickup = 0;
+
+  for (const [status, count] of activeStatusCounts) {
+    const lower = status.toLowerCase();
+    if (lower.includes("готов")) {
+      readyForPickup += count;
+      continue;
+    }
+    if (lower.includes("пути") || lower.includes("отправлен")) {
+      inTransit += count;
+    }
+  }
+
+  return { inTransit, readyForPickup };
+}
+
 export function formatDailySummaryPlainText(stats: DailySummaryStats): string {
-  const statuses = Array.from(stats.activeStatusCounts.entries()).sort((a, b) => b[1] - a[1]);
-  const statusLine =
-    statuses.length > 0
-      ? statuses.map(([name, count]) => `${name}: ${count}`).join("; ")
-      : "нет активных перевозок";
+  const { inTransit, readyForPickup } = aggregateDailySummaryCargoCounts(stats.activeStatusCounts);
   const sumFmt = new Intl.NumberFormat("ru-RU").format(Math.round(stats.unpaidSum));
 
   return (
-    `Доброе утро! Ежедневная сводка на 10:00.\n` +
-    `Активные перевозки: ${statusLine}.\n` +
-    `Неоплаченные счета: ${stats.unpaidCount} шт. на сумму ${sumFmt} ₽.`
+    `В пути: ${inTransit}\n` +
+    `Готово к выдаче: ${readyForPickup}\n` +
+    `Неоплаченные счета: ${stats.unpaidCount} шт. на сумму ${sumFmt} ₽`
   );
 }
 
