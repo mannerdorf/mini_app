@@ -18,6 +18,14 @@ export type UpdLineItem = {
   price: number;
 };
 
+function normalizeUpdCellText(value: unknown): string {
+  return String(value ?? "")
+    .replace(/\u00a0/g, " ")
+    .replace(/[\r\n]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function normalizeHeader(value: unknown): string {
   return String(value ?? "")
     .toLowerCase()
@@ -159,10 +167,10 @@ export function parseUpdLineItemsFromSheet(data: unknown[][]): UpdLineItem[] {
     const row = data[rowIdx] as unknown[] | undefined;
     if (!row?.length) continue;
 
-    const cells = row.map((c) => String(c ?? "").replace(/\s+/g, " ").trim());
+    const cells = row.map((c) => normalizeUpdCellText(c));
     if (isStopRow(cells) || isLetterRow(cells) || isColumnMarkerRow(row, header.nameCol)) continue;
 
-    const name = cells[header.nameCol] ?? "";
+    const name = normalizeUpdCellText(row[header.nameCol]);
     if (!name || isCategoryRow(name)) continue;
 
     const quantity = header.qtyCol >= 0 ? parseNumber(row[header.qtyCol]) : null;

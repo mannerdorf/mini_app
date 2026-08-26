@@ -1,7 +1,5 @@
 import type { ZayavkaGoodsRow, ZayavkaParcelRow, ZayavkaUploadPayload } from "./post1cZayavkaUpload.js";
 
-export const ZAYAVKA_GOODS_NAME_MAX_LEN = 50;
-
 export type DocumentsOrderTableLineItem = {
   name: string;
   quantity: number;
@@ -55,22 +53,20 @@ function normalizeMoney(value: unknown): number {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
-function truncateGoodsName(value: unknown): string {
-  const name = sanitizeGoodsNameFor1c(value) || "Товар";
-  return name.length <= ZAYAVKA_GOODS_NAME_MAX_LEN
-    ? name
-    : name.slice(0, ZAYAVKA_GOODS_NAME_MAX_LEN);
+function normalizeGoodsName(value: unknown): string {
+  return normalizeText(value) || "Товар";
 }
 
-/** Убирает хвост «· N шт · цена ₽» и упаковочные «(20шт./кор)» из наименования для 1С. */
-export function sanitizeGoodsNameFor1c(value: unknown): string {
-  let name = normalizeText(value);
+/** Убирает только наш UI-хвост «· N шт · цена ₽», не содержимое ячейки УПД. */
+export function stripPosylkaDisplaySuffix(value: unknown): string {
+  const name = normalizeText(value);
   if (!name) return "";
+  return name.replace(/\s*·\s*[\d\s,.]+\s*шт\.?\s*·\s*[\d\s,.]+\s*₽\s*$/iu, "").trim();
+}
 
-  name = name.replace(/\s*·\s*[\d\s,.]+\s*шт\.?\s*·\s*[\d\s,.]+\s*₽\s*$/iu, "").trim();
-  name = name.replace(/\s*\(\s*\d+[\d\s,.]*\s*шт\.?\s*\/\s*[^)]*\)\s*/giu, " ").trim();
-  name = name.replace(/\s{2,}/g, " ");
-  return name;
+/** @deprecated используйте stripPosylkaDisplaySuffix для legacy posylka */
+export function sanitizeGoodsNameFor1c(value: unknown): string {
+  return stripPosylkaDisplaySuffix(value);
 }
 
 /** Разбирает legacy-строку «название · N шт · цена ₽» из posylka. */
@@ -95,12 +91,12 @@ export function parsePosylkaDisplayLine(posylka: string): DocumentsOrderTableLin
     if (qtyMatch && priceMatch) {
       const quantity = Math.max(1, Math.round(Number(qtyMatch[1].replace(/\s/g, "").replace(",", ".")) || 1));
       const price = normalizeMoney(priceMatch[1].replace(/\s/g, "").replace(",", "."));
-      const name = sanitizeGoodsNameFor1c(parts.slice(0, -2).join(" · ").trim());
+      const name = stripPosylkaDisplaySuffix(parts.slice(0, -2).join(" · ").trim());
       if (name) return [{ name, quantity, price }];
     }
   }
 
-  return [{ name: sanitizeGoodsNameFor1c(trimmed), quantity: 1, price: 0 }];
+  return [{ name: stripPosylkaDisplaySuffix(trimmed), quantity: 1, price: 0 }];
 }
 
 function lineDeclaredValue(item: DocumentsOrderTableLineItem): number {
@@ -114,7 +110,7 @@ function goodsRow(input: {
   quantity?: number;
   cost?: number;
 }): ZayavkaGoodsRow {
-  const name = truncateGoodsName(input.name);
+  const name = normalizeGoodsName(input.name);
   return {
     ИДОтправления: normalizeText(input.idOtpravleniya),
     ID: normalizeText(input.id),
@@ -169,7 +165,7 @@ function buildFivepostParcels(rows: DocumentsOrderFivepostRowInput[]): ZayavkaPa
 function normalizeTableLineItem(raw: unknown): DocumentsOrderTableLineItem | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
-  const name = sanitizeGoodsNameFor1c(o.name ?? o.Name ?? o.наименование);
+  const name = normalizeText(o.name ?? o.Name ?? o.наименование);
   if (!name) return null;
   const quantity = Math.max(1, Math.round(Number(o.quantity ?? o.Quantity ?? o.количество) || 1));
   const price = normalizeMoney(o.price ?? o.Price ?? o.unitPrice ?? o.unit_price ?? o.цена);

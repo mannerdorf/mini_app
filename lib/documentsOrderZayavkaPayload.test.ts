@@ -71,33 +71,31 @@ describe("buildDocumentsOrderZayavkaPayload", () => {
     const parcel = payload.Посылки[0];
     const good = parcel.Товары[0];
     expect(parcel.ШтрихкодЗаказчика).toBe("8017NBO5ZQYRTQCM");
-    expect(good.Name).toHaveLength(50);
+    expect(good.Name).toBe(longName);
+    expect(good.ТМЦ).toBe(longName);
     expect(good.Количество).toBe(54);
     expect(good.ОбъявленнаяСтоимостьТовара).toBeCloseTo(6462.18, 2);
     expect(good.Name).not.toContain("шт");
     expect(good.Name).not.toContain("₽");
   });
 
-  it("strips packaging шт from product name and uses UPD quantity", () => {
+  it("keeps full UPD cell text in Name and ТМЦ", () => {
+    const updName =
+      "Листовые полотенца V- 2сл. (целлюлоза), (200л), 22х23см; (20шт./кор)";
     const payload = buildDocumentsOrderZayavkaPayload({
       ...base,
       tableRows: [
         {
-          posylka: "Листовые полотенца V- 2сл. (200л), 22х23см; (20шт./кор) · 800 шт · 50,82 ₽",
-          idOtpravleniya: "8017NBO5ZQYRTQCM",
-          items: [
-            {
-              name: "Листовые полотенца V- 2сл. (целлюлоза), (200л), 22х23см; (20шт./кор)",
-              quantity: 800,
-              price: 50.82,
-            },
-          ],
+          posylka: `${updName} · 800 шт · 50,82 ₽`,
+          idOtpravleniya: "8017OYN7C418008I",
+          items: [{ name: updName, quantity: 800, price: 50.82 }],
         },
       ],
     });
     const good = payload.Посылки[0].Товары[0];
-    expect(payload.Посылки[0].ШтрихкодЗаказчика).toBe("8017NBO5ZQYRTQCM");
-    expect(good.Name).not.toContain("20шт");
+    expect(good.Name).toBe(updName);
+    expect(good.ТМЦ).toBe(updName);
+    expect(good.Name).toContain("(20шт./кор)");
     expect(good.Количество).toBe(800);
     expect(good.ОбъявленнаяСтоимостьТовара).toBeCloseTo(40656, 0);
   });

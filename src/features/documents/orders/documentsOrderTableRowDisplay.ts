@@ -1,7 +1,4 @@
-import {
-  parsePosylkaDisplayLine,
-  sanitizeGoodsNameFor1c,
-} from "../../../../lib/documentsOrderZayavkaPayload";
+import { parsePosylkaDisplayLine } from "../../../../lib/documentsOrderZayavkaPayload";
 
 export type OrderTableRowDisplay = {
   name: string;
@@ -23,7 +20,7 @@ function fromParsedItems(items: Array<{ name: string; quantity: number; price: n
   if (items.length === 1) {
     const item = items[0];
     return {
-      name: sanitizeGoodsNameFor1c(item.name) || item.name,
+      name: item.name,
       quantity: item.quantity,
       price: item.price,
       sum: lineSum(item.quantity, item.price),
