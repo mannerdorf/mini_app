@@ -416,6 +416,11 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
               posylka: row.posylka,
               perevozka: row.perevozka,
               idOtpravleniya: row.idOtpravleniya,
+              items: row.items?.map((item) => ({
+                name: item.name,
+                quantity: item.quantity,
+                price: item.price,
+              })),
             }))
           : undefined,
       });

@@ -20,6 +20,7 @@ export type PendingFivepostRow = {
 export type PendingLegacyTableRow = {
   n?: number;
   posylka?: string;
+  items?: Array<{ name?: string; quantity?: number; price?: number }>;
   idOtpravleniya?: string;
   id_otpravleniya?: string;
   otskanirvano?: boolean;
@@ -92,27 +93,38 @@ export function DocumentsOrdersPendingCargo({ fivepostRows, legacyRows }: Props)
             <tr style={{ borderBottom: "1px solid var(--color-border)", background: "var(--color-bg-hover)" }}>
               <th style={{ padding: "0.35rem 0.3rem", textAlign: "left" }}>N</th>
               <th style={{ padding: "0.35rem 0.3rem", textAlign: "left" }}>ИД отправления</th>
-              <th style={{ padding: "0.35rem 0.3rem", textAlign: "left" }}>Посылка</th>
+              <th style={{ padding: "0.35rem 0.3rem", textAlign: "left" }}>Наименование</th>
+              <th style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>Кол-во</th>
+              <th style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>Цена</th>
               <th style={{ padding: "0.35rem 0.3rem", textAlign: "left" }}>Перевозка</th>
             </tr>
           </thead>
           <tbody>
-            {legacyRows.map((row, idx) => (
-              <tr key={row.n ?? idx} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                <td style={{ padding: "0.35rem 0.3rem" }}>{row.n ?? idx + 1}</td>
-                <td
-                  style={{
-                    padding: "0.35rem 0.3rem",
-                    fontFamily: "ui-monospace, monospace",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {row.idOtpravleniya || row.id_otpravleniya || "—"}
-                </td>
-                <td style={{ padding: "0.35rem 0.3rem" }}>{row.posylka || "—"}</td>
-                <td style={{ padding: "0.35rem 0.3rem" }}>{row.perevozka || "—"}</td>
-              </tr>
-            ))}
+            {legacyRows.map((row, idx) => {
+              const primary = row.items?.length === 1 ? row.items[0] : null;
+              return (
+                <tr key={row.n ?? idx} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                  <td style={{ padding: "0.35rem 0.3rem" }}>{row.n ?? idx + 1}</td>
+                  <td
+                    style={{
+                      padding: "0.35rem 0.3rem",
+                      fontFamily: "ui-monospace, monospace",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {row.idOtpravleniya || row.id_otpravleniya || "—"}
+                  </td>
+                  <td style={{ padding: "0.35rem 0.3rem" }}>{primary?.name || row.posylka || "—"}</td>
+                  <td style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
+                    {primary?.quantity ?? "—"}
+                  </td>
+                  <td style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
+                    {primary?.price != null ? primary.price.toLocaleString("ru-RU") : "—"}
+                  </td>
+                  <td style={{ padding: "0.35rem 0.3rem" }}>{row.perevozka || "—"}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

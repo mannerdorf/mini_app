@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { buildDocumentsOrderZayavkaPayload } from "./documentsOrderZayavkaPayload.js";
+import { buildDocumentsOrderZayavkaPayload, mapLegacyTableRowInput } from "./documentsOrderZayavkaPayload.js";
 import {
   fivepostBatchIdFromTableRows,
   loadFivepostRowsByBatchIds,
@@ -76,14 +76,7 @@ export async function resolveZayavkaPayloadForPendingOrder(
   const legacyBlock = tableRowByType(tableRows, "legacy_parcels");
   const legacyRaw = Array.isArray(legacyBlock?.rows) ? legacyBlock.rows : [];
   const tableRowsInput = legacyRaw.length
-    ? legacyRaw.map((r) => {
-        const o = r && typeof r === "object" ? (r as Record<string, unknown>) : {};
-        return {
-          posylka: String(o.posylka ?? o.Posylka ?? ""),
-          perevozka: String(o.perevozka ?? o.Perevozka ?? ""),
-          idOtpravleniya: String(o.idOtpravleniya ?? o.id_otpravleniya ?? "").trim() || undefined,
-        };
-      })
+    ? legacyRaw.map((r) => mapLegacyTableRowInput(r))
     : undefined;
 
   const payload = buildDocumentsOrderZayavkaPayload({

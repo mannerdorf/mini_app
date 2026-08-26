@@ -49,7 +49,31 @@ describe("buildDocumentsOrderZayavkaPayload", () => {
     });
     expect(payload.Посылки).toHaveLength(1);
     expect(payload.Посылки[0].Ид).toBe("TR-9");
+    expect(payload.Посылки[0].Товары[0].Name).toBe("Товар");
+    expect(payload.Посылки[0].Товары[0].Количество).toBe(2);
     expect(payload.Посылки[0].Товары[0].ОбъявленнаяСтоимостьТовара).toBe(3000);
+  });
+
+  it("uses structured items for Name, quantity and declared value", () => {
+    const longName =
+      "Салфетки бумажные БигПак 400л желтый упаковка для настольных диспенсеров большой";
+    const payload = buildDocumentsOrderZayavkaPayload({
+      ...base,
+      declaredValueRub: 1000,
+      tableRows: [
+        {
+          posylka: `${longName} · 54 шт · 119,67 ₽`,
+          items: [{ name: longName, quantity: 54, price: 119.67 }],
+        },
+      ],
+    });
+    const good = payload.Посылки[0].Товары[0];
+    expect(good.Name).toHaveLength(50);
+    expect(good.Name).toBe(longName.slice(0, 50));
+    expect(good.Количество).toBe(54);
+    expect(good.ОбъявленнаяСтоимостьТовара).toBeCloseTo(6462.18, 2);
+    expect(good.Name).not.toContain("шт");
+    expect(good.Name).not.toContain("₽");
   });
 
   it("passes idOtpravleniya into goods rows", () => {

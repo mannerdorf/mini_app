@@ -26,7 +26,7 @@ import {
   parseJsonBody,
   resolveDocumentsOrderAccess,
 } from "../_documentsOrder.js";
-import { buildDocumentsOrderZayavkaPayload } from "../../lib/documentsOrderZayavkaPayload.js";
+import { buildDocumentsOrderZayavkaPayload, mapLegacyTableRowInput } from "../../lib/documentsOrderZayavkaPayload.js";
 import {
   fivepostBatchIdFromTableRows,
   loadFivepostRowsByBatchIds,
@@ -187,14 +187,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         declaredValueRub: quoteReq.declaredValueRub ?? 0,
         placeCount: quoteReq.places.length,
         fivepostRows,
-        tableRows: legacyTableRows.map((r) => {
-          const row = r && typeof r === "object" ? (r as Record<string, unknown>) : {};
-          return {
-            posylka: String(row.posylka ?? row.Posylka ?? ""),
-            perevozka: String(row.perevozka ?? row.Perevozka ?? ""),
-            idOtpravleniya: String(row.idOtpravleniya ?? row.id_otpravleniya ?? "").trim() || undefined,
-          };
-        }),
+        tableRows: legacyTableRows.map((r) => mapLegacyTableRowInput(r)),
       });
     }
 

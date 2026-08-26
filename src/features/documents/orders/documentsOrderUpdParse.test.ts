@@ -47,7 +47,8 @@ describe("documentsOrderUpdParse", () => {
     const places = distributeUpdLineItems(items, 16, () => 0.42);
     expect(places).toHaveLength(16);
     expect(places.every((p) => p.posylka.includes("шт"))).toBe(true);
-    expect(places.reduce((sum, p) => sum + (p.posylka.match(/Товар/g)?.length ?? 0), 0)).toBe(40);
+    expect(places.every((p) => p.items.length > 0)).toBe(true);
+    expect(places.reduce((sum, p) => sum + p.items.length, 0)).toBe(40);
   });
 
   it("parses uploaded File into table rows", async () => {

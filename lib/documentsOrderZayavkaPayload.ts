@@ -1,5 +1,13 @@
 import type { ZayavkaGoodsRow, ZayavkaParcelRow, ZayavkaUploadPayload } from "./post1cZayavkaUpload.js";
 
+export const ZAYAVKA_GOODS_NAME_MAX_LEN = 50;
+
+export type DocumentsOrderTableLineItem = {
+  name: string;
+  quantity: number;
+  price: number;
+};
+
 export type DocumentsOrderFivepostRowInput = {
   omniBarcode: string;
   teBarcode?: string;
@@ -16,6 +24,7 @@ export type DocumentsOrderTableRowInput = {
   posylka: string;
   perevozka?: string;
   idOtpravleniya?: string;
+  items?: DocumentsOrderTableLineItem[];
 };
 
 export type BuildDocumentsOrderZayavkaInput = {
@@ -46,6 +55,47 @@ function normalizeMoney(value: unknown): number {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
+function truncateGoodsName(value: unknown): string {
+  const name = normalizeText(value) || "Товар";
+  return name.length <= ZAYAVKA_GOODS_NAME_MAX_LEN
+    ? name
+    : name.slice(0, ZAYAVKA_GOODS_NAME_MAX_LEN);
+}
+
+/** Разбирает legacy-строку «название · N шт · цена ₽» из posylka. */
+export function parsePosylkaDisplayLine(posylka: string): DocumentsOrderTableLineItem[] {
+  const trimmed = normalizeText(posylka);
+  if (!trimmed) return [];
+
+  const multiMatch = trimmed.match(/^Место \d+ \(\d+ поз\.\):\s*(.+)$/);
+  if (multiMatch) {
+    return multiMatch[1]
+      .split(";")
+      .map((part) => parsePosylkaDisplayLine(part.trim())[0])
+      .filter((item): item is DocumentsOrderTableLineItem => item != null);
+  }
+
+  const parts = trimmed.split(" · ").map((part) => part.trim());
+  if (parts.length >= 3) {
+    const qtyRaw = parts[parts.length - 2];
+    const priceRaw = parts[parts.length - 1];
+    const qtyMatch = qtyRaw.match(/^([\d\s,.]+)\s*шт\.?$/i);
+    const priceMatch = priceRaw.match(/^([\d\s,.]+)\s*₽$/);
+    if (qtyMatch && priceMatch) {
+      const quantity = Math.max(1, Math.round(Number(qtyMatch[1].replace(/\s/g, "").replace(",", ".")) || 1));
+      const price = normalizeMoney(priceMatch[1].replace(/\s/g, "").replace(",", "."));
+      const name = parts.slice(0, -2).join(" · ").trim();
+      if (name) return [{ name, quantity, price }];
+    }
+  }
+
+  return [{ name: trimmed, quantity: 1, price: 0 }];
+}
+
+function lineDeclaredValue(item: DocumentsOrderTableLineItem): number {
+  return Math.round(item.quantity * item.price * 100) / 100;
+}
+
 function goodsRow(input: {
   idOtpravleniya?: string;
   id?: string;
@@ -53,7 +103,7 @@ function goodsRow(input: {
   quantity?: number;
   cost?: number;
 }): ZayavkaGoodsRow {
-  const name = normalizeText(input.name) || "Товар";
+  const name = truncateGoodsName(input.name);
   return {
     ИДОтправления: normalizeText(input.idOtpravleniya),
     ID: normalizeText(input.id),
@@ -105,6 +155,64 @@ function buildFivepostParcels(rows: DocumentsOrderFivepostRowInput[]): ZayavkaPa
   }));
 }
 
+function normalizeTableLineItem(raw: unknown): DocumentsOrderTableLineItem | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const name = normalizeText(o.name ?? o.Name ?? o.наименование);
+  if (!name) return null;
+  const quantity = Math.max(1, Math.round(Number(o.quantity ?? o.Quantity ?? o.количество) || 1));
+  const price = normalizeMoney(o.price ?? o.Price ?? o.unitPrice ?? o.unit_price ?? o.цена);
+  return { name, quantity, price };
+}
+
+export function mapLegacyTableRowInput(raw: unknown): DocumentsOrderTableRowInput {
+  const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const itemsRaw = o.items ?? o.Items;
+  const items = Array.isArray(itemsRaw)
+    ? itemsRaw.map(normalizeTableLineItem).filter((item): item is DocumentsOrderTableLineItem => item != null)
+    : undefined;
+  return {
+    posylka: String(o.posylka ?? o.Posylka ?? ""),
+    perevozka: String(o.perevozka ?? o.Perevozka ?? ""),
+    idOtpravleniya: String(o.idOtpravleniya ?? o.id_otpravleniya ?? "").trim() || undefined,
+    ...(items?.length ? { items } : {}),
+  };
+}
+
+function buildGoodsFromTableRow(
+  row: DocumentsOrderTableRowInput,
+  idx: number,
+  perPlaceValue: number,
+): ZayavkaGoodsRow[] {
+  const items =
+    row.items?.length && row.items.some((item) => normalizeText(item.name))
+      ? row.items.filter((item) => normalizeText(item.name))
+      : parsePosylkaDisplayLine(row.posylka);
+
+  if (items.length === 0) {
+    return [
+      goodsRow({
+        idOtpravleniya: normalizeText(row.idOtpravleniya),
+        id: `place-${idx + 1}`,
+        name: `Место ${idx + 1}`,
+        quantity: 1,
+        cost: perPlaceValue,
+      }),
+    ];
+  }
+
+  return items.map((item, itemIdx) => {
+    const declared = lineDeclaredValue(item);
+    return goodsRow({
+      idOtpravleniya: items.length === 1 ? normalizeText(row.idOtpravleniya) : "",
+      id: items.length === 1 ? `place-${idx + 1}` : `place-${idx + 1}-${itemIdx + 1}`,
+      name: item.name,
+      quantity: item.quantity,
+      cost: declared > 0 ? declared : perPlaceValue,
+    });
+  });
+}
+
 function buildTableParcels(
   rows: DocumentsOrderTableRowInput[],
   declaredValueRub: number,
@@ -113,21 +221,15 @@ function buildTableParcels(
     rows.length > 0 ? Math.round((normalizeMoney(declaredValueRub) / rows.length) * 100) / 100 : 0;
 
   return rows.map((row, idx) => {
-    const barcode = normalizeText(row.posylka).slice(0, 64);
+    const goods = buildGoodsFromTableRow(row, idx, perPlaceValue);
+    const primaryName = goods[0]?.Name || `Место ${idx + 1}`;
+    const sendingId = normalizeText(row.idOtpravleniya);
+    const barcode = (sendingId || primaryName).slice(0, 64);
     const externalId = normalizeText(row.perevozka);
-    const name = barcode || `Место ${idx + 1}`;
     return {
       ШтрихкодЗаказчика: barcode || `M${idx + 1}`,
       ...(externalId ? { Ид: externalId } : {}),
-      Товары: [
-        goodsRow({
-          idOtpravleniya: normalizeText(row.idOtpravleniya),
-          id: `place-${idx + 1}`,
-          name,
-          quantity: 1,
-          cost: perPlaceValue,
-        }),
-      ],
+      Товары: goods,
     };
   });
 }

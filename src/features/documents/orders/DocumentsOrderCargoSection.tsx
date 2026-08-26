@@ -66,13 +66,19 @@ function isExcelFile(file: File): boolean {
 }
 
 function fivepostRowsToTableRows(rows: DocumentsFivepostRow[]): OrderTableRow[] {
-  return rows.map((row, idx) => ({
-    n: idx + 1,
-    posylka: [row.omniBarcode, row.itemNameRu || row.itemName].filter(Boolean).join(" · "),
-    otskanirvano: false,
-    dataSkanirovaniya: "",
-    perevozka: row.clientOrderNo || row.partnerOrderNo || "",
-  }));
+  return rows.map((row, idx) => {
+    const name = row.itemNameRu || row.itemName || row.omniBarcode || `Место ${idx + 1}`;
+    const quantity = row.placesCount && row.placesCount > 0 ? row.placesCount : 1;
+    const price = row.unitCost ?? row.totalCost ?? 0;
+    return {
+      n: idx + 1,
+      posylka: [row.omniBarcode, name].filter(Boolean).join(" · "),
+      items: [{ name, quantity, price }],
+      otskanirvano: false,
+      dataSkanirovaniya: "",
+      perevozka: row.clientOrderNo || row.partnerOrderNo || "",
+    };
+  });
 }
 
 export function DocumentsOrderCargoSection({
@@ -478,19 +484,26 @@ export function DocumentsOrderCargoSection({
                   <tr>
                     <th>N</th>
                     <th>ИД отправления</th>
-                    <th>Посылка</th>
+                    <th>Наименование</th>
+                    <th>Кол-во</th>
+                    <th>Цена</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {state.tableRows.map((row) => (
-                    <tr key={row.n}>
-                      <td>{row.n}</td>
-                      <td style={{ fontFamily: "ui-monospace, monospace", whiteSpace: "nowrap" }}>
-                        {row.idOtpravleniya || "—"}
-                      </td>
-                      <td>{row.posylka || "—"}</td>
-                    </tr>
-                  ))}
+                  {state.tableRows.map((row) => {
+                    const primary = row.items?.length === 1 ? row.items[0] : null;
+                    return (
+                      <tr key={row.n}>
+                        <td>{row.n}</td>
+                        <td style={{ fontFamily: "ui-monospace, monospace", whiteSpace: "nowrap" }}>
+                          {row.idOtpravleniya || "—"}
+                        </td>
+                        <td>{primary?.name || row.posylka || "—"}</td>
+                        <td>{primary ? primary.quantity : "—"}</td>
+                        <td>{primary ? primary.price.toLocaleString("ru-RU") : "—"}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
