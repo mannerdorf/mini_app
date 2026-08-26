@@ -17,25 +17,35 @@ type Props = {
 
 const CARGO_STAGE_SET = new Set<string>(CARGO_STAGE_EVENT_IDS);
 
-function pushHistoryHeadline(item: PushHistoryItem): string {
-  const title = String(item.pushTitle || "").trim();
-  if (item.event === "broadcast") {
-    return title || "HAULZ";
+const PUSH_BRAND = "HAULZ";
+
+function stripPushBrandPrefix(text: string): string {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return "";
+  if (/^HAULZ/i.test(trimmed)) {
+    return trimmed.replace(/^HAULZ\s*/i, "").trimStart();
   }
-  if (title) return title;
-  return pushEventLabel(item.event);
+  return trimmed;
 }
 
-function pushHistorySubtitle(item: PushHistoryItem): string {
-  const body = String(item.pushBody || "").trim();
+function pushHistoryMessage(item: PushHistoryItem): string {
+  const body = stripPushBrandPrefix(String(item.pushBody || ""));
   if (body) return body;
+
+  const title = stripPushBrandPrefix(String(item.pushTitle || ""));
+  if (title) return title;
+
   if (item.event === "broadcast") {
     const legacy = String(item.cargoNumber || "").trim();
-    if (legacy && legacy !== "HAULZ") return legacy;
+    if (legacy && legacy !== PUSH_BRAND) return legacy;
     return "";
   }
   if (item.cargoNumber) return `Груз ${item.cargoNumber}`;
-  return "Без номера груза";
+  return pushEventLabel(item.event);
+}
+
+function pushHistoryHeadline(_item: PushHistoryItem): string {
+  return PUSH_BRAND;
 }
 
 function pushEventLabel(event: string): string {
