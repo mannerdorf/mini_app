@@ -6,6 +6,7 @@ export type OrderTableRow = {
   otskanirvano: boolean;
   dataSkanirovaniya: string;
   perevozka: string;
+  idOtpravleniya?: string;
 };
 
 export type UpdLineItem = {

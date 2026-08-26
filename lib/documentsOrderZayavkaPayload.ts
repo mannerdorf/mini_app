@@ -15,6 +15,7 @@ export type DocumentsOrderFivepostRowInput = {
 export type DocumentsOrderTableRowInput = {
   posylka: string;
   perevozka?: string;
+  idOtpravleniya?: string;
 };
 
 export type BuildDocumentsOrderZayavkaInput = {
@@ -120,6 +121,7 @@ function buildTableParcels(
       ...(externalId ? { Ид: externalId } : {}),
       Товары: [
         goodsRow({
+          idOtpravleniya: normalizeText(row.idOtpravleniya),
           id: `place-${idx + 1}`,
           name,
           quantity: 1,

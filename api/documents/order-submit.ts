@@ -33,6 +33,7 @@ import {
 } from "../../lib/pendingOrderRequests.js";
 import { PENDING_ORDER_ZAYAVKA_ROW_TYPE } from "../../lib/documentsOrderPending1c.js";
 import { normalizeZayavkaUploadPayload } from "../../lib/post1cZayavkaUpload.js";
+import { finalizeZayavkaPayloadFor1c } from "../../lib/finalizeZayavkaPayloadFor1c.js";
 
 const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
 
@@ -191,12 +192,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return {
             posylka: String(row.posylka ?? row.Posylka ?? ""),
             perevozka: String(row.perevozka ?? row.Perevozka ?? ""),
+            idOtpravleniya: String(row.idOtpravleniya ?? row.id_otpravleniya ?? "").trim() || undefined,
           };
         }),
       });
     }
 
-    const tableRows = [
+    const tableRowsCore = [
       {
         type: "source",
         channel: "documents_orders",
@@ -244,6 +246,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         })),
         tooLarge: attachmentsTooLarge,
       },
+    ];
+
+    if (zayavkaPayload) {
+      zayavkaPayload = await finalizeZayavkaPayloadFor1c(pool, zayavkaPayload, {
+        nomerZayavki: nomerZayavki || undefined,
+        tableRows: tableRowsCore,
+      });
+    }
+
+    const tableRows = [
+      ...tableRowsCore,
       { type: PENDING_ORDER_ZAYAVKA_ROW_TYPE, payload: zayavkaPayload },
     ];
 

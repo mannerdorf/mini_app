@@ -51,4 +51,13 @@ describe("buildDocumentsOrderZayavkaPayload", () => {
     expect(payload.Посылки[0].Ид).toBe("TR-9");
     expect(payload.Посылки[0].Товары[0].ОбъявленнаяСтоимостьТовара).toBe(3000);
   });
+
+  it("passes idOtpravleniya into goods rows", () => {
+    const payload = buildDocumentsOrderZayavkaPayload({
+      ...base,
+      declaredValueRub: 1000,
+      tableRows: [{ posylka: "Место 1", idOtpravleniya: "1620ABCD1234EFGH" }],
+    });
+    expect(payload.Посылки[0].Товары[0].ИДОтправления).toBe("1620ABCD1234EFGH");
+  });
 });

@@ -32,6 +32,7 @@ import {
   DocumentsOrderCargoSection,
   type DocumentsOrderCargoState,
 } from "./DocumentsOrderCargoSection";
+import { resolveDocumentsOrderLegParty } from "../../../../lib/documentsOrderLegParty";
 import {
   DocumentsOrderQuoteSummary,
 } from "./DocumentsOrderQuoteSummary";
@@ -60,18 +61,7 @@ function resolveLegEndpoint(state: PvzSelectionState) {
 }
 
 function legParty(state: PvzSelectionState): DeliveryParty {
-  const party: DeliveryParty = { mode: state.deliveryMode };
-  if (state.addressKind === "custom" && state.addr?.point) {
-    const inn = state.inn.replace(/\D/g, "");
-    if (inn) party.inn = inn;
-    const companyName = state.companyName.trim();
-    if (companyName) party.companyName = companyName;
-    const phone = state.phone.trim();
-    if (phone) party.phone = phone;
-    const fullName = state.contactName.trim();
-    if (fullName) party.fullName = fullName;
-  }
-  return party;
+  return resolveDocumentsOrderLegParty(state);
 }
 
 type Props = {
@@ -425,6 +415,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
           ? cargo.tableRows.map((row) => ({
               posylka: row.posylka,
               perevozka: row.perevozka,
+              idOtpravleniya: row.idOtpravleniya,
             }))
           : undefined,
       });

@@ -6,6 +6,7 @@ import type { DocumentsAuthScope, DocumentsFivepostRow } from "../../../api/clie
 import { saveDocumentsFivepostRows, translateDocumentsFivepostBatch } from "../../../api/client/documentsOrder";
 import { parseFivepostShipmentFile } from "../../../../lib/fivepost/parseShipmentXlsx";
 import { parseUpdToTableRows, type OrderTableRow } from "./documentsOrderUpdParse";
+import { allocateDocumentsSendingIds } from "../../../api/client/documentsOrder";
 
 const BOX_PRESETS: { label: string; weightKg: number; volumeM3: number }[] = [
   { label: "XS", weightKg: 1, volumeM3: 0.005 },
@@ -132,7 +133,12 @@ export function DocumentsOrderCargoSection({
     setError(null);
     try {
       const rows = await parseUpdToTableRows(state.fileUpd, count);
-      onChange({ ...state, tableRows: rows, fivepostRows: [], fivepostBatchId: null, fivepostNeedsTranslation: 0 });
+      const ids = await allocateDocumentsSendingIds(authScope, { count: rows.length });
+      const withIds: OrderTableRow[] = rows.map((row, idx) => ({
+        ...row,
+        idOtpravleniya: ids[idx] || row.idOtpravleniya,
+      }));
+      onChange({ ...state, tableRows: withIds, fivepostRows: [], fivepostBatchId: null, fivepostNeedsTranslation: 0 });
     } catch (e) {
       setError((e as Error)?.message || "Ошибка чтения файла УПД");
     } finally {
