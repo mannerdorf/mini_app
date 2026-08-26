@@ -1,4 +1,8 @@
 import React from "react";
+import {
+  formatOrderTableMoney,
+  resolveOrderTableRowDisplay,
+} from "./documentsOrderTableRowDisplay";
 
 export type PendingFivepostRow = {
   lineNo: number;
@@ -94,14 +98,15 @@ export function DocumentsOrdersPendingCargo({ fivepostRows, legacyRows }: Props)
               <th style={{ padding: "0.35rem 0.3rem", textAlign: "left" }}>N</th>
               <th style={{ padding: "0.35rem 0.3rem", textAlign: "left" }}>ИД отправления</th>
               <th style={{ padding: "0.35rem 0.3rem", textAlign: "left" }}>Наименование</th>
-              <th style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>Кол-во</th>
-              <th style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>Цена</th>
+              <th style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>Кол-во, шт</th>
+              <th style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>Цена, ₽</th>
+              <th style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>Сумма, ₽</th>
               <th style={{ padding: "0.35rem 0.3rem", textAlign: "left" }}>Перевозка</th>
             </tr>
           </thead>
           <tbody>
             {legacyRows.map((row, idx) => {
-              const primary = row.items?.length === 1 ? row.items[0] : null;
+              const cells = resolveOrderTableRowDisplay(row);
               return (
                 <tr key={row.n ?? idx} style={{ borderBottom: "1px solid var(--color-border)" }}>
                   <td style={{ padding: "0.35rem 0.3rem" }}>{row.n ?? idx + 1}</td>
@@ -114,12 +119,15 @@ export function DocumentsOrdersPendingCargo({ fivepostRows, legacyRows }: Props)
                   >
                     {row.idOtpravleniya || row.id_otpravleniya || "—"}
                   </td>
-                  <td style={{ padding: "0.35rem 0.3rem" }}>{primary?.name || row.posylka || "—"}</td>
+                  <td style={{ padding: "0.35rem 0.3rem" }}>{cells.name}</td>
                   <td style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
-                    {primary?.quantity ?? "—"}
+                    {cells.quantity ?? "—"}
                   </td>
                   <td style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
-                    {primary?.price != null ? primary.price.toLocaleString("ru-RU") : "—"}
+                    {formatOrderTableMoney(cells.price)}
+                  </td>
+                  <td style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
+                    {formatOrderTableMoney(cells.sum)}
                   </td>
                   <td style={{ padding: "0.35rem 0.3rem" }}>{row.perevozka || "—"}</td>
                 </tr>

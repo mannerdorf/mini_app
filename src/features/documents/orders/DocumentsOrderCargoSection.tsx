@@ -6,6 +6,10 @@ import type { DocumentsAuthScope, DocumentsFivepostRow } from "../../../api/clie
 import { saveDocumentsFivepostRows, translateDocumentsFivepostBatch } from "../../../api/client/documentsOrder";
 import { parseFivepostShipmentFile } from "../../../../lib/fivepost/parseShipmentXlsx";
 import { parseUpdToTableRows, type OrderTableRow } from "./documentsOrderUpdParse";
+import {
+  formatOrderTableMoney,
+  resolveOrderTableRowDisplay,
+} from "./documentsOrderTableRowDisplay";
 import { allocateDocumentsSendingIds } from "../../../api/client/documentsOrder";
 
 const BOX_PRESETS: { label: string; weightKg: number; volumeM3: number }[] = [
@@ -485,22 +489,24 @@ export function DocumentsOrderCargoSection({
                     <th>N</th>
                     <th>ИД отправления</th>
                     <th>Наименование</th>
-                    <th>Кол-во</th>
-                    <th>Цена</th>
+                    <th>Кол-во, шт</th>
+                    <th>Цена, ₽</th>
+                    <th>Сумма, ₽</th>
                   </tr>
                 </thead>
                 <tbody>
                   {state.tableRows.map((row) => {
-                    const primary = row.items?.length === 1 ? row.items[0] : null;
+                    const cells = resolveOrderTableRowDisplay(row);
                     return (
                       <tr key={row.n}>
                         <td>{row.n}</td>
                         <td style={{ fontFamily: "ui-monospace, monospace", whiteSpace: "nowrap" }}>
                           {row.idOtpravleniya || "—"}
                         </td>
-                        <td>{primary?.name || row.posylka || "—"}</td>
-                        <td>{primary ? primary.quantity : "—"}</td>
-                        <td>{primary ? primary.price.toLocaleString("ru-RU") : "—"}</td>
+                        <td>{cells.name}</td>
+                        <td>{cells.quantity ?? "—"}</td>
+                        <td>{formatOrderTableMoney(cells.price)}</td>
+                        <td>{formatOrderTableMoney(cells.sum)}</td>
                       </tr>
                     );
                   })}
