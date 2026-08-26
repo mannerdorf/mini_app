@@ -157,28 +157,43 @@ export function ProfilePushHistorySection({ activeAccount, onBack }: Props) {
         </Panel>
       ) : (
         <div className="profile-saas-stack" style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
-          {items.map((item) => (
+          {items.map((item) => {
+            const message = pushHistoryMessage(item);
+            return (
             <Panel key={item.id} className="cargo-card profile-saas-row-card" style={{ padding: "1rem" }}>
               <Flex align="flex-start" style={{ gap: "0.75rem" }}>
                 <div className="profile-saas-row-icon">
                   <Package className="w-5 h-5" style={{ color: "var(--color-primary)" }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <Typography.Body style={{ fontWeight: 700, margin: 0, fontSize: "0.92rem" }}>
-                    {pushHistoryHeadline(item)}
-                  </Typography.Body>
                   <Typography.Body
+                    component="div"
                     style={{
-                      margin: "0.25rem 0 0",
-                      fontSize: "0.84rem",
-                      color: "var(--color-text-secondary)",
-                      lineHeight: 1.45,
-                      wordBreak: "break-word",
+                      fontWeight: 700,
+                      margin: 0,
+                      fontSize: "0.92rem",
+                      lineHeight: 1.35,
+                      display: "block",
                     }}
                   >
-                    {pushHistorySubtitle(item)}
-                    {item.inn && !String(item.pushBody || "").trim() ? ` · ИНН ${item.inn}` : ""}
+                    {pushHistoryHeadline(item)}
                   </Typography.Body>
+                  {message ? (
+                    <Typography.Body
+                      component="div"
+                      style={{
+                        margin: "0.25rem 0 0",
+                        fontSize: "0.84rem",
+                        color: "var(--color-text-primary)",
+                        lineHeight: 1.45,
+                        wordBreak: "break-word",
+                        display: "block",
+                      }}
+                    >
+                      {message}
+                      {item.inn && !String(item.pushBody || "").trim() ? ` · ИНН ${item.inn}` : ""}
+                    </Typography.Body>
+                  ) : null}
                   <Flex
                     align="center"
                     justify="space-between"
@@ -221,7 +236,8 @@ export function ProfilePushHistorySection({ activeAccount, onBack }: Props) {
                 </div>
               </Flex>
             </Panel>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
