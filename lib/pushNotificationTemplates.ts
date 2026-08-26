@@ -317,6 +317,12 @@ export async function loadPushNotificationTemplates(pool: Pool): Promise<PushNot
     });
   }
 
+  /** Старые дефолты без {bill_number} — подменяем на актуальные, если админ не кастомизировал иначе. */
+  const legacyDefaultBodies: Partial<Record<PushNotificationTemplateEventId, string>> = {
+    bill_created: "Вам выставлен счет по перевозке № {cargo_number} на сумму {bill_sum} ₽.",
+    bill_paid: "Счет по перевозке № {cargo_number} оплачен.",
+  };
+
   try {
     await ensurePushNotificationTemplatesTable(pool);
     const { rows } = await pool.query<{
@@ -331,9 +337,14 @@ export async function loadPushNotificationTemplates(pool: Pool): Promise<PushNot
     for (const row of rows) {
       const eventId = String(row.event_id || "").trim() as PushNotificationTemplateEventId;
       if (!PUSH_NOTIFICATION_EVENTS.includes(eventId)) continue;
+      let bodyTemplate = String(row.body_template || "");
+      const legacy = legacyDefaultBodies[eventId];
+      if (legacy && bodyTemplate.trim() === legacy) {
+        bodyTemplate = defaultBodyTemplate(eventId);
+      }
       map.set(eventId, {
         titleTemplate: String(row.title_template || "HAULZ").trim() || "HAULZ",
-        bodyTemplate: String(row.body_template || ""),
+        bodyTemplate,
         enabled: row.enabled !== false,
         updatedAt:
           row.updated_at instanceof Date
