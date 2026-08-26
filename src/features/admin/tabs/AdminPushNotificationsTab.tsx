@@ -64,6 +64,7 @@ export function AdminPushNotificationsTab({ adminToken, onError }: Props) {
   const [body, setBody] = useState("");
   const [url, setUrl] = useState("/");
   const [limit, setLimit] = useState("500");
+  const [sendEvent, setSendEvent] = useState<"broadcast" | "app_update">("broadcast");
   const [preview, setPreview] = useState<AdminPushPreviewResult | null>(null);
   const [sendResult, setSendResult] = useState<AdminPushSendResult | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -110,6 +111,7 @@ export function AdminPushNotificationsTab({ adminToken, onError }: Props) {
           url: url.trim() || "/",
           dryRun,
           limit: limitNum,
+          event: sendEvent,
         });
         setSendResult(result);
         if (!dryRun) setConfirmSend(false);
@@ -120,10 +122,21 @@ export function AdminPushNotificationsTab({ adminToken, onError }: Props) {
         setSendLoading(false);
       }
     },
-    [adminToken, audience, title, body, url, limit, onError],
+    [adminToken, audience, title, body, url, limit, sendEvent, onError],
   );
 
-  const canSend = title.trim().length > 0 && body.trim().length > 0 && (!needsListInput || listInput.trim().length > 0);
+  const applyAppUpdateTemplate = useCallback(() => {
+    setSendEvent("app_update");
+    setTitle("HAULZ");
+    setBody("Вышла новая версия — обновите приложение");
+    setUrl("/profile");
+    setConfirmSend(false);
+  }, []);
+
+  const canSend =
+    title.trim().length > 0 &&
+    body.trim().length > 0 &&
+    (!needsListInput || listInput.trim().length > 0);
 
   return (
     <>
@@ -202,6 +215,25 @@ export function AdminPushNotificationsTab({ adminToken, onError }: Props) {
       ) : null}
 
       <Typography.Body style={{ fontWeight: 600, fontSize: "0.9rem", marginBottom: "0.35rem" }}>Сообщение</Typography.Body>
+      <Flex align="center" gap="0.5rem" wrap="wrap" style={{ marginBottom: "0.55rem" }}>
+        <Button
+          type="button"
+          className="filter-button"
+          onClick={applyAppUpdateTemplate}
+          style={
+            sendEvent === "app_update"
+              ? { background: "rgba(59, 130, 246, 0.12)", borderColor: "var(--color-primary-blue)" }
+              : undefined
+          }
+        >
+          Шаблон: новая версия
+        </Button>
+        {sendEvent === "app_update" ? (
+          <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>
+            Событие app_update — получат только с включённым пунктом «Новая версия приложения»
+          </Typography.Body>
+        ) : null}
+      </Flex>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(14rem, 1fr))", gap: "0.55rem", marginBottom: "0.75rem" }}>
         <input
           className="admin-form-input"

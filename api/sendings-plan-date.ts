@@ -2,6 +2,8 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { notifyPartnerWebhooks } from "../lib/partnerWebhook.js";
 import { respondCorsPreflight } from "./_lib/cors.js";
 import { initRequestContext } from "./_lib/observability.js";
+import { getPool } from "./_db.js";
+import { dispatchPlannedDeliveryDatePush } from "../lib/dispatchPlannedDeliveryDatePush.js";
 const BASE_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
@@ -173,6 +175,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         results: results.map((r) => ({ cargoNumber: r.cargoNumber, ok: r.ok })),
       },
     }).catch(() => undefined);
+
+    const updatedNumbers = results.filter((r) => r.ok).map((r) => r.cargoNumber);
+    try {
+      const pool = getPool();
+      void dispatchPlannedDeliveryDatePush({
+        pool,
+        date,
+        cargoNumbers: updatedNumbers,
+      }).catch(() => undefined);
+    } catch {
+      // push is best-effort
+    }
   }
   return res.status(200).json({
     ok: errorItems.length === 0,

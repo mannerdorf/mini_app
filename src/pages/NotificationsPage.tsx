@@ -20,6 +20,10 @@ const NOTIF_DOCS: { id: string; label: string }[] = [
     { id: "bill_created", label: "Создан счёт" },
     { id: "bill_paid", label: "Счёт оплачен" },
 ];
+const NOTIF_EXTRA: { id: string; label: string }[] = [
+    { id: "planned_delivery_date", label: "Плановая дата доставки" },
+    { id: "app_update", label: "Новая версия приложения" },
+];
 const NOTIF_SUMMARY: { id: string; label: string }[] = [
     { id: "daily_summary", label: "Ежедневная сводка в 10:00" },
 ];
@@ -367,6 +371,19 @@ export function NotificationsPage({
                             Раздел «Документы»
                         </Typography.Body>
                         {NOTIF_DOCS.map((ev) => (
+                            <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                                <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
+                                <TapSwitch
+                                    checked={isPushPrefEnabled(ev.id)}
+                                    onToggle={() => savePrefs("push", ev.id, !isPushPrefEnabled(ev.id))}
+                                    aria-label={`Push: ${ev.label}`}
+                                />
+                            </Flex>
+                        ))}
+                        <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.5rem", marginBottom: "0.25rem" }}>
+                            Прочее
+                        </Typography.Body>
+                        {NOTIF_EXTRA.map((ev) => (
                             <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
                                 <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
                                 <TapSwitch

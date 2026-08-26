@@ -199,6 +199,8 @@ describe("isPushNotificationEnabled", () => {
   it("keeps bills and daily summary on by default", () => {
     expect(isPushNotificationEnabled({}, "bill_created")).toBe(true);
     expect(isPushNotificationEnabled({}, "daily_summary")).toBe(true);
+    expect(isPushNotificationEnabled({}, "planned_delivery_date")).toBe(true);
+    expect(isPushNotificationEnabled({}, "app_update")).toBe(true);
     expect(isPushNotificationEnabled({ bill_created: false }, "bill_created")).toBe(false);
   });
 });

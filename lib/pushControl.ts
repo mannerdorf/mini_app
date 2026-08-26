@@ -214,13 +214,14 @@ export async function loadPushActivationEvents(
 /**
  * Разрешена ли автоотправка FCM для login+inn+event.
  * Если есть строки в push_activation — только они; иначе fallback на prefs (legacy).
+ * Отсутствующий event_id в реестре (новые типы после последней синхронизации) → prefs/дефолты.
  */
 export function isPushEventAllowedForInn(params: {
   activation: Record<string, boolean> | null | undefined;
   prefs: Record<string, boolean> | undefined;
   eventId: string;
 }): boolean {
-  if (params.activation) {
+  if (params.activation && Object.prototype.hasOwnProperty.call(params.activation, params.eventId)) {
     return params.activation[params.eventId] === true;
   }
   return isPushNotificationEnabled(params.prefs || {}, params.eventId);

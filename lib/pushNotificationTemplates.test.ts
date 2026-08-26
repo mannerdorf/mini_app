@@ -43,18 +43,40 @@ describe("formatPushNotificationMessage", () => {
     expect(result.usedCustomTemplate).toBe(true);
   });
 
-  it("falls back to legacy formatter", () => {
-    const result = formatPushNotificationMessage("bill_paid", "000141572", {});
+  it("uses default bill template with bill number", () => {
+    const result = formatPushNotificationMessage("bill_created", "000141572", {
+      BillNum: "000001529",
+      SumDoc: 125000,
+    });
+    expect(result.body).toContain("счет № 1529");
     expect(result.body).toContain("000141572");
     expect(result.usedCustomTemplate).toBe(false);
+  });
+
+  it("uses planned delivery date default template", () => {
+    const result = formatPushNotificationMessage("planned_delivery_date", "000141572", {
+      DateArrivalPlan: "2026-08-28",
+    });
+    expect(result.body).toBe("Перевозка № 000141572 плановая дата доставки 28.08.2026");
+  });
+
+  it("uses app update default template", () => {
+    const result = formatPushNotificationMessage("app_update", "", {});
+    expect(result.body).toBe("Вышла новая версия — обновите приложение");
   });
 });
 
 describe("defaultPushNotificationTemplates", () => {
-  it("covers all push events", () => {
+  it("covers all push events including plan date and app update", () => {
     const rows = defaultPushNotificationTemplates();
     expect(rows.some((r) => r.eventId === "delivery_scheduled")).toBe(true);
     expect(rows.some((r) => r.eventId === "bill_created")).toBe(true);
+    expect(rows.some((r) => r.eventId === "planned_delivery_date")).toBe(true);
+    expect(rows.some((r) => r.eventId === "app_update")).toBe(true);
+    const plan = rows.find((r) => r.eventId === "planned_delivery_date");
+    expect(plan?.bodyTemplate).toContain("{plan_date}");
+    const bill = rows.find((r) => r.eventId === "bill_created");
+    expect(bill?.bodyTemplate).toContain("{bill_number}");
   });
 });
 
@@ -77,5 +99,12 @@ describe("buildPushTemplateContext", () => {
     expect(ctx.auto_type).toBe("Мерседес");
     expect(ctx.driver).toBe("Ругалев Иван Федорович");
     expect(ctx.driver_tel).toBe("+79953889445");
+  });
+
+  it("includes plan_date", () => {
+    const ctx = buildPushTemplateContext("planned_delivery_date", "1", {
+      DateArrivalPlan: "2026-08-28",
+    });
+    expect(ctx.plan_date).toBe("28.08.2026");
   });
 });

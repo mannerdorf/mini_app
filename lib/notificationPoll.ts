@@ -254,14 +254,18 @@ export function formatTelegramMessage(
   const billSumRaw = pickFirst(anyItem, ["SumDoc", "SumBill", "AmountBill", "СуммаДокумента", "Sum", "Amount", "Сумма"]);
   const billSumNum = typeof billSumRaw === "number" ? billSumRaw : parseFloat(String(billSumRaw ?? "").replace(",", "."));
   const billSum = Number.isFinite(billSumNum) ? new Intl.NumberFormat("ru-RU").format(Math.round(billSumNum)) : "—";
+  const billNumberRaw = pickBillNumber(anyItem);
+  const billNumber = billNumberRaw
+    ? String(billNumberRaw).replace(/^0000-/, "").replace(/^0+/, "") || "0"
+    : "—";
   if (CARGO_STAGE_EVENT_IDS.includes(event as CargoStageEventId)) {
     return `${cargoStageEventLabel(event as CargoStageEventId)}. № ${n}`;
   }
   switch (event) {
     case "bill_created":
-      return `Вам выставлен счет по перевозке № ${n} на сумму ${billSum} ₽.`;
+      return `Вам выставлен счет № ${billNumber} по перевозке № ${n} на сумму ${billSum} ₽.`;
     case "bill_paid":
-      return `Счет по перевозке № ${n} оплачен.`;
+      return `Счет № ${billNumber} по перевозке № ${n} оплачен.`;
     default:
       return `Обновление статуса перевозки. ${details}`;
   }

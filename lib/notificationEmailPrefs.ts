@@ -7,7 +7,13 @@ import {
   type CargoStageEventId,
 } from "./notificationCargoEvents.js";
 
-const PUSH_BILL_AND_SUMMARY = ["bill_created", "bill_paid", "daily_summary"] as const;
+const PUSH_BILL_AND_SUMMARY = [
+  "bill_created",
+  "bill_paid",
+  "daily_summary",
+  "planned_delivery_date",
+  "app_update",
+] as const;
 
 export const EMAIL_NOTIFICATION_EVENTS = [
   ...CARGO_STAGE_EVENT_IDS,
@@ -41,10 +47,12 @@ export const PUSH_NOTIFICATION_EVENTS = [
   "bill_created",
   "bill_paid",
   "daily_summary",
+  "planned_delivery_date",
+  "app_update",
 ] as const;
 
 /**
- * Push по умолчанию: счета и сводка — да; этапы груза — нет.
+ * Push по умолчанию: счета, сводка, плановая дата и обновление приложения — да; этапы груза — нет.
  * Иначе при одном ИНН на логин устройство засыпается всеми статусами всех перевозок компании.
  */
 export const DEFAULT_PUSH_PREFS: Record<string, boolean> = {
@@ -52,6 +60,8 @@ export const DEFAULT_PUSH_PREFS: Record<string, boolean> = {
   bill_created: true,
   bill_paid: true,
   daily_summary: true,
+  planned_delivery_date: true,
+  app_update: true,
 };
 
 /** Все типы push вкл. — при первом согласии пользователя на Android. */
@@ -209,10 +219,16 @@ export function shouldSendDailySummaryPush(push: Record<string, boolean> | undef
   return src.daily_summary !== false;
 }
 
-/** Push: счета/сводка по умолчанию вкл; этапы груза — только явное включение. */
+/** Push: счета/сводка/плановая дата/обновление по умолчанию вкл; этапы груза — только явное включение. */
 export function isPushNotificationEnabled(prefs: Record<string, boolean>, eventId: string): boolean {
   const merged = mergePushPreferences(prefs);
-  if (eventId === "bill_created" || eventId === "bill_paid" || eventId === "daily_summary") {
+  if (
+    eventId === "bill_created" ||
+    eventId === "bill_paid" ||
+    eventId === "daily_summary" ||
+    eventId === "planned_delivery_date" ||
+    eventId === "app_update"
+  ) {
     return merged[eventId] !== false;
   }
   return isCargoStageNotificationEnabled(merged, eventId as CargoStageEventId);

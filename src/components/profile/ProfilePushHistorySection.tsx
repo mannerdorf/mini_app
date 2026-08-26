@@ -49,6 +49,10 @@ function pushEventLabel(event: string): string {
       return "Счёт оплачен";
     case "daily_summary":
       return "Ежедневная сводка";
+    case "planned_delivery_date":
+      return "Плановая дата доставки";
+    case "app_update":
+      return "Новая версия приложения";
     case "weekly_summary":
       return "Еженедельная сводка";
     case "broadcast":

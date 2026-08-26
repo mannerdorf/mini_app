@@ -12,6 +12,8 @@ import {
 } from "./notificationPoll.js";
 import { extractCargoLastMileMeta } from "./cargoLastMileMeta.js";
 import { formatInvoiceNumberDisplay } from "./weeklySummaryInvoiceTable.js";
+import { cargoPlannedDeliveryDateFromItem } from "./cargoDateFilter.js";
+import { formatPushPlanDateDisplay } from "./formatPushPlanDate.js";
 
 export { PUSH_NOTIFICATION_EVENTS };
 
@@ -94,25 +96,41 @@ export const PUSH_TEMPLATE_VARIABLES = [
     key: "driver_tel",
     hint: "Телефон экспедитора (из 1С: LMDriverTel или DriverTel)",
   },
+  {
+    key: "plan_date",
+    hint: "Плановая дата доставки / прибытия на терминал (ДД.ММ.ГГГГ)",
+  },
+  {
+    key: "version_name",
+    hint: "Номер версии приложения (для шаблона «Новая версия»)",
+  },
 ] as const;
 
 function eventLabel(eventId: PushNotificationTemplateEventId): string {
   if (eventId === "bill_created") return "Создан счёт";
   if (eventId === "bill_paid") return "Счёт оплачен";
   if (eventId === "daily_summary") return "Ежедневная сводка";
+  if (eventId === "planned_delivery_date") return "Плановая дата доставки";
+  if (eventId === "app_update") return "Новая версия приложения";
   const stage = CARGO_NOTIFICATION_STAGES.find((s) => s.id === eventId);
   return stage?.label ?? eventId;
 }
 
 function defaultBodyTemplate(eventId: PushNotificationTemplateEventId): string {
   if (eventId === "bill_created") {
-    return "Вам выставлен счет по перевозке № {cargo_number} на сумму {bill_sum} ₽.";
+    return "Вам выставлен счет № {bill_number} по перевозке № {cargo_number} на сумму {bill_sum} ₽.";
   }
   if (eventId === "bill_paid") {
-    return "Счет по перевозке № {cargo_number} оплачен.";
+    return "Счет № {bill_number} по перевозке № {cargo_number} оплачен.";
   }
   if (eventId === "daily_summary") {
     return "Доброе утро! Ежедневная сводка HAULZ на 10:00.";
+  }
+  if (eventId === "planned_delivery_date") {
+    return "Перевозка № {cargo_number} плановая дата доставки {plan_date}";
+  }
+  if (eventId === "app_update") {
+    return "Вышла новая версия — обновите приложение";
   }
   return "{stage_label}. № {cargo_number}";
 }
@@ -169,6 +187,19 @@ export function buildPushTemplateContext(
   const lastMile = extractCargoLastMileMeta(anyItem);
   const billNumberRaw = pickBillNumber(anyItem);
   const billNumber = billNumberRaw ? formatInvoiceNumberDisplay(billNumberRaw) : "—";
+  const planRaw =
+    pickFirst(anyItem, [
+      "DateArrivalPlan",
+      "DateDeliveryPlan",
+      "DeliveryDatePlan",
+      "PlanDate",
+      "DatePlan",
+      "PlannedDeliveryDate",
+      "plan_date",
+    ]) ?? cargoPlannedDeliveryDateFromItem(anyItem);
+  const planDate = formatPushPlanDateDisplay(planRaw);
+  const versionName =
+    String(anyItem.version_name ?? anyItem.versionName ?? anyItem.VersionName ?? "").trim() || "—";
 
   return {
     cargo_number: n,
@@ -186,6 +217,8 @@ export function buildPushTemplateContext(
     auto_type: lastMile.autoType || "—",
     driver: lastMile.driver || "—",
     driver_tel: lastMile.driverTel || "—",
+    plan_date: planDate,
+    version_name: versionName,
   };
 }
 
@@ -212,11 +245,23 @@ export function formatPushNotificationMessage(
   const eventId = event as PushNotificationTemplateEventId;
   const custom = templates?.get(eventId);
 
-  if (custom && custom.enabled && custom.bodyTemplate.trim()) {
+  if (custom && custom.enabled === false) {
+    return { title: "HAULZ", body: "", usedCustomTemplate: true };
+  }
+
+  if (custom && custom.enabled !== false && custom.bodyTemplate.trim()) {
     return {
       title: renderPushTemplateString(custom.titleTemplate || "HAULZ", ctx).trim() || "HAULZ",
       body: renderPushTemplateString(custom.bodyTemplate, ctx).trim(),
       usedCustomTemplate: true,
+    };
+  }
+
+  if ((PUSH_NOTIFICATION_EVENTS as readonly string[]).includes(eventId)) {
+    return {
+      title: renderPushTemplateString(defaultTitleTemplate(eventId), ctx).trim() || "HAULZ",
+      body: renderPushTemplateString(defaultBodyTemplate(eventId), ctx).trim(),
+      usedCustomTemplate: false,
     };
   }
 
@@ -241,6 +286,8 @@ export const PUSH_TEMPLATE_SAMPLE_ITEM: Record<string, unknown> = {
   LMAutoType: "Мерседес",
   LMDriver: "Ругалев Иван Федорович",
   LMDriverTel: "+79953889445",
+  DateArrivalPlan: "2026-08-28",
+  version_name: "1.3.8",
 };
 
 export async function ensurePushNotificationTemplatesTable(pool: {
