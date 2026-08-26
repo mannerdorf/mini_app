@@ -1,5 +1,10 @@
 import type { Pool } from "pg";
 import type { ZayavkaUploadPayload } from "./post1cZayavkaUpload.js";
+import {
+  mapLegacyTableRowInput,
+  mergeZayavkaPayloadWithTableRows,
+  syncZayavkaParcelBarcodesFromSendingIds,
+} from "./documentsOrderZayavkaPayload.js";
 import { allocateZayavkaSendingIds, normalizeCustomerInnForSendingId } from "./zayavkaSendingIdAllocator.js";
 
 function tableRowByType(tableRows: unknown[], type: string): Record<string, unknown> | undefined {
@@ -21,16 +26,55 @@ function countMissingSendingIds(payload: ZayavkaUploadPayload): number {
 
 function applySendingIds(payload: ZayavkaUploadPayload, ids: string[]): ZayavkaUploadPayload {
   let idx = 0;
-  const parcels = payload.Посылки.map((parcel) => ({
-    ...parcel,
-    Товары: (parcel.Товары ?? []).map((good) => {
-      if (String(good.ИДОтправления ?? "").trim()) return good;
+  const parcels = payload.Посылки.map((parcel) => {
+    let parcelBarcode = normalizeText(parcel.ШтрихкодЗаказчика);
+    const goods = (parcel.Товары ?? []).map((good) => {
+      if (String(good.ИДОтправления ?? "").trim()) {
+        parcelBarcode = String(good.ИДОтправления).trim();
+        return good;
+      }
       const id = ids[idx];
       idx += 1;
-      return id ? { ...good, ИДОтправления: id } : good;
-    }),
-  }));
+      if (!id) return good;
+      parcelBarcode = id;
+      return { ...good, ИДОтправления: id };
+    });
+    const sendingId = parcelBarcode || normalizeText(goods[0]?.ИДОтправления);
+    return {
+      ...parcel,
+      ...(sendingId ? { ШтрихкодЗаказчика: sendingId } : {}),
+      Товары: goods,
+    };
+  });
   return { ...payload, Посылки: parcels };
+}
+
+function normalizeText(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function legacyTableRowsFromPending(tableRows: unknown[]) {
+  const legacyBlock = tableRowByType(tableRows, "legacy_parcels");
+  const legacyRaw = Array.isArray(legacyBlock?.rows) ? legacyBlock.rows : [];
+  return legacyRaw.map((row) => mapLegacyTableRowInput(row));
+}
+
+function declaredValueFromPendingTableRows(tableRows: unknown[]): number {
+  const cargo = tableRowByType(tableRows, "cargo");
+  return Number(cargo?.declaredValueRub ?? 0) || 0;
+}
+
+function rebuildPayloadFromLegacyTableRows(
+  payload: ZayavkaUploadPayload,
+  tableRows: unknown[],
+): ZayavkaUploadPayload {
+  const legacyRows = legacyTableRowsFromPending(tableRows);
+  if (!legacyRows.length) return payload;
+  return mergeZayavkaPayloadWithTableRows(
+    payload,
+    legacyRows,
+    declaredValueFromPendingTableRows(tableRows),
+  );
 }
 
 /** Подставляет ПолучательИНН из contacts, если в payload пусто. */
@@ -54,14 +98,17 @@ export async function finalizeZayavkaPayloadFor1c(
 ): Promise<ZayavkaUploadPayload> {
   let next = payload;
   if (opts?.tableRows?.length) {
+    next = rebuildPayloadFromLegacyTableRows(next, opts.tableRows);
     next = patchReceiverInnFromPendingTableRows(next, opts.tableRows);
   }
 
   const missing = countMissingSendingIds(next);
-  if (missing <= 0) return next;
+  if (missing > 0) {
+    const ids = await allocateZayavkaSendingIds(pool, next.ЗаказчикИНН, missing, {
+      nomerZayavki: opts?.nomerZayavki,
+    });
+    next = applySendingIds(next, ids);
+  }
 
-  const ids = await allocateZayavkaSendingIds(pool, next.ЗаказчикИНН, missing, {
-    nomerZayavki: opts?.nomerZayavki,
-  });
-  return applySendingIds(next, ids);
+  return syncZayavkaParcelBarcodesFromSendingIds(next);
 }

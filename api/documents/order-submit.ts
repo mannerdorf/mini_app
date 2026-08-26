@@ -26,7 +26,7 @@ import {
   parseJsonBody,
   resolveDocumentsOrderAccess,
 } from "../_documentsOrder.js";
-import { buildDocumentsOrderZayavkaPayload, mapLegacyTableRowInput } from "../../lib/documentsOrderZayavkaPayload.js";
+import { buildDocumentsOrderZayavkaPayload, mapLegacyTableRowInput, mergeZayavkaPayloadWithTableRows } from "../../lib/documentsOrderZayavkaPayload.js";
 import {
   fivepostBatchIdFromTableRows,
   loadFivepostRowsByBatchIds,
@@ -158,7 +158,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let zayavkaPayload: ReturnType<typeof buildDocumentsOrderZayavkaPayload> | null = null;
     const clientNorm = normalizeZayavkaUploadPayload(body.zayavkaPayload ?? body.zayavka_payload ?? body.order);
-    if (clientNorm.ok) {
+    const mappedLegacyRows = legacyTableRows.map((r) => mapLegacyTableRowInput(r));
+
+    if (mappedLegacyRows.length > 0) {
+      const basePayload = clientNorm.ok
+        ? clientNorm.payload
+        : buildDocumentsOrderZayavkaPayload({
+            customerInn: access.customerInn,
+            senderInn: quoteReq.fromParty?.inn,
+            receiverInn: quoteReq.toParty?.inn,
+            punktOtpravki,
+            punktNaznacheniya,
+            dataZabora,
+            nomerZayavkiKlienta: nomerZayavkiKlienta || undefined,
+            declaredValueRub: quoteReq.declaredValueRub ?? 0,
+            placeCount: quoteReq.places.length,
+            tableRows: mappedLegacyRows,
+          });
+      zayavkaPayload = mergeZayavkaPayloadWithTableRows(
+        basePayload,
+        mappedLegacyRows,
+        quoteReq.declaredValueRub ?? 0,
+      );
+    } else if (clientNorm.ok) {
       zayavkaPayload = clientNorm.payload;
     } else {
       let fivepostRows: Parameters<typeof buildDocumentsOrderZayavkaPayload>[0]["fivepostRows"];

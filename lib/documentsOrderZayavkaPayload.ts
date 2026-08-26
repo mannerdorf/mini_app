@@ -56,10 +56,21 @@ function normalizeMoney(value: unknown): number {
 }
 
 function truncateGoodsName(value: unknown): string {
-  const name = normalizeText(value) || "Товар";
+  const name = sanitizeGoodsNameFor1c(value) || "Товар";
   return name.length <= ZAYAVKA_GOODS_NAME_MAX_LEN
     ? name
     : name.slice(0, ZAYAVKA_GOODS_NAME_MAX_LEN);
+}
+
+/** Убирает хвост «· N шт · цена ₽» и упаковочные «(20шт./кор)» из наименования для 1С. */
+export function sanitizeGoodsNameFor1c(value: unknown): string {
+  let name = normalizeText(value);
+  if (!name) return "";
+
+  name = name.replace(/\s*·\s*[\d\s,.]+\s*шт\.?\s*·\s*[\d\s,.]+\s*₽\s*$/iu, "").trim();
+  name = name.replace(/\s*\(\s*\d+[\d\s,.]*\s*шт\.?\s*\/\s*[^)]*\)\s*/giu, " ").trim();
+  name = name.replace(/\s{2,}/g, " ");
+  return name;
 }
 
 /** Разбирает legacy-строку «название · N шт · цена ₽» из posylka. */
@@ -84,12 +95,12 @@ export function parsePosylkaDisplayLine(posylka: string): DocumentsOrderTableLin
     if (qtyMatch && priceMatch) {
       const quantity = Math.max(1, Math.round(Number(qtyMatch[1].replace(/\s/g, "").replace(",", ".")) || 1));
       const price = normalizeMoney(priceMatch[1].replace(/\s/g, "").replace(",", "."));
-      const name = parts.slice(0, -2).join(" · ").trim();
+      const name = sanitizeGoodsNameFor1c(parts.slice(0, -2).join(" · ").trim());
       if (name) return [{ name, quantity, price }];
     }
   }
 
-  return [{ name: trimmed, quantity: 1, price: 0 }];
+  return [{ name: sanitizeGoodsNameFor1c(trimmed), quantity: 1, price: 0 }];
 }
 
 function lineDeclaredValue(item: DocumentsOrderTableLineItem): number {
@@ -158,7 +169,7 @@ function buildFivepostParcels(rows: DocumentsOrderFivepostRowInput[]): ZayavkaPa
 function normalizeTableLineItem(raw: unknown): DocumentsOrderTableLineItem | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
-  const name = normalizeText(o.name ?? o.Name ?? o.наименование);
+  const name = sanitizeGoodsNameFor1c(o.name ?? o.Name ?? o.наименование);
   if (!name) return null;
   const quantity = Math.max(1, Math.round(Number(o.quantity ?? o.Quantity ?? o.количество) || 1));
   const price = normalizeMoney(o.price ?? o.Price ?? o.unitPrice ?? o.unit_price ?? o.цена);
@@ -222,12 +233,10 @@ function buildTableParcels(
 
   return rows.map((row, idx) => {
     const goods = buildGoodsFromTableRow(row, idx, perPlaceValue);
-    const primaryName = goods[0]?.Name || `Место ${idx + 1}`;
-    const sendingId = normalizeText(row.idOtpravleniya);
-    const barcode = (sendingId || primaryName).slice(0, 64);
+    const sendingId = normalizeText(row.idOtpravleniya) || normalizeText(goods[0]?.ИДОтправления);
     const externalId = normalizeText(row.perevozka);
     return {
-      ШтрихкодЗаказчика: barcode || `M${idx + 1}`,
+      ШтрихкодЗаказчика: sendingId || `M${idx + 1}`,
       ...(externalId ? { Ид: externalId } : {}),
       Товары: goods,
     };
@@ -254,6 +263,39 @@ function buildSyntheticParcel(input: BuildDocumentsOrderZayavkaInput): ZayavkaPa
       ],
     },
   ];
+}
+
+/** Пересобирает Посылки из табличной части УПД, сохраняя шапку заявки. */
+export function mergeZayavkaPayloadWithTableRows(
+  payload: ZayavkaUploadPayload,
+  tableRows: DocumentsOrderTableRowInput[],
+  declaredValueRub: number,
+): ZayavkaUploadPayload {
+  if (!tableRows.length) return payload;
+  return buildDocumentsOrderZayavkaPayload({
+    customerInn: payload.ЗаказчикИНН,
+    senderInn: payload.ОтправительИНН,
+    receiverInn: payload.ПолучательИНН,
+    punktOtpravki: payload.ПунктОтправки,
+    punktNaznacheniya: payload.ПунктНазначения,
+    dataZabora: payload.ДатаЗабораПлан,
+    nomerZayavkiKlienta: payload.НомерЗаявкиКлиента,
+    og: payload.ОГ,
+    declaredValueRub,
+    tableRows,
+  });
+}
+
+/** ШтрихкодЗаказчика = ИДОтправления первого товара в посылке. */
+export function syncZayavkaParcelBarcodesFromSendingIds(payload: ZayavkaUploadPayload): ZayavkaUploadPayload {
+  const parcels = payload.Посылки.map((parcel) => {
+    const sendingId = (parcel.Товары ?? [])
+      .map((good) => normalizeText(good.ИДОтправления))
+      .find(Boolean);
+    if (!sendingId) return parcel;
+    return { ...parcel, ШтрихкодЗаказчика: sendingId };
+  });
+  return { ...payload, Посылки: parcels };
 }
 
 /** Собирает JSON заявки для POST /api/documents/order-submit-1c из данных формы ЛК. */
