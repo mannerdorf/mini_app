@@ -261,6 +261,8 @@ export function DocumentsOrdersSection({
                                             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(170px, 220px) 1fr', gap: '0.35rem 0.75rem', fontSize: '0.85rem' }}>
                                                 <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Заказчик:</Typography.Body>
                                                 <Typography.Body>{customer || '—'}</Typography.Body>
+                                                <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Номер заявки заказчика:</Typography.Body>
+                                                <Typography.Body>{customerRequestNumber || '—'}</Typography.Body>
                                                 <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Пункт отправки:</Typography.Body>
                                                 <Typography.Body>{senderPoint || '—'}</Typography.Body>
                                                 <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Отправитель:</Typography.Body>

@@ -23,6 +23,7 @@ function JournalGridRow({ label, value }: { label: string; value: React.ReactNod
 
 type Props = {
   customer: string;
+  customerRequestNumber?: string;
   senderPoint: string;
   destinationPoint: string;
   sender: string;
@@ -44,6 +45,7 @@ type Props = {
 
 export function DocumentsOrderJournalExpand({
   customer,
+  customerRequestNumber,
   senderPoint,
   destinationPoint,
   sender,
@@ -93,6 +95,7 @@ export function DocumentsOrderJournalExpand({
         }}
       >
         <JournalGridRow label="Заказчик:" value={customer} />
+        <JournalGridRow label="Номер заявки заказчика:" value={customerRequestNumber} />
         <JournalGridRow label="Пункт отправки:" value={senderPoint} />
         <JournalGridRow label="Отправитель:" value={sender} />
         <JournalGridRow label="Пункт назначения:" value={destinationPoint} />

@@ -7,6 +7,7 @@ import type { Direction } from "./types.js";
 
 export type DocumentsOrderJournalView = {
   customerName: string;
+  customerRequestNumber: string;
   senderPoint: string;
   destinationPoint: string;
   senderName: string;
@@ -28,6 +29,7 @@ function mapPendingItemToJournal(item: Record<string, unknown>): DocumentsOrderJ
 
   return {
     customerName: String(item.ЗаказчикНаименование ?? "").trim(),
+    customerRequestNumber: String(item.НомерЗаявкиКлиента ?? item.ClientRequestNumber ?? "").trim(),
     senderPoint: String(item.АдресОтправки ?? item.ПунктОтправкиНаименование ?? "").trim(),
     destinationPoint: String(item.АдресНазначения ?? item.ПунктНазначенияНаименование ?? "").trim(),
     senderName: String(item.ОтправительНаименование ?? "").trim(),
@@ -50,6 +52,7 @@ function journalFromFormState(draft: HaulzCalcDraftRow): DocumentsOrderJournalVi
 
   return {
     customerName: customerName === "—" ? String(f.customerCompanyName ?? "").trim() : customerName,
+    customerRequestNumber: "",
     senderPoint: String(f.from?.fullAddress ?? f.fromQuery ?? "").trim(),
     destinationPoint: String(f.to?.fullAddress ?? f.toQuery ?? "").trim(),
     senderName: String(f.fromCompanyName ?? f.customerCompanyName ?? "").trim(),

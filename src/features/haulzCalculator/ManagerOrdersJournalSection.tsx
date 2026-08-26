@@ -81,6 +81,7 @@ export function ManagerOrdersJournalSection({
               const destinationPoint = pendingPointLabel(row, "to");
               const route = orderRouteLabel(row, senderPoint, destinationPoint);
               const customer = String(row.ЗаказчикНаименование ?? "");
+              const customerRequestNumber = String(row.НомерЗаявкиКлиента ?? row.ClientRequestNumber ?? "");
               const sender = String(row.ОтправительНаименование ?? "");
               const receiver = String(row.ПолучательНаименование ?? "");
               const pickupDate = String(row.ДатаЗабораПлан ?? row.PickupDatePlan ?? "");
@@ -157,6 +158,7 @@ export function ManagerOrdersJournalSection({
                       <td colSpan={10}>
                         <DocumentsOrderJournalExpand
                           customer={customer}
+                          customerRequestNumber={customerRequestNumber}
                           senderPoint={senderPoint}
                           destinationPoint={destinationPoint}
                           sender={sender}
