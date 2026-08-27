@@ -67,6 +67,24 @@ describe("normalizeZayavkaUploadPayload", () => {
     const r = normalizeZayavkaUploadPayload({ ...SAMPLE, Посылки: [] });
     expect(r.ok).toBe(false);
   });
+
+  it("truncates goods Name and ТМЦ to 49 characters", () => {
+    const longName = "А".repeat(60);
+    const r = normalizeZayavkaUploadPayload({
+      ...SAMPLE,
+      Посылки: [
+        {
+          ...SAMPLE.Посылки[0],
+          Товары: [{ ...SAMPLE.Посылки[0].Товары[0], Name: longName, ТМЦ: longName }],
+        },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const good = r.payload.Посылки[0].Товары[0];
+    expect(good.Name).toHaveLength(49);
+    expect(good.ТМЦ).toHaveLength(49);
+  });
 });
 
 describe("sanitizeZayavkaUpstreamRequestForSandbox", () => {

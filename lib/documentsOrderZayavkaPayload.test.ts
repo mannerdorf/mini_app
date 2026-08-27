@@ -71,15 +71,16 @@ describe("buildDocumentsOrderZayavkaPayload", () => {
     const parcel = payload.Посылки[0];
     const good = parcel.Товары[0];
     expect(parcel.ШтрихкодЗаказчика).toBe("8017NBO5ZQYRTQCM");
-    expect(good.Name).toBe(longName);
-    expect(good.ТМЦ).toBe(longName);
+    expect(good.Name).toBe(longName.slice(0, 49));
+    expect(good.ТМЦ).toBe(longName.slice(0, 49));
+    expect(good.Name.length).toBe(49);
     expect(good.Количество).toBe(54);
     expect(good.ОбъявленнаяСтоимостьТовара).toBeCloseTo(6462.18, 2);
     expect(good.Name).not.toContain("шт");
     expect(good.Name).not.toContain("₽");
   });
 
-  it("keeps full UPD cell text in Name and ТМЦ", () => {
+  it("truncates UPD cell text in Name and ТМЦ to 49 characters for 1C", () => {
     const updName =
       "Листовые полотенца V- 2сл. (целлюлоза), (200л), 22х23см; (20шт./кор)";
     const payload = buildDocumentsOrderZayavkaPayload({
@@ -93,9 +94,9 @@ describe("buildDocumentsOrderZayavkaPayload", () => {
       ],
     });
     const good = payload.Посылки[0].Товары[0];
-    expect(good.Name).toBe(updName);
-    expect(good.ТМЦ).toBe(updName);
-    expect(good.Name).toContain("(20шт./кор)");
+    expect(good.Name).toBe(updName.slice(0, 49));
+    expect(good.ТМЦ).toBe(updName.slice(0, 49));
+    expect(good.Name.length).toBeLessThanOrEqual(49);
     expect(good.Количество).toBe(800);
     expect(good.ОбъявленнаяСтоимостьТовара).toBeCloseTo(40656, 0);
   });

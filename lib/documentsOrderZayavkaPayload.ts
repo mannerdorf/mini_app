@@ -1,4 +1,5 @@
 import type { ZayavkaGoodsRow, ZayavkaParcelRow, ZayavkaUploadPayload } from "./post1cZayavkaUpload.js";
+import { truncateGoodsNameFor1c } from "./post1cZayavkaUpload.js";
 
 export type DocumentsOrderTableLineItem = {
   name: string;
@@ -54,7 +55,7 @@ function normalizeMoney(value: unknown): number {
 }
 
 function normalizeGoodsName(value: unknown): string {
-  return normalizeText(value) || "Товар";
+  return truncateGoodsNameFor1c(value, "Товар") || "Товар";
 }
 
 /** Убирает только наш UI-хвост «· N шт · цена ₽», не содержимое ячейки УПД. */

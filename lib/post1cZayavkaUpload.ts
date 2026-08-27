@@ -88,13 +88,22 @@ function normalizeNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+export const GOODS_NAME_1C_MAX_LENGTH = 49;
+
+/** Обрезает наименование товара под лимит поля Name в 1С. */
+export function truncateGoodsNameFor1c(value: unknown, fallback = ""): string {
+  const name = normalizeText(value) || fallback;
+  if (!name) return "";
+  return name.length > GOODS_NAME_1C_MAX_LENGTH ? name.slice(0, GOODS_NAME_1C_MAX_LENGTH) : name;
+}
+
 function normalizeGoods(raw: unknown): ZayavkaGoodsRow | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   const idOtpravleniya = normalizeText(o.ИДОтправления ?? o.IdOtpravleniya ?? o.sendingId);
   const id = normalizeText(o.ID ?? o.Id ?? o.id ?? o.sku);
-  const name = normalizeText(o.Name ?? o.name ?? o.Наименование);
-  const tmc = normalizeText(o.ТМЦ ?? o.TMC ?? o.tmc ?? name);
+  const name = truncateGoodsNameFor1c(o.Name ?? o.name ?? o.Наименование);
+  const tmc = truncateGoodsNameFor1c(o.ТМЦ ?? o.TMC ?? o.tmc ?? name, name);
   const qty = normalizeNumber(o.Количество ?? o.Quantity ?? o.quantity, 0);
   const cost = normalizeNumber(
     o.ОбъявленнаяСтоимостьТовара ?? o.DeclaredValue ?? o.declaredValue,
