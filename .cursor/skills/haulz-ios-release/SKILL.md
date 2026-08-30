@@ -35,7 +35,15 @@ npm run ios:sync
 npx cap open ios
 ```
 
-In Xcode: simulator or device → Signing Team → Product → Run.
+Open **App.xcworkspace**, not `.xcodeproj`. Destination = iPhone Simulator (not My Mac).
+
+Intel + Xcode 26: if launch crashes in `libobjc.A.dylib` `readClass`, the iOS simulator runtime is arm64-only. One command:
+
+```bash
+xcodebuild -downloadPlatform iOS -architectureVariant universal
+```
+
+Then Clean Build Folder and Run again. Physical iPhone also works.
 
 CLI simulator (unsigned):
 

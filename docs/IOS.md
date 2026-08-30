@@ -41,11 +41,29 @@ npm run ios:sync
 npx cap open ios
 ```
 
-В Xcode:
+Открывайте **`ios/App/App.xcworkspace`**, не `.xcodeproj`. В Xcode:
 
-1. Выберите симулятор (iPhone) или свой iPhone.
-2. **Signing & Capabilities** → Team (Apple ID; для устройства нужен аккаунт разработчика).
+1. Destination — **iPhone Simulator**, не My Mac.
+2. **Signing & Capabilities** → Team (для устройства нужен Apple ID).
 3. **Product → Run** (⌘R).
+
+### Intel Mac: crash в `libobjc readClass`
+
+Xcode 26 по умолчанию качает **Apple Silicon** runtime. На Intel это даёт `EXC_BAD_ACCESS` в `libobjc.A.dylib` `readClass` сразу при старте. Одна команда, потом ждать (несколько ГБ):
+
+```bash
+xcodebuild -downloadPlatform iOS -architectureVariant universal
+```
+
+Проверка:
+
+```bash
+xcrun simctl list runtimes
+```
+
+Нужен runtime **iOS 26 (или 18.x)** со статусом не `unavailable`. Затем Xcode → Product → Clean Build Folder → снова Run на iPhone Simulator.
+
+Физический iPhone обходит симулятор полностью.
 
 Или из терминала (симулятор, без подписи):
 
