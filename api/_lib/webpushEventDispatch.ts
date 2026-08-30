@@ -4,6 +4,7 @@ import {
   getCargoStageEventsOnStateChange,
   getPaymentKey,
   hasBillSignal,
+  hasRealBillNumber,
   isCargoStageNotificationEnabled,
   isRecentNotificationItem,
   notificationItemInn,
@@ -333,6 +334,7 @@ export async function dispatchWebPushCargoEvents(params: {
 
     const subscribers = subscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
     const pushSubscribers = pushSubscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
+    let deferBillStateUpdate = false;
 
     for (const event of eventsToSend) {
       const templateItem = await resolveCargoItemForPushTemplate({
@@ -346,6 +348,10 @@ export async function dispatchWebPushCargoEvents(params: {
         perevozkaCache: perevozkaDetailCache,
         invoiceLiveCache,
       });
+      if (event === "bill_created" && !hasRealBillNumber(templateItem)) {
+        deferBillStateUpdate = true;
+        continue;
+      }
       const message = formatPushNotificationMessage(event, item.cargoNumber, templateItem, pushTemplates);
       for (const [login, eventsEnabled] of subscribers.entries()) {
         if (
@@ -478,12 +484,13 @@ export async function dispatchWebPushCargoEvents(params: {
     }
 
     try {
+      const stateBillToPersist = deferBillStateUpdate ? (prev?.stateBill ?? null) : item.stateBill;
       await pool.query(
         `insert into cargo_last_state (inn, cargo_number, state, state_bill, updated_at)
          values ($1,$2,$3,$4,now())
          on conflict (inn, cargo_number)
          do update set state = excluded.state, state_bill = excluded.state_bill, updated_at = now()`,
-        [item.inn, item.cargoNumber, item.state, item.stateBill]
+        [item.inn, item.cargoNumber, item.state, stateBillToPersist]
       );
     } catch {
       // State persistence is best-effort when DB schema differs.
