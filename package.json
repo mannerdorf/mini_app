@@ -15,6 +15,7 @@
     "android:bump": "bash scripts/bump-android-version.sh",
     "android:release:ship": "bash scripts/bump-android-version.sh && bash scripts/build-android-release-apk.sh",
     "android:deploy": "bash scripts/deploy-android-release.sh dist/haulz-miniapp-release.apk",
+    "android:deploy:vps": "bash scripts/deploy-android-vps.sh",
     "preview": "vite preview",
     "api:dev": "tsx server/index.ts",
     "api:start": "node --import tsx server/index.ts",
