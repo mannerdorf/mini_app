@@ -1,5 +1,10 @@
 # Закрытый командный сервер: без открытой федерации и без публичной регистрации.
-# Учётки создаёт админ: kubectl exec -n ess -it deploy/ess-matrix-authentication-service -- mas-cli manage register-user
+# well-known отдаёт Element Web (см. well-known-configmap.yaml) — отдельный
+# well-known Ingress на том же host конфликтует с чатом.
+# Учётки: kubectl exec -n ess -it deploy/ess-matrix-authentication-service -- mas-cli manage register-user
+
+wellKnownDelegation:
+  enabled: false
 
 synapse:
   additional:
@@ -17,3 +22,11 @@ elementWeb:
         "disable_custom_urls": true,
         "disable_guests": true
       }
+  extraVolumes:
+    - name: matrix-well-known
+      configMap:
+        name: ess-chat-well-known
+  extraVolumeMounts:
+    - name: matrix-well-known
+      mountPath: /usr/share/nginx/html/.well-known/matrix
+      readOnly: true

@@ -8,14 +8,14 @@ if [[ ! -f "$KUBECONFIG" && -f /root/.kube/config ]]; then
 fi
 
 MUST=(
-  https://matrix.haulz.space/.well-known/matrix/client
-  https://matrix.haulz.space/.well-known/matrix/server
   https://chat.haulz.space/
-  https://admin.haulz.space/
+  https://chat.haulz.space/.well-known/matrix/client
+  https://admin.chat.haulz.space/
 )
 OPTIONAL=(
-  https://account.haulz.space/health
-  https://synapse.haulz.space/health
+  https://chat.haulz.space/.well-known/matrix/server
+  https://matrix.chat.haulz.space/health
+  https://account.chat.haulz.space/health
 )
 
 ok_http() {
@@ -56,5 +56,6 @@ fi
 
 echo
 echo "ok — клиент: https://chat.haulz.space"
-echo "ok — админ:  https://admin.haulz.space"
-echo "federation tester (если откроете федерацию): https://federationtester.matrix.org/#matrix.haulz.space"
+echo "ok — админ:  https://admin.chat.haulz.space"
+echo "ok — MXID:   @имя:chat.haulz.space"
+echo "homeserver в Element X: chat.haulz.space"

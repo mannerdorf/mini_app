@@ -16,12 +16,11 @@ ESS_CHART_VERSION="${ESS_CHART_VERSION:-26.8.1}"
 ESS_ACME_EMAIL="${ESS_ACME_EMAIL:-}"
 
 HOSTS=(
-  matrix.haulz.space
-  synapse.haulz.space
   chat.haulz.space
-  admin.haulz.space
-  account.haulz.space
-  mrtc.haulz.space
+  matrix.chat.haulz.space
+  admin.chat.haulz.space
+  account.chat.haulz.space
+  mrtc.chat.haulz.space
 )
 
 if [[ "$(id -u)" -ne 0 ]]; then
@@ -115,7 +114,8 @@ if [[ "${SKIP_DNS_CHECK:-0}" != "1" ]]; then
     fi
   done
   if [[ "$DNS_OK" -ne 1 ]]; then
-    echo "ERROR: DNS должен указывать на этот VPS до Let's Encrypt. Исправьте A-записи и повторите." >&2
+    echo "ERROR: DNS должен указывать на этот VPS до Let's Encrypt." >&2
+    echo "       Timeweb haulz.space: A  chat → $THIS_IP  и  A  *.chat → $THIS_IP" >&2
     echo "       (временный обход: SKIP_DNS_CHECK=1 — сертификаты, скорее всего, не выпустятся)" >&2
     exit 1
   fi
@@ -156,8 +156,9 @@ cp -a "$ESS_SRC/tls.yaml" "$ESS_VALUES_DIR/tls.yaml"
 cp -a "$ESS_SRC/extra.yaml" "$ESS_VALUES_DIR/extra.yaml"
 sed "s|__ACME_EMAIL__|${ESS_ACME_EMAIL}|" "$ESS_SRC/cluster-issuer.yaml" > "$ESS_VALUES_DIR/cluster-issuer.yaml"
 
-echo "==> namespace ess"
+echo "==> namespace ess + well-known ConfigMap"
 k3s kubectl get ns ess >/dev/null 2>&1 || k3s kubectl create namespace ess
+k3s kubectl apply -f "$ESS_SRC/well-known-configmap.yaml"
 
 echo "==> cert-manager $CERT_MANAGER_VERSION"
 helm repo add jetstack https://charts.jetstack.io --force-update

@@ -8,16 +8,15 @@
 
 | URL | Роль |
 |-----|------|
-| `https://chat.haulz.space` | Element Web (чат в браузере) |
-| `https://admin.haulz.space` | Element Admin |
-| `https://account.haulz.space` | вход / MAS |
-| `https://synapse.haulz.space` | Matrix Client-Server API |
-| `https://mrtc.haulz.space` | звонки Element Call |
-| `https://matrix.haulz.space` | server name + `/.well-known` |
+| `https://chat.haulz.space` | Element Web (открывать это) |
+| `https://admin.chat.haulz.space` | Element Admin |
+| `https://account.chat.haulz.space` | вход / MAS |
+| `https://matrix.chat.haulz.space` | Synapse API |
+| `https://mrtc.chat.haulz.space` | звонки Element Call |
 
-MXID: `@имя:matrix.haulz.space`. **Server name нельзя сменить** без сброса базы.
+MXID: `@имя:chat.haulz.space`. **Server name нельзя сменить** без сброса базы.
 
-Клиенты с [element.io/download](https://element.io/download) логинятся на homeserver `matrix.haulz.space`.
+Клиенты с [element.io/download](https://element.io/download) → свой сервер **`chat.haulz.space`**.
 
 Публичная регистрация выключена. Федерация закрыта (`federation_domain_whitelist: []`).
 
@@ -46,29 +45,34 @@ SSH-ключ тот же, что на остальных HAULZ VPS.
 
 ## 2. DNS (Timeweb → домен `haulz.space`)
 
-VPS `haulz-ess`: **`200.169.177.129`** (`msk-1-vm-mhhx`, Ubuntu 26.04).  
-Все **A** ниже → этот IP. Не трогать `@`, `www`, `api`, `app`.
+VPS `haulz-ess`: **`200.169.177.129`** (`msk-1-vm-mhhx`). Не трогать `@`, `www`, `api`, `app`.
 
-Панель: **Домены** → `haulz.space` → **DNS-записи** → добавить:
+Панель: **Домены** → `haulz.space` → **DNS-записи** — достаточно **двух** A:
 
 | Тип | Имя (поддомен) | Значение | TTL |
 |-----|----------------|----------|-----|
-| A | `matrix` | `200.169.177.129` | 300 |
-| A | `synapse` | `200.169.177.129` | 300 |
 | A | `chat` | `200.169.177.129` | 300 |
-| A | `admin` | `200.169.177.129` | 300 |
-| A | `account` | `200.169.177.129` | 300 |
-| A | `mrtc` | `200.169.177.129` | 300 |
+| A | `*.chat` | `200.169.177.129` | 300 |
 
-Подождать резолв:
+Если Timeweb не принимает `*.chat`, добавьте явно:
+
+| Тип | Имя | Значение |
+|-----|------|----------|
+| A | `chat` | `200.169.177.129` |
+| A | `matrix.chat` | `200.169.177.129` |
+| A | `admin.chat` | `200.169.177.129` |
+| A | `account.chat` | `200.169.177.129` |
+| A | `mrtc.chat` | `200.169.177.129` |
+
+Проверка (все → `200.169.177.129`):
 
 ```bash
-for h in matrix synapse chat admin account mrtc; do
-  echo -n "$h.haulz.space "; getent ahostsv4 "$h.haulz.space" | awk '{print $1; exit}'
+for h in chat.haulz.space matrix.chat.haulz.space admin.chat.haulz.space account.chat.haulz.space mrtc.chat.haulz.space; do
+  echo -n "$h "; getent ahostsv4 "$h" | awk '{print $1; exit}'
 done
 ```
 
-Let's Encrypt не выпустит сертификаты, пока A-записи не смотрят на этот VPS.
+Let's Encrypt не выпустит сертификаты, пока DNS не смотрит на этот VPS.
 
 ## 3. Установка (root на новом VPS)
 
@@ -76,7 +80,7 @@ Let's Encrypt не выпустит сертификаты, пока A-запи�
 
 ```bash
 export HAULZ_GIT_REF=cursor/ess-community-vps-fd2d
-export ESS_ACME_EMAIL=ops@haulz.space   # реальный ящик для expiry Let's Encrypt
+export ESS_ACME_EMAIL=info@haulz.pro
 bash -s < <(curl -fsSL "https://raw.githubusercontent.com/mannerdorf/mini_app/${HAULZ_GIT_REF}/deploy/setup-ess-community-vps.sh")
 ```
 
@@ -86,7 +90,7 @@ bash -s < <(curl -fsSL "https://raw.githubusercontent.com/mannerdorf/mini_app/${
 sudo mkdir -p /opt/haulz
 sudo git clone --branch cursor/ess-community-vps-fd2d \
   https://github.com/mannerdorf/mini_app.git /opt/haulz/app
-ESS_ACME_EMAIL=ops@haulz.space bash /opt/haulz/app/deploy/setup-ess-community-vps.sh
+ESS_ACME_EMAIL=info@haulz.pro bash /opt/haulz/app/deploy/setup-ess-community-vps.sh
 ```
 
 Скрипт:
@@ -105,7 +109,7 @@ export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 k3s kubectl exec -n ess -it deploy/ess-matrix-authentication-service -- mas-cli manage register-user
 ```
 
-Задать username + password. Войти на `https://chat.haulz.space`.
+Задать username + password. Войти на **`https://chat.haulz.space`**.
 
 ## 5. Проверка
 
@@ -114,7 +118,7 @@ bash /opt/haulz/app/deploy/ess-community/verify.sh
 k3s kubectl get pods -n ess
 ```
 
-С телефона: Element X / Element → свой сервер `matrix.haulz.space`.
+С телефона: Element X / Element → свой сервер **`chat.haulz.space`**.
 
 ## Обслуживание
 
