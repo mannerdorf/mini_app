@@ -112,18 +112,16 @@ npm run ios:release
 1. **Проверить логин в симуляторе** — тот же аккаунт, что на сайте. API: `https://haulz.space`. Сканер посылки и камера претензий в симуляторе почти бесполезны (нет настоящей камеры).
 2. **Запустить на физическом iPhone.** Симулятор подпись не проверяет, телефон — да. В скрине открыты Build Settings **проекта**, текст ошибки скрыт.
 
-   Нажмите красный кружок с крестом вверху (1 error) — там точная фраза.
+   Ошибка **Signing for "App" requires a development team** — единственная, из‑за которой сборка на iPhone падает. Предупреждения Capacitor (`UTType…`, `WKProcessPool`, `[CP] Copy Pods Resources`) из `node_modules` можно игнорировать.
 
-   Типичный путь:
-
-   - Слева в колонке с иконками: не синий **проект** App, а **TARGETS → App**.
-   - Вкладка **Signing & Capabilities** (не Build Settings).
+   - Слева в колонке: **TARGETS → App** (не синий проект App).
+   - Вкладка **Signing & Capabilities**.
    - **Automatically manage signing** включено.
-   - **Team** — ваш Apple ID (Add Account…, если пусто).
+   - **Team** → ваш Apple ID. Если пусто: Xcode → Settings → Accounts → **+** → Apple ID, затем снова Team.
    - На iPhone: Настройки → Конфиденциальность и безопасность → **Режим разработчика** → вкл. → перезагрузка.
-   - Кабель, Trust This Computer. Destination: **iPhone (Aleksandr)** → Run.
+   - Destination: **iPhone (Aleksandr)** → Run.
 
-   Телефон должен быть на **iOS 16+**. Бесплатный Personal Team ставит сборку на 7 дней.
+   Team в репозиторий не кладём: это ваш Apple ID на этой машине.
 3. **TestFlight / App Store** — отдельно: Apple Developer Program, запись приложения в App Store Connect, **Product → Archive**. Пока в репозитории этого нет.
 
 Не публикуйте IPA на `app.haulz.space` — это канал только для Android APK.
