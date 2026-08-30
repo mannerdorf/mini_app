@@ -1,0 +1,110 @@
+# Dedicated nginx for /.well-known/matrix on chat.haulz.space.
+# Element Admin fetches this from another origin and needs CORS + application/json.
+# A more specific Ingress path wins over Element Web's "/".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ess-well-known-nginx
+  namespace: ess
+data:
+  nginx.conf: |
+    worker_processes 1;
+    error_log /dev/stderr warn;
+    pid /tmp/nginx.pid;
+    events { worker_connections 32; }
+    http {
+      access_log /dev/stdout;
+      server {
+        listen 8080;
+        server_name chat.haulz.space;
+        location /.well-known/matrix/ {
+          alias /wkd/;
+          default_type application/json;
+          add_header Content-Type application/json always;
+          add_header Access-Control-Allow-Origin * always;
+          add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+          add_header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Authorization" always;
+          if ($request_method = OPTIONS) { return 204; }
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ess-well-known-nginx
+  namespace: ess
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ess-well-known-nginx
+  template:
+    metadata:
+      labels:
+        app: ess-well-known-nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: wkd
+              mountPath: /wkd
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: ess-well-known-nginx
+        - name: wkd
+          configMap:
+            name: ess-chat-well-known
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ess-well-known-nginx
+  namespace: ess
+spec:
+  selector:
+    app: ess-well-known-nginx
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ess-well-known-nginx
+  namespace: ess
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.priority: "100"
+spec:
+  tls:
+    - hosts:
+        - chat.haulz.space
+      secretName: ess-element-web-certmanager-tls
+  rules:
+    - host: chat.haulz.space
+      http:
+        paths:
+          - path: /.well-known/matrix
+            pathType: Prefix
+            backend:
+              service:
+                name: ess-well-known-nginx
+                port:
+                  name: http

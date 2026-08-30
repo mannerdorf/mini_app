@@ -10,9 +10,17 @@ data:
     {
       "m.homeserver": {
         "base_url": "https://matrix.chat.haulz.space"
-      }
+      },
+      "org.matrix.msc4143.rtc_foci": [
+        {
+          "type": "livekit",
+          "livekit_service_url": "https://mrtc.chat.haulz.space"
+        }
+      ]
     }
   server: |
     {
       "m.server": "matrix.chat.haulz.space:443"
     }
+  support: |
+    {}

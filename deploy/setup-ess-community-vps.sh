@@ -162,6 +162,7 @@ sed "s|__ACME_EMAIL__|${ESS_ACME_EMAIL}|" "$ESS_SRC/cluster-issuer.yaml" > "$ESS
 echo "==> namespace ess + well-known ConfigMap"
 k3s kubectl get ns ess >/dev/null 2>&1 || k3s kubectl create namespace ess
 k3s kubectl apply -f "$ESS_SRC/well-known-configmap.yaml"
+k3s kubectl apply -f "$ESS_SRC/well-known-server.yaml"
 
 echo "==> cert-manager $CERT_MANAGER_VERSION"
 helm repo add jetstack https://charts.jetstack.io --force-update
