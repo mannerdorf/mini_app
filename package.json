@@ -12,6 +12,8 @@
     "build:android": "VITE_API_ORIGIN=https://haulz.space vite build",
     "android:sync": "npm run build:android && npx cap sync android",
     "android:release": "bash scripts/build-android-release-apk.sh",
+    "android:bump": "bash scripts/bump-android-version.sh",
+    "android:release:ship": "bash scripts/bump-android-version.sh && bash scripts/build-android-release-apk.sh",
     "android:deploy": "bash scripts/deploy-android-release.sh dist/haulz-miniapp-release.apk",
     "preview": "vite preview",
     "api:dev": "tsx server/index.ts",
