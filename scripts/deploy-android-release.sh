@@ -33,6 +33,12 @@ fi
 VERSION_CODE="$(bash "$ROOT/scripts/read-android-version.sh" "$GRADLE_FILE" | sed -n '1p')"
 VERSION_NAME="$(bash "$ROOT/scripts/read-android-version.sh" "$GRADLE_FILE" | sed -n '2p')"
 
+if [[ ! "$VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "ERROR: invalid versionName \"${VERSION_NAME}\" in build.gradle (expected X.Y.Z)." >&2
+  echo "Fix with: ./scripts/bump-android-version.sh --name 1.3.23 --code $((VERSION_CODE))" >&2
+  exit 1
+fi
+
 APK_BASENAME="haulz-miniapp-${VERSION_NAME}.apk"
 RELEASES_PATH="releases/${APK_BASENAME}"
 PUBLISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"

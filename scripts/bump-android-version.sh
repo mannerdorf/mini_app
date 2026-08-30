@@ -9,7 +9,7 @@
 #
 # После bump:
 #   npm run android:release
-#   ./scripts/deploy-android-release.sh dist/haulz-miniapp-release.apk
+#   ./scripts/deploy-android-vps.sh
 
 set -euo pipefail
 
@@ -46,15 +46,19 @@ if [[ ! -f "$GRADLE_FILE" ]]; then
   exit 1
 fi
 
-read -r LOCAL_CODE LOCAL_NAME < <(bash "$ROOT/scripts/read-android-version.sh" "$GRADLE_FILE")
+mapfile -t _VERSION_LINES < <(bash "$ROOT/scripts/read-android-version.sh" "$GRADLE_FILE")
+LOCAL_CODE="${_VERSION_LINES[0]:-}"
+LOCAL_NAME="${_VERSION_LINES[1]:-}"
 
 REMOTE_CODE=0
+REMOTE_NAME=""
 if [[ "$CHECK_REMOTE" == "1" ]] && command -v curl >/dev/null 2>&1; then
   REMOTE_JSON="$(curl -fsS "$REMOTE_URL" 2>/dev/null || true)"
   if [[ -n "$REMOTE_JSON" ]]; then
     REMOTE_CODE="$(printf '%s' "$REMOTE_JSON" | sed -n 's/.*"versionCode"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -1)"
     REMOTE_CODE="${REMOTE_CODE:-0}"
-    echo "Remote ${REMOTE_URL} → versionCode ${REMOTE_CODE}"
+    REMOTE_NAME="$(printf '%s' "$REMOTE_JSON" | sed -n 's/.*"versionName"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+    echo "Remote ${REMOTE_URL} → versionCode ${REMOTE_CODE}, versionName \"${REMOTE_NAME}\""
   else
     echo "WARN: could not fetch ${REMOTE_URL}; using local only" >&2
   fi
@@ -73,15 +77,29 @@ fi
 if [[ -n "$FORCE_NAME" ]]; then
   NEW_NAME="$FORCE_NAME"
 else
-  # 1.3.22 → 1.3.23 ; fallback: append .1
-  if [[ "$LOCAL_NAME" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+  # База для patch: local, если semver; иначе remote (если испорчен .1 — не использовать)
+  BASE_NAME="$LOCAL_NAME"
+  if [[ ! "$BASE_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    if [[ "$REMOTE_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      BASE_NAME="$REMOTE_NAME"
+    else
+      BASE_NAME="1.3.22"
+    fi
+  fi
+  if [[ "$BASE_NAME" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
     major="${BASH_REMATCH[1]}"
     minor="${BASH_REMATCH[2]}"
     patch="${BASH_REMATCH[3]}"
     NEW_NAME="${major}.${minor}.$((patch + 1))"
   else
-    NEW_NAME="${LOCAL_NAME}.1"
+    echo "ERROR: cannot derive versionName from \"${LOCAL_NAME}\"" >&2
+    exit 1
   fi
+fi
+
+if [[ ! "$NEW_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "ERROR: invalid versionName \"${NEW_NAME}\" (expected X.Y.Z)" >&2
+  exit 1
 fi
 
 echo "Local now:  versionCode ${LOCAL_CODE}, versionName \"${LOCAL_NAME}\""
@@ -98,15 +116,19 @@ if [[ "$DRY_RUN" == "1" ]]; then
 fi
 
 TMP="$(mktemp)"
-sed -E \
-  -e "s/^([[:space:]]*versionCode[[:space:]]+)[0-9]+/\1${NEW_CODE}/" \
-  -e "s/^([[:space:]]*versionName[[:space:]]+\")[^\"]+/\1${NEW_NAME}/" \
-  "$GRADLE_FILE" >"$TMP"
+while IFS= read -r line || [[ -n "$line" ]]; do
+  if [[ "$line" =~ ^([[:space:]]*versionCode[[:space:]]+)[0-9]+[[:space:]]*$ ]]; then
+    printf '%s%s\n' "${BASH_REMATCH[1]}" "$NEW_CODE"
+  elif [[ "$line" =~ ^([[:space:]]*versionName[[:space:]]+\")[^\"]*(\".*)$ ]]; then
+    printf '%s%s%s\n' "${BASH_REMATCH[1]}" "$NEW_NAME" "${BASH_REMATCH[2]}"
+  else
+    printf '%s\n' "$line"
+  fi
+done <"$GRADLE_FILE" >"$TMP"
 mv "$TMP" "$GRADLE_FILE"
 
 echo "Updated $GRADLE_FILE"
 echo ""
 echo "Next:"
 echo "  npm run android:release"
-echo "  export ANDROID_RELEASE_SSH=root@200.165.236.49 ANDROID_RELEASE_HOST=app.haulz.space"
-echo "  ./scripts/deploy-android-release.sh dist/haulz-miniapp-release.apk"
+echo "  ./scripts/deploy-android-vps.sh"
