@@ -1,0 +1,19 @@
+# Закрытый командный сервер: без открытой федерации и без публичной регистрации.
+# Учётки создаёт админ: kubectl exec -n ess -it deploy/ess-matrix-authentication-service -- mas-cli manage register-user
+
+synapse:
+  additional:
+    1-private-server:
+      config: |
+        federation_domain_whitelist: []
+        allow_public_rooms_over_federation: false
+        allow_profile_lookup_over_federation: false
+
+elementWeb:
+  additional:
+    extra-config.json: |
+      {
+        "brand": "HAULZ Chat",
+        "disable_custom_urls": true,
+        "disable_guests": true
+      }

@@ -1,0 +1,24 @@
+# MXID: @user:matrix.haulz.space  — нельзя сменить без сброса БД.
+# Apex haulz.space не трогаем (сайт и API остаются как есть).
+
+serverName: matrix.haulz.space
+
+synapse:
+  ingress:
+    host: synapse.haulz.space
+
+elementWeb:
+  ingress:
+    host: chat.haulz.space
+
+elementAdmin:
+  ingress:
+    host: admin.haulz.space
+
+matrixAuthenticationService:
+  ingress:
+    host: account.haulz.space
+
+matrixRTC:
+  ingress:
+    host: mrtc.haulz.space
