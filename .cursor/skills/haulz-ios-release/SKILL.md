@@ -55,3 +55,17 @@ npm run ios:release
 
 Docs: `docs/IOS.md`. Version source: `ios/App/App.xcodeproj/project.pbxproj`
 (`MARKETING_VERSION`, `CURRENT_PROJECT_VERSION`).
+
+## Push (iOS)
+
+Same Firebase project as Android. Do **not** enable Broadcast Push on the App ID — only **Push Notifications**.
+
+Mac checklist is in `docs/IOS.md` section «Push-уведомления». User must:
+
+1. App ID `ru.haulz.miniapp` → Push Notifications on, Broadcast off.
+2. APNs Auth Key (.p8) in Apple Developer → upload to Firebase Cloud Messaging for the iOS app.
+3. Add iOS app in Firebase, put `GoogleService-Info.plist` in `ios/App/App/` (gitignored), add it to the Xcode App target.
+4. `npm run ios:sync` + `pod install`, Archive with bumped `CURRENT_PROJECT_VERSION`.
+5. Test on a physical iPhone / TestFlight, not Simulator.
+
+Do not commit `GoogleService-Info.plist`, `.p8`, or Team IDs.

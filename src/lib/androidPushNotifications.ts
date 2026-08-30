@@ -1,12 +1,32 @@
 import { Capacitor } from "@capacitor/core";
 import type { ActionPerformed, PushNotificationSchema, Token } from "@capacitor/push-notifications";
-import { isCapacitorAndroidApp } from "./androidAppUpdate";
 import { saveNotificationPreferences, subscribeFcmToken, unsubscribeFcmToken } from "../api/client/notifications";
 import { buildAllPushPreferencesEnabled } from "../../lib/notificationEmailPrefs";
 
 let listenersAttached = false;
 let currentLogin = "";
 let currentToken = "";
+
+export type NativePushPlatform = "ios" | "android";
+
+/** Capacitor platform for FCM subscribe. Unknown native platforms fall back to android. */
+export function fcmPlatformFromCapacitor(platform: string): NativePushPlatform {
+  return platform === "ios" ? "ios" : "android";
+}
+
+export function nativePushPlatform(): NativePushPlatform | null {
+  if (!Capacitor.isNativePlatform()) return null;
+  return fcmPlatformFromCapacitor(Capacitor.getPlatform());
+}
+
+export function isNativePushEnvironment(): boolean {
+  return nativePushPlatform() !== null;
+}
+
+/** @deprecated use isNativePushEnvironment — push is Android and iOS. */
+export function isAndroidPushEnvironment(): boolean {
+  return isNativePushEnvironment();
+}
 
 function navigateFromNotification(data: Record<string, string | undefined>) {
   const url = String(data.url || "/").trim() || "/";
@@ -17,14 +37,15 @@ function navigateFromNotification(data: Record<string, string | undefined>) {
 
 async function persistToken(login: string, token: string) {
   if (!login || !token) return;
-  await subscribeFcmToken({ login, token, platform: "android" });
+  const platform = nativePushPlatform() || fcmPlatformFromCapacitor(Capacitor.getPlatform());
+  await subscribeFcmToken({ login, token, platform });
   currentLogin = login;
   currentToken = token;
 }
 
-export async function enableAndroidPushNotifications(login: string): Promise<{ ok: boolean; error?: string }> {
-  if (!isCapacitorAndroidApp()) {
-    return { ok: false, error: "Push доступны только в Android-приложении." };
+export async function enableNativePushNotifications(login: string): Promise<{ ok: boolean; error?: string }> {
+  if (!isNativePushEnvironment()) {
+    return { ok: false, error: "Push доступны только в приложении HAULZ (Android или iOS)." };
   }
   const normalizedLogin = String(login || "").trim().toLowerCase();
   if (!normalizedLogin) return { ok: false, error: "Не указан login." };
@@ -66,8 +87,8 @@ export async function enableAndroidPushNotifications(login: string): Promise<{ o
   }
 }
 
-export async function disableAndroidPushNotifications(login: string): Promise<{ ok: boolean; error?: string }> {
-  if (!isCapacitorAndroidApp()) return { ok: true };
+export async function disableNativePushNotifications(login: string): Promise<{ ok: boolean; error?: string }> {
+  if (!isNativePushEnvironment()) return { ok: true };
   const normalizedLogin = String(login || "").trim().toLowerCase();
   try {
     const { PushNotifications } = await import("@capacitor/push-notifications");
@@ -86,9 +107,9 @@ export async function disableAndroidPushNotifications(login: string): Promise<{ 
   }
 }
 
-/** При входе: запросить разрешение Android (первый раз), зарегистрировать FCM, включить все push-типы. */
-export async function syncAndroidPushNotifications(login: string): Promise<void> {
-  if (!isCapacitorAndroidApp() || !login) return;
+/** При входе: запросить разрешение (первый раз), зарегистрировать FCM, включить все push-типы. */
+export async function syncNativePushNotifications(login: string): Promise<void> {
+  if (!isNativePushEnvironment() || !login) return;
   try {
     const { PushNotifications } = await import("@capacitor/push-notifications");
     const perm = await PushNotifications.checkPermissions();
@@ -96,7 +117,7 @@ export async function syncAndroidPushNotifications(login: string): Promise<void>
     if (perm.receive === "denied") return;
     const isFirstPrompt =
       perm.receive === "prompt" || perm.receive === "prompt-with-rationale";
-    const result = await enableAndroidPushNotifications(login);
+    const result = await enableNativePushNotifications(login);
     if (!result.ok) return;
     if (isFirstPrompt) {
       await saveNotificationPreferences(login, {
@@ -109,6 +130,6 @@ export async function syncAndroidPushNotifications(login: string): Promise<void>
   }
 }
 
-export function isAndroidPushEnvironment(): boolean {
-  return Capacitor.isNativePlatform() && isCapacitorAndroidApp();
-}
+export const enableAndroidPushNotifications = enableNativePushNotifications;
+export const disableAndroidPushNotifications = disableNativePushNotifications;
+export const syncAndroidPushNotifications = syncNativePushNotifications;

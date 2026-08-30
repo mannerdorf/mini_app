@@ -9,7 +9,7 @@ import {
 } from "../lib/pushControl.js";
 import { normalizeNotificationPreferencesState } from "../lib/notificationEmailPrefs.js";
 
-/** POST { login, token, platform? } — сохранить FCM token устройства. */
+/** POST { login, token, platform?: "android" | "ios" } — сохранить FCM token устройства. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "fcm-subscribe");
   if (req.method !== "POST") {
@@ -29,7 +29,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const bodyObj = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const login = String(bodyObj.login || "").trim().toLowerCase();
   const token = String(bodyObj.token || "").trim();
-  const platform = String(bodyObj.platform || "android").trim().toLowerCase() || "android";
+  const platformRaw = String(bodyObj.platform || "android").trim().toLowerCase();
+  const platform = platformRaw === "ios" ? "ios" : "android";
 
   if (!login) return res.status(400).json({ error: "login is required", request_id: ctx.requestId });
   if (!token) return res.status(400).json({ error: "token is required", request_id: ctx.requestId });

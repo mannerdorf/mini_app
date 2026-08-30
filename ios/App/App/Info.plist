@@ -30,6 +30,12 @@
 	<string>HAULZ использует фотоплёнку, чтобы прикреплять снимки к претензиям и заявкам.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>HAULZ может сохранять документы и изображения в Фото.</string>
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<false/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

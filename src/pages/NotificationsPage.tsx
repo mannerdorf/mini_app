@@ -8,9 +8,9 @@ import {
     saveNotificationPreferencesKeepalive,
 } from "../api/client/notifications";
 import {
-    disableAndroidPushNotifications,
-    enableAndroidPushNotifications,
-    isAndroidPushEnvironment,
+    disableNativePushNotifications,
+    enableNativePushNotifications,
+    isNativePushEnvironment,
 } from "../lib/androidPushNotifications";
 import { CARGO_NOTIFICATION_STAGES, CARGO_STAGE_EVENT_IDS, isCargoStageNotificationEnabled, type CargoStageEventId } from "../../lib/notificationCargoEvents";
 import { buildPushPreferencesSavePayload, isPushNotificationEnabled } from "../../lib/notificationEmailPrefs";
@@ -73,7 +73,7 @@ export function NotificationsPage({
     const initialFetchStartedAtRef = useRef(0);
 
     const login = activeAccount?.login?.trim().toLowerCase() || "";
-    const isNativeAndroid = isAndroidPushEnvironment();
+    const isNativePush = isNativePushEnvironment();
 
     const isCargoPrefEnabled = useCallback(
         (channel: "push" | "email", eventId: CargoStageEventId) =>
@@ -122,7 +122,7 @@ export function NotificationsPage({
                 } else if (lastSaveAtRef.current < fetchStartedAt) {
                     setPrefs({ push: {}, email: {} });
                 }
-                if (isNativeAndroid) {
+                if (isNativePush) {
                     const { PushNotifications } = await import("@capacitor/push-notifications");
                     const perm = await PushNotifications.checkPermissions();
                     if (!cancelled) setPushEnabled(perm.receive === "granted");
@@ -137,7 +137,7 @@ export function NotificationsPage({
             cancelled = true;
             clearTimeout(hardStop);
         };
-    }, [login, isNativeAndroid]);
+    }, [login, isNativePush]);
 
     useEffect(() => {
         prefsRef.current = prefs;
@@ -255,7 +255,7 @@ export function NotificationsPage({
         setPushError(null);
         setPushLoading(true);
         try {
-            const result = await enableAndroidPushNotifications(login);
+            const result = await enableNativePushNotifications(login);
             if (!result.ok) throw new Error(result.error || "Не удалось включить push.");
             setPushEnabled(true);
         } catch (e: unknown) {
@@ -270,7 +270,7 @@ export function NotificationsPage({
         setPushError(null);
         setPushLoading(true);
         try {
-            const result = await disableAndroidPushNotifications(login);
+            const result = await disableNativePushNotifications(login);
             if (!result.ok) throw new Error(result.error || "Не удалось отключить push.");
             setPushEnabled(false);
         } catch (e: unknown) {
@@ -324,7 +324,7 @@ export function NotificationsPage({
                         Push-уведомления
                     </Typography.Body>
                     <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                        {isNativeAndroid ? (
+                        {isNativePush ? (
                             <>
                                 <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
                                     Уведомления о перевозках и документах на телефон через Firebase Cloud Messaging.
@@ -346,7 +346,7 @@ export function NotificationsPage({
                             </>
                         ) : (
                             <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-                                Доставка push — в Android-приложении HAULZ. Здесь можно выбрать, о каких этапах перевозки присылать уведомления на телефон.
+                                Доставка push — в приложении HAULZ (Android или iOS). Здесь можно выбрать, о каких этапах перевозки присылать уведомления на телефон.
                             </Typography.Body>
                         )}
                         {pushError && (

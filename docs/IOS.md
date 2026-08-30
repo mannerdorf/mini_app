@@ -4,7 +4,7 @@
 API в нативной сборке: **`https://haulz.space`** (как у Android APK).  
 Нужен **Mac + Xcode** — Linux/Cloud не собирает `.app` / IPA.
 
-Версия в Xcode: **1.3.24** (`MARKETING_VERSION`), build **1** (`CURRENT_PROJECT_VERSION`).
+Версия в Xcode: **1.3.24** (`MARKETING_VERSION`), build **2** (`CURRENT_PROJECT_VERSION`).
 
 ## Требования (Intel Mac)
 
@@ -155,7 +155,7 @@ npm run ios:release
 4. **Distribute App** → **App Store Connect** → **Upload** → Next, пока не уйдёт билд.
 5. Шифрование: в Info.plist уже `ITSAppUsesNonExemptEncryption = false` — в форме можно ответить, что не используете нестандартное шифрование.
 
-Каждая новая заливка: увеличьте **Current Project Version** (`CURRENT_PROJECT_VERSION` в Xcode, сейчас **1**). Version (`1.3.24`) можно оставить, build должен расти: 1, 2, 3…
+Каждая новая заливка: увеличьте **Current Project Version** (`CURRENT_PROJECT_VERSION` в Xcode, сейчас **2**). Version (`1.3.24`) можно оставить, build должен расти: 2, 3, 4…
 
 ### 4. Тестеры
 
@@ -171,4 +171,77 @@ npm run ios:release
 
 - Не нажимайте **Update to recommended settings** перед архивом.
 - Не выкладывайте IPA на `app.haulz.space`.
-- Push (APNs) на iOS ещё не настроен — в TestFlight уведомления профиля не ждать.
+
+## Push-уведомления (iOS + FCM)
+
+Сервер уже шлёт пуши через Firebase Admin в те же токены, что Android. На iOS Capacitor без Firebase отдаёт **APNs-токен**, а API ждёт **FCM-токен** — поэтому нужен iOS-приложение в том же Firebase-проекте и `GoogleService-Info.plist` на Mac.
+
+**Broadcast Push Notifications** в форме App ID **не включайте**. Нужен только обычный **Push Notifications**.
+
+### 1. App ID (Apple Developer)
+
+1. [developer.apple.com](https://developer.apple.com) → Identifiers → `ru.haulz.miniapp`.
+2. Включите **Push Notifications**. Сохраните.
+3. **Broadcast** оставьте выкл.
+
+Если App ID уже с Push — ничего пересоздавать не нужно. Provisioning Xcode подтянет сам (Automatically manage signing).
+
+### 2. Ключ APNs (.p8)
+
+1. Apple Developer → Keys → **+**.
+2. Имя: `HAULZ APNs`. Галка **Apple Push Notifications service (APNs)**.
+3. Continue → Register → **Download** `.p8` (скачивается один раз).
+4. Запомните **Key ID**. Team ID платной команды: в Membership (у вас уже есть команда для TestFlight).
+
+`.p8` в git не кладём.
+
+### 3. Firebase: iOS-приложение
+
+Тот же проект Firebase, что для Android APK (`ru.haulz.miniapp`):
+
+1. [Firebase Console](https://console.firebase.google.com) → Project settings → **Add app** → **iOS**.
+2. Bundle ID: **`ru.haulz.miniapp`**.
+3. Скачайте **`GoogleService-Info.plist`**.
+4. Файл положите в `ios/App/App/GoogleService-Info.plist` (в `.gitignore`).
+5. В Xcode: желтая папка **App** → Add Files → этот plist → галка target **App**.
+6. Project settings → **Cloud Messaging** → iOS app → **APNs Authentication Key** → Upload `.p8`, Key ID, Team ID.
+
+Сервисный аккаунт на API (`FIREBASE_SERVICE_ACCOUNT_JSON`) тот же, что для Android. Новый на VPS не нужен.
+
+### 4. Сборка на Mac
+
+```bash
+cd ~/mini_app
+git fetch origin
+git checkout -B cursor/ios-capacitor-fd2d origin/cursor/ios-capacitor-fd2d
+npm install
+npm run ios:sync
+cd ios/App && pod install && cd ../..
+npx cap open ios
+```
+
+В Xcode у TARGETS **App** → Signing & Capabilities:
+
+- Team — платная команда.
+- Capability **Push Notifications** (из `App.entitlements` / `AppRelease.entitlements`).
+- **Background Modes → Remote notifications** (уже в `Info.plist`).
+
+Симулятор пуши почти не принимает. Проверка — **физический iPhone** или TestFlight.
+
+Залейте **новый** архив: build **2** (или выше). Старый TestFlight 1.3.24 (1) без FCM на iOS.
+
+### 5. В приложении
+
+1. Войдите в аккаунт.
+2. Разрешите уведомления в системном диалоге iOS.
+3. **Профиль → Уведомления → Включить push-уведомления** (если диалог уже был — статус «включены»).
+4. Включите нужные события.
+
+Токен уходит как `POST /api/fcm-subscribe` с `platform: "ios"`.
+
+### Если пуш не приходит
+
+- Плист не в target App → при старте Firebase не конфигурируется, регистрация падает с текстом про `GoogleService-Info.plist`.
+- Нет ключа APNs в Firebase → токен может сохраниться, отправка с сервера не дойдёт до телефона.
+- Старый билд TestFlight (1) — нужен архив с этим кодом.
+- Симулятор.

@@ -18,7 +18,7 @@ import {
 import { Flex, Panel, Typography } from "@maxhub/max-ui";
 import type { Account, ProfileView } from "../../../types";
 import { formatDateTime } from "../../../lib/dateUtils";
-import { isAndroidPushEnvironment } from "../../../lib/androidPushNotifications";
+import { isNativePushEnvironment } from "../../../lib/androidPushNotifications";
 import { ProfilePasswordSection } from "../../../components/profile/ProfilePasswordSection";
 import { cargoListContainerVariants, cargoListItemVariants, cargoSummaryMotion } from "../../../pages/cargoMotion";
 import type { ProfileMainState } from "../hooks/useProfileMain";
@@ -96,7 +96,7 @@ export function ProfileMainSection({
             icon: <Bell className="w-5 h-5" style={{ color: "var(--color-primary)" }} />,
             onClick: () => onNavigate("notifications"),
         },
-        ...(isAndroidPushEnvironment() ? [{
+        ...(isNativePushEnvironment() ? [{
             id: "push" as const,
             label: "Push",
             icon: <Smartphone className="w-5 h-5" style={{ color: "var(--color-primary)" }} />,
