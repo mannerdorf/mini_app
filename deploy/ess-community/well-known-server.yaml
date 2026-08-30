@@ -8,6 +8,7 @@ metadata:
   namespace: ess
 data:
   nginx.conf: |
+    daemon off;
     worker_processes 1;
     error_log /dev/stderr warn;
     pid /tmp/nginx.pid;
@@ -24,7 +25,6 @@ data:
           add_header Access-Control-Allow-Origin * always;
           add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
           add_header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Authorization" always;
-          if ($request_method = OPTIONS) { return 204; }
         }
       }
     }
@@ -63,6 +63,12 @@ spec:
               memory: 16Mi
             limits:
               memory: 64Mi
+          readinessProbe:
+            httpGet:
+              path: /.well-known/matrix/client
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
       volumes:
         - name: nginx-conf
           configMap:
