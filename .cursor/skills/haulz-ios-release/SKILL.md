@@ -45,6 +45,8 @@ xcodebuild -downloadPlatform iOS -architectureVariant universal
 
 If that prints `No needed downloadables found for universal`, the runtime is already installed. Skip the download. `git pull`, then `cd ios/App && pod install`, open **App.xcworkspace**, Clean Build Folder, Run on iPhone Simulator.
 
+After a successful **simulator** run: smoke-test login against `https://haulz.space`, then a physical iPhone (camera). Do not upload an IPA to `app.haulz.space` (Android-only). TestFlight/App Store needs Apple Developer Program + Archive — not set up yet.
+
 CLI simulator (unsigned):
 
 ```bash

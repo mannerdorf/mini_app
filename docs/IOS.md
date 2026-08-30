@@ -105,6 +105,12 @@ npm run ios:release
 
 В `Info.plist` есть `NSCameraUsageDescription` и доступ к Фото — сканер посылки и претензии. При первом сканировании iOS покажет системный диалог.
 
-## App Store / TestFlight
+## После симулятора
 
-Пока не настроено. Для IPA нужен Apple Developer Program, Team в Signing, затем **Product → Archive**. Push (APNs) на iOS отдельно от Android FCM — в этой сборке пуш-настройки профиля остаются Android-only.
+Симулятор только показывает, что Xcode и Capacitor собираются. Дальше по порядку:
+
+1. **Проверить логин в симуляторе** — тот же аккаунт, что на сайте. API: `https://haulz.space`. Сканер посылки и камера претензий в симуляторе почти бесполезны (нет настоящей камеры).
+2. **Запустить на физическом iPhone** (кабель, Trust This Computer). В Xcode destination = ваш iPhone, **Signing & Capabilities → Team** (Apple ID). Бесплатный Personal Team ставит сборку на 7 дней. Push на iOS ещё не настроен (на Android — FCM).
+3. **TestFlight / App Store** — отдельно: Apple Developer Program, запись приложения в App Store Connect, **Product → Archive**. Пока в репозитории этого нет.
+
+Не публикуйте IPA на `app.haulz.space` — это канал только для Android APK.
