@@ -15,6 +15,8 @@ description: >-
 2. Native `.app` / IPA **только на Mac + Xcode**. Do not invent Linux IPA builds
    or a new signing identity. Do not generate an Android keystore as a substitute.
 3. Bundle id: `ru.haulz.miniapp`. API in the web bundle: `VITE_API_ORIGIN=https://haulz.space`.
+4. CocoaPods: give **one** command, `NONINTERACTIVE=1 brew install cocoapods`.
+   Never paste a multi-command block into brew’s `[y/n]` prompt. Wait for `pod --version`.
 
 ## Algorithm (Mac — Intel, Xcode 26.3)
 
@@ -22,12 +24,13 @@ description: >-
 cd ~/mini_app
 git fetch origin
 git checkout -B cursor/ios-capacitor-fd2d origin/cursor/ios-capacitor-fd2d
-# or the current iOS release branch
 
 xcode-select -p
 # expect: /Applications/Xcode.app/Contents/Developer
 
 npm install
+NONINTERACTIVE=1 brew install cocoapods
+pod --version
 npm run ios:sync
 npx cap open ios
 ```

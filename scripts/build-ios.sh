@@ -41,8 +41,9 @@ if ! command -v xcodebuild >/dev/null 2>&1; then
 fi
 
 if [[ ! -d "$IOS_DIR/Pods" ]]; then
-  echo "CocoaPods did not install (need: brew install cocoapods)." >&2
-  echo "Retry: cd ios/App && pod install && cd ../.." >&2
+  echo "CocoaPods did not install. On the Mac run ONE command:" >&2
+  echo "  NONINTERACTIVE=1 brew install cocoapods" >&2
+  echo "Then: cd ios/App && pod install && cd ../.." >&2
   exit 1
 fi
 

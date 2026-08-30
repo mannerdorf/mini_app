@@ -11,12 +11,11 @@ API в нативной сборке: **`https://haulz.space`** (как у Andro
 - Xcode **26.3** Universal в `/Applications/Xcode.app`  
   (`xcode-select -p` → `/Applications/Xcode.app/Contents/Developer`)
 - Node.js ≥ 18
-- CocoaPods: `brew install cocoapods`
+- CocoaPods (один раз). Ставьте **одной командой**, не вставляйте блок целиком — `brew` иначе съест следующие строки вместо `y`:
 
 ```bash
-sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-sudo xcodebuild -license accept
-xcodebuild -version
+NONINTERACTIVE=1 brew install cocoapods
+pod --version
 ```
 
 ## Сборка и запуск
@@ -26,7 +25,18 @@ cd ~/mini_app
 git fetch origin
 git checkout -B cursor/ios-capacitor-fd2d origin/cursor/ios-capacitor-fd2d
 npm install
+```
 
+Если `pod` ещё нет — **отдельной** командой:
+
+```bash
+NONINTERACTIVE=1 brew install cocoapods
+pod --version
+```
+
+Затем:
+
+```bash
 npm run ios:sync
 npx cap open ios
 ```
