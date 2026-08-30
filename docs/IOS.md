@@ -122,6 +122,53 @@ npm run ios:release
    - Destination: **iPhone (Aleksandr)** → Run.
 
    Team в репозиторий не кладём: это ваш Apple ID на этой машине.
-3. **TestFlight / App Store** — отдельно: Apple Developer Program, запись приложения в App Store Connect, **Product → Archive**. Пока в репозитории этого нет.
+3. **TestFlight** — см. раздел ниже. Бесплатный Personal Team для TestFlight **не подходит**.
 
 Не публикуйте IPA на `app.haulz.space` — это канал только для Android APK.
+
+## TestFlight
+
+Нужна платная программа [Apple Developer Program](https://developer.apple.com/programs/) (~99 USD/год). Personal Team (бесплатный Apple ID) ставит приложение только на ваш iPhone на 7 дней и **не умеет** заливать в TestFlight.
+
+### 1. Аккаунт
+
+1. Зарегистрируйтесь на [developer.apple.com/programs](https://developer.apple.com/programs/) на тот же Apple ID, что в Xcode → Settings → Accounts.
+2. Дождитесь одобрения (часто сразу, иногда до 48 часов).
+3. В Xcode → Signing & Capabilities → **Team** выберите **платную** команду (не Personal Team).
+
+### 2. Приложение в App Store Connect
+
+1. [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → Apps → **+** → New App.
+2. Platform: **iOS**.
+3. Name: **HAULZ**.
+4. Bundle ID: **`ru.haulz.miniapp`** (если нет в списке: Certificates, Identifiers & Profiles → Identifiers → **+** → App IDs → зарегистрируйте `ru.haulz.miniapp`).
+5. SKU: `haulz-miniapp` (внутренний код, пользователи не видят).
+6. User Access: Full Access.
+
+### 3. Archive и загрузка
+
+В Xcode:
+
+1. `git pull` ветки `cursor/ios-capacitor-fd2d`, затем `npm run ios:sync`.
+2. Destination сверху: **Any iOS Device (arm64)** (не симулятор).
+3. **Product → Archive**. Дождитесь Organizer.
+4. **Distribute App** → **App Store Connect** → **Upload** → Next, пока не уйдёт билд.
+5. Шифрование: в Info.plist уже `ITSAppUsesNonExemptEncryption = false` — в форме можно ответить, что не используете нестандартное шифрование.
+
+Каждая новая заливка: увеличьте **Current Project Version** (`CURRENT_PROJECT_VERSION` в Xcode, сейчас **1**). Version (`1.3.24`) можно оставить, build должен расти: 1, 2, 3…
+
+### 4. Тестеры
+
+В App Store Connect → приложение HAULZ → **TestFlight**:
+
+- Обработка билда: 10–40 минут (email «Finished processing»).
+- **Internal Testing**: добавьте людей с ролью в App Store Connect (до 100). Ставят через приложение TestFlight, без ревью Apple.
+- **External Testing**: ссылка для любых Apple ID (до 10 000). Нужно короткое «What to Test» и **Beta App Review** (обычно сутки).
+
+На iPhone тестера: App Store → приложение **TestFlight** → Redeem / приглашение.
+
+### Чего не делать
+
+- Не нажимайте **Update to recommended settings** перед архивом.
+- Не выкладывайте IPA на `app.haulz.space`.
+- Push (APNs) на iOS ещё не настроен — в TestFlight уведомления профиля не ждать.

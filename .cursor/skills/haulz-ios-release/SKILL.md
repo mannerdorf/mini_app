@@ -45,7 +45,7 @@ xcodebuild -downloadPlatform iOS -architectureVariant universal
 
 If that prints `No needed downloadables found for universal`, the runtime is already installed. Skip the download. `git pull`, then `cd ios/App && pod install`, open **App.xcworkspace**, Clean Build Folder, Run on iPhone Simulator.
 
-Physical iPhone: the error is usually signing, not Architectures. Select **TARGETS → App** → **Signing & Capabilities** → Team (Apple ID). Enable **Developer Mode** on the phone (Settings → Privacy & Security). Click the red error badge for the exact message. Simulator does not require a team; a device does.
+TestFlight needs a **paid** Apple Developer Program team (not Personal Team). App Store Connect app with bundle id `ru.haulz.miniapp`, then Xcode Product → Archive → Distribute App → App Store Connect. Bump `CURRENT_PROJECT_VERSION` on every upload. See `docs/IOS.md` section TestFlight. Do not upload IPA to `app.haulz.space`.
 
 CLI simulator (unsigned):
 
