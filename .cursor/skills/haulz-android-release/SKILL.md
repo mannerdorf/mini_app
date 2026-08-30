@@ -13,6 +13,7 @@ description: >-
 1. **Always bump** `android/app/build.gradle`: `versionCode` (+1 vs live) and `versionName` when shipping an APK. Do not wait for the user to ask.
 2. Before bumping, check live: `curl -sS https://app.haulz.space/version.json`
 3. Publish **only** with the algorithm below. Do not invent other upload schemes.
+4. **Not iOS.** If the user just installed Xcode or says «собери приложение» without APK/`app.haulz.space`, use `haulz-ios-release`.
 
 ## Algorithm (always)
 

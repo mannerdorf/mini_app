@@ -4,6 +4,11 @@ const config: CapacitorConfig = {
   appId: 'ru.haulz.miniapp',
   appName: 'HAULZ',
   webDir: 'dist',
+  ios: {
+    contentInset: 'automatic',
+    preferredContentMode: 'mobile',
+    scheme: 'App',
+  },
   plugins: {
     CapacitorHttp: {
       enabled: true,
