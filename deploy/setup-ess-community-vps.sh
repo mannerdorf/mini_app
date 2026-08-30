@@ -126,12 +126,15 @@ if [[ ! -x /usr/local/bin/k3s ]]; then
   curl -sfL https://get.k3s.io | sh -
 fi
 systemctl enable --now k3s
-for _ in $(seq 1 60); do
-  if k3s kubectl get nodes >/dev/null 2>&1; then
+for _ in $(seq 1 90); do
+  if [[ -f /etc/rancher/k3s/k3s.yaml ]] && k3s kubectl get nodes >/dev/null 2>&1; then
     break
   fi
   sleep 2
 done
+# manifests появляются после старта k3s, не в ту же секунду
+mkdir -p /var/lib/rancher/k3s/server/manifests
+k3s kubectl wait --for=condition=Ready node --all --timeout=180s || true
 k3s kubectl get nodes
 
 install -d -m 700 /root/.kube
