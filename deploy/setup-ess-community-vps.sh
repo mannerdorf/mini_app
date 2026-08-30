@@ -200,7 +200,7 @@ echo "==> next:"
 echo "  1. Создать админа:"
 echo "     k3s kubectl exec -n ess -it deploy/ess-matrix-authentication-service -- mas-cli manage register-user"
 echo "  2. Открыть https://chat.haulz.space"
-echo "  3. Админка https://admin.haulz.space"
+echo "  3. Админка https://admin.chat.haulz.space"
 echo "  4. Проверка: bash $APP_DIR/deploy/ess-community/verify.sh"
 echo
 echo "ESS Community — AGPL, до ~100 пользователей, non-commercial. Для рабочего HAULZ смотрите ESS Pro."
