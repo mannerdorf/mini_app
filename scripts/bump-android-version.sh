@@ -46,9 +46,8 @@ if [[ ! -f "$GRADLE_FILE" ]]; then
   exit 1
 fi
 
-mapfile -t _VERSION_LINES < <(bash "$ROOT/scripts/read-android-version.sh" "$GRADLE_FILE")
-LOCAL_CODE="${_VERSION_LINES[0]:-}"
-LOCAL_NAME="${_VERSION_LINES[1]:-}"
+LOCAL_CODE="$(bash "$ROOT/scripts/read-android-version.sh" "$GRADLE_FILE" | sed -n '1p')"
+LOCAL_NAME="$(bash "$ROOT/scripts/read-android-version.sh" "$GRADLE_FILE" | sed -n '2p')"
 
 REMOTE_CODE=0
 REMOTE_NAME=""
