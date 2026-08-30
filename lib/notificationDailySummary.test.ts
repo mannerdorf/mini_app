@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeDailySummaryStatsFromCache,
   formatDailySummaryPlainText,
+  formatDailySummaryPushMessage,
   aggregateDailySummaryCargoCounts,
   normalizeStatus,
   type DailySummaryCacheIndex,
@@ -80,5 +81,60 @@ describe("formatDailySummaryPlainText", () => {
     expect(text).toContain("Готово к выдаче: 1");
     expect(text).toContain("Неоплаченные счета: 3 шт. на сумму");
     expect(text).toContain("346 ₽");
+  });
+});
+
+describe("formatDailySummaryPushMessage", () => {
+  const stats = {
+    activeStatusCounts: new Map([
+      ["В пути", 2],
+      ["Готово к выдаче", 1],
+    ]),
+    unpaidCount: 3,
+    unpaidSum: 12345,
+  };
+
+  it("uses stats body by default", () => {
+    const msg = formatDailySummaryPushMessage(stats);
+    expect(msg.title).toBe("HAULZ: ежедневная сводка");
+    expect(msg.body).toContain("В пути: 2");
+    expect(msg.body).toContain("Неоплаченные счета: 3");
+    expect(msg.disabled).toBe(false);
+  });
+
+  it("renders admin template variables", () => {
+    const templates = new Map([
+      [
+        "daily_summary",
+        {
+          titleTemplate: "Сводка HAULZ",
+          bodyTemplate: "В пути {in_transit}, к выдаче {ready_for_pickup}, счета {unpaid_count} / {unpaid_sum} ₽",
+          enabled: true,
+          updatedAt: null,
+          updatedBy: null,
+        },
+      ],
+    ] as const);
+    const msg = formatDailySummaryPushMessage(stats, templates as never);
+    expect(msg.title).toBe("Сводка HAULZ");
+    expect(msg.body).toBe("В пути 2, к выдаче 1, счета 3 / 12 345 ₽");
+  });
+
+  it("respects disabled template", () => {
+    const templates = new Map([
+      [
+        "daily_summary",
+        {
+          titleTemplate: "HAULZ",
+          bodyTemplate: "x",
+          enabled: false,
+          updatedAt: null,
+          updatedBy: null,
+        },
+      ],
+    ] as const);
+    const msg = formatDailySummaryPushMessage(stats, templates as never);
+    expect(msg.disabled).toBe(true);
+    expect(msg.body).toBe("");
   });
 });

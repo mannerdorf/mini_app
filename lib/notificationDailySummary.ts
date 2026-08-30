@@ -16,6 +16,10 @@ import {
 } from "./perevozkiPartyMatch.js";
 import { perevozkiItemInn } from "../api/perevozki.js";
 import { loadPushLoginScopes, normalizeNotificationInn } from "./notificationInnScope.js";
+import {
+  renderPushTemplateString,
+  type PushNotificationTemplateMap,
+} from "./pushNotificationTemplates.js";
 
 export type DailySummaryStats = {
   activeStatusCounts: Map<string, number>;
@@ -280,6 +284,50 @@ export function formatDailySummaryPlainText(stats: DailySummaryStats): string {
     `Готово к выдаче: ${readyForPickup}\n` +
     `Неоплаченные счета: ${stats.unpaidCount} шт. на сумму ${sumFmt} ₽`
   );
+}
+
+export function buildDailySummaryTemplateContext(stats: DailySummaryStats): Record<string, string> {
+  const { inTransit, readyForPickup } = aggregateDailySummaryCargoCounts(stats.activeStatusCounts);
+  const unpaidSum = new Intl.NumberFormat("ru-RU").format(Math.round(stats.unpaidSum));
+  const plainText = formatDailySummaryPlainText(stats);
+  return {
+    in_transit: String(inTransit),
+    ready_for_pickup: String(readyForPickup),
+    unpaid_count: String(stats.unpaidCount),
+    unpaid_sum: unpaidSum,
+    summary_body: plainText,
+  };
+}
+
+const DAILY_SUMMARY_DEFAULT_TITLE = "HAULZ: ежедневная сводка";
+
+/** Push/Telegram текст сводки: шаблон из админки или актуальный формат с цифрами. */
+export function formatDailySummaryPushMessage(
+  stats: DailySummaryStats,
+  templates?: PushNotificationTemplateMap | null,
+): { title: string; body: string; plainText: string; disabled: boolean } {
+  const plainText = formatDailySummaryPlainText(stats);
+  const ctx = buildDailySummaryTemplateContext(stats);
+  const custom = templates?.get("daily_summary");
+
+  if (custom && custom.enabled === false) {
+    return { title: DAILY_SUMMARY_DEFAULT_TITLE, body: "", plainText, disabled: true };
+  }
+
+  if (custom && custom.bodyTemplate.trim()) {
+    const title =
+      renderPushTemplateString(custom.titleTemplate || DAILY_SUMMARY_DEFAULT_TITLE, ctx).trim() ||
+      DAILY_SUMMARY_DEFAULT_TITLE;
+    const body = renderPushTemplateString(custom.bodyTemplate, ctx).trim() || plainText;
+    return { title, body, plainText, disabled: false };
+  }
+
+  return {
+    title: DAILY_SUMMARY_DEFAULT_TITLE,
+    body: plainText,
+    plainText,
+    disabled: false,
+  };
 }
 
 export async function loadDailySummaryPrefsByLogin(

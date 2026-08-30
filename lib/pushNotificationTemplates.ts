@@ -104,6 +104,22 @@ export const PUSH_TEMPLATE_VARIABLES = [
     key: "version_name",
     hint: "Номер версии приложения (для шаблона «Новая версия»)",
   },
+  {
+    key: "in_transit",
+    hint: "Ежедневная сводка: перевозок в пути (не доставлены)",
+  },
+  {
+    key: "ready_for_pickup",
+    hint: "Ежедневная сводка: готово к выдаче",
+  },
+  {
+    key: "unpaid_count",
+    hint: "Ежедневная сводка: число неоплаченных счетов",
+  },
+  {
+    key: "unpaid_sum",
+    hint: "Ежедневная сводка: сумма неоплаченных счетов, ₽",
+  },
 ] as const;
 
 function eventLabel(eventId: PushNotificationTemplateEventId): string {
@@ -124,7 +140,11 @@ function defaultBodyTemplate(eventId: PushNotificationTemplateEventId): string {
     return "Счет № {bill_number} по перевозке № {cargo_number} оплачен.";
   }
   if (eventId === "daily_summary") {
-    return "Доброе утро! Ежедневная сводка HAULZ на 10:00.";
+    return (
+      "В пути: {in_transit}\n" +
+      "Готово к выдаче: {ready_for_pickup}\n" +
+      "Неоплаченные счета: {unpaid_count} шт. на сумму {unpaid_sum} ₽"
+    );
   }
   if (eventId === "planned_delivery_date") {
     return "Перевозка № {cargo_number} плановая дата доставки {plan_date}";
@@ -135,7 +155,8 @@ function defaultBodyTemplate(eventId: PushNotificationTemplateEventId): string {
   return "{stage_label}. № {cargo_number}";
 }
 
-function defaultTitleTemplate(_eventId: PushNotificationTemplateEventId): string {
+function defaultTitleTemplate(eventId: PushNotificationTemplateEventId): string {
+  if (eventId === "daily_summary") return "HAULZ: ежедневная сводка";
   return "HAULZ";
 }
 
@@ -321,6 +342,7 @@ export async function loadPushNotificationTemplates(pool: Pool): Promise<PushNot
   const legacyDefaultBodies: Partial<Record<PushNotificationTemplateEventId, string>> = {
     bill_created: "Вам выставлен счет по перевозке № {cargo_number} на сумму {bill_sum} ₽.",
     bill_paid: "Счет по перевозке № {cargo_number} оплачен.",
+    daily_summary: "Доброе утро! Ежедневная сводка HAULZ на 10:00.",
   };
 
   try {
