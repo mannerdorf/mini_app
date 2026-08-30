@@ -61,7 +61,28 @@ xcodebuild -downloadPlatform iOS -architectureVariant universal
 xcrun simctl list runtimes
 ```
 
-Нужен runtime **iOS 26 (или 18.x)** со статусом не `unavailable`. Затем Xcode → Product → Clean Build Folder → снова Run на iPhone Simulator.
+Если команда отвечает `No needed downloadables found for universal` — это **не ошибка**: runtime уже установлен (в Xcode 26.3 Universal он входит в `.xip`). Дальше не качайте платформу, а подтяните статическую линковку и пересоберите:
+
+```bash
+cd ~/mini_app
+git pull origin cursor/ios-capacitor-fd2d
+```
+
+```bash
+cd ios/App && pod install && cd ../..
+```
+
+```bash
+npx cap open ios
+```
+
+В Xcode: destination **iPhone Simulator** (не My Mac), Product → Clean Build Folder, Run. Открыт должен быть `App.xcworkspace`.
+
+Проверка runtime (не должно быть `unavailable`):
+
+```bash
+xcrun simctl list runtimes
+```
 
 Физический iPhone обходит симулятор полностью.
 

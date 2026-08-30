@@ -43,7 +43,7 @@ Intel + Xcode 26: if launch crashes in `libobjc.A.dylib` `readClass`, the iOS si
 xcodebuild -downloadPlatform iOS -architectureVariant universal
 ```
 
-Then Clean Build Folder and Run again. Physical iPhone also works.
+If that prints `No needed downloadables found for universal`, the runtime is already installed. Skip the download. `git pull`, then `cd ios/App && pod install`, open **App.xcworkspace**, Clean Build Folder, Run on iPhone Simulator.
 
 CLI simulator (unsigned):
 
