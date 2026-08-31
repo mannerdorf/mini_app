@@ -21,6 +21,25 @@ const MONTH_NAMES = dateUtils.MONTH_NAMES;
 
 type FotViewMode = "month" | "year";
 
+const FOT_METHODOLOGY_NOTE =
+  "ФОТ — по месяцу табеля. Продажи и платный вес — по дате выдачи (DateVr). Продажи = сумма Sum по перевозкам, кроме статуса «Получена информация». ₽/кг подразделения = ФОТ подразделения ÷ платный вес компании за месяц.";
+
+function MethodologyFootnote() {
+  return (
+    <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", marginTop: "0.65rem", lineHeight: 1.45 }}>
+      {FOT_METHODOLOGY_NOTE}
+    </Typography.Body>
+  );
+}
+
+function IncompleteMonthNote({ monthLabel }: { monthLabel: string }) {
+  return (
+    <Typography.Body style={{ fontSize: "0.72rem", color: "#b45309", marginBottom: "0.5rem" }}>
+      {monthLabel} — месяц ещё не завершён; в графиках и итогах KPI не учитывается, в таблице показаны частичные данные.
+    </Typography.Body>
+  );
+}
+
 function MoneyBadge({
   value,
   border,
@@ -96,6 +115,7 @@ function AdminFotMonthView({ adminToken }: { adminToken: string }) {
     sales,
     costPerKg,
     byDepartment,
+    isIncompleteMonth,
   } = useTimesheetFotDashboard({ mode: "admin", adminToken });
 
   if (loading) {
@@ -152,6 +172,9 @@ function AdminFotMonthView({ adminToken }: { adminToken: string }) {
       <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
         Расчетный период: <DateText value={dateRange.dateFrom} /> – <DateText value={dateRange.dateTo} />
       </Typography.Body>
+      {isIncompleteMonth ? (
+        <IncompleteMonthNote monthLabel={MONTH_NAMES[period.month - 1]?.charAt(0).toUpperCase() + (MONTH_NAMES[period.month - 1]?.slice(1) ?? "")} />
+      ) : null}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.5rem", marginBottom: "0.75rem" }}>
         <KpiTile label="ФОТ" value={`${Math.round(companySummary.totalMoney).toLocaleString("ru-RU")} ₽`} />
         <KpiTile label="Продажи" value={`${Math.round(sales).toLocaleString("ru-RU")} ₽`} accent="#059669" />
@@ -174,15 +197,42 @@ function AdminFotMonthView({ adminToken }: { adminToken: string }) {
           ))}
         </div>
       )}
+      <MethodologyFootnote />
     </>
   );
 }
 
+function FotMoneyChartTooltip({ value, name }: { value: number; name: string }) {
+  if (name === "fot") return [`${Math.round(value).toLocaleString("ru-RU")} ₽`, "ФОТ"];
+  if (name === "sales") return [`${Math.round(value).toLocaleString("ru-RU")} ₽`, "Продажи"];
+  return [value, name];
+}
+
+function FotPwChartTooltip({ value, name }: { value: number; name: string }) {
+  if (name === "costPerKg") return [`${Number(value).toFixed(2)} ₽/кг`, "1 кг"];
+  if (name === "paidWeight") return [`${Math.round(value).toLocaleString("ru-RU")} кг`, "Платный вес"];
+  return [value, name];
+}
+
 function AdminFotYearView({ adminToken }: { adminToken: string }) {
-  const { year, setYear, yearOptions, monthsInYear, loading, error, yearSummary, chartData, departmentMatrix } =
-    useTimesheetFotYearDashboard(adminToken);
+  const {
+    year,
+    setYear,
+    yearOptions,
+    monthsInYear,
+    incompleteMonth,
+    loading,
+    error,
+    yearSummary,
+    chartData,
+    departmentMatrix,
+  } = useTimesheetFotYearDashboard(adminToken);
 
   const monthLabels = monthsInYear.map((m) => MONTH_NAMES[m - 1]?.slice(0, 3) ?? String(m));
+  const incompleteMonthLabel =
+    incompleteMonth != null
+      ? MONTH_NAMES[incompleteMonth - 1]?.charAt(0).toUpperCase() + (MONTH_NAMES[incompleteMonth - 1]?.slice(1) ?? "")
+      : null;
 
   if (loading) {
     return (
@@ -218,14 +268,18 @@ function AdminFotYearView({ adminToken }: { adminToken: string }) {
           ))}
         </select>
         <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>
-          {monthsInYear.length} мес. · продажи {Math.round(yearSummary.sales).toLocaleString("ru-RU")} ₽ · платный вес{" "}
+          {yearSummary.completedMonthCount} заверш. мес.
+          {incompleteMonthLabel ? ` · ${incompleteMonthLabel} — частичный` : ""} · продажи{" "}
+          {Math.round(yearSummary.sales).toLocaleString("ru-RU")} ₽ · платный вес{" "}
           {Math.round(yearSummary.paidWeight).toLocaleString("ru-RU")} кг
         </Typography.Body>
       </Flex>
 
+      {incompleteMonthLabel ? <IncompleteMonthNote monthLabel={incompleteMonthLabel} /> : null}
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.5rem", marginBottom: "0.75rem" }}>
-        <KpiTile label="ФОТ за год" value={`${Math.round(yearSummary.totalCost).toLocaleString("ru-RU")} ₽`} />
-        <KpiTile label="Продажи за год" value={`${Math.round(yearSummary.sales).toLocaleString("ru-RU")} ₽`} accent="#059669" />
+        <KpiTile label="ФОТ (заверш. мес.)" value={`${Math.round(yearSummary.totalCost).toLocaleString("ru-RU")} ₽`} />
+        <KpiTile label="Продажи (заверш. мес.)" value={`${Math.round(yearSummary.sales).toLocaleString("ru-RU")} ₽`} accent="#059669" />
         <KpiTile label="Платный вес" value={`${Math.round(yearSummary.paidWeight).toLocaleString("ru-RU")} кг`} accent="#7c3aed" />
         <KpiTile label="Средняя стоимость на 1 кг" value={`${yearSummary.costPerKg.toFixed(2)} ₽/кг`} accent="#2563eb" />
         <KpiTile label="Выплаты за год" value={`${Math.round(yearSummary.totalPaid).toLocaleString("ru-RU")} ₽`} accent="#065f46" />
@@ -233,51 +287,63 @@ function AdminFotYearView({ adminToken }: { adminToken: string }) {
       </div>
 
       {chartData.length > 0 ? (
-        <div style={{ marginBottom: "1rem", height: 320 }}>
-          <Typography.Body style={{ fontSize: "0.78rem", fontWeight: 600, marginBottom: "0.4rem" }}>
-            Динамика по месяцам
-          </Typography.Body>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 8, right: 56, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-              <YAxis
-                yAxisId="rub"
-                tick={{ fontSize: 11 }}
-                tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`}
-              />
-              <YAxis
-                yAxisId="pw"
-                orientation="right"
-                tick={{ fontSize: 11, fill: "#7c3aed" }}
-                tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`}
-                width={48}
-              />
-              <YAxis
-                yAxisId="rate"
-                orientation="right"
-                tick={{ fontSize: 11, fill: "#b45309" }}
-                tickFormatter={(v) => `${v} ₽`}
-                width={40}
-                dx={48}
-              />
-              <Tooltip
-                formatter={(value: number, name: string) => {
-                  if (name === "costPerKg") return [`${Number(value).toFixed(2)} ₽/кг`, "1 кг"];
-                  if (name === "fot") return [`${Math.round(value).toLocaleString("ru-RU")} ₽`, "ФОТ"];
-                  if (name === "sales") return [`${Math.round(value).toLocaleString("ru-RU")} ₽`, "Продажи"];
-                  if (name === "paidWeight") return [`${Math.round(value).toLocaleString("ru-RU")} кг`, "Платный вес"];
-                  return [value, name];
-                }}
-              />
-              <Legend />
-              <Line yAxisId="rub" type="monotone" dataKey="fot" name="ФОТ" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} />
-              <Line yAxisId="rub" type="monotone" dataKey="sales" name="Продажи" stroke="#059669" strokeWidth={2} dot={{ r: 3 }} />
-              <Line yAxisId="pw" type="monotone" dataKey="paidWeight" name="Платный вес" stroke="#7c3aed" strokeWidth={2} dot={{ r: 3 }} />
-              <Line yAxisId="rate" type="monotone" dataKey="costPerKg" name="1 кг" stroke="#b45309" strokeWidth={2} dot={{ r: 3 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        <>
+          <div style={{ marginBottom: "1rem", height: 280 }}>
+            <Typography.Body style={{ fontSize: "0.78rem", fontWeight: 600, marginBottom: "0.4rem" }}>
+              ФОТ и продажи по месяцам
+            </Typography.Body>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 8, right: 48, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis
+                  yAxisId="sales"
+                  tick={{ fontSize: 11, fill: "#059669" }}
+                  tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`}
+                />
+                <YAxis
+                  yAxisId="fot"
+                  orientation="right"
+                  tick={{ fontSize: 11, fill: "#2563eb" }}
+                  tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`}
+                  width={48}
+                />
+                <Tooltip formatter={(value: number, name: string) => FotMoneyChartTooltip({ value, name })} />
+                <Legend />
+                <Line yAxisId="sales" type="monotone" dataKey="sales" name="Продажи" stroke="#059669" strokeWidth={2} dot={{ r: 3 }} />
+                <Line yAxisId="fot" type="monotone" dataKey="fot" name="ФОТ" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div style={{ marginBottom: "1rem", height: 280 }}>
+            <Typography.Body style={{ fontSize: "0.78rem", fontWeight: 600, marginBottom: "0.4rem" }}>
+              Платный вес и стоимость на 1 кг
+            </Typography.Body>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 8, right: 48, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis
+                  yAxisId="pw"
+                  tick={{ fontSize: 11, fill: "#7c3aed" }}
+                  tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`}
+                />
+                <YAxis
+                  yAxisId="rate"
+                  orientation="right"
+                  tick={{ fontSize: 11, fill: "#b45309" }}
+                  tickFormatter={(v) => `${v} ₽`}
+                  width={48}
+                />
+                <Tooltip formatter={(value: number, name: string) => FotPwChartTooltip({ value, name })} />
+                <Legend />
+                <Line yAxisId="pw" type="monotone" dataKey="paidWeight" name="Платный вес" stroke="#7c3aed" strokeWidth={2} dot={{ r: 3 }} />
+                <Line yAxisId="rate" type="monotone" dataKey="costPerKg" name="1 кг" stroke="#b45309" strokeWidth={2} dot={{ r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </>
       ) : null}
 
       <Typography.Body style={{ fontSize: "0.78rem", fontWeight: 600, marginBottom: "0.4rem" }}>
@@ -295,11 +361,25 @@ function AdminFotYearView({ adminToken }: { adminToken: string }) {
                 <th style={{ textAlign: "left", padding: "0.45rem 0.5rem", position: "sticky", left: 0, background: "var(--color-bg-secondary)", zIndex: 1 }}>
                   Подразделение
                 </th>
-                {monthLabels.map((label, idx) => (
-                  <th key={`fot-month-head-${monthsInYear[idx]}`} style={{ textAlign: "right", padding: "0.45rem 0.35rem", whiteSpace: "nowrap" }}>
-                    {label}
-                  </th>
-                ))}
+                {monthLabels.map((label, idx) => {
+                  const month = monthsInYear[idx];
+                  const isPartial = month === incompleteMonth;
+                  return (
+                    <th
+                      key={`fot-month-head-${month}`}
+                      style={{
+                        textAlign: "right",
+                        padding: "0.45rem 0.35rem",
+                        whiteSpace: "nowrap",
+                        color: isPartial ? "#b45309" : undefined,
+                      }}
+                      title={isPartial ? "Частичный месяц" : undefined}
+                    >
+                      {label}
+                      {isPartial ? "*" : ""}
+                    </th>
+                  );
+                })}
                 <th style={{ textAlign: "right", padding: "0.45rem 0.5rem", whiteSpace: "nowrap" }}>Итого</th>
               </tr>
             </thead>
@@ -333,6 +413,7 @@ function AdminFotYearView({ adminToken }: { adminToken: string }) {
           </table>
         </div>
       )}
+      <MethodologyFootnote />
     </>
   );
 }

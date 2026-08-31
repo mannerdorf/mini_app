@@ -3,9 +3,12 @@ import * as dateUtils from "../lib/dateUtils";
 import { aggregatePerevozkiFotMetrics, normalizePerevozkiList } from "../lib/perevozkiFotMetrics";
 import {
   buildTimesheetFotAnalytics,
+  completedMonthsInYear,
   groupTimesheetFotByDepartment,
+  isCurrentIncompleteMonth,
   monthDateRange,
   monthKeyFromParts,
+  monthsToFetchInYear,
   type TimesheetFotDepartmentRow,
 } from "../lib/timesheetFotAnalytics";
 
@@ -44,7 +47,7 @@ async function fetchAdminMonthSnapshot(adminToken: string, year: number, month: 
     fetch("/api/perevozki", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-      body: JSON.stringify({ adminToken, dateFrom, dateTo }),
+      body: JSON.stringify({ adminToken, dateFrom, dateTo, dateField: "vr" }),
     }),
   ]);
 
@@ -86,11 +89,14 @@ export function useTimesheetFotYearDashboard(adminToken: string, enabled = true)
     return Array.from(years).sort((a, b) => b - a);
   }, [year]);
 
-  const monthsInYear = useMemo(() => {
-    const now = new Date();
-    const maxMonth = year === now.getFullYear() ? now.getMonth() + 1 : 12;
-    return Array.from({ length: maxMonth }, (_, i) => i + 1);
-  }, [year]);
+  const monthsInYear = useMemo(() => monthsToFetchInYear(year), [year]);
+
+  const completedMonths = useMemo(() => completedMonthsInYear(year), [year]);
+
+  const incompleteMonth = useMemo(() => {
+    const partial = monthsInYear.find((month) => isCurrentIncompleteMonth(year, month));
+    return partial ?? null;
+  }, [monthsInYear, year]);
 
   const fetchYear = useCallback(async () => {
     if (!enabled || !adminToken) return;
@@ -113,12 +119,17 @@ export function useTimesheetFotYearDashboard(adminToken: string, enabled = true)
     void fetchYear();
   }, [fetchYear]);
 
+  const completedSnapshots = useMemo(
+    () => monthSnapshots.filter((m) => completedMonths.includes(m.month)),
+    [monthSnapshots, completedMonths],
+  );
+
   const yearSummary = useMemo(() => {
-    const totalCost = monthSnapshots.reduce((acc, m) => acc + m.totalCost, 0);
-    const totalPaid = monthSnapshots.reduce((acc, m) => acc + m.totalPaid, 0);
-    const totalOutstanding = monthSnapshots.reduce((acc, m) => acc + m.totalOutstanding, 0);
-    const paidWeight = monthSnapshots.reduce((acc, m) => acc + m.paidWeight, 0);
-    const sales = monthSnapshots.reduce((acc, m) => acc + m.sales, 0);
+    const totalCost = completedSnapshots.reduce((acc, m) => acc + m.totalCost, 0);
+    const totalPaid = completedSnapshots.reduce((acc, m) => acc + m.totalPaid, 0);
+    const totalOutstanding = completedSnapshots.reduce((acc, m) => acc + m.totalOutstanding, 0);
+    const paidWeight = completedSnapshots.reduce((acc, m) => acc + m.paidWeight, 0);
+    const sales = completedSnapshots.reduce((acc, m) => acc + m.sales, 0);
     return {
       totalCost,
       totalPaid,
@@ -126,12 +137,13 @@ export function useTimesheetFotYearDashboard(adminToken: string, enabled = true)
       paidWeight,
       sales,
       costPerKg: paidWeight > 0 ? totalCost / paidWeight : 0,
+      completedMonthCount: completedSnapshots.length,
     };
-  }, [monthSnapshots]);
+  }, [completedSnapshots]);
 
   const chartData = useMemo(
     () =>
-      monthSnapshots.map((m) => ({
+      completedSnapshots.map((m) => ({
         name: m.monthLabel,
         month: m.month,
         fot: Math.round(m.totalCost),
@@ -139,7 +151,7 @@ export function useTimesheetFotYearDashboard(adminToken: string, enabled = true)
         costPerKg: Number(m.costPerKg.toFixed(2)),
         paidWeight: Math.round(m.paidWeight),
       })),
-    [monthSnapshots],
+    [completedSnapshots],
   );
 
   const departmentMatrix = useMemo((): FotYearDepartmentRow[] => {
@@ -190,6 +202,8 @@ export function useTimesheetFotYearDashboard(adminToken: string, enabled = true)
     setYear,
     yearOptions,
     monthsInYear,
+    completedMonths,
+    incompleteMonth,
     loading,
     error,
     monthSnapshots,

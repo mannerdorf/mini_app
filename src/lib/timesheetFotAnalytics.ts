@@ -222,3 +222,27 @@ export function monthDateRange(year: number, month: number): { dateFrom: string;
 export function monthKeyFromParts(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
+
+/** Текущий календарный месяц — ещё не завершён (данные частичные). */
+export function isCurrentIncompleteMonth(year: number, month: number, now: Date = new Date()): boolean {
+  return year === now.getFullYear() && month === now.getMonth() + 1;
+}
+
+/** Месяцы года для загрузки (включая текущий неполный — для таблицы). */
+export function monthsToFetchInYear(year: number, now: Date = new Date()): number[] {
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  if (year < currentYear) return Array.from({ length: 12 }, (_, i) => i + 1);
+  if (year > currentYear) return [];
+  return Array.from({ length: currentMonth }, (_, i) => i + 1);
+}
+
+/** Завершённые месяцы года (без текущего неполного — для графиков и годовых KPI). */
+export function completedMonthsInYear(year: number, now: Date = new Date()): number[] {
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  if (year < currentYear) return Array.from({ length: 12 }, (_, i) => i + 1);
+  if (year > currentYear) return [];
+  if (currentMonth <= 1) return [];
+  return Array.from({ length: currentMonth - 1 }, (_, i) => i + 1);
+}

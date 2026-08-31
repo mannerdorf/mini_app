@@ -4,6 +4,7 @@ import { aggregatePerevozkiFotMetrics, normalizePerevozkiList } from "../lib/per
 import {
   buildTimesheetFotAnalytics,
   groupTimesheetFotByDepartment,
+  isCurrentIncompleteMonth,
   monthDateRange,
   monthKeyFromParts,
 } from "../lib/timesheetFotAnalytics";
@@ -113,6 +114,7 @@ export function useTimesheetFotDashboard(args: UseTimesheetFotDashboardArgs) {
             adminToken,
             dateFrom: dateRange.dateFrom,
             dateTo: dateRange.dateTo,
+            dateField: "vr",
           }),
         });
         const data = await res.json().catch(() => ([]));
@@ -136,6 +138,7 @@ export function useTimesheetFotDashboard(args: UseTimesheetFotDashboardArgs) {
           password: auth.password,
           dateFrom: dateRange.dateFrom,
           dateTo: dateRange.dateTo,
+          dateField: "vr",
           ...(useServiceRequest ? { serviceMode: true } : {}),
           ...(!useServiceRequest && auth?.inn ? { inn: auth.inn } : {}),
           ...(auth?.isRegisteredUser ? { isRegisteredUser: true } : {}),
@@ -183,6 +186,11 @@ export function useTimesheetFotDashboard(args: UseTimesheetFotDashboardArgs) {
     [analyticsData, paidWeight],
   );
 
+  const isIncompleteMonth = useMemo(
+    () => isCurrentIncompleteMonth(period.year, period.month),
+    [period.month, period.year],
+  );
+
   return {
     period,
     setPeriod,
@@ -196,6 +204,7 @@ export function useTimesheetFotDashboard(args: UseTimesheetFotDashboardArgs) {
     companySummary,
     costPerKg,
     byDepartment,
+    isIncompleteMonth,
     refetch: fetchTimesheet,
   };
 }
