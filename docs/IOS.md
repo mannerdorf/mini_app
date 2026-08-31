@@ -4,7 +4,7 @@
 API в нативной сборке: **`https://haulz.space`** (как у Android APK).  
 Нужен **Mac + Xcode** — Linux/Cloud не собирает `.app` / IPA.
 
-Версия в Xcode: **1.3.24** (`MARKETING_VERSION`), build **2** (`CURRENT_PROJECT_VERSION`).
+Версия в Xcode: **1.3.24** (`MARKETING_VERSION`), build **3** (`CURRENT_PROJECT_VERSION`).
 
 ## Требования (Intel Mac)
 
@@ -228,7 +228,7 @@ npx cap open ios
 
 Симулятор пуши почти не принимает. Проверка — **физический iPhone** или TestFlight.
 
-Залейте **новый** архив: build **2** (или выше). Старый TestFlight 1.3.24 (1) без FCM на iOS.
+Залейте **новый** архив: build **3** (или выше). Старый TestFlight без этого фикса при «Включить push» на iPhone мог стереть Android-устройство того же логина.
 
 ### 5. В приложении
 
@@ -243,5 +243,6 @@ npx cap open ios
 
 - Плист не в target App → при старте Firebase не конфигурируется, регистрация падает с текстом про `GoogleService-Info.plist`.
 - Нет ключа APNs в Firebase → токен может сохраниться, отправка с сервера не дойдёт до телефона.
-- Старый билд TestFlight (1) — нужен архив с этим кодом.
+- Старый билд TestFlight без FCM / без фикса multi-device — нужен архив с этим кодом (build 3+).
+- Включение push на iPhone обнуляло админку «Кто включил push» и снимало Android: `POST /api/fcm-unsubscribe` без `token` удалял **все** FCM-устройства логина (свежий WKWebView не держал токен в памяти). API теперь требует `token` и удаляет только одно устройство. Нужен деплой API на `haulz.space` и новый TestFlight.
 - Симулятор.

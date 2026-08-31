@@ -44,7 +44,7 @@ FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
 psql "$DATABASE_URL" -f migrations/089_fcm_push.sql
 ```
 
-Таблица `fcm_device_tokens` хранит FCM-токены устройств.
+Таблица `fcm_device_tokens` хранит FCM-токены устройств. PK = `token`: у одного логина могут быть Android и iOS одновременно. `POST /api/fcm-unsubscribe` **обязан** передать `token` — без него API больше не удаляет все устройства логина (это обнуляло админку «Кто включил push»).
 
 ## 4. Сборка APK
 

@@ -55,7 +55,7 @@ export async function subscribeFcmToken(body: {
 
 export async function unsubscribeFcmToken(body: {
   login: string;
-  token?: string;
+  token: string;
 }): Promise<void> {
   await fetch("/api/fcm-unsubscribe", {
     method: "POST",

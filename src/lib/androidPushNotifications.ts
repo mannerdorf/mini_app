@@ -2,12 +2,51 @@ import { Capacitor } from "@capacitor/core";
 import type { ActionPerformed, PushNotificationSchema, Token } from "@capacitor/push-notifications";
 import { saveNotificationPreferences, subscribeFcmToken, unsubscribeFcmToken } from "../api/client/notifications";
 import { buildAllPushPreferencesEnabled } from "../../lib/notificationEmailPrefs";
+import {
+  NATIVE_FCM_TOKEN_STORAGE_KEY,
+  nativeFcmUnsubscribePayload,
+  parseStoredNativeFcmToken,
+  serializeStoredNativeFcmToken,
+} from "./nativeFcmToken";
+
+export type NativePushPlatform = "ios" | "android";
 
 let listenersAttached = false;
 let currentLogin = "";
 let currentToken = "";
 
-export type NativePushPlatform = "ios" | "android";
+function readStoredToken(login: string): string {
+  if (typeof localStorage === "undefined") return "";
+  try {
+    return parseStoredNativeFcmToken(localStorage.getItem(NATIVE_FCM_TOKEN_STORAGE_KEY), login);
+  } catch {
+    return "";
+  }
+}
+
+function writeStoredToken(login: string, token: string, platform: NativePushPlatform) {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(NATIVE_FCM_TOKEN_STORAGE_KEY, serializeStoredNativeFcmToken(login, token, platform));
+  } catch {
+    /* private mode / quota */
+  }
+}
+
+function clearStoredToken() {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.removeItem(NATIVE_FCM_TOKEN_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+function tokenForLogin(login: string): string {
+  const memory = String(currentToken || "").trim();
+  if (memory) return memory;
+  return readStoredToken(login);
+}
 
 /** Capacitor platform for FCM subscribe. Unknown native platforms fall back to android. */
 export function fcmPlatformFromCapacitor(platform: string): NativePushPlatform {
@@ -38,9 +77,10 @@ function navigateFromNotification(data: Record<string, string | undefined>) {
 async function persistToken(login: string, token: string) {
   if (!login || !token) return;
   const platform = nativePushPlatform() || fcmPlatformFromCapacitor(Capacitor.getPlatform());
-  await subscribeFcmToken({ login, token, platform });
   currentLogin = login;
   currentToken = token;
+  writeStoredToken(login, token, platform);
+  await subscribeFcmToken({ login, token, platform });
 }
 
 export async function enableNativePushNotifications(login: string): Promise<{ ok: boolean; error?: string }> {
@@ -78,6 +118,12 @@ export async function enableNativePushNotifications(login: string): Promise<{ ok
     }
 
     currentLogin = normalizedLogin;
+    currentToken = tokenForLogin(normalizedLogin);
+    // Re-attach this device only. Never unsubscribe: a fresh WKWebView has no in-memory
+    // token, and logout-all would drop Android for the same login.
+    if (currentToken) {
+      void persistToken(normalizedLogin, currentToken);
+    }
     await PushNotifications.register();
 
     // Token may arrive asynchronously via registration listener.
@@ -92,11 +138,11 @@ export async function disableNativePushNotifications(login: string): Promise<{ o
   const normalizedLogin = String(login || "").trim().toLowerCase();
   try {
     const { PushNotifications } = await import("@capacitor/push-notifications");
-    if (currentToken) {
-      await unsubscribeFcmToken({ login: normalizedLogin, token: currentToken }).catch(() => null);
-    } else {
-      await unsubscribeFcmToken({ login: normalizedLogin }).catch(() => null);
+    const payload = nativeFcmUnsubscribePayload(normalizedLogin, tokenForLogin(normalizedLogin));
+    if (payload) {
+      await unsubscribeFcmToken(payload).catch(() => null);
     }
+    clearStoredToken();
     await PushNotifications.removeAllListeners();
     listenersAttached = false;
     currentLogin = "";
