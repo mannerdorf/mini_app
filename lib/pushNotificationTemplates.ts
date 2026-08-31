@@ -8,6 +8,7 @@ import { PUSH_NOTIFICATION_EVENTS } from "./notificationEmailPrefs.js";
 import {
   formatTelegramMessage,
   pickBillNumber,
+  pickBillSumRaw,
   type CargoEvent,
 } from "./notificationPoll.js";
 import { extractCargoLastMileMeta } from "./cargoLastMileMeta.js";
@@ -188,15 +189,7 @@ export function buildPushTemplateContext(
 ): Record<string, string> {
   const anyItem = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
   const n = String(cargoNumber || "").trim();
-  const billSumRaw = pickFirst(anyItem, [
-    "SumDoc",
-    "SumBill",
-    "AmountBill",
-    "СуммаДокумента",
-    "Sum",
-    "Amount",
-    "Сумма",
-  ]);
+  const billSumRaw = pickBillSumRaw(anyItem);
   const billSumNum =
     typeof billSumRaw === "number" ? billSumRaw : parseFloat(String(billSumRaw ?? "").replace(",", "."));
   const billSum = Number.isFinite(billSumNum)

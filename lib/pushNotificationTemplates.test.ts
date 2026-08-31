@@ -86,6 +86,21 @@ describe("buildPushTemplateContext", () => {
     expect(ctx.bill_sum).toMatch(/125/);
   });
 
+  it("renders nested Invoice.Number in bill_created body", () => {
+    const ctx = buildPushTemplateContext("bill_created", "000141896", {
+      Number: "000141896",
+      Invoice: { Number: "000001529", SumDoc: 44941 },
+    });
+    expect(ctx.bill_number).toBe("1529");
+    const result = formatPushNotificationMessage("bill_created", "000141896", {
+      Number: "000141896",
+      Invoice: { Number: "000001529", SumDoc: 44941 },
+    });
+    expect(result.body).toContain("счет № 1529");
+    expect(result.body).toContain("44");
+    expect(result.body).not.toContain("{bill_number}");
+  });
+
   it("includes bill number and last mile fields", () => {
     const ctx = buildPushTemplateContext("delivery_scheduled", "000141572", {
       BillNum: "000001529",

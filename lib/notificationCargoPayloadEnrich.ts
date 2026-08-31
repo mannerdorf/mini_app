@@ -109,26 +109,55 @@ function pickFirstField(record: Record<string, unknown>, keys: readonly string[]
   for (const key of keys) {
     const value = record[key];
     if (!isNonEmptyFieldValue(value)) continue;
+    if (typeof value === "object") continue;
     return value;
   }
   return undefined;
 }
 
+const INVOICE_UNWRAP_KEYS = ["Invoice", "invoice", "Response", "Data", "data", "Result"] as const;
+
+function unwrapInvoiceRecord(invoice: Record<string, unknown>): Record<string, unknown> {
+  if (pickFirstField(invoice, INVOICE_BILL_NUMBER_KEYS) !== undefined) return invoice;
+  for (const key of INVOICE_UNWRAP_KEYS) {
+    const nested = invoice[key];
+    if (!nested || typeof nested !== "object" || Array.isArray(nested)) continue;
+    const record = nested as Record<string, unknown>;
+    if (pickFirstField(record, INVOICE_BILL_NUMBER_KEYS) !== undefined) return record;
+  }
+  return invoice;
+}
+
+function coerceInvoicePayload(row: { doc_number?: string | null; payload: unknown }): Record<string, unknown> | null {
+  const payload =
+    row.payload && typeof row.payload === "object" && !Array.isArray(row.payload)
+      ? { ...(row.payload as Record<string, unknown>) }
+      : null;
+  if (!payload) return null;
+  const unwrapped = unwrapInvoiceRecord(payload);
+  if (pickFirstField(unwrapped, INVOICE_BILL_NUMBER_KEYS) === undefined) {
+    const docNumber = String(row.doc_number || "").trim();
+    if (docNumber) unwrapped.Number = docNumber;
+  }
+  return unwrapped;
+}
+
 /** Поля счёта для merge в перевозку: номер и сумма без перезаписи Number (номер груза). */
 export function invoiceFieldsForPushMerge(invoice: Record<string, unknown>): Record<string, unknown> {
+  const source = unwrapInvoiceRecord(invoice);
   const out: Record<string, unknown> = {};
-  const billNum = pickFirstField(invoice, INVOICE_BILL_NUMBER_KEYS);
+  const billNum = pickFirstField(source, INVOICE_BILL_NUMBER_KEYS);
   if (billNum !== undefined) {
     out.BillNum = billNum;
     out.NumberBill = billNum;
   }
   for (const key of INVOICE_SUM_KEYS) {
-    const value = invoice[key];
-    if (isNonEmptyFieldValue(value)) out[key] = value;
+    const value = source[key] ?? invoice[key];
+    if (isNonEmptyFieldValue(value) && typeof value !== "object") out[key] = value;
   }
   for (const key of INVOICE_STATE_KEYS) {
-    const value = invoice[key];
-    if (isNonEmptyFieldValue(value)) out[key] = value;
+    const value = source[key] ?? invoice[key];
+    if (isNonEmptyFieldValue(value) && typeof value !== "object") out[key] = value;
   }
   return out;
 }
@@ -146,6 +175,29 @@ function indexInvoicePayloadByCargo(
       if (!byCargo.has(key)) byCargo.set(key, invoice);
     }
   }
+}
+
+function cargosMissingInvoice(
+  cargoNumbers: string[],
+  byCargo: ReadonlyMap<string, Record<string, unknown>>,
+): string[] {
+  const missing: string[] = [];
+  for (const number of cargoNumbers) {
+    const keys = cargoNumberLookupKeys(number);
+    if (!keys.some((key) => byCargo.has(key))) missing.push(number);
+  }
+  return missing;
+}
+
+function cargoIlikePatterns(cargoNumbers: string[]): string[] {
+  const patterns = new Set<string>();
+  for (const number of cargoNumbers) {
+    const normalized = normalizeCargoNumberForLookup(number);
+    if (normalized.length >= 4) patterns.add(`%${normalized}%`);
+    const raw = String(number || "").trim();
+    if (raw.length >= 4) patterns.add(`%${raw}%`);
+  }
+  return [...patterns];
 }
 
 /** Пакетная загрузка счетов из cache_invoices_rows по номерам перевозок. */
@@ -167,21 +219,19 @@ export async function loadInvoicePayloadsByCargoNumbers(
   const innRaw = String(customerInn || "").trim();
   const inns = [...new Set([innCanon, innRaw].filter(Boolean))];
 
-  const indexRows = (rows: Array<{ payload: unknown }>) => {
+  const indexRows = (rows: Array<{ doc_number?: string | null; payload: unknown }>) => {
     for (const row of rows) {
-      const payload =
-        row.payload && typeof row.payload === "object" && !Array.isArray(row.payload)
-          ? (row.payload as Record<string, unknown>)
-          : null;
+      const payload = coerceInvoicePayload(row);
       if (payload) indexInvoicePayloadByCargo(payload, wantedKeys, byCargo);
     }
   };
 
   try {
-    const { rows } = await pool.query<{ payload: unknown }>(
-      `SELECT payload
+    const { rows } = await pool.query<{ doc_number: string | null; payload: unknown }>(
+      `SELECT doc_number, payload
        FROM cache_invoices_rows
        WHERE customer_inn = ANY($1::text[])
+          OR regexp_replace(coalesce(customer_inn, ''), '\\D', '', 'g') = ANY($1::text[])
        ORDER BY doc_date DESC NULLS LAST`,
       [inns],
     );
@@ -190,7 +240,27 @@ export async function loadInvoicePayloadsByCargoNumbers(
     // cache_invoices_rows may be unavailable
   }
 
-  if (byCargo.size === 0) {
+  const missingAfterInn = cargosMissingInvoice(cargoNumbers, byCargo);
+  if (missingAfterInn.length > 0) {
+    const patterns = cargoIlikePatterns(missingAfterInn);
+    if (patterns.length > 0) {
+      try {
+        const { rows } = await pool.query<{ doc_number: string | null; payload: unknown }>(
+          `SELECT doc_number, payload
+           FROM cache_invoices_rows
+           WHERE payload::text ILIKE ANY($1::text[])
+           ORDER BY doc_date DESC NULLS LAST
+           LIMIT 2000`,
+          [patterns],
+        );
+        indexRows(rows);
+      } catch {
+        // payload text search may be unavailable
+      }
+    }
+  }
+
+  if (byCargo.size === 0 || cargosMissingInvoice(cargoNumbers, byCargo).length > 0) {
     try {
       const { readCacheRow } = await import("./documentCacheRefreshCore.js");
       const blob = (await readCacheRow(pool as Parameters<typeof readCacheRow>[0], "cache_invoices")) as Record<
@@ -200,7 +270,8 @@ export async function loadInvoicePayloadsByCargoNumbers(
       for (const inv of blob) {
         if (!inv || typeof inv !== "object") continue;
         const invInn = normalizeNotificationInn(String(inv.INN ?? inv.Inn ?? inv.inn ?? ""));
-        if (invInn !== innCanon && invInn !== innRaw) continue;
+        // В строке счёта 1С часто нет ИНН — не отбрасываем такие счета, если номер перевозки совпал.
+        if (invInn && invInn !== innCanon && invInn !== innRaw) continue;
         indexInvoicePayloadByCargo(inv, wantedKeys, byCargo);
       }
     } catch {
@@ -270,11 +341,14 @@ function invoiceLiveCacheKey(cargoNumber: string, customerInn: string): string {
   return `inv::${cargoNumber}::${customerInn}`;
 }
 
+const INVOICE_LIST_CACHE_PREFIX = "invlist::";
+
 async function fetchInvoiceForCargoFrom1c(params: {
   cargoNumber: string;
   customerInn: string;
   serviceLogin: string;
   servicePassword: string;
+  invoiceLiveCache?: Map<string, Record<string, unknown> | null>;
 }): Promise<Record<string, unknown> | null> {
   const cargoNumber = String(params.cargoNumber || "").trim();
   const customerInn = String(params.customerInn || "").trim();
@@ -283,11 +357,21 @@ async function fetchInvoiceForCargoFrom1c(params: {
   if (!cargoNumber || !customerInn || !serviceLogin || !servicePassword) return null;
 
   try {
-    const { items } = await fetchInvoicesByInn(customerInn, serviceLogin, servicePassword);
+    const listKey = `${INVOICE_LIST_CACHE_PREFIX}${customerInn}`;
+    const liveCache = params.invoiceLiveCache;
+    let items: unknown[] = [];
+    const cachedList = liveCache?.get(listKey) as { __invoiceList?: unknown[] } | null | undefined;
+    if (cachedList && Array.isArray(cachedList.__invoiceList)) {
+      items = cachedList.__invoiceList;
+    } else {
+      const fetched = await fetchInvoicesByInn(customerInn, serviceLogin, servicePassword);
+      items = fetched.items;
+      liveCache?.set(listKey, { __invoiceList: items } as Record<string, unknown>);
+    }
     const wantedKeys = new Set(cargoNumberLookupKeys(cargoNumber));
     for (const inv of items) {
       if (!inv || typeof inv !== "object") continue;
-      const record = inv as Record<string, unknown>;
+      const record = unwrapInvoiceRecord(inv as Record<string, unknown>);
       const linked = collectInvoiceLinkedCargoNumbers(record);
       const matches = linked.some((num) => cargoNumberLookupKeys(num).some((key) => wantedKeys.has(key)));
       if (matches) return record;
@@ -332,6 +416,7 @@ export async function resolveCargoItemForPushTemplate(params: {
             customerInn,
             serviceLogin: login,
             servicePassword: password,
+            invoiceLiveCache: liveCache,
           });
           liveCache?.set(liveKey, liveInvoice);
         }
