@@ -54,8 +54,13 @@ if [[ "$fail" -ne 0 ]]; then
   exit 1
 fi
 
-echo
-echo "ok — клиент: https://chat.haulz.space"
-echo "ok — админ:  https://admin.chat.haulz.space"
-echo "ok — MXID:   @имя:chat.haulz.space"
-echo "homeserver в Element X: chat.haulz.space"
+if [[ -f /opt/haulz/ess-config-values/turn.yaml ]]; then
+  echo "==> TURN values: /opt/haulz/ess-config-values/turn.yaml"
+else
+  echo "WARN: нет turn.yaml — 1:1 звонки Element без coturn. bash deploy/ess-community/install-coturn.sh"
+fi
+if ss -ulpn 2>/dev/null | grep -q ':3478'; then
+  echo "ok — coturn слушает UDP 3478"
+else
+  echo "WARN: UDP 3478 не слушается (coturn?)"
+fi
