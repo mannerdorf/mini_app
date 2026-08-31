@@ -15,6 +15,13 @@ const LAST_MILE_RECORD_KEYS = [
   "data",
   "items",
   "Items",
+  "LastMile",
+  "lastMile",
+  "Lastmile",
+  "LM",
+  "Expedition",
+  "Expeditor",
+  "Экспедиция",
 ] as const;
 
 const AUTO_REG_KEYS = [
@@ -28,13 +35,12 @@ const AUTO_REG_KEYS = [
   "АвтомобильCMRНаименование",
 ] as const;
 
+/** Марка ТС последней мили. TypeOfTransit/TypeOfTranzit — вид перевозки (Авто/ЖД), не марка. */
 const AUTO_TYPE_KEYS = [
   "LMAutoType",
   "lmAutoType",
   "AutoType",
   "autoType",
-  "TypeOfTransit",
-  "TypeOfTranzit",
   "ТипТС",
   "Марка",
 ] as const;
@@ -52,6 +58,11 @@ const DRIVER_KEYS = [
   "Экспедитор",
   "Водитель",
   "ВодительФИО",
+  "ВодительCMR",
+  "ВодительCMRНаименование",
+  "FIO",
+  "Fio",
+  "ФИО",
 ] as const;
 
 const DRIVER_TEL_KEYS = [
@@ -65,7 +76,9 @@ const DRIVER_TEL_KEYS = [
   "ExpeditorPhone",
   "ТелефонВодителя",
   "ТелефонЭкспедитора",
-  "Телефон",
+  "ТелефонВодителяCMR",
+  "Phone",
+  "Tel",
 ] as const;
 
 export function plateWithoutRegion(raw: unknown): string {
@@ -77,23 +90,47 @@ export function plateWithoutRegion(raw: unknown): string {
 
 function isNonEmptyValue(value: unknown): boolean {
   if (value === undefined || value === null) return false;
+  if (typeof value === "object") return false;
   return String(value).trim() !== "";
+}
+
+function looksLikeTimelineRow(row: Record<string, unknown>): boolean {
+  const stage = String(row.Stage ?? row.stage ?? row.Status ?? row.status ?? "").trim();
+  const date = String(row.Date ?? row.date ?? "").trim();
+  if (!stage || !date) return false;
+  return !isNonEmptyValue(row.LMDriver) && !isNonEmptyValue(row.LMAutoReg) && !isNonEmptyValue(row.Driver) && !isNonEmptyValue(row.AutoReg);
+}
+
+function looksLikeNomenclatureRow(row: Record<string, unknown>): boolean {
+  return Boolean(
+    row.SKU ?? row.sku ?? row.Package ?? row.package ?? row.Quantity ?? row.Номенклатура ?? row.Штрихкод,
+  );
+}
+
+function pushCandidate(out: Record<string, unknown>[], nested: unknown): void {
+  if (Array.isArray(nested)) {
+    for (const row of nested) {
+      if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+      const rec = row as Record<string, unknown>;
+      if (looksLikeTimelineRow(rec) || looksLikeNomenclatureRow(rec)) continue;
+      out.push(rec);
+    }
+    return;
+  }
+  if (nested && typeof nested === "object") {
+    out.push(nested as Record<string, unknown>);
+  }
 }
 
 function cargoRecordCandidates(item: Record<string, unknown> | null | undefined): Record<string, unknown>[] {
   if (!item || typeof item !== "object") return [{}];
   const out: Record<string, unknown>[] = [item];
   for (const key of LAST_MILE_RECORD_KEYS) {
+    pushCandidate(out, item[key]);
+  }
+  for (const key of ["Driver", "Expeditor", "Экспедитор", "Водитель"] as const) {
     const nested = item[key];
-    if (Array.isArray(nested)) {
-      for (const row of nested) {
-        if (row && typeof row === "object" && !Array.isArray(row)) out.push(row as Record<string, unknown>);
-      }
-      continue;
-    }
-    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
-      out.push(nested as Record<string, unknown>);
-    }
+    if (nested && typeof nested === "object") pushCandidate(out, nested);
   }
   return out;
 }
@@ -120,7 +157,22 @@ export function extractCargoLastMileMeta(item: Record<string, unknown> | null | 
   };
 }
 
+/** Есть реальные поля экспедитора/авто, а не TypeOfTransit «Авто» из списка GetPerevozki. */
 export function hasCargoLastMileMeta(item: Record<string, unknown> | null | undefined): boolean {
   const meta = extractCargoLastMileMeta(item);
-  return Boolean(meta.autoReg || meta.autoType || meta.driver || meta.driverTel);
+  return Boolean(meta.autoReg || meta.driver);
+}
+
+/** Overlay с LM*-полями для merge в шаблон пуша. */
+export function lastMileFieldsForPushMerge(item: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  const meta = extractCargoLastMileMeta(item);
+  const out: Record<string, unknown> = {};
+  if (meta.autoReg) {
+    out.LMAutoReg = meta.autoReg;
+    out.AutoReg = meta.autoReg;
+  }
+  if (meta.autoType) out.LMAutoType = meta.autoType;
+  if (meta.driver) out.LMDriver = meta.driver;
+  if (meta.driverTel) out.LMDriverTel = meta.driverTel;
+  return out;
 }

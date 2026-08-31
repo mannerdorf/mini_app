@@ -50,6 +50,16 @@ describe("shouldFetchPerevozkaLastMileForPush", () => {
       }),
     ).toBe(false);
   });
+
+  it("still fetches when GetPerevozki only has TypeOfTransit", () => {
+    expect(
+      shouldFetchPerevozkaLastMileForPush("delivery_scheduled", {
+        Number: "000141572",
+        TypeOfTransit: "Авто",
+        TypeOfTranzit: "Авто",
+      }),
+    ).toBe(true);
+  });
 });
 
 describe("enrichBillItemForPushTemplate", () => {

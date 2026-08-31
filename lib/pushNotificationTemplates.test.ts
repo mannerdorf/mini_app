@@ -116,6 +116,50 @@ describe("buildPushTemplateContext", () => {
     expect(ctx.driver_tel).toBe("+79953889445");
   });
 
+  it("fills last-mile placeholders from AutoReg/Driver after GetPerevozka-shaped overlay", () => {
+    const ctx = buildPushTemplateContext("delivery_scheduled", "000141572", {
+      Number: "000141572",
+      TypeOfTransit: "Авто",
+      ...{
+        LMDriver: "Ругалев Иван Федорович",
+        LMDriverTel: "+79953889445",
+        LMAutoType: "Мерседес",
+        LMAutoReg: "У706АР",
+      },
+    });
+    const result = formatPushNotificationMessage(
+      "delivery_scheduled",
+      "000141572",
+      {
+        Number: "000141572",
+        TypeOfTransit: "Авто",
+        LMDriver: "Ругалев Иван Федорович",
+        LMDriverTel: "+79953889445",
+        LMAutoType: "Мерседес",
+        LMAutoReg: "У706АР",
+      },
+      new Map([
+        [
+          "delivery_scheduled",
+          {
+            titleTemplate: "HAULZ",
+            bodyTemplate:
+              "{stage_label}. Перевозка № {cargo_number}\nЭкспедитор: {driver}, {driver_tel}\nАвто: {auto_type} {auto_reg}",
+            enabled: true,
+            updatedAt: null,
+            updatedBy: null,
+          },
+        ],
+      ]) as never,
+    );
+    expect(ctx.driver).toBe("Ругалев Иван Федорович");
+    expect(result.body).toContain("Ругалев Иван Федорович");
+    expect(result.body).toContain("У706АР");
+    expect(result.body).toContain("Мерседес");
+    expect(result.body).not.toContain("{driver}");
+    expect(result.body).not.toContain("{auto_reg}");
+  });
+
   it("includes plan_date", () => {
     const ctx = buildPushTemplateContext("planned_delivery_date", "1", {
       DateArrivalPlan: "2026-08-28",

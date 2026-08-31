@@ -1,6 +1,6 @@
 import { cargoNumberLookupKeys, notificationCargoNumber } from "./notificationCargoOwnerInn.js";
 import { normalizeCargoNumberForLookup } from "./documentCacheNormalized.js";
-import { hasCargoLastMileMeta } from "./cargoLastMileMeta.js";
+import { hasCargoLastMileMeta, lastMileFieldsForPushMerge } from "./cargoLastMileMeta.js";
 import { fetchPerevozkaRecordForPush } from "./fetchPerevozkaLastMile.js";
 import { fetchInvoicesByInn, hasRealBillNumber } from "./notificationPoll.js";
 import { normalizeNotificationInn } from "./notificationInnScope.js";
@@ -449,6 +449,6 @@ export async function resolveCargoItemForPushTemplate(params: {
     servicePassword: password,
   });
   if (cache) cache.set(cacheKey, detail);
-  if (detail) merged = mergeCargoItemForPushTemplate(merged, detail);
+  if (detail) merged = mergeCargoItemForPushTemplate(merged, lastMileFieldsForPushMerge(detail), detail);
   return merged;
 }

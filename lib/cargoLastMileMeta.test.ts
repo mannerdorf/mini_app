@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { extractCargoLastMileMeta, plateWithoutRegion } from "./cargoLastMileMeta.js";
+import {
+  extractCargoLastMileMeta,
+  hasCargoLastMileMeta,
+  lastMileFieldsForPushMerge,
+  plateWithoutRegion,
+} from "./cargoLastMileMeta.js";
 
 describe("plateWithoutRegion", () => {
   it("strips region after slash", () => {
@@ -49,5 +54,48 @@ describe("extractCargoLastMileMeta", () => {
     expect(meta.driverTel).toBe("+79991112233");
     expect(meta.autoReg).toBe("X123XX");
     expect(meta.autoType).toBe("Ford");
+  });
+
+  it("does not treat TypeOfTransit as last-mile vehicle", () => {
+    const meta = extractCargoLastMileMeta({
+      Number: "000141572",
+      TypeOfTransit: "Авто",
+      TypeOfTranzit: "Авто",
+    });
+    expect(meta.autoType).toBe("");
+    expect(meta.autoReg).toBe("");
+    expect(meta.driver).toBe("");
+    expect(hasCargoLastMileMeta({ Number: "000141572", TypeOfTransit: "Авто" })).toBe(false);
+  });
+
+  it("reads nested LastMile object", () => {
+    const meta = extractCargoLastMileMeta({
+      Number: "000141572",
+      TypeOfTransit: "Авто",
+      LastMile: {
+        Driver: "Сидоров",
+        DriverTel: "+79990001122",
+        AutoReg: "У706АР/39",
+        AutoType: "Мерседес",
+      },
+    });
+    expect(meta.driver).toBe("Сидоров");
+    expect(meta.driverTel).toBe("+79990001122");
+    expect(meta.autoReg).toBe("У706АР");
+    expect(meta.autoType).toBe("Мерседес");
+    expect(hasCargoLastMileMeta({ LastMile: { Driver: "Сидоров", AutoReg: "У706АР/39" } })).toBe(true);
+  });
+
+  it("maps overlay LM fields for push merge", () => {
+    const fields = lastMileFieldsForPushMerge({
+      Driver: "Иванов",
+      AutoReg: "A111AA/39",
+      AutoType: "Газель",
+      DriverTel: "+7999",
+    });
+    expect(fields.LMDriver).toBe("Иванов");
+    expect(fields.LMAutoReg).toBe("A111AA");
+    expect(fields.LMAutoType).toBe("Газель");
+    expect(fields.LMDriverTel).toBe("+7999");
   });
 });
