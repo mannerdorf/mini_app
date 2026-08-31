@@ -38,8 +38,10 @@ MXID: `@имя:chat.haulz.space`. **Server name нельзя сменить** б
 В файрволе Timeweb открыть:
 
 - TCP `22`, `80`, `443`
-- TCP `30001` (WebRTC)
-- UDP `30002` (WebRTC)
+- TCP `30001` (WebRTC / MatrixRTC)
+- UDP `30002` (WebRTC / MatrixRTC)
+- TCP **и** UDP `3478` (coturn TURN, 1:1 звонки Element)
+- UDP `49152-49300` (реле coturn)
 
 SSH-ключ тот же, что на остальных HAULZ VPS.
 
@@ -126,12 +128,15 @@ Values на сервере: `/opt/haulz/ess-config-values/`. После прав
 
 ```bash
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+TURN_F=""
+[[ -f /opt/haulz/ess-config-values/turn.yaml ]] && TURN_F="-f /opt/haulz/ess-config-values/turn.yaml"
 helm upgrade --install --namespace ess ess \
   oci://ghcr.io/element-hq/ess-helm/matrix-stack \
   --version 26.8.1 \
   -f /opt/haulz/ess-config-values/hostnames.yaml \
   -f /opt/haulz/ess-config-values/tls.yaml \
   -f /opt/haulz/ess-config-values/extra.yaml \
+  $TURN_F \
   --timeout 25m --wait
 ```
 
@@ -142,6 +147,26 @@ k3s kubectl get pvc -n ess
 ```
 
 Снести всё: см. [uninstall в ess-helm](https://github.com/element-hq/ess-helm#uninstalling) + `/usr/local/bin/k3s-uninstall.sh`.
+
+## Звонки 1:1 (TURN)
+
+Element на телефоне без TURN показывает: *«Попросите администратора … matrix.chat.haulz.space настроить сервер TURN»*.  
+Кнопка **turn.matrix.org** — временный обход: чужой сервер видит IP, из РФ часто не работает.
+
+На ESS VPS (`200.169.177.129`):
+
+```bash
+cd /opt/haulz/app
+git fetch origin
+git checkout -B cursor/ess-turn-fd2d origin/cursor/ess-turn-fd2d
+bash deploy/ess-community/install-coturn.sh
+```
+
+Скрипт ставит **coturn** на хост, пишет секрет в `/opt/haulz/ess-config-values/` (не в git) и делает `helm upgrade` Synapse с `turn_uris` на `turn.chat.haulz.space` (покрывается `*.chat`).
+
+В **Timeweb → Security Group** этой машины откройте TCP/UDP **3478** и UDP **49152–49300**. ufw скрипт откроет сам; облачный фаервол — вручную.
+
+После установки в Element: выйти из аккаунта и войти снова. Не жмите Delete у ключей.
 
 ## Если не стартует
 
