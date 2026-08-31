@@ -223,6 +223,94 @@ export function monthKeyFromParts(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
+export type TimesheetEmployeeRef = {
+  employeeId: number;
+  fullName: string;
+  department: string;
+  accrualType: "hour" | "shift" | "month";
+  accrualRate: number;
+};
+
+/** Стоимость одного дня табеля для сотрудника (начисление за день). */
+export function computeTimesheetEmployeeDayCost(
+  employee: TimesheetEmployeeRef,
+  entryValue: string,
+  shiftRateOverride?: number,
+): number {
+  const hasShiftMarks = normalizeDashboardShiftMark(entryValue) !== "";
+  const hasNumericHours = parseDashboardHoursValue(entryValue) > 0;
+  const resolvedAccrualType: "hour" | "shift" | "month" =
+    employee.accrualType === "month"
+      ? "month"
+      : employee.accrualType === "shift" || (hasShiftMarks && !hasNumericHours)
+        ? "shift"
+        : "hour";
+
+  if (resolvedAccrualType === "shift" || resolvedAccrualType === "month") {
+    if (normalizeDashboardShiftMark(entryValue) !== "Я") return 0;
+    const overrideRate = Number(shiftRateOverride);
+    const baseRate = Number(employee.accrualRate || 0);
+    return resolvedAccrualType === "month" ? baseRate / 21 : Number.isFinite(overrideRate) ? overrideRate : baseRate;
+  }
+  const hours = parseDashboardHoursValue(entryValue);
+  return hours * Number(employee.accrualRate || 0);
+}
+
+export type TimesheetDailyAccrualIndex = {
+  employees: TimesheetEmployeeRef[];
+  byEmployeeDay: Map<string, number>;
+  byEmployeeMonth: Map<number, number>;
+};
+
+/** Индекс начислений табеля по сотрудникам и дням. */
+export function buildTimesheetDailyAccrualIndex(data: {
+  employees?: unknown[];
+  entries?: Record<string, string>;
+  shiftRateOverrides?: Record<string, number>;
+}): TimesheetDailyAccrualIndex {
+  const employees = (Array.isArray(data?.employees) ? data.employees : [])
+    .map((row: any) => ({
+      employeeId: Number(row?.id || 0),
+      fullName: String(row?.fullName || row?.login || "").trim(),
+      department: String(row?.department || "").trim(),
+      accrualType: normalizeDashboardAccrualType(row?.accrualType),
+      accrualRate: Number(row?.accrualRate || 0),
+    }))
+    .filter((x) => Number.isFinite(x.employeeId) && x.employeeId > 0);
+
+  const entriesRaw = data?.entries && typeof data.entries === "object" ? (data.entries as Record<string, string>) : {};
+  const shiftRateOverridesRaw =
+    data?.shiftRateOverrides && typeof data.shiftRateOverrides === "object"
+      ? (data.shiftRateOverrides as Record<string, number>)
+      : {};
+
+  const byEmployeeDay = new Map<string, number>();
+  const byEmployeeMonth = new Map<number, number>();
+
+  for (const employee of employees) {
+    let monthTotal = 0;
+    for (const [entryKey, entryValue] of Object.entries(entriesRaw)) {
+      const match = /^(\d+)__(\d{4}-\d{2}-\d{2})$/.exec(entryKey);
+      if (!match) continue;
+      const employeeId = Number(match[1]);
+      if (employeeId !== employee.employeeId) continue;
+      const dateIso = match[2];
+      const override = Number(shiftRateOverridesRaw[entryKey]);
+      const dayCost = computeTimesheetEmployeeDayCost(
+        employee,
+        String(entryValue || ""),
+        Number.isFinite(override) ? override : undefined,
+      );
+      if (dayCost <= 0) continue;
+      byEmployeeDay.set(`${employeeId}__${dateIso}`, dayCost);
+      monthTotal += dayCost;
+    }
+    byEmployeeMonth.set(employee.employeeId, Number(monthTotal.toFixed(2)));
+  }
+
+  return { employees, byEmployeeDay, byEmployeeMonth };
+}
+
 /** Текущий календарный месяц — ещё не завершён (данные частичные). */
 export function isCurrentIncompleteMonth(year: number, month: number, now: Date = new Date()): boolean {
   return year === now.getFullYear() && month === now.getMonth() + 1;
