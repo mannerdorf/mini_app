@@ -13,6 +13,7 @@ import { formatPerevozkaNumberForApi } from "../../../lib/perevozkaNumber";
 import { getInvoiceEdoInfoByDocLabel } from "../../../lib/edoStatus";
 import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
 import { decodeBase64Payload } from "../../../utils";
+import { buildDownloadRequestBody } from "../../../lib/downloadRequestBody";
 import type { AuthData } from "../../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД"] as const;
@@ -115,13 +116,12 @@ export function ActDetailModal({
             const res = await fetch(PROXY_API_DOWNLOAD_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    login: auth.login,
-                    password: auth.password,
-                    metod,
-                    number: isInvoiceDoc ? cargoNumber : formatPerevozkaNumberForApi(cargoNumber),
-                    ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
-                }),
+                body: JSON.stringify(
+                    buildDownloadRequestBody(auth, {
+                        metod,
+                        number: isInvoiceDoc ? cargoNumber : formatPerevozkaNumberForApi(cargoNumber),
+                    }),
+                ),
             });
             if (!res.ok) {
                 let msg =

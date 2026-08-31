@@ -17,6 +17,7 @@ import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
 import { InvoicePaymentQrBlock } from "./InvoicePaymentQrBlock";
 import { EntityDetailModalHeader } from "../../../components/modals/EntityDetailModalHeader";
 import { decodeBase64Payload } from "../../../utils";
+import { buildDownloadRequestBody } from "../../../lib/downloadRequestBody";
 import type { AuthData } from "../../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД", "Реестр"] as const;
@@ -133,13 +134,10 @@ export function InvoiceDetailModal({
         setDownloadError(null);
         try {
             const apiNumber = isReestr || isInvoiceDoc ? numberToUse : formatPerevozkaNumberForApi(numberToUse);
-            const body: Record<string, unknown> = {
-                login: auth.login,
-                password: auth.password,
+            const body: Record<string, unknown> = buildDownloadRequestBody(auth, {
                 metod,
                 number: apiNumber,
-                ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
-            };
+            });
             if (isReestr) {
                 body.dateDoc = formatDateDocForApi(dateDoc);
             }

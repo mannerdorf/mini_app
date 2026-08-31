@@ -10,6 +10,7 @@ import { PLANNED_TERMINAL_ARRIVAL_LABEL } from "../../constants/plannedArrivalLa
 import { formatCurrency, stripOoo, cityToCode, transliterateFilename, formatInvoiceNumber } from "../../lib/formatUtils";
 import { formatPerevozkaNumberForApi } from "../../lib/perevozkaNumber";
 import { decodeBase64Payload } from "../../utils";
+import { buildDownloadRequestBody } from "../../lib/downloadRequestBody";
 import { normalizeStatus, getFilterKeyByStatus, getSumColorByPaymentStatus } from "../../lib/statusUtils";
 import { formatDate } from "../../lib/dateUtils";
 import { getPlanDays, getCargoDisplayRoleLabel, getCargoRoleSet, cargoLastMileIsSelfPickup } from "../../lib/cargoUtils";
@@ -189,13 +190,12 @@ export function CargoDetailsModal({
             const res = await fetch(PROXY_API_DOWNLOAD_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    login: auth.login,
-                    password: auth.password,
-                    metod,
-                    number: formatPerevozkaNumberForApi(item.Number),
-                    ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
-                }),
+                body: JSON.stringify(
+                    buildDownloadRequestBody(auth, {
+                        metod,
+                        number: formatPerevozkaNumberForApi(item.Number),
+                    }),
+                ),
             });
             if (!res.ok) {
                 let message =
@@ -206,8 +206,10 @@ export function CargoDetailsModal({
                             : "Не удалось получить документ";
                 try {
                     const errData = await res.json();
-                    if (errData?.message && res.status !== 404 && res.status < 500) {
+                    if (errData?.message) {
                         message = String(errData.message);
+                    } else if (errData?.error) {
+                        message = String(errData.error);
                     }
                 } catch {
                     // ignore

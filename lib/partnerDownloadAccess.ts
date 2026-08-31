@@ -5,6 +5,35 @@ import type { VerifiedRegisteredUser } from "./verifyRegisteredUser.js";
 
 const CARGO_DOC_METODS = new Set(["ЭР", "АПП", "Счет", "Акт", "Счёт"]);
 
+async function registeredUserAllowedInns(
+  pool: Pool,
+  verified: VerifiedRegisteredUser,
+  login: string,
+): Promise<Set<string> | null> {
+  if (verified.accessAllInns) return null;
+  const acRows = await pool.query<{ inn: string }>(
+    "SELECT inn FROM account_companies WHERE login = $1",
+    [String(login).trim().toLowerCase()],
+  );
+  const allowed = new Set<string>(
+    acRows.rows.map((r) => canonInnForApiKey(r.inn)).filter(Boolean) as string[],
+  );
+  if (verified.inn) allowed.add(canonInnForApiKey(verified.inn));
+  return allowed;
+}
+
+function cargoInnAllowed(
+  itemInn: string,
+  allowedInns: Set<string> | null,
+  filterInn: string | null,
+): boolean {
+  if (filterInn) return itemInn === filterInn;
+  if (allowedInns === null) return true;
+  if (!itemInn) return true;
+  if (allowedInns.size === 0) return true;
+  return allowedInns.has(itemInn);
+}
+
 function invoiceNumbersMatch(a: string, b: string): boolean {
   const left = String(a ?? "").trim();
   const right = String(b ?? "").trim();
@@ -79,6 +108,7 @@ export async function assertPartnerDownloadCargoAccess(
   pool: Pool,
   verified: VerifiedRegisteredUser,
   keyAllowedInnsCanon: string[] | null,
+  login: string,
   metod: string,
   number: string,
   bodyInn?: unknown,
@@ -102,6 +132,7 @@ export async function assertPartnerDownloadCargoAccess(
   const data = cacheRow.rows[0].data as unknown[];
   const list = Array.isArray(data) ? data : [];
   type CargoRow = { Number?: unknown; number?: unknown; INN?: unknown; Inn?: unknown; inn?: unknown };
+  const allowedInns = await registeredUserAllowedInns(pool, verified, login);
   const item = list.find((i): i is CargoRow => {
     if (!i || typeof i !== "object") return false;
     const rec = i as CargoRow;
@@ -110,10 +141,7 @@ export async function assertPartnerDownloadCargoAccess(
     if (keyAllowedInnsCanon && keyAllowedInnsCanon.length > 0) {
       return itemInn ? keyAllowedInnsCanon.includes(itemInn) : false;
     }
-    if (filterInn) return itemInn === filterInn;
-    if (verified.accessAllInns) return true;
-    const userInn = verified.inn ? canonInnForApiKey(verified.inn) : "";
-    return itemInn === userInn;
+    return cargoInnAllowed(itemInn, allowedInns, filterInn);
   });
 
   if (!item) {

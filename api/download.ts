@@ -7,9 +7,9 @@ import {
   cleanTransportNumberInput,
   normalizeWbPerevozkaHaulzDigits,
   stripToTransportDigits,
-  transportAccessKeysMatch,
 } from "./lib/wbPerevozkaDigits.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { assertRegisteredUserDownloadAccess } from "../lib/registeredUserDownloadAccess.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
 const EXTERNAL_API_BASE_URL =
@@ -177,51 +177,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const isWbAppMethod = metod === "АПП";
 
-    // Зарегистрированные (CMS) пользователи: проверяем доступ к перевозке, затем запрашиваем файл сервисным аккаунтом
-    // РеестрКсчету использует номер счёта — проверка cache_perevozki не применима.
-    // АПП в WB идёт как в Postman (Auth: Info@haulz...) без локальной проверки cache_perevozki.
-    if (isRegisteredUser && metod !== "РеестрКсчету" && !isWbAppMethod) {
+    // CMS-пользователи: verify + доступ (счёт → cache_invoices, перевозка → cache_perevozki). АПП — только verify.
+    if (isRegisteredUser) {
       try {
         const pool = getPool();
         const verified = await verifyRegisteredUser(pool, String(login), String(password));
         if (!verified) {
           return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
         }
-        const cacheRow = await pool.query<{ data: unknown[] }>(
-          "SELECT data FROM cache_perevozki WHERE id = 1"
-        );
-        if (cacheRow.rows.length > 0) {
-          const data = cacheRow.rows[0].data as any[];
-          const list = Array.isArray(data) ? data : [];
-          const item = list.find((i: any) => {
-            if (!transportAccessKeysMatch(i?.Number ?? i?.number ?? "", String(number))) return false;
-            if (verified.accessAllInns) return true;
-            const itemInn = String(i?.INN ?? i?.Inn ?? i?.inn ?? "").trim();
-            if (!itemInn) return true;
-            return itemInn === (verified.inn ?? "");
-          });
-          if (!item) {
-            return res.status(404).json({ error: "Перевозка не найдена или нет доступа", request_id: ctx.requestId });
+        if (!isWbAppMethod) {
+          const access = await assertRegisteredUserDownloadAccess(
+            pool,
+            verified,
+            String(login),
+            metod,
+            String(number),
+            inn,
+          );
+          if (!access.ok) {
+            return res.status(access.status).json({ error: access.error, request_id: ctx.requestId });
           }
-        }
-        const serviceLogin = process.env.PEREVOZKI_SERVICE_LOGIN;
-        const servicePassword = process.env.PEREVOZKI_SERVICE_PASSWORD;
-        if (serviceLogin && servicePassword) {
-          login = serviceLogin;
-          password = servicePassword;
-        }
-      } catch (e: any) {
-        logError(ctx, "download_registered_user_failed", e);
-        return res.status(500).json({ error: "Ошибка запроса", message: e?.message, request_id: ctx.requestId });
-      }
-    }
-    // РеестрКсчету: после verify пользователя переключаемся на сервисные креды
-    if (isRegisteredUser && metod === "РеестрКсчету") {
-      try {
-        const pool = getPool();
-        const verified = await verifyRegisteredUser(pool, String(login), String(password));
-        if (!verified) {
-          return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
         }
         const serviceLogin = process.env.PEREVOZKI_SERVICE_LOGIN;
         const servicePassword = process.env.PEREVOZKI_SERVICE_PASSWORD;
