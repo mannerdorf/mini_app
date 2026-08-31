@@ -14,6 +14,7 @@ import { getInvoiceEdoInfoByDocLabel } from "../../../lib/edoStatus";
 import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
 import { decodeBase64Payload } from "../../../utils";
 import { buildDownloadRequestBody } from "../../../lib/downloadRequestBody";
+import { saveBlobFile } from "../../../lib/saveBlobFile";
 import type { AuthData } from "../../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД"] as const;
@@ -147,14 +148,7 @@ export function ActDetailModal({
             const byteArray = decodeBase64Payload(data.data);
             const blob = new Blob([byteArray], { type: "application/pdf" });
             const fileName = transliterateFilename(data.name || `${label}_${cargoNumber}.pdf`);
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            await saveBlobFile(blob, fileName);
         } catch (e: any) {
             setDownloadError(e?.message ?? "Ошибка загрузки");
         } finally {

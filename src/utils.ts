@@ -232,12 +232,8 @@ export async function downloadBase64File(payload: {
 
     const mime = isHtmlFile ? "text/html;charset=utf-8" : "application/pdf";
     const blob = new Blob([bytes], { type: mime });
-    const href = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = href;
-    a.download = String(name);
-    a.click();
-    URL.revokeObjectURL(href);
+    const { saveBlobFile } = await import("./lib/saveBlobFile");
+    await saveBlobFile(blob, String(name));
 }
 
 /** Декодирование base64url в Uint8Array (для Web Push VAPID key) */

@@ -11,6 +11,7 @@ import { formatCurrency, stripOoo, cityToCode, transliterateFilename, formatInvo
 import { formatPerevozkaNumberForApi } from "../../lib/perevozkaNumber";
 import { decodeBase64Payload } from "../../utils";
 import { buildDownloadRequestBody } from "../../lib/downloadRequestBody";
+import { saveBlobFile, supportsInlinePdfPreview } from "../../lib/saveBlobFile";
 import { normalizeStatus, getFilterKeyByStatus, getSumColorByPaymentStatus } from "../../lib/statusUtils";
 import { formatDate } from "../../lib/dateUtils";
 import { getPlanDays, getCargoDisplayRoleLabel, getCargoRoleSet, cargoLastMileIsSelfPickup } from "../../lib/cargoUtils";
@@ -170,15 +171,8 @@ export function CargoDetailsModal({
     };
     const plannedDeliveryDate = normalizePlannedDeliveryDate((item as any).DateArrival);
 
-    const downloadFile = (blob: Blob, fileName: string) => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+    const downloadFile = async (blob: Blob, fileName: string) => {
+        await saveBlobFile(blob, fileName);
     };
 
     const handleDownload = async (docType: string) => {
@@ -224,17 +218,21 @@ export function CargoDetailsModal({
             const blob = new Blob([byteArray], { type: "application/pdf" });
             const fileName = data.name || `${docType}_${item.Number}.pdf`;
             const fileNameTranslit = transliterateFilename(fileName);
-            const url = URL.createObjectURL(blob);
-            setPdfViewer({
-                url,
-                name: fileNameTranslit,
-                docType,
-                blob,
-                downloadFileName: fileNameTranslit,
-            });
-            setTimeout(() => {
-                downloadFile(blob, fileNameTranslit);
-            }, 350);
+            if (supportsInlinePdfPreview()) {
+                const url = URL.createObjectURL(blob);
+                setPdfViewer({
+                    url,
+                    name: fileNameTranslit,
+                    docType,
+                    blob,
+                    downloadFileName: fileNameTranslit,
+                });
+                setTimeout(() => {
+                    void downloadFile(blob, fileNameTranslit);
+                }, 350);
+            } else {
+                await downloadFile(blob, fileNameTranslit);
+            }
         } catch (e: any) {
             setDownloadError(e.message);
         } finally {
@@ -704,7 +702,7 @@ export function CargoDetailsModal({
                             <Typography.Label style={{ fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pdfViewer.name}</Typography.Label>
                             <Flex align="center" gap="0.25rem">
                                 {pdfViewer.blob && (
-                                    <Button size="small" onClick={() => downloadFile(pdfViewer.blob!, pdfViewer.downloadFileName || pdfViewer.name)} title="Скачать"><Download className="w-4 h-4" /></Button>
+                                    <Button size="small" onClick={() => void downloadFile(pdfViewer.blob!, pdfViewer.downloadFileName || pdfViewer.name)} title="Скачать"><Download className="w-4 h-4" /></Button>
                                 )}
                                 <Button size="small" onClick={() => { URL.revokeObjectURL(pdfViewer.url); setPdfViewer(null); }}><X size={16} /></Button>
                             </Flex>
