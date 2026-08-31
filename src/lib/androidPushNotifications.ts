@@ -4,6 +4,7 @@ import { saveNotificationPreferences, subscribeFcmToken, unsubscribeFcmToken } f
 import { buildAllPushPreferencesEnabled } from "../../lib/notificationEmailPrefs";
 import {
   NATIVE_FCM_TOKEN_STORAGE_KEY,
+  fcmRegistrationErrorMessage,
   nativeFcmUnsubscribePayload,
   parseStoredNativeFcmToken,
   serializeStoredNativeFcmToken,
@@ -14,6 +15,20 @@ export type NativePushPlatform = "ios" | "android";
 let listenersAttached = false;
 let currentLogin = "";
 let currentToken = "";
+let pendingEnable: {
+  resolve: (result: { ok: boolean; error?: string }) => void;
+  settled: boolean;
+} | null = null;
+
+const FCM_REGISTRATION_WAIT_MS = 20_000;
+
+function settleEnable(result: { ok: boolean; error?: string }) {
+  const pending = pendingEnable;
+  if (!pending || pending.settled) return;
+  pending.settled = true;
+  pendingEnable = null;
+  pending.resolve(result);
+}
 
 function readStoredToken(login: string): string {
   if (typeof localStorage === "undefined") return "";
@@ -48,6 +63,10 @@ function tokenForLogin(login: string): string {
   return readStoredToken(login);
 }
 
+export function hasStoredNativeFcmToken(login: string): boolean {
+  return Boolean(tokenForLogin(String(login || "").trim().toLowerCase()));
+}
+
 /** Capacitor platform for FCM subscribe. Unknown native platforms fall back to android. */
 export function fcmPlatformFromCapacitor(platform: string): NativePushPlatform {
   return platform === "ios" ? "ios" : "android";
@@ -80,7 +99,8 @@ async function persistToken(login: string, token: string) {
   currentLogin = login;
   currentToken = token;
   writeStoredToken(login, token, platform);
-  await subscribeFcmToken({ login, token, platform });
+  const { ok } = await subscribeFcmToken({ login, token, platform });
+  if (!ok) throw new Error("Не удалось сохранить FCM-токен на сервере.");
 }
 
 export async function enableNativePushNotifications(login: string): Promise<{ ok: boolean; error?: string }> {
@@ -102,10 +122,17 @@ export async function enableNativePushNotifications(login: string): Promise<{ ok
 
     if (!listenersAttached) {
       await PushNotifications.addListener("registration", (token: Token) => {
-        void persistToken(currentLogin || normalizedLogin, token.value);
+        void persistToken(currentLogin || normalizedLogin, token.value)
+          .then(() => settleEnable({ ok: true }))
+          .catch((e: unknown) => {
+            settleEnable({
+              ok: false,
+              error: (e as { message?: string })?.message || "Не удалось сохранить FCM-токен на сервере.",
+            });
+          });
       });
-      await PushNotifications.addListener("registrationError", () => {
-        /* surfaced via enable call */
+      await PushNotifications.addListener("registrationError", (err: { error?: string }) => {
+        settleEnable({ ok: false, error: fcmRegistrationErrorMessage(err) });
       });
       await PushNotifications.addListener("pushNotificationReceived", (_notification: PushNotificationSchema) => {
         /* foreground: OS may still show depending on payload */
@@ -118,16 +145,28 @@ export async function enableNativePushNotifications(login: string): Promise<{ ok
     }
 
     currentLogin = normalizedLogin;
-    currentToken = tokenForLogin(normalizedLogin);
-    // Re-attach this device only. Never unsubscribe: a fresh WKWebView has no in-memory
-    // token, and logout-all would drop Android for the same login.
-    if (currentToken) {
-      void persistToken(normalizedLogin, currentToken);
+    const stored = tokenForLogin(normalizedLogin);
+    if (stored) {
+      try {
+        await persistToken(normalizedLogin, stored);
+        await PushNotifications.register();
+        return { ok: true };
+      } catch {
+        /* ask native for a fresh token */
+      }
     }
-    await PushNotifications.register();
 
-    // Token may arrive asynchronously via registration listener.
-    return { ok: true };
+    const wait = new Promise<{ ok: boolean; error?: string }>((resolve) => {
+      pendingEnable = { resolve, settled: false };
+      setTimeout(() => {
+        settleEnable({
+          ok: false,
+          error: fcmRegistrationErrorMessage(undefined),
+        });
+      }, FCM_REGISTRATION_WAIT_MS);
+    });
+    await PushNotifications.register();
+    return await wait;
   } catch (e: unknown) {
     return { ok: false, error: (e as { message?: string })?.message || "Не удалось включить push-уведомления." };
   }

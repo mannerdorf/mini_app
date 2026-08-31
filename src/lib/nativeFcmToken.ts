@@ -47,3 +47,9 @@ export function nativeFcmUnsubscribePayload(
   if (!normalizedLogin || !t) return null;
   return { login: normalizedLogin, token: t };
 }
+
+export function fcmRegistrationErrorMessage(err: { error?: string } | string | undefined): string {
+  const raw = typeof err === "string" ? err.trim() : String(err?.error || "").trim();
+  if (raw) return raw;
+  return "Не получен FCM-токен. На iOS нужен GoogleService-Info.plist в target App и ключ APNs в Firebase.";
+}

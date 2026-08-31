@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  fcmRegistrationErrorMessage,
   nativeFcmUnsubscribePayload,
   parseStoredNativeFcmToken,
   serializeStoredNativeFcmToken,
@@ -21,6 +22,18 @@ describe("nativeFcmUnsubscribePayload", () => {
 
   it("returns null without a login", () => {
     expect(nativeFcmUnsubscribePayload("", "ios-fcm")).toBeNull();
+  });
+});
+
+describe("fcmRegistrationErrorMessage", () => {
+  it("passes through the native Firebase/plist error", () => {
+    expect(
+      fcmRegistrationErrorMessage({ error: "GoogleService-Info.plist отсутствует — FCM на iOS не настроен." }),
+    ).toMatch(/GoogleService-Info/);
+  });
+
+  it("explains a missing token when native error is empty", () => {
+    expect(fcmRegistrationErrorMessage(undefined)).toMatch(/FCM-токен/);
   });
 });
 

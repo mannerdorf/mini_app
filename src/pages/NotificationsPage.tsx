@@ -10,6 +10,7 @@ import {
 import {
     disableNativePushNotifications,
     enableNativePushNotifications,
+    hasStoredNativeFcmToken,
     isNativePushEnvironment,
 } from "../lib/androidPushNotifications";
 import { CARGO_NOTIFICATION_STAGES, CARGO_STAGE_EVENT_IDS, isCargoStageNotificationEnabled, type CargoStageEventId } from "../../lib/notificationCargoEvents";
@@ -125,7 +126,11 @@ export function NotificationsPage({
                 if (isNativePush) {
                     const { PushNotifications } = await import("@capacitor/push-notifications");
                     const perm = await PushNotifications.checkPermissions();
-                    if (!cancelled) setPushEnabled(perm.receive === "granted");
+                    // OS permission is not a backend registration. Showing "enabled" here
+                    // made people tap Disable, which used to wipe the Android device.
+                    if (!cancelled) {
+                        setPushEnabled(perm.receive === "granted" && hasStoredNativeFcmToken(login));
+                    }
                 }
             } catch {
                 if (!cancelled) setPrefs({ push: {}, email: {} });
