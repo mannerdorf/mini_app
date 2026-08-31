@@ -2,9 +2,10 @@ import React, { useState } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { AdminFotDashboardSection } from "./AdminFotDashboardSection";
 import { AdminHaulzDispatchSection } from "./AdminHaulzDispatchSection";
+import { AdminLastMileReportSection } from "./AdminLastMileReportSection";
 import { AdminUserActivitySection } from "./AdminUserActivitySection";
 
-type AdminDashboardSubTab = "fot" | "haulz_dispatch" | "user_activity";
+type AdminDashboardSubTab = "fot" | "last_mile" | "haulz_dispatch" | "user_activity";
 
 export function AdminDashboardsPanel({ adminToken }: { adminToken: string }) {
   const [sub, setSub] = useState<AdminDashboardSubTab>("fot");
@@ -13,7 +14,7 @@ export function AdminDashboardsPanel({ adminToken }: { adminToken: string }) {
     <div style={{ maxWidth: 1200 }}>
       <Typography.Headline style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: "0.75rem" }}>Дашборды</Typography.Headline>
       <Typography.Body style={{ fontSize: "0.88rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
-        ФОТ по табелю (помесячно и по подразделениям), сводка выдачи грузов и активность пользователей. Доступно суперадминистратору CMS.
+        ФОТ по табелю (помесячно и по подразделениям), отчёт последней мили по ТС, сводка выдачи грузов и активность пользователей. Доступно суперадминистратору CMS.
       </Typography.Body>
 
       <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: "1rem" }}>
@@ -27,6 +28,17 @@ export function AdminDashboardsPanel({ adminToken }: { adminToken: string }) {
           onClick={() => setSub("fot")}
         >
           ФОТ
+        </Button>
+        <Button
+          type="button"
+          className="filter-button"
+          style={{
+            background: sub === "last_mile" ? "var(--color-primary-blue)" : undefined,
+            color: sub === "last_mile" ? "white" : undefined,
+          }}
+          onClick={() => setSub("last_mile")}
+        >
+          Последняя миля
         </Button>
         <Button
           type="button"
@@ -53,6 +65,7 @@ export function AdminDashboardsPanel({ adminToken }: { adminToken: string }) {
       </Flex>
 
       {sub === "fot" && <AdminFotDashboardSection adminToken={adminToken} />}
+      {sub === "last_mile" && <AdminLastMileReportSection adminToken={adminToken} />}
       {sub === "haulz_dispatch" && <AdminHaulzDispatchSection adminToken={adminToken} />}
       {sub === "user_activity" && <AdminUserActivitySection adminToken={adminToken} />}
     </div>
