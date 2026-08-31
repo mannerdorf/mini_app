@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { isReceivedInfoStatus } from "../lib/statusUtils";
 import type { AuthData } from "../types";
+import { aggregatePerevozkiFotMetrics, normalizePerevozkiList } from "../lib/perevozkiFotMetrics";
 import {
   buildTimesheetFotAnalytics,
   groupTimesheetFotByDepartment,
@@ -42,6 +42,7 @@ export function useTimesheetFotDashboard(args: UseTimesheetFotDashboardArgs) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paidWeight, setPaidWeight] = useState(0);
+  const [sales, setSales] = useState(0);
   const [analyticsData, setAnalyticsData] = useState<ReturnType<typeof buildTimesheetFotAnalytics> | null>(null);
 
   const mode = args.mode;
@@ -115,16 +116,13 @@ export function useTimesheetFotDashboard(args: UseTimesheetFotDashboardArgs) {
           }),
         });
         const data = await res.json().catch(() => ([]));
-        const list = Array.isArray(data) ? data : Array.isArray((data as any)?.items) ? (data as any).items : [];
-        const totalPw = list.reduce((acc: number, item: any) => {
-          if (isReceivedInfoStatus(item?.State)) return acc;
-          const pwRaw = item?.PW;
-          const pw = typeof pwRaw === "string" ? parseFloat(pwRaw) || 0 : Number(pwRaw || 0);
-          return acc + pw;
-        }, 0);
-        setPaidWeight(Number(totalPw.toFixed(2)));
+        const list = normalizePerevozkiList(data);
+        const metrics = aggregatePerevozkiFotMetrics(list);
+        setPaidWeight(metrics.paidWeight);
+        setSales(metrics.sales);
       } catch {
         setPaidWeight(0);
+        setSales(0);
       }
       return;
     }
@@ -144,16 +142,13 @@ export function useTimesheetFotDashboard(args: UseTimesheetFotDashboardArgs) {
         }),
       });
       const data = await res.json().catch(() => ([]));
-      const list = Array.isArray(data) ? data : Array.isArray((data as any)?.items) ? (data as any).items : [];
-      const totalPw = list.reduce((acc: number, item: any) => {
-        if (isReceivedInfoStatus(item?.State)) return acc;
-        const pwRaw = item?.PW;
-        const pw = typeof pwRaw === "string" ? parseFloat(pwRaw) || 0 : Number(pwRaw || 0);
-        return acc + pw;
-      }, 0);
-      setPaidWeight(Number(totalPw.toFixed(2)));
+      const list = normalizePerevozkiList(data);
+      const metrics = aggregatePerevozkiFotMetrics(list);
+      setPaidWeight(metrics.paidWeight);
+      setSales(metrics.sales);
     } catch {
       setPaidWeight(0);
+      setSales(0);
     }
   }, [enabled, mode, adminToken, auth?.login, auth?.password, auth?.inn, auth?.isRegisteredUser, useServiceRequest, dateRange.dateFrom, dateRange.dateTo]);
 
@@ -197,6 +192,7 @@ export function useTimesheetFotDashboard(args: UseTimesheetFotDashboardArgs) {
     loading,
     error,
     paidWeight,
+    sales,
     companySummary,
     costPerKg,
     byDepartment,

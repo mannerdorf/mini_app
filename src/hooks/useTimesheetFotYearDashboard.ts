@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { isReceivedInfoStatus } from "../lib/statusUtils";
 import * as dateUtils from "../lib/dateUtils";
+import { aggregatePerevozkiFotMetrics, normalizePerevozkiList } from "../lib/perevozkiFotMetrics";
 import {
   buildTimesheetFotAnalytics,
   groupTimesheetFotByDepartment,
@@ -17,6 +17,7 @@ export type FotMonthSnapshot = {
   totalPaid: number;
   totalOutstanding: number;
   paidWeight: number;
+  sales: number;
   costPerKg: number;
   byDepartment: TimesheetFotDepartmentRow[];
 };
@@ -53,13 +54,8 @@ async function fetchAdminMonthSnapshot(adminToken: string, year: number, month: 
   }
 
   const pwData = await pwRes.json().catch(() => ([]));
-  const list = Array.isArray(pwData) ? pwData : Array.isArray(pwData?.items) ? pwData.items : [];
-  const paidWeight = list.reduce((acc: number, item: any) => {
-    if (isReceivedInfoStatus(item?.State)) return acc;
-    const pwRaw = item?.PW;
-    const pw = typeof pwRaw === "string" ? parseFloat(pwRaw) || 0 : Number(pwRaw || 0);
-    return acc + pw;
-  }, 0);
+  const list = normalizePerevozkiList(pwData);
+  const { paidWeight, sales } = aggregatePerevozkiFotMetrics(list);
 
   const analytics = buildTimesheetFotAnalytics(timesheetData);
   const roundedPw = Number(paidWeight.toFixed(2));
@@ -72,6 +68,7 @@ async function fetchAdminMonthSnapshot(adminToken: string, year: number, month: 
     totalPaid: analytics.totalPaid,
     totalOutstanding: analytics.totalOutstanding,
     paidWeight: roundedPw,
+    sales: Number(sales.toFixed(2)),
     costPerKg: roundedPw > 0 ? analytics.totalCost / roundedPw : 0,
     byDepartment: groupTimesheetFotByDepartment(analytics, roundedPw),
   };
@@ -121,11 +118,13 @@ export function useTimesheetFotYearDashboard(adminToken: string, enabled = true)
     const totalPaid = monthSnapshots.reduce((acc, m) => acc + m.totalPaid, 0);
     const totalOutstanding = monthSnapshots.reduce((acc, m) => acc + m.totalOutstanding, 0);
     const paidWeight = monthSnapshots.reduce((acc, m) => acc + m.paidWeight, 0);
+    const sales = monthSnapshots.reduce((acc, m) => acc + m.sales, 0);
     return {
       totalCost,
       totalPaid,
       totalOutstanding,
       paidWeight,
+      sales,
       costPerKg: paidWeight > 0 ? totalCost / paidWeight : 0,
     };
   }, [monthSnapshots]);
@@ -136,6 +135,7 @@ export function useTimesheetFotYearDashboard(adminToken: string, enabled = true)
         name: m.monthLabel,
         month: m.month,
         fot: Math.round(m.totalCost),
+        sales: Math.round(m.sales),
         costPerKg: Number(m.costPerKg.toFixed(2)),
         paidWeight: Math.round(m.paidWeight),
       })),

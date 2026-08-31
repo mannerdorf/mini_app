@@ -93,6 +93,7 @@ function AdminFotMonthView({ adminToken }: { adminToken: string }) {
     error,
     companySummary,
     paidWeight,
+    sales,
     costPerKg,
     byDepartment,
   } = useTimesheetFotDashboard({ mode: "admin", adminToken });
@@ -153,7 +154,8 @@ function AdminFotMonthView({ adminToken }: { adminToken: string }) {
       </Typography.Body>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.5rem", marginBottom: "0.75rem" }}>
         <KpiTile label="ФОТ" value={`${Math.round(companySummary.totalMoney).toLocaleString("ru-RU")} ₽`} />
-        <KpiTile label="Платный вес" value={`${Math.round(paidWeight).toLocaleString("ru-RU")} кг`} />
+        <KpiTile label="Продажи" value={`${Math.round(sales).toLocaleString("ru-RU")} ₽`} accent="#059669" />
+        <KpiTile label="Платный вес" value={`${Math.round(paidWeight).toLocaleString("ru-RU")} кг`} accent="#7c3aed" />
         <KpiTile label="Стоимость на 1 кг" value={`${costPerKg.toFixed(2)} ₽/кг`} accent="#2563eb" />
         <KpiTile label="Выплаты" value={`${Math.round(companySummary.totalPaid).toLocaleString("ru-RU")} ₽`} accent="#065f46" />
         <KpiTile label="Остаток" value={`${Math.round(companySummary.totalOutstanding).toLocaleString("ru-RU")} ₽`} accent="#b45309" />
@@ -216,38 +218,63 @@ function AdminFotYearView({ adminToken }: { adminToken: string }) {
           ))}
         </select>
         <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>
-          {monthsInYear.length} мес. · платный вес {Math.round(yearSummary.paidWeight).toLocaleString("ru-RU")} кг
+          {monthsInYear.length} мес. · продажи {Math.round(yearSummary.sales).toLocaleString("ru-RU")} ₽ · платный вес{" "}
+          {Math.round(yearSummary.paidWeight).toLocaleString("ru-RU")} кг
         </Typography.Body>
       </Flex>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.5rem", marginBottom: "0.75rem" }}>
         <KpiTile label="ФОТ за год" value={`${Math.round(yearSummary.totalCost).toLocaleString("ru-RU")} ₽`} />
+        <KpiTile label="Продажи за год" value={`${Math.round(yearSummary.sales).toLocaleString("ru-RU")} ₽`} accent="#059669" />
+        <KpiTile label="Платный вес" value={`${Math.round(yearSummary.paidWeight).toLocaleString("ru-RU")} кг`} accent="#7c3aed" />
         <KpiTile label="Средняя стоимость на 1 кг" value={`${yearSummary.costPerKg.toFixed(2)} ₽/кг`} accent="#2563eb" />
         <KpiTile label="Выплаты за год" value={`${Math.round(yearSummary.totalPaid).toLocaleString("ru-RU")} ₽`} accent="#065f46" />
         <KpiTile label="Остаток за год" value={`${Math.round(yearSummary.totalOutstanding).toLocaleString("ru-RU")} ₽`} accent="#b45309" />
       </div>
 
       {chartData.length > 0 ? (
-        <div style={{ marginBottom: "1rem", height: 280 }}>
+        <div style={{ marginBottom: "1rem", height: 320 }}>
           <Typography.Body style={{ fontSize: "0.78rem", fontWeight: 600, marginBottom: "0.4rem" }}>
             Динамика по месяцам
           </Typography.Body>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+            <LineChart data={chartData} margin={{ top: 8, right: 56, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-              <YAxis yAxisId="fot" tick={{ fontSize: 11 }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
-              <YAxis yAxisId="kg" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v} ₽`} />
+              <YAxis
+                yAxisId="rub"
+                tick={{ fontSize: 11 }}
+                tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`}
+              />
+              <YAxis
+                yAxisId="pw"
+                orientation="right"
+                tick={{ fontSize: 11, fill: "#7c3aed" }}
+                tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`}
+                width={48}
+              />
+              <YAxis
+                yAxisId="rate"
+                orientation="right"
+                tick={{ fontSize: 11, fill: "#b45309" }}
+                tickFormatter={(v) => `${v} ₽`}
+                width={40}
+                dx={48}
+              />
               <Tooltip
                 formatter={(value: number, name: string) => {
                   if (name === "costPerKg") return [`${Number(value).toFixed(2)} ₽/кг`, "1 кг"];
                   if (name === "fot") return [`${Math.round(value).toLocaleString("ru-RU")} ₽`, "ФОТ"];
+                  if (name === "sales") return [`${Math.round(value).toLocaleString("ru-RU")} ₽`, "Продажи"];
+                  if (name === "paidWeight") return [`${Math.round(value).toLocaleString("ru-RU")} кг`, "Платный вес"];
                   return [value, name];
                 }}
               />
               <Legend />
-              <Line yAxisId="fot" type="monotone" dataKey="fot" name="ФОТ" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} />
-              <Line yAxisId="kg" type="monotone" dataKey="costPerKg" name="1 кг" stroke="#b45309" strokeWidth={2} dot={{ r: 3 }} />
+              <Line yAxisId="rub" type="monotone" dataKey="fot" name="ФОТ" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} />
+              <Line yAxisId="rub" type="monotone" dataKey="sales" name="Продажи" stroke="#059669" strokeWidth={2} dot={{ r: 3 }} />
+              <Line yAxisId="pw" type="monotone" dataKey="paidWeight" name="Платный вес" stroke="#7c3aed" strokeWidth={2} dot={{ r: 3 }} />
+              <Line yAxisId="rate" type="monotone" dataKey="costPerKg" name="1 кг" stroke="#b45309" strokeWidth={2} dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
