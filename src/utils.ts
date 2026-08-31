@@ -1,4 +1,7 @@
 import type { CustomerOption, CompanyRow } from "./types";
+import { decodeBase64Payload, normalizeBase64Payload } from "../lib/base64Document.js";
+
+export { decodeBase64Payload, normalizeBase64Payload };
 
 /** Читает ответ как JSON или текст по content-type */
 export async function readJsonOrText(res: Response): Promise<any> {
@@ -209,14 +212,12 @@ export async function downloadBase64File(payload: {
 }): Promise<void> {
     const { data, name = "document", isHtml, convertHtmlToPdf = true } = payload;
     const isHtmlFile = Boolean(isHtml) || /\.html?$/i.test(String(name));
-    let binary: string;
+    let bytes: Uint8Array;
     try {
-        binary = atob(String(data));
+        bytes = decodeBase64Payload(String(data));
     } catch {
         throw new Error("Не удалось расшифровать документ");
     }
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
 
     if (isHtmlFile && convertHtmlToPdf) {
         const htmlStr = new TextDecoder("utf-8").decode(bytes);

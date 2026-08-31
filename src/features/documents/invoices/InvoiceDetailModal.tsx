@@ -10,10 +10,13 @@ import { RouteBadge } from "../../../components/shared/CargoTableDisplay";
 import { invoiceDocSum } from "../../../../lib/invoiceAmounts.js";
 import { PROXY_API_DOWNLOAD_URL } from "../../../constants/config";
 import { DOCUMENT_METHODS } from "../../../documentMethods";
+import { getFirstCargoNumberFromInvoice, getCargoNumberFromInvoiceRow } from "../lib/documentsPipeline";
+import { formatPerevozkaNumberForApi } from "../../../lib/perevozkaNumber";
 import { getInvoiceEdoInfoByDocLabel } from "../../../lib/edoStatus";
 import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
 import { InvoicePaymentQrBlock } from "./InvoicePaymentQrBlock";
 import { EntityDetailModalHeader } from "../../../components/modals/EntityDetailModalHeader";
+import { decodeBase64Payload } from "../../../utils";
 import type { AuthData } from "../../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД", "Реестр"] as const;
@@ -31,26 +34,6 @@ type InvoiceDetailModalProps = {
     isFavorite?: boolean;
     onToggleFavorite?: () => void;
 };
-
-function getFirstCargoNumberFromInvoice(item: any): string | null {
-    const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(item?.List) ? item.List : [];
-    for (let i = 0; i < list.length; i++) {
-        const text = String(list[i]?.Operation ?? list[i]?.Name ?? "").trim();
-        if (!text) continue;
-        const parts = parseCargoNumbersFromText(text);
-        const cargo = parts.find((p) => p.type === "cargo");
-        if (cargo?.value) return cargo.value;
-    }
-    return null;
-}
-
-function getCargoNumberFromRow(row: { Operation?: string; Name?: string }): string | null {
-    const text = String(row?.Operation ?? row?.Name ?? "").trim();
-    if (!text) return null;
-    const parts = parseCargoNumbersFromText(text);
-    const cargo = parts.find((p) => p.type === "cargo");
-    return cargo?.value ?? null;
-}
 
 function lookupNorm<T>(map: Map<string, T> | undefined, key: string): T | undefined {
     if (!map || !key) return undefined;
@@ -149,11 +132,12 @@ export function InvoiceDetailModal({
         setDownloading(label);
         setDownloadError(null);
         try {
+            const apiNumber = isReestr || isInvoiceDoc ? numberToUse : formatPerevozkaNumberForApi(numberToUse);
             const body: Record<string, unknown> = {
                 login: auth.login,
                 password: auth.password,
                 metod,
-                number: numberToUse,
+                number: apiNumber,
                 ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
             };
             if (isReestr) {
@@ -185,9 +169,7 @@ export function InvoiceDetailModal({
             }
             const data = await res.json();
             if (!data?.data || !data.name) throw new Error("Документ не найден");
-            const byteCharacters = atob(data.data);
-            const byteArray = new Uint8Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) byteArray[i] = byteCharacters.charCodeAt(i);
+            const byteArray = decodeBase64Payload(data.data);
             const blob = new Blob([byteArray], { type: "application/pdf" });
             const fileName = transliterateFilename(data.name || `${label}_${numberToUse}.pdf`);
             const url = URL.createObjectURL(blob);
@@ -325,7 +307,7 @@ export function InvoiceDetailModal({
                             </thead>
                             <tbody>
                                 {list.map((row, i) => {
-                                    const cargoNum = getCargoNumberFromRow(row);
+                                    const cargoNum = getCargoNumberFromInvoiceRow(row);
                                     const deliveryState = cargoNum ? lookupNorm(cargoStateByNumber, cargoNum) : undefined;
                                     const route = cargoNum ? lookupNorm(cargoRouteByNumber, cargoNum) : undefined;
                                     return (

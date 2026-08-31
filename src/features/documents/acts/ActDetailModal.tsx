@@ -8,9 +8,11 @@ import { DateText } from "../../../components/ui/DateText";
 import { StatusBadge } from "../../../components/shared/StatusBadges";
 import { RouteBadge } from "../../../components/shared/CargoTableDisplay";
 import { PROXY_API_DOWNLOAD_URL } from "../../../constants/config";
-import { DOCUMENT_METHODS } from "../../../documentMethods";
+import { getFirstCargoNumberFromInvoice, getCargoNumberFromInvoiceRow } from "../lib/documentsPipeline";
+import { formatPerevozkaNumberForApi } from "../../../lib/perevozkaNumber";
 import { getInvoiceEdoInfoByDocLabel } from "../../../lib/edoStatus";
 import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
+import { decodeBase64Payload } from "../../../utils";
 import type { AuthData } from "../../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД"] as const;
@@ -57,27 +59,6 @@ function invoiceNumbersMatch(a: string | undefined | null, b: string | undefined
     return !isNaN(numA) && !isNaN(numB) && numA === numB;
 }
 
-/** Первый номер перевозки из списка номенклатуры УПД */
-function getFirstCargoNumberFromAct(item: any): string | null {
-    const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(item?.List) ? item.List : [];
-    for (let i = 0; i < list.length; i++) {
-        const text = String(list[i]?.Operation ?? list[i]?.Name ?? "").trim();
-        if (!text) continue;
-        const parts = parseCargoNumbersFromText(text);
-        const cargo = parts.find((p) => p.type === "cargo");
-        if (cargo?.value) return cargo.value;
-    }
-    return null;
-}
-
-function getCargoNumberFromRow(row: { Operation?: string; Name?: string }): string | null {
-    const text = String(row?.Operation ?? row?.Name ?? "").trim();
-    if (!text) return null;
-    const parts = parseCargoNumbersFromText(text);
-    const cargo = parts.find((p) => p.type === "cargo");
-    return cargo?.value ?? null;
-}
-
 function lookupNorm<T>(map: Map<string, T> | undefined, key: string): T | undefined {
     if (!map || !key) return undefined;
     const norm = (s: string) => String(s).replace(/^0+/, "") || s;
@@ -107,7 +88,7 @@ export function ActDetailModal({
     const invoiceNum = item?.Invoice ?? item?.invoice ?? item?.Счёт ?? item?.Счет ?? item?.invoiceNumber ?? "";
     const list: Array<{ Name?: string; Operation?: string; Quantity?: string | number; Price?: string | number; Sum?: string | number }> =
         Array.isArray(item?.List) ? item.List : [];
-    const cargoNumber = getFirstCargoNumberFromAct(item);
+    const cargoNumber = getFirstCargoNumberFromInvoice(item);
 
     const getInvNum = (inv: any) => String(inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? inv?.numberDoc ?? "").trim();
     const invoiceItem = invoiceNum && invoices.length > 0
@@ -127,6 +108,7 @@ export function ActDetailModal({
             return;
         }
         const metod = DOCUMENT_METHODS[label] ?? label;
+        const isInvoiceDoc = label === "СЧЕТ";
         setDownloading(label);
         setDownloadError(null);
         try {
@@ -137,7 +119,7 @@ export function ActDetailModal({
                     login: auth.login,
                     password: auth.password,
                     metod,
-                    number: cargoNumber,
+                    number: isInvoiceDoc ? cargoNumber : formatPerevozkaNumberForApi(cargoNumber),
                     ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
                 }),
             });
@@ -162,9 +144,7 @@ export function ActDetailModal({
             }
             const data = await res.json();
             if (!data?.data || !data.name) throw new Error("Документ не найден");
-            const byteCharacters = atob(data.data);
-            const byteArray = new Uint8Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) byteArray[i] = byteCharacters.charCodeAt(i);
+            const byteArray = decodeBase64Payload(data.data);
             const blob = new Blob([byteArray], { type: "application/pdf" });
             const fileName = transliterateFilename(data.name || `${label}_${cargoNumber}.pdf`);
             const url = URL.createObjectURL(blob);
@@ -324,7 +304,7 @@ export function ActDetailModal({
                             </thead>
                             <tbody>
                                 {list.map((row, i) => {
-                                    const cargoNum = getCargoNumberFromRow(row);
+                                    const cargoNum = getCargoNumberFromInvoiceRow(row);
                                     const deliveryState = cargoNum ? lookupNorm(cargoStateByNumber, cargoNum) : undefined;
                                     const route = cargoNum ? lookupNorm(cargoRouteByNumber, cargoNum) : undefined;
                                     return (

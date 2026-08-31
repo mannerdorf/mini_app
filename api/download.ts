@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { normalizeBase64Payload } from "../lib/base64Document.js";
 import https from "https";
 import { URL } from "url";
 import { getPool } from "./_db.js";
@@ -196,6 +197,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!transportAccessKeysMatch(i?.Number ?? i?.number ?? "", String(number))) return false;
             if (verified.accessAllInns) return true;
             const itemInn = String(i?.INN ?? i?.Inn ?? i?.inn ?? "").trim();
+            if (!itemInn) return true;
             return itemInn === (verified.inn ?? "");
           });
           if (!item) {
@@ -448,7 +450,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 res.setHeader("Content-Length", pdfBuffer.length.toString());
                 return res.end(pdfBuffer);
               }
-              return res.status(200).json({ data: dataStr, name: fileName });
+              return res.status(200).json({ data: normalizeBase64Payload(dataStr), name: fileName });
             }
 
             // Договор возвращает raw HTML в data — чистим [#ключ#] и кодируем в base64

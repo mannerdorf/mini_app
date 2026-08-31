@@ -277,32 +277,74 @@ export function normCargoKey(num: string | null | undefined): string {
   return s;
 }
 
-export function getFirstCargoNumberFromInvoice(inv: any): string | null {
-  const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(inv?.List) ? inv.List : [];
-  for (let i = 0; i < list.length; i++) {
-    const text = String(list[i]?.Operation ?? list[i]?.Name ?? "").trim();
-    if (!text) continue;
-    const parts = parseCargoNumbersFromText(text);
-    const cargo = parts.find((p) => p.type === "cargo");
-    if (cargo?.value) return cargo.value;
+const INVOICE_LINE_COLLECTION_KEYS = ["List", "list", "Строки", "Items", "items"] as const;
+const INVOICE_LINE_TEXT_KEYS = ["Operation", "Name", "Description", "Comment", "Содержание", "Номенклатура"] as const;
+const INVOICE_LINE_NUMBER_KEYS = [
+  "Number",
+  "number",
+  "Номер",
+  "НомерПеревозки",
+  "CargoNumber",
+  "cargoNumber",
+  "Perevozka",
+  "Перевозка",
+] as const;
+
+function invoiceLineRows(inv: Record<string, unknown> | null | undefined): Record<string, unknown>[] {
+  if (!inv || typeof inv !== "object") return [];
+  for (const key of INVOICE_LINE_COLLECTION_KEYS) {
+    const raw = inv[key];
+    if (Array.isArray(raw)) {
+      return raw.filter((row) => row && typeof row === "object" && !Array.isArray(row)) as Record<string, unknown>[];
+    }
+    if (typeof raw === "string" && raw.trim()) {
+      return [{ Operation: raw.trim() }];
+    }
+    if (raw && typeof raw === "object") {
+      return [raw as Record<string, unknown>];
+    }
   }
-  return null;
+  return [];
 }
 
-/** Все номера груза со счёта/УПД (первая строка + все из List) — для ТС по цепочке перевозки. */
+function cargoNumbersFromInvoiceField(value: unknown): string[] {
+  const text = String(value ?? "").trim();
+  if (!text) return [];
+  return parseCargoNumbersFromText(text)
+    .filter((part) => part.type === "cargo" && part.value)
+    .map((part) => part.value);
+}
+
+/** Все номера перевозок, связанные со счётом/УПД (List + поля строки, без номера самого счёта). */
 export function collectInvoiceLinkedCargoNumbers(inv: any): string[] {
   const cargoNums = new Set<string>();
-  const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
-  if (firstCargoNum) cargoNums.add(firstCargoNum);
-  const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(inv?.List) ? inv.List : [];
-  list.forEach((row) => {
-    const text = String(row?.Operation ?? row?.Name ?? "").trim();
-    if (!text) return;
-    parseCargoNumbersFromText(text)
-      .filter((p) => p.type === "cargo" && p.value)
-      .forEach((p) => cargoNums.add(p.value));
-  });
+  const add = (value: unknown) => {
+    for (const num of cargoNumbersFromInvoiceField(value)) cargoNums.add(num);
+  };
+  for (const row of invoiceLineRows(inv)) {
+    for (const key of INVOICE_LINE_TEXT_KEYS) add(row[key]);
+    for (const key of INVOICE_LINE_NUMBER_KEYS) add(row[key]);
+  }
+  add(inv?.CargoNumber);
+  add(inv?.NumberCargo);
+  add(inv?.Perevozka);
+  add(inv?.НомерПеревозки);
+  add(inv?.Cargo);
   return [...cargoNums];
+}
+
+export function getFirstCargoNumberFromInvoice(inv: any): string | null {
+  const all = collectInvoiceLinkedCargoNumbers(inv);
+  return all[0] ?? null;
+}
+
+export function getCargoNumberFromInvoiceRow(row: Record<string, unknown> | null | undefined): string | null {
+  if (!row || typeof row !== "object") return null;
+  for (const key of [...INVOICE_LINE_TEXT_KEYS, ...INVOICE_LINE_NUMBER_KEYS]) {
+    const nums = cargoNumbersFromInvoiceField(row[key]);
+    if (nums[0]) return nums[0];
+  }
+  return null;
 }
 
 export function buildCargoStateByNumber(perevozkiItems: any[]) {

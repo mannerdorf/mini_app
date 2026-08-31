@@ -9,6 +9,7 @@ import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { PLANNED_TERMINAL_ARRIVAL_LABEL } from "../../constants/plannedArrivalLabels";
 import { formatCurrency, stripOoo, cityToCode, transliterateFilename, formatInvoiceNumber } from "../../lib/formatUtils";
 import { formatPerevozkaNumberForApi } from "../../lib/perevozkaNumber";
+import { decodeBase64Payload } from "../../utils";
 import { normalizeStatus, getFilterKeyByStatus, getSumColorByPaymentStatus } from "../../lib/statusUtils";
 import { formatDate } from "../../lib/dateUtils";
 import { getPlanDays, getCargoDisplayRoleLabel, getCargoRoleSet, cargoLastMileIsSelfPickup } from "../../lib/cargoUtils";
@@ -217,9 +218,7 @@ export function CargoDetailsModal({
             if (!data?.data || !data.name) {
                 throw new Error("Документ не обнаружен");
             }
-            const byteCharacters = atob(data.data);
-            const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
-            const byteArray = new Uint8Array(byteNumbers);
+            const byteArray = decodeBase64Payload(data.data);
             const blob = new Blob([byteArray], { type: "application/pdf" });
             const fileName = data.name || `${docType}_${item.Number}.pdf`;
             const fileNameTranslit = transliterateFilename(fileName);
