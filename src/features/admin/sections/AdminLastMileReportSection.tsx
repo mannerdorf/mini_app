@@ -23,6 +23,32 @@ const MONTH_NAMES = dateUtils.MONTH_NAMES;
 
 type LastMileViewMode = "days" | "vehicles" | "drivers";
 
+function formatCostPerKg(accrual: number, pw: number): string {
+  if (!(pw > 0) || !(accrual > 0)) return "—";
+  return `${(accrual / pw).toFixed(2)} ₽/кг`;
+}
+
+function CostPerKgBadge({ accrual, pw }: { accrual: number; pw: number }) {
+  const label = formatCostPerKg(accrual, pw);
+  if (label === "—") return null;
+  return (
+    <span
+      style={{
+        fontSize: "0.72rem",
+        padding: "0.14rem 0.4rem",
+        borderRadius: 999,
+        border: "1px solid #bfdbfe",
+        background: "#eff6ff",
+        color: "#2563eb",
+        fontWeight: 600,
+      }}
+      title="Начисление табеля ÷ платный вес за период"
+    >
+      1 кг: {label}
+    </span>
+  );
+}
+
 function formatWorkDuration(row: LastMileVehicleDayRow): string {
   if (row.firstAt && row.lastAt) {
     if (row.workMinutes != null && row.workMinutes > 0) {
@@ -143,6 +169,7 @@ function VehicleDayBlock({ row }: { row: LastMileEntityDayRow }) {
           <Flex align="center" gap="0.35rem" wrap="wrap" justify="flex-end">
             <span style={{ fontSize: "0.74rem", color: "var(--color-text-secondary)" }}>{formatWorkDuration(row)}</span>
             <AccrualBadge amount={row.timesheetAccrual} matched={row.timesheetMatched} />
+            <CostPerKgBadge accrual={row.timesheetAccrual} pw={row.totals.pw} />
             <span
               style={{
                 fontSize: "0.74rem",
@@ -205,6 +232,7 @@ function EntityDayRow({
           <Flex align="center" gap="0.35rem" wrap="wrap" justify="flex-end">
             <span style={{ fontSize: "0.74rem", color: "var(--color-text-secondary)" }}>{formatWorkDuration(row)}</span>
             <AccrualBadge amount={row.timesheetAccrual} matched={row.timesheetMatched} />
+            <CostPerKgBadge accrual={row.timesheetAccrual} pw={row.totals.pw} />
             <span
               style={{
                 fontSize: "0.74rem",
@@ -262,6 +290,9 @@ function EntityGroupBlock({
             <span style={{ fontSize: "0.74rem", fontWeight: 600 }}>
               табель: {Math.round(group.totals.timesheetAccrual).toLocaleString("ru-RU")} ₽
             </span>
+            <span style={{ fontSize: "0.74rem", color: "#2563eb", fontWeight: 600 }}>
+              1 кг: {formatCostPerKg(group.totals.timesheetAccrual, group.totals.pw)}
+            </span>
             <span style={{ fontSize: "0.74rem", color: "var(--color-text-secondary)" }}>
               {group.totals.dayCount} дн. · {group.totals.tripCount} ходок · {Math.round(group.totals.pw).toLocaleString("ru-RU")} кг PW
             </span>
@@ -284,7 +315,13 @@ function EntityGroupBlock({
   );
 }
 
-function SummaryCards({ report, timesheetTotal }: { report: LastMileVehicleReport; timesheetTotal: number }) {
+function SummaryCards({
+  report,
+  timesheetTotal,
+}: {
+  report: LastMileVehicleReport;
+  timesheetTotal: number;
+}) {
   return (
     <div
       style={{
@@ -313,6 +350,12 @@ function SummaryCards({ report, timesheetTotal }: { report: LastMileVehicleRepor
       <div style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: "0.5rem" }}>
         <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Начисления табеля</Typography.Body>
         <Typography.Body style={{ fontWeight: 700 }}>{Math.round(timesheetTotal).toLocaleString("ru-RU")} ₽</Typography.Body>
+      </div>
+      <div style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: "0.5rem" }}>
+        <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Средняя стоимость на 1 кг</Typography.Body>
+        <Typography.Body style={{ fontWeight: 700, color: "#2563eb" }}>
+          {formatCostPerKg(timesheetTotal, report.summary.pw)}
+        </Typography.Body>
       </div>
     </div>
   );

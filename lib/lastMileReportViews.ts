@@ -22,11 +22,18 @@ export type LastMileEntityGroup = {
     places: number;
     timesheetAccrual: number;
     timesheetMatchedDays: number;
+    costPerKg: number;
   };
 };
 
+/** Стоимость на 1 кг PW = начисление табеля / платный вес. */
+export function computeLastMileCostPerKg(timesheetAccrual: number, pw: number): number {
+  if (!(pw > 0) || !(timesheetAccrual > 0)) return 0;
+  return timesheetAccrual / pw;
+}
+
 function sumDayRows(rows: LastMileEntityDayRow[]) {
-  return rows.reduce(
+  const base = rows.reduce(
     (acc, row) => {
       acc.dayCount += 1;
       acc.tripCount += row.totals.tripCount;
@@ -49,6 +56,10 @@ function sumDayRows(rows: LastMileEntityDayRow[]) {
       timesheetMatchedDays: 0,
     },
   );
+  return {
+    ...base,
+    costPerKg: computeLastMileCostPerKg(base.timesheetAccrual, base.pw),
+  };
 }
 
 function enrichRow(row: LastMileVehicleDayRow, index: TimesheetDailyAccrualIndex | null): LastMileEntityDayRow {

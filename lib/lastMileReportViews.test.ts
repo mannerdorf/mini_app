@@ -5,8 +5,16 @@ import {
   matchDriverToEmployee,
   personNamesMatch,
 } from "./lastMileTimesheetMatch.js";
-import { groupLastMileReportByDriver, groupLastMileReportByVehicle } from "./lastMileReportViews.js";
+import { groupLastMileReportByDriver, groupLastMileReportByVehicle, computeLastMileCostPerKg } from "./lastMileReportViews.js";
 import type { LastMileVehicleReport } from "../src/api/client/admin/lastMileReport.js";
+
+describe("computeLastMileCostPerKg", () => {
+  it("returns accrual divided by pw", () => {
+    expect(computeLastMileCostPerKg(252000, 129898)).toBeCloseTo(1.94, 2);
+    expect(computeLastMileCostPerKg(0, 1000)).toBe(0);
+    expect(computeLastMileCostPerKg(1000, 0)).toBe(0);
+  });
+});
 
 describe("personNamesMatch", () => {
   it("matches full name and initials", () => {
@@ -75,6 +83,7 @@ describe("groupLastMileReportByVehicle", () => {
     expect(groups).toHaveLength(1);
     expect(groups[0].label).toBe("У706АР");
     expect(groups[0].totals.timesheetAccrual).toBe(5000);
+    expect(groups[0].totals.costPerKg).toBeCloseTo(5000 / 7079, 4);
   });
 });
 
