@@ -13,7 +13,7 @@ export function AdminDashboardsPanel({ adminToken }: { adminToken: string }) {
     <div style={{ maxWidth: 1200 }}>
       <Typography.Headline style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: "0.75rem" }}>Дашборды</Typography.Headline>
       <Typography.Body style={{ fontSize: "0.88rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
-        ФОТ по табелю и сводка выдачи грузов из кэша перевозок. Доступно суперадминистратору CMS.
+        ФОТ по табелю (помесячно и по подразделениям), сводка выдачи грузов и активность пользователей. Доступно суперадминистратору CMS.
       </Typography.Body>
 
       <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: "1rem" }}>
