@@ -63,6 +63,19 @@ if [[ "$CHECK_REMOTE" == "1" ]] && command -v curl >/dev/null 2>&1; then
   fi
 fi
 
+# 0 if $1 > $2 (semver X.Y.Z). bash 3.2-safe, no mapfile/arrays.
+semver_gt() {
+  local a="$1" b="$2" a1 a2 a3 b1 b2 b3 rest
+  a1="${a%%.*}"; rest="${a#*.}"; a2="${rest%%.*}"; a3="${rest#*.}"
+  b1="${b%%.*}"; rest="${b#*.}"; b2="${rest%%.*}"; b3="${rest#*.}"
+  if [ "$a1" -gt "$b1" ]; then return 0; fi
+  if [ "$a1" -lt "$b1" ]; then return 1; fi
+  if [ "$a2" -gt "$b2" ]; then return 0; fi
+  if [ "$a2" -lt "$b2" ]; then return 1; fi
+  if [ "$a3" -gt "$b3" ]; then return 0; fi
+  return 1
+}
+
 if [[ -n "$FORCE_CODE" ]]; then
   NEW_CODE="$FORCE_CODE"
 else
@@ -76,13 +89,18 @@ fi
 if [[ -n "$FORCE_NAME" ]]; then
   NEW_NAME="$FORCE_NAME"
 else
-  # База для patch: local, если semver; иначе remote (если испорчен .1 — не использовать)
+  # База для patch: больший semver из local и live version.json
   BASE_NAME="$LOCAL_NAME"
   if [[ ! "$BASE_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     if [[ "$REMOTE_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
       BASE_NAME="$REMOTE_NAME"
     else
       BASE_NAME="1.3.22"
+    fi
+  fi
+  if [[ "$CHECK_REMOTE" == "1" && "$REMOTE_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    if semver_gt "$REMOTE_NAME" "$BASE_NAME"; then
+      BASE_NAME="$REMOTE_NAME"
     fi
   fi
   if [[ "$BASE_NAME" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
@@ -107,6 +125,13 @@ echo "Target:     versionCode ${NEW_CODE}, versionName \"${NEW_NAME}\""
 if [[ "$NEW_CODE" -le "$REMOTE_CODE" && "$CHECK_REMOTE" == "1" && -z "$FORCE_CODE" ]]; then
   echo "ERROR: new versionCode ${NEW_CODE} must be > remote ${REMOTE_CODE}" >&2
   exit 1
+fi
+
+if [[ "$CHECK_REMOTE" == "1" && -z "$FORCE_NAME" && "$REMOTE_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  if ! semver_gt "$NEW_NAME" "$REMOTE_NAME"; then
+    echo "ERROR: new versionName ${NEW_NAME} must be > remote ${REMOTE_NAME}" >&2
+    exit 1
+  fi
 fi
 
 if [[ "$DRY_RUN" == "1" ]]; then
