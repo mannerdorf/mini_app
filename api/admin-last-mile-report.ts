@@ -3,7 +3,8 @@ import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
-import { readNormalizedByDateRange } from "../lib/documentCacheNormalized.js";
+import { readDocumentsFromCacheByPeriod } from "../lib/documentCacheRead.js";
+import { isCargoInDateRangeForField } from "../lib/cargoDateFilter.js";
 import { buildLastMileVehicleReport } from "../lib/lastMileVehicleReport.js";
 
 async function handler(req: VercelRequest, res: VercelResponse) {
@@ -31,9 +32,12 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const pool = getPool();
-    const payloads = await readNormalizedByDateRange(pool, "perevozki", dateFrom, dateTo, { dateField: "vr" });
-    const items = payloads.map((row) => (row && typeof row === "object" ? (row as Record<string, unknown>) : {}));
-    const report = buildLastMileVehicleReport(items, dateFrom, dateTo);
+    const { items } = await readDocumentsFromCacheByPeriod(pool, "perevozki", dateFrom, dateTo, {
+      dateField: "vr",
+    });
+    const filtered = items.filter((item) => isCargoInDateRangeForField(item, dateFrom, dateTo, "vr"));
+    const payloads = filtered.map((row) => (row && typeof row === "object" ? (row as Record<string, unknown>) : {}));
+    const report = buildLastMileVehicleReport(payloads, dateFrom, dateTo);
     return res.status(200).json(report);
   } catch (e: unknown) {
     logError(ctx, "admin-last-mile-report failed", e);

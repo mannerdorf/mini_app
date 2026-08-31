@@ -4,10 +4,11 @@ import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { DateText } from "../../../components/ui/DateText";
 import * as dateUtils from "../../../lib/dateUtils";
 import {
-  fetchAdminLastMileReport,
   type LastMileVehicleDayRow,
   type LastMileVehicleReport,
 } from "../../../api/client/admin/lastMileReport";
+import { fetchAdminPerevozki } from "../../../api/client/admin/perevozki";
+import { buildLastMileVehicleReport } from "../../../../lib/lastMileVehicleReport.js";
 
 const MONTH_NAMES = dateUtils.MONTH_NAMES;
 
@@ -150,8 +151,13 @@ export function AdminLastMileReportSection({ adminToken }: { adminToken: string 
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchAdminLastMileReport(adminToken, dateRange);
-      setReport(data);
+      const items = await fetchAdminPerevozki(adminToken, dateRange, { dateField: "vr" });
+      const report = buildLastMileVehicleReport(
+        items as Record<string, unknown>[],
+        dateRange.dateFrom,
+        dateRange.dateTo,
+      );
+      setReport(report);
     } catch (e: unknown) {
       setReport(null);
       setError((e as Error)?.message || "Не удалось загрузить отчёт");
