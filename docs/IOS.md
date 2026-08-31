@@ -4,7 +4,7 @@
 API в нативной сборке: **`https://haulz.space`** (как у Android APK).  
 Нужен **Mac + Xcode** — Linux/Cloud не собирает `.app` / IPA.
 
-Версия в Xcode: **1.3.24** (`MARKETING_VERSION`), build **5** (`CURRENT_PROJECT_VERSION`).
+Версия в Xcode: **1.3.24** (`MARKETING_VERSION`), build **6** (`CURRENT_PROJECT_VERSION`).
 
 ## Требования (Intel Mac)
 
@@ -228,7 +228,7 @@ npx cap open ios
 
 Симулятор пуши почти не принимает. Проверка — **физический iPhone** или TestFlight.
 
-Залейте **новый** архив: build **5**. Без `ios/App/App/GoogleService-Info.plist` на диске Archive не соберётся — иначе IPA уезжал в TestFlight без FCM, и iPhone не попадал в админку.
+Залейте **новый** архив: build **6**. На экране «Уведомления» должна быть строка `push-js 6`. Без неё это старый TestFlight — iPhone в админку не попадёт.
 
 ### 5. В приложении
 

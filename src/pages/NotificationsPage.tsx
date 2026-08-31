@@ -12,7 +12,9 @@ import {
     enableNativePushNotifications,
     hasStoredNativeFcmToken,
     isNativePushEnvironment,
+    NATIVE_PUSH_CLIENT_MARK,
 } from "../lib/androidPushNotifications";
+import { getInstalledAppInfo } from "../lib/appVersionInfo";
 import { CARGO_NOTIFICATION_STAGES, CARGO_STAGE_EVENT_IDS, isCargoStageNotificationEnabled, type CargoStageEventId } from "../../lib/notificationCargoEvents";
 import { buildPushPreferencesSavePayload, isPushNotificationEnabled } from "../../lib/notificationEmailPrefs";
 import { TapSwitch } from "../components/TapSwitch";
@@ -66,6 +68,7 @@ export function NotificationsPage({
     const [pushLoading, setPushLoading] = useState(false);
     const [pushError, setPushError] = useState<string | null>(null);
     const [pushEnabled, setPushEnabled] = useState(false);
+    const [installLabel, setInstallLabel] = useState("");
     const prefsRef = useRef(prefs);
     const prefsDirtyRef = useRef(false);
     const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -75,6 +78,19 @@ export function NotificationsPage({
 
     const login = activeAccount?.login?.trim().toLowerCase() || "";
     const isNativePush = isNativePushEnvironment();
+
+    useEffect(() => {
+        if (!isNativePush) return;
+        let cancelled = false;
+        void getInstalledAppInfo().then((info) => {
+            if (cancelled) return;
+            const build = info.buildNumber != null ? `(${info.buildNumber})` : "";
+            setInstallLabel(`${info.versionName} ${build}`.trim());
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [isNativePush]);
 
     const isCargoPrefEnabled = useCallback(
         (channel: "push" | "email", eventId: CargoStageEventId) =>
@@ -333,7 +349,10 @@ export function NotificationsPage({
                             <>
                                 <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
                                     Уведомления о перевозках и документах на телефон через Firebase Cloud Messaging.
-                                    На iPhone устройство появится в админке только после FCM-токена (не достаточно разрешения iOS).
+                                </Typography.Body>
+                                <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}>
+                                    {installLabel || "…"} · {NATIVE_PUSH_CLIENT_MARK} · FCM:{" "}
+                                    {hasStoredNativeFcmToken(login) ? "токен на этом телефоне есть" : "токена на этом телефоне нет"}
                                 </Typography.Body>
                                 {!pushEnabled ? (
                                     <Button type="button" className="button-primary" disabled={pushLoading} onClick={enablePush}>
