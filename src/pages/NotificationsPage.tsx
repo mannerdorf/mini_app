@@ -333,6 +333,7 @@ export function NotificationsPage({
                             <>
                                 <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
                                     Уведомления о перевозках и документах на телефон через Firebase Cloud Messaging.
+                                    На iPhone устройство появится в админке только после FCM-токена (не достаточно разрешения iOS).
                                 </Typography.Body>
                                 {!pushEnabled ? (
                                     <Button type="button" className="button-primary" disabled={pushLoading} onClick={enablePush}>

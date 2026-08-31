@@ -4,7 +4,7 @@
 API в нативной сборке: **`https://haulz.space`** (как у Android APK).  
 Нужен **Mac + Xcode** — Linux/Cloud не собирает `.app` / IPA.
 
-Версия в Xcode: **1.3.24** (`MARKETING_VERSION`), build **4** (`CURRENT_PROJECT_VERSION`).
+Версия в Xcode: **1.3.24** (`MARKETING_VERSION`), build **5** (`CURRENT_PROJECT_VERSION`).
 
 ## Требования (Intel Mac)
 
@@ -202,8 +202,8 @@ npm run ios:release
 1. [Firebase Console](https://console.firebase.google.com) → Project settings → **Add app** → **iOS**.
 2. Bundle ID: **`ru.haulz.miniapp`**.
 3. Скачайте **`GoogleService-Info.plist`**.
-4. Файл положите в `ios/App/App/GoogleService-Info.plist` (в `.gitignore`).
-5. В Xcode: желтая папка **App** → Add Files → этот plist → галка target **App**.
+4. Файл положите в `ios/App/App/GoogleService-Info.plist` (в `.gitignore`). Проверка: `ls ios/App/App/GoogleService-Info.plist`.
+5. В Xcode файл уже в target **App** (копируется скриптом при Archive). **Add Files не нужен** — без файла на диске архив падает с ошибкой про plist.
 6. Project settings → **Cloud Messaging** → iOS app → **APNs Authentication Key** → Upload `.p8`, Key ID, Team ID.
 
 Сервисный аккаунт на API (`FIREBASE_SERVICE_ACCOUNT_JSON`) тот же, что для Android. Новый на VPS не нужен.
@@ -228,7 +228,7 @@ npx cap open ios
 
 Симулятор пуши почти не принимает. Проверка — **физический iPhone** или TestFlight.
 
-Залейте **новый** архив: build **4** (или выше). Старый TestFlight без этого фикса при «Включить push» на iPhone мог стереть Android-устройство того же логина.
+Залейте **новый** архив: build **5**. Без `ios/App/App/GoogleService-Info.plist` на диске Archive не соберётся — иначе IPA уезжал в TestFlight без FCM, и iPhone не попадал в админку.
 
 ### 5. В приложении
 
@@ -241,8 +241,8 @@ npx cap open ios
 
 ### Если пуш не приходит
 
-- Плист не в target App → при старте Firebase не конфигурируется, регистрация падает с текстом про `GoogleService-Info.plist`.
+- Нет `ios/App/App/GoogleService-Info.plist` на диске → Archive падает. Старый TestFlight без плиста в IPA не шлёт FCM, в админке только android.
 - Нет ключа APNs в Firebase → токен может сохраниться, отправка с сервера не дойдёт до телефона.
-- Старый билд TestFlight без FCM / без фикса multi-device — нужен архив с этим кодом (build 4+).
+- Старый билд TestFlight без FCM / без фикса multi-device — нужен архив с этим кодом (build 5+).
 - Включение push на iPhone обнуляло админку «Кто включил push» и снимало Android: `POST /api/fcm-unsubscribe` без `token` удалял **все** FCM-устройства логина (свежий WKWebView не держал токен в памяти). API на `haulz.space` теперь требует `token`. В приложении «Включено» только после сохранённого FCM-токена; ошибка Firebase/plist показывается на экране, а не маскируется разрешением iOS.
 - Симулятор.
