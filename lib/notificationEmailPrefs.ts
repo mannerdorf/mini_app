@@ -239,7 +239,16 @@ export type NotificationPreferencesState = {
   webpush: Record<string, boolean>;
   push: Record<string, boolean>;
   email: Record<string, boolean>;
+  /** ИНН компании из переключателя шапки — для автопуша без служебного режима. */
+  pushSelectedInn?: string | null;
 };
+
+export function readPushSelectedInn(raw: unknown): string {
+  const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  return String(obj.push_selected_inn ?? "")
+    .replace(/\D/g, "")
+    .trim();
+}
 
 export function normalizeNotificationPreferencesState(raw: unknown): NotificationPreferencesState {
   const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
@@ -251,12 +260,57 @@ export function normalizeNotificationPreferencesState(raw: unknown): Notificatio
   for (const eventId of EMAIL_NOTIFICATION_EVENTS) {
     if (typeof emailRaw[eventId] === "boolean") email[eventId] = emailRaw[eventId];
   }
+  const pushSelectedInn = readPushSelectedInn(obj) || null;
   return {
     telegram: { ...telegram },
     webpush: { ...webpush },
     push: { ...push },
     email,
+    pushSelectedInn,
   };
+}
+
+export function serializeNotificationPreferencesState(state: NotificationPreferencesState): Record<string, unknown> {
+  const pushSelectedInn = readPushSelectedInn(state.pushSelectedInn);
+  return {
+    telegram: state.telegram,
+    webpush: state.webpush,
+    push: state.push,
+    email: state.email,
+    ...(pushSelectedInn ? { push_selected_inn: pushSelectedInn } : {}),
+  };
+}
+
+export async function savePushSelectedInn(
+  pool: Pool,
+  loginRaw: string,
+  innRaw: string | null | undefined,
+): Promise<{ pushSelectedInn: string | null }> {
+  const login = String(loginRaw || "").trim().toLowerCase();
+  const pushSelectedInn = readPushSelectedInn(innRaw) || null;
+  if (!login) return { pushSelectedInn: null };
+
+  const existing = await loadNotificationPreferencesState(pool, login);
+  const next = normalizeNotificationPreferencesState({
+    ...serializeNotificationPreferencesState(existing),
+    push_selected_inn: pushSelectedInn,
+  });
+
+  try {
+    await pool.query(
+      `INSERT INTO notification_preferences_state (login, preferences, updated_at)
+       VALUES ($1, $2::jsonb, now())
+       ON CONFLICT (login)
+       DO UPDATE SET preferences = excluded.preferences, updated_at = now()`,
+      [login, JSON.stringify(serializeNotificationPreferencesState(next))],
+    );
+  } catch (e: unknown) {
+    const code = (e as { code?: string })?.code;
+    if (code === "42P01") throw new Error("Run migration 048_notification_preferences_state.sql");
+    throw e;
+  }
+
+  return { pushSelectedInn };
 }
 
 export async function loadNotificationPreferencesState(

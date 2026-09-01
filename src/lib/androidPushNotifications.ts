@@ -15,14 +15,20 @@ function navigateFromNotification(data: Record<string, string | undefined>) {
   }
 }
 
-async function persistToken(login: string, token: string) {
+async function persistToken(login: string, token: string, inn?: string) {
   if (!login || !token) return;
-  await subscribeFcmToken({ login, token, platform: "android" });
+  await subscribeFcmToken({ login, token, platform: "android", ...(inn ? { inn } : {}) });
   currentLogin = login;
   currentToken = token;
+  currentInn = inn || "";
 }
 
-export async function enableAndroidPushNotifications(login: string): Promise<{ ok: boolean; error?: string }> {
+let currentInn = "";
+
+export async function enableAndroidPushNotifications(
+  login: string,
+  inn?: string,
+): Promise<{ ok: boolean; error?: string }> {
   if (!isCapacitorAndroidApp()) {
     return { ok: false, error: "Push доступны только в Android-приложении." };
   }
@@ -41,7 +47,7 @@ export async function enableAndroidPushNotifications(login: string): Promise<{ o
 
     if (!listenersAttached) {
       await PushNotifications.addListener("registration", (token: Token) => {
-        void persistToken(currentLogin || normalizedLogin, token.value);
+        void persistToken(currentLogin || normalizedLogin, token.value, currentInn || undefined);
       });
       await PushNotifications.addListener("registrationError", () => {
         /* surfaced via enable call */
@@ -57,6 +63,7 @@ export async function enableAndroidPushNotifications(login: string): Promise<{ o
     }
 
     currentLogin = normalizedLogin;
+    currentInn = inn || "";
     await PushNotifications.register();
 
     // Token may arrive asynchronously via registration listener.
@@ -87,7 +94,7 @@ export async function disableAndroidPushNotifications(login: string): Promise<{ 
 }
 
 /** При входе: запросить разрешение Android (первый раз), зарегистрировать FCM, включить все push-типы. */
-export async function syncAndroidPushNotifications(login: string): Promise<void> {
+export async function syncAndroidPushNotifications(login: string, inn?: string): Promise<void> {
   if (!isCapacitorAndroidApp() || !login) return;
   try {
     const { PushNotifications } = await import("@capacitor/push-notifications");
@@ -96,7 +103,7 @@ export async function syncAndroidPushNotifications(login: string): Promise<void>
     if (perm.receive === "denied") return;
     const isFirstPrompt =
       perm.receive === "prompt" || perm.receive === "prompt-with-rationale";
-    const result = await enableAndroidPushNotifications(login);
+    const result = await enableAndroidPushNotifications(login, inn);
     if (!result.ok) return;
     if (isFirstPrompt) {
       await saveNotificationPreferences(login, {

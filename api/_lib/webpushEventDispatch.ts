@@ -10,7 +10,7 @@ import {
   notificationItemInn,
   type CargoStageEventId,
 } from "../../lib/notificationPoll.js";
-import { invertScopesByInn, loadPushLoginScopes, normalizeNotificationInn } from "../../lib/notificationInnScope.js";
+import { invertScopesByInn, loadEffectivePushLoginScopes, normalizeNotificationInn } from "../../lib/notificationInnScope.js";
 import { acquireWebPushDedupeKey, sendWebPushToLogin } from "./webpushDelivery.js";
 import { sendFcmToLogin } from "./fcmDelivery.js";
 import { wasSuccessfulNotificationDelivery } from "./notificationDeliveryDedupe.js";
@@ -187,7 +187,7 @@ export async function dispatchWebPushCargoEvents(params: {
   const cargoNumbers = Array.from(new Set(prepared.map((x) => x.cargoNumber)));
   const subscriberByInn = new Map<string, Map<string, Record<string, boolean>>>();
   const pushSubscriberByInn = new Map<string, Map<string, Record<string, boolean>>>();
-  const scopes = await loadPushLoginScopes(pool);
+  const scopes = await loadEffectivePushLoginScopes(pool);
   const loginsByInn = invertScopesByInn(scopes);
   const scopedPairs: Array<{ login: string; inn: string }> = [];
   for (const inn of inns) {

@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { loadPushLoginScopes, normalizeNotificationInn } from "./notificationInnScope.js";
+import { loadEffectivePushLoginScopes, normalizeNotificationInn } from "./notificationInnScope.js";
 import {
   PUSH_NOTIFICATION_EVENTS,
   isPushNotificationEnabled,
@@ -112,7 +112,7 @@ export async function syncPushActivationForLogin(
     // best-effort
   }
 
-  const scopes = await loadPushLoginScopes(pool);
+  const scopes = await loadEffectivePushLoginScopes(pool);
   const scope = scopes.get(login);
   const inns = [...(scope?.inns || [])].map((inn) => normalizeNotificationInn(inn)).filter(Boolean);
   const merged = mergePushPreferences(pushPrefs);

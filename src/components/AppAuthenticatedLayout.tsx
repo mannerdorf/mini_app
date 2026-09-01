@@ -7,6 +7,7 @@ import { AppMainContent } from "./AppMainContent";
 import { AppRuntimeProvider } from "../contexts/AppRuntimeContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useActiveCustomerInnSync } from "../hooks/useActiveCustomerInnSync";
+import { usePushSelectedInnSync } from "../hooks/usePushSelectedInnSync";
 import { resolveAccountActiveInn } from "../lib/accountCustomer";
 import { useAppShell } from "../contexts/AppShellContext";
 import { stripOoo } from "../lib/formatUtils";
@@ -71,6 +72,7 @@ export function AppAuthenticatedLayout({
   const { auth, activeAccount } = useAuth();
   const { desktopExpanded } = useAppShell();
   useActiveCustomerInnSync();
+  usePushSelectedInnSync();
 
   return (
     <Container

@@ -94,10 +94,23 @@ function AppRoot() {
     useEffect(() => {
         const login = activeAccount?.login?.trim().toLowerCase();
         if (!auth || !login || !isNativeAndroid) return;
+        if (activeAccount?.accessAllInns || activeAccount?.permissions?.service_mode === true) return;
+        const inn =
+            activeAccount?.activeCustomerInn?.trim() ||
+            activeAccount?.customers?.find((c) => c.inn)?.inn?.trim() ||
+            undefined;
         void import("./lib/androidPushNotifications").then(({ syncAndroidPushNotifications }) =>
-            syncAndroidPushNotifications(login),
+            syncAndroidPushNotifications(login, inn),
         );
-    }, [auth, activeAccount?.login, isNativeAndroid]);
+    }, [
+        auth,
+        activeAccount?.login,
+        activeAccount?.activeCustomerInn,
+        activeAccount?.customers,
+        activeAccount?.accessAllInns,
+        activeAccount?.permissions?.service_mode,
+        isNativeAndroid,
+    ]);
     const {
         showDashboard,
         showPinModal,

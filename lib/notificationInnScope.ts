@@ -138,3 +138,111 @@ export function invertScopesByInn(scopes: Map<string, PushLoginScope>): Map<stri
   }
   return byInn;
 }
+
+/** Все ИНН, к которым логин может быть привязан (профиль + account_companies). */
+export function collectAllowedPushInns(
+  scope: PushLoginScope | undefined,
+  companyInns: Iterable<string>,
+): Set<string> {
+  const allowed = new Set<string>();
+  if (scope) {
+    for (const inn of scope.inns) allowed.add(inn);
+  }
+  for (const raw of companyInns) {
+    const inn = normalizeNotificationInn(raw);
+    if (inn) allowed.add(inn);
+  }
+  return allowed;
+}
+
+/**
+ * Эффективный скоуп автопуша:
+ * — serviceWide без своего ИНН → пусто;
+ * — без служебного режима и с валидным push_selected_inn → только выбранная компания;
+ * — иначе базовый resolvePushInnsForLogin / loadPushLoginScopes.
+ */
+export function resolveEffectivePushInns(params: {
+  scope: PushLoginScope;
+  allowedCompanyInns: Iterable<string>;
+  selectedInn?: string | null;
+}): Set<string> {
+  const { scope } = params;
+  if (scope.serviceWide && scope.inns.size === 0) return new Set();
+
+  const allowed = collectAllowedPushInns(scope, params.allowedCompanyInns);
+  const selected = normalizeNotificationInn(params.selectedInn);
+
+  if (!scope.serviceWide && selected && allowed.has(selected)) {
+    return new Set([selected]);
+  }
+
+  return new Set(scope.inns);
+}
+
+type Queryable = {
+  query: <T extends Record<string, unknown>>(sql: string, params?: unknown[]) => Promise<{ rows: T[] }>;
+};
+
+async function loadCompanyInnsByLogin(pool: Queryable): Promise<Map<string, string[]>> {
+  const byLogin = new Map<string, string[]>();
+  try {
+    const companies = await pool.query<{ login: string; inn: string }>(
+      `SELECT lower(trim(login)) AS login, inn
+       FROM account_companies
+       WHERE inn IS NOT NULL AND trim(inn) <> ''`,
+    );
+    for (const row of companies.rows) {
+      const login = String(row.login || "").trim().toLowerCase();
+      const inn = normalizeNotificationInn(row.inn);
+      if (!login || !inn) continue;
+      const list = byLogin.get(login) || [];
+      list.push(inn);
+      byLogin.set(login, list);
+    }
+  } catch {
+    // account_companies may be missing
+  }
+  return byLogin;
+}
+
+async function loadPushSelectedInnByLogin(pool: Queryable): Promise<Map<string, string>> {
+  const byLogin = new Map<string, string>();
+  try {
+    const { rows } = await pool.query<{ login: string; preferences: unknown }>(
+      `SELECT lower(trim(login)) AS login, preferences
+       FROM notification_preferences_state
+       WHERE coalesce(trim(login), '') <> ''`,
+    );
+    for (const row of rows) {
+      const login = String(row.login || "").trim().toLowerCase();
+      if (!login) continue;
+      const prefs = row.preferences && typeof row.preferences === "object" ? (row.preferences as Record<string, unknown>) : {};
+      const inn = normalizeNotificationInn(prefs.push_selected_inn);
+      if (inn) byLogin.set(login, inn);
+    }
+  } catch {
+    // notification_preferences_state may be missing
+  }
+  return byLogin;
+}
+
+/** Скоуп автопуша с учётом push_selected_inn из notification_preferences_state. */
+export async function loadEffectivePushLoginScopes(
+  pool: Queryable,
+): Promise<Map<string, PushLoginScope>> {
+  const base = await loadPushLoginScopes(pool);
+  const companyInnsByLogin = await loadCompanyInnsByLogin(pool);
+  const selectedByLogin = await loadPushSelectedInnByLogin(pool);
+
+  for (const [login, scope] of base.entries()) {
+    const companyInns = companyInnsByLogin.get(login) || [];
+    const effective = resolveEffectivePushInns({
+      scope,
+      allowedCompanyInns: companyInns,
+      selectedInn: selectedByLogin.get(login),
+    });
+    base.set(login, { ...scope, inns: effective });
+  }
+
+  return base;
+}

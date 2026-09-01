@@ -17,7 +17,7 @@ import {
   isCargoStageNotificationEnabled,
   isRecentNotificationItem,
 } from "../lib/notificationPoll.js";
-import { loadPushLoginScopes, normalizeNotificationInn } from "../lib/notificationInnScope.js";
+import { loadEffectivePushLoginScopes, normalizeNotificationInn } from "../lib/notificationInnScope.js";
 import { wasSuccessfulNotificationDelivery } from "./_lib/notificationDeliveryDedupe.js";
 import {
   isPushEventAllowedForInn,
@@ -119,7 +119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const appDomain = getPublicApiOrigin();
 
   try {
-    const scopes = await loadPushLoginScopes(pool);
+    const scopes = await loadEffectivePushLoginScopes(pool);
     const pushTemplates = await loadPushNotificationTemplates(pool);
     const loginInnPairs: Array<{ login: string; inn: string }> = [];
     for (const scope of scopes.values()) {

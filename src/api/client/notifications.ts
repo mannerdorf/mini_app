@@ -44,6 +44,7 @@ export async function subscribeFcmToken(body: {
   login: string;
   token: string;
   platform?: string;
+  inn?: string;
 }): Promise<{ ok: boolean }> {
   const { ok } = await fetchJson<Record<string, unknown>>("/api/fcm-subscribe", {
     method: "POST",
@@ -51,6 +52,18 @@ export async function subscribeFcmToken(body: {
     body: JSON.stringify(body),
   });
   return { ok };
+}
+
+export async function syncPushSelectedInn(body: {
+  login: string;
+  inn?: string | null;
+}): Promise<{ ok: boolean; pushInns?: string[] }> {
+  const { ok, data } = await fetchJson<{ push_inns?: string[] }>("/api/push-selected-inn", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return { ok, pushInns: data.push_inns };
 }
 
 export async function unsubscribeFcmToken(body: {

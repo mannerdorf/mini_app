@@ -15,7 +15,7 @@ import {
   perevozkiSenderInn,
 } from "./perevozkiPartyMatch.js";
 import { perevozkiItemInn } from "../api/perevozki.js";
-import { loadPushLoginScopes, normalizeNotificationInn } from "./notificationInnScope.js";
+import { loadEffectivePushLoginScopes, normalizeNotificationInn } from "./notificationInnScope.js";
 import {
   renderPushTemplateString,
   type PushNotificationTemplateMap,
@@ -397,7 +397,7 @@ export async function loadDailySummaryPrefsByLogin(
 
 export async function loadLoginInns(pool: Pool): Promise<Map<string, Set<string>>> {
   const byLogin = new Map<string, Set<string>>();
-  const scopes = await loadPushLoginScopes(pool);
+  const scopes = await loadEffectivePushLoginScopes(pool);
   for (const scope of scopes.values()) {
     if (scope.inns.size === 0) continue;
     byLogin.set(scope.login, new Set(scope.inns));

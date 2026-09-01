@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { invertScopesByInn, loadPushLoginScopes, normalizeNotificationInn } from "./notificationInnScope.js";
+import { invertScopesByInn, loadEffectivePushLoginScopes, normalizeNotificationInn } from "./notificationInnScope.js";
 import {
   cargoNumberLookupKeys,
   loadCargoCustomerInnByNumbers,
@@ -62,7 +62,7 @@ export async function dispatchPlannedDeliveryDatePush(params: {
     return { ok: true, attempted: 0, delivered: 0, failed: 0, skipped: cargoNumbers.length };
   }
 
-  const scopes = await loadPushLoginScopes(params.pool);
+  const scopes = await loadEffectivePushLoginScopes(params.pool);
   const loginsByInn = invertScopesByInn(scopes);
   const templates = await loadPushNotificationTemplates(params.pool);
 

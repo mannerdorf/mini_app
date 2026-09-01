@@ -7,7 +7,7 @@ import {
   ensurePushControlTables,
   writePushControlJournal,
 } from "../lib/pushControl.js";
-import { loadPushLoginScopes } from "../lib/notificationInnScope.js";
+import { loadEffectivePushLoginScopes } from "../lib/notificationInnScope.js";
 
 /** POST { login, token } — удалить один FCM token. Без token не трогаем другие устройства логина. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -51,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let inns: string[] = [];
     try {
-      const scopes = await loadPushLoginScopes(pool);
+      const scopes = await loadEffectivePushLoginScopes(pool);
       inns = [...(scopes.get(login)?.inns || [])];
     } catch {
       inns = [];
