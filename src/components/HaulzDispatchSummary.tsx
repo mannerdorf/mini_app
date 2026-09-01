@@ -594,11 +594,11 @@ export function HaulzDispatchSummary({
                             <div
                                 className={
                                     dispatchTableScrollable
-                                        ? "haulz-dispatch-table-wrap haulz-dispatch-table-wrap--scroll"
-                                        : "haulz-dispatch-table-wrap"
+                                        ? "haulz-dispatch-table-wrap haulz-dispatch-table-wrap--scroll dashboard-scroll-table-wrap"
+                                        : "haulz-dispatch-table-wrap dashboard-scroll-table-wrap"
                                 }
                             >
-                                <table className="haulz-dispatch-table">
+                                <table className="haulz-dispatch-table dashboard-scroll-table">
                                     <thead>
                                         <tr className="haulz-dispatch-table__head-row">
                                             {(

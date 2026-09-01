@@ -91,7 +91,7 @@ export function DashboardMainChart({
 
     return (
         <div>
-            <div style={{ overflowX: 'auto', width: '100%', minWidth: 0 }}>
+            <div style={{ width: '100%', minWidth: 0 }}>
                 <svg
                     viewBox={`0 0 ${chartWidth} ${chartHeight}`}
                     width="100%"
