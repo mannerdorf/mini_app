@@ -48,8 +48,8 @@ export function DashboardFinanceSection({ page }: Props) {
                                     <RefreshCw className="w-4 h-4" />
                                 </Button>
                             </Flex>
-                            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: '0.5rem' }}>
-                                <div className="payment-calendar-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(2.5rem, 1fr))', gap: '2px', fontSize: '0.75rem', minWidth: '22rem' }}>
+                            <div className="payment-calendar-wrap" style={{ marginBottom: '0.5rem' }}>
+                                <div className="payment-calendar-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: '2px', fontSize: '0.75rem' }}>
                                     {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'За неделю'].map((wd) => (
                                         <div key={wd} style={{ textAlign: 'center', color: 'var(--color-text-secondary)', fontWeight: 600, padding: '0.25rem' }}>{wd}</div>
                                     ))}
