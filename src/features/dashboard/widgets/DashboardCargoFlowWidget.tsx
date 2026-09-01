@@ -103,8 +103,8 @@ export function DashboardCargoFlowWidget({
                 <Typography.Body style={DASH_PLAN_FACT_TYPO.subhead}>
                     Ближайшие 7 дней (плановое прибытие на терминал)
                 </Typography.Body>
-                <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(86px, 1fr))', gap: '0.4rem', minWidth: '40rem' }}>
+                <div className="dashboard-cargo-flow-days-wrap">
+                    <div className="dashboard-cargo-flow-days-grid">
                         {cargoFlowByPlan.upcomingSeries.map((row) => {
                             const tileSel = { kind: 'tile' as const, dateKey: row.key };
                             const tileActive = cargoFlowTableExpanded && cargoFlowSelectionEqual(cargoFlowTableSelection, tileSel);
@@ -160,8 +160,8 @@ export function DashboardCargoFlowWidget({
                             Свернуть
                         </Button>
                     </Flex>
-                    <div style={{ overflowX: 'auto', maxHeight: 360, overflowY: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', ...DASH_PLAN_FACT_TYPO.table }}>
+                    <div className="dashboard-scroll-table-wrap" style={{ maxHeight: 360, overflowY: 'auto' }}>
+                        <table className="dashboard-scroll-table" style={{ width: '100%', borderCollapse: 'collapse', ...DASH_PLAN_FACT_TYPO.table }}>
                             <thead>
                                 <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-card)' }}>
                                     <th style={{ ...DASH_PLAN_FACT_TYPO.tableTh, textAlign: 'left' }}>Перевозка</th>

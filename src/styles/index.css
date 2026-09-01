@@ -12,6 +12,7 @@
 @import "./modules/controls-cms.css";
 @import "./modules/cargo-list.css";
 @import "./modules/cargo-documents-sticky.css";
+@import "./modules/dashboard-mobile.css";
 @import "./modules/filters.css";
 @import "./modules/modal-core.css";
 @import "./modules/modal-cargo-details.css";
