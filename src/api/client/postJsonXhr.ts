@@ -15,17 +15,18 @@ function toAbsoluteApiUrl(pathOrUrl: string): string {
     }
   }
 
-  // Оформление в 1С: на VPS live только /api/orders/submit-1c (origin/main).
-  // Всегда бьём в haulz.space, чтобы не зависеть от same-origin Vercel/preview.
+  const origin = resolveApiOrigin().replace(/\/+$/, "");
+
+  // Оформление в 1С: nested /api/orders/* на Vercel → 405; абсолютный URL через resolveApiOrigin.
   if (
     path === "/api/orders/submit-1c" ||
     path === "/api/documents/order-submit-1c" ||
     path === "/api/order-submit-1c"
   ) {
-    return `https://haulz.space${path}`;
+    const apiOrigin = origin || "https://api.haulz.space";
+    return `${apiOrigin}${path}`;
   }
 
-  const origin = resolveApiOrigin().replace(/\/+$/, "");
   if (!origin) return path;
   if (typeof window !== "undefined") {
     const page = String(window.location.origin || "").replace(/\/+$/, "");

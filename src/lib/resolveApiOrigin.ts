@@ -28,10 +28,17 @@ const isCapacitorNative = (): boolean => {
  * Базовый origin для fetch `/api/*`.
  * Web на haulz.space / haulz.ru → same-origin (nginx /api → VPS).
  * Vercel preview / *.vercel.app → https://haulz.space (иначе Functions 405 на nested routes).
- * Capacitor / VITE_API_ORIGIN → api.haulz.space.
+ * Capacitor (iOS/Android) → api.haulz.space напрямую, без прокси haulz.space.
  */
 export function resolveApiOrigin(): string {
   const envOrigin = normalizeApiOrigin(String(import.meta.env.VITE_API_ORIGIN || ""));
+
+  if (isCapacitorNative()) {
+    // Старые сборки могли bake-in haulz.space — фронт Timeweb не нужен нативным приложениям.
+    if (envOrigin && !usesSameOriginBrowserApi(envOrigin)) return envOrigin;
+    return FALLBACK_API_ORIGIN;
+  }
+
   if (envOrigin) return envOrigin;
   if (typeof window !== "undefined" && !isCapacitorNative()) {
     const pageOrigin = normalizeOrigin(window.location.origin);
