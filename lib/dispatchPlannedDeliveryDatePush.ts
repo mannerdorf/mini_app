@@ -24,6 +24,8 @@ export type PlannedDeliveryDatePushResult = {
   skipped: number;
 };
 
+export type PlannedDeliveryPlan = { cargoNumber: string; date: string };
+
 function resolveOwnerInn(
   cargoNumber: string,
   ownerInnByCargo: ReadonlyMap<string, string>,
@@ -36,23 +38,40 @@ function resolveOwnerInn(
 }
 
 /**
- * Push после записи плановой даты в 1С (sendings-plan-date).
+ * Push после записи плановой даты в 1С (sendings-plan-date) или diff из cache refresh.
  * Текст: «Перевозка № … плановая дата доставки …» из шаблона.
  */
 export async function dispatchPlannedDeliveryDatePush(params: {
   pool: Pool;
-  date: string;
-  cargoNumbers: string[];
+  date?: string;
+  cargoNumbers?: string[];
+  /** Явные пары номер+дата (cache refresh — у каждой перевозки своя дата). */
+  plans?: PlannedDeliveryPlan[];
 }): Promise<PlannedDeliveryDatePushResult> {
-  const date = String(params.date || "").trim();
-  const cargoNumbers = [
-    ...new Set(
-      (params.cargoNumbers || []).map((n) => String(n || "").trim()).filter(Boolean),
-    ),
-  ];
-  if (!date || cargoNumbers.length === 0) {
+  const plans: PlannedDeliveryPlan[] = [];
+  if (Array.isArray(params.plans) && params.plans.length > 0) {
+    for (const row of params.plans) {
+      const cargoNumber = String(row.cargoNumber || "").trim();
+      const date = String(row.date || "").trim();
+      if (cargoNumber && date) plans.push({ cargoNumber, date });
+    }
+  } else {
+    const date = String(params.date || "").trim();
+    const cargoNumbers = [
+      ...new Set(
+        (params.cargoNumbers || []).map((n) => String(n || "").trim()).filter(Boolean),
+      ),
+    ];
+    for (const cargoNumber of cargoNumbers) {
+      plans.push({ cargoNumber, date });
+    }
+  }
+
+  if (plans.length === 0) {
     return { ok: true, attempted: 0, delivered: 0, failed: 0, skipped: 0 };
   }
+
+  const cargoNumbers = [...new Set(plans.map((p) => p.cargoNumber))];
 
   const { byNumber: ownerInnByCargo, loaded } = await loadCargoCustomerInnByNumbers(
     params.pool,
@@ -66,10 +85,12 @@ export async function dispatchPlannedDeliveryDatePush(params: {
   const loginsByInn = invertScopesByInn(scopes);
   const templates = await loadPushNotificationTemplates(params.pool);
 
-  const pairs: Array<{ cargoNumber: string; inn: string }> = [];
+  const pairs: Array<{ cargoNumber: string; inn: string; date: string }> = [];
+  const planByCargo = new Map(plans.map((p) => [p.cargoNumber, p.date]));
   for (const cargoNumber of cargoNumbers) {
     const inn = resolveOwnerInn(cargoNumber, ownerInnByCargo);
-    if (inn) pairs.push({ cargoNumber, inn });
+    const date = planByCargo.get(cargoNumber) || "";
+    if (inn && date) pairs.push({ cargoNumber, inn, date });
   }
 
   if (pairs.length === 0) {
@@ -107,7 +128,7 @@ export async function dispatchPlannedDeliveryDatePush(params: {
   let failed = 0;
   let skipped = 0;
 
-  for (const { cargoNumber, inn } of pairs) {
+  for (const { cargoNumber, inn, date } of pairs) {
     const message = formatPushNotificationMessage(
       EVENT_ID,
       cargoNumber,

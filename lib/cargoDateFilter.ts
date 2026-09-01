@@ -78,6 +78,9 @@ export function isCargoInDateRangeForField(
 
 /** Поля плановой даты прибытия на терминал — как в «Документы» / карточка груза (DateArrival и др.). */
 const CARGO_PLANNED_DELIVERY_KEYS = [
+  "DateArrivalPlan",
+  "DateDeliveryPlan",
+  "DeliveryDatePlan",
   "DateArrival",
   "PlannedDeliveryDate",
   "PlanDeliveryDate",

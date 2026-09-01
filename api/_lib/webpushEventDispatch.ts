@@ -31,6 +31,8 @@ import {
 } from "../../lib/notificationCargoPayloadEnrich.js";
 import { getPerevozkiServiceCredentials } from "../../lib/cacheHistoryDays.js";
 import { loadPushNotificationTemplates, formatPushNotificationMessage } from "../../lib/pushNotificationTemplates.js";
+import { cargoPlannedDeliveryDateFromItem } from "../../lib/cargoDateFilter.js";
+import { dispatchPlannedDeliveryDatePush } from "../../lib/dispatchPlannedDeliveryDatePush.js";
 
 type CargoSnapshotItem = {
   inn?: unknown;
@@ -91,10 +93,12 @@ async function ensureNotificationTables(pool: Pool) {
       cargo_number text not null,
       state text,
       state_bill text,
+      plan_date text,
       updated_at timestamptz not null default now(),
       primary key (inn, cargo_number)
     )`
   );
+  await pool.query(`alter table cargo_last_state add column if not exists plan_date text`);
   await pool.query(
     `create table if not exists notification_deliveries (
       id uuid primary key default gen_random_uuid(),
@@ -284,8 +288,8 @@ export async function dispatchWebPushCargoEvents(params: {
     };
   }
 
-  const lastStateRows = await pool.query<{ inn: string; cargo_number: string; state: string | null; state_bill: string | null }>(
-    `select inn, cargo_number, state, state_bill
+  const lastStateRows = await pool.query<{ inn: string; cargo_number: string; state: string | null; state_bill: string | null; plan_date: string | null }>(
+    `select inn, cargo_number, state, state_bill, plan_date
      from cargo_last_state
      where cargo_number = any($2::text[])
        and (
@@ -294,11 +298,17 @@ export async function dispatchWebPushCargoEvents(params: {
        )`,
     [inns, cargoNumbers]
   );
-  const lastState = new Map<string, { state: string | null; stateBill: string | null }>();
+  const lastState = new Map<string, { state: string | null; stateBill: string | null; planDate: string | null }>();
   for (const row of lastStateRows.rows) {
     const innKey = normalizeNotificationInn(row.inn) || String(row.inn || "").trim();
-    lastState.set(`${innKey}::${row.cargo_number}`, { state: row.state, stateBill: row.state_bill });
+    lastState.set(`${innKey}::${row.cargo_number}`, {
+      state: row.state,
+      stateBill: row.state_bill,
+      planDate: row.plan_date ? String(row.plan_date).trim() : null,
+    });
   }
+
+  const planDateChanges: Array<{ cargoNumber: string; date: string }> = [];
 
   let changed = 0;
   let attempted = 0;
@@ -331,6 +341,17 @@ export async function dispatchWebPushCargoEvents(params: {
       ...billEventsOnChange(isFirstSeen, prev?.stateBill, item.raw, notifyFirstSeen),
     ];
     if (eventsToSend.length > 0) changed += 1;
+
+    const planDate = cargoPlannedDeliveryDateFromItem(item.raw as Record<string, unknown>);
+    const prevPlanDate = prev?.planDate ?? null;
+    const planDateNotifyFirstSeen = isFirstSeen && notifyFirstSeen && planDate;
+    if (
+      planDate &&
+      planDate !== prevPlanDate &&
+      (!isFirstSeen || planDateNotifyFirstSeen)
+    ) {
+      planDateChanges.push({ cargoNumber: item.cargoNumber, date: planDate });
+    }
 
     const subscribers = subscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
     const pushSubscribers = pushSubscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
@@ -486,14 +507,31 @@ export async function dispatchWebPushCargoEvents(params: {
     try {
       const stateBillToPersist = deferBillStateUpdate ? (prev?.stateBill ?? null) : item.stateBill;
       await pool.query(
-        `insert into cargo_last_state (inn, cargo_number, state, state_bill, updated_at)
-         values ($1,$2,$3,$4,now())
+        `insert into cargo_last_state (inn, cargo_number, state, state_bill, plan_date, updated_at)
+         values ($1,$2,$3,$4,$5,now())
          on conflict (inn, cargo_number)
-         do update set state = excluded.state, state_bill = excluded.state_bill, updated_at = now()`,
-        [item.inn, item.cargoNumber, item.state, stateBillToPersist]
+         do update set state = excluded.state, state_bill = excluded.state_bill,
+           plan_date = excluded.plan_date,
+           updated_at = now()`,
+        [item.inn, item.cargoNumber, item.state, stateBillToPersist, planDate || null]
       );
     } catch {
       // State persistence is best-effort when DB schema differs.
+    }
+  }
+
+  if (planDateChanges.length > 0) {
+    try {
+      const planResult = await dispatchPlannedDeliveryDatePush({
+        pool,
+        plans: planDateChanges,
+      });
+      attempted += planResult.attempted;
+      delivered += planResult.delivered;
+      failed += planResult.failed;
+      deduped += planResult.skipped;
+    } catch {
+      // plan-date push is best-effort
     }
   }
 

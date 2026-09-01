@@ -116,3 +116,13 @@ echo "  ${ORIGIN}/${RELEASES_PATH}"
 echo ""
 echo "Verify:"
 echo "  curl -sS ${ORIGIN}/version.json"
+
+if [[ -n "${HAULZ_API_ORIGIN:-}" && -n "${CRON_SECRET:-}" ]]; then
+  echo ""
+  echo "Notify app users (app_update push)..."
+  curl -fsS -X POST "${HAULZ_API_ORIGIN%/}/api/cron/app-update-push" \
+    -H "Authorization: Bearer ${CRON_SECRET}" \
+    -H "Content-Type: application/json" \
+    --data "{\"platform\":\"android\",\"versionCode\":${VERSION_CODE},\"versionName\":\"${VERSION_NAME}\"}" \
+    || echo "WARN: app_update push failed (APK is published; retry manually)" >&2
+fi
