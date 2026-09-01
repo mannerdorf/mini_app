@@ -153,6 +153,54 @@ describe("resolveEffectivePushInns", () => {
     });
     expect([...effective]).toEqual(["390103058713"]);
   });
+
+  it("uses selected INN from directory for serviceWide user with profile INN", () => {
+    const scope: PushLoginScope = {
+      login: "notification",
+      inns: new Set(["7820046291"]),
+      serviceWide: true,
+      boundFromProfile: true,
+    };
+    const effective = resolveEffectivePushInns({
+      scope,
+      allowedCompanyInns: [],
+      selectedInn: "7722461620",
+      selectedInDirectory: true,
+    });
+    expect([...effective]).toEqual(["7722461620"]);
+  });
+
+  it("falls back to profile INN when directory flag is false", () => {
+    const scope: PushLoginScope = {
+      login: "notification",
+      inns: new Set(["7820046291"]),
+      serviceWide: true,
+      boundFromProfile: true,
+    };
+    const effective = resolveEffectivePushInns({
+      scope,
+      allowedCompanyInns: [],
+      selectedInn: "7722461620",
+      selectedInDirectory: false,
+    });
+    expect([...effective]).toEqual(["7820046291"]);
+  });
+
+  it("ignores directory selection for non-serviceWide users", () => {
+    const scope: PushLoginScope = {
+      login: "user",
+      inns: new Set(["7820046291"]),
+      serviceWide: false,
+      boundFromProfile: true,
+    };
+    const effective = resolveEffectivePushInns({
+      scope,
+      allowedCompanyInns: [],
+      selectedInn: "7722461620",
+      selectedInDirectory: true,
+    });
+    expect([...effective]).toEqual(["7820046291"]);
+  });
 });
 
 describe("collectAllowedPushInns", () => {

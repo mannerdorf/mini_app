@@ -159,19 +159,27 @@ export function collectAllowedPushInns(
  * Эффективный скоуп автопуша:
  * — serviceWide без своего ИНН и без выбора → пусто;
  * — push_selected_inn из шапки (валидный среди профиля + account_companies) → только он;
+ * — serviceWide + выбор из cache_customers (справочник, не account_companies) → только он;
  * — иначе базовый scope.inns (профиль / все компании).
  */
 export function resolveEffectivePushInns(params: {
   scope: PushLoginScope;
   allowedCompanyInns: Iterable<string>;
   selectedInn?: string | null;
+  /** ИНН из push_selected_inn есть в cache_customers (для access_all / service_mode). */
+  selectedInDirectory?: boolean;
 }): Set<string> {
   const { scope } = params;
   const allowed = collectAllowedPushInns(scope, params.allowedCompanyInns);
   const selected = normalizeNotificationInn(params.selectedInn);
 
-  if (selected && allowed.has(selected)) {
-    return new Set([selected]);
+  if (selected) {
+    if (allowed.has(selected)) {
+      return new Set([selected]);
+    }
+    if (scope.serviceWide && params.selectedInDirectory) {
+      return new Set([selected]);
+    }
   }
 
   if (scope.serviceWide && scope.inns.size === 0) return new Set();
@@ -205,6 +213,27 @@ async function loadCompanyInnsByLogin(pool: Queryable): Promise<Map<string, stri
   return byLogin;
 }
 
+async function loadValidDirectoryInns(pool: Queryable, inns: Iterable<string>): Promise<Set<string>> {
+  const normalized = [...new Set([...inns].map(normalizeNotificationInn).filter(Boolean))];
+  if (normalized.length === 0) return new Set();
+  try {
+    const { rows } = await pool.query<{ inn: string }>(
+      `SELECT inn
+       FROM cache_customers
+       WHERE regexp_replace(coalesce(inn, ''), '\\D', '', 'g') = ANY($1::text[])`,
+      [normalized],
+    );
+    const out = new Set<string>();
+    for (const row of rows) {
+      const inn = normalizeNotificationInn(row.inn);
+      if (inn) out.add(inn);
+    }
+    return out;
+  } catch {
+    return new Set();
+  }
+}
+
 async function loadPushSelectedInnByLogin(pool: Queryable): Promise<Map<string, string>> {
   const byLogin = new Map<string, string>();
   try {
@@ -234,12 +263,27 @@ export async function loadEffectivePushLoginScopes(
   const companyInnsByLogin = await loadCompanyInnsByLogin(pool);
   const selectedByLogin = await loadPushSelectedInnByLogin(pool);
 
+  const directoryCandidates: string[] = [];
+  for (const [login, scope] of base.entries()) {
+    if (!scope.serviceWide) continue;
+    const selected = selectedByLogin.get(login);
+    if (!selected) continue;
+    const allowed = collectAllowedPushInns(scope, companyInnsByLogin.get(login) || []);
+    if (!allowed.has(normalizeNotificationInn(selected))) {
+      directoryCandidates.push(selected);
+    }
+  }
+  const validDirectoryInns = await loadValidDirectoryInns(pool, directoryCandidates);
+
   for (const [login, scope] of base.entries()) {
     const companyInns = companyInnsByLogin.get(login) || [];
+    const selected = selectedByLogin.get(login);
+    const selectedNorm = normalizeNotificationInn(selected);
     const effective = resolveEffectivePushInns({
       scope,
       allowedCompanyInns: companyInns,
-      selectedInn: selectedByLogin.get(login),
+      selectedInn: selected,
+      selectedInDirectory: Boolean(selectedNorm && validDirectoryInns.has(selectedNorm)),
     });
     base.set(login, { ...scope, inns: effective });
   }
