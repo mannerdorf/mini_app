@@ -103,8 +103,8 @@ export function DashboardCargoFlowWidget({
                 <Typography.Body style={DASH_PLAN_FACT_TYPO.subhead}>
                     Ближайшие 7 дней (плановое прибытие на терминал)
                 </Typography.Body>
-                <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(86px, 1fr))', gap: '0.4rem', minWidth: '40rem' }}>
+                <div className="dashboard-cargo-flow-days-wrap">
+                    <div className="dashboard-cargo-flow-days-grid">
                         {cargoFlowByPlan.upcomingSeries.map((row) => {
                             const tileSel = { kind: 'tile' as const, dateKey: row.key };
                             const tileActive = cargoFlowTableExpanded && cargoFlowSelectionEqual(cargoFlowTableSelection, tileSel);
@@ -160,8 +160,8 @@ export function DashboardCargoFlowWidget({
                             Свернуть
                         </Button>
                     </Flex>
-                    <div style={{ overflowX: 'auto', maxHeight: 360, overflowY: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', ...DASH_PLAN_FACT_TYPO.table }}>
+                    <div className="dashboard-scroll-table-wrap" style={{ maxHeight: 360, overflowY: 'auto' }}>
+                        <table className="dashboard-scroll-table" style={{ width: '100%', borderCollapse: 'collapse', ...DASH_PLAN_FACT_TYPO.table }}>
                             <thead>
                                 <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-card)' }}>
                                     <th style={{ ...DASH_PLAN_FACT_TYPO.tableTh, textAlign: 'left' }}>Перевозка</th>
@@ -175,7 +175,7 @@ export function DashboardCargoFlowWidget({
                             </thead>
                             <tbody>
                                 {cargoFlowDetailSorted.length === 0 ? (
-                                    <tr>
+                                    <tr className="dashboard-scroll-table__empty-row">
                                         <td colSpan={showSums ? 7 : 6} style={{ padding: '0.5rem', color: 'var(--color-text-secondary)' }}>
                                             Нет перевозок по этому фильтру.
                                         </td>
@@ -197,29 +197,29 @@ export function DashboardCargoFlowWidget({
                                                         : sk === 'in_transit' ? '#3b82f6'
                                                             : '#94a3b8';
                                         return (
-                                            <tr key={`cargo-flow-row-${cargoNum || idx}-${idx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                <td style={{ padding: '0.35rem 0.45rem', whiteSpace: 'nowrap' }}>
+                                            <tr key={`cargo-flow-row-${cargoNum || idx}-${idx}`} className="dashboard-scroll-table__data-row" style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                <td data-label="Перевозка" style={{ padding: '0.35rem 0.45rem', whiteSpace: 'nowrap' }}>
                                                     <ClickableCargoNumber number={cargoNum} onOpen={(n) => onOpenCargo?.(n, item)} />
                                                 </td>
-                                                <td style={{ padding: '0.35rem 0.45rem', whiteSpace: 'nowrap' }}>
+                                                <td data-label="План" style={{ padding: '0.35rem 0.45rem', whiteSpace: 'nowrap' }}>
                                                     {planKey ? <DateText value={planKey} /> : '—'}
                                                 </td>
-                                                <td style={{ padding: '0.35rem 0.45rem', whiteSpace: 'nowrap' }}>
+                                                <td data-label="Дата статуса" style={{ padding: '0.35rem 0.45rem', whiteSpace: 'nowrap' }}>
                                                     {statusDateKey ? <DateText value={statusDateKey} /> : '—'}
                                                 </td>
-                                                <td style={{ padding: '0.35rem 0.45rem', textAlign: 'center' }}>
+                                                <td data-label="Статус" style={{ padding: '0.35rem 0.45rem', textAlign: 'center' }}>
                                                     <span style={{ ...DASH_PLAN_FACT_TYPO.statusPill, background: `${stColor}18`, color: stColor, border: `1px solid ${stColor}44` }}>
                                                         {stLabel}
                                                     </span>
                                                 </td>
-                                                <td style={{ padding: '0.35rem 0.45rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                <td data-label="Маршрут" style={{ padding: '0.35rem 0.45rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     <RouteBadge route={getCargoItemRouteLabel(item)} />
                                                 </td>
-                                                <td style={{ padding: '0.35rem 0.45rem', textAlign: 'center' }}>
+                                                <td data-label="Тип" style={{ padding: '0.35rem 0.45rem', textAlign: 'center' }}>
                                                     <CargoTransportTypeIcon item={item} />
                                                 </td>
                                                 {showSums && (
-                                                    <td style={{ padding: '0.35rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(getItemSum(item), true)}</td>
+                                                    <td data-label="Сумма" style={{ padding: '0.35rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(getItemSum(item), true)}</td>
                                                 )}
                                             </tr>
                                         );

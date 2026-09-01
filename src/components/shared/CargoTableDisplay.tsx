@@ -134,14 +134,14 @@ export function CargoLastMileBadge({ item }: { item: CargoItem }) {
 }
 
 /**
- * Бейджи перевозки в логической цепочке:
- * забор → магистраль (статус) → последняя миля → оплата.
+ * Бейджи перевозки: верх — цепочка логистики (забор → магистраль → последняя миля),
+ * низ — оплата и маршрут (вторичные метки).
  */
 export function CargoLogisticsBadges({
   item,
   showPayment = false,
   showRouteInline = false,
-  className = "cargo-inner-table__badges cargo-inner-table__badges--stack-mobile",
+  className = "cargo-logistics-badges cargo-inner-table__badges cargo-inner-table__badges--stack-mobile",
 }: {
   item: CargoItem;
   showPayment?: boolean;
@@ -153,15 +153,27 @@ export function CargoLogisticsBadges({
 
   return (
     <div className={className}>
-      <CargoPickupLogisticsBadge item={item} />
-      <StatusBadge status={item.State} />
-      <CargoLastMileBadge item={item} />
-      {showBill ? <StatusBillBadge status={item.StateBill} /> : null}
-      {showRouteInline ? (
-        <span className="cargo-inner-table__route-inline">
-          <RouteBadge route={getCargoItemRouteLabel(item)} />
+      <div className="cargo-logistics-badges__flow" aria-label="Цепочка логистики">
+        <CargoPickupLogisticsBadge item={item} />
+        <span className="cargo-logistics-badges__arrow" aria-hidden>
+          →
         </span>
-      ) : null}
+        <StatusBadge status={item.State} />
+        <span className="cargo-logistics-badges__arrow" aria-hidden>
+          →
+        </span>
+        <CargoLastMileBadge item={item} />
+      </div>
+      {(showBill || showRouteInline) && (
+        <div className="cargo-logistics-badges__meta">
+          {showBill ? <StatusBillBadge status={item.StateBill} /> : null}
+          {showRouteInline ? (
+            <span className="cargo-inner-table__route-inline">
+              <RouteBadge route={getCargoItemRouteLabel(item)} />
+            </span>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }

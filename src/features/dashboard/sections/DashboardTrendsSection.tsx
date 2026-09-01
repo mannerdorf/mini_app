@@ -95,7 +95,7 @@ export function DashboardTrendsSection({ page }: Props) {
                             ? `M ${pad.l} ${pad.t + plotH} L ${pts.map((p, i) => { const x = pad.l + (i * plotW) / (pts.length - 1); const y = pad.t + plotH - (p.value / maxVal) * plotH; return `${x} ${y}`; }).join(' L ')} L ${pad.l + plotW} ${pad.t + plotH} Z`
                             : '';
                         return (
-                            <div ref={page.maChartWrapRef} style={{ width: '100%', minWidth: 0, overflowX: 'auto' }}>
+                            <div ref={page.maChartWrapRef} style={{ width: '100%', minWidth: 0 }}>
                                 <svg
                                     viewBox={`0 0 ${w} ${h}`}
                                     width="100%"
