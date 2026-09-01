@@ -4,7 +4,7 @@
 API в нативной сборке: **`https://haulz.space`** (как у Android APK).  
 Нужен **Mac + Xcode** — Linux/Cloud не собирает `.app` / IPA.
 
-Версия в Xcode: **1.3.29** (`MARKETING_VERSION`), build **9** (`CURRENT_PROJECT_VERSION`). Метка JS: **`push-js 9`**.
+Версия в Xcode: **1.3.29** (`MARKETING_VERSION`), build **10** (`CURRENT_PROJECT_VERSION`). Метка JS: **`push-js 10`**.
 
 Ветка: **`main`** (iOS влит в main). Быстрая шпаргалка: [IOS_REBUILD.md](./IOS_REBUILD.md).
 
@@ -230,7 +230,7 @@ npx cap open ios
 
 Симулятор пуши почти не принимает. Проверка — **физический iPhone** или TestFlight.
 
-Залейте **новый** архив: build **9**. На экране «Уведомления» должна быть строка `push-js 9`. Без неё это старый TestFlight — iPhone в админку не попадёт.
+Залейте **новый** архив: build **10**. На экране «Уведомления» должна быть строка `push-js 10`. Без неё это старый TestFlight — iPhone в админку не попадёт.
 
 ### 5. В приложении
 
