@@ -320,7 +320,7 @@ export function DashboardMetricsStrip({
                         </button>
                     ) : null}
                 </span>
-                <Flex gap="0.25rem" align="center" style={{ flexShrink: 0 }}>
+                <Flex gap="0.25rem" align="center" className="dashboard-chart-type-toolbar" style={{ flexShrink: 0 }}>
                     {showSums && (
                         <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'money' ? 'var(--color-primary-blue)' : 'transparent', border: 'none' }} onClick={() => setChartType('money')} title="Рубли"><RussianRuble className="w-4 h-4" style={{ color: chartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
                     )}

@@ -249,8 +249,8 @@ export function DashboardFinanceSection({ page }: Props) {
                                 <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.4rem', color: bucket.color }}>
                                     {bucket.label} — {bucket.count} {bucket.count === 1 ? 'счёт' : bucket.count < 5 ? 'счёта' : 'счетов'}
                                 </Typography.Body>
-                                <div style={{ maxHeight: 280, overflowY: 'auto', borderRadius: 8, border: '1px solid var(--color-border)' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+                                <div className="mobile-card-table-wrap dashboard-scroll-table-wrap" style={{ maxHeight: 280, overflowY: 'auto', borderRadius: 8, border: '1px solid var(--color-border)' }}>
+                                    <table className="dashboard-scroll-table dashboard-invoice-aging-table mobile-card-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
                                         <thead>
                                             <tr style={{ background: 'var(--color-bg-hover)', position: 'sticky', top: 0 }}>
                                                 <th style={thStyle('left')} onClick={() => toggleSort('number')}>Счёт{arrow('number')}</th>
@@ -270,20 +270,20 @@ export function DashboardFinanceSection({ page }: Props) {
                                                 const shipStColor = shipmentColor(shipSt);
                                                 const route = inv.route || '—';
                                                 return (
-                                                <tr key={`aging-inv-${idx}`} style={{ borderTop: '1px solid var(--color-border)' }}>
-                                                    <td style={{ padding: '0.3rem 0.5rem', whiteSpace: 'nowrap' }}>{inv.number}</td>
-                                                    <td style={{ padding: '0.3rem 0.5rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.customer}</td>
-                                                    <td style={{ padding: '0.3rem 0.5rem', textAlign: 'center' }}>
+                                                <tr key={`aging-inv-${idx}`} className="dashboard-scroll-table__data-row mobile-card-table__row" style={{ borderTop: '1px solid var(--color-border)' }}>
+                                                    <td data-label="Счёт" style={{ padding: '0.3rem 0.5rem', whiteSpace: 'nowrap' }}>{inv.number}</td>
+                                                    <td data-label="Заказчик" style={{ padding: '0.3rem 0.5rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.customer}</td>
+                                                    <td data-label="Статус" style={{ padding: '0.3rem 0.5rem', textAlign: 'center' }}>
                                                         <span style={{ fontSize: '0.65rem', padding: '0.12rem 0.4rem', borderRadius: 999, background: `${stColor}18`, color: stColor, border: `1px solid ${stColor}44`, fontWeight: 600, whiteSpace: 'nowrap' }}>{st}</span>
                                                     </td>
-                                                    <td style={{ padding: '0.3rem 0.5rem', textAlign: 'center' }}>
+                                                    <td data-label="Статус перевозки" style={{ padding: '0.3rem 0.5rem', textAlign: 'center' }}>
                                                         <span style={{ fontSize: '0.65rem', padding: '0.12rem 0.4rem', borderRadius: 999, background: `${shipStColor}18`, color: shipStColor, border: `1px solid ${shipStColor}44`, fontWeight: 600, whiteSpace: 'nowrap' }}>{shipSt}</span>
                                                     </td>
-                                                    <td style={{ padding: '0.3rem 0.5rem', textAlign: 'center' }}>
+                                                    <td data-label="Маршрут" style={{ padding: '0.3rem 0.5rem', textAlign: 'center' }}>
                                                         <RouteBadge route={route} />
                                                     </td>
-                                                    <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(inv.sum, true)}</td>
-                                                    <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: bucket.color, fontWeight: 600 }}>{inv.days}</td>
+                                                    <td data-label="Сумма" style={{ padding: '0.3rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(inv.sum, true)}</td>
+                                                    <td data-label="Дней" style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: bucket.color, fontWeight: 600 }}>{inv.days}</td>
                                                 </tr>
                                                 );
                                             })}

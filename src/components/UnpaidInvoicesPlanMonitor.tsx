@@ -133,7 +133,7 @@ export function UnpaidInvoicesPlanMonitor({
               : "unpaid-plan-monitor__table-wrap"
           }
         >
-          <table className="unpaid-plan-monitor__table">
+          <table className="unpaid-plan-monitor__table mobile-card-table">
             <thead>
               <tr>
                 <th>Счёт</th>
@@ -155,8 +155,8 @@ export function UnpaidInvoicesPlanMonitor({
                   ? leafRowClickProps(() => onOpenInvoice(row.invoice), "Открыть счёт")
                   : null;
                 return (
-                  <tr key={`${row.invoiceNumber}-${row.cargoNumber ?? ""}`} {...(rowOpen ?? {})}>
-                    <td>
+                  <tr key={`${row.invoiceNumber}-${row.cargoNumber ?? ""}`} className="mobile-card-table__row" {...(rowOpen ?? {})}>
+                    <td data-label="Счёт">
                       <ClickableInvoiceNumber
                         number={row.invoiceNumber}
                         invoice={row.invoice}
@@ -164,21 +164,21 @@ export function UnpaidInvoicesPlanMonitor({
                       />
                     </td>
                     {showCustomerColumn && (
-                      <td className="customer-col" title={row.customer}>{stripOoo(row.customer)}</td>
+                      <td data-label="Заказчик" className="customer-col" title={row.customer}>{stripOoo(row.customer)}</td>
                     )}
-                    <td className="unpaid-plan-monitor__col-status">
+                    <td data-label="Статус перевозки" className="unpaid-plan-monitor__col-status">
                       {row.cargoState != null && String(row.cargoState).trim() !== "" ? (
                         <StatusBadge status={row.cargoState} />
                       ) : (
                         "—"
                       )}
                     </td>
-                    <td className="unpaid-plan-monitor__col-plan-arrival">
+                    <td data-label="План прибытия" className="unpaid-plan-monitor__col-plan-arrival">
                       {row.planDateKey ? <DateText value={row.planDateKey} /> : "—"}
                     </td>
-                    <td>{priorityBadge(row)}</td>
+                    <td data-label="Приоритет">{priorityBadge(row)}</td>
                     {showSums && (
-                      <td style={{ textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>
+                      <td data-label="К оплате" style={{ textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>
                         {formatCurrency(row.balance, true)}
                       </td>
                     )}

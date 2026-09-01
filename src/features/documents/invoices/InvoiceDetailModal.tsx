@@ -309,7 +309,7 @@ export function InvoiceDetailModal({
                 )}
                 {list.length > 0 ? (
                     <div className="entity-detail-modal-table-wrap">
-                        <table className="invoice-detail-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                        <table className="invoice-detail-table mobile-card-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
                             <thead>
                                 <tr style={{ background: "var(--color-bg-hover)" }}>
                                     <th style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600 }}>Услуга</th>
@@ -328,29 +328,29 @@ export function InvoiceDetailModal({
                                     const deliveryState = cargoNum ? lookupNorm(cargoStateByNumber, cargoNum) : undefined;
                                     const route = cargoNum ? lookupNorm(cargoRouteByNumber, cargoNum) : undefined;
                                     return (
-                                        <tr key={i} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                                            <td style={{ padding: "0.5rem 0.4rem", maxWidth: 220 }} title={stripOoo(String(row.Operation ?? row.Name ?? ""))}>
+                                        <tr key={i} className="mobile-card-table__row" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                                            <td data-label="Услуга" style={{ padding: "0.5rem 0.4rem", maxWidth: 220 }} title={stripOoo(String(row.Operation ?? row.Name ?? ""))}>
                                                 {renderServiceCell(String(row.Operation ?? row.Name ?? "—"))}
                                             </td>
-                                            <td style={{ padding: "0.5rem 0.4rem" }}>
+                                            <td data-label="Статус перевозки" style={{ padding: "0.5rem 0.4rem" }}>
                                                 {perevozkiLoading ? (
                                                     <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} />
                                                 ) : (
                                                     <StatusBadge status={deliveryState} />
                                                 )}
                                             </td>
-                                            <td className="invoice-detail-table-route" style={{ padding: "0.5rem 0.4rem" }}>
+                                            <td data-label="Маршрут" className="invoice-detail-table-route" style={{ padding: "0.5rem 0.4rem" }}>
                                                 {perevozkiLoading ? (
                                                     <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} />
                                                 ) : (
                                                     <RouteBadge route={route} />
                                                 )}
                                             </td>
-                                            <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>{row.Quantity ?? "—"}</td>
-                                            <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>
+                                            <td data-label="Кол-во" style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>{row.Quantity ?? "—"}</td>
+                                            <td data-label="Цена" style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>
                                                 {row.Price != null ? formatCurrency(row.Price) : "—"}
                                             </td>
-                                            <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>
+                                            <td data-label="Сумма" style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>
                                                 {row.Sum != null ? formatCurrency(row.Sum) : "—"}
                                             </td>
                                         </tr>

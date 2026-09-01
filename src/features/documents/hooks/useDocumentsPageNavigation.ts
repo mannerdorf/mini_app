@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AccountPermissions } from "../../../types";
+import { useMobileLayout } from "../../../hooks/useMobileLayout";
 import {
     DOC_SECTIONS,
     DOC_SECTION_TO_PERMISSION,
@@ -66,9 +67,10 @@ export function useDocumentsPageNavigation({
         }
     }, [tableModeByCustomer]);
 
-    const tableModeGroupedByCustomer = tableModeByCustomer && showCustomerColumn && effectiveServiceMode;
-    const tableModeFlatDirect = tableModeByCustomer && !tableModeGroupedByCustomer;
-    const tableModeEffective = tableModeByCustomer;
+    const isMobileLayout = useMobileLayout();
+    const tableModeEffective = tableModeByCustomer && !isMobileLayout;
+    const tableModeGroupedByCustomer = tableModeEffective && showCustomerColumn && effectiveServiceMode;
+    const tableModeFlatDirect = tableModeEffective && !tableModeGroupedByCustomer;
 
     const [documentsOrderFormOpen, setDocumentsOrderFormOpen] = useState(() => readDocumentsNewOrderOpen());
 

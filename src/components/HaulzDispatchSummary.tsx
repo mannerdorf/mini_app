@@ -688,6 +688,7 @@ export function HaulzDispatchSummary({
                                             return (
                                                 <React.Fragment key={`${selectedTile}-grp-${customerKey}`}>
                                                     <tr
+                                                        className="haulz-dispatch-table__row haulz-dispatch-table__row--group-header dashboard-scroll-table__data-row"
                                                         onClick={() => {
                                                             if (groupOpen) {
                                                                 setExpandedCustomerKey(null);
@@ -710,7 +711,7 @@ export function HaulzDispatchSummary({
                                                         aria-expanded={groupOpen}
                                                         title={groupOpen ? "Свернуть список перевозок" : "Показать перевозки заказчика"}
                                                     >
-                                                        <td style={{ padding: "0.35rem", whiteSpace: "nowrap", verticalAlign: "middle" }}>
+                                                        <td data-label="Заказчик" style={{ padding: "0.35rem", whiteSpace: "nowrap", verticalAlign: "middle" }}>
                                                             <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                                                                 {groupOpen ? (
                                                                     <ChevronDown className="w-4 h-4" style={{ flexShrink: 0, opacity: 0.85 }} aria-hidden />
@@ -728,8 +729,7 @@ export function HaulzDispatchSummary({
                                                             </span>
                                                         </td>
                                                         {showCustomerColumn && (
-                                                        <td
-                                                            className="customer-col"
+                                                        <td data-label="Заказчик" className="customer-col"
                                                             style={{
                                                                 padding: "0.35rem",
                                                                 maxWidth: 220,
@@ -743,14 +743,14 @@ export function HaulzDispatchSummary({
                                                             {customerKey}
                                                         </td>
                                                         )}
-                                                        <td style={{ padding: "0.35rem", fontSize: "0.72rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }} className="status-date-col">
+                                                        <td data-label="Дата статуса" style={{ padding: "0.35rem", fontSize: "0.72rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }} className="status-date-col">
                                                             —
                                                         </td>
-                                                        <td style={{ padding: "0.35rem", whiteSpace: "nowrap", color: "var(--color-text-secondary)" }}>—</td>
-                                                        <td style={{ padding: "0.35rem", whiteSpace: "nowrap", color: "var(--color-text-secondary)" }}>—</td>
-                                                        <td style={{ padding: "0.35rem", whiteSpace: "nowrap", color: "var(--color-text-secondary)" }}>—</td>
-                                                        <td style={{ padding: "0.35rem", textAlign: "right" }}>{Math.round(totalPw).toLocaleString("ru-RU")}</td>
-                                                        <td style={{ padding: "0.35rem", textAlign: "right" }}>{formatCurrency(totalSum, true)}</td>
+                                                        <td data-label="Приход" style={{ padding: "0.35rem", whiteSpace: "nowrap", color: "var(--color-text-secondary)" }}>—</td>
+                                                        <td data-label="Маршрут" style={{ padding: "0.35rem", whiteSpace: "nowrap", color: "var(--color-text-secondary)" }}>—</td>
+                                                        <td data-label="Тип" style={{ padding: "0.35rem", whiteSpace: "nowrap", color: "var(--color-text-secondary)" }}>—</td>
+                                                        <td data-label="Плат. вес" style={{ padding: "0.35rem", textAlign: "right" }}>{Math.round(totalPw).toLocaleString("ru-RU")}</td>
+                                                        <td data-label="Сумма" style={{ padding: "0.35rem", textAlign: "right" }}>{formatCurrency(totalSum, true)}</td>
                                                     </tr>
                                                     {groupOpen && (
                                                         <HaulzDispatchShipmentRows

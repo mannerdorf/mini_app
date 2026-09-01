@@ -27,7 +27,7 @@ export function DocumentsPage(props: DocumentsPageProps) {
             <div className="cargo-page-sticky-header documents-page-sticky-header">
                 <Flex align="center" justify="space-between" style={{ marginBottom: '0.3rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <Typography.Headline className="text-page-title">Документы</Typography.Headline>
-                    <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                    <Flex align="center" gap="0.5rem" className="table-mode-toggle-desktop-only" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                         <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
                         <span className="roles-switch-wrap" style={{ display: 'inline-flex' }} aria-label={page.tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}>
                             <TapSwitch checked={page.tableModeByCustomer} onToggle={() => page.setTableModeByCustomer(v => !v)} />
