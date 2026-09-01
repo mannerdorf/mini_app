@@ -1,8 +1,6 @@
 import React from "react";
 import { Flex, Typography } from "@maxhub/max-ui";
 import { TapSwitch } from "../components/TapSwitch";
-import { ServiceRefreshFrom1cButton } from "../components/ServiceRefreshFrom1cButton";
-import { serviceRefreshKindsForDocumentsSection } from "../lib/serviceRefreshFrom1c";
 import { DocumentsInvoicesSection } from "../features/documents/invoices";
 import { DocumentsActsSection } from "../features/documents/acts";
 import { DocumentsEdoSection } from "../features/documents/edo";
@@ -30,23 +28,6 @@ export function DocumentsPage(props: DocumentsPageProps) {
                 <Flex align="center" justify="space-between" style={{ marginBottom: '0.3rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <Typography.Headline className="text-page-title">Документы</Typography.Headline>
                     <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                        {page.effectiveServiceMode && serviceRefreshKindsForDocumentsSection(page.docSection).length > 0 ? (
-                            <ServiceRefreshFrom1cButton
-                                auth={page.auth}
-                                dateFrom={page.apiDateRange.dateFrom}
-                                dateTo={page.apiDateRange.dateTo}
-                                kinds={serviceRefreshKindsForDocumentsSection(page.docSection)}
-                                compact
-                                onRefreshed={async () => {
-                                    const kinds = serviceRefreshKindsForDocumentsSection(page.docSection);
-                                    if (kinds.includes("invoices")) await page.mutateInvoices(undefined, { revalidate: true });
-                                    if (kinds.includes("perevozki")) await page.mutatePerevozki(undefined, { revalidate: true });
-                                    if (kinds.includes("acts")) await page.mutateActs(undefined, { revalidate: true });
-                                    if (kinds.includes("orders")) await page.mutateOrders(undefined, { revalidate: true });
-                                    if (kinds.includes("sendings")) await page.mutateSendings(undefined, { revalidate: true });
-                                }}
-                            />
-                        ) : null}
                         <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
                         <span className="roles-switch-wrap" style={{ display: 'inline-flex' }} aria-label={page.tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}>
                             <TapSwitch checked={page.tableModeByCustomer} onToggle={() => page.setTableModeByCustomer(v => !v)} />
