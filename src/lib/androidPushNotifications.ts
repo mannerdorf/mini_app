@@ -13,7 +13,7 @@ import {
 export type NativePushPlatform = "ios" | "android";
 
 /** Visible on Профиль → Уведомления. If the iPhone does not show this mark, TestFlight is an old IPA. */
-export const NATIVE_PUSH_CLIENT_MARK = "push-js 8";
+export const NATIVE_PUSH_CLIENT_MARK = "push-js 9";
 
 let listenersAttached = false;
 let currentLogin = "";
