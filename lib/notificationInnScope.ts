@@ -157,9 +157,9 @@ export function collectAllowedPushInns(
 
 /**
  * Эффективный скоуп автопуша:
- * — serviceWide без своего ИНН → пусто;
- * — без служебного режима и с валидным push_selected_inn → только выбранная компания;
- * — иначе базовый resolvePushInnsForLogin / loadPushLoginScopes.
+ * — serviceWide без своего ИНН и без выбора → пусто;
+ * — push_selected_inn из шапки (валидный среди профиля + account_companies) → только он;
+ * — иначе базовый scope.inns (профиль / все компании).
  */
 export function resolveEffectivePushInns(params: {
   scope: PushLoginScope;
@@ -167,14 +167,14 @@ export function resolveEffectivePushInns(params: {
   selectedInn?: string | null;
 }): Set<string> {
   const { scope } = params;
-  if (scope.serviceWide && scope.inns.size === 0) return new Set();
-
   const allowed = collectAllowedPushInns(scope, params.allowedCompanyInns);
   const selected = normalizeNotificationInn(params.selectedInn);
 
-  if (!scope.serviceWide && selected && allowed.has(selected)) {
+  if (selected && allowed.has(selected)) {
     return new Set([selected]);
   }
+
+  if (scope.serviceWide && scope.inns.size === 0) return new Set();
 
   return new Set(scope.inns);
 }

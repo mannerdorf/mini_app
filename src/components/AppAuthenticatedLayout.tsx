@@ -72,7 +72,7 @@ export function AppAuthenticatedLayout({
   const { auth, activeAccount } = useAuth();
   const { desktopExpanded } = useAppShell();
   useActiveCustomerInnSync();
-  usePushSelectedInnSync();
+  usePushSelectedInnSync(useServiceRequest);
 
   return (
     <Container

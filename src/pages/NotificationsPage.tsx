@@ -6,6 +6,7 @@ import {
     fetchNotificationPreferences,
     saveNotificationPreferences,
     saveNotificationPreferencesKeepalive,
+    syncPushSelectedInn,
 } from "../api/client/notifications";
 import {
     disableNativePushNotifications,
@@ -15,6 +16,8 @@ import {
     NATIVE_PUSH_CLIENT_MARK,
 } from "../lib/androidPushNotifications";
 import { getInstalledAppInfo } from "../lib/appVersionInfo";
+import { resolveAccountActiveInn } from "../lib/accountCustomer";
+import { useAuth } from "../contexts/AuthContext";
 import { CARGO_NOTIFICATION_STAGES, CARGO_STAGE_EVENT_IDS, isCargoStageNotificationEnabled, type CargoStageEventId } from "../../lib/notificationCargoEvents";
 import { buildPushPreferencesSavePayload, isPushNotificationEnabled } from "../../lib/notificationEmailPrefs";
 import { TapSwitch } from "../components/TapSwitch";
@@ -76,6 +79,7 @@ export function NotificationsPage({
     const lastSaveAtRef = useRef(0);
     const initialFetchStartedAtRef = useRef(0);
 
+    const { auth } = useAuth();
     const login = activeAccount?.login?.trim().toLowerCase() || "";
     const isNativePush = isNativePushEnvironment();
 
@@ -276,7 +280,11 @@ export function NotificationsPage({
         setPushError(null);
         setPushLoading(true);
         try {
-            const result = await enableNativePushNotifications(login);
+            const inn = resolveAccountActiveInn(activeAccount, auth);
+            if (inn) {
+                await syncPushSelectedInn({ login, inn });
+            }
+            const result = await enableNativePushNotifications(login, inn || undefined);
             if (!result.ok) throw new Error(result.error || "Не удалось включить push.");
             setPushEnabled(true);
         } catch (e: unknown) {
@@ -284,7 +292,7 @@ export function NotificationsPage({
         } finally {
             setPushLoading(false);
         }
-    }, [login]);
+    }, [login, activeAccount, auth]);
 
     const disablePush = useCallback(async () => {
         if (!login) return;

@@ -64,6 +64,21 @@ describe("resolvePushInnsForLogin", () => {
 });
 
 describe("resolveEffectivePushInns", () => {
+  it("uses selected INN for serviceWide user when selection is in allowed companies", () => {
+    const scope: PushLoginScope = {
+      login: "notification",
+      inns: new Set(["7820046291"]),
+      serviceWide: true,
+      boundFromProfile: true,
+    };
+    const effective = resolveEffectivePushInns({
+      scope,
+      allowedCompanyInns: ["7820046291", "390103058713"],
+      selectedInn: "390103058713",
+    });
+    expect([...effective]).toEqual(["390103058713"]);
+  });
+
   it("uses selected INN when not serviceWide and selection is in allowed companies", () => {
     const scope: PushLoginScope = {
       login: "user",
@@ -109,7 +124,7 @@ describe("resolveEffectivePushInns", () => {
     expect([...effective]).toEqual(["7820046291"]);
   });
 
-  it("returns empty for serviceWide without profile INN", () => {
+  it("returns empty for serviceWide without profile INN when nothing selected", () => {
     const scope: PushLoginScope = {
       login: "svc",
       inns: new Set(),
@@ -119,9 +134,24 @@ describe("resolveEffectivePushInns", () => {
     const effective = resolveEffectivePushInns({
       scope,
       allowedCompanyInns: ["7820046291"],
-      selectedInn: "7820046291",
+      selectedInn: "",
     });
     expect(effective.size).toBe(0);
+  });
+
+  it("uses selected INN for serviceWide without profile INN when user picked a company", () => {
+    const scope: PushLoginScope = {
+      login: "svc",
+      inns: new Set(),
+      serviceWide: true,
+      boundFromProfile: false,
+    };
+    const effective = resolveEffectivePushInns({
+      scope,
+      allowedCompanyInns: ["7820046291", "390103058713"],
+      selectedInn: "390103058713",
+    });
+    expect([...effective]).toEqual(["390103058713"]);
   });
 });
 

@@ -3,15 +3,18 @@ import { syncPushSelectedInn } from "../api/client/notifications";
 import { resolveAccountActiveInn } from "../lib/accountCustomer";
 import { useAuth } from "../contexts/AuthContext";
 
-/** Синхронизирует выбранный ИНН компании на сервер для автопуша (без служебного режима). */
-export function usePushSelectedInnSync() {
+/**
+ * Синхронизирует выбранный ИНН компании на сервер для автопуша.
+ * Пропускаем только когда в шапке включён служебный режим (useServiceRequest),
+ * а не когда у пользователя просто есть право service_mode в CMS.
+ */
+export function usePushSelectedInnSync(useServiceRequest: boolean) {
   const { activeAccount, auth } = useAuth();
   const lastSyncedRef = useRef<string>("");
 
   useEffect(() => {
     const login = activeAccount?.login?.trim().toLowerCase() ?? "";
-    if (!login) return;
-    if (activeAccount?.accessAllInns || activeAccount?.permissions?.service_mode === true) return;
+    if (!login || useServiceRequest) return;
 
     const inn = resolveAccountActiveInn(activeAccount, auth);
     if (!inn) return;
@@ -24,9 +27,8 @@ export function usePushSelectedInnSync() {
       lastSyncedRef.current = "";
     });
   }, [
+    useServiceRequest,
     activeAccount?.login,
-    activeAccount?.accessAllInns,
-    activeAccount?.permissions?.service_mode,
     activeAccount?.activeCustomerInn,
     activeAccount?.customers,
     auth?.inn,

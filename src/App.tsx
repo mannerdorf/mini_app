@@ -96,7 +96,7 @@ function AppRoot() {
     useEffect(() => {
         const login = activeAccount?.login?.trim().toLowerCase();
         if (!auth || !login || !isNativePush) return;
-        if (activeAccount?.accessAllInns || activeAccount?.permissions?.service_mode === true) return;
+        if (useServiceRequest) return;
         const inn =
             activeAccount?.activeCustomerInn?.trim() ||
             activeAccount?.customers?.find((c) => c.inn)?.inn?.trim() ||
@@ -109,8 +109,7 @@ function AppRoot() {
         activeAccount?.login,
         activeAccount?.activeCustomerInn,
         activeAccount?.customers,
-        activeAccount?.accessAllInns,
-        activeAccount?.permissions?.service_mode,
+        useServiceRequest,
         isNativePush,
     ]);
     const {
