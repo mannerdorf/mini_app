@@ -1,13 +1,14 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Flex, Typography } from "@maxhub/max-ui";
-import { Download, Loader2 } from "lucide-react";
+import { Eye, Loader2 } from "lucide-react";
 import { EntityDetailModalHeader } from "../../../components/modals/EntityDetailModalHeader";
 import { formatCurrency, formatInvoiceNumber, stripOoo, parseCargoNumbersFromText, transliterateFilename } from "../../../lib/formatUtils";
 import { DateText } from "../../../components/ui/DateText";
 import { StatusBadge } from "../../../components/shared/StatusBadges";
 import { RouteBadge } from "../../../components/shared/CargoTableDisplay";
 import { PROXY_API_DOWNLOAD_URL } from "../../../constants/config";
+import { DOCUMENT_METHODS } from "../../../documentMethods";
 import { getFirstCargoNumberFromInvoice, getCargoNumberFromInvoiceRow } from "../lib/documentsPipeline";
 import { formatPerevozkaNumberForApi } from "../../../lib/perevozkaNumber";
 import { getInvoiceEdoInfoByDocLabel } from "../../../lib/edoStatus";
@@ -15,6 +16,8 @@ import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
 import { decodeBase64Payload } from "../../../utils";
 import { buildDownloadRequestBody } from "../../../lib/downloadRequestBody";
 import { saveBlobFile } from "../../../lib/saveBlobFile";
+import { createPdfPreviewFromBlob, revokePdfPreview, type PdfPreviewState } from "../../../lib/documentPreview";
+import { PdfPreviewPanel } from "../../../components/shared/PdfPreviewPanel";
 import type { AuthData } from "../../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД"] as const;
@@ -81,6 +84,14 @@ export function ActDetailModal({
 }: ActDetailModalProps) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
+    const [pdfViewer, setPdfViewer] = useState<PdfPreviewState | null>(null);
+
+    useEffect(() => {
+        if (!isOpen && pdfViewer) {
+            void revokePdfPreview(pdfViewer);
+            setPdfViewer(null);
+        }
+    }, [isOpen, pdfViewer]);
 
     if (!isOpen) return null;
 
@@ -148,7 +159,11 @@ export function ActDetailModal({
             const byteArray = decodeBase64Payload(data.data);
             const blob = new Blob([byteArray], { type: "application/pdf" });
             const fileName = transliterateFilename(data.name || `${label}_${cargoNumber}.pdf`);
-            await saveBlobFile(blob, fileName);
+            if (pdfViewer) {
+                await revokePdfPreview(pdfViewer);
+            }
+            const preview = await createPdfPreviewFromBlob(blob, fileName);
+            setPdfViewer(preview);
         } catch (e: any) {
             setDownloadError(e?.message ?? "Ошибка загрузки");
         } finally {
@@ -268,7 +283,7 @@ export function ActDetailModal({
                                     {downloading === label ? (
                                         <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
                                     ) : (
-                                        <Download className="w-4 h-4" aria-hidden />
+                                        <Eye className="w-4 h-4" aria-hidden />
                                     )}
                                     {label}
                                     <EdoDocMiniBadge info={edo} />
@@ -281,6 +296,16 @@ export function ActDetailModal({
                     <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
                         {downloadError}
                     </Typography.Body>
+                )}
+                {pdfViewer && (
+                    <PdfPreviewPanel
+                        preview={pdfViewer}
+                        onDownload={(blob, name) => saveBlobFile(blob, name)}
+                        onClose={() => {
+                            void revokePdfPreview(pdfViewer);
+                            setPdfViewer(null);
+                        }}
+                    />
                 )}
 
                 {list.length > 0 ? (

@@ -46,6 +46,7 @@ export async function saveBlobFile(blob: Blob, fileName: string): Promise<void> 
   triggerBlobDownload(blob, safeName);
 }
 
+/** Inline PDF preview доступен и в браузере, и в Capacitor (через convertFileSrc). */
 export function supportsInlinePdfPreview(): boolean {
-  return !Capacitor.isNativePlatform();
+  return true;
 }
