@@ -13,6 +13,8 @@
 @import "./modules/cargo-list.css";
 @import "./modules/cargo-documents-sticky.css";
 @import "./modules/dashboard-mobile.css";
+@import "./modules/mobile-layout.css";
+@import "./modules/mobile-card-table.css";
 @import "./modules/filters.css";
 @import "./modules/modal-core.css";
 @import "./modules/modal-cargo-details.css";

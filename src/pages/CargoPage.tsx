@@ -28,6 +28,7 @@ import { CARGO_ROLE_FILTER_LABELS, pickupLogisticsFilterLabel, type CargoRoleFil
 import { cargoTransportTypeLabel, getCargoTransportType } from "../lib/cargoTransportType";
 import { buildRouteTypePlanDaysMap, getEffectivePlannedDeliveryDate } from "../lib/cargoPlannedDelivery";
 import { ServiceRefreshFrom1cButton } from "../components/ServiceRefreshFrom1cButton";
+import { useMobileLayout } from "../hooks/useMobileLayout";
 import { CargoSummaryCard, CargoStateBlocks } from "./cargoViewBlocks";
 import { CargoCustomerTable, CargoCardsList } from "./cargoCollectionViews";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
@@ -230,8 +231,10 @@ export function CargoPage({
     useEffect(() => {
         try { localStorage.setItem(CARGO_TABLE_MODE_KEY, String(tableModeByCustomer)); } catch { /* ignore */ }
     }, [tableModeByCustomer]);
-    const tableModeGroupedByCustomer = tableModeByCustomer && showCustomerColumn && effectiveServiceMode;
-    const tableModeFlatDirect = tableModeByCustomer && !tableModeGroupedByCustomer;
+    const isMobileLayout = useMobileLayout();
+    const tableModeEffective = tableModeByCustomer && !isMobileLayout;
+    const tableModeGroupedByCustomer = tableModeEffective && showCustomerColumn && effectiveServiceMode;
+    const tableModeFlatDirect = tableModeEffective && !tableModeGroupedByCustomer;
     /** Сортировка таблицы по заказчику: столбец и направление (а-я / я-а) */
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'mest' | 'pw' | 'w' | 'vol' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -531,12 +534,12 @@ export function CargoPage({
 
     /** Не разворачиваем первого заказчика по умолчанию — только сохраняем выбор, если строка ещё в выборке */
     useEffect(() => {
-        if (!tableModeByCustomer || sortedGroupedByCustomer.length === 0) return;
+        if (!tableModeEffective || sortedGroupedByCustomer.length === 0) return;
         setExpandedTableCustomer((prev) => {
             if (!prev) return null;
             return sortedGroupedByCustomer.some((row) => row.customer === prev) ? prev : null;
         });
-    }, [tableModeByCustomer, sortedGroupedByCustomer]);
+    }, [tableModeEffective, sortedGroupedByCustomer]);
 
     const handleTableSort = (column: typeof tableSortColumn) => {
         if (tableSortColumn === column) {
@@ -636,7 +639,7 @@ export function CargoPage({
             <div className="cargo-page-sticky-header">
             <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <Typography.Headline className="text-page-title">Грузы</Typography.Headline>
-                <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                    <Flex align="center" gap="0.5rem" className="table-mode-toggle-desktop-only" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                     {effectiveServiceMode && primaryAuth ? (
                         <ServiceRefreshFrom1cButton
                             auth={primaryAuth}
@@ -1083,7 +1086,7 @@ export function CargoPage({
                             motionEnabled={cargoMotionEnabled}
                         />
                     </motion.div>
-                ) : filteredItems.length > 0 && !tableModeByCustomer ? (
+                ) : filteredItems.length > 0 && !tableModeEffective ? (
                     <motion.div
                         key="cargo-view-cards"
                         className="cargo-cards-offset-desktop"

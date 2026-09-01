@@ -792,15 +792,6 @@
         max-width: 100%;
     }
 
-    .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters .filters-row-scroll {
-        overflow-x: hidden;
-        overflow-y: visible;
-        -webkit-overflow-scrolling: touch;
-        max-width: 100%;
-        min-width: 0;
-        flex-wrap: wrap;
-    }
-
     .dashboard-page--saas-analytics #haulz-dispatch-dashboard {
         min-width: 0;
         max-width: 100%;

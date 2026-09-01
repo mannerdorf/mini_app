@@ -31,7 +31,7 @@ export function DashboardTrendsSection({ page }: Props) {
                         <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600 }}>
                             {page.selectedChartConfig.title}
                         </Typography.Headline>
-                        <Flex gap="0.2rem" align="center">
+                        <Flex gap="0.2rem" align="center" className="dashboard-chart-type-toolbar">
                             {page.showSums && (
                                 <Button className="filter-button" style={{ padding: '0.3rem', minWidth: 'auto', background: page.chartType === 'money' ? 'var(--color-primary-blue)' : 'transparent', border: 'none', borderRadius: 8 }} onClick={() => page.setChartType('money')} title="Рубли"><RussianRuble className="w-4 h-4" style={{ color: page.chartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
                             )}
@@ -65,7 +65,7 @@ export function DashboardTrendsSection({ page }: Props) {
                         <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600 }}>
                             Скользящая средняя (7 дн.)
                         </Typography.Headline>
-                        <Flex gap="0.2rem" align="center">
+                        <Flex gap="0.2rem" align="center" className="dashboard-chart-type-toolbar">
                             {page.showSums && (
                                 <Button className="filter-button" style={{ padding: '0.3rem', minWidth: 'auto', background: page.maChartType === 'money' ? 'var(--color-primary-blue)' : 'transparent', border: 'none', borderRadius: 8 }} onClick={() => page.setMaChartType('money')} title="Рубли"><RussianRuble className="w-4 h-4" style={{ color: page.maChartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
                             )}

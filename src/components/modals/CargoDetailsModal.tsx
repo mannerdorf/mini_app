@@ -602,8 +602,8 @@ export function CargoDetailsModal({
                             <Typography.Headline className="cargo-modal-section-title" style={{ marginBottom: 0 }}>{nomenclatureOpen ? '▼' : '▶'} Номенклатура принятого груза</Typography.Headline>
                         </div>
                         {nomenclatureOpen && (
-                            <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid var(--color-border)' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                            <div className="cargo-modal-nomenclature-wrap mobile-card-table-wrap" style={{ borderRadius: 8, border: '1px solid var(--color-border)' }}>
+                                <table className="cargo-modal-nomenclature-table mobile-card-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                                     <thead>
                                         <tr style={{ backgroundColor: 'var(--color-bg-hover)' }}>
                                             {Object.keys(perevozkaNomenclature[0]).map((col) => (
@@ -615,9 +615,13 @@ export function CargoDetailsModal({
                                     </thead>
                                     <tbody>
                                         {perevozkaNomenclature.map((row, idx) => (
-                                            <tr key={idx} style={{ borderBottom: idx < perevozkaNomenclature.length - 1 ? '1px solid var(--color-border)' : undefined }}>
+                                            <tr key={idx} className="mobile-card-table__row" style={{ borderBottom: idx < perevozkaNomenclature.length - 1 ? '1px solid var(--color-border)' : undefined }}>
                                                 {Object.keys(perevozkaNomenclature[0]).map((col) => (
-                                                    <td key={col} style={{ padding: '0.5rem 0.75rem', verticalAlign: 'top' }}>
+                                                    <td
+                                                        key={col}
+                                                        data-label={col === 'Package' ? 'Штрихкод' : col === 'SKUs' ? 'Номенклатура' : col}
+                                                        style={{ padding: '0.5rem 0.75rem', verticalAlign: 'top' }}
+                                                    >
                                                         {(() => {
                                                             const val = row[col];
                                                             if (val === undefined || val === null) return '—';

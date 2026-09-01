@@ -11,18 +11,6 @@
         overflow-x: hidden;
     }
 
-    /* П.9 — фильтры переносятся, без горизонтального скролла */
-    .dashboard-page--saas-analytics .dashboard-sticky-filters .filters-row-scroll {
-        flex-wrap: wrap;
-        overflow-x: hidden;
-        overflow-y: visible;
-    }
-
-    .dashboard-page--saas-analytics .dashboard-sticky-filters .filter-group {
-        flex-shrink: 1;
-        max-width: 100%;
-    }
-
     /* П.1 — грузовой поток: 7 дней в 2 колонки */
     .dashboard-cargo-flow-days-grid {
         display: grid;

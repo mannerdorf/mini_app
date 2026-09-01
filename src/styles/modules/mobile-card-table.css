@@ -1,0 +1,117 @@
+/* Mobile: широкие таблицы → карточки (data-label на td). Фильтры не затрагиваем. */
+
+@media (max-width: 768px) {
+    .mobile-card-table-wrap,
+    .dashboard-scroll-table-wrap,
+    .unpaid-plan-monitor__table-wrap,
+    .entity-detail-modal-table-wrap,
+    .doc-section-table-wrap,
+    .cargo-modal-nomenclature-wrap,
+    .doc-inner-table-wrap {
+        overflow-x: hidden !important;
+        max-width: 100%;
+    }
+
+    .mobile-card-table,
+    .dashboard-scroll-table,
+    .unpaid-plan-monitor__table.mobile-card-table,
+    .invoice-detail-table.mobile-card-table,
+    .act-detail-table.mobile-card-table,
+    .dashboard-invoice-aging-table.mobile-card-table,
+    .cargo-modal-nomenclature-table.mobile-card-table,
+    .doc-inner-table.mobile-card-table {
+        min-width: 0 !important;
+        width: 100%;
+    }
+
+    .mobile-card-table thead,
+    .dashboard-scroll-table thead,
+    .unpaid-plan-monitor__table.mobile-card-table thead,
+    .invoice-detail-table.mobile-card-table thead,
+    .act-detail-table.mobile-card-table thead,
+    .dashboard-invoice-aging-table.mobile-card-table thead,
+    .cargo-modal-nomenclature-table.mobile-card-table thead,
+    .doc-inner-table.mobile-card-table thead {
+        display: none;
+    }
+
+    .mobile-card-table tbody tr.mobile-card-table__row,
+    .dashboard-scroll-table tbody tr.dashboard-scroll-table__data-row,
+    .unpaid-plan-monitor__table.mobile-card-table tbody tr,
+    .invoice-detail-table.mobile-card-table tbody tr,
+    .act-detail-table.mobile-card-table tbody tr,
+    .dashboard-invoice-aging-table.mobile-card-table tbody tr,
+    .cargo-modal-nomenclature-table.mobile-card-table tbody tr,
+    .doc-inner-table.mobile-card-table tbody tr {
+        display: block;
+        margin-bottom: 0.55rem;
+        padding: 0.45rem 0.55rem;
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        background: var(--color-bg-card);
+    }
+
+    .mobile-card-table tbody tr.mobile-card-table__row td,
+    .dashboard-scroll-table tbody tr.dashboard-scroll-table__data-row td,
+    .unpaid-plan-monitor__table.mobile-card-table tbody tr td,
+    .invoice-detail-table.mobile-card-table tbody tr td,
+    .act-detail-table.mobile-card-table tbody tr td,
+    .dashboard-invoice-aging-table.mobile-card-table tbody tr td,
+    .cargo-modal-nomenclature-table.mobile-card-table tbody tr td,
+    .doc-inner-table.mobile-card-table tbody tr td {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 0.5rem;
+        padding: 0.2rem 0;
+        border: none;
+        white-space: normal;
+        max-width: none;
+        text-align: left !important;
+    }
+
+    .mobile-card-table tbody tr.mobile-card-table__row td::before,
+    .dashboard-scroll-table tbody tr.dashboard-scroll-table__data-row td::before,
+    .unpaid-plan-monitor__table.mobile-card-table tbody tr td::before,
+    .invoice-detail-table.mobile-card-table tbody tr td::before,
+    .act-detail-table.mobile-card-table tbody tr td::before,
+    .dashboard-invoice-aging-table.mobile-card-table tbody tr td::before,
+    .cargo-modal-nomenclature-table.mobile-card-table tbody tr td::before,
+    .doc-inner-table.mobile-card-table tbody tr td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        font-size: 0.68rem;
+        color: var(--color-text-secondary);
+        flex-shrink: 0;
+        max-width: 42%;
+    }
+
+    .mobile-card-table tbody tr.mobile-card-table__detail-row,
+    .dashboard-scroll-table tbody tr.dashboard-scroll-table__detail-row {
+        display: block;
+        margin-bottom: 0.55rem;
+        border: none;
+        background: transparent;
+        padding: 0;
+    }
+
+    .mobile-card-table tbody tr.mobile-card-table__detail-row > td,
+    .dashboard-scroll-table tbody tr.dashboard-scroll-table__detail-row > td {
+        display: block;
+        padding: 0;
+        border: none;
+    }
+
+    .mobile-card-table tbody tr.mobile-card-table__detail-row > td::before,
+    .dashboard-scroll-table tbody tr.dashboard-scroll-table__detail-row > td::before {
+        display: none;
+    }
+
+    .haulz-dispatch-table-wrap {
+        overflow-x: hidden !important;
+    }
+
+    .haulz-dispatch-table tbody tr.haulz-dispatch-table__row--group-header.dashboard-scroll-table__data-row td::before {
+        max-width: 38%;
+    }
+}

@@ -121,7 +121,7 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.65rem' }}>
                         Разбивка текущего периода по последней миле. Проценты считаются от общего итога по каждой метрике.
                     </Typography.Body>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
+                    <div className="dashboard-ops-metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
                         {page.lastMileTerminalLoad.rows.map((row, rowIndex) => {
                             const pct = (value: number, total: number) => total > 0 ? Math.round((value / total) * 100) : 0;
                             const metrics = [
@@ -151,7 +151,7 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                                             style={{ background: row.color, borderRadius: 999, minWidth: countPct > 0 ? 4 : 0 }}
                                         />
                                     </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(118px, 1fr))', gap: '0.45rem' }}>
+                                    <div className="dashboard-ops-stage-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(118px, 1fr))', gap: '0.45rem' }}>
                                         {metrics.map((metric, metricIndex) => {
                                             const metricPct = pct(metric.value, metric.total);
                                             const formattedValue = metric.money
@@ -197,7 +197,7 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.65rem' }}>
                         Разбивка текущего периода по месту старта груза. Проценты считаются от общего итога по каждой метрике.
                     </Typography.Body>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
+                    <div className="dashboard-ops-metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
                         {page.pickupLogisticsLoad.rows.map((row, rowIndex) => {
                             const pct = (value: number, total: number) => total > 0 ? Math.round((value / total) * 100) : 0;
                             const metrics = [
@@ -227,7 +227,7 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                                             style={{ background: row.color, borderRadius: 999, minWidth: countPct > 0 ? 4 : 0 }}
                                         />
                                     </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(118px, 1fr))', gap: '0.45rem' }}>
+                                    <div className="dashboard-ops-stage-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(118px, 1fr))', gap: '0.45rem' }}>
                                         {metrics.map((metric, metricIndex) => {
                                             const metricPct = pct(metric.value, metric.total);
                                             const formattedValue = metric.money
@@ -273,7 +273,7 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.65rem' }}>
                         Сводная разбивка текущего периода по заборной логистике и последней миле. Нажмите на блок, чтобы открыть таблицу.
                     </Typography.Body>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
+                    <div className="dashboard-ops-metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
                         {page.pickupByLastMileLoad.rows.map((row, rowIndex) => {
                             const pct = (value: number, total: number) => total > 0 ? Math.round((value / total) * 100) : 0;
                             const metrics = [
@@ -324,7 +324,7 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                                             style={{ background: row.color, borderRadius: 999, minWidth: countPct > 0 ? 4 : 0 }}
                                         />
                                     </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(118px, 1fr))', gap: '0.45rem' }}>
+                                    <div className="dashboard-ops-stage-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(118px, 1fr))', gap: '0.45rem' }}>
                                         {metrics.map((metric, metricIndex) => {
                                             const metricPct = pct(metric.value, metric.total);
                                             const formattedValue = metric.money
