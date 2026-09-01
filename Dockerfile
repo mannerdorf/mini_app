@@ -6,8 +6,13 @@ FROM node:24-slim AS build
 
 WORKDIR /app
 
+# Vite minify после transform требует нативный esbuild; npm 11+ блокирует postinstall без allowScripts.
+ENV NODE_OPTIONS=--max-old-space-size=4096
+ENV CI=1
+
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci \
+  && node -e "require('esbuild').buildSync({write:false,stdin:'',loader:'js'})"
 
 COPY . .
 # Веб (Docker/App Platform): VITE_API_ORIGIN не задаём — same-origin /api через nginx.

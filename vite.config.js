@@ -39,6 +39,8 @@ export default defineConfig(({ command }) => ({
   },
   plugins: [react(), ...(useSingleFilePlugin() ? [viteSingleFile()] : []), adminRewrite()],
   build: {
+    // В Docker/CI gzip-отчёт по каждому чанку заметно замедляет финальный этап сборки.
+    reportCompressedSize: !process.env.CI,
     // Без singlefile — разумный лимит инлайна мелких ассетов
     assetsInlineLimit: useSingleFilePlugin() ? 100000000 : 4096,
     cssCodeSplit: !useSingleFilePlugin(),

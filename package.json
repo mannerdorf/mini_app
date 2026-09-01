@@ -6,6 +6,13 @@
   "engines": {
     "node": ">=18"
   },
+  "allowScripts": {
+    "@firebase/util": true,
+    "@swc/core": true,
+    "core-js": true,
+    "esbuild": true,
+    "protobufjs": true
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
