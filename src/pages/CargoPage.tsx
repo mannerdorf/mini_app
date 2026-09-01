@@ -20,7 +20,7 @@ import {
     buildGroupedByCustomer,
     sortGroupedByCustomer,
 } from "./cargoPipeline";
-import { formatTypeFilterSetLabel, initSharedFilterSets, saveSharedListFilters, sharedFromFilterSets, type TypeFilterKey } from "../lib/sharedListFilters";
+import { formatTypeFilterSetLabel, initSharedFilterSets, resolveCargoActiveFilters, saveSharedListFilters, sharedFromFilterSets, type TypeFilterKey } from "../lib/sharedListFilters";
 import { buildTransportOptionsFromSendingsInPeriod, buildTransportLinkedCargoNumbersInPeriod, collectSendingFreightCargoNumbers, filterItemsForHeaderCustomer, normCargoKey } from "../features/documents/lib/documentsPipeline";
 import { useCargoTransportFilter, usePerevozkiMultiAccounts, useSendings } from "../hooks/useApi";
 import { useCargoNomenclatureSearch } from "../hooks/useCargoNomenclatureSearch";
@@ -486,28 +486,40 @@ export function CargoPage({
     const uniqueSenders = useMemo(() => [...new Set(items.map(i => (i.Sender ?? '').trim()).filter(Boolean))].sort(), [items]);
     const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
 
+    const activeListFilters = useMemo(
+        () =>
+            resolveCargoActiveFilters({
+                showSums,
+                statusFilterSet,
+                billStatusFilterSet,
+                typeFilterSet,
+                routeFilterSet,
+            }),
+        [showSums, statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet],
+    );
+
     // Client-side filtering and sorting
     const filteredItems = useMemo(() => {
         return buildFilteredCargoItems({
             items: itemsForFiltering,
             searchText: effectiveSearchText,
-            statusFilterSet,
+            statusFilterSet: activeListFilters.statusFilterSet,
             senderFilter,
             receiverFilter,
             transportFilter: effectiveServiceMode ? transportFilter : '',
             transportLinkedCargoNumbers,
             cargoSearchTextByNumber,
             useServiceRequest: effectiveServiceMode,
-            billStatusFilterSet,
-            typeFilterSet,
-            routeFilterSet,
+            billStatusFilterSet: activeListFilters.billStatusFilterSet,
+            typeFilterSet: activeListFilters.typeFilterSet,
+            routeFilterSet: activeListFilters.routeFilterSet,
             lastMileFilter,
             pickupLogisticsFilter,
             roleFilter: "all",
             sortBy,
             sortOrder,
         });
-    }, [itemsForFiltering, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, transportFilter, transportLinkedCargoNumbers, cargoSearchTextByNumber, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, lastMileFilter, pickupLogisticsFilter, sortBy, sortOrder]);
+    }, [itemsForFiltering, effectiveSearchText, activeListFilters, senderFilter, receiverFilter, transportFilter, transportLinkedCargoNumbers, cargoSearchTextByNumber, effectiveServiceMode, lastMileFilter, pickupLogisticsFilter, sortBy, sortOrder]);
 
     const summary = useMemo(() => buildCargoSummary(filteredItems), [filteredItems]);
 
