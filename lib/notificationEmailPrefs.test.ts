@@ -8,8 +8,20 @@ import {
   mergePushPreferences,
   mergePushPreferencesForSave,
   pushPreferencesForClient,
+  readPushSelectedInn,
   shouldSendDailySummaryPush,
 } from "./notificationEmailPrefs.js";
+
+describe("readPushSelectedInn", () => {
+  it("reads plain INN strings", () => {
+    expect(readPushSelectedInn("7722461620")).toBe("7722461620");
+    expect(readPushSelectedInn("ИНН 7722 461620")).toBe("7722461620");
+  });
+
+  it("reads push_selected_inn from objects", () => {
+    expect(readPushSelectedInn({ push_selected_inn: "7722461620" })).toBe("7722461620");
+  });
+});
 
 describe("mergePushPreferences", () => {
   it("keeps cargo stages off when only bills were saved", () => {

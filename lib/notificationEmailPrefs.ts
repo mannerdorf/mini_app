@@ -244,6 +244,9 @@ export type NotificationPreferencesState = {
 };
 
 export function readPushSelectedInn(raw: unknown): string {
+  if (typeof raw === "string" || typeof raw === "number") {
+    return String(raw).replace(/\D/g, "").trim();
+  }
   const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   return String(obj.push_selected_inn ?? "")
     .replace(/\D/g, "")
