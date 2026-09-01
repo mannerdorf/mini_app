@@ -4,6 +4,7 @@ import {
   usePrevPeriodPerevozki,
 } from "../hooks/useApi";
 import { postServiceRefreshFrom1c } from "../lib/serviceRefreshFrom1c";
+import { HAULZ_PULL_REFRESH_EVENT } from "../lib/pullRefreshEvents";
 import type { AuthData, CargoItem } from "../types";
 
 type Params = {
@@ -57,8 +58,8 @@ export function useCargoDataLoad(params: Params) {
   });
 
   useEffect(() => {
-    if (!useServiceRequest || !primaryAuth) return;
-    const handler = async () => {
+    const refreshFrom1c = async () => {
+      if (!useServiceRequest || !primaryAuth) return;
       try {
         await postServiceRefreshFrom1c({
           auth: primaryAuth,
@@ -69,10 +70,26 @@ export function useCargoDataLoad(params: Params) {
       } catch {
         /* UI may show error from button; header refresh is best-effort */
       }
+    };
+    const revalidate = () => {
       void mutatePerevozki(undefined, { revalidate: true });
     };
-    window.addEventListener("haulz-service-refresh", handler);
-    return () => window.removeEventListener("haulz-service-refresh", handler);
+    const onServiceRefresh = async () => {
+      await refreshFrom1c();
+      revalidate();
+    };
+    const onPullRefresh = async () => {
+      if (useServiceRequest) {
+        await refreshFrom1c();
+      }
+      revalidate();
+    };
+    window.addEventListener("haulz-service-refresh", onServiceRefresh);
+    window.addEventListener(HAULZ_PULL_REFRESH_EVENT, onPullRefresh);
+    return () => {
+      window.removeEventListener("haulz-service-refresh", onServiceRefresh);
+      window.removeEventListener(HAULZ_PULL_REFRESH_EVENT, onPullRefresh);
+    };
   }, [useServiceRequest, primaryAuth, apiDateRange.dateFrom, apiDateRange.dateTo, mutatePerevozki]);
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useActs, useInvoices, useOrders, usePerevozki, useSendings } from "../hooks/useApi";
 import { postServiceRefreshFrom1c, serviceRefreshKindsForDocumentsSection } from "../lib/serviceRefreshFrom1c";
+import { HAULZ_PULL_REFRESH_EVENT } from "../lib/pullRefreshEvents";
 import type { AuthData } from "../types";
 
 type DocSectionKey = 'Счета' | 'ЭДО' | 'УПД' | 'Заявки' | 'Отправки' | 'Претензии' | 'Договоры' | 'Акты сверок' | 'Тарифы';
@@ -93,29 +94,44 @@ export function useDocumentsDataLoad(params: Params) {
   });
 
   useEffect(() => {
-    if (!useServiceRequest) return;
-    const handler = async () => {
-      const kinds = serviceRefreshKindsForDocumentsSection(docSection);
-      if (kinds.length > 0) {
-        try {
-          await postServiceRefreshFrom1c({
-            auth,
-            dateFrom: apiDateRange.dateFrom,
-            dateTo: apiDateRange.dateTo,
-            kinds,
-          });
-        } catch {
-          /* best-effort for header refresh icon */
-        }
-      }
+    const revalidateAll = () => {
       if (loadInvoices) void mutateInvoices(undefined, { revalidate: true });
       if (loadPerevozki) void mutatePerevozki(undefined, { revalidate: true });
       if (loadActs) void mutateActs(undefined, { revalidate: true });
       if (loadOrders) void mutateOrders(undefined, { revalidate: true });
       if (loadSendings) void mutateSendings(undefined, { revalidate: true });
     };
-    window.addEventListener("haulz-service-refresh", handler);
-    return () => window.removeEventListener("haulz-service-refresh", handler);
+    const refreshFrom1c = async () => {
+      const kinds = serviceRefreshKindsForDocumentsSection(docSection);
+      if (!useServiceRequest || kinds.length === 0) return;
+      try {
+        await postServiceRefreshFrom1c({
+          auth,
+          dateFrom: apiDateRange.dateFrom,
+          dateTo: apiDateRange.dateTo,
+          kinds,
+        });
+      } catch {
+        /* best-effort for header refresh icon */
+      }
+    };
+    const onServiceRefresh = async () => {
+      if (!useServiceRequest) return;
+      await refreshFrom1c();
+      revalidateAll();
+    };
+    const onPullRefresh = async () => {
+      if (useServiceRequest) {
+        await refreshFrom1c();
+      }
+      revalidateAll();
+    };
+    window.addEventListener("haulz-service-refresh", onServiceRefresh);
+    window.addEventListener(HAULZ_PULL_REFRESH_EVENT, onPullRefresh);
+    return () => {
+      window.removeEventListener("haulz-service-refresh", onServiceRefresh);
+      window.removeEventListener(HAULZ_PULL_REFRESH_EVENT, onPullRefresh);
+    };
   }, [
     useServiceRequest,
     auth,

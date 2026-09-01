@@ -1,5 +1,7 @@
-import React from "react";
+import React, { useCallback, useRef } from "react";
+import { Loader2 } from "lucide-react";
 import { Container } from "@maxhub/max-ui";
+import { Capacitor } from "@capacitor/core";
 import { AppHeader } from "./AppHeader";
 import { AppTabBar } from "./AppTabBar";
 import { AppShellModals } from "./AppShellModals";
@@ -11,6 +13,8 @@ import { usePushSelectedInnSync } from "../hooks/usePushSelectedInnSync";
 import { resolveAccountActiveInn } from "../lib/accountCustomer";
 import { useAppShell } from "../contexts/AppShellContext";
 import { stripOoo } from "../lib/formatUtils";
+import { dispatchPullRefresh } from "../lib/pullRefreshEvents";
+import { useNativePullToRefresh } from "../hooks/useNativePullToRefresh";
 import type { useLegalCompliance } from "../hooks/useLegalCompliance";
 import type { FormEvent } from "react";
 
@@ -71,6 +75,22 @@ export function AppAuthenticatedLayout({
 }: Props) {
   const { auth, activeAccount } = useAuth();
   const { desktopExpanded } = useAppShell();
+  const appMainRef = useRef<HTMLDivElement>(null);
+  const nativePullRefreshEnabled = Capacitor.isNativePlatform();
+
+  const handlePullRefresh = useCallback(async () => {
+    setServiceRefreshSpinning(true);
+    dispatchPullRefresh();
+    await new Promise((resolve) => window.setTimeout(resolve, 400));
+    setServiceRefreshSpinning(false);
+  }, [setServiceRefreshSpinning]);
+
+  const { pullDistance, refreshing: pullRefreshing } = useNativePullToRefresh(
+    appMainRef,
+    handlePullRefresh,
+    nativePullRefreshEnabled,
+  );
+
   useActiveCustomerInnSync();
   usePushSelectedInnSync(useServiceRequest);
 
@@ -88,7 +108,21 @@ export function AppAuthenticatedLayout({
         setServiceRefreshSpinning={setServiceRefreshSpinning}
         onLogout={onLogout}
       />
-      <div className={`app-main${desktopExpanded ? " app-main-wide" : ""}`}>
+      <div
+        ref={appMainRef}
+        className={`app-main${desktopExpanded ? " app-main-wide" : ""}${nativePullRefreshEnabled ? " app-main--pull-refresh" : ""}`}
+      >
+        {nativePullRefreshEnabled ? (
+          <div
+            className="native-pull-refresh-indicator"
+            style={{ height: `${Math.max(pullDistance, pullRefreshing ? 72 : 0)}px` }}
+            aria-hidden={pullDistance <= 0 && !pullRefreshing}
+          >
+            <div className="native-pull-refresh-indicator__inner">
+              <Loader2 className={`w-4 h-4${pullRefreshing ? " animate-spin" : ""}`} />
+            </div>
+          </div>
+        ) : null}
         <div className="w-full">
           <AppRuntimeProvider
             value={{
