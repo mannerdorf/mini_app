@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, type Dispatch, type SetStateAction } f
 import * as dateUtils from "../../../lib/dateUtils";
 import { getFilterKeyByStatus, getPaymentFilterKey } from "../../../lib/statusUtils";
 import type { CargoStatusFilterKey, RouteFilterKey, SharedBillStatusKey, TypeFilterKey } from "../../../lib/sharedListFilters";
+import { resolveDashboardActiveFilters } from "../../../lib/sharedListFilters";
 import { getInnFromCargo, type CargoRoleFilterKey } from "../../../lib/cargoUtils";
 import { getCargoTransportType, type CargoTransportType } from "../../../lib/cargoTransportType";
 import { buildFilteredCargoItems } from "../../../pages/cargoPipeline";
@@ -59,6 +60,17 @@ export function useDashboardCargoMetrics({
     setCargoFlowTableExpanded,
     setCargoFlowTableSelection,
 }: UseDashboardCargoMetricsParams) {
+    const activeListFilters = useMemo(
+        () =>
+            resolveDashboardActiveFilters({
+                useServiceRequest,
+                billStatusFilterSet,
+                typeFilterSet,
+                routeFilterSet,
+            }),
+        [useServiceRequest, billStatusFilterSet, typeFilterSet, routeFilterSet],
+    );
+
     const filterCargoItems = useCallback(
         (source: CargoItem[]) => {
             const filtered = buildFilteredCargoItems({
@@ -69,9 +81,9 @@ export function useDashboardCargoMetrics({
                 receiverFilter: "",
                 transportFilter: "",
                 useServiceRequest: !!useServiceRequest,
-                billStatusFilterSet,
-                typeFilterSet,
-                routeFilterSet,
+                billStatusFilterSet: activeListFilters.billStatusFilterSet,
+                typeFilterSet: activeListFilters.typeFilterSet,
+                routeFilterSet: activeListFilters.routeFilterSet,
                 lastMileFilter: "all",
                 pickupLogisticsFilter: "all",
                 roleFilter: "all",
@@ -86,10 +98,7 @@ export function useDashboardCargoMetrics({
         },
         [
             useServiceRequest,
-            billStatusFilterSet,
-            typeFilterSet,
-            routeFilterSet,
-            roleFilter,
+            activeListFilters,
             auth?.inn,
             runtimeActiveInn,
             activeCustomerName,
