@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import {
     Loader2, Package, Scale, Weight, List, TrendingUp, TrendingDown, Minus, RussianRuble,
 } from "lucide-react";
@@ -128,7 +128,23 @@ function StripDiagramRows({
 }
 
 function StripLineChart({ data }: { data: DashboardStripLineChartData }) {
-    const chartWidth = Math.max(560, data.dates.length * 56);
+    const wrapRef = useRef<HTMLDivElement | null>(null);
+    const [outerWidthPx, setOuterWidthPx] = useState(560);
+
+    useLayoutEffect(() => {
+        const el = wrapRef.current;
+        if (!el) return;
+        const measure = () => {
+            const w = el.getBoundingClientRect().width;
+            if (w > 0) setOuterWidthPx(Math.max(280, Math.floor(w)));
+        };
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [data.dates.length, data.series.length]);
+
+    const chartWidth = outerWidthPx;
     const chartHeight = 250;
     const left = 56;
     const right = 14;
@@ -150,8 +166,14 @@ function StripLineChart({ data }: { data: DashboardStripLineChartData }) {
             <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginBottom: '0.45rem' }}>
                 Динамика по датам (X — даты, Y — сумма, ₽)
             </Typography.Body>
-            <div style={{ overflowX: 'auto' }}>
-                <svg width={chartWidth} height={chartHeight} style={{ display: 'block', minWidth: `${chartWidth}px` }}>
+            <div ref={wrapRef} style={{ width: '100%', minWidth: 0 }}>
+                <svg
+                    viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                    width="100%"
+                    height={chartHeight}
+                    preserveAspectRatio="xMidYMid meet"
+                    style={{ display: 'block', maxWidth: '100%' }}
+                >
                     {Array.from({ length: yTicks + 1 }).map((_, idx) => {
                         const ratio = idx / yTicks;
                         const y = top + innerH * (1 - ratio);
@@ -355,8 +377,8 @@ export function DashboardMetricsStrip({
                         </>
                     )}
                 </Flex>
-                <div style={{ marginBottom: '0.75rem', overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch' }}>
-                    <Flex gap="0.5rem" style={{ flexWrap: 'nowrap', minWidth: 'min-content' }}>
+                <div className="dashboard-strip-tabs-wrap" style={{ marginBottom: '0.75rem' }}>
+                    <Flex gap="0.5rem" className="dashboard-strip-tabs">
                         {stripTabs.map((tab) => (
                             <Button
                                 key={tab}
