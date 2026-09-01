@@ -4,7 +4,7 @@
 API в нативной сборке: **`https://haulz.space`** (как у Android APK).  
 Нужен **Mac + Xcode** — Linux/Cloud не собирает `.app` / IPA.
 
-Версия в Xcode: **1.3.27** (`MARKETING_VERSION`), build **7** (`CURRENT_PROJECT_VERSION`). Метка JS: **`push-js 7`**.
+Версия в Xcode: **1.3.28** (`MARKETING_VERSION`), build **8** (`CURRENT_PROJECT_VERSION`). Метка JS: **`push-js 8`**.
 
 Ветка: **`main`** (iOS влит в main). Быстрая шпаргалка: [IOS_REBUILD.md](./IOS_REBUILD.md).
 
