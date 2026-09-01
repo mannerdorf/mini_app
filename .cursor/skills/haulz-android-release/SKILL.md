@@ -62,3 +62,4 @@ curl -sS https://app.haulz.space/version.json
 
 - Version source: `android/app/build.gradle`
 - Commit the bump with the feature that needs a new APK, push `main` (or the release branch) before Mac build.
+- **Mac 3-step rebuild (owner paths):** `.cursor/skills/haulz-android-rebuild/SKILL.md` and `docs/ANDROID_REBUILD.md`
