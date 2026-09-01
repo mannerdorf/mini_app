@@ -102,6 +102,9 @@ EOF
   echo "Wrote android/keystore.properties (local only, not committed)."
 fi
 
+echo "Installing npm dependencies..."
+npm ci
+
 echo "Building web bundle for Capacitor (API: $API_ORIGIN)..."
 VITE_API_ORIGIN="$API_ORIGIN" npm run build
 
