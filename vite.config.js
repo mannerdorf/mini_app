@@ -54,7 +54,7 @@ export default defineConfig(({ command }) => ({
               if (id.includes("firebase") || id.includes("@firebase")) return "firebase";
               if (id.includes("recharts")) return "recharts";
               if (id.includes("lucide-react")) return "lucide";
-              if (id.includes("jspdf") || id.includes("html2canvas") || id.includes("html2pdf")) return "pdf";
+              if (id.includes("jspdf") || id.includes("html2canvas") || id.includes("html2pdf") || id.includes("pdfjs-dist")) return "pdf";
               if (id.includes("date-fns")) return "date-fns";
             },
           },

@@ -2,6 +2,7 @@ import React from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { Download, X } from "lucide-react";
 import type { PdfPreviewState } from "../../lib/documentPreview";
+import { PdfJsViewer } from "./PdfJsViewer";
 
 type PdfPreviewPanelProps = {
   preview: PdfPreviewState;
@@ -10,37 +11,11 @@ type PdfPreviewPanelProps = {
   height?: number | string;
 };
 
-export function PdfPreviewPanel({ preview, onClose, onDownload, height = 500 }: PdfPreviewPanelProps) {
+export function PdfPreviewPanel({ preview, onClose, onDownload, height = "min(70vh, 560px)" }: PdfPreviewPanelProps) {
   return (
-    <div
-      className="pdf-preview-panel"
-      style={{
-        marginTop: "1rem",
-        border: "1px solid var(--color-border)",
-        borderRadius: "8px",
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          padding: "0.5rem",
-          background: "var(--color-bg-secondary)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: "0.5rem",
-        }}
-      >
-        <Typography.Label
-          style={{
-            fontSize: "0.8rem",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {preview.name}
-        </Typography.Label>
+    <div className="pdf-preview-panel">
+      <div className="pdf-preview-panel__header">
+        <Typography.Label className="pdf-preview-panel__title">{preview.name}</Typography.Label>
         <Flex align="center" gap="0.25rem">
           <Button
             size="small"
@@ -54,11 +29,7 @@ export function PdfPreviewPanel({ preview, onClose, onDownload, height = 500 }: 
           </Button>
         </Flex>
       </div>
-      <iframe
-        src={preview.url}
-        title={preview.name}
-        style={{ width: "100%", height, border: "none", display: "block", background: "#fff" }}
-      />
+      <PdfJsViewer blob={preview.blob} title={preview.name} height={height} />
     </div>
   );
 }

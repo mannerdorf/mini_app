@@ -295,6 +295,7 @@ export function InvoiceDetailModal({
                 )}
                 {pdfViewer && (
                     <PdfPreviewPanel
+                        key={pdfViewer.downloadFileName}
                         preview={pdfViewer}
                         onDownload={(blob, name) => saveBlobFile(blob, name)}
                         onClose={() => {

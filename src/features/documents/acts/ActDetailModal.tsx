@@ -299,6 +299,7 @@ export function ActDetailModal({
                 )}
                 {pdfViewer && (
                     <PdfPreviewPanel
+                        key={pdfViewer.downloadFileName}
                         preview={pdfViewer}
                         onDownload={(blob, name) => saveBlobFile(blob, name)}
                         onClose={() => {

@@ -690,6 +690,7 @@ export function CargoDetailsModal({
                 })()}
                 {pdfViewer && (
                     <PdfPreviewPanel
+                        key={pdfViewer.downloadFileName}
                         preview={pdfViewer}
                         onDownload={downloadFile}
                         onClose={() => {
