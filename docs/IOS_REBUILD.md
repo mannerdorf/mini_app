@@ -13,8 +13,7 @@
 ```bash
 cd ~/mini_app
 git fetch origin
-git checkout cursor/ios-release-fd2d
-git pull origin cursor/ios-release-fd2d
+git pull origin main
 grep -E "MARKETING_VERSION|CURRENT_PROJECT_VERSION" ios/App/App.xcodeproj/project.pbxproj | head -4
 test -f ios/App/App/GoogleService-Info.plist && echo OK || echo "Скачайте plist из Firebase"
 ```
