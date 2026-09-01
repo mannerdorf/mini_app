@@ -24,7 +24,7 @@ describe("hasStoredNativeFcmToken", () => {
 
 describe("NATIVE_PUSH_CLIENT_MARK", () => {
   it("identifies the TestFlight JS that actually waits for an FCM token", () => {
-    expect(NATIVE_PUSH_CLIENT_MARK).toBe("push-js 11");
+    expect(NATIVE_PUSH_CLIENT_MARK).toBe("push-js 12");
   });
 });
 
