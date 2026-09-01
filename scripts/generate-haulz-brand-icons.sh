@@ -131,4 +131,15 @@ for entry in "${SPLASH_PORT[@]}" "${SPLASH_LAND[@]}"; do
   make_blue_splash "$ANDROID_RES/${folder}/splash.png" "$h" "$w"
 done
 
-echo "Icons written to public/ and android/app/src/main/res/"
+IOS_ICON_DIR="$ROOT/ios/App/App/Assets.xcassets/AppIcon.appiconset"
+IOS_SPLASH_DIR="$ROOT/ios/App/App/Assets.xcassets/Splash.imageset"
+if [[ -d "$IOS_ICON_DIR" ]]; then
+  to_png "$TMP/square.png" "$IOS_ICON_DIR/AppIcon-512@2x.png" 1024 1024
+fi
+if [[ -d "$IOS_SPLASH_DIR" ]]; then
+  make_blue_splash "$IOS_SPLASH_DIR/splash-2732x2732.png" 2732 2732
+  cp "$IOS_SPLASH_DIR/splash-2732x2732.png" "$IOS_SPLASH_DIR/splash-2732x2732-1.png"
+  cp "$IOS_SPLASH_DIR/splash-2732x2732.png" "$IOS_SPLASH_DIR/splash-2732x2732-2.png"
+fi
+
+echo "Icons written to public/, android/app/src/main/res/, and ios assets if present."

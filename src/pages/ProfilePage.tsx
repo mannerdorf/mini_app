@@ -28,7 +28,7 @@ import {
   readStoredHaulzCalcDraftId,
   readStoredProfileView,
 } from "../lib/profileViewPersist";
-import { isAndroidPushEnvironment } from "../lib/androidPushNotifications";
+import { isNativePushEnvironment } from "../lib/androidPushNotifications";
 import { useAppShell } from "../contexts/AppShellContext";
 import { useProfileEmployees, ProfileEmployeesSection, useDepartmentTimesheet, ProfileDepartmentTimesheetSection, useProfileAccounting, ProfileAccountingSection, useProfileMain, ProfileMainSection } from "../features/profile";
 
@@ -124,7 +124,7 @@ export function ProfilePage({
     }, [currentView, activeAccount?.isRegisteredUser, activeAccount?.permissions?.service_mode]);
 
     useEffect(() => {
-        if (currentView === "push" && !isAndroidPushEnvironment()) {
+        if (currentView === "push" && !isNativePushEnvironment()) {
             setCurrentView("main");
         }
     }, [currentView]);

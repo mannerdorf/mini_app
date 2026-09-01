@@ -24,6 +24,7 @@ import { useTwoFaSettingsSync } from "./hooks/useTwoFaSettingsSync";
 import { stripOoo } from "./lib/formatUtils";
 import { resolveAccountActiveInn } from "./lib/accountCustomer";
 import { isCapacitorAndroidApp } from "./lib/androidAppUpdate";
+import { isNativePushEnvironment } from "./lib/androidPushNotifications";
 import { useAndroidAppUpdate } from "./hooks/useAndroidAppUpdate";
 import { AndroidUpdateBanner } from "./components/AndroidUpdateBanner";
 
@@ -83,6 +84,7 @@ function AppRoot() {
     const isWbOnlyUser = useMemo(() => isWbOnlyAccount(activeAccount), [activeAccount]);
     const isRedReturnsOnlyUser = useMemo(() => isRedReturnsOnlyAccount(activeAccount), [activeAccount]);
     const isNativeAndroid = useMemo(() => isCapacitorAndroidApp(), []);
+    const isNativePush = useMemo(() => isNativePushEnvironment(), []);
     const androidUpdate = useAndroidAppUpdate(!!auth && isNativeAndroid);
     const [androidUpdateDismissed, setAndroidUpdateDismissed] = useState(false);
     useEffect(() => {
@@ -93,14 +95,14 @@ function AppRoot() {
     useTwoFaSettingsSync();
     useEffect(() => {
         const login = activeAccount?.login?.trim().toLowerCase();
-        if (!auth || !login || !isNativeAndroid) return;
+        if (!auth || !login || !isNativePush) return;
         if (activeAccount?.accessAllInns || activeAccount?.permissions?.service_mode === true) return;
         const inn =
             activeAccount?.activeCustomerInn?.trim() ||
             activeAccount?.customers?.find((c) => c.inn)?.inn?.trim() ||
             undefined;
-        void import("./lib/androidPushNotifications").then(({ syncAndroidPushNotifications }) =>
-            syncAndroidPushNotifications(login, inn),
+        void import("./lib/androidPushNotifications").then(({ syncNativePushNotifications }) =>
+            syncNativePushNotifications(login, inn),
         );
     }, [
         auth,
@@ -109,7 +111,7 @@ function AppRoot() {
         activeAccount?.customers,
         activeAccount?.accessAllInns,
         activeAccount?.permissions?.service_mode,
-        isNativeAndroid,
+        isNativePush,
     ]);
     const {
         showDashboard,

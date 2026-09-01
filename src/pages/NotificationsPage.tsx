@@ -8,10 +8,13 @@ import {
     saveNotificationPreferencesKeepalive,
 } from "../api/client/notifications";
 import {
-    disableAndroidPushNotifications,
-    enableAndroidPushNotifications,
-    isAndroidPushEnvironment,
+    disableNativePushNotifications,
+    enableNativePushNotifications,
+    hasStoredNativeFcmToken,
+    isNativePushEnvironment,
+    NATIVE_PUSH_CLIENT_MARK,
 } from "../lib/androidPushNotifications";
+import { getInstalledAppInfo } from "../lib/appVersionInfo";
 import { CARGO_NOTIFICATION_STAGES, CARGO_STAGE_EVENT_IDS, isCargoStageNotificationEnabled, type CargoStageEventId } from "../../lib/notificationCargoEvents";
 import { buildPushPreferencesSavePayload, isPushNotificationEnabled } from "../../lib/notificationEmailPrefs";
 import { TapSwitch } from "../components/TapSwitch";
@@ -65,6 +68,7 @@ export function NotificationsPage({
     const [pushLoading, setPushLoading] = useState(false);
     const [pushError, setPushError] = useState<string | null>(null);
     const [pushEnabled, setPushEnabled] = useState(false);
+    const [installLabel, setInstallLabel] = useState("");
     const prefsRef = useRef(prefs);
     const prefsDirtyRef = useRef(false);
     const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -73,7 +77,20 @@ export function NotificationsPage({
     const initialFetchStartedAtRef = useRef(0);
 
     const login = activeAccount?.login?.trim().toLowerCase() || "";
-    const isNativeAndroid = isAndroidPushEnvironment();
+    const isNativePush = isNativePushEnvironment();
+
+    useEffect(() => {
+        if (!isNativePush) return;
+        let cancelled = false;
+        void getInstalledAppInfo().then((info) => {
+            if (cancelled) return;
+            const build = info.buildNumber != null ? `(${info.buildNumber})` : "";
+            setInstallLabel(`${info.versionName} ${build}`.trim());
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [isNativePush]);
 
     const isCargoPrefEnabled = useCallback(
         (channel: "push" | "email", eventId: CargoStageEventId) =>
@@ -122,10 +139,14 @@ export function NotificationsPage({
                 } else if (lastSaveAtRef.current < fetchStartedAt) {
                     setPrefs({ push: {}, email: {} });
                 }
-                if (isNativeAndroid) {
+                if (isNativePush) {
                     const { PushNotifications } = await import("@capacitor/push-notifications");
                     const perm = await PushNotifications.checkPermissions();
-                    if (!cancelled) setPushEnabled(perm.receive === "granted");
+                    // OS permission is not a backend registration. Showing "enabled" here
+                    // made people tap Disable, which used to wipe the Android device.
+                    if (!cancelled) {
+                        setPushEnabled(perm.receive === "granted" && hasStoredNativeFcmToken(login));
+                    }
                 }
             } catch {
                 if (!cancelled) setPrefs({ push: {}, email: {} });
@@ -137,7 +158,7 @@ export function NotificationsPage({
             cancelled = true;
             clearTimeout(hardStop);
         };
-    }, [login, isNativeAndroid]);
+    }, [login, isNativePush]);
 
     useEffect(() => {
         prefsRef.current = prefs;
@@ -255,7 +276,7 @@ export function NotificationsPage({
         setPushError(null);
         setPushLoading(true);
         try {
-            const result = await enableAndroidPushNotifications(login);
+            const result = await enableNativePushNotifications(login);
             if (!result.ok) throw new Error(result.error || "Не удалось включить push.");
             setPushEnabled(true);
         } catch (e: unknown) {
@@ -270,7 +291,7 @@ export function NotificationsPage({
         setPushError(null);
         setPushLoading(true);
         try {
-            const result = await disableAndroidPushNotifications(login);
+            const result = await disableNativePushNotifications(login);
             if (!result.ok) throw new Error(result.error || "Не удалось отключить push.");
             setPushEnabled(false);
         } catch (e: unknown) {
@@ -324,10 +345,14 @@ export function NotificationsPage({
                         Push-уведомления
                     </Typography.Body>
                     <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                        {isNativeAndroid ? (
+                        {isNativePush ? (
                             <>
                                 <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
                                     Уведомления о перевозках и документах на телефон через Firebase Cloud Messaging.
+                                </Typography.Body>
+                                <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}>
+                                    {installLabel || "…"} · {NATIVE_PUSH_CLIENT_MARK} · FCM:{" "}
+                                    {hasStoredNativeFcmToken(login) ? "токен на этом телефоне есть" : "токена на этом телефоне нет"}
                                 </Typography.Body>
                                 {!pushEnabled ? (
                                     <Button type="button" className="button-primary" disabled={pushLoading} onClick={enablePush}>
@@ -346,7 +371,7 @@ export function NotificationsPage({
                             </>
                         ) : (
                             <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-                                Доставка push — в Android-приложении HAULZ. Здесь можно выбрать, о каких этапах перевозки присылать уведомления на телефон.
+                                Доставка push — в приложении HAULZ (Android или iOS). Здесь можно выбрать, о каких этапах перевозки присылать уведомления на телефон.
                             </Typography.Body>
                         )}
                         {pushError && (
