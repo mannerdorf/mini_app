@@ -153,7 +153,7 @@ export function CargoCustomerTable({
                   onClick={(e) => { e.stopPropagation(); onInnerTableSort("status"); }}
                   title="Сортировка: статус, доставка, маршрут"
                 >
-                  <span className="cargo-inner-table__head-long">Статус / маршрут</span>
+                  <span className="cargo-inner-table__head-long">Логистика</span>
                   <span className="cargo-inner-table__head-short">Ст.</span>
                   {innerTableSortColumn === "status" && (innerTableSortOrder === "asc" ? <ArrowUp className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: "middle", marginLeft: 2, display: "inline-block" }} /> : <ArrowDown className="w-3 h-3 cargo-inner-table__sort-icon" style={{ verticalAlign: "middle", marginLeft: 2, display: "inline-block" }} />)}
                 </th>
@@ -704,7 +704,7 @@ export function CargoCustomerTable({
                               }}
                               title="Сортировка: статус, доставка, маршрут"
                             >
-                              <span className="cargo-inner-table__head-long">Статус / маршрут</span>
+                              <span className="cargo-inner-table__head-long">Логистика</span>
                               <span className="cargo-inner-table__head-short">Ст.</span>
                               {innerTableSortColumn === "status" &&
                                 (innerTableSortOrder === "asc" ? (
@@ -1128,7 +1128,7 @@ export function CargoCardsList({
               <CargoLogisticsBadges
                 item={item}
                 showPayment={showSums}
-                className="cargo-inner-table__badges"
+                className="cargo-logistics-badges cargo-inner-table__badges"
               />
               {showSums && getCargoRoleSet(item).has("Customer") && (
                 <Typography.Body
