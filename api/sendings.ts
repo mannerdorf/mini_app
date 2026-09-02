@@ -10,6 +10,7 @@ import { respondCorsPreflight } from "./_lib/cors.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import { liveInTransitHoursFromMetrics } from "../lib/transitDateTime.js";
 import { readDocumentsFromCacheByPeriod } from "../lib/documentCacheRead.js";
+import { getAdminTokenFromRequest, getAdminTokenPayload, verifyAdminToken } from "../lib/adminAuth.js";
 
 const BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
@@ -324,19 +325,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     isRegisteredUser,
   } = body || {};
 
-  if (!login || !password) {
-    return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
-  }
-
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
   if (!dateRe.test(dateFrom) || !dateRe.test(dateTo)) {
     return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD required)", request_id: ctx.requestId });
   }
 
+  const useDocumentCache = shouldServeFromDocumentCache(dateFrom, dateTo);
+  const adminToken =
+    (typeof body?.adminToken === "string" ? body.adminToken.trim() : "") || getAdminTokenFromRequest(req) || "";
+  if (
+    useDocumentCache &&
+    adminToken &&
+    verifyAdminToken(adminToken) &&
+    getAdminTokenPayload(adminToken)?.superAdmin === true
+  ) {
+    try {
+      const pool = getPool();
+      const { items } = await readDocumentsFromCacheByPeriod(pool, "sendings", dateFrom, dateTo);
+      const filtered = items.filter((item) => {
+        const d = pickDate(item);
+        return d >= dateFrom && d <= dateTo;
+      });
+      return res.status(200).json(await attachMetricsToSendings(pool, filtered));
+    } catch (e) {
+      logError(ctx, "sendings_admin_cache_failed", e);
+      return res.status(500).json({ error: "Ошибка чтения кэша отправок", request_id: ctx.requestId });
+    }
+  }
+
+  if (!login || !password) {
+    return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
+  }
+
   const filterCachedItems = (list: any[], finalInns: Set<string> | null) =>
     filterSendingsCachedByInnAndDate(list, finalInns, dateFrom, dateTo);
-
-  const useDocumentCache = shouldServeFromDocumentCache(dateFrom, dateTo);
   let registeredVerified: VerifiedRegisteredUser | null = null;
 
   if (isRegisteredUser) {

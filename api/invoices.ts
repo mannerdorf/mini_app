@@ -212,10 +212,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     includeFiles: body?.includeFiles === true || body?.includeFiles === "true",
   };
 
-  if (!login || !password) {
-    return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
-  }
-
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
   if (!dateRe.test(dateFrom) || !dateRe.test(dateTo)) {
     return res
@@ -243,6 +239,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       logError(ctx, "invoices_admin_cache_failed", e);
       return res.status(500).json({ error: "Ошибка чтения кэша счетов", request_id: ctx.requestId });
     }
+  }
+
+  if (!login || !password) {
+    return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
   }
 
   if (serviceMode) {
