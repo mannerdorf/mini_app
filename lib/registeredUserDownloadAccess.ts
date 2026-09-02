@@ -23,7 +23,22 @@ export async function assertRegisteredUserDownloadAccess(
   if (INVOICE_DOC_METODS.has(metod)) {
     const cacheRow = await pool.query<{ data: unknown[] }>("SELECT data FROM cache_invoices WHERE id = 1");
     if (cacheRow.rows.length === 0) return { ok: true };
-    return assertPartnerDownloadInvoiceAccess(pool, verified, null, login, number, bodyInn);
+    const invoiceAccess = await assertPartnerDownloadInvoiceAccess(
+      pool,
+      verified,
+      null,
+      login,
+      number,
+      bodyInn,
+    );
+    if (invoiceAccess.ok) return invoiceAccess;
+    // Счёт можно запросить по номеру перевозки (GetFile metod=Счет&Number=000139082).
+    if (metod === "Счет" || metod === "Счёт") {
+      const perevozkiCache = await pool.query<{ data: unknown[] }>("SELECT data FROM cache_perevozki WHERE id = 1");
+      if (perevozkiCache.rows.length === 0) return { ok: true };
+      return assertPartnerDownloadCargoAccess(pool, verified, null, login, metod, number, bodyInn);
+    }
+    return invoiceAccess;
   }
 
   if (CARGO_CACHE_METODS.has(metod)) {

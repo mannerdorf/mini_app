@@ -9,7 +9,7 @@ type Props = { page: DashboardPageState };
 export function DashboardTrendsSection({ page }: Props) {
     return (
         <>
-{page.loading && (
+{page.loading && !page.error && (
                 <Flex justify="center" className="text-center py-8">
                     <Loader2 className="animate-spin w-6 h-6 mx-auto text-theme-primary" />
                 </Flex>

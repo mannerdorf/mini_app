@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ANDROID_DIR="$ROOT/android"
 KEYSTORE="$ANDROID_DIR/haulz-release.jks"
 PROPS="$ANDROID_DIR/keystore.properties"
-API_ORIGIN="${VITE_API_ORIGIN:-https://api.haulz.space}"
+API_ORIGIN="${VITE_API_ORIGIN:-https://haulz.space}"
 
 cd "$ROOT"
 

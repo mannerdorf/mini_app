@@ -8,6 +8,8 @@
     overflow: hidden;
     pointer-events: none;
     margin-bottom: -0.25rem;
+    width: 100%;
+    flex-shrink: 0;
     color: var(--color-primary-blue, #2563eb);
 }
 

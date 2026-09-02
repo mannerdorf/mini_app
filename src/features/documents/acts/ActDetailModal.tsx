@@ -3,20 +3,18 @@ import { createPortal } from "react-dom";
 import { Flex, Typography } from "@maxhub/max-ui";
 import { Eye, Loader2 } from "lucide-react";
 import { EntityDetailModalHeader } from "../../../components/modals/EntityDetailModalHeader";
-import { formatCurrency, formatInvoiceNumber, stripOoo, parseCargoNumbersFromText, transliterateFilename } from "../../../lib/formatUtils";
+import { formatCurrency, formatInvoiceNumber, stripOoo, parseCargoNumbersFromText } from "../../../lib/formatUtils";
 import { DateText } from "../../../components/ui/DateText";
 import { StatusBadge } from "../../../components/shared/StatusBadges";
 import { RouteBadge } from "../../../components/shared/CargoTableDisplay";
-import { PROXY_API_DOWNLOAD_URL } from "../../../constants/config";
 import { DOCUMENT_METHODS } from "../../../documentMethods";
 import { getFirstCargoNumberFromInvoice, getCargoNumberFromInvoiceRow } from "../lib/documentsPipeline";
 import { formatPerevozkaNumberForApi } from "../../../lib/perevozkaNumber";
 import { getInvoiceEdoInfoByDocLabel } from "../../../lib/edoStatus";
 import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
-import { decodeBase64Payload } from "../../../utils";
-import { buildDownloadRequestBody } from "../../../lib/downloadRequestBody";
-import { saveBlobFile } from "../../../lib/saveBlobFile";
 import { createPdfPreviewFromBlob, revokePdfPreview, type PdfPreviewState } from "../../../lib/documentPreview";
+import { fetchDocumentForPreview } from "../../../lib/fetchDocumentForPreview";
+import { saveBlobFile } from "../../../lib/saveBlobFile";
 import { PdfPreviewPanel } from "../../../components/shared/PdfPreviewPanel";
 import type { AuthData } from "../../../types";
 
@@ -122,43 +120,19 @@ export function ActDetailModal({
         }
         const metod = DOCUMENT_METHODS[label] ?? label;
         const isInvoiceDoc = label === "СЧЕТ";
+        const numberForApi = isInvoiceDoc
+            ? (invoiceNum ? String(invoiceNum).trim() : formatPerevozkaNumberForApi(cargoNumber))
+            : formatPerevozkaNumberForApi(cargoNumber);
         setDownloading(label);
         setDownloadError(null);
         try {
-            const res = await fetch(PROXY_API_DOWNLOAD_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(
-                    buildDownloadRequestBody(auth, {
-                        metod,
-                        number: isInvoiceDoc ? cargoNumber : formatPerevozkaNumberForApi(cargoNumber),
-                    }),
-                ),
+            const { blob, fileName, isHtml } = await fetchDocumentForPreview(auth, {
+                metod,
+                number: numberForApi,
             });
-            if (!res.ok) {
-                let msg =
-                    res.status === 404
-                        ? "Документ не найден"
-                        : res.status >= 500
-                            ? "Ошибка сервера"
-                            : "Не удалось получить документ";
-                try {
-                    const errData = await res.json();
-                    if (errData?.message && res.status !== 404 && res.status < 500) {
-                        msg = String(errData.message);
-                    } else if (errData?.error && res.status !== 404 && res.status < 500) {
-                        msg = String(errData.error);
-                    }
-                } catch {
-                    /* ignore */
-                }
-                throw new Error(msg);
+            if (isHtml) {
+                throw new Error("Документ в формате HTML — используйте скачивание");
             }
-            const data = await res.json();
-            if (!data?.data || !data.name) throw new Error("Документ не найден");
-            const byteArray = decodeBase64Payload(data.data);
-            const blob = new Blob([byteArray], { type: "application/pdf" });
-            const fileName = transliterateFilename(data.name || `${label}_${cargoNumber}.pdf`);
             if (pdfViewer) {
                 await revokePdfPreview(pdfViewer);
             }

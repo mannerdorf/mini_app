@@ -455,8 +455,7 @@ export function HaulzDispatchSummary({
                     }
                 }}
                 style={{
-                    flex: "1 1 140px",
-                    minWidth: 140,
+                    minWidth: 0,
                     padding: "0.85rem 1rem",
                     borderRadius: 12,
                     borderLeft: `4px solid ${accent}`,
@@ -503,7 +502,7 @@ export function HaulzDispatchSummary({
                 </Flex>
             )}
 
-            {loading && rawItems.length === 0 && (
+            {loading && !error && rawItems.length === 0 && (
                 <Flex justify="center" style={{ padding: "1.5rem" }}>
                     <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--color-primary-blue)" }} />
                 </Flex>

@@ -5,14 +5,12 @@ import { fetchPerevozkaDetails } from "../../lib/perevozkaDetails";
 import { ShipmentStatusPanel } from "../ShipmentStatusScreen";
 import { getWebApp, isMaxWebApp } from "../../webApp";
 import { DOCUMENT_METHODS } from "../../documentMethods";
-import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { PLANNED_TERMINAL_ARRIVAL_LABEL } from "../../constants/plannedArrivalLabels";
-import { formatCurrency, stripOoo, cityToCode, transliterateFilename, formatInvoiceNumber } from "../../lib/formatUtils";
+import { formatCurrency, stripOoo, cityToCode, formatInvoiceNumber } from "../../lib/formatUtils";
 import { formatPerevozkaNumberForApi } from "../../lib/perevozkaNumber";
-import { decodeBase64Payload } from "../../utils";
-import { buildDownloadRequestBody } from "../../lib/downloadRequestBody";
 import { saveBlobFile } from "../../lib/saveBlobFile";
 import { createPdfPreviewFromBlob, revokePdfPreview, type PdfPreviewState } from "../../lib/documentPreview";
+import { fetchDocumentForPreview } from "../../lib/fetchDocumentForPreview";
 import { PdfPreviewPanel } from "../shared/PdfPreviewPanel";
 import { normalizeStatus, getFilterKeyByStatus, getSumColorByPaymentStatus } from "../../lib/statusUtils";
 import { formatDate } from "../../lib/dateUtils";
@@ -183,47 +181,17 @@ export function CargoDetailsModal({
         setDownloading(docType);
         setDownloadError(null);
         try {
-            const res = await fetch(PROXY_API_DOWNLOAD_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(
-                    buildDownloadRequestBody(auth, {
-                        metod,
-                        number: formatPerevozkaNumberForApi(item.Number),
-                    }),
-                ),
+            const { blob, fileName, isHtml } = await fetchDocumentForPreview(auth, {
+                metod,
+                number: formatPerevozkaNumberForApi(item.Number),
             });
-            if (!res.ok) {
-                let message =
-                    res.status === 404
-                        ? "Документ не обнаружен"
-                        : res.status >= 500
-                            ? "Ошибка сервера. Попробуйте позже"
-                            : "Не удалось получить документ";
-                try {
-                    const errData = await res.json();
-                    if (errData?.message) {
-                        message = String(errData.message);
-                    } else if (errData?.error) {
-                        message = String(errData.error);
-                    }
-                } catch {
-                    // ignore
-                }
-                throw new Error(message);
+            if (isHtml) {
+                throw new Error("Документ в формате HTML — используйте скачивание");
             }
-            const data = await res.json();
-            if (!data?.data || !data.name) {
-                throw new Error("Документ не обнаружен");
-            }
-            const byteArray = decodeBase64Payload(data.data);
-            const blob = new Blob([byteArray], { type: "application/pdf" });
-            const fileName = data.name || `${docType}_${item.Number}.pdf`;
-            const fileNameTranslit = transliterateFilename(fileName);
             if (pdfViewer) {
                 await revokePdfPreview(pdfViewer);
             }
-            const preview = await createPdfPreviewFromBlob(blob, fileNameTranslit);
+            const preview = await createPdfPreviewFromBlob(blob, fileName);
             setPdfViewer(preview);
         } catch (e: any) {
             setDownloadError(e.message);

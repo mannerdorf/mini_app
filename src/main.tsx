@@ -18,6 +18,7 @@ import "./components/shipment-status.css";
 import "./styles/haulz-calculator.css";
 import { clearChunkReloadState, isChunkLoadError, reloadForStaleChunks } from "./lib/chunkLoadRecovery";
 import { resolveApiOrigin } from "./lib/resolveApiOrigin";
+import { isCapacitorNative } from "./lib/capacitorPlatform";
 import { setupNativeTextSelectionBlock } from "./lib/nativeTextSelection";
 
 const swrConfig = {
@@ -166,10 +167,15 @@ const isLikelyLocalDev = (): boolean => {
 };
 
 /**
- * Переписываем fetch, если API на другом хосте (Capacitor / haulz.space → api.haulz.space).
+ * Переписываем fetch, если API на другом хосте (Capacitor → haulz.space).
  */
 if (typeof window !== "undefined") {
   setupNativeTextSelectionBlock();
+
+  if (isCapacitorNative()) {
+    document.documentElement.classList.add("haulz-native-app");
+    document.body.classList.add("haulz-native-app");
+  }
 
   const apiOrigin = resolveApiOrigin();
   const pageOrigin = normalizeOrigin(window.location.origin);

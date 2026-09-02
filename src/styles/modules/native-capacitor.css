@@ -1,0 +1,47 @@
+/* Capacitor: без горизонтального overflow страницы (iOS WKWebView «уезжает» вправо). */
+body.haulz-native-app .app-container {
+    overflow-x: hidden;
+    max-width: 100%;
+    align-items: stretch;
+}
+
+body.haulz-native-app .app-main {
+    overflow-x: hidden;
+    max-width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    align-self: stretch;
+}
+
+body.haulz-native-app .app-main > div:not(.native-pull-refresh-indicator) {
+    max-width: 100%;
+}
+
+body.haulz-native-app .dashboard-page-offset,
+body.haulz-native-app .dashboard-page--saas-analytics {
+    overflow-x: hidden;
+    max-width: 100%;
+    width: 100%;
+}
+
+body.haulz-native-app .haulz-dispatch-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+body.haulz-native-app .haulz-dispatch-stat-tile {
+    min-width: 0 !important;
+    flex: unset !important;
+    width: auto !important;
+}
+
+body.haulz-native-app .home-strip {
+    max-width: 100%;
+    min-width: 0;
+}
+
+body.haulz-native-app .dashboard-strip-tabs,
+body.haulz-native-app .dashboard-strip-tabs-wrap {
+    flex-wrap: wrap !important;
+    overflow-x: hidden;
+    min-width: 0 !important;
+}

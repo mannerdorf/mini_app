@@ -1,13 +1,13 @@
 # Для Timeweb Apps (server: Caddy), если платформа подхватывает Caddyfile из корня репо.
-# /api уходит на VPS по HTTP :80 — обход флапающего TLS api.haulz.ru:443.
+# /api уходит на VPS по HTTP :80 — браузер same-origin, без api.haulz.space (битый TLS).
 
-haulz.ru, www.haulz.ru {
+haulz.space, www.haulz.space, haulz.ru, www.haulz.ru {
 	encode gzip zstd
 	root * /srv/haulz/www
 
 	handle /api/* {
 		reverse_proxy http://72.56.36.185 {
-			header_up Host api.haulz.ru
+			header_up Host api.haulz.space
 			header_up X-Forwarded-Proto {scheme}
 			header_up X-Forwarded-For {remote_host}
 			transport http {

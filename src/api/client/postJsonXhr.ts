@@ -1,22 +1,8 @@
-import { resolveApiOrigin } from "../../lib/resolveApiOrigin";
-
-function toAbsoluteApiUrl(pathOrUrl: string): string {
-  const raw = String(pathOrUrl || "").trim();
-  if (!raw) return raw;
-  if (/^https?:\/\//i.test(raw)) return raw;
-  const path = raw.startsWith("/") ? raw : `/${raw}`;
-
-  const origin = resolveApiOrigin().replace(/\/+$/, "") || "https://api.haulz.space";
-  if (typeof window !== "undefined") {
-    const page = String(window.location.origin || "").replace(/\/+$/, "");
-    if (page && page === origin) return path;
-  }
-  return `${origin}${path}`;
-}
+import { toAbsoluteApiUrl } from "../../lib/absoluteApiUrl";
 
 /**
  * POST JSON с явным методом через XHR.
- * URL резолвится через resolveApiOrigin (production → api.haulz.space).
+ * URL резолвится через resolveApiOrigin (Capacitor → haulz.space).
  */
 export function postJsonXhr(
   url: string,
@@ -42,7 +28,7 @@ export function postJsonXhr(
       }
       resolve({ status: xhr.status, data, responseText, url: absoluteUrl, method: "POST" });
     };
-    xhr.onerror = () => reject(new Error(`Network error: POST ${absoluteUrl}`));
+    xhr.onerror = () => reject(new Error("Нет связи с сервером. Проверьте интернет и повторите."));
     xhr.ontimeout = () => reject(new Error(`Timeout: POST ${absoluteUrl}`));
     xhr.timeout = 120_000;
     xhr.send(body);

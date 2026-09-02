@@ -2,13 +2,12 @@ import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Flex, Typography } from "@maxhub/max-ui";
 import { Eye, Loader2 } from "lucide-react";
-import { stripOoo, parseCargoNumbersFromText, formatInvoiceNumber, formatCurrency, transliterateFilename, normalizeInvoiceStatus } from "../../../lib/formatUtils";
+import { stripOoo, parseCargoNumbersFromText, formatInvoiceNumber, formatCurrency, normalizeInvoiceStatus } from "../../../lib/formatUtils";
 import { getPayTillDate, getPayTillDateColor } from "../../../lib/dateUtils";
 import { DateText } from "../../../components/ui/DateText";
 import { StatusBadge } from "../../../components/shared/StatusBadges";
 import { RouteBadge } from "../../../components/shared/CargoTableDisplay";
 import { invoiceDocSum } from "../../../../lib/invoiceAmounts.js";
-import { PROXY_API_DOWNLOAD_URL } from "../../../constants/config";
 import { DOCUMENT_METHODS } from "../../../documentMethods";
 import { getFirstCargoNumberFromInvoice, getCargoNumberFromInvoiceRow } from "../lib/documentsPipeline";
 import { formatPerevozkaNumberForApi } from "../../../lib/perevozkaNumber";
@@ -16,10 +15,9 @@ import { getInvoiceEdoInfoByDocLabel } from "../../../lib/edoStatus";
 import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
 import { InvoicePaymentQrBlock } from "./InvoicePaymentQrBlock";
 import { EntityDetailModalHeader } from "../../../components/modals/EntityDetailModalHeader";
-import { decodeBase64Payload } from "../../../utils";
-import { buildDownloadRequestBody } from "../../../lib/downloadRequestBody";
 import { saveBlobFile } from "../../../lib/saveBlobFile";
 import { createPdfPreviewFromBlob, revokePdfPreview, type PdfPreviewState } from "../../../lib/documentPreview";
+import { fetchDocumentForPreview } from "../../../lib/fetchDocumentForPreview";
 import { PdfPreviewPanel } from "../../../components/shared/PdfPreviewPanel";
 import type { AuthData } from "../../../types";
 
@@ -145,42 +143,14 @@ export function InvoiceDetailModal({
         setDownloadError(null);
         try {
             const apiNumber = isReestr || isInvoiceDoc ? numberToUse : formatPerevozkaNumberForApi(numberToUse);
-            const body: Record<string, unknown> = buildDownloadRequestBody(auth, {
+            const { blob, fileName, isHtml } = await fetchDocumentForPreview(auth, {
                 metod,
                 number: apiNumber,
+                ...(isReestr ? { dateDoc: formatDateDocForApi(dateDoc) } : {}),
             });
-            if (isReestr) {
-                body.dateDoc = formatDateDocForApi(dateDoc);
+            if (isHtml) {
+                throw new Error("Документ в формате HTML — используйте скачивание");
             }
-            const res = await fetch(PROXY_API_DOWNLOAD_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
-            });
-            if (!res.ok) {
-                let msg =
-                    res.status === 404
-                        ? "Документ не найден"
-                        : res.status >= 500
-                          ? "Ошибка сервера"
-                          : "Не удалось получить документ";
-                try {
-                    const errData = await res.json();
-                    if (errData?.message && res.status !== 404 && res.status < 500) {
-                        msg = String(errData.message);
-                    } else if (errData?.error && res.status !== 404 && res.status < 500) {
-                        msg = String(errData.error);
-                    }
-                } catch {
-                    /* ignore */
-                }
-                throw new Error(msg);
-            }
-            const data = await res.json();
-            if (!data?.data || !data.name) throw new Error("Документ не найден");
-            const byteArray = decodeBase64Payload(data.data);
-            const blob = new Blob([byteArray], { type: "application/pdf" });
-            const fileName = transliterateFilename(data.name || `${label}_${numberToUse}.pdf`);
             if (pdfViewer) {
                 await revokePdfPreview(pdfViewer);
             }
@@ -264,9 +234,12 @@ export function InvoiceDetailModal({
                     <div className="document-buttons">
                         {DOC_BUTTONS.map((label) => {
                             const isReestr = label === "Реестр";
+                            const isInvoiceDoc = label === "СЧЕТ";
                             const canDownload = isReestr
                                 ? !!(invoiceNumber && formatDateDocForApi(dateDoc))
-                                : !!cargoNumber;
+                                : isInvoiceDoc
+                                  ? !!(cargoNumber || invoiceNumber)
+                                  : !!cargoNumber;
                             const edo = getInvoiceEdoInfoByDocLabel(item, label);
                             return (
                                 <button

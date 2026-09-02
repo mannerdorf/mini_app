@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { Container } from "@maxhub/max-ui";
 import { Capacitor } from "@capacitor/core";
@@ -90,6 +90,13 @@ export function AppAuthenticatedLayout({
     handlePullRefresh,
     nativePullRefreshEnabled,
   );
+
+  useEffect(() => {
+    if (!nativePullRefreshEnabled) return;
+    const el = appMainRef.current;
+    if (!el) return;
+    el.scrollLeft = 0;
+  }, [nativePullRefreshEnabled, showDashboard, useServiceRequest]);
 
   useActiveCustomerInnSync();
   usePushSelectedInnSync(useServiceRequest);

@@ -1,12 +1,14 @@
 /* Главная (дашборд): мобильная адаптация без горизонтального скролла страницы */
 
 @media (max-width: 768px) {
+    .dashboard-page-offset,
     .dashboard-page--saas-analytics {
         overflow-x: hidden;
         max-width: 100%;
     }
 
     /* П.4 — не даём .app-main раздувать страницу по X на дашборде */
+    .app-main:has(.dashboard-page-offset),
     .app-main:has(.dashboard-page--saas-analytics) {
         overflow-x: hidden;
     }
