@@ -8,6 +8,7 @@ import {
   shouldServeFromDocumentCache,
 } from "../lib/cacheHistoryDays.js";
 import { handleHaulzSummarySandboxRequest, isHaulzSummarySandboxAction } from "../lib/haulzSummarySandboxApi.js";
+import { getAdminTokenFromRequest, getAdminTokenPayload, verifyAdminToken } from "../lib/adminAuth.js";
 import { fetchWithTimeout, upstreamTimeoutMessage } from "../lib/fetchWithTimeout.js";
 import { preferCacheOnlyOnVercel } from "../lib/vercelRuntime.js";
 import { readDocumentsFromCacheByPeriod } from "../lib/documentCacheRead.js";
@@ -220,6 +221,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res
       .status(400)
       .json({ error: "Invalid date format (YYYY-MM-DD required)", request_id: ctx.requestId });
+  }
+
+  const adminToken =
+    (typeof body?.adminToken === "string" ? body.adminToken.trim() : "") || getAdminTokenFromRequest(req) || "";
+  if (
+    shouldServeFromDocumentCache(dateFrom, dateTo) &&
+    adminToken &&
+    verifyAdminToken(adminToken) &&
+    getAdminTokenPayload(adminToken)?.superAdmin === true
+  ) {
+    try {
+      const pool = getPool();
+      const { items } = await readDocumentsFromCacheByPeriod(pool, "invoices", dateFrom, dateTo);
+      const filtered = items.filter((item) => {
+        const d = invoiceDate(item);
+        return d >= dateFrom && d <= dateTo;
+      });
+      return res.status(200).json(finalizeInvoiceList(filtered, responseOptions));
+    } catch (e) {
+      logError(ctx, "invoices_admin_cache_failed", e);
+      return res.status(500).json({ error: "Ошибка чтения кэша счетов", request_id: ctx.requestId });
+    }
   }
 
   if (serviceMode) {
