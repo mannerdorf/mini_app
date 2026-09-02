@@ -26,7 +26,7 @@ export function DashboardTrendsSection({ page }: Props) {
             
             {/* === ВИДЖЕТ 3: График динамики (включить: page.WIDGET_3_CHART = true) === */}
             {page.WIDGET_3_CHART && !page.loading && !page.error && page.showSums && (
-                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1.5rem' }}>
+                <Panel className="cargo-card dashboard-dynamics-panel" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1.5rem' }}>
                     <Flex align="center" justify="space-between" style={{ marginBottom: '0.15rem' }}>
                         <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600 }}>
                             {page.selectedChartConfig.title}
@@ -44,7 +44,7 @@ export function DashboardTrendsSection({ page }: Props) {
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>
                         Динамика показателя по дням за выбранный период.
                     </Typography.Body>
-                    <div ref={page.mainChartWrapRef} style={{ width: '100%', minWidth: 0 }}>
+                    <div ref={page.mainChartWrapRef} className="dashboard-main-chart-wrap">
                         <DashboardMainChart
                             data={page.selectedChartConfig.data}
                             title={page.selectedChartConfig.title}

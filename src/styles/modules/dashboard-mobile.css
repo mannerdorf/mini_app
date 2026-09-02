@@ -121,21 +121,70 @@
         display: none;
     }
 
-    /* HAULZ dispatch: список перевозок — без внутреннего скролла (карточки на мобиле высокие). */
-    .haulz-dispatch-table-wrap--scroll,
-    .haulz-dispatch-table-wrap.dashboard-scroll-table-wrap {
-        max-height: none;
-        overflow-y: visible;
-    }
-
-    .haulz-dispatch-table-wrap--scroll .haulz-dispatch-table__th {
-        position: static;
-        box-shadow: none;
-    }
-
     /* HAULZ dispatch: вложенная таблица деталей */
     .haulz-dispatch-table-wrap.dashboard-scroll-table-wrap {
         overflow-x: hidden;
+    }
+
+    /* Перевозки по заказчикам: карточки на всю ширину фрейма (не сжимать вложенные строки). */
+    .haulz-dispatch-table.dashboard-scroll-table,
+    .haulz-dispatch-table.dashboard-scroll-table tbody {
+        display: block;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr.dashboard-scroll-table__data-row {
+        width: 100%;
+    }
+
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr.haulz-dispatch-table__group-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.35rem 0.5rem;
+        margin-bottom: 0.35rem;
+        padding: 0.5rem 0.55rem;
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        background: var(--color-bg-hover);
+    }
+
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr.haulz-dispatch-table__group-row > td {
+        display: block;
+        border: none;
+        padding: 0;
+        white-space: normal;
+    }
+
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr.haulz-dispatch-table__group-row > td.status-date-col,
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr.haulz-dispatch-table__group-row > td:nth-child(n + 4):not(:last-child) {
+        display: none;
+    }
+
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr.haulz-dispatch-table__group-row > td:last-child {
+        margin-left: auto;
+        font-weight: 600;
+        font-size: 0.78rem;
+        text-align: right;
+    }
+
+    .haulz-dispatch-table__cell--num-nested {
+        padding-left: 0 !important;
+    }
+
+    .haulz-dispatch-table__row--nested .customer-col {
+        display: none !important;
+    }
+
+    .haulz-dispatch-table__row--nested .customer-col::before {
+        display: none !important;
     }
 
     /* П.10 — сезонность: скрываем широкую heatmap, показываем карточки */

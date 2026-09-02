@@ -282,7 +282,89 @@
     margin-top: 0.5rem;
 }
 
+/* Счёт / УПД: строки табличной части — карточки (как перевозки). */
+.document-detail-line-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    margin-top: 0.5rem;
+    min-width: 0;
+}
+
+.document-detail-line-card {
+    padding: 0.75rem 0.85rem !important;
+    margin-bottom: 0 !important;
+    border: 1px solid var(--color-border) !important;
+    border-radius: 10px !important;
+    background: var(--color-bg-card) !important;
+    box-shadow: none !important;
+    min-width: 0;
+}
+
+.document-detail-line-card__service {
+    display: block;
+    font-size: 0.85rem !important;
+    line-height: 1.45 !important;
+    color: var(--color-text-primary) !important;
+    margin-bottom: 0.55rem;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.document-detail-line-card__badges {
+    margin-bottom: 0.55rem;
+    min-width: 0;
+}
+
+.document-detail-line-card__badges .app-badge,
+.document-detail-line-card__badges .status-value,
+.document-detail-line-card__badges .route-badge,
+.document-detail-line-card__badges .max-badge {
+    flex-shrink: 0;
+    max-width: 100%;
+}
+
+.document-detail-line-card__metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem 0.65rem;
+    padding-top: 0.55rem;
+    border-top: 1px solid var(--color-border);
+}
+
+.document-detail-line-card__metric {
+    display: flex;
+    flex-direction: column;
+    gap: 0.12rem;
+    min-width: 0;
+}
+
+.document-detail-line-card__metric-label {
+    font-size: 0.68rem !important;
+    color: var(--color-text-secondary) !important;
+    line-height: 1.2 !important;
+}
+
+.document-detail-line-card__metric-value {
+    font-size: 0.82rem !important;
+    color: var(--color-text-primary) !important;
+    line-height: 1.25 !important;
+    white-space: nowrap;
+}
+
+.document-detail-line-card__metric-value--sum {
+    font-weight: 600 !important;
+}
+
 @media (max-width: 768px) {
+    .document-detail-line-card__metric--price {
+        display: none;
+    }
+
+    .document-detail-line-card__metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .entity-detail-modal-table-wrap .invoice-detail-table {
         table-layout: fixed;
         width: 100%;

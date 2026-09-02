@@ -563,6 +563,23 @@
     box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
 }
 
+/* Динамика: график от края до края карточки (компенсируем padding панели). */
+.dashboard-dynamics-panel .dashboard-main-chart-wrap {
+    width: calc(100% + 3rem);
+    max-width: calc(100% + 3rem);
+    margin-left: -1.5rem;
+    margin-right: -1.5rem;
+    min-width: 0;
+}
+
+.dashboard-main-chart,
+.dashboard-main-chart__svg {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
 /* HAULZ KPI-плитки: одна высота в ряду, место под 2 строки метрик */
 .haulz-dispatch-stat-grid {
     display: grid;
@@ -621,10 +638,12 @@
     margin-top: 0.75rem;
 }
 
-/* Оставлено для совместимости; список перевозок растягивается по содержимому, скролл — у страницы. */
+/* Перевозки: не выше одной KPI-карточки, длинный список — вертикальный скролл внутри. */
 .haulz-dispatch-table-wrap--scroll {
-    max-height: none;
-    overflow-y: visible;
+    max-height: 13.5rem;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
 }
 
 .haulz-dispatch-table-wrap--scroll .haulz-dispatch-table__th {

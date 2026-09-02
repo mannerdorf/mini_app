@@ -62,7 +62,7 @@ export function HaulzDispatchShipmentRows({
                 return (
                     <React.Fragment key={num ? `${rowKeyPrefix}-${num}` : `${rowKeyPrefix}-i-${ridx}`}>
                         <tr
-                            className="haulz-dispatch-table__row dashboard-scroll-table__data-row"
+                            className={`haulz-dispatch-table__row dashboard-scroll-table__data-row${nestedFirstColumn ? " haulz-dispatch-table__row--nested" : ""}`}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 if (!num) return;

@@ -5,11 +5,10 @@ import { Eye, Loader2 } from "lucide-react";
 import { stripOoo, parseCargoNumbersFromText, formatInvoiceNumber, formatCurrency, normalizeInvoiceStatus } from "../../../lib/formatUtils";
 import { getPayTillDate, getPayTillDateColor } from "../../../lib/dateUtils";
 import { DateText } from "../../../components/ui/DateText";
-import { StatusBadge } from "../../../components/shared/StatusBadges";
-import { RouteBadge } from "../../../components/shared/CargoTableDisplay";
+import { DocumentDetailLineCards } from "../components/DocumentDetailLineCards";
 import { invoiceDocSum } from "../../../../lib/invoiceAmounts.js";
 import { DOCUMENT_METHODS } from "../../../documentMethods";
-import { getFirstCargoNumberFromInvoice, getCargoNumberFromInvoiceRow } from "../lib/documentsPipeline";
+import { getFirstCargoNumberFromInvoice } from "../lib/documentsPipeline";
 import { formatPerevozkaNumberForApi } from "../../../lib/perevozkaNumber";
 import { getInvoiceEdoInfoByDocLabel } from "../../../lib/edoStatus";
 import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
@@ -36,12 +35,6 @@ type InvoiceDetailModalProps = {
     isFavorite?: boolean;
     onToggleFavorite?: () => void;
 };
-
-function lookupNorm<T>(map: Map<string, T> | undefined, key: string): T | undefined {
-    if (!map || !key) return undefined;
-    const norm = (s: string) => String(s).replace(/^0+/, "") || s;
-    return map.get(key) ?? map.get(norm(key));
-}
 
 export function InvoiceDetailModal({
     item,
@@ -281,57 +274,13 @@ export function InvoiceDetailModal({
                     <InvoicePaymentQrBlock invoice={item} auth={auth} cargoSumPaidByNumber={cargoSumPaidByNumber} />
                 )}
                 {list.length > 0 ? (
-                    <div className="entity-detail-modal-table-wrap">
-                        <table className="invoice-detail-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
-                            <thead>
-                                <tr style={{ background: "var(--color-bg-hover)" }}>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600 }}>Услуга</th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600 }}>Статус перевозки</th>
-                                    <th className="invoice-detail-table-route" style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600 }}>
-                                        Маршрут
-                                    </th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600 }}>Кол-во</th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600 }}>Цена</th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600 }}>Сумма</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {list.map((row, i) => {
-                                    const cargoNum = getCargoNumberFromInvoiceRow(row);
-                                    const deliveryState = cargoNum ? lookupNorm(cargoStateByNumber, cargoNum) : undefined;
-                                    const route = cargoNum ? lookupNorm(cargoRouteByNumber, cargoNum) : undefined;
-                                    return (
-                                        <tr key={i} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                                            <td style={{ padding: "0.5rem 0.4rem", maxWidth: 220 }} title={stripOoo(String(row.Operation ?? row.Name ?? ""))}>
-                                                {renderServiceCell(String(row.Operation ?? row.Name ?? "—"))}
-                                            </td>
-                                            <td style={{ padding: "0.5rem 0.4rem" }}>
-                                                {perevozkiLoading ? (
-                                                    <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} />
-                                                ) : (
-                                                    <StatusBadge status={deliveryState} />
-                                                )}
-                                            </td>
-                                            <td className="invoice-detail-table-route" style={{ padding: "0.5rem 0.4rem" }}>
-                                                {perevozkiLoading ? (
-                                                    <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} />
-                                                ) : (
-                                                    <RouteBadge route={route} />
-                                                )}
-                                            </td>
-                                            <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>{row.Quantity ?? "—"}</td>
-                                            <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>
-                                                {row.Price != null ? formatCurrency(row.Price) : "—"}
-                                            </td>
-                                            <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>
-                                                {row.Sum != null ? formatCurrency(row.Sum) : "—"}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                    <DocumentDetailLineCards
+                        rows={list}
+                        perevozkiLoading={perevozkiLoading}
+                        cargoStateByNumber={cargoStateByNumber}
+                        cargoRouteByNumber={cargoRouteByNumber}
+                        renderServiceCell={renderServiceCell}
+                    />
                 ) : (
                     <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет номенклатуры</Typography.Body>
                 )}

@@ -52,27 +52,25 @@ export function DashboardMainChart({
     const scaleMax = maxValue * 1.1;
 
     const chartHeight = 110;
-    const paddingLeft = 4;
-    const paddingRight = 4;
-    const paddingTop = 8;
-    const paddingBottom = 8;
+    const paddingTop = 6;
+    const paddingBottom = 6;
     const chartWidth = Math.max(280, Math.floor(outerWidthPx));
-    const innerPlotW = Math.max(80, chartWidth - paddingLeft - paddingRight);
     const n = roundedData.length;
-    const barSpacing = 6;
-    const barWidth = n > 0
-        ? Math.max(4, (innerPlotW - Math.max(0, n - 1) * barSpacing) / n)
-        : 12;
+    const plotStep = n > 1 ? chartWidth / (n - 1) : chartWidth;
+    const barWidth = n > 1
+        ? Math.min(28, Math.max(4, plotStep * 0.55))
+        : Math.min(28, chartWidth * 0.12);
     const availableHeight = chartHeight - paddingTop - paddingBottom;
+    const baselineY = chartHeight - paddingBottom;
     const points = roundedData.map((d, idx) => {
         const barHeight = (d.value / scaleMax) * availableHeight;
-        const x = paddingLeft + idx * (barWidth + barSpacing);
-        const y = chartHeight - paddingBottom - barHeight;
-        return { x, y, barHeight, value: d.value };
+        const xCenter = n <= 1 ? chartWidth / 2 : (idx / (n - 1)) * chartWidth;
+        const y = baselineY - barHeight;
+        return { xCenter, y, barHeight, value: d.value };
     });
-    const linePoints = points.map((p) => `${p.x + barWidth / 2},${p.y}`).join(' ');
+    const linePoints = points.map((p) => `${p.xCenter},${p.y}`).join(' ');
     const areaPath = points.length > 1
-        ? `M ${points[0].x + barWidth / 2} ${chartHeight - paddingBottom} L ${points.map((p) => `${p.x + barWidth / 2} ${p.y}`).join(' L ')} L ${points[points.length - 1].x + barWidth / 2} ${chartHeight - paddingBottom} Z`
+        ? `M 0 ${baselineY} L ${points.map((p) => `${p.xCenter} ${p.y}`).join(' L ')} L ${chartWidth} ${baselineY} Z`
         : '';
 
     const gradientId = `gradient-${color.replace('#', '')}`;
@@ -89,69 +87,48 @@ export function DashboardMainChart({
     const darkColor = rgb ? `rgb(${Math.max(0, rgb.r - 30)}, ${Math.max(0, rgb.g - 30)}, ${Math.max(0, rgb.b - 30)})` : color;
 
     return (
-        <div>
-            <div style={{ width: '100%', minWidth: 0 }}>
-                <svg
-                    viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-                    width="100%"
-                    height={chartHeight}
-                    preserveAspectRatio="none"
-                    style={{ display: 'block', maxWidth: '100%' }}
-                >
-                    <defs>
-                        <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" stopColor={lightColor} stopOpacity="0.9" />
-                            <stop offset="100%" stopColor={darkColor} stopOpacity="0.6" />
-                        </linearGradient>
-                    </defs>
+        <div className="dashboard-main-chart">
+            <svg
+                className="dashboard-main-chart__svg"
+                viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                width="100%"
+                height={chartHeight}
+                preserveAspectRatio="none"
+                aria-hidden
+            >
+                <defs>
+                    <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor={lightColor} stopOpacity="0.9" />
+                        <stop offset="100%" stopColor={darkColor} stopOpacity="0.6" />
+                    </linearGradient>
+                </defs>
 
-                    <line
-                        x1={paddingLeft}
-                        y1={chartHeight - paddingBottom}
-                        x2={chartWidth - paddingRight}
-                        y2={chartHeight - paddingBottom}
-                        stroke="var(--color-border)"
-                        strokeWidth="1.5"
-                        opacity="0.5"
+                {(variant === 'columns' || variant === 'combo') && points.map((p, idx) => (
+                    <rect
+                        key={`bar-${idx}`}
+                        x={p.xCenter - barWidth / 2}
+                        y={p.y}
+                        width={barWidth}
+                        height={p.barHeight}
+                        fill={`url(#${gradientId})`}
+                        opacity={variant === 'combo' ? 0.38 : 1}
+                        rx="4"
+                        style={{ transition: 'all 0.3s ease' }}
                     />
-
-                    <line
-                        x1={paddingLeft}
-                        y1={paddingTop}
-                        x2={paddingLeft}
-                        y2={chartHeight - paddingBottom}
-                        stroke="var(--color-border)"
-                        strokeWidth="1.5"
-                        opacity="0.5"
-                    />
-
-                    {(variant === 'columns' || variant === 'combo') && points.map((p, idx) => (
-                        <rect
-                            key={`bar-${idx}`}
-                            x={p.x}
-                            y={p.y}
-                            width={barWidth}
-                            height={p.barHeight}
-                            fill={`url(#${gradientId})`}
-                            opacity={variant === 'combo' ? 0.38 : 1}
-                            rx="4"
-                            style={{ transition: 'all 0.3s ease' }}
-                        />
-                    ))}
-                    {variant === 'area' && areaPath && (
-                        <>
-                            <path d={areaPath} fill={lightColor} opacity="0.22" />
-                            <polyline points={linePoints} fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                        </>
-                    )}
-                    {(variant === 'line' || variant === 'combo') && (
-                        <polyline points={linePoints} fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                    )}
-                    {variant === 'dot' && points.map((p, idx) => (
-                        <circle key={`dot-main-${idx}`} cx={p.x + barWidth / 2} cy={p.y} r="4" fill={color} opacity="0.9" />
-                    ))}
-                </svg>
-            </div>
+                ))}
+                {variant === 'area' && areaPath && (
+                    <>
+                        <path d={areaPath} fill={lightColor} opacity="0.22" />
+                        <polyline points={linePoints} fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                    </>
+                )}
+                {(variant === 'line' || variant === 'combo') && (
+                    <polyline points={linePoints} fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                )}
+                {variant === 'dot' && points.map((p, idx) => (
+                    <circle key={`dot-main-${idx}`} cx={p.xCenter} cy={p.y} r="4" fill={color} opacity="0.9" />
+                ))}
+            </svg>
         </div>
     );
 }

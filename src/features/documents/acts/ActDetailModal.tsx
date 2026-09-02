@@ -5,10 +5,9 @@ import { Eye, Loader2 } from "lucide-react";
 import { EntityDetailModalHeader } from "../../../components/modals/EntityDetailModalHeader";
 import { formatCurrency, formatInvoiceNumber, stripOoo, parseCargoNumbersFromText } from "../../../lib/formatUtils";
 import { DateText } from "../../../components/ui/DateText";
-import { StatusBadge } from "../../../components/shared/StatusBadges";
-import { RouteBadge } from "../../../components/shared/CargoTableDisplay";
+import { DocumentDetailLineCards } from "../components/DocumentDetailLineCards";
 import { DOCUMENT_METHODS } from "../../../documentMethods";
-import { getFirstCargoNumberFromInvoice, getCargoNumberFromInvoiceRow } from "../lib/documentsPipeline";
+import { getFirstCargoNumberFromInvoice } from "../lib/documentsPipeline";
 import { formatPerevozkaNumberForApi } from "../../../lib/perevozkaNumber";
 import { getInvoiceEdoInfoByDocLabel } from "../../../lib/edoStatus";
 import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
@@ -60,12 +59,6 @@ function invoiceNumbersMatch(a: string | undefined | null, b: string | undefined
     const numA = parseInt(normNum(sa), 10);
     const numB = parseInt(normNum(sb), 10);
     return !isNaN(numA) && !isNaN(numB) && numA === numB;
-}
-
-function lookupNorm<T>(map: Map<string, T> | undefined, key: string): T | undefined {
-    if (!map || !key) return undefined;
-    const norm = (s: string) => String(s).replace(/^0+/, "") || s;
-    return map.get(key) ?? map.get(norm(key));
 }
 
 export function ActDetailModal({
@@ -284,43 +277,13 @@ export function ActDetailModal({
                 )}
 
                 {list.length > 0 ? (
-                    <div className="entity-detail-modal-table-wrap">
-                        <table className="invoice-detail-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem", color: "var(--color-text-primary)" }}>
-                            <thead>
-                                <tr style={{ background: "var(--color-bg-hover)" }}>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600, color: "var(--color-text-primary)" }}>Услуга</th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600, color: "var(--color-text-primary)" }}>Статус перевозки</th>
-                                    <th className="invoice-detail-table-route" style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600, color: "var(--color-text-primary)" }}>Маршрут</th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600, color: "var(--color-text-primary)" }}>Кол-во</th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600, color: "var(--color-text-primary)" }}>Цена</th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600, color: "var(--color-text-primary)" }}>Сумма</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {list.map((row, i) => {
-                                    const cargoNum = getCargoNumberFromInvoiceRow(row);
-                                    const deliveryState = cargoNum ? lookupNorm(cargoStateByNumber, cargoNum) : undefined;
-                                    const route = cargoNum ? lookupNorm(cargoRouteByNumber, cargoNum) : undefined;
-                                    return (
-                                    <tr key={i} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                                        <td style={{ padding: "0.5rem 0.4rem", maxWidth: 220, color: "var(--color-text-primary)" }} title={stripOoo(String(row.Operation ?? row.Name ?? ""))}>
-                                            {renderServiceCell(String(row.Operation ?? row.Name ?? "—"))}
-                                        </td>
-                                        <td style={{ padding: "0.5rem 0.4rem", color: "var(--color-text-primary)" }}>
-                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} /> : <StatusBadge status={deliveryState} />}
-                                        </td>
-                                        <td className="invoice-detail-table-route" style={{ padding: "0.5rem 0.4rem", color: "var(--color-text-primary)" }}>
-                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} /> : <RouteBadge route={route} />}
-                                        </td>
-                                        <td style={{ padding: "0.5rem 0.4rem", textAlign: "right", color: "var(--color-text-primary)" }}>{row.Quantity ?? "—"}</td>
-                                        <td style={{ padding: "0.5rem 0.4rem", textAlign: "right", color: "var(--color-text-primary)" }}>{row.Price != null ? formatCurrency(row.Price) : "—"}</td>
-                                        <td style={{ padding: "0.5rem 0.4rem", textAlign: "right", color: "var(--color-text-primary)" }}>{row.Sum != null ? formatCurrency(row.Sum) : "—"}</td>
-                                    </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                    <DocumentDetailLineCards
+                        rows={list}
+                        perevozkiLoading={perevozkiLoading}
+                        cargoStateByNumber={cargoStateByNumber}
+                        cargoRouteByNumber={cargoRouteByNumber}
+                        renderServiceCell={renderServiceCell}
+                    />
                 ) : (
                     <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет табличной части</Typography.Body>
                 )}

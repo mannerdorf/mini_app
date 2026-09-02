@@ -39,6 +39,8 @@ const TABLE_MAX_ROWS = 60;
 const DISPATCH_TABLE_COLS = 8;
 /** Сколько перевозок показывать при раскрытии заказчика до «Ещё». */
 const CUSTOMER_GROUP_PREVIEW_ROWS = 5;
+/** Вертикальный скролл таблицы, если перевозок больше этого числа (высота ≈ одна KPI-карточка). */
+const DISPATCH_TABLE_SCROLL_AFTER_ROWS = 5;
 
 type DispatchTableSortCol = "number" | "customer" | "statusDate" | "datePrih" | "pw" | "sum";
 
@@ -387,6 +389,7 @@ export function HaulzDispatchSummary({
     }, [listByTile, selectedTile, dispatchTableSort]);
 
     const tableRows = useMemo(() => sortedTableSource.slice(0, TABLE_MAX_ROWS), [sortedTableSource]);
+    const dispatchTableScrollable = tableRows.length > DISPATCH_TABLE_SCROLL_AFTER_ROWS;
 
     const dispatchTableColCount = showCustomerColumn ? DISPATCH_TABLE_COLS : DISPATCH_TABLE_COLS - 1;
     /** Один логин — одна организация: без группировки по заказчику. */
@@ -587,7 +590,13 @@ export function HaulzDispatchSummary({
                                     </span>
                                 </button>
                                 {dispatchTableOpen && (
-                            <div className="haulz-dispatch-table-wrap dashboard-scroll-table-wrap">
+                            <div
+                                className={
+                                    dispatchTableScrollable
+                                        ? "haulz-dispatch-table-wrap haulz-dispatch-table-wrap--scroll dashboard-scroll-table-wrap"
+                                        : "haulz-dispatch-table-wrap dashboard-scroll-table-wrap"
+                                }
+                            >
                                 <table className="haulz-dispatch-table dashboard-scroll-table">
                                     <thead>
                                         <tr className="haulz-dispatch-table__head-row">
@@ -678,6 +687,7 @@ export function HaulzDispatchSummary({
                                             return (
                                                 <React.Fragment key={`${selectedTile}-grp-${customerKey}`}>
                                                     <tr
+                                                        className="haulz-dispatch-table__group-row"
                                                         onClick={() => {
                                                             if (groupOpen) {
                                                                 setExpandedCustomerKey(null);
