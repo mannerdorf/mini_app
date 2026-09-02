@@ -1,4 +1,4 @@
-import { DEFAULT_APP_URL, usesSameOriginBrowserApi } from "../../lib/haulzDomains";
+import { usesSameOriginBrowserApi } from "../../lib/haulzDomains";
 import { PARTNER_API_PUBLIC_ORIGIN } from "../constants/partnerApi";
 
 const FALLBACK_API_ORIGIN = PARTNER_API_PUBLIC_ORIGIN;
@@ -25,21 +25,31 @@ const isCapacitorNative = (): boolean => {
 };
 
 /**
+ * haulz.space / haulz.ru сейчас отвечают 301 на api.haulz.space.
+ * fetch превращает POST+301 в GET → 405 Method not allowed на /api/perevozki.
+ */
+const resolveAwayFromFrontRedirect = (origin: string): string => {
+  const n = normalizeApiOrigin(origin);
+  if (!n) return "";
+  if (usesSameOriginBrowserApi(n)) return FALLBACK_API_ORIGIN;
+  return n;
+};
+
+/**
  * Базовый origin для fetch `/api/*`.
- * Web на haulz.space / haulz.ru → same-origin (nginx /api → VPS).
- * Vercel preview / *.vercel.app → https://haulz.space (иначе Functions 405 на nested routes).
- * Capacitor / VITE_API_ORIGIN → api.haulz.space.
+ * Всегда api.haulz.space для production-фронта / Capacitor / Vercel preview.
+ * Локальный Vite остаётся на origin страницы.
  */
 export function resolveApiOrigin(): string {
-  const envOrigin = normalizeApiOrigin(String(import.meta.env.VITE_API_ORIGIN || ""));
+  const envOrigin = resolveAwayFromFrontRedirect(String(import.meta.env.VITE_API_ORIGIN || ""));
   if (envOrigin) return envOrigin;
   if (typeof window !== "undefined" && !isCapacitorNative()) {
     const pageOrigin = normalizeOrigin(window.location.origin);
-    if (usesSameOriginBrowserApi(pageOrigin)) return pageOrigin;
+    if (usesSameOriginBrowserApi(pageOrigin)) return FALLBACK_API_ORIGIN;
     try {
       const host = new URL(pageOrigin).hostname.toLowerCase();
       if (host === "vercel.app" || host.endsWith(".vercel.app")) {
-        return normalizeApiOrigin(DEFAULT_APP_URL) || "https://haulz.space";
+        return FALLBACK_API_ORIGIN;
       }
     } catch {
       // ignore

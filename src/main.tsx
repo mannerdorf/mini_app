@@ -166,8 +166,7 @@ const isLikelyLocalDev = (): boolean => {
 };
 
 /**
- * Переписываем fetch только если API на другом хосте (VITE_API_ORIGIN, Capacitor).
- * haulz.space / haulz.ru → same-origin /api/* (nginx → api.haulz.space).
+ * Переписываем fetch, если API на другом хосте (Capacitor / haulz.space → api.haulz.space).
  */
 if (typeof window !== "undefined") {
   setupNativeTextSelectionBlock();

@@ -7,7 +7,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-API_ORIGIN="${VITE_API_ORIGIN:-https://haulz.space}"
+API_ORIGIN="${VITE_API_ORIGIN:-https://api.haulz.space}"
 IOS_DIR="$ROOT/ios/App"
 WORKSPACE="$IOS_DIR/App.xcworkspace"
 SCHEME="${IOS_SCHEME:-App}"

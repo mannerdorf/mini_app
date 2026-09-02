@@ -55,7 +55,7 @@ function haulzReturnsApiUrl(path: string): string {
   if (typeof window !== "undefined") {
     const host = String(window.location.hostname || "").toLowerCase();
     if (host === "vercel.app" || host.endsWith(".vercel.app")) {
-      return `https://haulz.space${normalized}`;
+      return `https://api.haulz.space${normalized}`;
     }
   }
   const origin = resolveApiOrigin().replace(/\/+$/, "");

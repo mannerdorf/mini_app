@@ -6,27 +6,7 @@ function toAbsoluteApiUrl(pathOrUrl: string): string {
   if (/^https?:\/\//i.test(raw)) return raw;
   const path = raw.startsWith("/") ? raw : `/${raw}`;
 
-  // Preview/Production на Vercel: всегда боевой API (VPS), иначе Functions дают 404/405.
-  // Для submit-1c тоже форсим VPS — nested /api/orders/* на Vercel ломается.
-  if (typeof window !== "undefined") {
-    const host = String(window.location.hostname || "").toLowerCase();
-    if (host === "vercel.app" || host.endsWith(".vercel.app")) {
-      return `https://haulz.space${path}`;
-    }
-  }
-
-  // Оформление в 1С: на VPS live только /api/orders/submit-1c (origin/main).
-  // Всегда бьём в haulz.space, чтобы не зависеть от same-origin Vercel/preview.
-  if (
-    path === "/api/orders/submit-1c" ||
-    path === "/api/documents/order-submit-1c" ||
-    path === "/api/order-submit-1c"
-  ) {
-    return `https://haulz.space${path}`;
-  }
-
-  const origin = resolveApiOrigin().replace(/\/+$/, "");
-  if (!origin) return path;
+  const origin = resolveApiOrigin().replace(/\/+$/, "") || "https://api.haulz.space";
   if (typeof window !== "undefined") {
     const page = String(window.location.origin || "").replace(/\/+$/, "");
     if (page && page === origin) return path;
@@ -36,7 +16,7 @@ function toAbsoluteApiUrl(pathOrUrl: string): string {
 
 /**
  * POST JSON с явным методом через XHR.
- * URL резолвится через resolveApiOrigin (Vercel preview → haulz.space API).
+ * URL резолвится через resolveApiOrigin (production → api.haulz.space).
  */
 export function postJsonXhr(
   url: string,
