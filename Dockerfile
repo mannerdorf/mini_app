@@ -13,7 +13,7 @@ ENV CI=1
 
 COPY package.json package-lock.json .npmrc ./
 RUN npm ci \
-  && node -e "require('esbuild').buildSync({write:false,stdin:'',loader:'js'})"
+  && node -e "require('esbuild').buildSync({stdin:{contents:'console.log(1)',loader:'js'},write:false})"
 
 COPY . .
 # Веб (Docker/App Platform): VITE_API_ORIGIN не задаём — same-origin /api через nginx.
