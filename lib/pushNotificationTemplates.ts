@@ -11,7 +11,7 @@ import {
   pickBillSumRaw,
   type CargoEvent,
 } from "./notificationPoll.js";
-import { extractCargoLastMileMeta } from "./cargoLastMileMeta.js";
+import { extractCargoLastMileMeta, hasLastMileForPush } from "./cargoLastMileMeta.js";
 import { formatInvoiceNumberDisplay } from "./weeklySummaryInvoiceTable.js";
 import { cargoPlannedDeliveryDateFromItem } from "./cargoDateFilter.js";
 import { formatPushPlanDateDisplay } from "./formatPushPlanDate.js";
@@ -156,9 +156,61 @@ function defaultBodyTemplate(eventId: PushNotificationTemplateEventId): string {
   return "{stage_label}. № {cargo_number}";
 }
 
+export const LAST_MILE_PUSH_TEMPLATE_VARS = ["driver", "driver_tel", "auto_reg", "auto_type"] as const;
+
+export function pushTemplateBodyNeedsLastMile(bodyTemplate: string): boolean {
+  return LAST_MILE_PUSH_TEMPLATE_VARS.some((key) =>
+    new RegExp(`\\{${key}\\}`, "i").test(String(bodyTemplate ?? "")),
+  );
+}
+
+export function shouldDeferLastMilePush(
+  event: CargoEvent | PushNotificationTemplateEventId,
+  item: Record<string, unknown> | null | undefined,
+  templates?: PushNotificationTemplateMap | null,
+): boolean {
+  const eventId = event as PushNotificationTemplateEventId;
+  if (eventId !== "delivery_scheduled" && eventId !== "delivered" && eventId !== "arrived") {
+    return false;
+  }
+  const custom = templates?.get(eventId);
+  const bodyTemplate =
+    custom && custom.enabled !== false && custom.bodyTemplate.trim()
+      ? custom.bodyTemplate
+      : defaultBodyTemplate(eventId);
+  if (!pushTemplateBodyNeedsLastMile(bodyTemplate)) return false;
+  return !hasLastMileForPush(item);
+}
+
 function defaultTitleTemplate(eventId: PushNotificationTemplateEventId): string {
   if (eventId === "daily_summary") return "HAULZ: ежедневная сводка";
   return "HAULZ";
+}
+
+function isBillPushEvent(eventId: PushNotificationTemplateEventId): boolean {
+  return eventId === "bill_created" || eventId === "bill_paid";
+}
+
+/** Шаблон bill_created/bill_paid без {bill_number} не покажет номер счёта — подменяем дефолтом. */
+function billEventBodyNeedsBillNumberUpgrade(
+  eventId: PushNotificationTemplateEventId,
+  bodyTemplate: string,
+): boolean {
+  if (!isBillPushEvent(eventId)) return false;
+  return !/\{bill_number\}/i.test(String(bodyTemplate ?? ""));
+}
+
+/** Если в тексте нет номера счёта, но он есть в контексте — рендерим дефолтный шаблон. */
+function finalizeBillPushBody(
+  eventId: PushNotificationTemplateEventId,
+  body: string,
+  ctx: Record<string, string>,
+): string {
+  if (!isBillPushEvent(eventId)) return body;
+  const bill = ctx.bill_number?.trim();
+  if (!bill || bill === "—") return body;
+  if (body.includes(bill)) return body;
+  return renderPushTemplateString(defaultBodyTemplate(eventId), ctx).trim();
 }
 
 export function defaultPushNotificationTemplates(): PushNotificationTemplateRow[] {
@@ -264,17 +316,27 @@ export function formatPushNotificationMessage(
   }
 
   if (custom && custom.enabled !== false && custom.bodyTemplate.trim()) {
+    const body = finalizeBillPushBody(
+      eventId,
+      renderPushTemplateString(custom.bodyTemplate, ctx).trim(),
+      ctx,
+    );
     return {
       title: renderPushTemplateString(custom.titleTemplate || "HAULZ", ctx).trim() || "HAULZ",
-      body: renderPushTemplateString(custom.bodyTemplate, ctx).trim(),
+      body,
       usedCustomTemplate: true,
     };
   }
 
   if ((PUSH_NOTIFICATION_EVENTS as readonly string[]).includes(eventId)) {
+    const body = finalizeBillPushBody(
+      eventId,
+      renderPushTemplateString(defaultBodyTemplate(eventId), ctx).trim(),
+      ctx,
+    );
     return {
       title: renderPushTemplateString(defaultTitleTemplate(eventId), ctx).trim() || "HAULZ",
-      body: renderPushTemplateString(defaultBodyTemplate(eventId), ctx).trim(),
+      body,
       usedCustomTemplate: false,
     };
   }
@@ -355,6 +417,8 @@ export async function loadPushNotificationTemplates(pool: Pool): Promise<PushNot
       let bodyTemplate = String(row.body_template || "");
       const legacy = legacyDefaultBodies[eventId];
       if (legacy && bodyTemplate.trim() === legacy) {
+        bodyTemplate = defaultBodyTemplate(eventId);
+      } else if (billEventBodyNeedsBillNumberUpgrade(eventId, bodyTemplate)) {
         bodyTemplate = defaultBodyTemplate(eventId);
       }
       map.set(eventId, {

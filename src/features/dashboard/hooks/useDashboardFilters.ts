@@ -8,6 +8,7 @@ import {
     type SharedBillStatusKey,
     type TypeFilterKey,
 } from "../../../lib/sharedListFilters";
+import { HAULZ_PULL_REFRESH_EVENT } from "../../../lib/pullRefreshEvents";
 import { useListDateRange, usePersistedDateFilter } from "../../../features/listWorkspace";
 import { loadDashboardRoleFilter, DASH_ROLE_FILTER_KEY } from "../../../features/dashboard";
 import type { CargoRoleFilterKey } from "../../../lib/cargoUtils";
@@ -65,6 +66,17 @@ export function useDashboardFilters({
     useEffect(() => {
         saveSharedVisibleListFilters({ billStatusFilterSet, typeFilterSet, routeFilterSet });
     }, [billStatusFilterSet, typeFilterSet, routeFilterSet]);
+
+    useEffect(() => {
+        const reloadSharedFilters = () => {
+            const init = initSharedFilterSets();
+            setBillStatusFilterSet(init.billStatusFilterSet);
+            setTypeFilterSet(init.typeFilterSet);
+            setRouteFilterSet(init.routeFilterSet);
+        };
+        window.addEventListener(HAULZ_PULL_REFRESH_EVENT, reloadSharedFilters);
+        return () => window.removeEventListener(HAULZ_PULL_REFRESH_EVENT, reloadSharedFilters);
+    }, []);
 
     useEffect(() => {
         if (!useServiceRequest) return;

@@ -3,7 +3,9 @@ import {
   buildPushTemplateContext,
   defaultPushNotificationTemplates,
   formatPushNotificationMessage,
+  pushTemplateBodyNeedsLastMile,
   renderPushTemplateString,
+  shouldDeferLastMilePush,
 } from "./pushNotificationTemplates.js";
 
 describe("renderPushTemplateString", () => {
@@ -51,6 +53,32 @@ describe("formatPushNotificationMessage", () => {
     expect(result.body).toContain("счет № 1529");
     expect(result.body).toContain("000141572");
     expect(result.usedCustomTemplate).toBe(false);
+  });
+
+  it("falls back to default bill template when custom template omits bill_number", () => {
+    const templates = new Map([
+      [
+        "bill_created",
+        {
+          titleTemplate: "HAULZ",
+          bodyTemplate: "Вам выставлен счет по перевозке № {cargo_number} на сумму {bill_sum} ₽.",
+          enabled: true,
+          updatedAt: "2026-01-01",
+          updatedBy: "admin",
+        },
+      ],
+    ] as const);
+
+    const result = formatPushNotificationMessage(
+      "bill_created",
+      "000141572",
+      { BillNum: "000001529", SumDoc: 125000 },
+      templates as never,
+    );
+
+    expect(result.body).toContain("счет № 1529");
+    expect(result.body).toContain("000141572");
+    expect(result.usedCustomTemplate).toBe(true);
   });
 
   it("uses planned delivery date default template", () => {
@@ -165,5 +193,46 @@ describe("buildPushTemplateContext", () => {
       DateArrivalPlan: "2026-08-28",
     });
     expect(ctx.plan_date).toBe("28.08.2026");
+  });
+});
+
+describe("shouldDeferLastMilePush", () => {
+  const lastMileTemplate = new Map([
+    [
+      "delivery_scheduled",
+      {
+        titleTemplate: "HAULZ",
+        bodyTemplate:
+          "{stage_label}. Перевозка № {cargo_number}\nЭкспедитор: {driver}, {driver_tel}\nАвто: {auto_type} {auto_reg}",
+        enabled: true,
+        updatedAt: null,
+        updatedBy: null,
+      },
+    ],
+  ] as const);
+
+  it("defers when template needs last mile but cargo list lacks it", () => {
+    expect(
+      shouldDeferLastMilePush(
+        "delivery_scheduled",
+        { Number: "000141572", TypeOfTransit: "Авто", АвтомобильCMRНаименование: "Мерседес" },
+        lastMileTemplate as never,
+      ),
+    ).toBe(true);
+  });
+
+  it("does not defer when last mile fields are present", () => {
+    expect(
+      shouldDeferLastMilePush(
+        "delivery_scheduled",
+        { LMDriver: "Иванов", LMDriverTel: "+79990001122", LMAutoReg: "A111AA/39" },
+        lastMileTemplate as never,
+      ),
+    ).toBe(false);
+  });
+
+  it("does not defer default template without last-mile placeholders", () => {
+    expect(shouldDeferLastMilePush("delivery_scheduled", { Number: "1" }, new Map())).toBe(false);
+    expect(pushTemplateBodyNeedsLastMile("{stage_label}. № {cargo_number}")).toBe(false);
   });
 });

@@ -7,6 +7,7 @@ import { AppTabBar } from "./AppTabBar";
 import { AppShellModals } from "./AppShellModals";
 import { AppMainContent } from "./AppMainContent";
 import { AppRuntimeProvider } from "../contexts/AppRuntimeContext";
+import { DateFilterProvider } from "../contexts/DateFilterContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useActiveCustomerInnSync } from "../hooks/useActiveCustomerInnSync";
 import { usePushSelectedInnSync } from "../hooks/usePushSelectedInnSync";
@@ -26,8 +27,6 @@ type Props = {
   useServiceRequest: boolean;
   setUseServiceRequest: React.Dispatch<React.SetStateAction<boolean>>;
   serviceModeUnlocked: boolean;
-  serviceRefreshSpinning: boolean;
-  setServiceRefreshSpinning: React.Dispatch<React.SetStateAction<boolean>>;
   showDashboard: boolean;
   profileSaasShellActive: boolean;
   showCustomerColumn: boolean;
@@ -53,8 +52,6 @@ export function AppAuthenticatedLayout({
   useServiceRequest,
   setUseServiceRequest,
   serviceModeUnlocked,
-  serviceRefreshSpinning,
-  setServiceRefreshSpinning,
   showDashboard,
   profileSaasShellActive,
   showCustomerColumn,
@@ -79,11 +76,9 @@ export function AppAuthenticatedLayout({
   const nativePullRefreshEnabled = Capacitor.isNativePlatform();
 
   const handlePullRefresh = useCallback(async () => {
-    setServiceRefreshSpinning(true);
     dispatchPullRefresh();
     await new Promise((resolve) => window.setTimeout(resolve, 400));
-    setServiceRefreshSpinning(false);
-  }, [setServiceRefreshSpinning]);
+  }, []);
 
   const { pullDistance, refreshing: pullRefreshing } = useNativePullToRefresh(
     appMainRef,
@@ -111,8 +106,6 @@ export function AppAuthenticatedLayout({
         useServiceRequest={useServiceRequest}
         setUseServiceRequest={setUseServiceRequest}
         serviceModeUnlocked={serviceModeUnlocked}
-        serviceRefreshSpinning={serviceRefreshSpinning}
-        setServiceRefreshSpinning={setServiceRefreshSpinning}
         onLogout={onLogout}
       />
       <div
@@ -131,24 +124,26 @@ export function AppAuthenticatedLayout({
           </div>
         ) : null}
         <div className="w-full">
-          <AppRuntimeProvider
-            value={{
-              useServiceRequest,
-              searchText,
-              activeInn: resolveAccountActiveInn(activeAccount, auth),
-              activeCustomerName: stripOoo(activeAccount?.customer ?? ""),
-              showCustomerColumn,
-            }}
-          >
-            <AppMainContent
-              showDashboard={showDashboard}
-              useServiceRequest={useServiceRequest}
-              setIsOfferOpen={setIsOfferOpen}
-              setIsPersonalConsentOpen={setIsPersonalConsentOpen}
-              openSecretPinModal={openSecretPinModal}
-              profileSaasShellActive={profileSaasShellActive}
-            />
-          </AppRuntimeProvider>
+          <DateFilterProvider>
+            <AppRuntimeProvider
+              value={{
+                useServiceRequest,
+                searchText,
+                activeInn: resolveAccountActiveInn(activeAccount, auth),
+                activeCustomerName: stripOoo(activeAccount?.customer ?? ""),
+                showCustomerColumn,
+              }}
+            >
+              <AppMainContent
+                showDashboard={showDashboard}
+                useServiceRequest={useServiceRequest}
+                setIsOfferOpen={setIsOfferOpen}
+                setIsPersonalConsentOpen={setIsPersonalConsentOpen}
+                openSecretPinModal={openSecretPinModal}
+                profileSaasShellActive={profileSaasShellActive}
+              />
+            </AppRuntimeProvider>
+          </DateFilterProvider>
         </div>
       </div>
       <AppTabBar showDashboard={showDashboard} />

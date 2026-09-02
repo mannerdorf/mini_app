@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { Flex, Typography } from "@maxhub/max-ui";
-import { Eye, Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { stripOoo, parseCargoNumbersFromText, formatInvoiceNumber, formatCurrency, normalizeInvoiceStatus } from "../../../lib/formatUtils";
 import { getPayTillDate, getPayTillDateColor } from "../../../lib/dateUtils";
 import { DateText } from "../../../components/ui/DateText";
@@ -14,10 +14,7 @@ import { getInvoiceEdoInfoByDocLabel } from "../../../lib/edoStatus";
 import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
 import { InvoicePaymentQrBlock } from "./InvoicePaymentQrBlock";
 import { EntityDetailModalHeader } from "../../../components/modals/EntityDetailModalHeader";
-import { saveBlobFile } from "../../../lib/saveBlobFile";
-import { createPdfPreviewFromBlob, revokePdfPreview, type PdfPreviewState } from "../../../lib/documentPreview";
-import { fetchDocumentForPreview } from "../../../lib/fetchDocumentForPreview";
-import { PdfPreviewPanel } from "../../../components/shared/PdfPreviewPanel";
+import { downloadDocumentDirect, formatDateDocForDownloadApi } from "../../../lib/downloadDocumentDirect";
 import type { AuthData } from "../../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД", "Реестр"] as const;
@@ -51,14 +48,6 @@ export function InvoiceDetailModal({
 }: InvoiceDetailModalProps) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
-    const [pdfViewer, setPdfViewer] = useState<PdfPreviewState | null>(null);
-
-    useEffect(() => {
-        if (!isOpen && pdfViewer) {
-            void revokePdfPreview(pdfViewer);
-            setPdfViewer(null);
-        }
-    }, [isOpen, pdfViewer]);
 
     if (!isOpen) return null;
     const list: Array<{ Name?: string; Operation?: string; Quantity?: string | number; Price?: string | number; Sum?: string | number }> = Array.isArray(item?.List) ? item.List : [];
@@ -71,18 +60,6 @@ export function InvoiceDetailModal({
     const invoiceNumber = (item?.Number ?? item?.number ?? "").toString().trim() || null;
     const cust = item?.Customer ?? item?.customer ?? item?.Контрагент ?? item?.Contractor ?? item?.Organization ?? "";
     const sum = invoiceDocSum(item ?? {});
-
-    const formatDateDocForApi = (raw: unknown): string | null => {
-        const s = String(raw ?? "").trim();
-        if (!s) return null;
-        const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-        if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}T12:00:00`;
-        const ruMatch = s.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
-        if (ruMatch) return `${ruMatch[3]}-${ruMatch[2]}-${ruMatch[1]}T12:00:00`;
-        const parsed = new Date(s);
-        if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 19);
-        return null;
-    };
 
     const handleShare = () => {
         const lines = [
@@ -125,32 +102,22 @@ export function InvoiceDetailModal({
             );
             return;
         }
-        if (isReestr) {
-            const dateDocFormatted = formatDateDocForApi(dateDoc);
-            if (!dateDocFormatted) {
-                setDownloadError("Дата счёта не найдена");
-                return;
-            }
+        const dateDocFormatted = isReestr ? formatDateDocForDownloadApi(dateDoc) : null;
+        if (isReestr && !dateDocFormatted) {
+            setDownloadError("Дата счёта не найдена");
+            return;
         }
         setDownloading(label);
         setDownloadError(null);
         try {
             const apiNumber = isReestr || isInvoiceDoc ? numberToUse : formatPerevozkaNumberForApi(numberToUse);
-            const { blob, fileName, isHtml } = await fetchDocumentForPreview(auth, {
+            await downloadDocumentDirect(auth, {
                 metod,
                 number: apiNumber,
-                ...(isReestr ? { dateDoc: formatDateDocForApi(dateDoc) } : {}),
+                ...(dateDocFormatted ? { dateDoc: dateDocFormatted } : {}),
             });
-            if (isHtml) {
-                throw new Error("Документ в формате HTML — используйте скачивание");
-            }
-            if (pdfViewer) {
-                await revokePdfPreview(pdfViewer);
-            }
-            const preview = await createPdfPreviewFromBlob(blob, fileName);
-            setPdfViewer(preview);
-        } catch (e: any) {
-            setDownloadError(e?.message ?? "Ошибка загрузки");
+        } catch (e: unknown) {
+            setDownloadError((e as Error)?.message ?? "Ошибка скачивания");
         } finally {
             setDownloading(null);
         }
@@ -229,7 +196,7 @@ export function InvoiceDetailModal({
                             const isReestr = label === "Реестр";
                             const isInvoiceDoc = label === "СЧЕТ";
                             const canDownload = isReestr
-                                ? !!(invoiceNumber && formatDateDocForApi(dateDoc))
+                                ? !!(invoiceNumber && formatDateDocForDownloadApi(dateDoc))
                                 : isInvoiceDoc
                                   ? !!(cargoNumber || invoiceNumber)
                                   : !!cargoNumber;
@@ -245,7 +212,7 @@ export function InvoiceDetailModal({
                                     {downloading === label ? (
                                         <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
                                     ) : (
-                                        <Eye className="w-4 h-4" aria-hidden />
+                                        <Download className="w-4 h-4" aria-hidden />
                                     )}
                                     {label}
                                     {!isReestr && <EdoDocMiniBadge info={edo} />}
@@ -258,17 +225,6 @@ export function InvoiceDetailModal({
                     <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
                         {downloadError}
                     </Typography.Body>
-                )}
-                {pdfViewer && (
-                    <PdfPreviewPanel
-                        key={pdfViewer.downloadFileName}
-                        preview={pdfViewer}
-                        onDownload={(blob, name) => saveBlobFile(blob, name)}
-                        onClose={() => {
-                            void revokePdfPreview(pdfViewer);
-                            setPdfViewer(null);
-                        }}
-                    />
                 )}
                 {auth && !isPaid && (
                     <InvoicePaymentQrBlock invoice={item} auth={auth} cargoSumPaidByNumber={cargoSumPaidByNumber} />

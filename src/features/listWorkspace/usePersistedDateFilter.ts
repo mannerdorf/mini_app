@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { DateFilter } from "../../types";
+import { useDateFilterContext } from "../../contexts/DateFilterContext";
 import {
   loadDateFilterState,
   saveDateFilterState,
@@ -20,9 +21,7 @@ export type PersistedDateFilterOptions = {
   storageKey?: string;
 };
 
-/** Persist фильтра даты в localStorage (по умолчанию — общий для Грузы / Документы). */
-export function usePersistedDateFilter(options?: PersistedDateFilterOptions): PersistedDateFilterControls {
-  const storageKey = options?.storageKey ?? DATE_FILTER_STORAGE_KEY;
+function useLocalPersistedDateFilter(storageKey: string, active: boolean): PersistedDateFilterControls {
   const [dateFilter, setDateFilter] = useState<DateFilter>(() => loadDateFilterState(storageKey).dateFilter);
   const [customDateFrom, setCustomDateFrom] = useState(() => loadDateFilterState(storageKey).customDateFrom);
   const [customDateTo, setCustomDateTo] = useState(() => loadDateFilterState(storageKey).customDateTo);
@@ -37,6 +36,7 @@ export function usePersistedDateFilter(options?: PersistedDateFilterOptions): Pe
   );
 
   useEffect(() => {
+    if (!active) return;
     saveDateFilterState({
       dateFilter,
       customDateFrom,
@@ -46,6 +46,7 @@ export function usePersistedDateFilter(options?: PersistedDateFilterOptions): Pe
       selectedWeekForFilter,
     }, storageKey);
   }, [
+    active,
     storageKey,
     dateFilter,
     customDateFrom,
@@ -69,4 +70,13 @@ export function usePersistedDateFilter(options?: PersistedDateFilterOptions): Pe
     setSelectedYearForFilter,
     setSelectedWeekForFilter,
   };
+}
+
+/** Persist фильтра даты в localStorage (по умолчанию — общий для Грузы / Документы). */
+export function usePersistedDateFilter(options?: PersistedDateFilterOptions): PersistedDateFilterControls {
+  const storageKey = options?.storageKey ?? DATE_FILTER_STORAGE_KEY;
+  const shared = useDateFilterContext();
+  const useShared = shared != null && shared.storageKey === storageKey;
+  const local = useLocalPersistedDateFilter(storageKey, !useShared);
+  return useShared ? shared : local;
 }

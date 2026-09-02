@@ -64,7 +64,6 @@ function AppRoot() {
     useTelegramWebAppInit(setTheme);
 
     const [useServiceRequest, setUseServiceRequest] = useState(false);
-    const [serviceRefreshSpinning, setServiceRefreshSpinning] = useState(false);
 
     const legalCompliance = useLegalCompliance(activeAccount);
 
@@ -246,8 +245,6 @@ function AppRoot() {
                 useServiceRequest={useServiceRequest}
                 setUseServiceRequest={setUseServiceRequest}
                 serviceModeUnlocked={serviceModeUnlocked}
-                serviceRefreshSpinning={serviceRefreshSpinning}
-                setServiceRefreshSpinning={setServiceRefreshSpinning}
                 showDashboard={showDashboard}
                 profileSaasShellActive={profileSaasShellActive}
                 showCustomerColumn={showCustomerColumn}

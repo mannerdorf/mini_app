@@ -1,6 +1,6 @@
 import { cargoNumberLookupKeys, notificationCargoNumber } from "./notificationCargoOwnerInn.js";
 import { normalizeCargoNumberForLookup } from "./documentCacheNormalized.js";
-import { hasCargoLastMileMeta, lastMileFieldsForPushMerge } from "./cargoLastMileMeta.js";
+import { hasLastMileForPush, lastMileFieldsForPushMerge } from "./cargoLastMileMeta.js";
 import { fetchPerevozkaRecordForPush } from "./fetchPerevozkaLastMile.js";
 import { fetchInvoicesByInn, hasRealBillNumber } from "./notificationPoll.js";
 import { normalizeNotificationInn } from "./notificationInnScope.js";
@@ -32,10 +32,16 @@ const INVOICE_BILL_NUMBER_KEYS = [
   "bill_number",
   "Invoice",
   "InvoiceNumber",
+  "InvoiceNum",
   "Number",
   "number",
   "Номер",
   "N",
+  "Счет",
+  "Счёт",
+  "СчетНомер",
+  "НомерСчета",
+  "НомерСчёта",
 ] as const;
 
 const INVOICE_SUM_KEYS = ["SumDoc", "SumBill", "AmountBill", "Sum", "Amount", "СуммаДокумента", "Сумма"] as const;
@@ -330,7 +336,7 @@ export function shouldFetchPerevozkaLastMileForPush(
   item: Record<string, unknown>,
 ): boolean {
   if (!LAST_MILE_PUSH_EVENTS.has(event)) return false;
-  return !hasCargoLastMileMeta(item);
+  return !hasLastMileForPush(item);
 }
 
 function perevozkaCacheKey(cargoNumber: string, customerInn: string): string {
@@ -438,7 +444,7 @@ export async function resolveCargoItemForPushTemplate(params: {
   const cache = params.perevozkaCache;
   if (cache?.has(cacheKey)) {
     const cached = cache.get(cacheKey);
-    if (cached) merged = mergeCargoItemForPushTemplate(merged, cached);
+    if (cached) merged = mergeCargoItemForPushTemplate(merged, lastMileFieldsForPushMerge(cached), cached);
     return merged;
   }
 

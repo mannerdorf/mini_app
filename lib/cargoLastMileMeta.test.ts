@@ -2,13 +2,27 @@ import { describe, expect, it } from "vitest";
 import {
   extractCargoLastMileMeta,
   hasCargoLastMileMeta,
+  hasLastMileForPush,
   lastMileFieldsForPushMerge,
+  looksLikeVehiclePlate,
   plateWithoutRegion,
 } from "./cargoLastMileMeta.js";
 
 describe("plateWithoutRegion", () => {
   it("strips region after slash", () => {
     expect(plateWithoutRegion("У706АР/39")).toBe("У706АР");
+  });
+});
+
+describe("looksLikeVehiclePlate", () => {
+  it("accepts typical Russian plate", () => {
+    expect(looksLikeVehiclePlate("У706АР/39")).toBe(true);
+    expect(looksLikeVehiclePlate("A123BC")).toBe(true);
+  });
+
+  it("rejects vehicle name or transit type", () => {
+    expect(looksLikeVehiclePlate("Мерседес")).toBe(false);
+    expect(looksLikeVehiclePlate("Авто")).toBe(false);
   });
 });
 
@@ -66,6 +80,25 @@ describe("extractCargoLastMileMeta", () => {
     expect(meta.autoReg).toBe("");
     expect(meta.driver).toBe("");
     expect(hasCargoLastMileMeta({ Number: "000141572", TypeOfTransit: "Авто" })).toBe(false);
+  });
+
+  it("does not treat vehicle name in АвтомобильCMRНаименование as plate", () => {
+    const meta = extractCargoLastMileMeta({
+      Number: "000141572",
+      АвтомобильCMRНаименование: "Мерседес Sprinter",
+    });
+    expect(meta.autoReg).toBe("");
+    expect(meta.autoType).toBe("Мерседес Sprinter");
+    expect(hasLastMileForPush({ Number: "000141572", АвтомобильCMRНаименование: "Мерседес Sprinter" })).toBe(false);
+  });
+
+  it("ignores generic FIO on list payload", () => {
+    expect(
+      hasLastMileForPush({
+        Number: "000141572",
+        ФИО: "Гончаров Р.О.",
+      }),
+    ).toBe(false);
   });
 
   it("reads nested LastMile object", () => {

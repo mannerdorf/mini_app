@@ -189,3 +189,48 @@ export function computeUnpaidInvoicesByPlan(
 
   return rows;
 }
+
+export type UnpaidInvoiceCustomerGroup = {
+  customer: string;
+  priority: InvoicePlanPriority;
+  balance: number;
+  items: UnpaidInvoicePlanRow[];
+};
+
+function groupPriority(items: UnpaidInvoicePlanRow[]): InvoicePlanPriority {
+  return items.some((row) => row.priority === "high") ? "high" : "low";
+}
+
+function compareUnpaidPlanGroups(a: UnpaidInvoiceCustomerGroup, b: UnpaidInvoiceCustomerGroup): number {
+  const prio = (p: InvoicePlanPriority) => (p === "high" ? 0 : p === "low" ? 1 : 2);
+  const pd = prio(a.priority) - prio(b.priority);
+  if (pd !== 0) return pd;
+  const aPlan = a.items.find((row) => row.planDate)?.planDate ?? null;
+  const bPlan = b.items.find((row) => row.planDate)?.planDate ?? null;
+  if (aPlan && bPlan) return aPlan.getTime() - bPlan.getTime();
+  if (aPlan) return -1;
+  if (bPlan) return 1;
+  return b.balance - a.balance;
+}
+
+/** Группировка неоплаченных счетов по заказчику (монитор на главной в служебном режиме). */
+export function groupUnpaidInvoicesByCustomer(rows: UnpaidInvoicePlanRow[]): UnpaidInvoiceCustomerGroup[] {
+  const map = new Map<string, UnpaidInvoicePlanRow[]>();
+  for (const row of rows) {
+    const key = row.customer.trim() || "—";
+    const list = map.get(key) ?? [];
+    list.push(row);
+    map.set(key, list);
+  }
+  const groups: UnpaidInvoiceCustomerGroup[] = [];
+  for (const [customer, items] of map) {
+    groups.push({
+      customer,
+      priority: groupPriority(items),
+      balance: items.reduce((acc, row) => acc + row.balance, 0),
+      items,
+    });
+  }
+  groups.sort(compareUnpaidPlanGroups);
+  return groups;
+}

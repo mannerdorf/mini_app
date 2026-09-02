@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Button } from "@maxhub/max-ui";
 import type { Account, AuthData, ProfileView } from "../types";
 import { CompaniesListPage } from "./CompaniesListPage";
@@ -30,6 +30,7 @@ import {
 } from "../lib/profileViewPersist";
 import { isNativePushEnvironment } from "../lib/androidPushNotifications";
 import { useAppShell } from "../contexts/AppShellContext";
+import { usePullRefreshListener } from "../hooks/usePullRefreshListener";
 import { useProfileEmployees, ProfileEmployeesSection, useDepartmentTimesheet, ProfileDepartmentTimesheetSection, useProfileAccounting, ProfileAccountingSection, useProfileMain, ProfileMainSection } from "../features/profile";
 
 export function ProfilePage({
@@ -93,6 +94,32 @@ export function ProfilePage({
         activeAccount,
         fetchEnabled: currentView === "main",
     });
+
+    const handleProfilePullRefresh = useCallback(async () => {
+        if (currentView === "main") {
+            await profileMain.reloadLegalStatus();
+            return;
+        }
+        if (currentView === "employees" || currentView === "haulz") {
+            await profileEmployees.fetchEmployeesAndPresets();
+            return;
+        }
+        if (currentView === "departmentTimesheet") {
+            await departmentTimesheet.fetchDepartmentTimesheet();
+            return;
+        }
+        if (currentView === "accounting") {
+            await profileAccounting.fetchAccountingRequests();
+            if (profileAccounting.accountingSubsection === "sverki") {
+                await profileAccounting.fetchSverkiRequests();
+            }
+            if (profileAccounting.accountingSubsection === "claims") {
+                await profileAccounting.reloadAccountingClaims();
+            }
+        }
+    }, [currentView, profileMain, profileEmployees, departmentTimesheet, profileAccounting]);
+
+    usePullRefreshListener(handleProfilePullRefresh);
 
     useEffect(() => {
         if (aisOpenWithMmsi) {

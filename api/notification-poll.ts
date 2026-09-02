@@ -13,7 +13,7 @@ import {
   getPaymentKey,
   fetchPerevozkiByInn,
   hasBillSignal,
-  hasRealBillNumber,
+  hasBillNumberForPush,
   isCargoStageNotificationEnabled,
   isRecentNotificationItem,
 } from "../lib/notificationPoll.js";
@@ -35,7 +35,7 @@ import {
   loadInvoicePayloadsByCargoNumbers,
   resolveCargoItemForPushTemplate,
 } from "../lib/notificationCargoPayloadEnrich.js";
-import { loadPushNotificationTemplates, formatPushNotificationMessage } from "../lib/pushNotificationTemplates.js";
+import { loadPushNotificationTemplates, formatPushNotificationMessage, shouldDeferLastMilePush } from "../lib/pushNotificationTemplates.js";
 import { getPerevozkiServiceCredentials } from "../lib/cacheHistoryDays.js";
 
 const CRON_SECRET = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
@@ -324,6 +324,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         let deferBillStateUpdate = false;
+        let deferCargoStateUpdate = false;
 
         for (const event of eventsToSend) {
           const templateItem = await resolveCargoItemForPushTemplate({
@@ -337,8 +338,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             perevozkaCache: perevozkaDetailCache,
             invoiceLiveCache,
           });
-          if (event === "bill_created" && !hasRealBillNumber(templateItem)) {
+          if (event === "bill_created" && !hasBillNumberForPush(templateItem)) {
             deferBillStateUpdate = true;
+            continue;
+          }
+          if (shouldDeferLastMilePush(event, templateItem, pushTemplates)) {
+            deferCargoStateUpdate = true;
             continue;
           }
           const message = formatPushNotificationMessage(event, number, templateItem, pushTemplates);
@@ -439,11 +444,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const stateBillToPersist = deferBillStateUpdate ? (last?.state_bill ?? null) : currentStateBill;
+        const stateToPersist = deferCargoStateUpdate ? (last?.state ?? null) : currentState;
         await pool.query(
           `insert into cargo_last_state (inn, cargo_number, state, state_bill, updated_at)
            values ($1, $2, $3, $4, now())
            on conflict (inn, cargo_number) do update set state = excluded.state, state_bill = excluded.state_bill, updated_at = now()`,
-          [cargoInn, number, currentState, stateBillToPersist]
+          [cargoInn, number, stateToPersist, stateBillToPersist]
         );
       }
     }

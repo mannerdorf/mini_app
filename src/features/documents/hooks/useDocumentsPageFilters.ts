@@ -8,6 +8,7 @@ import {
     type SharedBillStatusKey,
     type TypeFilterKey,
 } from "../../../lib/sharedListFilters";
+import { HAULZ_PULL_REFRESH_EVENT } from "../../../lib/pullRefreshEvents";
 
 export function useDocumentsPageFilters(effectiveServiceMode: boolean) {
     const [customerFilter, setCustomerFilter] = useState<string>("");
@@ -48,6 +49,18 @@ export function useDocumentsPageFilters(effectiveServiceMode: boolean) {
             routeFilterSet,
         }));
     }, [deliveryStatusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet]);
+
+    useEffect(() => {
+        const reloadSharedFilters = () => {
+            const init = initSharedFilterSets();
+            setDeliveryStatusFilterSet(init.statusFilterSet);
+            setBillStatusFilterSet(init.billStatusFilterSet);
+            setTypeFilterSet(init.typeFilterSet);
+            setRouteFilterSet(init.routeFilterSet);
+        };
+        window.addEventListener(HAULZ_PULL_REFRESH_EVENT, reloadSharedFilters);
+        return () => window.removeEventListener(HAULZ_PULL_REFRESH_EVENT, reloadSharedFilters);
+    }, []);
 
     useEffect(() => {
         if (effectiveServiceMode) return;

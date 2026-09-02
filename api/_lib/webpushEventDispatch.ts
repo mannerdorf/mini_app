@@ -4,7 +4,7 @@ import {
   getCargoStageEventsOnStateChange,
   getPaymentKey,
   hasBillSignal,
-  hasRealBillNumber,
+  hasBillNumberForPush,
   isCargoStageNotificationEnabled,
   isRecentNotificationItem,
   notificationItemInn,
@@ -30,7 +30,7 @@ import {
   resolveCargoItemForPushTemplate,
 } from "../../lib/notificationCargoPayloadEnrich.js";
 import { getPerevozkiServiceCredentials } from "../../lib/cacheHistoryDays.js";
-import { loadPushNotificationTemplates, formatPushNotificationMessage } from "../../lib/pushNotificationTemplates.js";
+import { loadPushNotificationTemplates, formatPushNotificationMessage, shouldDeferLastMilePush } from "../../lib/pushNotificationTemplates.js";
 import { cargoPlannedDeliveryDateFromItem } from "../../lib/cargoDateFilter.js";
 import { dispatchPlannedDeliveryDatePush } from "../../lib/dispatchPlannedDeliveryDatePush.js";
 
@@ -356,6 +356,7 @@ export async function dispatchWebPushCargoEvents(params: {
     const subscribers = subscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
     const pushSubscribers = pushSubscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
     let deferBillStateUpdate = false;
+    let deferCargoStateUpdate = false;
 
     for (const event of eventsToSend) {
       const templateItem = await resolveCargoItemForPushTemplate({
@@ -369,8 +370,12 @@ export async function dispatchWebPushCargoEvents(params: {
         perevozkaCache: perevozkaDetailCache,
         invoiceLiveCache,
       });
-      if (event === "bill_created" && !hasRealBillNumber(templateItem)) {
+      if (event === "bill_created" && !hasBillNumberForPush(templateItem)) {
         deferBillStateUpdate = true;
+        continue;
+      }
+      if (shouldDeferLastMilePush(event, templateItem, pushTemplates)) {
+        deferCargoStateUpdate = true;
         continue;
       }
       const message = formatPushNotificationMessage(event, item.cargoNumber, templateItem, pushTemplates);
@@ -506,6 +511,7 @@ export async function dispatchWebPushCargoEvents(params: {
 
     try {
       const stateBillToPersist = deferBillStateUpdate ? (prev?.stateBill ?? null) : item.stateBill;
+      const stateToPersist = deferCargoStateUpdate ? (prev?.state ?? null) : item.state;
       await pool.query(
         `insert into cargo_last_state (inn, cargo_number, state, state_bill, plan_date, updated_at)
          values ($1,$2,$3,$4,$5,now())
@@ -513,7 +519,7 @@ export async function dispatchWebPushCargoEvents(params: {
          do update set state = excluded.state, state_bill = excluded.state_bill,
            plan_date = excluded.plan_date,
            updated_at = now()`,
-        [item.inn, item.cargoNumber, item.state, stateBillToPersist, planDate || null]
+        [item.inn, item.cargoNumber, stateToPersist, stateBillToPersist, planDate || null]
       );
     } catch {
       // State persistence is best-effort when DB schema differs.

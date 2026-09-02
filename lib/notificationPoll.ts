@@ -78,6 +78,7 @@ function pickFirstScalarBill(record: Record<string, unknown> | null | undefined,
 
 const NESTED_WRAPPER_KEYS = ["Response", "Data", "Result", "result", "data", "items", "Items"] as const;
 const NESTED_INVOICE_KEYS = ["Invoice", "invoice", "Счет", "Счёт", "Bill", "BillDoc"] as const;
+const NESTED_INVOICE_LIST_KEYS = ["Invoices", "invoices", "Bills", "bills"] as const;
 
 function pushNestedRecords(
   out: Array<{ record: Record<string, unknown>; allowInvoiceNumber: boolean }>,
@@ -106,6 +107,9 @@ function billRecordCandidates(item: any): Array<{ record: Record<string, unknown
   for (const key of NESTED_INVOICE_KEYS) {
     pushNestedRecords(out, root[key], true);
   }
+  for (const key of NESTED_INVOICE_LIST_KEYS) {
+    pushNestedRecords(out, root[key], true);
+  }
   for (const key of NESTED_WRAPPER_KEYS) {
     pushNestedRecords(out, root[key], false);
   }
@@ -120,9 +124,12 @@ const BILL_NUMBER_KEYS = [
   "billnum",
   "bill_number",
   "Invoice",
+  "invoice",
   "InvoiceNumber",
+  "InvoiceNum",
   "Счет",
   "Счёт",
+  "СчетНомер",
   "НомерСчета",
   "НомерСчёта",
 ] as const;
@@ -189,6 +196,21 @@ export function pickBillSumRaw(item: any): unknown {
 /** В данных есть явный номер счёта (не номер перевозки). */
 export function hasRealBillNumber(item: any): boolean {
   return pickBillNumber(item).length > 0;
+}
+
+function billNumberDisplayValue(raw: string): string {
+  const str = String(raw ?? "").trim();
+  if (!str) return "—";
+  const withoutPrefix = str.replace(/^0000-/, "");
+  return withoutPrefix.replace(/^0+/, "") || "0";
+}
+
+/** Номер счёта пригоден для текста push (не пустой и не «0»). */
+export function hasBillNumberForPush(item: any): boolean {
+  const raw = pickBillNumber(item);
+  if (!raw) return false;
+  const display = billNumberDisplayValue(raw);
+  return display !== "—" && display !== "0";
 }
 
 /** Признак выставленного счёта: номер счёта и/или StateBill из 1С. */

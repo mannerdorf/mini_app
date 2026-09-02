@@ -21,13 +21,13 @@ import {
     sortGroupedByCustomer,
 } from "./cargoPipeline";
 import { formatTypeFilterSetLabel, initSharedFilterSets, resolveCargoActiveFilters, saveSharedListFilters, sharedFromFilterSets, type TypeFilterKey } from "../lib/sharedListFilters";
+import { HAULZ_PULL_REFRESH_EVENT } from "../lib/pullRefreshEvents";
 import { buildTransportOptionsFromSendingsInPeriod, buildTransportLinkedCargoNumbersInPeriod, collectSendingFreightCargoNumbers, filterItemsForHeaderCustomer, normCargoKey } from "../features/documents/lib/documentsPipeline";
 import { useCargoTransportFilter, usePerevozkiMultiAccounts, useSendings } from "../hooks/useApi";
 import { useCargoNomenclatureSearch } from "../hooks/useCargoNomenclatureSearch";
 import { CARGO_ROLE_FILTER_LABELS, pickupLogisticsFilterLabel, type CargoRoleFilterKey } from "../lib/cargoUtils";
 import { cargoTransportTypeLabel, getCargoTransportType } from "../lib/cargoTransportType";
 import { buildRouteTypePlanDaysMap, getEffectivePlannedDeliveryDate } from "../lib/cargoPlannedDelivery";
-import { ServiceRefreshFrom1cButton } from "../components/ServiceRefreshFrom1cButton";
 import { CargoSummaryCard, CargoStateBlocks } from "./cargoViewBlocks";
 import { CargoCustomerTable, CargoCardsList } from "./cargoCollectionViews";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
@@ -199,6 +199,17 @@ export function CargoPage({
     useEffect(() => {
         saveSharedListFilters(sharedFromFilterSets({ statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet }));
     }, [statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet]);
+    useEffect(() => {
+        const reloadSharedFilters = () => {
+            const init = initSharedFilterSets();
+            setStatusFilterSet(init.statusFilterSet);
+            setBillStatusFilterSet(init.billStatusFilterSet);
+            setTypeFilterSet(init.typeFilterSet);
+            setRouteFilterSet(init.routeFilterSet);
+        };
+        window.addEventListener(HAULZ_PULL_REFRESH_EVENT, reloadSharedFilters);
+        return () => window.removeEventListener(HAULZ_PULL_REFRESH_EVENT, reloadSharedFilters);
+    }, []);
     const [lastMileFilter, setLastMileFilter] = useState<'all' | 'self_pickup' | 'delivery'>('all');
     const [pickupLogisticsFilter, setPickupLogisticsFilter] = useState<'all' | 'pickup' | 'terminal_to'>('all');
     const [transportFilter, setTransportFilter] = useState<string>('');
@@ -638,16 +649,6 @@ export function CargoPage({
             <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <Typography.Headline className="text-page-title">Грузы</Typography.Headline>
                 <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                    {effectiveServiceMode && primaryAuth ? (
-                        <ServiceRefreshFrom1cButton
-                            auth={primaryAuth}
-                            dateFrom={apiDateRange.dateFrom}
-                            dateTo={apiDateRange.dateTo}
-                            kinds={["perevozki"]}
-                            onRefreshed={() => mutatePerevozki(undefined, { revalidate: true })}
-                            compact
-                        />
-                    ) : null}
                     {effectiveServiceMode ? (
                         <>
                             <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>

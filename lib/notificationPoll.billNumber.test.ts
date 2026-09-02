@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   extractInvoicesFromResponse,
+  hasBillNumberForPush,
   hasRealBillNumber,
   pickBillNumber,
 } from "./notificationPoll.js";
@@ -30,6 +31,26 @@ describe("pickBillNumber", () => {
   it("ignores junk Счет / Invoice markers that are not numbers", () => {
     expect(pickBillNumber({ Number: "000141896", Счет: "выставлен", Invoice: true })).toBe("");
     expect(hasRealBillNumber({ Number: "000141896", Invoice: { Number: "000001529" } })).toBe(true);
+  });
+
+  it("reads bill number from Invoices array", () => {
+    expect(
+      pickBillNumber({
+        Number: "000141896",
+        Invoices: [{ BillNum: "000001529" }],
+      }),
+    ).toBe("000001529");
+  });
+});
+
+describe("hasBillNumberForPush", () => {
+  it("accepts displayable bill numbers", () => {
+    expect(hasBillNumberForPush({ BillNum: "000001529" })).toBe(true);
+  });
+
+  it("rejects missing or zero bill numbers", () => {
+    expect(hasBillNumberForPush({ Number: "000141896", StateBill: "Не оплачен" })).toBe(false);
+    expect(hasBillNumberForPush({ BillNum: "0000000000" })).toBe(false);
   });
 });
 

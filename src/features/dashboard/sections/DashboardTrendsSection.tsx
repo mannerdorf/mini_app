@@ -60,7 +60,7 @@ export function DashboardTrendsSection({ page }: Props) {
 
             {/* 7. Скользящая средняя (overlay на основной график) */}
             {page.useServiceRequest && !page.loading && !page.error && page.movingAverage7 && page.movingAverage7.length > 2 && !page.showOnlySla && (
-                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                <Panel className="cargo-card dashboard-dynamics-panel" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1.5rem' }}>
                     <Flex align="center" justify="space-between" style={{ marginBottom: '0.25rem' }}>
                         <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600 }}>
                             Скользящая средняя (7 дн.)
@@ -75,46 +75,54 @@ export function DashboardTrendsSection({ page }: Props) {
                             <Button className="filter-button" style={{ padding: '0.3rem', minWidth: 'auto', background: page.maChartType === 'pieces' ? '#8b5cf6' : 'transparent', border: 'none', borderRadius: 8 }} onClick={() => page.setMaChartType('pieces')} title="Места (шт)"><Package className="w-4 h-4" style={{ color: page.maChartType === 'pieces' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
                         </Flex>
                     </Flex>
-                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>
                         Тренд без дневных колебаний — {page.maChartType === 'money' ? 'выручка (₽)' : page.maChartType === 'paidWeight' ? 'платный вес (кг)' : page.maChartType === 'weight' ? 'вес (кг)' : page.maChartType === 'pieces' ? 'места (шт)' : 'объём (м³)'}
                     </Typography.Body>
                     {(() => {
                         const pts = page.movingAverage7;
                         const maxVal = Math.max(...pts.map((p) => p.value), 1);
-                        const w = Math.max(280, Math.floor(page.maChartOuterWidthPx));
-                        const h = 100;
-                        const pad = { l: 50, r: 16, t: 10, b: 26 };
-                        const plotW = w - pad.l - pad.r;
-                        const plotH = h - pad.t - pad.b;
+                        const chartWidth = Math.max(280, Math.floor(page.maChartOuterWidthPx));
+                        const chartHeight = 110;
+                        const paddingTop = 6;
+                        const paddingBottom = 6;
+                        const plotH = chartHeight - paddingTop - paddingBottom;
+                        const baselineY = chartHeight - paddingBottom;
+                        const n = pts.length;
                         const polyPts = pts.map((p, i) => {
-                            const x = pad.l + (pts.length > 1 ? (i * plotW) / (pts.length - 1) : plotW / 2);
-                            const y = pad.t + plotH - (p.value / maxVal) * plotH;
+                            const x = n <= 1 ? chartWidth / 2 : (i / (n - 1)) * chartWidth;
+                            const y = baselineY - (p.value / maxVal) * plotH;
                             return `${x},${y}`;
                         }).join(' ');
-                        const areaD = pts.length > 1
-                            ? `M ${pad.l} ${pad.t + plotH} L ${pts.map((p, i) => { const x = pad.l + (i * plotW) / (pts.length - 1); const y = pad.t + plotH - (p.value / maxVal) * plotH; return `${x} ${y}`; }).join(' L ')} L ${pad.l + plotW} ${pad.t + plotH} Z`
+                        const areaD = n > 1
+                            ? `M 0 ${baselineY} L ${pts.map((p, i) => {
+                                const x = (i / (n - 1)) * chartWidth;
+                                const y = baselineY - (p.value / maxVal) * plotH;
+                                return `${x} ${y}`;
+                            }).join(' L ')} L ${chartWidth} ${baselineY} Z`
                             : '';
                         return (
-                            <div ref={page.maChartWrapRef} style={{ width: '100%', minWidth: 0 }}>
-                                <svg
-                                    viewBox={`0 0 ${w} ${h}`}
-                                    width="100%"
-                                    height={h}
-                                    preserveAspectRatio="xMinYMid meet"
-                                    style={{ display: 'block', maxWidth: '100%' }}
-                                >
-                                    <line x1={pad.l} y1={pad.t + plotH} x2={w - pad.r} y2={pad.t + plotH} stroke="var(--color-border)" strokeWidth="1" opacity="0.5" />
-                                    {areaD && <path d={areaD} fill="#7c3aed" opacity="0.12" />}
-                                    <polyline points={polyPts} fill="none" stroke="#7c3aed" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                                    {pts.filter((_, i) => i % Math.max(1, Math.floor(pts.length / 8)) === 0 || i === pts.length - 1).map((p, i) => {
-                                        const idx = pts.indexOf(p);
-                                        const x = pad.l + (pts.length > 1 ? (idx * plotW) / (pts.length - 1) : plotW / 2);
-                                        const raw = String(p?.date ?? '').trim();
-                                        const label = raw.includes('.') ? raw.split('.').slice(0, 2).join('.') : /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw.slice(8) + '.' + raw.slice(5, 7) : raw;
-                                        return <text key={`ma-lbl-${i}`} x={x} y={h - 6} textAnchor="middle" fontSize="9" fill="var(--color-text-secondary)">{label}</text>;
-                                    })}
-                                    <text x={pad.l - 4} y={pad.t + 4} textAnchor="end" fontSize="9" fill="var(--color-text-secondary)">{page.maChartType === 'money' ? formatCurrency(maxVal, true) : `${maxVal.toLocaleString('ru-RU')} ${page.maChartType === 'volume' ? 'м³' : page.maChartType === 'pieces' ? 'шт' : 'кг'}`}</text>
-                                </svg>
+                            <div ref={page.maChartWrapRef} className="dashboard-main-chart-wrap">
+                                <div className="dashboard-main-chart">
+                                    <svg
+                                        className="dashboard-main-chart__svg"
+                                        viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                                        width="100%"
+                                        height={chartHeight}
+                                        preserveAspectRatio="none"
+                                        aria-hidden
+                                    >
+                                        {areaD && <path d={areaD} fill="#7c3aed" opacity="0.12" />}
+                                        <polyline
+                                            points={polyPts}
+                                            fill="none"
+                                            stroke="#7c3aed"
+                                            strokeWidth="2.2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            vectorEffect="non-scaling-stroke"
+                                        />
+                                    </svg>
+                                </div>
                             </div>
                         );
                     })()}

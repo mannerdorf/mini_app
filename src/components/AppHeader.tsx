@@ -1,12 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   Bell,
-  Loader2,
   LogOut,
   Maximize,
   Minimize2,
   Moon,
-  RefreshCw,
   Search,
   Settings,
   Sun,
@@ -27,8 +25,6 @@ type Props = {
   useServiceRequest: boolean;
   setUseServiceRequest: React.Dispatch<React.SetStateAction<boolean>>;
   serviceModeUnlocked: boolean;
-  serviceRefreshSpinning: boolean;
-  setServiceRefreshSpinning: React.Dispatch<React.SetStateAction<boolean>>;
   onLogout: () => void;
 };
 
@@ -38,8 +34,6 @@ export function AppHeader({
   useServiceRequest,
   setUseServiceRequest,
   serviceModeUnlocked,
-  serviceRefreshSpinning,
-  setServiceRefreshSpinning,
   onLogout,
 }: Props) {
   const { accounts, activeAccountId, activeAccount } = useAuth();
@@ -100,26 +94,6 @@ export function AppHeader({
               >
                 {desktopExpanded ? <Minimize2 className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
               </Button>
-              {serviceModeUnlocked && useServiceRequest && (
-                <Button
-                  className="search-toggle-button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setServiceRefreshSpinning(true);
-                    window.setTimeout(() => setServiceRefreshSpinning(false), 1500);
-                    window.dispatchEvent(new CustomEvent("haulz-service-refresh"));
-                  }}
-                  title="Обновить из 1С (период текущей вкладки)"
-                  aria-label="Обновить из 1С"
-                  disabled={serviceRefreshSpinning}
-                >
-                  {serviceRefreshSpinning ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4" />
-                  )}
-                </Button>
-              )}
             </Flex>
           )}
         </Flex>

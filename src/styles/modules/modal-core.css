@@ -139,6 +139,40 @@
     flex: 1 1 auto;
 }
 
+/* Табличный режим перевозок: бейджи сеткой по уровням без наложения */
+.cargo-inner-table .cargo-logistics-badges,
+.cargo-inner-table .cargo-inner-table__badges {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.24rem 0.18rem;
+    width: 100%;
+    align-items: stretch;
+}
+
+.cargo-inner-table .cargo-logistics-badges__flow,
+.cargo-inner-table .cargo-logistics-badges__meta {
+    display: contents;
+}
+
+.cargo-inner-table .cargo-logistics-badges__arrow {
+    display: none !important;
+}
+
+.cargo-inner-table .cargo-logistics-badges .max-badge,
+.cargo-inner-table .cargo-logistics-badges .app-badge,
+.cargo-inner-table .cargo-inner-table__route-inline {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0;
+    box-sizing: border-box;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .cargo-inner-table__delivery-inline {
     display: none;
 }
@@ -470,62 +504,25 @@
         height: 0.82rem;
     }
 
-    .cargo-inner-table__badges,
-    .cargo-inner-table__badges--stack-mobile,
-    .cargo-logistics-badges {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.2rem;
-        max-width: none;
-        width: 100%;
+    .cargo-inner-table .cargo-logistics-badges,
+    .cargo-inner-table .cargo-inner-table__badges {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.18rem 0.14rem;
     }
 
-    .cargo-logistics-badges__flow,
-    .cargo-logistics-badges__meta {
-        flex-wrap: wrap;
-        gap: 0.16rem;
+    .cargo-inner-table .cargo-inner-table__route-inline {
+        grid-column: 1 / -1;
     }
 
-    .cargo-logistics-badges__arrow {
-        font-size: 0.55rem;
-    }
-
-    .cargo-inner-table__badges--stack-mobile .cargo-inner-table__route-inline,
-    .cargo-logistics-badges__meta .cargo-inner-table__route-inline {
-        display: inline-flex;
-        min-width: 0;
-    }
-
-    .cargo-inner-table__badges .max-badge,
-    .cargo-inner-table__badges .app-badge,
-    .cargo-inner-table__badges .cargo-last-mile-self,
-    .cargo-inner-table__badges .cargo-last-mile-delivery,
-    .cargo-inner-table__badges .cargo-pickup-pickup,
-    .cargo-inner-table__badges .cargo-pickup-terminal-to,
-    .cargo-inner-table__badges--stack-mobile .max-badge,
-    .cargo-inner-table__badges--stack-mobile .app-badge,
-    .cargo-inner-table__badges--stack-mobile .cargo-last-mile-self,
-    .cargo-inner-table__badges--stack-mobile .cargo-last-mile-delivery,
-    .cargo-inner-table__badges--stack-mobile .cargo-pickup-pickup,
-    .cargo-inner-table__badges--stack-mobile .cargo-pickup-terminal-to {
-        display: inline-flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        width: auto !important;
-        flex: 0 1 auto;
-        min-width: 0;
+    .cargo-inner-table .cargo-logistics-badges .max-badge,
+    .cargo-inner-table .cargo-logistics-badges .app-badge,
+    .cargo-inner-table .cargo-inner-table__route-inline {
         height: 1.15rem !important;
         min-height: 1.15rem !important;
         max-height: 1.15rem !important;
-        box-sizing: border-box;
         font-size: 0.52rem !important;
         padding: 0 0.28rem !important;
         line-height: 1 !important;
-        max-width: 7.2rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        text-align: center;
     }
 
     .cargo-inner-table .cargo-inner-table__col-route .app-badge,

@@ -31,8 +31,6 @@ const AUTO_REG_KEYS = [
   "AutoReg",
   "autoReg",
   "AutoREG",
-  "Автомобиль",
-  "АвтомобильCMRНаименование",
 ] as const;
 
 /** Марка ТС последней мили. TypeOfTransit/TypeOfTranzit — вид перевозки (Авто/ЖД), не марка. */
@@ -43,6 +41,8 @@ const AUTO_TYPE_KEYS = [
   "autoType",
   "ТипТС",
   "Марка",
+  "АвтомобильCMRНаименование",
+  "Автомобиль",
 ] as const;
 
 const DRIVER_KEYS = [
@@ -53,16 +53,12 @@ const DRIVER_KEYS = [
   "DriverFio",
   "DriverName",
   "DriverFIO",
-  "Expeditor",
   "ExpeditorFio",
   "Экспедитор",
   "Водитель",
   "ВодительФИО",
   "ВодительCMR",
   "ВодительCMRНаименование",
-  "FIO",
-  "Fio",
-  "ФИО",
 ] as const;
 
 const DRIVER_TEL_KEYS = [
@@ -77,15 +73,26 @@ const DRIVER_TEL_KEYS = [
   "ТелефонВодителя",
   "ТелефонЭкспедитора",
   "ТелефонВодителяCMR",
-  "Phone",
-  "Tel",
 ] as const;
+
+const JUNK_PLATE_VALUES = new Set(["авто", "auto", "—", "-", "нет", "n/a", "жд", "море"]);
 
 export function plateWithoutRegion(raw: unknown): string {
   const s = String(raw ?? "").trim();
   if (!s) return "";
   const slash = s.indexOf("/");
   return slash >= 0 ? s.slice(0, slash).trim() : s;
+}
+
+/** Госномер: буквы и цифры, не «Авто» / марка без номера из списка GetPerevozki. */
+export function looksLikeVehiclePlate(raw: unknown): boolean {
+  const s = plateWithoutRegion(raw);
+  if (!s) return false;
+  const lower = s.toLowerCase();
+  if (JUNK_PLATE_VALUES.has(lower)) return false;
+  const hasDigit = /\d/.test(s);
+  const hasLetter = /[a-zA-Zа-яА-Я]/.test(s);
+  return hasDigit && hasLetter && s.length >= 4 && s.length <= 15;
 }
 
 function isNonEmptyValue(value: unknown): boolean {
@@ -148,9 +155,10 @@ function pickFirstField(candidates: Record<string, unknown>[], keys: readonly st
 export function extractCargoLastMileMeta(item: Record<string, unknown> | null | undefined): CargoLastMileMeta {
   const candidates = cargoRecordCandidates(item);
   const autoRegRaw = pickFirstField(candidates, AUTO_REG_KEYS);
+  const autoReg = looksLikeVehiclePlate(autoRegRaw) ? plateWithoutRegion(autoRegRaw) : "";
   const autoType = pickFirstField(candidates, AUTO_TYPE_KEYS);
   return {
-    autoReg: plateWithoutRegion(autoRegRaw),
+    autoReg,
     autoType,
     driver: pickFirstField(candidates, DRIVER_KEYS),
     driverTel: pickFirstField(candidates, DRIVER_TEL_KEYS),
@@ -159,8 +167,14 @@ export function extractCargoLastMileMeta(item: Record<string, unknown> | null | 
 
 /** Есть реальные поля экспедитора/авто, а не TypeOfTransit «Авто» из списка GetPerevozki. */
 export function hasCargoLastMileMeta(item: Record<string, unknown> | null | undefined): boolean {
+  return hasLastMileForPush(item);
+}
+
+/** Достаточно данных последней мили для push-шаблона с экспедитором/авто. */
+export function hasLastMileForPush(item: Record<string, unknown> | null | undefined): boolean {
   const meta = extractCargoLastMileMeta(item);
-  return Boolean(meta.autoReg || meta.driver);
+  if (meta.driver.trim()) return true;
+  return looksLikeVehiclePlate(meta.autoReg);
 }
 
 /** Overlay с LM*-полями для merge в шаблон пуша. */

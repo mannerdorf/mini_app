@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { Flex, Typography } from "@maxhub/max-ui";
-import { Eye, Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { EntityDetailModalHeader } from "../../../components/modals/EntityDetailModalHeader";
 import { formatCurrency, formatInvoiceNumber, stripOoo, parseCargoNumbersFromText } from "../../../lib/formatUtils";
 import { DateText } from "../../../components/ui/DateText";
@@ -11,10 +11,7 @@ import { getFirstCargoNumberFromInvoice } from "../lib/documentsPipeline";
 import { formatPerevozkaNumberForApi } from "../../../lib/perevozkaNumber";
 import { getInvoiceEdoInfoByDocLabel } from "../../../lib/edoStatus";
 import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
-import { createPdfPreviewFromBlob, revokePdfPreview, type PdfPreviewState } from "../../../lib/documentPreview";
-import { fetchDocumentForPreview } from "../../../lib/fetchDocumentForPreview";
-import { saveBlobFile } from "../../../lib/saveBlobFile";
-import { PdfPreviewPanel } from "../../../components/shared/PdfPreviewPanel";
+import { downloadDocumentDirect } from "../../../lib/downloadDocumentDirect";
 import type { AuthData } from "../../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД"] as const;
@@ -23,11 +20,8 @@ type ActDetailModalProps = {
     item: any;
     isOpen: boolean;
     onClose: () => void;
-    /** При клике по номеру счёта — открыть счёт (передать найденный объект счёта из списка) */
     onOpenInvoice?: (invoiceItem: any) => void;
-    /** Список счетов для поиска по номеру (чтобы открыть счёт по клику) */
     invoices?: any[];
-    /** При клике по номеру перевозки — открыть карточку перевозки */
     onOpenCargo?: (cargoNumber: string) => void;
     auth?: AuthData | null;
     cargoStateByNumber?: Map<string, string>;
@@ -35,19 +29,16 @@ type ActDetailModalProps = {
     perevozkiLoading?: boolean;
 };
 
-/** Числовая часть номера без префикса и ведущих нулей (0000-000113, 000113, 113 → 113) */
 function normNum(s: string | undefined | null): string {
     const v = String(s ?? "").trim().replace(/^0000-/, "").replace(/^0+/, "") || "0";
     return v;
 }
 
-/** Канонический формат номера счёта по маске 0000-XXXXXX (113 → 0000-000113) */
 function toCanonicalInvoiceNum(s: string | undefined | null): string {
     const n = normNum(s);
     return "0000-" + n.padStart(6, "0");
 }
 
-/** Проверка совпадения номеров счёта: маска 0000-000113, учитываем все форматы */
 function invoiceNumbersMatch(a: string | undefined | null, b: string | undefined | null): boolean {
     if (!a && !b) return true;
     if (!a || !b) return false;
@@ -75,14 +66,6 @@ export function ActDetailModal({
 }: ActDetailModalProps) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
-    const [pdfViewer, setPdfViewer] = useState<PdfPreviewState | null>(null);
-
-    useEffect(() => {
-        if (!isOpen && pdfViewer) {
-            void revokePdfPreview(pdfViewer);
-            setPdfViewer(null);
-        }
-    }, [isOpen, pdfViewer]);
 
     if (!isOpen) return null;
 
@@ -99,7 +82,6 @@ export function ActDetailModal({
         ? invoices.find((inv) => invoiceNumbersMatch(getInvNum(inv), invoiceNum))
         : null;
 
-    /** ЭДО по кнопкам документов: из связанного счёта, иначе с УПД */
     const edoSource = invoiceItem ?? item;
 
     const handleDownload = async (label: string) => {
@@ -119,20 +101,12 @@ export function ActDetailModal({
         setDownloading(label);
         setDownloadError(null);
         try {
-            const { blob, fileName, isHtml } = await fetchDocumentForPreview(auth, {
+            await downloadDocumentDirect(auth, {
                 metod,
                 number: numberForApi,
             });
-            if (isHtml) {
-                throw new Error("Документ в формате HTML — используйте скачивание");
-            }
-            if (pdfViewer) {
-                await revokePdfPreview(pdfViewer);
-            }
-            const preview = await createPdfPreviewFromBlob(blob, fileName);
-            setPdfViewer(preview);
-        } catch (e: any) {
-            setDownloadError(e?.message ?? "Ошибка загрузки");
+        } catch (e: unknown) {
+            setDownloadError((e as Error)?.message ?? "Ошибка скачивания");
         } finally {
             setDownloading(null);
         }
@@ -250,7 +224,7 @@ export function ActDetailModal({
                                     {downloading === label ? (
                                         <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
                                     ) : (
-                                        <Eye className="w-4 h-4" aria-hidden />
+                                        <Download className="w-4 h-4" aria-hidden />
                                     )}
                                     {label}
                                     <EdoDocMiniBadge info={edo} />
@@ -263,17 +237,6 @@ export function ActDetailModal({
                     <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
                         {downloadError}
                     </Typography.Body>
-                )}
-                {pdfViewer && (
-                    <PdfPreviewPanel
-                        key={pdfViewer.downloadFileName}
-                        preview={pdfViewer}
-                        onDownload={(blob, name) => saveBlobFile(blob, name)}
-                        onClose={() => {
-                            void revokePdfPreview(pdfViewer);
-                            setPdfViewer(null);
-                        }}
-                    />
                 )}
 
                 {list.length > 0 ? (

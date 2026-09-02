@@ -12,10 +12,12 @@ describe("pullRefreshEvents", () => {
     vi.unstubAllGlobals();
   });
 
-  it("dispatches haulz-pull-refresh custom event", () => {
+  it("dispatches date-filter sync then haulz-pull-refresh", () => {
     dispatchPullRefresh();
-    expect(window.dispatchEvent).toHaveBeenCalledTimes(1);
-    const event = (window.dispatchEvent as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as CustomEvent;
-    expect(event.type).toBe(HAULZ_PULL_REFRESH_EVENT);
+    expect(window.dispatchEvent).toHaveBeenCalledTimes(2);
+    const syncEvent = (window.dispatchEvent as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as CustomEvent;
+    const pullEvent = (window.dispatchEvent as ReturnType<typeof vi.fn>).mock.calls[1]?.[0] as CustomEvent;
+    expect(syncEvent.type).toBe("haulz-date-filter-sync");
+    expect(pullEvent.type).toBe(HAULZ_PULL_REFRESH_EVENT);
   });
 });

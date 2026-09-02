@@ -13,10 +13,15 @@ import {
     CHART_BAR_FILL_EASE,
 } from "../index";
 import type { DashboardPageState } from "../../../pages/useDashboardPageState";
+import { useMobileLayout } from "../../../hooks/useMobileLayout";
+import { isCapacitorNative } from "../../../lib/capacitorPlatform";
 
 type Props = { page: DashboardPageState };
 
 export function DashboardClientAnalyticsSection({ page }: Props) {
+    const isMobileLayout = useMobileLayout();
+    const hideClientSeasonality = page.useServiceRequest && (isMobileLayout || isCapacitorNative());
+
     return (
         <>
 {/* ═══════ ГРУППА 5: АНАЛИТИКА КЛИЕНТОВ ═══════ */}
@@ -194,9 +199,9 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
                 </Panel>
             )}
 
-            {/* 5.7 Сезонность по клиентам */}
-            {page.useServiceRequest && !page.loading && !page.error && page.clientSeasonality && page.clientSeasonality.rows.length > 0 && (
-                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+            {/* 5.7 Сезонность по клиентам — только десктоп в служебном режиме */}
+            {!hideClientSeasonality && page.useServiceRequest && !page.loading && !page.error && page.clientSeasonality && page.clientSeasonality.rows.length > 0 && (
+                <Panel className="cargo-card dashboard-seasonality-panel" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>Сезонность по клиентам</Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
                         Интенсивность грузопотока по месяцам. Чем ярче ячейка — тем больше заказов. Помогает выявить сезонных и стабильных клиентов.

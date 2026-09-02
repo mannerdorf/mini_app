@@ -15,7 +15,6 @@ import type { WorkSchedule } from "../lib/slaWorkSchedule";
 import type { KeyedMutator } from "swr";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import { HaulzDispatchShipmentRows } from "./HaulzDispatchShipmentRows";
-import { dispatchStatusDateSortKey } from "./haulzDispatchTableUtils";
 
 export type HaulzDispatchSummaryProps = {
     auth: AuthData;
@@ -36,13 +35,13 @@ export type HaulzDispatchSummaryProps = {
 type DispatchTileKey = "ready" | "delivering" | "transit" | "delivered" | "total";
 
 const TABLE_MAX_ROWS = 60;
-const DISPATCH_TABLE_COLS = 8;
+const DISPATCH_TABLE_COLS = 7;
 /** Сколько перевозок показывать при раскрытии заказчика до «Ещё». */
 const CUSTOMER_GROUP_PREVIEW_ROWS = 5;
 /** Вертикальный скролл таблицы, если перевозок больше этого числа (высота ≈ одна KPI-карточка). */
 const DISPATCH_TABLE_SCROLL_AFTER_ROWS = 5;
 
-type DispatchTableSortCol = "number" | "customer" | "statusDate" | "datePrih" | "pw" | "sum";
+type DispatchTableSortCol = "number" | "customer" | "datePrih" | "pw" | "sum";
 
 function compareCargoNumbersForSort(a: string, b: string): number {
     const na = parseInt(a.replace(/\D/g, ""), 10) || 0;
@@ -68,11 +67,6 @@ function compareDispatchRows(
             const ca = stripOoo(String(a.Customer ?? (a as { customer?: string }).customer ?? "—")).toLowerCase();
             const cb = stripOoo(String(b.Customer ?? (b as { customer?: string }).customer ?? "—")).toLowerCase();
             return ca.localeCompare(cb, "ru") * dir;
-        }
-        case "statusDate": {
-            const da = dispatchStatusDateSortKey(a);
-            const db = dispatchStatusDateSortKey(b);
-            return da.localeCompare(db) * dir;
         }
         case "datePrih": {
             const ta = parseDateOnly(String(a.DatePrih ?? "").trim())?.getTime() ?? 0;
@@ -606,7 +600,6 @@ export function HaulzDispatchSummary({
                                                     ...(showCustomerColumn
                                                         ? [{ col: "customer" as const, label: "Заказчик", align: "left" as const }]
                                                         : []),
-                                                    { col: "statusDate" as const, label: "Дата статуса", align: "left" as const, className: "status-date-col" },
                                                     { col: "datePrih" as const, label: "Приход", align: "left" as const },
                                                     { col: null, label: "Маршрут", align: "left" as const, title: "Маршрут" },
                                                     { col: null, label: "", align: "center" as const, title: "Тип перевозки" },
@@ -743,12 +736,9 @@ export function HaulzDispatchSummary({
                                                             {customerKey}
                                                         </td>
                                                         )}
-                                                        <td style={{ padding: "0.35rem", fontSize: "0.72rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }} className="status-date-col">
-                                                            —
-                                                        </td>
-                                                        <td style={{ padding: "0.35rem", whiteSpace: "nowrap", color: "var(--color-text-secondary)" }}>—</td>
-                                                        <td style={{ padding: "0.35rem", whiteSpace: "nowrap", color: "var(--color-text-secondary)" }}>—</td>
-                                                        <td style={{ padding: "0.35rem", whiteSpace: "nowrap", color: "var(--color-text-secondary)" }}>—</td>
+                                                        <td className="haulz-dispatch-table__group-row__spacer" style={{ padding: "0.35rem", whiteSpace: "nowrap", color: "var(--color-text-secondary)" }}>—</td>
+                                                        <td className="haulz-dispatch-table__group-row__spacer" style={{ padding: "0.35rem", whiteSpace: "nowrap", color: "var(--color-text-secondary)" }}>—</td>
+                                                        <td className="haulz-dispatch-table__group-row__spacer" style={{ padding: "0.35rem", whiteSpace: "nowrap", color: "var(--color-text-secondary)" }}>—</td>
                                                         <td style={{ padding: "0.35rem", textAlign: "right" }}>{Math.round(totalPw).toLocaleString("ru-RU")}</td>
                                                         <td style={{ padding: "0.35rem", textAlign: "right" }}>{formatCurrency(totalSum, true)}</td>
                                                     </tr>

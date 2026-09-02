@@ -163,8 +163,7 @@
         white-space: normal;
     }
 
-    .haulz-dispatch-table.dashboard-scroll-table tbody tr.haulz-dispatch-table__group-row > td.status-date-col,
-    .haulz-dispatch-table.dashboard-scroll-table tbody tr.haulz-dispatch-table__group-row > td:nth-child(n + 4):not(:last-child) {
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr.haulz-dispatch-table__group-row > td.haulz-dispatch-table__group-row__spacer {
         display: none;
     }
 
@@ -187,7 +186,12 @@
         display: none !important;
     }
 
-    /* П.10 — сезонность: скрываем широкую heatmap, показываем карточки */
+    /* П.10 — сезонность на мобильном/в приложении в служебном режиме скрыта в React */
+    .app-service-mode .dashboard-seasonality-panel {
+        display: none !important;
+    }
+
+    /* П.10 — сезонность (legacy fallback): heatmap скрыта, карточки — если блок всё же в DOM */
     .dashboard-seasonality-heatmap {
         display: none;
     }

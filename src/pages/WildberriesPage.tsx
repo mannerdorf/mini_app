@@ -7,6 +7,8 @@ import { PROXY_API_DOWNLOAD_URL } from "../constants/config";
 import { coerceStatusDisplay } from "../lib/statusUtils";
 import { normalizeWbPerevozkaHaulzDigits } from "../lib/wbPerevozkaNumber";
 import { downloadBase64File } from "../utils";
+import { usePullRefreshListener } from "../hooks/usePullRefreshListener";
+import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import { getDateInfo, parseDateOnly } from "../lib/dateUtils";
 import {
   wbApiError,
@@ -912,6 +914,7 @@ function inboundDetailCacheKey(inventoryNumber: string, f: WbInboundListFilters)
 }
 
 export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }: Props) {
+  const { useServiceRequest } = useAppRuntime();
   const [activeTab, setActiveTab] = useState<WbTab>("inbound");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1457,6 +1460,8 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
     await loadData();
   }, [activeTab, loadData, triggerWbSummaryRefresh]);
 
+  usePullRefreshListener(handleWbRefreshClick);
+
   const handleApplyInboundBoxShk = useCallback(async () => {
     const text = inboundBoxShkText.trim();
     if (!text) {
@@ -1951,10 +1956,12 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
         </div>
 
         <Flex gap="0.5rem" wrap="wrap" align="center" style={{ marginTop: "0.75rem" }}>
-          <Button className="wb-action-btn" onClick={() => void handleWbRefreshClick()} disabled={loading}>
-            {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            {loading ? " Загрузка..." : "Обновить"}
-          </Button>
+          {!useServiceRequest ? (
+            <Button className="wb-action-btn" onClick={() => void handleWbRefreshClick()} disabled={loading}>
+              {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              {loading ? " Загрузка..." : "Обновить"}
+            </Button>
+          ) : null}
           {activeTab === "summary" ? (
             <Button
               className="wb-action-btn"
