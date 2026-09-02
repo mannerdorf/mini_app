@@ -5,7 +5,7 @@ import {
   isOutstandingDebtInvoice,
 } from "../../lib/invoiceAmounts.js";
 import { hasBillSignal } from "../../lib/notificationPoll.js";
-import { parseCargoNumbersFromText } from "./formatUtils";
+import { parseCargoNumbersFromText, stripOoo } from "./formatUtils";
 import { getCargoRoleSet } from "./cargoUtils";
 import { getInvoicePaymentFilterKey } from "./statusUtils";
 import { buildRouteTypePlanDaysMap, getEffectivePlannedDeliveryDate } from "./cargoPlannedDelivery";
@@ -31,6 +31,15 @@ export type UnpaidInvoicePlanRow = {
   priority: InvoicePlanPriority;
   paymentKey: ReturnType<typeof getInvoicePaymentFilterKey>;
 };
+
+function monitorCustomerKey(name: string): string {
+  const label = stripOoo(String(name ?? "").trim());
+  return label.toUpperCase() || "—";
+}
+
+function monitorCustomerLabel(name: string): string {
+  return stripOoo(String(name ?? "").trim()) || "—";
+}
 
 function normCargoKey(num: string | null | undefined): string {
   if (num == null) return "";
@@ -307,15 +316,15 @@ export function computeUnbilledCargoByPlan(
 export function groupUnbilledCargoByCustomer(rows: UnbilledCargoPlanRow[]): UnbilledCargoCustomerGroup[] {
   const map = new Map<string, UnbilledCargoPlanRow[]>();
   for (const row of rows) {
-    const key = row.customer.trim() || "—";
+    const key = monitorCustomerKey(row.customer);
     const list = map.get(key) ?? [];
     list.push(row);
     map.set(key, list);
   }
   const groups: UnbilledCargoCustomerGroup[] = [];
-  for (const [customer, items] of map) {
+  for (const [, items] of map) {
     groups.push({
-      customer,
+      customer: monitorCustomerLabel(items[0]?.customer ?? "—"),
       priority: groupPriority(items),
       sum: items.reduce((acc, row) => acc + row.sum, 0),
       count: items.length,
@@ -337,8 +346,9 @@ export function mergeUnpaidMonitorCustomerGroups(
   const map = new Map<string, UnpaidMonitorCustomerGroup>();
 
   for (const group of invoiceGroups) {
-    map.set(group.customer, {
+    map.set(monitorCustomerKey(group.customer), {
       ...group,
+      customer: monitorCustomerLabel(group.customer),
       unbilledItems: [],
       unbilledSum: 0,
       unbilledCount: 0,
@@ -346,7 +356,8 @@ export function mergeUnpaidMonitorCustomerGroups(
   }
 
   for (const unbilled of unbilledGroups) {
-    const existing = map.get(unbilled.customer);
+    const key = monitorCustomerKey(unbilled.customer);
+    const existing = map.get(key);
     if (existing) {
       existing.unbilledItems = unbilled.items;
       existing.unbilledSum = unbilled.sum;
@@ -355,8 +366,8 @@ export function mergeUnpaidMonitorCustomerGroups(
         existing.priority === "high" || unbilled.priority === "high" ? "high" : "low";
       continue;
     }
-    map.set(unbilled.customer, {
-      customer: unbilled.customer,
+    map.set(key, {
+      customer: monitorCustomerLabel(unbilled.customer),
       priority: unbilled.priority,
       balance: 0,
       items: [],
@@ -408,15 +419,15 @@ function compareUnpaidPlanGroups(a: UnpaidInvoiceCustomerGroup, b: UnpaidInvoice
 export function groupUnpaidInvoicesByCustomer(rows: UnpaidInvoicePlanRow[]): UnpaidInvoiceCustomerGroup[] {
   const map = new Map<string, UnpaidInvoicePlanRow[]>();
   for (const row of rows) {
-    const key = row.customer.trim() || "—";
+    const key = monitorCustomerKey(row.customer);
     const list = map.get(key) ?? [];
     list.push(row);
     map.set(key, list);
   }
   const groups: UnpaidInvoiceCustomerGroup[] = [];
-  for (const [customer, items] of map) {
+  for (const [, items] of map) {
     groups.push({
-      customer,
+      customer: monitorCustomerLabel(items[0]?.customer ?? "—"),
       priority: groupPriority(items),
       balance: items.reduce((acc, row) => acc + row.balance, 0),
       items,

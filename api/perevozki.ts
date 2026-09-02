@@ -11,7 +11,7 @@ import {
   shouldServeFromDocumentCache,
 } from "../lib/cacheHistoryDays.js";
 import { handleHaulzSummarySandboxRequest, isHaulzSummarySandboxAction } from "../lib/haulzSummarySandboxApi.js";
-import { getAdminTokenFromRequest, getAdminTokenPayload, verifyAdminToken } from "../lib/adminAuth.js";
+import { getSuperAdminRequestContext, isVerifiedSuperAdmin, readSuperAdminDocumentsFromCache, resolveCredentialsForSuperAdmin } from "../lib/adminDocumentCacheAccess.js";
 import { fetchWithTimeout, upstreamTimeoutMessage } from "../lib/fetchWithTimeout.js";
 import { preferCacheOnlyOnVercel } from "../lib/vercelRuntime.js";
 import { isCargoInDateRangeForField, type CargoDateField } from "../lib/cargoDateFilter.js";
@@ -333,7 +333,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (handled) return;
   }
 
-  const {
+  let {
     login,
     password,
     dateFrom = "2024-01-01",
@@ -356,20 +356,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD required)", request_id: ctx.requestId });
   }
 
-  const useDocumentCache = shouldServeFromDocumentCache(dateFrom, dateTo);
-  let registeredVerified: VerifiedRegisteredUser | null = null;
-
-  const adminToken =
-    (typeof body?.adminToken === "string" ? body.adminToken.trim() : "") || getAdminTokenFromRequest(req) || "";
-  if (
-    useDocumentCache &&
-    adminToken &&
-    verifyAdminToken(adminToken) &&
-    getAdminTokenPayload(adminToken)?.superAdmin === true
-  ) {
+  const superAdminCtx = getSuperAdminRequestContext(req, body);
+  if (isVerifiedSuperAdmin(superAdminCtx)) {
     try {
       const pool = getPool();
-      const { items } = await readDocumentsFromCacheByPeriod(pool, "perevozki", dateFrom, dateTo, { dateField });
+      const items = await readSuperAdminDocumentsFromCache(pool, "perevozki", dateFrom, dateTo, { dateField });
       const filtered = items.filter((item) =>
         isCargoInDateRangeForField(item, dateFrom, dateTo, dateField),
       );
@@ -380,9 +371,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  const superAdminCreds = resolveCredentialsForSuperAdmin(superAdminCtx, login, password);
+  if (superAdminCreds) {
+    login = superAdminCreds.login;
+    password = superAdminCreds.password;
+    serviceMode = superAdminCreds.serviceMode;
+  }
+
   if (!login || !password) {
     return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
   }
+
+  const useDocumentCache = shouldServeFromDocumentCache(dateFrom, dateTo);
+  let registeredVerified: VerifiedRegisteredUser | null = null;
 
   if (isRegisteredUser) {
     try {

@@ -178,6 +178,7 @@ export function UnpaidInvoicesPlanMonitor({
   const totalBalance = rows.reduce((acc, r) => acc + r.balance, 0);
   const unbilledCount = unbilledRows.length;
   const unbilledSum = unbilledRows.reduce((acc, r) => acc + r.sum, 0);
+  const combinedTotal = totalBalance + unbilledSum;
   const listScrollable = (groupedByCustomer ? mergedCustomerGroups.length : rows.length) > UNPAID_MONITOR_SCROLL_AFTER_ROWS;
   const isEmpty = !loading && rows.length === 0 && unbilledCount === 0;
   const HeadIcon = isEmpty ? CheckCircle2 : AlertCircle;
@@ -190,12 +191,17 @@ export function UnpaidInvoicesPlanMonitor({
     const parts: string[] = [];
     if (rows.length > 0) {
       parts.push(
-        `${rows.length} к оплате за 3 мес.${showSums ? ` · всего ${formatCurrency(totalBalance, true)}` : ""}`,
+        `${rows.length} к оплате за 3 мес.${showSums ? ` · ${formatCurrency(totalBalance, true)}` : ""}`,
       );
       parts.push(`высокий приоритет: ${highCount} (до ${PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS} дн. до плана)`);
     }
-    if (groupedByCustomer && unbilledCount > 0) {
-      parts.push(`невыст.: ${unbilledCount} перев.${showSums ? ` · ${formatCurrency(unbilledSum, true)}` : ""}`);
+    if (groupedByCustomer) {
+      parts.push(
+        `невыст.: ${unbilledCount} перев.${showSums ? ` · ${formatCurrency(unbilledSum, true)}` : ""}`,
+      );
+      if (showSums && (rows.length > 0 || unbilledCount > 0)) {
+        parts.push(`всего ${formatCurrency(combinedTotal, true)}`);
+      }
     }
     return parts.join(" · ");
   }, [
@@ -209,6 +215,7 @@ export function UnpaidInvoicesPlanMonitor({
     groupedByCustomer,
     unbilledCount,
     unbilledSum,
+    combinedTotal,
   ]);
 
   const cardClass = `unpaid-plan-monitor cargo-card${
@@ -294,7 +301,9 @@ export function UnpaidInvoicesPlanMonitor({
             </div>
 
             {groupedByCustomer
-              ? mergedCustomerGroups.map((group) => {
+              ? (
+                <>
+                  {mergedCustomerGroups.map((group) => {
                   const key = group.customer;
                   const isExpanded = expandedKey === key;
                   return (
@@ -381,7 +390,51 @@ export function UnpaidInvoicesPlanMonitor({
                       )}
                     </div>
                   );
-                })
+                })}
+                  <div
+                    className="unpaid-plan-monitor__totals-row unpaid-plan-monitor__summary-row--customer-unbilled"
+                    aria-label="Итого по монитору задолженности"
+                  >
+                    <span className="unpaid-plan-monitor__cell unpaid-plan-monitor__cell--customer unpaid-plan-monitor__cell--totals-label">
+                      Итого
+                    </span>
+                    <span className="unpaid-plan-monitor__cell unpaid-plan-monitor__cell--priority" aria-hidden />
+                    <span
+                      className={`unpaid-plan-monitor__cell unpaid-plan-monitor__cell--unbilled${
+                        unbilledCount > 0 ? " unpaid-plan-monitor__cell--unbilled--has" : ""
+                      }`}
+                      title={
+                        unbilledCount > 0
+                          ? `${unbilledCount} невыставленных перевозок`
+                          : "Невыставленных перевозок нет"
+                      }
+                    >
+                      {unbilledCount > 0
+                        ? showSums
+                          ? `${unbilledCount} · ${formatCurrency(unbilledSum, true)}`
+                          : String(unbilledCount)
+                        : showSums
+                          ? formatCurrency(0, true)
+                          : "0"}
+                    </span>
+                    {showSums && (
+                      <span className="unpaid-plan-monitor__cell unpaid-plan-monitor__cell--sum unpaid-plan-monitor__cell--totals-sum">
+                        {formatCurrency(totalBalance, true)}
+                      </span>
+                    )}
+                    <span className="unpaid-plan-monitor__row-chevron-spacer" aria-hidden />
+                  </div>
+                  {showSums && (
+                    <div className="unpaid-plan-monitor__combined-total">
+                      Всего: {formatCurrency(combinedTotal, true)}
+                      <span className="unpaid-plan-monitor__combined-total-breakdown">
+                        {" "}
+                        (к оплате {formatCurrency(totalBalance, true)} + невыст. {formatCurrency(unbilledSum, true)})
+                      </span>
+                    </div>
+                  )}
+                </>
+              )
               : rows.map((row) => {
                   const key = `${row.invoiceNumber}-${row.cargoNumber ?? ""}`;
                   const isExpanded = expandedKey === key;

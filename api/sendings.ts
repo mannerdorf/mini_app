@@ -10,7 +10,12 @@ import { respondCorsPreflight } from "./_lib/cors.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import { liveInTransitHoursFromMetrics } from "../lib/transitDateTime.js";
 import { readDocumentsFromCacheByPeriod } from "../lib/documentCacheRead.js";
-import { getAdminTokenFromRequest, getAdminTokenPayload, verifyAdminToken } from "../lib/adminAuth.js";
+import {
+  getSuperAdminRequestContext,
+  isVerifiedSuperAdmin,
+  readSuperAdminDocumentsFromCache,
+  resolveCredentialsForSuperAdmin,
+} from "../lib/adminDocumentCacheAccess.js";
 
 const BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
@@ -315,7 +320,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const {
+  let {
     login,
     password,
     dateFrom = "2024-01-01",
@@ -330,18 +335,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD required)", request_id: ctx.requestId });
   }
 
-  const useDocumentCache = shouldServeFromDocumentCache(dateFrom, dateTo);
-  const adminToken =
-    (typeof body?.adminToken === "string" ? body.adminToken.trim() : "") || getAdminTokenFromRequest(req) || "";
-  if (
-    useDocumentCache &&
-    adminToken &&
-    verifyAdminToken(adminToken) &&
-    getAdminTokenPayload(adminToken)?.superAdmin === true
-  ) {
+  const superAdminCtx = getSuperAdminRequestContext(req, body);
+  if (isVerifiedSuperAdmin(superAdminCtx)) {
     try {
       const pool = getPool();
-      const { items } = await readDocumentsFromCacheByPeriod(pool, "sendings", dateFrom, dateTo);
+      const items = await readSuperAdminDocumentsFromCache(pool, "sendings", dateFrom, dateTo);
       const filtered = items.filter((item) => {
         const d = pickDate(item);
         return d >= dateFrom && d <= dateTo;
@@ -353,9 +351,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  const superAdminCreds = resolveCredentialsForSuperAdmin(superAdminCtx, login, password);
+  if (superAdminCreds) {
+    login = superAdminCreds.login;
+    password = superAdminCreds.password;
+    serviceMode = superAdminCreds.serviceMode;
+  }
+
   if (!login || !password) {
     return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
   }
+
+  const useDocumentCache = shouldServeFromDocumentCache(dateFrom, dateTo);
 
   const filterCachedItems = (list: any[], finalInns: Set<string> | null) =>
     filterSendingsCachedByInnAndDate(list, finalInns, dateFrom, dateTo);
