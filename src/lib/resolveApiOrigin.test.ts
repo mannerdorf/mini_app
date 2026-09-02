@@ -7,13 +7,13 @@ describe("resolveApiOrigin", () => {
     vi.restoreAllMocks();
   });
 
-  it("uses api.haulz.space on Capacitor even when VITE_API_ORIGIN is haulz.space", () => {
+  it("uses VITE_API_ORIGIN on Capacitor, including haulz.space", () => {
     vi.stubEnv("VITE_API_ORIGIN", "https://haulz.space");
     vi.stubGlobal("window", {
       location: { origin: "capacitor://localhost", protocol: "capacitor:" },
       Capacitor: { isNativePlatform: () => true },
     });
-    expect(resolveApiOrigin()).toBe("https://api.haulz.space");
+    expect(resolveApiOrigin()).toBe("https://haulz.space");
   });
 
   it("allows custom non-front API origin on Capacitor (staging)", () => {
