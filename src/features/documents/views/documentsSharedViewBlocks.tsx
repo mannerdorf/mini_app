@@ -191,6 +191,67 @@ export function DocumentsRouteBadge({
   return <RouteBadge route={children} className={className} style={style} />;
 }
 
+/** Бейджи счёта/УПД в таблице: под номером — 1) статус перевозки, 2) оплата слева / маршрут справа. */
+export function DocumentsInvoiceTableBadges({
+  billStatus,
+  billBadgeStyle,
+  deliveryState,
+  routeLabel,
+  perevozkiLoading = false,
+}: {
+  billStatus?: string;
+  billBadgeStyle?: { bg: string; color: string };
+  deliveryState?: string;
+  routeLabel?: React.ReactNode;
+  perevozkiLoading?: boolean;
+}) {
+  const showBill = Boolean(billStatus);
+  const routeText = routeLabel == null ? "" : String(routeLabel).trim();
+  const showRoute = Boolean(routeText) && routeText !== "—";
+  const showDelivery = perevozkiLoading || Boolean(deliveryState);
+  if (!showBill && !showRoute && !showDelivery) return null;
+
+  return (
+    <div className="documents-invoice-table-badges cargo-inner-table__badges documents-invoices-inner-table__badges">
+      {showDelivery ? (
+        <div className="documents-invoice-table-badges__flow" aria-label="Статус перевозки">
+          {perevozkiLoading ? (
+            <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} />
+          ) : (
+            <StatusBadge status={deliveryState} />
+          )}
+        </div>
+      ) : null}
+      {(showBill || showRoute) && (
+        <div className="documents-invoice-table-badges__meta">
+          <div className="documents-invoice-table-badges__meta-left">
+            {showBill ? (
+              <AppBadge
+                tone="neutral"
+                className="documents-invoice-inner-badge"
+                style={{ background: billBadgeStyle?.bg, color: billBadgeStyle?.color }}
+              >
+                {billStatus}
+              </AppBadge>
+            ) : null}
+          </div>
+          <div className="documents-invoice-table-badges__meta-right">
+            {showRoute ? (
+              <span className="cargo-inner-table__route-inline documents-invoice-inner-badge-wrap">
+                {perevozkiLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} />
+                ) : (
+                  <DocumentsRouteBadge className="documents-invoice-inner-badge">{routeLabel}</DocumentsRouteBadge>
+                )}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Код маршрута тарифа (MSK – KGD). */
 export function formatTariffRouteLabel(cityFrom?: string | null, cityTo?: string | null): string {
   const from = cityToCode(cityFrom || "") || String(cityFrom || "").trim();

@@ -150,14 +150,40 @@
     min-width: 0;
 }
 
-.cargo-inner-table .cargo-logistics-badges__flow,
-.cargo-inner-table .cargo-logistics-badges__meta {
+.cargo-inner-table .cargo-logistics-badges__flow {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.28rem;
     width: 100%;
     min-width: 0;
+}
+
+.cargo-inner-table .cargo-logistics-badges__meta {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.cargo-inner-table .cargo-logistics-badges__meta-left,
+.cargo-inner-table .cargo-logistics-badges__meta-right {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    flex: 0 1 auto;
+}
+
+.cargo-inner-table .cargo-logistics-badges__meta-left {
+    justify-content: flex-start;
+}
+
+.cargo-inner-table .cargo-logistics-badges__meta-right {
+    justify-content: flex-end;
+    margin-left: auto;
 }
 
 .cargo-inner-table .cargo-logistics-badges__arrow {
@@ -178,16 +204,91 @@
 }
 
 .cargo-inner-table .cargo-inner-table__route-inline {
-    flex-basis: 100%;
+    flex-basis: auto;
+}
+
+/* Документы (счета/УПД): бейджи под номером — две строки */
+.documents-invoice-table-badges-anchor {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.28rem;
+    min-width: 0;
+    width: 100%;
+}
+
+.documents-invoice-table-badges {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.28rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.documents-invoice-table-badges__flow,
+.documents-invoice-table-badges__meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.28rem;
+    min-width: 0;
+    width: 100%;
+}
+
+.documents-invoices-inner-table .documents-invoice-table-badges__flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.28rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.documents-invoices-inner-table .documents-invoice-table-badges__meta,
+.documents-acts-inner-table .documents-invoice-table-badges__meta {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.documents-invoices-inner-table .documents-invoice-table-badges__meta-left,
+.documents-invoices-inner-table .documents-invoice-table-badges__meta-right,
+.documents-acts-inner-table .documents-invoice-table-badges__meta-left,
+.documents-acts-inner-table .documents-invoice-table-badges__meta-right {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    flex: 0 1 auto;
+}
+
+.documents-invoices-inner-table .documents-invoice-table-badges__meta-left,
+.documents-acts-inner-table .documents-invoice-table-badges__meta-left {
+    justify-content: flex-start;
+}
+
+.documents-invoices-inner-table .documents-invoice-table-badges__meta-right,
+.documents-acts-inner-table .documents-invoice-table-badges__meta-right {
+    justify-content: flex-end;
+    margin-left: auto;
+}
+
+.documents-invoices-inner-table .cargo-inner-table__col-status,
+.documents-acts-inner-table .cargo-inner-table__col-status {
+    display: none;
 }
 
 /* Документы (счета/УПД): бейджи в таблице — перенос по строкам, без обрезки */
 .documents-invoices-inner-table .documents-invoices-inner-table__badges,
 .documents-acts-inner-table .documents-invoices-inner-table__badges {
     display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: flex-start;
     gap: 0.28rem;
     width: 100%;
     min-width: 0;
@@ -220,7 +321,7 @@
 
 .documents-invoices-inner-table .cargo-inner-table__route-inline,
 .documents-acts-inner-table .cargo-inner-table__route-inline {
-    flex-basis: 100%;
+    flex-basis: auto;
 }
 
 .cargo-inner-table__delivery-inline {
@@ -322,9 +423,11 @@
     .documents-invoices-inner-table .cargo-inner-table__badges--stack-mobile,
     .documents-invoices-inner-table .documents-invoices-inner-table__badges,
     .documents-acts-inner-table .cargo-inner-table__badges--stack-mobile,
-    .documents-acts-inner-table .documents-invoices-inner-table__badges {
-        flex-wrap: wrap;
-        align-items: center;
+    .documents-acts-inner-table .documents-invoices-inner-table__badges,
+    .documents-invoices-inner-table .documents-invoice-table-badges,
+    .documents-acts-inner-table .documents-invoice-table-badges {
+        flex-wrap: nowrap;
+        align-items: flex-start;
         gap: 0.22rem;
         width: 100%;
         max-width: none;
@@ -450,8 +553,9 @@
         width: 18%;
     }
 
-    .documents-invoices-inner-table .cargo-inner-table__col-number {
-        width: 18%;
+    .documents-invoices-inner-table .cargo-inner-table__col-number,
+    .documents-acts-inner-table .cargo-inner-table__col-number {
+        width: 56%;
     }
 
     .cargo-inner-table .cargo-inner-table__col-number {

@@ -6,10 +6,10 @@ import { DateText } from "../../../components/ui/DateText";
 import { formatCurrency, formatInvoiceNumber, normalizeInvoiceStatus, stripOoo } from "../../../lib/formatUtils";
 import { invoiceDocSum } from "../../../lib/invoiceAmounts.js";
 import { StatusBadge } from "../../../components/shared/StatusBadges";
-import { AppBadge } from "../../../components/shared/AppBadge";
 import {
   DocumentsActCardsList,
   DocumentsRouteBadge,
+  DocumentsInvoiceTableBadges,
   DocumentsStateBlocks,
 } from "../views/documentsViewBlocks";
 import {
@@ -141,39 +141,21 @@ export function DocumentsActsSection({
           title="Открыть УПД"
         >
           <td className="cargo-inner-table__col-number" style={{ padding: cellPad }}>
-            <span className="cargo-inner-table__number">{formatInvoiceNumber(String(anum))}</span>
+            <div className="documents-invoice-table-badges-anchor">
+              <span className="cargo-inner-table__number">{formatInvoiceNumber(String(anum))}</span>
+              <DocumentsInvoiceTableBadges
+                billStatus={ist || undefined}
+                billBadgeStyle={istBadgeStyle}
+                deliveryState={deliveryState}
+                routeLabel={routeLabel || undefined}
+                perevozkiLoading={perevozkiLoading}
+              />
+            </div>
           </td>
           <td className="cargo-inner-table__col-date doc-inner-table-date" style={{ padding: cellPad }}>
             <DateText value={typeof adt === "string" ? adt : adt ? String(adt) : undefined} omitYear />
           </td>
-          <td className="cargo-inner-table__col-status doc-inner-table-status" style={{ padding: cellPad }}>
-            <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile documents-invoices-inner-table__badges">
-              {ist ? (
-                <AppBadge
-                  tone="neutral"
-                  className="documents-invoice-inner-badge"
-                  style={{ background: istBadgeStyle.bg, color: istBadgeStyle.color }}
-                >
-                  {ist}
-                </AppBadge>
-              ) : null}
-              <span className="cargo-inner-table__delivery-inline documents-invoice-inner-badge-wrap">
-                {perevozkiLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} />
-                ) : (
-                  <StatusBadge status={deliveryState} />
-                )}
-              </span>
-              <span className="cargo-inner-table__route-inline documents-invoice-inner-badge-wrap">
-                {perevozkiLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} />
-                ) : routeLabel ? (
-                  <DocumentsRouteBadge className="documents-invoice-inner-badge">{routeLabel}</DocumentsRouteBadge>
-                ) : null}
-              </span>
-              {!ist && !deliveryState && !routeLabel ? "—" : null}
-            </div>
-          </td>
+          <td className="cargo-inner-table__col-status doc-inner-table-status" style={{ padding: cellPad }} aria-hidden />
           <td
             className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop"
             style={{ padding: cellPad }}

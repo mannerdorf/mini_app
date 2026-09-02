@@ -166,12 +166,16 @@ export function CargoLogisticsBadges({
       </div>
       {(showBill || showRouteInline) && (
         <div className="cargo-logistics-badges__meta">
-          {showBill ? <StatusBillBadge status={item.StateBill} /> : null}
-          {showRouteInline ? (
-            <span className="cargo-inner-table__route-inline">
-              <RouteBadge route={getCargoItemRouteLabel(item)} />
-            </span>
-          ) : null}
+          <div className="cargo-logistics-badges__meta-left">
+            {showBill ? <StatusBillBadge status={item.StateBill} /> : null}
+          </div>
+          <div className="cargo-logistics-badges__meta-right">
+            {showRouteInline ? (
+              <span className="cargo-inner-table__route-inline">
+                <RouteBadge route={getCargoItemRouteLabel(item)} />
+              </span>
+            ) : null}
+          </div>
         </div>
       )}
     </div>
