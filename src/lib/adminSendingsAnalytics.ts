@@ -8,7 +8,7 @@ import {
   CARGO_TRANSPORT_TYPE_LABELS,
   type CargoTransportType,
 } from "./cargoTransportType";
-import { getSendingRowTransportMode } from "../features/documents/sendings/sendingsTransportHelpers";
+import { getSendingRowTransportMode } from "./sendingsTransportMode";
 import { resolveMetricsTransitHours } from "./transitDateTime";
 import {
   matchesRouteFilterSet,

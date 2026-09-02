@@ -1,14 +1,29 @@
-import React, { useState } from "react";
+import React, { lazy, Suspense, useState } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
+import { Loader2 } from "lucide-react";
 import { AdminDeliveredWithoutAppSection } from "./AdminDeliveredWithoutAppSection";
 import { AdminFotDashboardSection } from "./AdminFotDashboardSection";
 import { AdminHaulzDispatchSection } from "./AdminHaulzDispatchSection";
 import { AdminLastMileReportSection } from "./AdminLastMileReportSection";
-import { AdminMagistralAnalysisSection } from "./AdminMagistralAnalysisSection";
-import { AdminSendingsAnalysisSection } from "./AdminSendingsAnalysisSection";
 import { AdminUserActivitySection } from "./AdminUserActivitySection";
 
+const AdminMagistralAnalysisSection = lazy(() =>
+  import("./AdminMagistralAnalysisSection").then((m) => ({ default: m.AdminMagistralAnalysisSection })),
+);
+const AdminSendingsAnalysisSection = lazy(() =>
+  import("./AdminSendingsAnalysisSection").then((m) => ({ default: m.AdminSendingsAnalysisSection })),
+);
+
 type AdminDashboardSubTab = "fot" | "last_mile" | "haulz_dispatch" | "magistral" | "sendings" | "delivered_no_app" | "user_activity";
+
+function AdminDashboardSectionLoader() {
+  return (
+    <Flex align="center" gap="0.5rem" style={{ padding: "1.5rem 0", color: "var(--color-text-secondary)" }}>
+      <Loader2 className="w-5 h-5 animate-spin" aria-hidden />
+      Загрузка раздела…
+    </Flex>
+  );
+}
 
 export function AdminDashboardsPanel({ adminToken }: { adminToken: string }) {
   const [sub, setSub] = useState<AdminDashboardSubTab>("fot");
@@ -103,8 +118,16 @@ export function AdminDashboardsPanel({ adminToken }: { adminToken: string }) {
       {sub === "fot" && <AdminFotDashboardSection adminToken={adminToken} />}
       {sub === "last_mile" && <AdminLastMileReportSection adminToken={adminToken} />}
       {sub === "haulz_dispatch" && <AdminHaulzDispatchSection adminToken={adminToken} />}
-      {sub === "magistral" && <AdminMagistralAnalysisSection adminToken={adminToken} />}
-      {sub === "sendings" && <AdminSendingsAnalysisSection adminToken={adminToken} />}
+      {sub === "magistral" && (
+        <Suspense fallback={<AdminDashboardSectionLoader />}>
+          <AdminMagistralAnalysisSection adminToken={adminToken} />
+        </Suspense>
+      )}
+      {sub === "sendings" && (
+        <Suspense fallback={<AdminDashboardSectionLoader />}>
+          <AdminSendingsAnalysisSection adminToken={adminToken} />
+        </Suspense>
+      )}
       {sub === "delivered_no_app" && <AdminDeliveredWithoutAppSection adminToken={adminToken} />}
       {sub === "user_activity" && <AdminUserActivitySection adminToken={adminToken} />}
     </div>

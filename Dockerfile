@@ -7,8 +7,8 @@ FROM node:22-bookworm-slim AS build
 WORKDIR /app
 
 # node:24 + npm 11+ блокирует postinstall esbuild; pdf.js после iOS release сильно утяжеляет minify.
-# 2048 MB — безопаснее для Timeweb, чем 4096 (OOM → «Остановка»).
-ENV NODE_OPTIONS=--max-old-space-size=2048
+# 4096 MB — CMS chunk + pdf/excel; Timeweb часто падает на 2048 при vite build.
+ENV NODE_OPTIONS=--max-old-space-size=4096
 ENV CI=1
 
 COPY package.json package-lock.json .npmrc ./
