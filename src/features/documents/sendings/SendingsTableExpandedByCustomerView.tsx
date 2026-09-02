@@ -1,7 +1,7 @@
 import React from "react";
 import { Typography } from "@maxhub/max-ui";
 import { DateText } from "../../../components/ui/DateText";
-import { stripOoo } from "../../../lib/formatUtils";
+import { formatCurrency, stripOoo } from "../../../lib/formatUtils";
 import { normCargoKey } from "../lib/documentsPipeline";
 import { SendingsTableByCustomerBulkBar } from "./SendingsTableByCustomerBulkBar";
 import { SendingsTableByCustomerCargoTable } from "./SendingsTableByCustomerCargoTable";
@@ -34,6 +34,8 @@ export function SendingsTableExpandedByCustomerView(props: Props) {
     cargoPlanDateByNumber,
     cargoReceiverByNumber,
     cargoCustomerByNumber,
+    cargoSumByNumber,
+    showSums,
     canEditPlanDate,
     selectedByCustomerSummaryKeys,
     setSelectedByCustomerSummaryKeys,
@@ -57,6 +59,7 @@ export function SendingsTableExpandedByCustomerView(props: Props) {
     sendingsSummaryGroupBy,
     cargoCustomerByNumber,
     cargoReceiverByNumber,
+    cargoSumByNumber,
   );
   const selectedSummaryRows = summaryRows.filter((summary) => selectedByCustomerSummaryKeys.has(summary.selectionKey));
   const sortedSummaryRows = sortCounterpartySummaries(summaryRows, sendingsSummarySortColumn, sendingsSummarySortOrder);
@@ -75,9 +78,10 @@ export function SendingsTableExpandedByCustomerView(props: Props) {
       acc.volume += s.volume;
       acc.weight += s.weight;
       acc.paidWeight += s.paidWeight;
+      acc.cost += s.cost;
       return acc;
     },
-    { count: 0, volume: 0, weight: 0, paidWeight: 0 },
+    { count: 0, volume: 0, weight: 0, paidWeight: 0, cost: 0 },
   );
   const stickyTotalsCellBase: React.CSSProperties = {
     padding: "0.35rem 0.3rem",
@@ -88,7 +92,7 @@ export function SendingsTableExpandedByCustomerView(props: Props) {
     borderTop: "2px solid var(--color-border)",
     zIndex: 3,
   };
-  const detailColSpan = canEditPlanDate ? 9 : 8;
+  const detailColSpan = (canEditPlanDate ? 9 : 8) + (showSums ? 1 : 0);
 
   return (
     <>
@@ -142,6 +146,9 @@ export function SendingsTableExpandedByCustomerView(props: Props) {
             <SendingsTableSummarySortTh label="Объем" column="volume" sortColumn={sendingsSummarySortColumn} sortOrder={sendingsSummarySortOrder} onSort={handleSendingsSummarySort} align="right" />
             <SendingsTableSummarySortTh label="Вес" column="weight" sortColumn={sendingsSummarySortColumn} sortOrder={sendingsSummarySortOrder} onSort={handleSendingsSummarySort} align="right" />
             <SendingsTableSummarySortTh label="Платный вес" column="paidWeight" sortColumn={sendingsSummarySortColumn} sortOrder={sendingsSummarySortOrder} onSort={handleSendingsSummarySort} align="right" />
+            {showSums && (
+              <SendingsTableSummarySortTh label="Стоимость" column="cost" sortColumn={sendingsSummarySortColumn} sortOrder={sendingsSummarySortOrder} onSort={handleSendingsSummarySort} align="right" />
+            )}
             <SendingsTableSummarySortTh label="Плотность" column="density" sortColumn={sendingsSummarySortColumn} sortOrder={sendingsSummarySortOrder} onSort={handleSendingsSummarySort} align="right" />
             <th style={{ padding: "0.35rem 0.3rem", textAlign: "left", fontWeight: 600, lineHeight: 1.15 }}>
               Плановая дата прибытия
@@ -161,6 +168,7 @@ export function SendingsTableExpandedByCustomerView(props: Props) {
               cargoStateByNumber,
               cargoCustomerByNumber,
               cargoReceiverByNumber,
+              cargoSumByNumber,
             );
             return (
               <React.Fragment key={`${rowKey}-summary-customer-${summary.party}-${parcelIdx}`}>
@@ -207,6 +215,11 @@ export function SendingsTableExpandedByCustomerView(props: Props) {
                   <td style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap" }}>{formatSendingSummaryNum(summary.volume)}</td>
                   <td style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap" }}>{formatSendingSummaryNum(summary.weight)}</td>
                   <td style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap" }}>{formatSendingSummaryNum(summary.paidWeight)}</td>
+                  {showSums && (
+                    <td style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap" }}>
+                      {summary.cost > 0 ? formatCurrency(summary.cost, true) : "—"}
+                    </td>
+                  )}
                   <td
                     style={{
                       padding: "0.35rem 0.3rem",
@@ -239,6 +252,7 @@ export function SendingsTableExpandedByCustomerView(props: Props) {
                     cargoRows={cargoRows}
                     cargoPlanDateByNumber={cargoPlanDateByNumber}
                     plannedArrivalDate={plannedArrivalDate}
+                    showSums={showSums}
                     handleOpenCargo={handleOpenCargo}
                   />
                 )}
@@ -254,6 +268,11 @@ export function SendingsTableExpandedByCustomerView(props: Props) {
             <td style={{ ...stickyTotalsCellBase, textAlign: "right", whiteSpace: "nowrap" }}>{formatSendingSummaryNum(totals.volume)}</td>
             <td style={{ ...stickyTotalsCellBase, textAlign: "right", whiteSpace: "nowrap" }}>{formatSendingSummaryNum(totals.weight)}</td>
             <td style={{ ...stickyTotalsCellBase, textAlign: "right", whiteSpace: "nowrap" }}>{formatSendingSummaryNum(totals.paidWeight)}</td>
+            {showSums && (
+              <td style={{ ...stickyTotalsCellBase, textAlign: "right", whiteSpace: "nowrap" }}>
+                {totals.cost > 0 ? formatCurrency(totals.cost, true) : "—"}
+              </td>
+            )}
             <td
               style={{
                 ...stickyTotalsCellBase,

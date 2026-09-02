@@ -20,6 +20,7 @@ export type SendingsSummarySortColumn =
   | "volume"
   | "weight"
   | "paidWeight"
+  | "cost"
   | "customer"
   | "density";
 

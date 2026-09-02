@@ -2,7 +2,7 @@ import React from "react";
 import { DateText } from "../../../components/ui/DateText";
 import { ClickableCargoNumber } from "../../../components/ui/EntityLinks";
 import { StatusBadge } from "../../../components/shared/StatusBadges";
-import { stripOoo } from "../../../lib/formatUtils";
+import { formatCurrency, stripOoo } from "../../../lib/formatUtils";
 import { formatSendingSummaryNum, resolveSendingPlanDate, type CargoSummaryRow } from "./sendingsByCustomerSummaryHelpers";
 
 type Props = {
@@ -12,6 +12,7 @@ type Props = {
   cargoRows: CargoSummaryRow[];
   cargoPlanDateByNumber: Map<string, Date | string>;
   plannedArrivalDate: Date | null;
+  showSums?: boolean;
   handleOpenCargo: (cargoNumber: string, prefetched?: Record<string, unknown>) => void;
 };
 
@@ -23,6 +24,7 @@ export function SendingsTableByCustomerCargoTable(props: Props) {
     cargoRows,
     cargoPlanDateByNumber,
     plannedArrivalDate,
+    showSums,
     handleOpenCargo,
   } = props;
 
@@ -50,6 +52,9 @@ export function SendingsTableByCustomerCargoTable(props: Props) {
                 <th style={{ padding: "0.3rem 0.25rem", textAlign: "right", fontWeight: 600 }}>Объем</th>
                 <th style={{ padding: "0.3rem 0.25rem", textAlign: "right", fontWeight: 600 }}>Вес</th>
                 <th style={{ padding: "0.3rem 0.25rem", textAlign: "right", fontWeight: 600 }}>Платный вес</th>
+                {showSums && (
+                  <th style={{ padding: "0.3rem 0.25rem", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>Стоимость</th>
+                )}
                 <th style={{ padding: "0.3rem 0.25rem", textAlign: "left", fontWeight: 600 }}>
                   {sendingsSummaryGroupBy === "receiver" ? "Получатель" : "Заказчик"}
                 </th>
@@ -87,6 +92,11 @@ export function SendingsTableByCustomerCargoTable(props: Props) {
                   <td style={{ padding: "0.3rem 0.25rem", textAlign: "right", whiteSpace: "nowrap" }}>{formatSendingSummaryNum(cr.volume)}</td>
                   <td style={{ padding: "0.3rem 0.25rem", textAlign: "right", whiteSpace: "nowrap" }}>{formatSendingSummaryNum(cr.weight)}</td>
                   <td style={{ padding: "0.3rem 0.25rem", textAlign: "right", whiteSpace: "nowrap" }}>{formatSendingSummaryNum(cr.paidWeight)}</td>
+                  {showSums && (
+                    <td style={{ padding: "0.3rem 0.25rem", textAlign: "right", whiteSpace: "nowrap" }}>
+                      {cr.cost > 0 ? formatCurrency(cr.cost, true) : "—"}
+                    </td>
+                  )}
                   <td style={{ padding: "0.3rem 0.25rem" }}>{stripOoo(cr.partyName) || "—"}</td>
                   <td style={{ padding: "0.3rem 0.25rem", whiteSpace: "nowrap" }}>
                     {(() => {

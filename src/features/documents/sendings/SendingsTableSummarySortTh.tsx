@@ -6,7 +6,7 @@ type Props = {
   column: string;
   sortColumn: string;
   sortOrder: "asc" | "desc";
-  onSort: (column: "index" | "cargo" | "status" | "count" | "volume" | "weight" | "paidWeight" | "customer" | "density") => void;
+  onSort: (column: "index" | "cargo" | "status" | "count" | "volume" | "weight" | "paidWeight" | "cost" | "customer" | "density") => void;
   align?: "left" | "right" | "center";
   style?: React.CSSProperties;
 };

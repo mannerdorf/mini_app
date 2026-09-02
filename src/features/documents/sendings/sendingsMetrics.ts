@@ -286,6 +286,29 @@ export function collectSendingFreightCargoNumbers(row: any): string[] {
 }
 
 /** Сумма перевозки по посылке (как «Сумма» в отчёте 1С), не объявленная стоимость товара. */
+/** Сумма перевозки по набору посылок; lookup по номеру перевозки — один раз на уникальный груз. */
+export function sumParcelsFreightCost(
+  parcels: any[],
+  cargoSumByNumber?: Map<string, number>,
+): number {
+  let directTotal = 0;
+  for (const parcel of parcels) {
+    directTotal += getParcelFreightSum(parcel, undefined);
+  }
+  if (directTotal > 0) return directTotal;
+
+  const seen = new Set<string>();
+  let lookupTotal = 0;
+  for (const parcel of parcels) {
+    const cargo = String(parcel?.Перевозка ?? "").trim();
+    const key = normCargoKey(cargo);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    lookupTotal += getParcelFreightSum({ Перевозка: cargo }, cargoSumByNumber);
+  }
+  return lookupTotal;
+}
+
 export function getParcelFreightSum(parcel: any, cargoSumByNumber?: Map<string, number>): number {
   const goods = getParcelGoodsObject(parcel);
   const direct = pickSendingFreightAmount(
