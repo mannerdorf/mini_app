@@ -578,9 +578,6 @@ export function invoiceMatchesEdoCounterpartyFilter(
   return filter === "with" ? isPartner : !isPartner;
 }
 
-  return false;
-}
-
 function invoiceMatchesBillStatusFilter(
   inv: Record<string, unknown>,
   billStatusFilterSet: Set<SharedBillStatusKey>,
