@@ -621,9 +621,10 @@
     margin-top: 0.75rem;
 }
 
+/* Оставлено для совместимости; список перевозок растягивается по содержимому, скролл — у страницы. */
 .haulz-dispatch-table-wrap--scroll {
-    max-height: 13.5rem;
-    overflow-y: auto;
+    max-height: none;
+    overflow-y: visible;
 }
 
 .haulz-dispatch-table-wrap--scroll .haulz-dispatch-table__th {
@@ -632,6 +633,20 @@
     z-index: 1;
     background: var(--color-bg-card);
     box-shadow: 0 1px 0 var(--color-border);
+}
+
+/* Грузовой поток: 7 дней — фиксированная высота и вертикальный скролл (как «Перевозки»). */
+.dashboard-cargo-flow-days-wrap {
+    min-width: 0;
+    width: 100%;
+}
+
+.dashboard-cargo-flow-days-wrap--scroll {
+    max-height: 13.5rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
 }
 
 .haulz-dispatch-table {
@@ -793,12 +808,16 @@
     }
 
     .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters .filters-row-scroll {
-        overflow-x: hidden;
+        overflow-x: auto;
         overflow-y: visible;
         -webkit-overflow-scrolling: touch;
         max-width: 100%;
         min-width: 0;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+    }
+
+    .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters .filter-group {
+        flex-shrink: 0;
     }
 
     .dashboard-page--saas-analytics #haulz-dispatch-dashboard {

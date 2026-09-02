@@ -231,7 +231,8 @@ export function CargoPage({
         try { localStorage.setItem(CARGO_TABLE_MODE_KEY, String(tableModeByCustomer)); } catch { /* ignore */ }
     }, [tableModeByCustomer]);
     const tableModeGroupedByCustomer = tableModeByCustomer && showCustomerColumn && effectiveServiceMode;
-    const tableModeFlatDirect = tableModeByCustomer && !tableModeGroupedByCustomer;
+    const tableModeFlatDirect = tableModeByCustomer && effectiveServiceMode && !tableModeGroupedByCustomer;
+    const tableModeEffective = tableModeByCustomer && effectiveServiceMode;
     /** Сортировка таблицы по заказчику: столбец и направление (а-я / я-а) */
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'mest' | 'pw' | 'w' | 'vol' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -531,12 +532,12 @@ export function CargoPage({
 
     /** Не разворачиваем первого заказчика по умолчанию — только сохраняем выбор, если строка ещё в выборке */
     useEffect(() => {
-        if (!tableModeByCustomer || sortedGroupedByCustomer.length === 0) return;
+        if (!tableModeEffective || sortedGroupedByCustomer.length === 0) return;
         setExpandedTableCustomer((prev) => {
             if (!prev) return null;
             return sortedGroupedByCustomer.some((row) => row.customer === prev) ? prev : null;
         });
-    }, [tableModeByCustomer, sortedGroupedByCustomer]);
+    }, [tableModeEffective, sortedGroupedByCustomer]);
 
     const handleTableSort = (column: typeof tableSortColumn) => {
         if (tableSortColumn === column) {
@@ -647,10 +648,14 @@ export function CargoPage({
                             compact
                         />
                     ) : null}
-                    <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
-                    <span className="roles-switch-wrap" style={{ display: 'inline-flex' }} aria-label={tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}>
-                        <TapSwitch checked={tableModeByCustomer} onToggle={() => setTableModeByCustomer(v => !v)} />
-                    </span>
+                    {effectiveServiceMode ? (
+                        <>
+                            <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
+                            <span className="roles-switch-wrap" style={{ display: 'inline-flex' }} aria-label={tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}>
+                                <TapSwitch checked={tableModeByCustomer} onToggle={() => setTableModeByCustomer(v => !v)} />
+                            </span>
+                        </>
+                    ) : null}
                 </Flex>
             </Flex>
             <div className="filters-container filters-row-scroll">
@@ -1083,7 +1088,7 @@ export function CargoPage({
                             motionEnabled={cargoMotionEnabled}
                         />
                     </motion.div>
-                ) : filteredItems.length > 0 && !tableModeByCustomer ? (
+                ) : filteredItems.length > 0 && !tableModeEffective ? (
                     <motion.div
                         key="cargo-view-cards"
                         className="cargo-cards-offset-desktop"

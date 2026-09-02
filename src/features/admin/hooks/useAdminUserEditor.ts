@@ -11,7 +11,6 @@ import {
 import {
   PERMISSION_KEYS,
   applyPermissionsToggle,
-  isPermissionLockedByRedReturns,
   isSuperadminOnlyPermissionKey,
   permissionsForAdminEditor,
 } from "../lib/permissions";
@@ -83,14 +82,8 @@ export function useAdminUserEditor({
   const handlePermissionsToggle = useCallback(
     (key: string) => {
       if (!isSuperAdmin && isSuperadminOnlyPermissionKey(key)) return;
-      if (isPermissionLockedByRedReturns(key, editorPermissions)) return;
       setEditorSelectedPresetId("");
-      const enablingRedReturns = key === "red_returns" && !editorPermissions.red_returns;
       setEditorPermissions((prev) => applyPermissionsToggle(prev, key));
-      if (enablingRedReturns) {
-        setEditorFinancial(false);
-        setEditorAccessAllInns(false);
-      }
     },
     [editorPermissions, isSuperAdmin],
   );

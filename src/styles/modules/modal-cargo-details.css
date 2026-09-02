@@ -255,6 +255,7 @@
     container-type: inline-size;
     width: 94%;
     max-width: min(900px, 94vw);
+    overflow-x: hidden;
 }
 
 .entity-detail-modal-title {
@@ -275,8 +276,51 @@
 .entity-detail-modal-table-wrap {
     border: 1px solid var(--color-border);
     border-radius: 8px;
-    overflow-x: auto;
+    overflow-x: hidden;
+    max-width: 100%;
+    min-width: 0;
     margin-top: 0.5rem;
+}
+
+@media (max-width: 768px) {
+    .entity-detail-modal-table-wrap .invoice-detail-table {
+        table-layout: fixed;
+        width: 100%;
+        font-size: 0.68rem;
+    }
+
+    .entity-detail-modal-table-wrap .invoice-detail-table th,
+    .entity-detail-modal-table-wrap .invoice-detail-table td {
+        padding: 0.35rem 0.22rem;
+        vertical-align: top;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+    }
+
+    /* Цена на узком экране скрыта — сумма строки остаётся */
+    .entity-detail-modal-table-wrap .invoice-detail-table th:nth-child(5),
+    .entity-detail-modal-table-wrap .invoice-detail-table td:nth-child(5) {
+        display: none;
+    }
+
+    .entity-detail-modal-table-wrap .invoice-detail-table .invoice-detail-table-route {
+        white-space: normal;
+        min-width: 0;
+    }
+
+    .entity-detail-modal-table-wrap .invoice-detail-table td:first-child {
+        max-width: none;
+    }
+
+    .entity-detail-modal-table-wrap .invoice-detail-table .app-badge,
+    .entity-detail-modal-table-wrap .invoice-detail-table .status-value {
+        font-size: 0.56rem !important;
+        padding: 0.12rem 0.28rem !important;
+        min-height: 1.15rem !important;
+        max-width: 100%;
+        white-space: normal;
+        text-align: center;
+    }
 }
 
 /* Карточка перевозки: шире на десктопе, статусы справа от плиток */

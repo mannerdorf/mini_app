@@ -103,7 +103,7 @@ export function DashboardCargoFlowWidget({
                 <Typography.Body style={DASH_PLAN_FACT_TYPO.subhead}>
                     Ближайшие 7 дней (плановое прибытие на терминал)
                 </Typography.Body>
-                <div className="dashboard-cargo-flow-days-wrap">
+                <div className="dashboard-cargo-flow-days-wrap dashboard-cargo-flow-days-wrap--scroll">
                     <div className="dashboard-cargo-flow-days-grid">
                         {cargoFlowByPlan.upcomingSeries.map((row) => {
                             const tileSel = { kind: 'tile' as const, dateKey: row.key };

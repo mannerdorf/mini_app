@@ -6,7 +6,6 @@ import {
   applyPermissionsToggle,
   applyPresetPermissionsWithSendingsGate,
   isDashboardPermissionDisabled,
-  isPermissionLockedByRedReturns,
   permissionsForAdminEditor,
   superadminRowPermissionActiveClass,
   type PermissionPreset,
@@ -78,9 +77,7 @@ export function AdminUserPermissionsMatrixPanel({ user, isSuperAdmin, permission
         <div className="admin-permissions-toolbar">
           {PERMISSION_ROW1_SUPERADMIN.map(({ key, label }) => {
             const isActive = key === "service_mode" ? (!!editorPermissions.service_mode || editorAccessAllInns) : !!editorPermissions[key];
-            const locked = isPermissionLockedByRedReturns(key, editorPermissions);
             const onClick = () => {
-              if (locked) return;
               setEditorSelectedPresetId("");
               if (key === "service_mode") {
                 const v = !(!!editorPermissions.service_mode || editorAccessAllInns);
@@ -96,8 +93,6 @@ export function AdminUserPermissionsMatrixPanel({ user, isSuperAdmin, permission
                 type="button"
                 className={`permission-button ${superadminRowPermissionActiveClass(key, isActive)}`}
                 onClick={onClick}
-                disabled={locked}
-                title={locked ? "Отключите «Возврат из КГД», чтобы изменить другие разделы" : undefined}
               >
                 {label}
               </button>
@@ -108,10 +103,8 @@ export function AdminUserPermissionsMatrixPanel({ user, isSuperAdmin, permission
       <div className="admin-permissions-toolbar" style={{ marginTop: isSuperAdmin ? "0.5rem" : 0 }}>
         {PERMISSION_ROW2_ORANGE.map(({ key, label }) => {
           const isActive = key === "__financial__" ? editorFinancial : !!editorPermissions[key];
-          const locked = editorPermissions.red_returns === true;
           const onClick = key === "__financial__"
             ? () => {
-                if (locked) return;
                 setEditorSelectedPresetId("");
                 setEditorFinancial(!editorFinancial);
               }
@@ -122,8 +115,6 @@ export function AdminUserPermissionsMatrixPanel({ user, isSuperAdmin, permission
               type="button"
               className={`permission-button ${isActive ? "active active-warning" : ""}`}
               onClick={onClick}
-              disabled={locked}
-              title={locked ? "Отключите «Возврат из КГД», чтобы изменить другие разделы" : undefined}
             >
               {label}
             </button>
@@ -133,8 +124,7 @@ export function AdminUserPermissionsMatrixPanel({ user, isSuperAdmin, permission
       <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
         {PERMISSION_ROW3_BLUE.map(({ key, label }) => {
           const isActive = !!editorPermissions[key];
-          const dis = isDashboardPermissionDisabled(key, editorPermissions)
-            || isPermissionLockedByRedReturns(key, editorPermissions);
+          const dis = isDashboardPermissionDisabled(key, editorPermissions);
           return (
             <button
               key={key}
@@ -142,13 +132,7 @@ export function AdminUserPermissionsMatrixPanel({ user, isSuperAdmin, permission
               className={`permission-button ${isActive ? "active" : ""}`}
               onClick={() => { if (!dis) handlePermissionsToggle(key); }}
               disabled={dis}
-              title={
-                isPermissionLockedByRedReturns(key, editorPermissions)
-                  ? "Отключите «Возврат из КГД», чтобы изменить другие разделы"
-                  : dis
-                    ? "Сначала включите «Аналитика»"
-                    : undefined
-              }
+              title={dis ? "Сначала включите «Аналитика»" : undefined}
             >
               {label}
             </button>

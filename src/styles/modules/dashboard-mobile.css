@@ -13,18 +13,6 @@
         overflow-x: hidden;
     }
 
-    /* П.9 — фильтры переносятся, без горизонтального скролла */
-    .dashboard-page--saas-analytics .dashboard-sticky-filters .filters-row-scroll {
-        flex-wrap: wrap;
-        overflow-x: hidden;
-        overflow-y: visible;
-    }
-
-    .dashboard-page--saas-analytics .dashboard-sticky-filters .filter-group {
-        flex-shrink: 1;
-        max-width: 100%;
-    }
-
     /* П.1 — грузовой поток: 7 дней в 2 колонки */
     .dashboard-cargo-flow-days-grid {
         display: grid;
@@ -131,6 +119,18 @@
 
     .dashboard-scroll-table tbody tr.dashboard-scroll-table__empty-row td::before {
         display: none;
+    }
+
+    /* HAULZ dispatch: список перевозок — без внутреннего скролла (карточки на мобиле высокие). */
+    .haulz-dispatch-table-wrap--scroll,
+    .haulz-dispatch-table-wrap.dashboard-scroll-table-wrap {
+        max-height: none;
+        overflow-y: visible;
+    }
+
+    .haulz-dispatch-table-wrap--scroll .haulz-dispatch-table__th {
+        position: static;
+        box-shadow: none;
     }
 
     /* HAULZ dispatch: вложенная таблица деталей */

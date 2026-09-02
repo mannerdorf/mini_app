@@ -1,6 +1,5 @@
 import React from "react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
-import { getDateTextColor } from "../../lib/dateUtils";
 import type { DashboardChartPoint, DashboardMainChartVariant } from "./dashboardTypes";
 
 export type DashboardMainChartProps = {
@@ -52,11 +51,11 @@ export function DashboardMainChart({
     const maxValue = Math.max(...roundedData.map(d => d.value), 1);
     const scaleMax = maxValue * 1.1;
 
-    const chartHeight = 125;
-    const paddingLeft = 60;
-    const paddingRight = 30;
-    const paddingTop = 16;
-    const paddingBottom = 45;
+    const chartHeight = 110;
+    const paddingLeft = 4;
+    const paddingRight = 4;
+    const paddingTop = 8;
+    const paddingBottom = 8;
     const chartWidth = Math.max(280, Math.floor(outerWidthPx));
     const innerPlotW = Math.max(80, chartWidth - paddingLeft - paddingRight);
     const n = roundedData.length;
@@ -96,7 +95,7 @@ export function DashboardMainChart({
                     viewBox={`0 0 ${chartWidth} ${chartHeight}`}
                     width="100%"
                     height={chartHeight}
-                    preserveAspectRatio="xMinYMid meet"
+                    preserveAspectRatio="none"
                     style={{ display: 'block', maxWidth: '100%' }}
                 >
                     <defs>
@@ -151,30 +150,6 @@ export function DashboardMainChart({
                     {variant === 'dot' && points.map((p, idx) => (
                         <circle key={`dot-main-${idx}`} cx={p.x + barWidth / 2} cy={p.y} r="4" fill={color} opacity="0.9" />
                     ))}
-
-                    {roundedData.map((d, idx) => {
-                        const { x, barWidth: bw } = points[idx];
-                        return (
-                            <g key={idx}>
-                                <text
-                                    x={x + bw / 2}
-                                    y={chartHeight - paddingBottom + 20}
-                                    fontSize="10"
-                                    fill={getDateTextColor((d as { dateKey?: string }).dateKey || d.date)}
-                                    textAnchor="middle"
-                                    transform={`rotate(-45 ${x + bw / 2} ${chartHeight - paddingBottom + 20})`}
-                                >
-                                    {(() => {
-                                        const raw = String(d?.date ?? "").trim();
-                                        if (!raw || raw === "—") return "—";
-                                        if (raw.includes(".")) return raw.split(".").slice(0, 2).join(".");
-                                        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw.slice(8, 10) + "." + raw.slice(5, 7);
-                                        return raw;
-                                    })()}
-                                </text>
-                            </g>
-                        );
-                    })}
                 </svg>
             </div>
         </div>
