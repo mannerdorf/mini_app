@@ -81,6 +81,41 @@ button.unpaid-plan-monitor:hover {
     z-index: 1;
 }
 
+.unpaid-plan-monitor__list-header--customer-unbilled,
+.unpaid-plan-monitor__summary-row--customer-unbilled {
+  grid-template-columns: minmax(0, 1fr) auto minmax(3.5rem, auto) minmax(4.5rem, auto);
+}
+
+.unpaid-plan-monitor__summary-row--customer-unbilled {
+  grid-template-columns: minmax(0, 1fr) auto minmax(3.5rem, auto) minmax(4.5rem, auto) 1rem;
+}
+
+.unpaid-plan-monitor__list-header--customer-unbilled span:nth-child(3),
+.unpaid-plan-monitor__cell--unbilled {
+  text-align: right;
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+}
+
+.unpaid-plan-monitor__cell--unbilled--has {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.unpaid-plan-monitor__details-section-title {
+  padding: 0.35rem 0.1rem 0.15rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.unpaid-plan-monitor__details-header--unbilled,
+.unpaid-plan-monitor__detail-row--unbilled {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(4.5rem, auto);
+}
+
 .unpaid-plan-monitor__list-header--customer,
 .unpaid-plan-monitor__summary-row--customer {
     grid-template-columns: minmax(0, 1fr) auto minmax(4.5rem, auto);

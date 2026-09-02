@@ -1,4 +1,4 @@
-import { invoiceDocSum } from "../../../../lib/invoiceAmounts.js";
+import { invoiceBalance, invoiceDocSum, isOutstandingDebtInvoice } from "../../../../lib/invoiceAmounts.js";
 import { innIsEdoPartner, type EdoCounterpartyFilter } from "../../../lib/edoCounterpartyStatus";
 import { cityToCode, normalizeInvoiceStatus, parseCargoNumbersFromText, stripOoo } from "../../../lib/formatUtils";
 import { coerceStatusDisplay, getFilterKeyByStatus, getInvoicePaymentFilterKey } from "../../../lib/statusUtils";
@@ -496,6 +496,7 @@ type FilterInvoicesParams = {
   cargoStateByNumber: Map<string, string>;
   cargoRouteByNumber: Map<string, string>;
   cargoTransportByNumber: Map<string, string>;
+  cargoSumPaidByNumber?: Map<string, number>;
 };
 
 export function linkedCargoMatchesTransportFilter(
@@ -577,6 +578,26 @@ export function invoiceMatchesEdoCounterpartyFilter(
   return filter === "with" ? isPartner : !isPartner;
 }
 
+  return false;
+}
+
+function invoiceMatchesBillStatusFilter(
+  inv: Record<string, unknown>,
+  billStatusFilterSet: Set<SharedBillStatusKey>,
+  cargoSumPaidByNumber?: Map<string, number>,
+  getFirstCargoNumber?: (inv: any) => string | null,
+): boolean {
+  if (billStatusFilterSet.size === 0) return true;
+  for (const filterKey of billStatusFilterSet) {
+    if (filterKey === "unpaid") {
+      if (isOutstandingDebtInvoice(inv, cargoSumPaidByNumber, getFirstCargoNumber)) return true;
+    } else if (getInvoicePaymentFilterKey(inv) === filterKey) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function buildFilteredInvoices(params: FilterInvoicesParams) {
   const {
     items,
@@ -601,6 +622,7 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
     cargoRouteByNumber,
     cargoTransportByNumber,
     transportLinkedCargoNumbers,
+    cargoSumPaidByNumber,
   } = params;
 
   let res = [...items];
@@ -615,7 +637,9 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
     res = res.filter((i) => isInvoiceFavorite(String(i?.Number ?? i?.number ?? i?.Номер ?? i?.N ?? "")));
   }
   if (billStatusFilterSet.size > 0) {
-    res = res.filter((i) => billStatusFilterSet.has(getInvoicePaymentFilterKey(i)));
+    res = res.filter((i) =>
+      invoiceMatchesBillStatusFilter(i, billStatusFilterSet, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice),
+    );
   }
   if (typeFilterSet.size > 0) {
     res = res.filter((i) => matchesTypeFilterSet(getCargoTransportType(i as never), typeFilterSet));
@@ -866,15 +890,24 @@ export function buildDocsSummary(list: any[], perevozkiItems?: any[]): DocsSumma
   return { sum, count: list.length, ...buildLinkedCargoMetrics(list, perevozkiItems) };
 }
 
-/** Итоги счетов: сумма по полям счёта, метрики груза — по связанным перевозкам. */
+/** Итоги счетов: по умолчанию остаток к оплате (balance); метрики груза — по связанным перевозкам. */
 export function buildInvoicesSummary(
   filteredInvoices: any[],
   _acts: any[] | undefined | null,
   perevozkiItems?: any[],
+  options?: {
+    cargoSumPaidByNumber?: Map<string, number>;
+    getFirstCargoNumber?: (inv: any) => string | null;
+    /** false — полная сумма документа (для ЭДО и пр.). */
+    useBalance?: boolean;
+  },
 ): DocsSummaryTotals {
+  const useBalance = options?.useBalance !== false;
   let sum = 0;
   filteredInvoices.forEach((inv) => {
-    sum += invoiceDocSum(inv);
+    sum += useBalance
+      ? invoiceBalance(inv, options?.cargoSumPaidByNumber, options?.getFirstCargoNumber)
+      : invoiceDocSum(inv);
   });
   return {
     sum,

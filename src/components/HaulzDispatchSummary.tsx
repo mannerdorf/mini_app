@@ -703,29 +703,28 @@ export function HaulzDispatchSummary({
                                                         aria-expanded={groupOpen}
                                                         title={groupOpen ? "Свернуть список перевозок" : "Показать перевозки заказчика"}
                                                     >
-                                                        <td style={{ padding: "0.35rem", whiteSpace: "nowrap", verticalAlign: "middle" }}>
-                                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                                        <td className="haulz-dispatch-table__group-row__lead" style={{ padding: "0.35rem", whiteSpace: "nowrap", verticalAlign: "middle" }}>
+                                                            <span className="haulz-dispatch-table__group-row__lead-inner">
                                                                 {groupOpen ? (
                                                                     <ChevronDown className="w-4 h-4" style={{ flexShrink: 0, opacity: 0.85 }} aria-hidden />
                                                                 ) : (
                                                                     <ChevronRight className="w-4 h-4" style={{ flexShrink: 0, opacity: 0.85 }} aria-hidden />
                                                                 )}
                                                                 {!showCustomerColumn && (
-                                                                    <span style={{ fontWeight: 600, fontSize: "0.78rem" }} title={customerKey}>
+                                                                    <span className="haulz-dispatch-table__group-customer-name" title={customerKey}>
                                                                         {customerKey}
                                                                     </span>
                                                                 )}
-                                                                <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>
+                                                                <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", flexShrink: 0 }}>
                                                                     {rows.length}
                                                                 </Typography.Body>
                                                             </span>
                                                         </td>
                                                         {showCustomerColumn && (
                                                         <td
-                                                            className="customer-col"
+                                                            className="customer-col haulz-dispatch-table__group-customer-name"
                                                             style={{
                                                                 padding: "0.35rem",
-                                                                maxWidth: 220,
                                                                 overflow: "hidden",
                                                                 textOverflow: "ellipsis",
                                                                 whiteSpace: "nowrap",

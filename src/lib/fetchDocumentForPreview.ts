@@ -10,6 +10,7 @@ export type FetchDocumentParams = {
   number: string;
   dateDoc?: string | null;
   dateDog?: string | null;
+  inn?: string | null;
 };
 
 export type FetchDocumentResult = {
@@ -35,14 +36,23 @@ function extractFileNameFromDisposition(header: string | null, fallback: string)
   return fallback;
 }
 
-function buildDownloadQuery(auth: AuthData, params: FetchDocumentParams): URLSearchParams {
-  const qs = new URLSearchParams();
-  const body = buildDownloadRequestBody(auth, {
+function buildDownloadPayload(params: FetchDocumentParams): Record<string, unknown> {
+  return {
     metod: params.metod,
     number: params.number,
     ...(params.dateDoc ? { dateDoc: params.dateDoc } : {}),
     ...(params.dateDog ? { dateDog: params.dateDog } : {}),
-  });
+    ...(params.inn ? { inn: params.inn } : {}),
+  };
+}
+
+function buildDownloadQuery(auth: AuthData | null | undefined, params: FetchDocumentParams): URLSearchParams {
+  const qs = new URLSearchParams();
+  const payload = buildDownloadPayload(params);
+  const body =
+    auth?.login && auth?.password
+      ? buildDownloadRequestBody(auth, payload)
+      : payload;
   for (const [key, value] of Object.entries(body)) {
     if (value != null && value !== "") qs.set(key, String(value));
   }
@@ -50,7 +60,10 @@ function buildDownloadQuery(auth: AuthData, params: FetchDocumentParams): URLSea
 }
 
 /** GET /api/download → бинарный PDF (без base64 JSON через мост Capacitor). */
-async function fetchViaGetBinary(auth: AuthData, params: FetchDocumentParams): Promise<FetchDocumentResult> {
+async function fetchViaGetBinary(
+  auth: AuthData | null | undefined,
+  params: FetchDocumentParams,
+): Promise<FetchDocumentResult> {
   const url = `${toAbsoluteApiUrl("/api/download")}?${buildDownloadQuery(auth, params).toString()}`;
   const res = await apiFetch(url, { method: "GET" });
   const contentType = res.headers.get("content-type") || "";
@@ -71,18 +84,19 @@ async function fetchViaGetBinary(auth: AuthData, params: FetchDocumentParams): P
   };
 }
 
-async function fetchViaPostJson(auth: AuthData, params: FetchDocumentParams): Promise<FetchDocumentResult> {
+async function fetchViaPostJson(
+  auth: AuthData | null | undefined,
+  params: FetchDocumentParams,
+): Promise<FetchDocumentResult> {
+  const payload = buildDownloadPayload(params);
+  const body =
+    auth?.login && auth?.password
+      ? buildDownloadRequestBody(auth, payload)
+      : payload;
   const data = await apiFetchJson<{ data?: string; name?: string; isHtml?: boolean }>("/api/download", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(
-      buildDownloadRequestBody(auth, {
-        metod: params.metod,
-        number: params.number,
-        ...(params.dateDoc ? { dateDoc: params.dateDoc } : {}),
-        ...(params.dateDog ? { dateDog: params.dateDog } : {}),
-      }),
-    ),
+    body: JSON.stringify(body),
   });
   if (!data?.data || !data.name) throw new Error("Документ не найден");
   const byteArray = decodeBase64Payload(data.data);
@@ -96,7 +110,7 @@ async function fetchViaPostJson(auth: AuthData, params: FetchDocumentParams): Pr
 
 /** Загрузить документ для inline-просмотра (pdf.js). */
 export async function fetchDocumentForPreview(
-  auth: AuthData,
+  auth: AuthData | null | undefined,
   params: FetchDocumentParams,
 ): Promise<FetchDocumentResult> {
   if (isCapacitorNative()) {

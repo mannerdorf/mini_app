@@ -139,19 +139,25 @@
     flex: 1 1 auto;
 }
 
-/* Табличный режим перевозок: бейджи сеткой по уровням без наложения */
+/* Табличный режим перевозок: бейджи по уровням, перенос строк, без обрезки и наложения */
 .cargo-inner-table .cargo-logistics-badges,
 .cargo-inner-table .cargo-inner-table__badges {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.24rem 0.18rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
     width: 100%;
-    align-items: stretch;
+    min-width: 0;
 }
 
 .cargo-inner-table .cargo-logistics-badges__flow,
 .cargo-inner-table .cargo-logistics-badges__meta {
-    display: contents;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.28rem;
+    width: 100%;
+    min-width: 0;
 }
 
 .cargo-inner-table .cargo-logistics-badges__arrow {
@@ -161,16 +167,60 @@
 .cargo-inner-table .cargo-logistics-badges .max-badge,
 .cargo-inner-table .cargo-logistics-badges .app-badge,
 .cargo-inner-table .cargo-inner-table__route-inline {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 100% !important;
+    flex-shrink: 0;
+    width: auto !important;
     max-width: none !important;
     min-width: 0;
     box-sizing: border-box;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+.cargo-inner-table .cargo-inner-table__route-inline {
+    flex-basis: 100%;
+}
+
+/* Документы (счета/УПД): бейджи в таблице — перенос по строкам, без обрезки */
+.documents-invoices-inner-table .documents-invoices-inner-table__badges,
+.documents-acts-inner-table .documents-invoices-inner-table__badges {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.28rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.documents-invoices-inner-table .documents-invoice-inner-badge-wrap,
+.documents-acts-inner-table .documents-invoice-inner-badge-wrap {
+    display: inline-flex;
+    align-items: center;
+    width: auto;
+    max-width: none;
+}
+
+.documents-invoices-inner-table .documents-invoice-inner-badge,
+.documents-invoices-inner-table .documents-invoices-inner-table__badges .max-badge,
+.documents-invoices-inner-table .documents-invoices-inner-table__badges .app-badge,
+.documents-acts-inner-table .documents-invoice-inner-badge,
+.documents-acts-inner-table .documents-invoices-inner-table__badges .max-badge,
+.documents-acts-inner-table .documents-invoices-inner-table__badges .app-badge {
+    flex-shrink: 0;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: nowrap;
+}
+
+.documents-invoices-inner-table .cargo-inner-table__route-inline,
+.documents-acts-inner-table .cargo-inner-table__route-inline {
+    flex-basis: 100%;
 }
 
 .cargo-inner-table__delivery-inline {
@@ -273,21 +323,17 @@
     .documents-invoices-inner-table .documents-invoices-inner-table__badges,
     .documents-acts-inner-table .cargo-inner-table__badges--stack-mobile,
     .documents-acts-inner-table .documents-invoices-inner-table__badges {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.16rem;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.22rem;
         width: 100%;
-        max-width: 5.35rem;
+        max-width: none;
     }
 
-    .documents-invoices-inner-table .documents-invoice-inner-badge-wrap {
-        display: block;
-        width: 100%;
-    }
-
+    .documents-invoices-inner-table .documents-invoice-inner-badge-wrap,
     .documents-acts-inner-table .documents-invoice-inner-badge-wrap {
-        display: block;
-        width: 100%;
+        display: inline-flex;
+        width: auto;
     }
 
     .documents-invoices-inner-table .documents-invoice-inner-badge,
@@ -295,22 +341,15 @@
     .documents-acts-inner-table .documents-invoice-inner-badge,
     .documents-acts-inner-table .documents-invoices-inner-table__badges .max-badge,
     .documents-acts-inner-table .documents-invoices-inner-table__badges .app-badge {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        width: 100% !important;
-        min-width: 0;
-        height: 1.2rem !important;
-        min-height: 1.2rem !important;
-        max-height: 1.2rem !important;
-        box-sizing: border-box;
-        text-align: center;
-        font-size: 0.56rem !important;
-        padding: 0 0.22rem !important;
-        line-height: 1 !important;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        font-size: 0.62rem !important;
+        padding: 0.18rem 0.45rem !important;
+        line-height: 1.2 !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        width: auto !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
     }
 
     .documents-invoices-inner-table .cargo-inner-table__route-inline {
@@ -506,39 +545,40 @@
 
     .cargo-inner-table .cargo-logistics-badges,
     .cargo-inner-table .cargo-inner-table__badges {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.18rem 0.14rem;
+        gap: 0.22rem;
     }
 
-    .cargo-inner-table .cargo-inner-table__route-inline {
-        grid-column: 1 / -1;
+    .cargo-inner-table .cargo-logistics-badges__flow,
+    .cargo-inner-table .cargo-logistics-badges__meta {
+        gap: 0.22rem;
     }
 
     .cargo-inner-table .cargo-logistics-badges .max-badge,
     .cargo-inner-table .cargo-logistics-badges .app-badge,
     .cargo-inner-table .cargo-inner-table__route-inline {
-        height: 1.15rem !important;
-        min-height: 1.15rem !important;
-        max-height: 1.15rem !important;
-        font-size: 0.52rem !important;
-        padding: 0 0.28rem !important;
-        line-height: 1 !important;
+        font-size: 0.62rem !important;
+        padding: 0.18rem 0.45rem !important;
+        line-height: 1.2 !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
     }
 
     .cargo-inner-table .cargo-inner-table__col-route .app-badge,
     .documents-invoices-inner-table .cargo-inner-table__col-route .app-badge {
-        font-size: 0.56rem !important;
-        padding: 0 0.22rem !important;
-        height: 1.2rem !important;
-        min-height: 1.2rem !important;
-        max-height: 1.2rem !important;
-        max-width: 100%;
+        font-size: 0.62rem !important;
+        padding: 0.18rem 0.45rem !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        max-width: none;
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        display: flex !important;
+        overflow: visible;
+        text-overflow: clip;
+        display: inline-flex !important;
         align-items: center !important;
-        justify-content: center !important;
     }
 }
 

@@ -133,6 +133,7 @@ export function useDocumentsInvoices({
       cargoStateByNumber,
       cargoRouteByNumber,
       cargoTransportByNumber,
+      cargoSumPaidByNumber,
     });
   }, [
     invoiceFilterInputs,
@@ -148,18 +149,24 @@ export function useDocumentsInvoices({
     cargoStateByNumber,
     cargoRouteByNumber,
     cargoTransportByNumber,
+    cargoSumPaidByNumber,
   ]);
 
   const documentsSummary = useMemo(
-    () => buildInvoicesSummary(filteredInvoiceItems, actsItems, perevozkiItems),
-    [filteredInvoiceItems, actsItems, perevozkiItems]
+    () =>
+      buildInvoicesSummary(filteredInvoiceItems, actsItems, perevozkiItems, {
+        cargoSumPaidByNumber,
+        getFirstCargoNumber: getFirstCargoNumberFromInvoice,
+        useBalance: true,
+      }),
+    [filteredInvoiceItems, actsItems, perevozkiItems, cargoSumPaidByNumber],
   );
 
   const groupedByCustomer = useMemo(() => {
     const map = new Map<string, { customer: string; items: any[]; sum: number }>();
     filteredInvoiceItems.forEach((inv) => {
       const key = (inv.Customer ?? inv.customer ?? inv.Контрагент ?? inv.Contractor ?? inv.Organization ?? "").trim() || "—";
-      const sum = invoiceDocSum(inv);
+      const sum = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
       const existing = map.get(key);
       if (existing) {
         existing.items.push(inv);

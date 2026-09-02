@@ -13,9 +13,7 @@ import {
     enableNativePushNotifications,
     hasStoredNativeFcmToken,
     isNativePushEnvironment,
-    NATIVE_PUSH_CLIENT_MARK,
 } from "../lib/androidPushNotifications";
-import { getInstalledAppInfo } from "../lib/appVersionInfo";
 import { resolveAccountActiveInn } from "../lib/accountCustomer";
 import { useAuth } from "../contexts/AuthContext";
 import { CARGO_NOTIFICATION_STAGES, CARGO_STAGE_EVENT_IDS, isCargoStageNotificationEnabled, type CargoStageEventId } from "../../lib/notificationCargoEvents";
@@ -71,7 +69,6 @@ export function NotificationsPage({
     const [pushLoading, setPushLoading] = useState(false);
     const [pushError, setPushError] = useState<string | null>(null);
     const [pushEnabled, setPushEnabled] = useState(false);
-    const [installLabel, setInstallLabel] = useState("");
     const prefsRef = useRef(prefs);
     const prefsDirtyRef = useRef(false);
     const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -82,19 +79,6 @@ export function NotificationsPage({
     const { auth } = useAuth();
     const login = activeAccount?.login?.trim().toLowerCase() || "";
     const isNativePush = isNativePushEnvironment();
-
-    useEffect(() => {
-        if (!isNativePush) return;
-        let cancelled = false;
-        void getInstalledAppInfo().then((info) => {
-            if (cancelled) return;
-            const build = info.buildNumber != null ? `(${info.buildNumber})` : "";
-            setInstallLabel(`${info.versionName} ${build}`.trim());
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [isNativePush]);
 
     const isCargoPrefEnabled = useCallback(
         (channel: "push" | "email", eventId: CargoStageEventId) =>
@@ -355,17 +339,15 @@ export function NotificationsPage({
                     <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                         {isNativePush ? (
                             <>
-                                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-                                    Уведомления о перевозках и документах на телефон через Firebase Cloud Messaging.
-                                </Typography.Body>
-                                <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}>
-                                    {installLabel || "…"} · {NATIVE_PUSH_CLIENT_MARK} · FCM:{" "}
-                                    {hasStoredNativeFcmToken(login) ? "токен на этом телефоне есть" : "токена на этом телефоне нет"}
-                                </Typography.Body>
                                 {!pushEnabled ? (
-                                    <Button type="button" className="button-primary" disabled={pushLoading} onClick={enablePush}>
-                                        {pushLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Включить push-уведомления"}
-                                    </Button>
+                                    <>
+                                        <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                                            Уведомления о перевозках и документах на телефон.
+                                        </Typography.Body>
+                                        <Button type="button" className="button-primary" disabled={pushLoading} onClick={enablePush}>
+                                            {pushLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Включить push-уведомления"}
+                                        </Button>
+                                    </>
                                 ) : (
                                     <>
                                         <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-success, #22c55e)" }}>
