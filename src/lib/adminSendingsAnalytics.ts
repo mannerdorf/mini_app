@@ -131,8 +131,11 @@ export function getSendingRouteLabel(item: SendingItem): string {
 
 export function getSendingsTransportType(item: SendingItem): CargoTransportType | null {
   const vehicle = getSendingVehicleLabel(item);
-  if (vehicle === "—") return null;
-  const mode = getSendingRowTransportMode(item, vehicle);
+  if (vehicle !== "—") {
+    const mode = getSendingRowTransportMode(item, vehicle);
+    if (mode === "auto" || mode === "ferry" || mode === "air") return mode;
+  }
+  const mode = getSendingRowTransportMode(item, "");
   return mode === "auto" || mode === "ferry" || mode === "air" ? mode : null;
 }
 
