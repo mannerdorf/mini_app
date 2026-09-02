@@ -5,6 +5,12 @@ import { DateText } from "../../../components/ui/DateText";
 import { FilterDropdownPortal } from "../../../components/ui/FilterDropdownPortal";
 import { fetchAdminSendings } from "../../../api/client/admin/sendings";
 import {
+  fetchHaulzInvoices,
+  fetchHaulzPerevozki,
+  fetchHaulzSendings,
+} from "../../../api/client/haulzAnalytics";
+import type { AuthData } from "../../../types";
+import {
   buildSendingsAnalysis,
   buildSendingsDeliveryWithinDays,
   buildSendingsDetailRows,
@@ -157,7 +163,15 @@ function WithinDaysBars({ buckets, color }: { buckets: SendingsWithinDaysBucket[
   );
 }
 
-export function AdminSendingsAnalysisSection({ adminToken }: { adminToken: string }) {
+export function AdminSendingsAnalysisSection({
+  adminToken,
+  auth,
+  useServiceRequest = false,
+}: {
+  adminToken?: string;
+  auth?: AuthData;
+  useServiceRequest?: boolean;
+}) {
   const dateFilterControls = usePersistedDateFilter();
   const {
     dateFilter,
@@ -187,14 +201,24 @@ export function AdminSendingsAnalysisSection({ adminToken }: { adminToken: strin
   const [expandedType, setExpandedType] = useState<CargoTransportType | null>(null);
 
   const loadItems = useCallback(async () => {
-    if (!adminToken) return { current: [] as SendingItem[], prev: [] as SendingItem[] };
-    const currentPromise = fetchAdminSendings(adminToken, apiDateRange);
+    if (adminToken) {
+      const currentPromise = fetchAdminSendings(adminToken, apiDateRange);
+      const prevPromise = prevRange
+        ? fetchAdminSendings(adminToken, prevRange)
+        : Promise.resolve([] as SendingItem[]);
+      const [current, prev] = await Promise.all([currentPromise, prevPromise]);
+      return { current, prev };
+    }
+    if (!auth?.login || !auth?.password) {
+      return { current: [] as SendingItem[], prev: [] as SendingItem[] };
+    }
+    const currentPromise = fetchHaulzSendings(auth, apiDateRange, useServiceRequest);
     const prevPromise = prevRange
-      ? fetchAdminSendings(adminToken, prevRange)
+      ? fetchHaulzSendings(auth, prevRange, useServiceRequest)
       : Promise.resolve([] as SendingItem[]);
     const [current, prev] = await Promise.all([currentPromise, prevPromise]);
     return { current, prev };
-  }, [adminToken, apiDateRange, prevRange]);
+  }, [adminToken, auth, useServiceRequest, apiDateRange, prevRange]);
 
   useEffect(() => {
     let cancelled = false;

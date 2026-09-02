@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { Button } from "@maxhub/max-ui";
+import { Loader2 } from "lucide-react";
 import type { Account, AuthData, ProfileView } from "../types";
 import { CompaniesListPage } from "./CompaniesListPage";
 import { CompaniesPage } from "./CompaniesPage";
@@ -32,6 +33,22 @@ import { isNativePushEnvironment } from "../lib/androidPushNotifications";
 import { useAppShell } from "../contexts/AppShellContext";
 import { usePullRefreshListener } from "../hooks/usePullRefreshListener";
 import { useProfileEmployees, ProfileEmployeesSection, useDepartmentTimesheet, ProfileDepartmentTimesheetSection, useProfileAccounting, ProfileAccountingSection, useProfileMain, ProfileMainSection } from "../features/profile";
+
+const HaulzSendingsAnalysisPage = lazy(() =>
+  import("./HaulzSendingsAnalysisPage").then((m) => ({ default: m.HaulzSendingsAnalysisPage })),
+);
+const HaulzDeliveredWithoutAppPage = lazy(() =>
+  import("./HaulzDeliveredWithoutAppPage").then((m) => ({ default: m.HaulzDeliveredWithoutAppPage })),
+);
+
+function HaulzAnalyticsPageLoader() {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "1.5rem 0", color: "var(--color-text-secondary)" }}>
+      <Loader2 className="w-5 h-5 animate-spin" aria-hidden />
+      Загрузка…
+    </div>
+  );
+}
 
 export function ProfilePage({
     accounts,
@@ -157,6 +174,15 @@ export function ProfilePage({
     }, [currentView]);
 
     useEffect(() => {
+        if (
+            (currentView === "haulzSendingsAnalysis" || currentView === "haulzDeliveredWithoutApp") &&
+            activeAccount?.permissions?.haulz !== true
+        ) {
+            setCurrentView("haulz");
+        }
+    }, [currentView, activeAccount?.permissions?.haulz]);
+
+    useEffect(() => {
         if (currentView === "haulzSandbox" || currentView === "haulzSummary") {
             setCurrentView("haulz");
         }
@@ -218,6 +244,39 @@ export function ProfilePage({
         } : null;
         return (
             <HaulzReturnsPage auth={auth} onBack={() => setCurrentView("haulz")} />
+        );
+    }
+
+    if (currentView === "haulzSendingsAnalysis" || currentView === "haulzDeliveredWithoutApp") {
+        if (!activeAccount || activeAccount.permissions?.haulz !== true) {
+            return null;
+        }
+        const auth: AuthData = {
+            login: activeAccount.login,
+            password: activeAccount.password,
+            inn: activeAccount.activeCustomerInn ?? activeAccount.customers?.[0]?.inn,
+            ...(activeAccount.isRegisteredUser === true ? { isRegisteredUser: true } : {}),
+        };
+        const useServiceRequest = activeAccount.permissions?.service_mode === true;
+        if (currentView === "haulzSendingsAnalysis") {
+            return (
+                <Suspense fallback={<HaulzAnalyticsPageLoader />}>
+                    <HaulzSendingsAnalysisPage
+                        auth={auth}
+                        useServiceRequest={useServiceRequest}
+                        onBack={() => setCurrentView("haulz")}
+                    />
+                </Suspense>
+            );
+        }
+        return (
+            <Suspense fallback={<HaulzAnalyticsPageLoader />}>
+                <HaulzDeliveredWithoutAppPage
+                    auth={auth}
+                    useServiceRequest={useServiceRequest}
+                    onBack={() => setCurrentView("haulz")}
+                />
+            </Suspense>
         );
     }
 

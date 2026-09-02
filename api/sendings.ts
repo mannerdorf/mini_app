@@ -12,6 +12,7 @@ import { liveInTransitHoursFromMetrics } from "../lib/transitDateTime.js";
 import { readDocumentsFromCacheByPeriod } from "../lib/documentCacheRead.js";
 import {
   getSuperAdminRequestContext,
+  getAdminTokenAuthError,
   isVerifiedSuperAdmin,
   readSuperAdminDocumentsFromCache,
   resolveCredentialsForSuperAdmin,
@@ -349,6 +350,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       logError(ctx, "sendings_admin_cache_failed", e);
       return res.status(500).json({ error: "Ошибка чтения кэша отправок", request_id: ctx.requestId });
     }
+  }
+
+  const adminTokenError = getAdminTokenAuthError(superAdminCtx);
+  if (adminTokenError === "expired") {
+    return res.status(401).json({ error: "Сессия админки истекла", request_id: ctx.requestId });
+  }
+  if (adminTokenError === "forbidden") {
+    return res.status(403).json({ error: "Доступ только для суперадминистратора", request_id: ctx.requestId });
   }
 
   const superAdminCreds = resolveCredentialsForSuperAdmin(superAdminCtx, login, password);

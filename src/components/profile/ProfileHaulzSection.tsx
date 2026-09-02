@@ -59,6 +59,16 @@ export function ProfileHaulzSection({
                     </Button>
                 )}
                 {activeAccount?.permissions?.haulz === true && (
+                    <Button type="button" className="button-primary" onClick={() => navigateTo("haulzSendingsAnalysis")}>
+                        Анализ отправок
+                    </Button>
+                )}
+                {activeAccount?.permissions?.haulz === true && (
+                    <Button type="button" className="button-primary" onClick={() => navigateTo("haulzDeliveredWithoutApp")}>
+                        Без АПП
+                    </Button>
+                )}
+                {activeAccount?.permissions?.haulz === true && (
                     <Button type="button" className="button-primary" onClick={() => navigateTo("haulzReturns")}>
                         {RED_RETURNS_LABEL}
                     </Button>

@@ -31,6 +31,14 @@ export function isVerifiedSuperAdmin(ctx: SuperAdminRequestContext): boolean {
   return Boolean(ctx.adminToken && verifyAdminToken(ctx.adminToken) && ctx.isSuperAdmin);
 }
 
+/** CMS передал admin-токен, но он истёк или не прошёл проверку подписи. */
+export function getAdminTokenAuthError(ctx: SuperAdminRequestContext): "expired" | "forbidden" | null {
+  if (!ctx.adminToken) return null;
+  if (!verifyAdminToken(ctx.adminToken)) return "expired";
+  if (!ctx.isSuperAdmin) return "forbidden";
+  return null;
+}
+
 export async function readSuperAdminDocumentsFromCache(
   pool: Pool,
   kind: NormalizedDocumentKind,

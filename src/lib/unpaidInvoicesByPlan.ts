@@ -4,10 +4,9 @@ import {
   invoiceDocSum,
   isOutstandingDebtInvoice,
 } from "../../lib/invoiceAmounts.js";
-import { hasBillSignal } from "../../lib/notificationPoll.js";
 import { parseCargoNumbersFromText, stripOoo } from "./formatUtils";
 import { getCargoRoleSet } from "./cargoUtils";
-import { getInvoicePaymentFilterKey } from "./statusUtils";
+import { getInvoicePaymentFilterKey, getPaymentFilterKey } from "./statusUtils";
 import { buildRouteTypePlanDaysMap, getEffectivePlannedDeliveryDate } from "./cargoPlannedDelivery";
 import type { CargoItem } from "../types";
 
@@ -246,9 +245,20 @@ function cargoCustomerName(item: CargoItem): string {
   ).trim();
 }
 
+function cargoBillStatusKey(item: CargoItem): ReturnType<typeof getPaymentFilterKey> {
+  const stateBill = String(
+    item.StateBill ??
+      (item as Record<string, unknown>).stateBill ??
+      (item as Record<string, unknown>).StatusBill ??
+      "",
+  ).trim();
+  return getPaymentFilterKey(stateBill || undefined);
+}
+
+/** Невыставлено: перевозки заказчика, у которых статус счёта «Не указан». */
 function isUnbilledCustomerCargo(item: CargoItem): boolean {
   if (!getCargoRoleSet(item).has("Customer")) return false;
-  if (hasBillSignal(item)) return false;
+  if (cargoBillStatusKey(item) !== "unknown") return false;
   if (parseCargoSum(item) <= 0.005) return false;
   return cargoCustomerName(item).length > 0;
 }

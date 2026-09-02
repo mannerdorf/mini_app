@@ -327,8 +327,8 @@ export function UnpaidInvoicesPlanMonitor({
                           }`}
                           title={
                             group.unbilledCount > 0
-                              ? `${group.unbilledCount} перевозок без счёта`
-                              : "Невыставленных перевозок нет"
+                              ? `${group.unbilledCount} перев. · статус счёта не указан`
+                              : "Нет перевозок со статусом счёта «Не указан»"
                           }
                         >
                           {group.unbilledCount > 0
@@ -370,7 +370,7 @@ export function UnpaidInvoicesPlanMonitor({
                           )}
                           {group.unbilledItems.length > 0 && (
                             <>
-                              <div className="unpaid-plan-monitor__details-section-title">Невыставленные перевозки</div>
+                              <div className="unpaid-plan-monitor__details-section-title">Невыставленные перевозки (статус счёта не указан)</div>
                               <div className="unpaid-plan-monitor__details-header unpaid-plan-monitor__details-header--unbilled">
                                 <span>Перевозка</span>
                                 <span>Статус</span>
@@ -405,8 +405,8 @@ export function UnpaidInvoicesPlanMonitor({
                       }`}
                       title={
                         unbilledCount > 0
-                          ? `${unbilledCount} невыставленных перевозок`
-                          : "Невыставленных перевозок нет"
+                          ? `${unbilledCount} перев. · статус счёта не указан`
+                          : "Нет перевозок со статусом счёта «Не указан»"
                       }
                     >
                       {unbilledCount > 0

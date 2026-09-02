@@ -5,6 +5,8 @@ import { DateText } from "../../../components/ui/DateText";
 import * as dateUtils from "../../../lib/dateUtils";
 import { fetchAdminInvoices } from "../../../api/client/admin/invoices";
 import { fetchAdminPerevozki } from "../../../api/client/admin/perevozki";
+import { fetchHaulzInvoices, fetchHaulzPerevozki } from "../../../api/client/haulzAnalytics";
+import type { AuthData } from "../../../types";
 import {
   buildDeliveredWithoutAppReport,
   expandInvoiceLookupDateFrom,
@@ -13,7 +15,15 @@ import type { CargoItem } from "../../../types";
 
 const MONTH_NAMES = dateUtils.MONTH_NAMES;
 
-export function AdminDeliveredWithoutAppSection({ adminToken }: { adminToken: string }) {
+export function AdminDeliveredWithoutAppSection({
+  adminToken,
+  auth,
+  useServiceRequest = false,
+}: {
+  adminToken?: string;
+  auth?: AuthData;
+  useServiceRequest?: boolean;
+}) {
   const [period, setPeriod] = useState(() => {
     const n = new Date();
     return { year: n.getFullYear(), month: n.getMonth() + 1 };
@@ -48,13 +58,22 @@ export function AdminDeliveredWithoutAppSection({ adminToken }: { adminToken: st
   const [error, setError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    if (!adminToken) return { cargo: [] as CargoItem[], invoices: [] as unknown[] };
+    if (adminToken) {
+      const [cargo, inv] = await Promise.all([
+        fetchAdminPerevozki(adminToken, dateRange, { dateField: "vr" }),
+        fetchAdminInvoices(adminToken, invoiceLookupRange),
+      ]);
+      return { cargo, invoices: inv };
+    }
+    if (!auth?.login || !auth?.password) {
+      return { cargo: [] as CargoItem[], invoices: [] as unknown[] };
+    }
     const [cargo, inv] = await Promise.all([
-      fetchAdminPerevozki(adminToken, dateRange, { dateField: "vr" }),
-      fetchAdminInvoices(adminToken, invoiceLookupRange),
+      fetchHaulzPerevozki(auth, dateRange, useServiceRequest, { dateField: "vr" }),
+      fetchHaulzInvoices(auth, invoiceLookupRange, useServiceRequest),
     ]);
     return { cargo, invoices: inv };
-  }, [adminToken, dateRange, invoiceLookupRange]);
+  }, [adminToken, auth, useServiceRequest, dateRange, invoiceLookupRange]);
 
   useEffect(() => {
     let cancelled = false;

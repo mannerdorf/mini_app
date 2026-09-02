@@ -138,6 +138,8 @@ export type ProfileView =
     | "haulzReturns"
     | "haulzCalculator"
     | "haulzCalcRequests"
+    | "haulzSendingsAnalysis"
+    | "haulzDeliveredWithoutApp"
     | "admin"
     | "tinyurl-test"
     | "apiKeys";
