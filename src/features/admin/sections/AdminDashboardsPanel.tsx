@@ -13,8 +13,19 @@ const AdminMagistralAnalysisSection = lazy(() =>
 const AdminSendingsAnalysisSection = lazy(() =>
   import("./AdminSendingsAnalysisSection").then((m) => ({ default: m.AdminSendingsAnalysisSection })),
 );
+const AdminCargoTimelineSection = lazy(() =>
+  import("./AdminCargoTimelineSection").then((m) => ({ default: m.AdminCargoTimelineSection })),
+);
 
-type AdminDashboardSubTab = "fot" | "last_mile" | "haulz_dispatch" | "magistral" | "sendings" | "delivered_no_app" | "user_activity";
+type AdminDashboardSubTab =
+  | "fot"
+  | "last_mile"
+  | "haulz_dispatch"
+  | "magistral"
+  | "sendings"
+  | "cargo_timeline"
+  | "delivered_no_app"
+  | "user_activity";
 
 function AdminDashboardSectionLoader() {
   return (
@@ -32,7 +43,7 @@ export function AdminDashboardsPanel({ adminToken }: { adminToken: string }) {
     <div style={{ maxWidth: 1200 }}>
       <Typography.Headline style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: "0.75rem" }}>Дашборды</Typography.Headline>
       <Typography.Body style={{ fontSize: "0.88rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
-        ФОТ по табелю (помесячно и по подразделениям), отчёт последней мили по ТС, сводка выдачи грузов, анализ скорости магистрали и отправок, доставленные без АПП и активность пользователей. Доступно суперадминистратору CMS.
+        ФОТ по табелю (помесячно и по подразделениям), отчёт последней мили по ТС, сводка выдачи грузов, анализ скорости магистрали и отправок, таймлайн перевозок, доставленные без АПП и активность пользователей. Доступно суперадминистратору CMS.
       </Typography.Body>
 
       <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: "1rem" }}>
@@ -95,6 +106,17 @@ export function AdminDashboardsPanel({ adminToken }: { adminToken: string }) {
           type="button"
           className="filter-button"
           style={{
+            background: sub === "cargo_timeline" ? "var(--color-primary-blue)" : undefined,
+            color: sub === "cargo_timeline" ? "white" : undefined,
+          }}
+          onClick={() => setSub("cargo_timeline")}
+        >
+          Таймлайн перевозок
+        </Button>
+        <Button
+          type="button"
+          className="filter-button"
+          style={{
             background: sub === "delivered_no_app" ? "var(--color-primary-blue)" : undefined,
             color: sub === "delivered_no_app" ? "white" : undefined,
           }}
@@ -126,6 +148,11 @@ export function AdminDashboardsPanel({ adminToken }: { adminToken: string }) {
       {sub === "sendings" && (
         <Suspense fallback={<AdminDashboardSectionLoader />}>
           <AdminSendingsAnalysisSection adminToken={adminToken} />
+        </Suspense>
+      )}
+      {sub === "cargo_timeline" && (
+        <Suspense fallback={<AdminDashboardSectionLoader />}>
+          <AdminCargoTimelineSection adminToken={adminToken} />
         </Suspense>
       )}
       {sub === "delivered_no_app" && <AdminDeliveredWithoutAppSection adminToken={adminToken} />}
