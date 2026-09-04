@@ -220,6 +220,8 @@ export function DocumentsPageToolbar({
   const yearWasLongPressRef = useRef(false);
   const weekLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const weekWasLongPressRef = useRef(false);
+  const quarterLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const quarterWasLongPressRef = useRef(false);
 
   const showToolbar = TOOLBAR_SECTIONS.includes(docSection);
 
@@ -377,25 +379,31 @@ export function DocumentsPageToolbar({
                       const isQuarter = key === "квартал";
                       const isYear = key === "год";
                       const isWeek = key === "неделя";
-                      const doLongPress = isMonth || isYear || isWeek;
+                      const doLongPress = isMonth || isQuarter || isYear || isWeek;
                       const timerRef = isMonth
                         ? monthLongPressTimerRef
-                        : isYear
-                          ? yearLongPressTimerRef
-                          : weekLongPressTimerRef;
+                        : isQuarter
+                          ? quarterLongPressTimerRef
+                          : isYear
+                            ? yearLongPressTimerRef
+                            : weekLongPressTimerRef;
                       const wasLongPressRef = isMonth
                         ? monthWasLongPressRef
-                        : isYear
-                          ? yearWasLongPressRef
-                          : weekWasLongPressRef;
-                      const mode = isMonth ? "months" : isYear ? "years" : "weeks";
+                        : isQuarter
+                          ? quarterWasLongPressRef
+                          : isYear
+                            ? yearWasLongPressRef
+                            : weekWasLongPressRef;
+                      const mode = isMonth ? "months" : isQuarter ? "quarters" : isYear ? "years" : "weeks";
                       const title = isMonth
                         ? "Клик — текущий месяц; удерживайте — выбор месяца"
-                        : isYear
-                          ? "Клик — 365 дней; удерживайте — выбор года"
-                          : isWeek
-                            ? "Клик — последние 7 дней; удерживайте — выбор недели (пн–вс)"
-                            : undefined;
+                        : isQuarter
+                          ? "Клик — текущий квартал; удерживайте — выбор квартала"
+                          : isYear
+                            ? "Клик — 365 дней; удерживайте — выбор года"
+                            : isWeek
+                              ? "Клик — последние 7 дней; удерживайте — выбор недели (пн–вс)"
+                              : undefined;
                       return (
                         <div
                           key={key}
@@ -434,10 +442,6 @@ export function DocumentsPageToolbar({
                               : undefined
                           }
                           onClick={() => {
-                            if (isQuarter) {
-                              setDateDropdownMode("quarters");
-                              return;
-                            }
                             if (doLongPress && wasLongPressRef.current) {
                               wasLongPressRef.current = false;
                               return;

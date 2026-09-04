@@ -4,7 +4,6 @@
 
 import { apiFetchJson } from "../../utils";
 import { toAbsoluteApiUrl } from "../../lib/absoluteApiUrl";
-import { fetchDocumentForPreview } from "../../lib/fetchDocumentForPreview";
 import { documentsAuthHeaders, documentsFetchJson, type DocumentsAuth } from "./documentsAuth";
 
 export type { DocumentsAuth } from "./documentsAuth";
@@ -231,39 +230,13 @@ export type DownloadDocumentPayload = {
 export async function postDownloadDocument(
   body: Record<string, unknown>
 ): Promise<DownloadDocumentPayload> {
-  const login = typeof body.login === "string" ? body.login : undefined;
-  const password = typeof body.password === "string" ? body.password : undefined;
-  const auth =
-    login && password
-      ? {
-          login,
-          password,
-          isRegisteredUser: Boolean(body.isRegisteredUser),
-          inn: typeof body.inn === "string" ? body.inn : undefined,
-        }
-      : null;
-
-  const { blob, fileName, isHtml } = await fetchDocumentForPreview(auth, {
-    metod: String(body.metod ?? ""),
-    number: String(body.number ?? ""),
-    dateDoc: typeof body.dateDoc === "string" ? body.dateDoc : undefined,
-    dateDog: typeof body.dateDog === "string" ? body.dateDog : undefined,
-    inn: typeof body.inn === "string" ? body.inn : undefined,
+  const data = await apiFetchJson<DownloadDocumentPayload>("/api/download", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
-
-  const buffer = await blob.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-
-  return {
-    data: btoa(binary),
-    name: fileName,
-    isHtml,
-  };
+  if (!data?.data) throw new Error("Документ не найден");
+  return data;
 }
 
 export async function postOrderCreate(body: {

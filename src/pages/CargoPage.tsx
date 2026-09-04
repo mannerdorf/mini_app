@@ -193,6 +193,8 @@ export function CargoPage({
     const yearWasLongPressRef = useRef(false);
     const weekLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const weekWasLongPressRef = useRef(false);
+    const quarterLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const quarterWasLongPressRef = useRef(false);
     const [workScheduleByInn, setWorkScheduleByInn] = useState<Record<string, WorkSchedule>>({});
     const [senderFilter, setSenderFilter] = useState<string>('');
     const [receiverFilter, setReceiverFilter] = useState<string>('');
@@ -813,18 +815,17 @@ export function CargoPage({
                                 const isQuarter = key === 'квартал';
                                 const isYear = key === 'год';
                                 const isWeek = key === 'неделя';
-                                const doLongPress = isMonth || isYear || isWeek;
-                                const timerRef = isMonth ? monthLongPressTimerRef : isYear ? yearLongPressTimerRef : weekLongPressTimerRef;
-                                const wasLongPressRef = isMonth ? monthWasLongPressRef : isYear ? yearWasLongPressRef : weekWasLongPressRef;
-                                const mode = isMonth ? 'months' : isYear ? 'years' : 'weeks';
-                                const title = isMonth ? 'Клик — текущий месяц; удерживайте — выбор месяца' : isYear ? 'Клик — 365 дней; удерживайте — выбор года' : isWeek ? 'Клик — предыдущая неделя; удерживайте — выбор недели (пн–вс)' : undefined;
+                                const doLongPress = isMonth || isQuarter || isYear || isWeek;
+                                const timerRef = isMonth ? monthLongPressTimerRef : isQuarter ? quarterLongPressTimerRef : isYear ? yearLongPressTimerRef : weekLongPressTimerRef;
+                                const wasLongPressRef = isMonth ? monthWasLongPressRef : isQuarter ? quarterWasLongPressRef : isYear ? yearWasLongPressRef : weekWasLongPressRef;
+                                const mode = isMonth ? 'months' : isQuarter ? 'quarters' : isYear ? 'years' : 'weeks';
+                                const title = isMonth ? 'Клик — текущий месяц; удерживайте — выбор месяца' : isQuarter ? 'Клик — текущий квартал; удерживайте — выбор квартала' : isYear ? 'Клик — 365 дней; удерживайте — выбор года' : isWeek ? 'Клик — предыдущая неделя; удерживайте — выбор недели (пн–вс)' : undefined;
                                 return (
                                     <div key={key} className="dropdown-item" title={title}
                                         onPointerDown={doLongPress ? () => { wasLongPressRef.current = false; timerRef.current = setTimeout(() => { timerRef.current = null; wasLongPressRef.current = true; setDateDropdownMode(mode); }, 500); } : undefined}
                                         onPointerUp={doLongPress ? () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } } : undefined}
                                         onPointerLeave={doLongPress ? () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } } : undefined}
                                         onClick={() => {
-                                            if (isQuarter) { setDateDropdownMode('quarters'); return; }
                                             if (doLongPress && wasLongPressRef.current) { wasLongPressRef.current = false; return; }
                                             if (key === 'период') {
                                                 let r: { dateFrom: string; dateTo: string };

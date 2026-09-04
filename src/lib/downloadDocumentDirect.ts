@@ -1,6 +1,6 @@
-import { fetchDocumentForPreview } from "./fetchDocumentForPreview";
-import { saveBlobFile } from "./saveBlobFile";
-import { isCapacitorNative } from "./capacitorPlatform";
+import { postDownloadDocument } from "../api/client/documents";
+import { downloadBase64File } from "../utils";
+import { buildDownloadRequestBody } from "./downloadRequestBody";
 import type { AuthData } from "../types";
 
 export type DownloadDocumentParams = {
@@ -11,33 +11,26 @@ export type DownloadDocumentParams = {
   inn?: string | null;
 };
 
-async function saveFetchedDocument(blob: Blob, fileName: string, isHtml?: boolean): Promise<void> {
-  if (isHtml && !isCapacitorNative()) {
-    const { downloadBase64File } = await import("../utils");
-    const buffer = await blob.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-    let binary = "";
-    const chunkSize = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-    }
-    await downloadBase64File({
-      data: btoa(binary),
-      name: fileName,
-      isHtml: true,
-    });
-    return;
-  }
-  await saveBlobFile(blob, fileName);
-}
-
-/** Скачать документ: на Capacitor — GET бинарный PDF; в браузере — POST JSON. */
+/** Скачать документ через POST /api/download → Share / «Сохранить». */
 export async function downloadDocumentDirect(
   auth: AuthData | null | undefined,
   params: DownloadDocumentParams,
 ): Promise<void> {
-  const { blob, fileName, isHtml } = await fetchDocumentForPreview(auth, params);
-  await saveFetchedDocument(blob, fileName, isHtml);
+  const payload = {
+    metod: params.metod,
+    number: params.number,
+    ...(params.dateDoc ? { dateDoc: params.dateDoc } : {}),
+    ...(params.dateDog ? { dateDog: params.dateDog } : {}),
+    ...(params.inn ? { inn: params.inn } : {}),
+  };
+  const body =
+    auth?.login && auth?.password ? buildDownloadRequestBody(auth, payload) : payload;
+  const data = await postDownloadDocument(body);
+  await downloadBase64File({
+    data: String(data.data),
+    name: data?.name || `${params.metod}_${params.number}.pdf`,
+    isHtml: Boolean(data?.isHtml),
+  });
 }
 
 /** Формат dateDoc для API: YYYY-MM-DDTHH:MM:SS (как в актах сверки). */

@@ -49,6 +49,8 @@ export function ListDateFilterControl({
   const yearWasLongPressRef = useRef(false);
   const weekLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const weekWasLongPressRef = useRef(false);
+  const quarterLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const quarterWasLongPressRef = useRef(false);
 
   return (
     <>
@@ -189,25 +191,31 @@ export function ListDateFilterControl({
               const isQuarter = key === "квартал";
               const isYear = key === "год";
               const isWeek = key === "неделя";
-              const doLongPress = isMonth || isYear || isWeek;
+              const doLongPress = isMonth || isQuarter || isYear || isWeek;
               const timerRef = isMonth
                 ? monthLongPressTimerRef
-                : isYear
-                  ? yearLongPressTimerRef
-                  : weekLongPressTimerRef;
+                : isQuarter
+                  ? quarterLongPressTimerRef
+                  : isYear
+                    ? yearLongPressTimerRef
+                    : weekLongPressTimerRef;
               const wasLongPressRef = isMonth
                 ? monthWasLongPressRef
-                : isYear
-                  ? yearWasLongPressRef
-                  : weekWasLongPressRef;
-              const mode = isMonth ? "months" : isYear ? "years" : "weeks";
+                : isQuarter
+                  ? quarterWasLongPressRef
+                  : isYear
+                    ? yearWasLongPressRef
+                    : weekWasLongPressRef;
+              const mode = isMonth ? "months" : isQuarter ? "quarters" : isYear ? "years" : "weeks";
               const title = isMonth
                 ? "Клик — текущий месяц; удерживайте — выбор месяца"
-                : isYear
-                  ? "Клик — 365 дней; удерживайте — выбор года"
-                  : isWeek
-                    ? "Клик — предыдущая неделя; удерживайте — выбор недели (пн–вс)"
-                    : undefined;
+                : isQuarter
+                  ? "Клик — текущий квартал; удерживайте — выбор квартала"
+                  : isYear
+                    ? "Клик — 365 дней; удерживайте — выбор года"
+                    : isWeek
+                      ? "Клик — предыдущая неделя; удерживайте — выбор недели (пн–вс)"
+                      : undefined;
 
               return (
                 <div
@@ -247,10 +255,6 @@ export function ListDateFilterControl({
                       : undefined
                   }
                   onClick={() => {
-                    if (isQuarter) {
-                      setDateDropdownMode("quarters");
-                      return;
-                    }
                     if (doLongPress && wasLongPressRef.current) {
                       wasLongPressRef.current = false;
                       return;
