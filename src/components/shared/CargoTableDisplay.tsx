@@ -58,7 +58,7 @@ export function RouteBadge({
   const label = route == null ? "" : String(route).trim();
   if (!label || label === "—") return <span>—</span>;
   return (
-    <AppBadge tone="info" className={className} style={{ display: "inline-block", whiteSpace: "nowrap", ...style }}>
+    <AppBadge tone="info" className={className} style={{ whiteSpace: "nowrap", ...style }}>
       {label}
     </AppBadge>
   );

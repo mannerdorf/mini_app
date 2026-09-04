@@ -304,6 +304,29 @@
     text-overflow: clip;
 }
 
+/* Единая высота бейджей перевозок = как в документах */
+.cargo-inner-table .cargo-logistics-badges .max-badge,
+.cargo-inner-table .cargo-logistics-badges .app-badge,
+.cargo-list-item .cargo-logistics-badges .max-badge,
+.cargo-list-item .cargo-logistics-badges .app-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center;
+    box-sizing: border-box !important;
+    font-size: 0.62rem !important;
+    padding: 0.18rem 0.45rem !important;
+    line-height: 1.2 !important;
+    height: auto !important;
+    min-height: 1.35rem !important;
+    max-height: none !important;
+    width: auto !important;
+    max-width: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+    flex-shrink: 0;
+}
+
 .cargo-inner-table .cargo-logistics-badges__meta-left .cargo-inner-table__route-inline {
     flex-shrink: 0;
     flex-basis: auto;
@@ -439,12 +462,19 @@
 .documents-acts-inner-table .documents-invoice-inner-badge,
 .documents-acts-inner-table .documents-invoices-inner-table__badges .max-badge,
 .documents-acts-inner-table .documents-invoices-inner-table__badges .app-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center;
     flex-shrink: 0;
+    box-sizing: border-box !important;
     width: auto !important;
     max-width: none !important;
     height: auto !important;
-    min-height: 0 !important;
+    min-height: 1.35rem !important;
     max-height: none !important;
+    font-size: 0.62rem !important;
+    padding: 0.18rem 0.45rem !important;
+    line-height: 1.2 !important;
     overflow: visible !important;
     text-overflow: clip !important;
     white-space: nowrap;
@@ -632,16 +662,23 @@
     .documents-invoices-inner-table .documents-invoices-inner-table__badges .max-badge,
     .documents-acts-inner-table .documents-invoice-inner-badge,
     .documents-acts-inner-table .documents-invoices-inner-table__badges .max-badge,
-    .documents-acts-inner-table .documents-invoices-inner-table__badges .app-badge {
+    .documents-acts-inner-table .documents-invoices-inner-table__badges .app-badge,
+    .documents-invoices-inner-table .documents-invoice-table-badges__meta-bill .app-badge,
+    .documents-invoices-inner-table .documents-invoice-table-badges__meta-bill .max-badge,
+    .documents-acts-inner-table .documents-invoice-table-badges__meta-bill .app-badge,
+    .documents-acts-inner-table .documents-invoice-table-badges__meta-bill .max-badge {
         font-size: 0.62rem !important;
         padding: 0.18rem 0.45rem !important;
         line-height: 1.2 !important;
         height: auto !important;
-        min-height: 0 !important;
+        min-height: 1.35rem !important;
         max-height: none !important;
         width: auto !important;
         overflow: visible !important;
         text-overflow: clip !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        box-sizing: border-box !important;
     }
 
     .documents-invoices-inner-table .cargo-inner-table__route-inline {
@@ -858,44 +895,28 @@
     }
 
     .cargo-inner-table .cargo-logistics-badges__flow .max-badge,
-    .cargo-inner-table .cargo-logistics-badges__flow .app-badge {
-        font-size: 0.62rem !important;
-        padding: 0.18rem 0.45rem !important;
-        line-height: 1.2 !important;
-        height: auto !important;
-        min-height: 0 !important;
-        max-height: none !important;
-        overflow: visible !important;
-        text-overflow: clip !important;
-    }
-
+    .cargo-inner-table .cargo-logistics-badges__flow .app-badge,
     .cargo-inner-table .cargo-logistics-badges__meta-left .max-badge,
     .cargo-inner-table .cargo-logistics-badges__meta-left .app-badge,
     .cargo-inner-table .cargo-logistics-badges__meta-route .max-badge,
-    .cargo-inner-table .cargo-logistics-badges__meta-route .app-badge {
+    .cargo-inner-table .cargo-logistics-badges__meta-route .app-badge,
+    .cargo-inner-table .cargo-logistics-badges__meta-right .max-badge,
+    .cargo-inner-table .cargo-logistics-badges__meta-right .app-badge,
+    .cargo-inner-table .cargo-logistics-badges__meta-bill .max-badge,
+    .cargo-inner-table .cargo-logistics-badges__meta-bill .app-badge {
         font-size: 0.62rem !important;
         padding: 0.18rem 0.45rem !important;
         line-height: 1.2 !important;
         height: auto !important;
-        min-height: 0 !important;
+        min-height: 1.35rem !important;
         max-height: none !important;
         max-width: none;
         overflow: visible !important;
         text-overflow: clip !important;
-        flex-shrink: 0;
-    }
-
-    .cargo-inner-table .cargo-logistics-badges__meta-right .max-badge,
-    .cargo-inner-table .cargo-logistics-badges__meta-right .app-badge {
-        font-size: 0.62rem !important;
-        padding: 0.18rem 0.45rem !important;
-        line-height: 1.2 !important;
-        height: auto !important;
-        min-height: 0 !important;
-        max-height: none !important;
         flex-shrink: 0 !important;
-        overflow: visible !important;
-        text-overflow: clip !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        box-sizing: border-box !important;
     }
 
     .cargo-inner-table .cargo-inner-table__col-route .app-badge,
@@ -903,7 +924,7 @@
         font-size: 0.62rem !important;
         padding: 0.18rem 0.45rem !important;
         height: auto !important;
-        min-height: 0 !important;
+        min-height: 1.35rem !important;
         max-height: none !important;
         max-width: none;
         white-space: nowrap;
@@ -911,6 +932,7 @@
         text-overflow: clip;
         display: inline-flex !important;
         align-items: center !important;
+        box-sizing: border-box !important;
     }
 }
 
