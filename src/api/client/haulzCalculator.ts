@@ -9,11 +9,14 @@ import type {
 } from "../../../lib/haulzCalculator/types";
 import type { HaulzCalculatorFormState } from "../../../lib/haulzCalculator/calculatorDraft.js";
 import type { HaulzCalcDraftStatus } from "../../../lib/haulzCalculator/draftStatus.js";
+import { resolveApiOrigin } from "../../lib/resolveApiOrigin.js";
+import type { Order1cUpstreamRequestMeta } from "../../features/documents/orders/DocumentsOrderQuoteSummary";
 
 export type { HaulzCalculatorFormState, HaulzCalcDraftStatus };
 
 export type DocumentsOrderJournalView = {
   customerName: string;
+  customerRequestNumber: string;
   senderPoint: string;
   destinationPoint: string;
   senderName: string;
@@ -402,6 +405,91 @@ export async function patchHaulzCalcDraftStatus(
   const draft = (data as { draft?: HaulzCalcDraft }).draft;
   if (!draft) throw new Error("Пустой ответ");
   return draft;
+}
+
+export type SubmitPendingOrderTo1cResult = {
+  ok: boolean;
+  message?: string;
+  nomerZayavki?: string | null;
+  request?: unknown;
+  upstreamRequest?: Order1cUpstreamRequestMeta | null;
+  upstream?: unknown;
+  error?: string;
+  request_id?: string;
+  draft?: HaulzCalcDraft;
+  apiRoute?: string;
+  httpStatus?: number;
+};
+
+function parseSubmitPending1cResponse(
+  res: Response,
+  data: SubmitPendingOrderTo1cResult & { error?: string; path?: string },
+  apiRoute: string,
+): SubmitPendingOrderTo1cResult {
+  const upstreamRequest = (data.upstreamRequest ?? null) as Order1cUpstreamRequestMeta | null;
+  if (!res.ok) {
+    return {
+      ok: false,
+      httpStatus: res.status,
+      error: data.error || parseError(res, data),
+      request: data.request,
+      upstreamRequest,
+      upstream: data.upstream ?? (data.path ? { path: data.path } : data),
+      nomerZayavki: data.nomerZayavki ?? null,
+      request_id: typeof data.request_id === "string" ? data.request_id : undefined,
+      apiRoute,
+    };
+  }
+  return {
+    ok: true,
+    httpStatus: res.status,
+    message: data.message,
+    nomerZayavki: data.nomerZayavki ?? null,
+    request: data.request,
+    upstreamRequest,
+    upstream: data.upstream,
+    draft: data.draft,
+    request_id: typeof data.request_id === "string" ? data.request_id : undefined,
+    apiRoute,
+  };
+}
+
+export async function submitPendingOrderTo1c(
+  auth: AuthData,
+  draftId: number,
+): Promise<SubmitPendingOrderTo1cResult> {
+  const origin = resolveApiOrigin();
+  const primaryRoute = `${origin}/api/haulz-calculator/submit-pending-1c`;
+  const fallbackRoute = `${origin}/api/haulz-calculator/draft-status`;
+
+  const tryRoute = async (
+    apiRoute: string,
+    body: Record<string, unknown>,
+    method: "POST" | "PATCH" = "POST",
+  ): Promise<SubmitPendingOrderTo1cResult> => {
+    const res = await fetch(apiRoute, {
+      method,
+      headers: authHeaders(auth),
+      body: JSON.stringify(body),
+    });
+    const data = (await res.json().catch(() => ({}))) as SubmitPendingOrderTo1cResult & {
+      error?: string;
+      path?: string;
+    };
+    return parseSubmitPending1cResponse(res, data, apiRoute);
+  };
+
+  let result = await tryRoute(primaryRoute, { id: draftId });
+  const routeMissing =
+    !result.ok &&
+    result.httpStatus === 404 &&
+    (result.error === "API route not found" || String(result.error || "").includes("route not found"));
+
+  if (routeMissing) {
+    result = await tryRoute(fallbackRoute, { id: draftId, action: "submit-1c" });
+  }
+
+  return result;
 }
 
 export async function submitHaulzCalculatorOrder(

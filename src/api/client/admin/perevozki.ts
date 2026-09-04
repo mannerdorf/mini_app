@@ -5,9 +5,12 @@
 import type { CargoItem } from "../../../types";
 import { adminAuthHeaders } from "./auth";
 
+export type AdminPerevozkiDateField = "default" | "prih" | "vr" | "delivery";
+
 export async function fetchAdminPerevozki(
   adminToken: string,
-  dateRange: { dateFrom: string; dateTo: string }
+  dateRange: { dateFrom: string; dateTo: string },
+  options?: { dateField?: AdminPerevozkiDateField },
 ): Promise<CargoItem[]> {
   const res = await fetch("/api/perevozki", {
     method: "POST",
@@ -16,6 +19,7 @@ export async function fetchAdminPerevozki(
       adminToken,
       dateFrom: dateRange.dateFrom,
       dateTo: dateRange.dateTo,
+      ...(options?.dateField && options.dateField !== "default" ? { dateField: options.dateField } : {}),
     }),
   });
   const data = await res.json().catch(() => ({}));

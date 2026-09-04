@@ -1,6 +1,7 @@
-# Android FCM Push Notifications
+# Android / iOS FCM Push Notifications
 
-Push-уведомления в установленном APK через Firebase Cloud Messaging (FCM).
+Push-уведомления в установленном приложении через Firebase Cloud Messaging (FCM).
+Android APK и iOS (TestFlight / устройство) используют **один** Firebase-проект и один `FIREBASE_SERVICE_ACCOUNT_JSON` на API.
 
 ## 1. Firebase Console
 
@@ -8,6 +9,16 @@ Push-уведомления в установленном APK через Firebas
 2. Добавьте Android-приложение с package name **`ru.haulz.miniapp`** (см. `android/app/build.gradle`).
 3. Скачайте **`google-services.json`** и положите в `android/app/google-services.json` (файл не коммитить — см. `.gitignore`).
 4. В Project Settings → Service accounts → **Generate new private key** — JSON сервисного аккаунта для сервера.
+
+## 1b. iOS (тот же Firebase-проект)
+
+1. Add app → **iOS**, bundle ID **`ru.haulz.miniapp`**.
+2. `GoogleService-Info.plist` → `ios/App/App/` (не коммитить), добавить в target App в Xcode.
+3. Cloud Messaging → загрузить **APNs Authentication Key** (.p8) из Apple Developer → Keys.
+4. App ID: галка **Push Notifications**, **Broadcast** не включать.
+5. Шаги на Mac: `docs/IOS.md` → «Push-уведомления».
+
+Сервисный аккаунт API тот же, что в разделе 2.
 
 ## 2. Переменные окружения API
 
@@ -33,7 +44,7 @@ FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
 psql "$DATABASE_URL" -f migrations/089_fcm_push.sql
 ```
 
-Таблица `fcm_device_tokens` хранит FCM-токены устройств.
+Таблица `fcm_device_tokens` хранит FCM-токены устройств. PK = `token`: у одного логина могут быть Android и iOS одновременно. `POST /api/fcm-unsubscribe` **обязан** передать `token` — без него API больше не удаляет все устройства логина (это обнуляло админку «Кто включил push»).
 
 ## 4. Сборка APK
 
@@ -70,7 +81,7 @@ Gradle автоматически подключит `com.google.gms.google-serv
 
 В разделе **Уведомления** остались:
 
-- **Push-уведомления (приложение)** — только в Android APK
+- **Push-уведомления (приложение)** — Android APK и iOS (TestFlight)
 - **Email** — как раньше
 
 Разделы Telegram и Web Push убраны из UI (API на сервере сохранён для обратной совместимости).

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import * as dateUtils from "../../../lib/dateUtils";
 import {
     initSharedFilterSets,
@@ -8,6 +8,8 @@ import {
     type SharedBillStatusKey,
     type TypeFilterKey,
 } from "../../../lib/sharedListFilters";
+import { HAULZ_PULL_REFRESH_EVENT } from "../../../lib/pullRefreshEvents";
+import { useResetAllFiltersListener } from "../../../hooks/useResetAllFiltersListener";
 import { useListDateRange, usePersistedDateFilter } from "../../../features/listWorkspace";
 import { loadDashboardRoleFilter, DASH_ROLE_FILTER_KEY } from "../../../features/dashboard";
 import type { CargoRoleFilterKey } from "../../../lib/cargoUtils";
@@ -65,6 +67,17 @@ export function useDashboardFilters({
     useEffect(() => {
         saveSharedVisibleListFilters({ billStatusFilterSet, typeFilterSet, routeFilterSet });
     }, [billStatusFilterSet, typeFilterSet, routeFilterSet]);
+
+    useEffect(() => {
+        const reloadSharedFilters = () => {
+            const init = initSharedFilterSets();
+            setBillStatusFilterSet(init.billStatusFilterSet);
+            setTypeFilterSet(init.typeFilterSet);
+            setRouteFilterSet(init.routeFilterSet);
+        };
+        window.addEventListener(HAULZ_PULL_REFRESH_EVENT, reloadSharedFilters);
+        return () => window.removeEventListener(HAULZ_PULL_REFRESH_EVENT, reloadSharedFilters);
+    }, []);
 
     useEffect(() => {
         if (!useServiceRequest) return;
@@ -150,6 +163,16 @@ export function useDashboardFilters({
         null,
     );
     const [isComparePeriodDialogOpen, setIsComparePeriodDialogOpen] = useState(false);
+
+    const resetDashboardFilters = useCallback(() => {
+        const init = initSharedFilterSets();
+        setBillStatusFilterSet(init.billStatusFilterSet);
+        setTypeFilterSet(init.typeFilterSet);
+        setRouteFilterSet(init.routeFilterSet);
+        setRoleFilter("all");
+        setComparePeriodOverride(null);
+    }, []);
+    useResetAllFiltersListener(resetDashboardFilters);
 
     const comparePeriodRange = useMemo(
         () => comparePeriodOverride ?? prevRange,

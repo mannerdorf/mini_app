@@ -24,6 +24,7 @@ import { useTwoFaSettingsSync } from "./hooks/useTwoFaSettingsSync";
 import { stripOoo } from "./lib/formatUtils";
 import { resolveAccountActiveInn } from "./lib/accountCustomer";
 import { isCapacitorAndroidApp } from "./lib/androidAppUpdate";
+import { isNativePushEnvironment } from "./lib/androidPushNotifications";
 import { useAndroidAppUpdate } from "./hooks/useAndroidAppUpdate";
 import { AndroidUpdateBanner } from "./components/AndroidUpdateBanner";
 
@@ -63,7 +64,6 @@ function AppRoot() {
     useTelegramWebAppInit(setTheme);
 
     const [useServiceRequest, setUseServiceRequest] = useState(false);
-    const [serviceRefreshSpinning, setServiceRefreshSpinning] = useState(false);
 
     const legalCompliance = useLegalCompliance(activeAccount);
 
@@ -83,6 +83,7 @@ function AppRoot() {
     const isWbOnlyUser = useMemo(() => isWbOnlyAccount(activeAccount), [activeAccount]);
     const isRedReturnsOnlyUser = useMemo(() => isRedReturnsOnlyAccount(activeAccount), [activeAccount]);
     const isNativeAndroid = useMemo(() => isCapacitorAndroidApp(), []);
+    const isNativePush = useMemo(() => isNativePushEnvironment(), []);
     const androidUpdate = useAndroidAppUpdate(!!auth && isNativeAndroid);
     const [androidUpdateDismissed, setAndroidUpdateDismissed] = useState(false);
     useEffect(() => {
@@ -93,11 +94,63 @@ function AppRoot() {
     useTwoFaSettingsSync();
     useEffect(() => {
         const login = activeAccount?.login?.trim().toLowerCase();
-        if (!auth || !login || !isNativeAndroid) return;
-        void import("./lib/androidPushNotifications").then(({ syncAndroidPushNotifications }) =>
-            syncAndroidPushNotifications(login),
+        if (!auth || !login || !isNativePush) return;
+        const inn =
+            activeAccount?.activeCustomerInn?.trim() ||
+            activeAccount?.customers?.find((c) => c.inn)?.inn?.trim() ||
+            undefined;
+        // В служебном режиме без выбранной компании автопуш не привязан к ИНН — токен не синхронизируем.
+        if (useServiceRequest && !inn) return;
+        void import("./lib/androidPushNotifications").then(({ syncNativePushNotifications }) =>
+            syncNativePushNotifications(login, inn),
         );
-    }, [auth, activeAccount?.login, isNativeAndroid]);
+    }, [
+        auth,
+        activeAccount?.login,
+        activeAccount?.activeCustomerInn,
+        activeAccount?.customers,
+        useServiceRequest,
+        isNativePush,
+    ]);
+    useEffect(() => {
+        if (!auth || !isNativePush) return;
+        let cancelled = false;
+        let removeListener: (() => void) | undefined;
+
+        void import("@capacitor/app").then(({ App }) =>
+            App.addListener("appStateChange", ({ isActive }) => {
+                if (!isActive || cancelled) return;
+                const login = activeAccount?.login?.trim().toLowerCase();
+                if (!login) return;
+                const inn =
+                    activeAccount?.activeCustomerInn?.trim() ||
+                    activeAccount?.customers?.find((c) => c.inn)?.inn?.trim() ||
+                    undefined;
+                if (useServiceRequest && !inn) return;
+                void import("./lib/androidPushNotifications").then(({ syncNativePushNotifications }) =>
+                    syncNativePushNotifications(login, inn),
+                );
+            }).then((handle) => {
+                if (cancelled) {
+                    void handle.remove();
+                    return;
+                }
+                removeListener = () => void handle.remove();
+            }),
+        );
+
+        return () => {
+            cancelled = true;
+            removeListener?.();
+        };
+    }, [
+        auth,
+        isNativePush,
+        activeAccount?.login,
+        activeAccount?.activeCustomerInn,
+        activeAccount?.customers,
+        useServiceRequest,
+    ]);
     const {
         showDashboard,
         showPinModal,
@@ -232,8 +285,6 @@ function AppRoot() {
                 useServiceRequest={useServiceRequest}
                 setUseServiceRequest={setUseServiceRequest}
                 serviceModeUnlocked={serviceModeUnlocked}
-                serviceRefreshSpinning={serviceRefreshSpinning}
-                setServiceRefreshSpinning={setServiceRefreshSpinning}
                 showDashboard={showDashboard}
                 profileSaasShellActive={profileSaasShellActive}
                 showCustomerColumn={showCustomerColumn}

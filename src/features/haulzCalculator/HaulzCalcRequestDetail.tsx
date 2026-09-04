@@ -43,9 +43,11 @@ type Props = {
   draft: HaulzCalcDraft;
   managerMode?: boolean;
   statusLoading: boolean;
+  submitTo1cLoading?: boolean;
   onClose?: () => void;
   onAgreed: () => void;
   onRejected: () => void;
+  onSubmitTo1c?: () => void;
   onContinue: () => void;
 };
 
@@ -116,6 +118,7 @@ function DocumentsOrderJournalBlock({ journal }: { journal: DocumentsOrderJourna
         }}
       >
         <JournalGridRow label="Заказчик:" value={journal.customerName} />
+        <JournalGridRow label="Номер заявки заказчика:" value={journal.customerRequestNumber} />
         <JournalGridRow label="Пункт отправки:" value={journal.senderPoint} />
         <JournalGridRow label="Отправитель:" value={journal.senderName} />
         <JournalGridRow label="Пункт назначения:" value={journal.destinationPoint} />
@@ -134,9 +137,11 @@ export function HaulzCalcRequestDetail({
   draft: d,
   managerMode,
   statusLoading,
+  submitTo1cLoading,
   onClose,
   onAgreed,
   onRejected,
+  onSubmitTo1c,
   onContinue,
 }: Props) {
   const f = d.formState;
@@ -170,8 +175,21 @@ export function HaulzCalcRequestDetail({
             <DetailRow label="ID" value={String(d.id)} />
             {managerMode && (
               <>
-                <DetailRow label="Заказчик" value={formatHaulzCalcDraftCustomer(f, d.loginKey)} />
-                {d.loginKey && <DetailRow label="Логин ЛК" value={d.loginKey} />}
+                <DetailRow
+                  label="Заказчик"
+                  value={
+                    d.loginKey === "__guest__"
+                      ? String(f.guestContactEmail || "").trim() || "Гость (сайт)"
+                      : formatHaulzCalcDraftCustomer(f, d.loginKey)
+                  }
+                />
+                {d.loginKey && d.loginKey !== "__guest__" && <DetailRow label="Логин ЛК" value={d.loginKey} />}
+                {d.loginKey === "__guest__" && (
+                  <>
+                    <DetailRow label="Телефон" value={f.guestContactPhone} />
+                    <DetailRow label="Email" value={f.guestContactEmail} />
+                  </>
+                )}
               </>
             )}
             <DetailRow label="Создано" value={formatWhen(d.createdAt)} />
@@ -296,6 +314,19 @@ export function HaulzCalcRequestDetail({
               onClick={onRejected}
             >
               Не согласовано
+            </button>
+          </div>
+        )}
+        {managerMode && d.status === "agreed" && onSubmitTo1c && (
+          <div className="haulz-calc-requests-detail__footer-actions">
+            <button
+              type="button"
+              className="haulz-calc-btn-primary"
+              disabled={submitTo1cLoading || statusLoading}
+              onClick={onSubmitTo1c}
+            >
+              {submitTo1cLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Отправить в 1С
             </button>
           </div>
         )}

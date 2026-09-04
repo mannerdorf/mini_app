@@ -13,10 +13,15 @@ import {
     CHART_BAR_FILL_EASE,
 } from "../index";
 import type { DashboardPageState } from "../../../pages/useDashboardPageState";
+import { useMobileLayout } from "../../../hooks/useMobileLayout";
+import { isCapacitorNative } from "../../../lib/capacitorPlatform";
 
 type Props = { page: DashboardPageState };
 
 export function DashboardClientAnalyticsSection({ page }: Props) {
+    const isMobileLayout = useMobileLayout();
+    const hideClientSeasonality = page.useServiceRequest && (isMobileLayout || isCapacitorNative());
+
     return (
         <>
 {/* ═══════ ГРУППА 5: АНАЛИТИКА КЛИЕНТОВ ═══════ */}
@@ -106,8 +111,8 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
                         Доля оплаченных перевозок по каждому клиенту. Чем ниже процент оплаты — тем хуже дисциплина.
                     </Typography.Body>
-                    <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 320, fontSize: '0.7rem', borderRadius: 8, border: '1px solid var(--color-border)' }}>
-                        <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                    <div className="dashboard-scroll-table-wrap" style={{ overflowY: 'auto', maxHeight: 320, fontSize: '0.7rem', borderRadius: 8, border: '1px solid var(--color-border)' }}>
+                        <table className="dashboard-scroll-table" style={{ borderCollapse: 'collapse', width: '100%' }}>
                             <thead>
                                 <tr style={{ background: 'var(--color-bg-hover)', position: 'sticky', top: 0, zIndex: 1 }}>
                                     {(() => {
@@ -145,12 +150,12 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
                                     .map((c, pi) => {
                                     const color = c.paidRate >= 80 ? '#10b981' : c.paidRate >= 50 ? '#f59e0b' : '#ef4444';
                                     return (
-                                        <tr key={c.name}>
-                                            <td style={{ padding: '0.25rem 0.4rem', borderBottom: '1px solid var(--color-border)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</td>
-                                            <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>{c.count}</td>
-                                            <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)', color: '#10b981', fontWeight: 600 }}>{c.paid}</td>
-                                            <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)', color: '#ef4444', fontWeight: 600 }}>{c.unpaid}</td>
-                                            <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>
+                                        <tr key={c.name} className="dashboard-scroll-table__data-row">
+                                            <td data-label="Клиент" style={{ padding: '0.25rem 0.4rem', borderBottom: '1px solid var(--color-border)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</td>
+                                            <td data-label="Всего" style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>{c.count}</td>
+                                            <td data-label="Оплачено" style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)', color: '#10b981', fontWeight: 600 }}>{c.paid}</td>
+                                            <td data-label="Не оплач." style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)', color: '#ef4444', fontWeight: 600 }}>{c.unpaid}</td>
+                                            <td data-label="% оплаты" style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'center' }}>
                                                     <div style={{ width: 40, height: 6, borderRadius: 3, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
                                                         <DashboardChartBarH enabled={page.chartBarFillEnabled} widthPercent={c.paidRate} delay={Math.min(pi * 0.012, 0.35)} style={{ background: color, borderRadius: 3 }} />
@@ -194,15 +199,16 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
                 </Panel>
             )}
 
-            {/* 5.7 Сезонность по клиентам */}
-            {page.useServiceRequest && !page.loading && !page.error && page.clientSeasonality && page.clientSeasonality.rows.length > 0 && (
-                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+            {/* 5.7 Сезонность по клиентам — только десктоп в служебном режиме */}
+            {!hideClientSeasonality && page.useServiceRequest && !page.loading && !page.error && page.clientSeasonality && page.clientSeasonality.rows.length > 0 && (
+                <Panel className="cargo-card dashboard-seasonality-panel" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>Сезонность по клиентам</Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
                         Интенсивность грузопотока по месяцам. Чем ярче ячейка — тем больше заказов. Помогает выявить сезонных и стабильных клиентов.
                     </Typography.Body>
-                    <div style={{ overflowX: 'auto', fontSize: '0.68rem' }}>
-                        <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 500 }}>
+                    <div className="dashboard-seasonality-heatmap">
+                    <div style={{ fontSize: '0.68rem' }}>
+                        <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 0 }}>
                             <thead>
                                 <tr>
                                     <th style={{ padding: '0.25rem 0.3rem', textAlign: 'left', fontWeight: 600, borderBottom: '2px solid var(--color-border)', whiteSpace: 'nowrap' }}>Клиент</th>
@@ -233,6 +239,29 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                    </div>
+                    <div className="dashboard-seasonality-cards">
+                        {page.clientSeasonality.rows.slice(0, 8).map((row) => {
+                            const peakMonth = row.months.reduce((best, cnt, mi) => (cnt > row.months[best] ? mi : best), 0);
+                            const monthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+                            return (
+                                <div key={row.name} style={{ padding: '0.45rem 0.55rem', border: '1px solid var(--color-border)', borderRadius: 8, background: 'var(--color-bg-hover)' }}>
+                                    <Typography.Body style={{ fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.25rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.name}>{row.name}</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)' }}>
+                                        Всего: {row.total} · Пик: {monthNames[peakMonth]} ({row.months[peakMonth]})
+                                    </Typography.Body>
+                                    <div style={{ display: 'flex', gap: 2, marginTop: '0.3rem', alignItems: 'flex-end', height: 28 }}>
+                                        {row.months.map((cnt, mi) => {
+                                            const h = row.total > 0 ? Math.max(2, Math.round((cnt / Math.max(...row.months, 1)) * 24)) : 2;
+                                            return (
+                                                <div key={mi} title={`${monthNames[mi]}: ${cnt}`} style={{ flex: 1, height: h, borderRadius: 2, background: cnt > 0 ? `rgba(37,99,235,${0.25 + (cnt / page.clientSeasonality.maxVal) * 0.65})` : 'var(--color-border)' }} />
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </Panel>
             )}

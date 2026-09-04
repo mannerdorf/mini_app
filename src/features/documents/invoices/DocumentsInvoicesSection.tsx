@@ -7,13 +7,13 @@ import { formatCurrency, formatInvoiceNumber, normalizeInvoiceStatus, stripOoo }
 import { ClickableInvoiceNumber } from "../../../components/ui/EntityLinks";
 import { invoiceBalance, invoiceDocSum, invoiceSumPaid } from "../../../lib/invoiceAmounts.js";
 import { StatusBadge } from "../../../components/shared/StatusBadges";
-import { AppBadge } from "../../../components/shared/AppBadge";
 import {
   DocumentsInvoiceFinanceHeadCells,
   DocumentsInvoiceFinanceCells,
   DocumentsInvoiceCardsList,
   DocumentsStateBlocks,
   DocumentsRouteBadge,
+  DocumentsInvoiceTableBadges,
 } from "../views/documentsViewBlocks";
 import { getFirstCargoNumberFromInvoice } from "../lib/documentsPipeline";
 import { InvoiceDetailModal } from "./InvoiceDetailModal";
@@ -174,20 +174,20 @@ export function DocumentsInvoicesSection({
                                                         const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
                                                         return (
                                                             <tr key={inum || j} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={(ev) => { ev.stopPropagation(); setSelectedInvoice(inv); }} title="Открыть счёт">
-                                                                <td className="cargo-inner-table__col-number" style={{ padding: '0.35rem 0.3rem' }}><span className="cargo-inner-table__number">{formatInvoiceNumber(inum)}</span></td>
-                                                                <td className="cargo-inner-table__col-date doc-inner-table-date" style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} omitYear /></td>
-                                                                <td className="cargo-inner-table__col-status doc-inner-table-status" style={{ padding: '0.35rem 0.3rem' }}>
-                                                                    <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile documents-invoices-inner-table__badges">
-                                                                        {ist ? <AppBadge tone="neutral" className="documents-invoice-inner-badge" style={{ background: istBadgeStyle.bg, color: istBadgeStyle.color }}>{ist}</AppBadge> : null}
-                                                                        <span className="cargo-inner-table__delivery-inline documents-invoice-inner-badge-wrap">
-                                                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
-                                                                        </span>
-                                                                        <span className="cargo-inner-table__route-inline documents-invoice-inner-badge-wrap">
-                                                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge className="documents-invoice-inner-badge">{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
-                                                                        </span>
-                                                                        {!ist && !deliveryState && !(firstCargoNum && cargoRouteByNumber.get(normCargoKey(firstCargoNum))) ? '—' : null}
+                                                                <td className="cargo-inner-table__col-number" style={{ padding: '0.35rem 0.3rem' }}>
+                                                                    <div className="documents-invoice-table-badges-anchor">
+                                                                        <span className="cargo-inner-table__number">{formatInvoiceNumber(inum)}</span>
+                                                                        <DocumentsInvoiceTableBadges
+                                                                            billStatus={ist || undefined}
+                                                                            billBadgeStyle={istBadgeStyle}
+                                                                            deliveryState={deliveryState}
+                                                                            routeLabel={(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || undefined}
+                                                                            perevozkiLoading={perevozkiLoading}
+                                                                        />
                                                                     </div>
                                                                 </td>
+                                                                <td className="cargo-inner-table__col-date doc-inner-table-date" style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} omitYear /></td>
+                                                                <td className="cargo-inner-table__col-status doc-inner-table-status" style={{ padding: '0.35rem 0.3rem' }} aria-hidden />
                                                                 <td className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.35rem 0.3rem' }}>
                                                                     {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
                                                                 </td>
@@ -257,21 +257,19 @@ export function DocumentsInvoicesSection({
                         return (
                             <tr key={inum || i} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={() => setSelectedInvoice(inv)} title="Открыть счёт">
                                 <td className="cargo-inner-table__col-number" style={{ padding: '0.5rem 0.4rem' }}>
-                                    <ClickableInvoiceNumber number={String(inum)} invoice={inv} onOpen={setSelectedInvoice} />
-                                </td>
-                                <td className="cargo-inner-table__col-date" style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} omitYear /></td>
-                                <td className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem' }}>
-                                    <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile documents-invoices-inner-table__badges">
-                                        {ist ? <AppBadge tone="neutral" className="documents-invoice-inner-badge" style={{ background: istBadgeStyle.bg, color: istBadgeStyle.color }}>{ist}</AppBadge> : null}
-                                        <span className="cargo-inner-table__delivery-inline documents-invoice-inner-badge-wrap">
-                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
-                                        </span>
-                                        <span className="cargo-inner-table__route-inline documents-invoice-inner-badge-wrap">
-                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge className="documents-invoice-inner-badge">{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
-                                        </span>
-                                        {!ist && !deliveryState && !(firstCargoNum && cargoRouteByNumber.get(normCargoKey(firstCargoNum))) ? '—' : null}
+                                    <div className="documents-invoice-table-badges-anchor">
+                                        <ClickableInvoiceNumber number={String(inum)} invoice={inv} onOpen={setSelectedInvoice} />
+                                        <DocumentsInvoiceTableBadges
+                                            billStatus={ist || undefined}
+                                            billBadgeStyle={istBadgeStyle}
+                                            deliveryState={deliveryState}
+                                            routeLabel={(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || undefined}
+                                            perevozkiLoading={perevozkiLoading}
+                                        />
                                     </div>
                                 </td>
+                                <td className="cargo-inner-table__col-date" style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} omitYear /></td>
+                                <td className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem' }} aria-hidden />
                                 <td className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.5rem 0.4rem' }}>
                                     {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
                                 </td>
@@ -323,21 +321,19 @@ export function DocumentsInvoicesSection({
                         return (
                             <tr key={inum || i} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={() => setSelectedInvoice(inv)} title="Открыть счёт">
                                 <td className="cargo-inner-table__col-number" style={{ padding: '0.5rem 0.4rem' }}>
-                                    <ClickableInvoiceNumber number={String(inum)} invoice={inv} onOpen={setSelectedInvoice} />
-                                </td>
-                                <td className="cargo-inner-table__col-date" style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} omitYear /></td>
-                                <td className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem' }}>
-                                    <div className="cargo-inner-table__badges cargo-inner-table__badges--stack-mobile documents-invoices-inner-table__badges">
-                                        {ist ? <AppBadge tone="neutral" className="documents-invoice-inner-badge" style={{ background: istBadgeStyle.bg, color: istBadgeStyle.color }}>{ist}</AppBadge> : null}
-                                        <span className="cargo-inner-table__delivery-inline documents-invoice-inner-badge-wrap">
-                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
-                                        </span>
-                                        <span className="cargo-inner-table__route-inline documents-invoice-inner-badge-wrap">
-                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <DocumentsRouteBadge className="documents-invoice-inner-badge">{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</DocumentsRouteBadge>}
-                                        </span>
-                                        {!ist && !deliveryState && !(firstCargoNum && cargoRouteByNumber.get(normCargoKey(firstCargoNum))) ? '—' : null}
+                                    <div className="documents-invoice-table-badges-anchor">
+                                        <ClickableInvoiceNumber number={String(inum)} invoice={inv} onOpen={setSelectedInvoice} />
+                                        <DocumentsInvoiceTableBadges
+                                            billStatus={ist || undefined}
+                                            billBadgeStyle={istBadgeStyle}
+                                            deliveryState={deliveryState}
+                                            routeLabel={(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || undefined}
+                                            perevozkiLoading={perevozkiLoading}
+                                        />
                                     </div>
                                 </td>
+                                <td className="cargo-inner-table__col-date" style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} omitYear /></td>
+                                <td className="cargo-inner-table__col-status" style={{ padding: '0.5rem 0.4rem' }} aria-hidden />
                                 <td className="cargo-inner-table__col-delivery doc-inner-table-delivery cargo-inner-table__col-delivery--desktop" style={{ padding: '0.5rem 0.4rem' }}>
                                     {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
                                 </td>

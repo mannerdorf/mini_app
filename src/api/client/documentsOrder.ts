@@ -10,6 +10,7 @@ import type {
 } from "../../../lib/haulzCalculator/types";
 import type { FivepostParsedRow } from "../../../lib/fivepost/types";
 import type { TableRow } from "../../features/documents/orders/NewOrderModal";
+import { postJsonXhr } from "./postJsonXhr";
 
 export type DocumentsSuggestItem = {
   id?: string;
@@ -50,9 +51,10 @@ function authHeaders(auth: DocumentsAuthScope): Record<string, string> {
   };
 }
 
-function parseError(res: Response, data: unknown): string {
+function parseError(resOrStatus: Response | number, data: unknown): string {
   if (typeof (data as { error?: string })?.error === "string") return (data as { error: string }).error;
-  return `HTTP ${res.status}`;
+  const status = typeof resOrStatus === "number" ? resOrStatus : resOrStatus.status;
+  return `HTTP ${status}`;
 }
 
 export async function fetchDocumentsAddressSuggest(
@@ -154,27 +156,144 @@ export type DocumentsOrderSubmitPayload = DocumentsOrderQuotePayload & {
   tableRows?: TableRow[];
   fivepostBatchId?: number | null;
   attachments?: DocumentsOrderAttachment[];
+  /** JSON для 1С — сохраняется в pending_order_requests, отправка после согласования менеджером. */
+  zayavkaPayload?: DocumentsOrder1cSubmitPayload;
 };
+
+export type DocumentsOrder1cSubmitPayload = {
+  ЗаказчикИНН: string;
+  ОтправительИНН?: string;
+  ПолучательИНН?: string;
+  ПунктОтправки: string;
+  ПунктНазначения: string;
+  ДатаЗабораПлан: string;
+  ОГ?: boolean;
+  НомерЗаявкиКлиента?: string;
+  Посылки: Array<{
+    ШтрихкодЗаказчика: string;
+    ШтрихкодЗаказчика2?: string;
+    Ид?: string;
+    Товары: Array<{
+      ИДОтправления?: string;
+      ID?: string;
+      Name: string;
+      ТМЦ?: string;
+      Количество: number;
+      ОбъявленнаяСтоимостьТовара: number;
+    }>;
+  }>;
+};
+
+export type DocumentsOrder1cSubmitResult = {
+  ok: boolean;
+  status: number;
+  nomerZayavki: string | null;
+  message: string;
+  error?: string;
+  /** Сырой ответ 1С / API (для песочницы в форме заявки). */
+  upstream?: unknown;
+  request_id?: string;
+  raw?: unknown;
+};
+
+export class DocumentsOrder1cSubmitError extends Error {
+  status: number;
+  upstream?: unknown;
+  request_id?: string;
+  raw?: unknown;
+
+  constructor(message: string, opts: { status: number; upstream?: unknown; request_id?: string; raw?: unknown }) {
+    super(message);
+    this.name = "DocumentsOrder1cSubmitError";
+    this.status = opts.status;
+    this.upstream = opts.upstream;
+    this.request_id = opts.request_id;
+    this.raw = opts.raw;
+  }
+}
+
+export async function submitOrderTo1c(
+  auth: DocumentsAuthScope,
+  order: DocumentsOrder1cSubmitPayload,
+): Promise<DocumentsOrder1cSubmitResult> {
+  // Боевой API (VPS / origin/main) сейчас обслуживает только /api/orders/submit-1c.
+  // /api/documents/order-submit-1c и /api/order-submit-1c есть на staging, но ещё не на VPS → 404.
+  // XHR + абсолютный https://haulz.space: на Vercel nested /api/orders/* даёт 405, same-origin fetch
+  // иногда доходит как GET (в песочнице как раз Method not allowed без received_method).
+  const endpoints = [
+    "/api/orders/submit-1c",
+    "/api/documents/order-submit-1c",
+    "/api/order-submit-1c",
+  ] as const;
+  const attempts: Array<Record<string, unknown>> = [];
+  const body = authBody(auth, { order });
+  const headers = authHeaders(auth);
+
+  for (const endpoint of endpoints) {
+    const res = await postJsonXhr(endpoint, headers, body);
+    const data = (res.data && typeof res.data === "object" ? res.data : {}) as Record<string, unknown>;
+    const upstream = data.upstream ?? data;
+    const requestId = typeof data.request_id === "string" ? data.request_id : undefined;
+    const meta = {
+      endpoint,
+      url: res.url,
+      client_method: res.method,
+      received_method: data.received_method ?? null,
+      http_status: res.status,
+    };
+    attempts.push({ ...meta, error: data.error ?? null });
+
+    if (res.status === 404 || res.status === 405) {
+      continue;
+    }
+
+    if (res.status < 200 || res.status >= 300) {
+      throw new DocumentsOrder1cSubmitError(parseError(res.status, data), {
+        status: res.status,
+        upstream,
+        request_id: requestId,
+        raw: { ...data, ...meta, attempts },
+      });
+    }
+
+    return {
+      ok: true,
+      status: res.status,
+      nomerZayavki: (data.nomerZayavki as string | null | undefined) ?? null,
+      message: typeof data.message === "string" ? data.message : "Заявка передана в 1С",
+      upstream,
+      request_id: requestId,
+      raw: { ...data, ...meta, attempts },
+    };
+  }
+
+  const last = attempts[attempts.length - 1] || {};
+  throw new DocumentsOrder1cSubmitError(String(last.error || "API оформления заявки в 1С недоступен"), {
+    status: Number(last.http_status) || 404,
+    upstream: last,
+    raw: { attempts },
+  });
+}
 
 export async function submitDocumentsOrder(
   auth: DocumentsAuthScope,
   payload: DocumentsOrderSubmitPayload,
 ): Promise<{ nomerZayavki: string; quote: QuoteResult; emailSent: boolean; message: string }> {
-  const res = await fetch("/api/documents/order-submit", {
-    method: "POST",
-    headers: authHeaders(auth),
-    body: authBody(auth, payload),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(parseError(res, data));
+  const body = authBody(auth, payload);
+  const { status, data } = await postJsonXhr("/api/documents/order-submit", authHeaders(auth), body);
+  if (status < 200 || status >= 300) throw new Error(parseError(status, data));
   const d = data as {
-    nomerZayavki: string;
-    quote: QuoteResult;
+    nomerZayavki?: string;
+    quote?: QuoteResult;
     emailSent?: boolean;
     message?: string;
+    error?: string;
   };
+  const nomerZayavki = String(d.nomerZayavki ?? "").trim();
+  if (!nomerZayavki) throw new Error(d.error || "Пустой ответ сервера");
+  if (!d.quote) throw new Error(d.error || "Пустой ответ сервера");
   return {
-    nomerZayavki: d.nomerZayavki,
+    nomerZayavki,
     quote: d.quote,
     emailSent: d.emailSent === true,
     message: d.message || "Заявка зарегистрирована",
@@ -349,4 +468,22 @@ export function fileToBase64(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error || new Error("Не удалось прочитать файл"));
     reader.readAsDataURL(file);
   });
+}
+
+/** Уникальные ИДОтправления (16 символов) для мест заявки — кэш на сервере. */
+export async function allocateDocumentsSendingIds(
+  auth: DocumentsAuthScope,
+  params: { count: number; nomerZayavki?: string },
+): Promise<string[]> {
+  const res = await fetch("/api/documents/allocate-sending-ids", {
+    method: "POST",
+    headers: authHeaders(auth),
+    body: authBody(auth, {
+      count: params.count,
+      nomerZayavki: params.nomerZayavki || undefined,
+    }),
+  });
+  const data = (await res.json().catch(() => ({}))) as { ids?: string[]; error?: string };
+  if (!res.ok) throw new Error(parseError(res, data));
+  return Array.isArray(data.ids) ? data.ids : [];
 }

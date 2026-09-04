@@ -2,10 +2,14 @@ import * as XLSX from "xlsx";
 
 export type OrderTableRow = {
   n: number;
+  /** Строка для отображения в таблице (может включать кол-во и цену). */
   posylka: string;
+  /** Позиции места из УПД — для отправки в 1С отдельными полями. */
+  items: UpdLineItem[];
   otskanirvano: boolean;
   dataSkanirovaniya: string;
   perevozka: string;
+  idOtpravleniya?: string;
 };
 
 export type UpdLineItem = {
@@ -13,6 +17,14 @@ export type UpdLineItem = {
   quantity: number;
   price: number;
 };
+
+function normalizeUpdCellText(value: unknown): string {
+  return String(value ?? "")
+    .replace(/\u00a0/g, " ")
+    .replace(/[\r\n]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 function normalizeHeader(value: unknown): string {
   return String(value ?? "")
@@ -155,10 +167,10 @@ export function parseUpdLineItemsFromSheet(data: unknown[][]): UpdLineItem[] {
     const row = data[rowIdx] as unknown[] | undefined;
     if (!row?.length) continue;
 
-    const cells = row.map((c) => String(c ?? "").replace(/\s+/g, " ").trim());
+    const cells = row.map((c) => normalizeUpdCellText(c));
     if (isStopRow(cells) || isLetterRow(cells) || isColumnMarkerRow(row, header.nameCol)) continue;
 
-    const name = cells[header.nameCol] ?? "";
+    const name = normalizeUpdCellText(row[header.nameCol]);
     if (!name || isCategoryRow(name)) continue;
 
     const quantity = header.qtyCol >= 0 ? parseNumber(row[header.qtyCol]) : null;
@@ -174,6 +186,12 @@ export function parseUpdLineItemsFromSheet(data: unknown[][]): UpdLineItem[] {
   }
 
   return items;
+}
+
+function formatPlaceLabel(bucket: UpdLineItem[], placeNo: number): string {
+  if (bucket.length === 0) return `Место ${placeNo}`;
+  if (bucket.length === 1) return formatLineItem(bucket[0]);
+  return `Место ${placeNo} (${bucket.length} поз.): ${bucket.map(formatLineItem).join("; ")}`;
 }
 
 export function distributeUpdLineItems(
@@ -195,22 +213,14 @@ export function distributeUpdLineItems(
     buckets[idx % placeCount].push(item);
   });
 
-  return buckets.map((bucket, idx) => {
-    const posylka =
-      bucket.length === 0
-        ? `Место ${idx + 1}`
-        : bucket.length === 1
-          ? formatLineItem(bucket[0])
-          : `Место ${idx + 1} (${bucket.length} поз.): ${bucket.map(formatLineItem).join("; ")}`;
-
-    return {
-      n: idx + 1,
-      posylka,
-      otskanirvano: false,
-      dataSkanirovaniya: "",
-      perevozka: "",
-    };
-  });
+  return buckets.map((bucket, idx) => ({
+    n: idx + 1,
+    posylka: formatPlaceLabel(bucket, idx + 1),
+    items: bucket,
+    otskanirvano: false,
+    dataSkanirovaniya: "",
+    perevozka: "",
+  }));
 }
 
 export async function parseUpdToTableRows(file: File, kolvoMest: number): Promise<OrderTableRow[]> {

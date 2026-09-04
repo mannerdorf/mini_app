@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
+import { getAdminTokenFromRequest, getAdminTokenPayload, verifyAdminToken } from "../lib/adminAuth.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
 import { initRequestContext } from "./_lib/observability.js";
 
@@ -11,10 +11,10 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
   const token = getAdminTokenFromRequest(req);
-  const payload = getAdminTokenPayload(token);
-  if (!payload?.admin) {
+  if (!verifyAdminToken(token)) {
     return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
+  const payload = getAdminTokenPayload(token);
   return res.status(200).json({ isSuperAdmin: payload.superAdmin === true, request_id: ctx.requestId });
 }
 export default withErrorLog(handler);

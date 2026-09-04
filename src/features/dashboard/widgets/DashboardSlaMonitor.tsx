@@ -248,9 +248,9 @@ export function DashboardSlaMonitor({
                             {slaStatsByType.auto.percentOnTime}% ({slaStatsByType.auto.onTime}/{slaStatsByType.auto.total}), ср. {slaStatsByType.auto.avgDelay} дн.
                         </Typography.Body>
                         {outOfSlaByType.auto.length > 0 && (
-                            <div style={{ marginTop: '0.5rem', overflowX: 'auto' }}>
+                            <div className="dashboard-scroll-table-wrap" style={{ marginTop: '0.5rem' }}>
                                 <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Перевозки вне SLA:</Typography.Body>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                <table className="dashboard-scroll-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                     <thead>
                                         <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                                             <SlaSortHeader column="number" label="Номер" sortColumn={slaTableSortColumn} sortOrder={slaTableSortOrder} onSort={handleSlaTableSort} />
@@ -269,6 +269,7 @@ export function DashboardSlaMonitor({
                                         {sortedOutOfSlaAuto.map(({ item, sla }, idx) => (
                                             <React.Fragment key={`auto-${item.Number ?? idx}`}>
                                                 <tr
+                                                    className="dashboard-scroll-table__data-row"
                                                     style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expandedSlaCargoNumber === (item.Number ?? '') ? 'var(--color-bg-hover)' : undefined }}
                                                     onClick={() => {
                                                         const num = item.Number ?? '';
@@ -282,21 +283,21 @@ export function DashboardSlaMonitor({
                                                     }}
                                                     title={expandedSlaCargoNumber === (item.Number ?? '') ? 'Свернуть статусы' : 'Показать статусы перевозки'}
                                                 >
-                                                    <td style={{ padding: '0.35rem 0.3rem', color: '#ef4444' }}>
+                                                    <td data-label="Номер" style={{ padding: '0.35rem 0.3rem', color: '#ef4444' }}>
                                                         <ClickableCargoNumber number={item.Number ? String(item.Number) : ''} onOpen={(n) => onOpenCargo?.(n, item)} style={{ color: '#ef4444' }} />
                                                     </td>
-                                                    <td style={{ padding: '0.35rem 0.3rem' }}><DateText value={item.DatePrih} /></td>
-                                                    <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
-                                                    <td className="customer-col" style={{ padding: '0.35rem 0.3rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo((item.Customer ?? (item as any).customer) || '')}>{stripOoo((item.Customer ?? (item as any).customer) || '') || '—'}</td>
-                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
-                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
-                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
-                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.actualDays}</td>
-                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.planDays}</td>
-                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', color: '#ef4444' }}>+{sla.delayDays} дн.</td>
+                                                    <td data-label="Дата прихода" style={{ padding: '0.35rem 0.3rem' }}><DateText value={item.DatePrih} /></td>
+                                                    <td data-label="Статус" style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
+                                                    <td data-label="Заказчик" className="customer-col" style={{ padding: '0.35rem 0.3rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo((item.Customer ?? (item as any).customer) || '')}>{stripOoo((item.Customer ?? (item as any).customer) || '') || '—'}</td>
+                                                    <td data-label="Мест" style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
+                                                    <td data-label="Плат. вес" style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
+                                                    <td data-label="Сумма" style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
+                                                    <td data-label="Дней" style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.actualDays}</td>
+                                                    <td data-label="План" style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.planDays}</td>
+                                                    <td data-label="Просрочка" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', color: '#ef4444' }}>+{sla.delayDays} дн.</td>
                                                 </tr>
                                                 {expandedSlaCargoNumber === (item.Number ?? '') && (
-                                                    <tr>
+                                                    <tr className="dashboard-scroll-table__detail-row">
                                                         <td colSpan={10} style={{ padding: '0.5rem', borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                             <Typography.Body style={{ fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.35rem' }}>Статусы перевозки</Typography.Body>
                                                             {slaTimelineLoading && (
@@ -356,9 +357,9 @@ export function DashboardSlaMonitor({
                             {slaStatsByType.ferry.percentOnTime}% ({slaStatsByType.ferry.onTime}/{slaStatsByType.ferry.total}), ср. {slaStatsByType.ferry.avgDelay} дн.
                         </Typography.Body>
                         {outOfSlaByType.ferry.length > 0 && (
-                            <div style={{ marginTop: '0.5rem', overflowX: 'auto' }}>
+                            <div className="dashboard-scroll-table-wrap" style={{ marginTop: '0.5rem' }}>
                                 <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Перевозки вне SLA:</Typography.Body>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                <table className="dashboard-scroll-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                     <thead>
                                         <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                                             <SlaSortHeader column="number" label="Номер" sortColumn={slaTableSortColumn} sortOrder={slaTableSortOrder} onSort={handleSlaTableSort} />
@@ -375,17 +376,17 @@ export function DashboardSlaMonitor({
                                     </thead>
                                     <tbody>
                                         {sortedOutOfSlaFerry.map(({ item, sla }, idx) => (
-                                            <tr key={`ferry-${item.Number ?? idx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                <td style={{ padding: '0.35rem 0.3rem', color: '#ef4444' }}>{item.Number ?? '—'}</td>
-                                                <td style={{ padding: '0.35rem 0.3rem' }}><DateText value={item.DatePrih} /></td>
-                                                <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
-                                                <td className="customer-col" style={{ padding: '0.35rem 0.3rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo((item.Customer ?? (item as any).customer) || '')}>{stripOoo((item.Customer ?? (item as any).customer) || '') || '—'}</td>
-                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
-                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
-                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
-                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.actualDays}</td>
-                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.planDays}</td>
-                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', color: '#ef4444' }}>+{sla.delayDays} дн.</td>
+                                            <tr key={`ferry-${item.Number ?? idx}`} className="dashboard-scroll-table__data-row" style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                <td data-label="Номер" style={{ padding: '0.35rem 0.3rem', color: '#ef4444' }}>{item.Number ?? '—'}</td>
+                                                <td data-label="Дата прихода" style={{ padding: '0.35rem 0.3rem' }}><DateText value={item.DatePrih} /></td>
+                                                <td data-label="Статус" style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
+                                                <td data-label="Заказчик" className="customer-col" style={{ padding: '0.35rem 0.3rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo((item.Customer ?? (item as any).customer) || '')}>{stripOoo((item.Customer ?? (item as any).customer) || '') || '—'}</td>
+                                                <td data-label="Мест" style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
+                                                <td data-label="Плат. вес" style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
+                                                <td data-label="Сумма" style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
+                                                <td data-label="Дней" style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.actualDays}</td>
+                                                <td data-label="План" style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.planDays}</td>
+                                                <td data-label="Просрочка" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', color: '#ef4444' }}>+{sla.delayDays} дн.</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -399,9 +400,9 @@ export function DashboardSlaMonitor({
                             {slaStatsByType.air.percentOnTime}% ({slaStatsByType.air.onTime}/{slaStatsByType.air.total}), ср. {slaStatsByType.air.avgDelay} дн.
                         </Typography.Body>
                         {outOfSlaByType.air.length > 0 && (
-                            <div style={{ marginTop: '0.5rem', overflowX: 'auto' }}>
+                            <div className="dashboard-scroll-table-wrap" style={{ marginTop: '0.5rem' }}>
                                 <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Перевозки вне SLA:</Typography.Body>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                <table className="dashboard-scroll-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                     <thead>
                                         <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                                             <SlaSortHeader column="number" label="Номер" sortColumn={slaTableSortColumn} sortOrder={slaTableSortOrder} onSort={handleSlaTableSort} />
@@ -418,17 +419,17 @@ export function DashboardSlaMonitor({
                                     </thead>
                                     <tbody>
                                         {sortedOutOfSlaAir.map(({ item, sla }, idx) => (
-                                            <tr key={`air-${item.Number ?? idx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                <td style={{ padding: '0.35rem 0.3rem', color: '#ef4444' }}>{item.Number ?? '—'}</td>
-                                                <td style={{ padding: '0.35rem 0.3rem' }}><DateText value={item.DatePrih} /></td>
-                                                <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
-                                                <td className="customer-col" style={{ padding: '0.35rem 0.3rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo((item.Customer ?? (item as any).customer) || '')}>{stripOoo((item.Customer ?? (item as any).customer) || '') || '—'}</td>
-                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
-                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
-                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
-                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.actualDays}</td>
-                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.planDays}</td>
-                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', color: '#ef4444' }}>+{sla.delayDays} дн.</td>
+                                            <tr key={`air-${item.Number ?? idx}`} className="dashboard-scroll-table__data-row" style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                <td data-label="Номер" style={{ padding: '0.35rem 0.3rem', color: '#ef4444' }}>{item.Number ?? '—'}</td>
+                                                <td data-label="Дата прихода" style={{ padding: '0.35rem 0.3rem' }}><DateText value={item.DatePrih} /></td>
+                                                <td data-label="Статус" style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
+                                                <td data-label="Заказчик" className="customer-col" style={{ padding: '0.35rem 0.3rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo((item.Customer ?? (item as any).customer) || '')}>{stripOoo((item.Customer ?? (item as any).customer) || '') || '—'}</td>
+                                                <td data-label="Мест" style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
+                                                <td data-label="Плат. вес" style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
+                                                <td data-label="Сумма" style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
+                                                <td data-label="Дней" style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.actualDays}</td>
+                                                <td data-label="План" style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.planDays}</td>
+                                                <td data-label="Просрочка" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', color: '#ef4444' }}>+{sla.delayDays} дн.</td>
                                             </tr>
                                         ))}
                                     </tbody>

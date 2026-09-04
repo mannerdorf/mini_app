@@ -7,6 +7,9 @@ import {
   cargoStageEventLabel,
   type CargoStageEventId,
 } from "./notificationCargoEvents.js";
+import { getOrderCustomerInn } from "./orderCustomerScope.js";
+import { normalizeNotificationInn } from "./notificationInnScope.js";
+import { cacheHistoryDateFrom } from "./cacheHistoryDays.js";
 
 export type { CargoStageEventId } from "./notificationCargoEvents.js";
 export {
@@ -15,6 +18,9 @@ export {
   getCargoStageEventIdFromState,
   getCargoStageEventsOnStateChange,
   isCargoStageNotificationEnabled,
+  isRecentNotificationItem,
+  notificationItemDate,
+  RECENT_CARGO_NOTIFY_DAYS,
 } from "./notificationCargoEvents.js";
 
 const PEREVOZKI_BASE =
@@ -36,41 +42,175 @@ function pickFirst(item: any, keys: string[]): unknown {
   return undefined;
 }
 
+const JUNK_BILL_NUMBERS = new Set([
+  "0",
+  "false",
+  "true",
+  "-",
+  "—",
+  "нет",
+  "да",
+  "null",
+  "undefined",
+  "none",
+  "выставлен",
+  "выставлен счет",
+  "выставлен счёт",
+]);
+
+function isPlausibleBillNumber(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  if (typeof value === "object" || typeof value === "boolean") return false;
+  const s = String(value).trim();
+  if (!s || JUNK_BILL_NUMBERS.has(s.toLowerCase())) return false;
+  return /\d/.test(s);
+}
+
+function pickFirstScalarBill(record: Record<string, unknown> | null | undefined, keys: readonly string[]): string {
+  if (!record) return "";
+  for (const key of keys) {
+    const value = record[key];
+    if (!isPlausibleBillNumber(value)) continue;
+    return String(value).trim();
+  }
+  return "";
+}
+
+const NESTED_WRAPPER_KEYS = ["Response", "Data", "Result", "result", "data", "items", "Items"] as const;
+const NESTED_INVOICE_KEYS = ["Invoice", "invoice", "Счет", "Счёт", "Bill", "BillDoc"] as const;
+const NESTED_INVOICE_LIST_KEYS = ["Invoices", "invoices", "Bills", "bills"] as const;
+
+function pushNestedRecords(
+  out: Array<{ record: Record<string, unknown>; allowInvoiceNumber: boolean }>,
+  nested: unknown,
+  allowInvoiceNumber: boolean,
+): void {
+  if (Array.isArray(nested)) {
+    for (const row of nested) {
+      if (row && typeof row === "object" && !Array.isArray(row)) {
+        out.push({ record: row as Record<string, unknown>, allowInvoiceNumber });
+      }
+    }
+    return;
+  }
+  if (nested && typeof nested === "object") {
+    out.push({ record: nested as Record<string, unknown>, allowInvoiceNumber });
+  }
+}
+
+function billRecordCandidates(item: any): Array<{ record: Record<string, unknown>; allowInvoiceNumber: boolean }> {
+  if (!item || typeof item !== "object") return [];
+  const root = item as Record<string, unknown>;
+  const out: Array<{ record: Record<string, unknown>; allowInvoiceNumber: boolean }> = [
+    { record: root, allowInvoiceNumber: false },
+  ];
+  for (const key of NESTED_INVOICE_KEYS) {
+    pushNestedRecords(out, root[key], true);
+  }
+  for (const key of NESTED_INVOICE_LIST_KEYS) {
+    pushNestedRecords(out, root[key], true);
+  }
+  for (const key of NESTED_WRAPPER_KEYS) {
+    pushNestedRecords(out, root[key], false);
+  }
+  return out;
+}
+
 const BILL_NUMBER_KEYS = [
   "NumberBill",
   "BillNumber",
+  "BillNum",
+  "Bill_Number",
+  "billnum",
+  "bill_number",
   "Invoice",
+  "invoice",
   "InvoiceNumber",
+  "InvoiceNum",
   "Счет",
   "Счёт",
+  "СчетНомер",
   "НомерСчета",
   "НомерСчёта",
 ] as const;
 
+const INVOICE_DOCUMENT_NUMBER_KEYS = ["Number", "number", "Номер", "N"] as const;
+
+function cargoNumberOf(item: any): string {
+  return String(item?.Number ?? item?.number ?? item?.НомерПеревозки ?? "").trim();
+}
+
+function sameDocNumber(a: string, b: string): boolean {
+  const na = a.replace(/^0000-/, "").replace(/^0+/, "") || "";
+  const nb = b.replace(/^0000-/, "").replace(/^0+/, "") || "";
+  return Boolean(na && nb && na === nb);
+}
+
 /** ИНН заказчика из записи перевозки/счёта (как в perevozki API). */
 export function notificationItemInn(item: any): string {
+  const fromOrder = getOrderCustomerInn(item);
+  if (fromOrder) return fromOrder;
   const v =
-    item?.INN ??
-    item?.Inn ??
-    item?.inn ??
+    item?.КлиентИНН ??
+    item?.КлиентИнн ??
+    item?.ИННЗаказчика ??
     item?.CustomerINN ??
     item?.CustomerInn ??
     item?.customerInn ??
     item?.INNCustomer ??
     item?.InnCustomer ??
+    item?.INN ??
+    item?.Inn ??
+    item?.inn ??
     item?.ЗаказчикИНН ??
     "";
-  return String(v).trim();
+  return normalizeNotificationInn(v);
 }
 
 /** Номер счёта строго из полей счёта — без подстановки номера перевозки. */
 export function pickBillNumber(item: any): string {
-  return String(pickFirst(item, [...BILL_NUMBER_KEYS]) ?? "").trim();
+  const cargoNumber = cargoNumberOf(item);
+  for (const { record, allowInvoiceNumber } of billRecordCandidates(item)) {
+    const keys = allowInvoiceNumber ? [...BILL_NUMBER_KEYS, ...INVOICE_DOCUMENT_NUMBER_KEYS] : [...BILL_NUMBER_KEYS];
+    const hit = pickFirstScalarBill(record, keys);
+    if (!hit) continue;
+    if (cargoNumber && sameDocNumber(hit, cargoNumber)) continue;
+    return hit;
+  }
+  return "";
+}
+
+const BILL_SUM_KEYS = ["SumDoc", "SumBill", "AmountBill", "СуммаДокумента", "Sum", "Amount", "Сумма"] as const;
+
+/** Сумма счёта: поля перевозки, затем вложенный Invoice. */
+export function pickBillSumRaw(item: any): unknown {
+  for (const { record } of billRecordCandidates(item)) {
+    const hit = pickFirst(record, [...BILL_SUM_KEYS]);
+    if (hit !== undefined && hit !== null && typeof hit !== "object" && String(hit).trim() !== "") {
+      return hit;
+    }
+  }
+  return undefined;
 }
 
 /** В данных есть явный номер счёта (не номер перевозки). */
 export function hasRealBillNumber(item: any): boolean {
   return pickBillNumber(item).length > 0;
+}
+
+function billNumberDisplayValue(raw: string): string {
+  const str = String(raw ?? "").trim();
+  if (!str) return "—";
+  const withoutPrefix = str.replace(/^0000-/, "");
+  return withoutPrefix.replace(/^0+/, "") || "0";
+}
+
+/** Номер счёта пригоден для текста push (не пустой и не «0»). */
+export function hasBillNumberForPush(item: any): boolean {
+  const raw = pickBillNumber(item);
+  if (!raw) return false;
+  const display = billNumberDisplayValue(raw);
+  return display !== "—" && display !== "0";
 }
 
 /** Признак выставленного счёта: номер счёта и/или StateBill из 1С. */
@@ -149,7 +289,28 @@ export async function fetchPerevozkiByInn(
   }
 }
 
-/** Запрос счетов по ИНН заказчика (для daily summary). */
+/** Разбор ответа GetIinvoices: массив, items/Items/Invoices/data. */
+export function extractInvoicesFromResponse(json: unknown): any[] {
+  if (Array.isArray(json)) return json;
+  if (!json || typeof json !== "object") return [];
+  const obj = json as Record<string, unknown>;
+  for (const key of ["items", "Items", "Invoices", "invoices", "data", "Data", "result", "Result", "rows", "Rows"]) {
+    const value = obj[key];
+    if (Array.isArray(value)) return value;
+  }
+  for (const value of Object.values(obj)) {
+    if (
+      Array.isArray(value) &&
+      value.length > 0 &&
+      value.every((row) => row && typeof row === "object" && !Array.isArray(row))
+    ) {
+      return value;
+    }
+  }
+  return [];
+}
+
+/** Запрос счетов по ИНН заказчика (для daily summary и bill_created). */
 export async function fetchInvoicesByInn(
   inn: string,
   serviceLogin: string,
@@ -158,11 +319,7 @@ export async function fetchInvoicesByInn(
   dateTo?: string
 ): Promise<{ items: any[]; raw?: any }> {
   const to = dateTo || new Date().toISOString().split("T")[0];
-  const from = dateFrom || (() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 90);
-    return d.toISOString().split("T")[0];
-  })();
+  const from = dateFrom || cacheHistoryDateFrom();
   const url = new URL(INVOICES_BASE);
   url.searchParams.set("DateB", from);
   url.searchParams.set("DateE", to);
@@ -181,8 +338,7 @@ export async function fetchInvoicesByInn(
   }
   try {
     const json = JSON.parse(text);
-    const list = Array.isArray(json) ? json : json.items ?? json.Invoices ?? json.invoices ?? [];
-    return { items: Array.isArray(list) ? list : [], raw: json };
+    return { items: extractInvoicesFromResponse(json), raw: json };
   } catch {
     return { items: [] };
   }
@@ -211,17 +367,21 @@ export function formatTelegramMessage(
   const sender = String(item?.Sender || "—").trim() || "—";
   const receiver = String(item?.Receiver || item?.Poluchatel || "—").trim() || "—";
   const details = `№ ${n} - мест: ${mest}, платный вес: ${pw}, вес: ${w}, объём: ${volume}, отправитель: ${sender}, получатель: ${receiver}.`;
-  const billSumRaw = pickFirst(anyItem, ["SumDoc", "SumBill", "AmountBill", "СуммаДокумента", "Sum", "Amount", "Сумма"]);
+  const billSumRaw = pickBillSumRaw(anyItem);
   const billSumNum = typeof billSumRaw === "number" ? billSumRaw : parseFloat(String(billSumRaw ?? "").replace(",", "."));
   const billSum = Number.isFinite(billSumNum) ? new Intl.NumberFormat("ru-RU").format(Math.round(billSumNum)) : "—";
+  const billNumberRaw = pickBillNumber(anyItem);
+  const billNumber = billNumberRaw
+    ? String(billNumberRaw).replace(/^0000-/, "").replace(/^0+/, "") || "0"
+    : "—";
   if (CARGO_STAGE_EVENT_IDS.includes(event as CargoStageEventId)) {
     return `${cargoStageEventLabel(event as CargoStageEventId)}. № ${n}`;
   }
   switch (event) {
     case "bill_created":
-      return `Вам выставлен счет по перевозке № ${n} на сумму ${billSum} ₽.`;
+      return `Вам выставлен счет № ${billNumber} по перевозке № ${n} на сумму ${billSum} ₽.`;
     case "bill_paid":
-      return `Счет по перевозке № ${n} оплачен.`;
+      return `Счет № ${billNumber} по перевозке № ${n} оплачен.`;
     default:
       return `Обновление статуса перевозки. ${details}`;
   }

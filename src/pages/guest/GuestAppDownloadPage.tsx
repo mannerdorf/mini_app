@@ -1,15 +1,19 @@
 import React from "react";
 import {
   ArrowLeft,
-  Clock3,
   Download,
+  ExternalLink,
   Share2,
   ShieldCheck,
   Smartphone,
   Store,
 } from "lucide-react";
 import { Button } from "../../components/shadcn/button";
-import { ANDROID_RELEASE_DOWNLOAD_URL, ANDROID_RELEASE_ORIGIN } from "../../constants/androidRelease";
+import {
+  ANDROID_RELEASE_DOWNLOAD_URL,
+  ANDROID_RELEASE_ORIGIN,
+  RUSTORE_APP_URL,
+} from "../../constants/androidRelease";
 import { GUEST_ILLUSTRATIONS } from "../../constants/guestIllustrations";
 import { DEFAULT_APP_URL } from "../../../lib/haulzDomains";
 import { GuestPageHero } from "./GuestPageHero";
@@ -86,28 +90,28 @@ export function GuestAppDownloadPage({ onBack }: Props) {
                 <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#eff6ff] text-[#2563eb]">
                   <Store className="h-6 w-6" />
                 </span>
-                <span className="rounded-full bg-[#f3f4f6] px-3 py-1 text-xs font-bold text-[#6b7280]">Скоро</span>
+                <span className="rounded-full bg-[#dcfce7] px-3 py-1 text-xs font-bold text-[#15803d]">Доступно</span>
               </div>
               <h3 className="mt-6 text-xl font-bold text-[#111827]">RuStore</h3>
               <p className="mt-2 text-sm leading-relaxed text-[#6b7280]">
                 Установка и автоматические обновления через российский магазин приложений.
               </p>
               <div className="mt-5 flex items-start gap-3 rounded-2xl bg-[#f3f4f6] p-4">
-                <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-[#2563eb]" />
+                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#2563eb]" />
                 <div>
-                  <p className="text-sm font-semibold text-[#111827]">Готовим публикацию</p>
-                  <p className="mt-1 text-xs leading-relaxed text-[#6b7280]">
-                    Кнопка установки появится здесь после публикации HAULZ в RuStore.
-                  </p>
+                  <p className="text-sm font-semibold text-[#111827]">Опубликовано в RuStore</p>
+                  <p className="mt-1 break-all text-xs text-[#6b7280]">{RUSTORE_APP_URL}</p>
                 </div>
               </div>
-              <button
-                type="button"
-                disabled
-                className="mt-5 inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-[#e5e7eb] px-5 py-3 text-sm font-bold text-[#9ca3af]"
+              <a
+                href={RUSTORE_APP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#2563eb] px-5 py-3 text-sm font-bold text-white hover:bg-[#1d4ed8]"
               >
-                Скоро будет доступно
-              </button>
+                <ExternalLink className="h-4 w-4" />
+                Установить из RuStore
+              </a>
             </article>
           </div>
         </section>

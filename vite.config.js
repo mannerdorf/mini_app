@@ -39,6 +39,8 @@ export default defineConfig(({ command }) => ({
   },
   plugins: [react(), ...(useSingleFilePlugin() ? [viteSingleFile()] : []), adminRewrite()],
   build: {
+    // В Docker/CI gzip-отчёт по каждому чанку заметно замедляет финальный этап сборки.
+    reportCompressedSize: !process.env.CI,
     // Без singlefile — разумный лимит инлайна мелких ассетов
     assetsInlineLimit: useSingleFilePlugin() ? 100000000 : 4096,
     cssCodeSplit: !useSingleFilePlugin(),
@@ -54,7 +56,9 @@ export default defineConfig(({ command }) => ({
               if (id.includes("firebase") || id.includes("@firebase")) return "firebase";
               if (id.includes("recharts")) return "recharts";
               if (id.includes("lucide-react")) return "lucide";
-              if (id.includes("jspdf") || id.includes("html2canvas") || id.includes("html2pdf")) return "pdf";
+              if (id.includes("pdfjs-dist")) return "pdfjs";
+              if (id.includes("exceljs")) return "exceljs";
+              if (id.includes("jspdf") || id.includes("html2canvas") || id.includes("html2pdf")) return "pdf-tools";
               if (id.includes("date-fns")) return "date-fns";
             },
           },

@@ -1,10 +1,30 @@
-import React, { useState } from "react";
+import React, { lazy, Suspense, useState } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
+import { Loader2 } from "lucide-react";
 import { AdminFotDashboardSection } from "./AdminFotDashboardSection";
 import { AdminHaulzDispatchSection } from "./AdminHaulzDispatchSection";
+import { AdminLastMileReportSection } from "./AdminLastMileReportSection";
 import { AdminUserActivitySection } from "./AdminUserActivitySection";
 
-type AdminDashboardSubTab = "fot" | "haulz_dispatch" | "user_activity";
+const AdminMagistralAnalysisSection = lazy(() =>
+  import("./AdminMagistralAnalysisSection").then((m) => ({ default: m.AdminMagistralAnalysisSection })),
+);
+
+type AdminDashboardSubTab =
+  | "fot"
+  | "last_mile"
+  | "haulz_dispatch"
+  | "magistral"
+  | "user_activity";
+
+function AdminDashboardSectionLoader() {
+  return (
+    <Flex align="center" gap="0.5rem" style={{ padding: "1.5rem 0", color: "var(--color-text-secondary)" }}>
+      <Loader2 className="w-5 h-5 animate-spin" aria-hidden />
+      Загрузка раздела…
+    </Flex>
+  );
+}
 
 export function AdminDashboardsPanel({ adminToken }: { adminToken: string }) {
   const [sub, setSub] = useState<AdminDashboardSubTab>("fot");
@@ -13,7 +33,7 @@ export function AdminDashboardsPanel({ adminToken }: { adminToken: string }) {
     <div style={{ maxWidth: 1200 }}>
       <Typography.Headline style={{ fontSize: "1.15rem", fontWeight: 700, marginBottom: "0.75rem" }}>Дашборды</Typography.Headline>
       <Typography.Body style={{ fontSize: "0.88rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
-        ФОТ по табелю и сводка выдачи грузов из кэша перевозок. Доступно суперадминистратору CMS.
+        ФОТ по табелю (помесячно и по подразделениям), отчёт последней мили по ТС, сводка выдачи грузов, анализ скорости магистрали и активность пользователей. Доступно суперадминистратору CMS.
       </Typography.Body>
 
       <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: "1rem" }}>
@@ -32,12 +52,34 @@ export function AdminDashboardsPanel({ adminToken }: { adminToken: string }) {
           type="button"
           className="filter-button"
           style={{
+            background: sub === "last_mile" ? "var(--color-primary-blue)" : undefined,
+            color: sub === "last_mile" ? "white" : undefined,
+          }}
+          onClick={() => setSub("last_mile")}
+        >
+          Последняя миля
+        </Button>
+        <Button
+          type="button"
+          className="filter-button"
+          style={{
             background: sub === "haulz_dispatch" ? "var(--color-primary-blue)" : undefined,
             color: sub === "haulz_dispatch" ? "white" : undefined,
           }}
           onClick={() => setSub("haulz_dispatch")}
         >
           Выдача грузов
+        </Button>
+        <Button
+          type="button"
+          className="filter-button"
+          style={{
+            background: sub === "magistral" ? "var(--color-primary-blue)" : undefined,
+            color: sub === "magistral" ? "white" : undefined,
+          }}
+          onClick={() => setSub("magistral")}
+        >
+          Анализ магистрали
         </Button>
         <Button
           type="button"
@@ -53,7 +95,13 @@ export function AdminDashboardsPanel({ adminToken }: { adminToken: string }) {
       </Flex>
 
       {sub === "fot" && <AdminFotDashboardSection adminToken={adminToken} />}
+      {sub === "last_mile" && <AdminLastMileReportSection adminToken={adminToken} />}
       {sub === "haulz_dispatch" && <AdminHaulzDispatchSection adminToken={adminToken} />}
+      {sub === "magistral" && (
+        <Suspense fallback={<AdminDashboardSectionLoader />}>
+          <AdminMagistralAnalysisSection adminToken={adminToken} />
+        </Suspense>
+      )}
       {sub === "user_activity" && <AdminUserActivitySection adminToken={adminToken} />}
     </div>
   );

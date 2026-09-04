@@ -23,6 +23,7 @@ function JournalGridRow({ label, value }: { label: string; value: React.ReactNod
 
 type Props = {
   customer: string;
+  customerRequestNumber?: string;
   senderPoint: string;
   destinationPoint: string;
   sender: string;
@@ -35,6 +36,8 @@ type Props = {
   managerStatus?: HaulzCalcDraftStatus;
   managerStatusLoading?: boolean;
   onStatusChange?: (status: HaulzCalcDraftStatus) => void;
+  onSubmitTo1c?: () => void;
+  submitTo1cLoading?: boolean;
   onEdit?: () => void;
   onDelete?: () => void;
   deleteLoading?: boolean;
@@ -42,6 +45,7 @@ type Props = {
 
 export function DocumentsOrderJournalExpand({
   customer,
+  customerRequestNumber,
   senderPoint,
   destinationPoint,
   sender,
@@ -54,6 +58,8 @@ export function DocumentsOrderJournalExpand({
   managerStatus,
   managerStatusLoading,
   onStatusChange,
+  onSubmitTo1c,
+  submitTo1cLoading,
   onEdit,
   onDelete,
   deleteLoading,
@@ -89,6 +95,7 @@ export function DocumentsOrderJournalExpand({
         }}
       >
         <JournalGridRow label="Заказчик:" value={customer} />
+        <JournalGridRow label="Номер заявки заказчика:" value={customerRequestNumber} />
         <JournalGridRow label="Пункт отправки:" value={senderPoint} />
         <JournalGridRow label="Отправитель:" value={sender} />
         <JournalGridRow label="Пункт назначения:" value={destinationPoint} />
@@ -167,6 +174,17 @@ export function DocumentsOrderJournalExpand({
                 Не согласовано
               </button>
             </>
+          )}
+          {managerStatus === "agreed" && onSubmitTo1c && (
+            <button
+              type="button"
+              className="haulz-calc-btn-primary"
+              disabled={submitTo1cLoading || managerStatusLoading}
+              onClick={onSubmitTo1c}
+            >
+              {submitTo1cLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Отправить в 1С
+            </button>
           )}
           {onEdit && (
             <button type="button" className="haulz-calc-btn-secondary" onClick={onEdit}>

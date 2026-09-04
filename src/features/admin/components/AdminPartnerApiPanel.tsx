@@ -34,7 +34,7 @@ export function AdminPartnerApiPanel({
               borderRadius: "8px",
               border: "1px solid var(--color-border)",
               background: "var(--color-bg)",
-              fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+              fontFamily: 'ui-monospace, "Liberation Mono", monospace',
               fontSize: "0.75rem",
               lineHeight: 1.35,
               padding: "0.6rem",

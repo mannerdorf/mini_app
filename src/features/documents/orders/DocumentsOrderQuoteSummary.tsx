@@ -4,12 +4,34 @@ import type { QuoteResult } from "../../../../lib/haulzCalculator/types";
 import { formatQuoteVatLine } from "../../../../lib/haulzCalculator/quoteVat";
 import { HaulzCalcTariffBasisFootnote } from "../../haulzCalculator/HaulzCalcTariffBasisFootnote";
 
+export type Order1cUpstreamRequestMeta = {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body: unknown;
+};
+
+export type Order1cSandboxSnapshot = {
+  at: string;
+  ok: boolean;
+  status?: number;
+  error?: string | null;
+  /** JSON-тело заявки (legacy / дублирует upstreamRequest.body) */
+  request: unknown;
+  /** Полный HTTP-запрос бэкенда в 1С */
+  upstreamRequest?: Order1cUpstreamRequestMeta | null;
+  /** Какой наш API-маршрут вызывался */
+  apiRoute?: string;
+  response: unknown;
+  requestId?: string;
+};
+
 type Props = {
   quote: QuoteResult | null;
   loading: boolean;
   error: string | null;
   canQuote: boolean;
-  canSubmit: boolean;
+  submitBlockReason?: string | null;
   orderLoading: boolean;
   dataZabora: string;
   setDataZabora: (v: string) => void;
@@ -24,7 +46,7 @@ export function DocumentsOrderQuoteSummary({
   loading,
   error,
   canQuote,
-  canSubmit,
+  submitBlockReason = null,
   orderLoading,
   dataZabora,
   setDataZabora,
@@ -33,6 +55,9 @@ export function DocumentsOrderQuoteSummary({
   emptyHint,
   onSubmit,
 }: Props) {
+  const buttonLabel = orderLoading ? "Оформление…" : loading ? "Пересчёт…" : "Оформить";
+  const buttonBlocked = Boolean(submitBlockReason) && !orderLoading;
+
   return (
     <aside className="haulz-calc-summary-wrap" aria-label="Ваш расчёт">
       <div className="haulz-calc-summary">
@@ -108,17 +133,25 @@ export function DocumentsOrderQuoteSummary({
           />
         </label>
 
-        {error && !canQuote && <div className="haulz-calc-alert haulz-calc-alert--error">{error}</div>}
+        {error ? <div className="haulz-calc-alert haulz-calc-alert--error">{error}</div> : null}
+
+        <p className="haulz-calc-1c-sandbox__empty" style={{ marginTop: "0.65rem" }}>
+          После «Оформить» заявка попадёт менеджеру на согласование; отправка в 1С — после статуса «Согласовано».
+        </p>
 
         <div className="haulz-calc-summary__actions" style={{ marginTop: "1rem" }}>
+          {buttonBlocked && submitBlockReason ? (
+            <p className="haulz-calc-summary__submit-hint">{submitBlockReason}</p>
+          ) : null}
           <button
             type="button"
-            className="haulz-calc-btn-primary"
-            disabled={!canSubmit || orderLoading}
+            className={`haulz-calc-btn-primary${buttonBlocked ? " haulz-calc-btn-primary--blocked" : ""}`}
+            disabled={orderLoading}
+            aria-disabled={buttonBlocked || undefined}
             onClick={onSubmit}
           >
-            {orderLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            Оформить
+            {orderLoading || loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            {buttonLabel}
           </button>
         </div>
       </div>

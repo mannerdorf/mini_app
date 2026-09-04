@@ -33,6 +33,12 @@ fi
 VERSION_CODE="$(bash "$ROOT/scripts/read-android-version.sh" "$GRADLE_FILE" | sed -n '1p')"
 VERSION_NAME="$(bash "$ROOT/scripts/read-android-version.sh" "$GRADLE_FILE" | sed -n '2p')"
 
+if [[ ! "$VERSION_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "ERROR: invalid versionName \"${VERSION_NAME}\" in build.gradle (expected X.Y.Z)." >&2
+  echo "Fix with: ./scripts/bump-android-version.sh --name 1.3.23 --code $((VERSION_CODE))" >&2
+  exit 1
+fi
+
 APK_BASENAME="haulz-miniapp-${VERSION_NAME}.apk"
 RELEASES_PATH="releases/${APK_BASENAME}"
 PUBLISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -110,3 +116,13 @@ echo "  ${ORIGIN}/${RELEASES_PATH}"
 echo ""
 echo "Verify:"
 echo "  curl -sS ${ORIGIN}/version.json"
+
+if [[ -n "${HAULZ_API_ORIGIN:-}" && -n "${CRON_SECRET:-}" ]]; then
+  echo ""
+  echo "Notify app users (app_update push)..."
+  curl -fsS -X POST "${HAULZ_API_ORIGIN%/}/api/cron/app-update-push" \
+    -H "Authorization: Bearer ${CRON_SECRET}" \
+    -H "Content-Type: application/json" \
+    --data "{\"platform\":\"android\",\"versionCode\":${VERSION_CODE},\"versionName\":\"${VERSION_NAME}\"}" \
+    || echo "WARN: app_update push failed (APK is published; retry manually)" >&2
+fi

@@ -45,24 +45,69 @@ export function getCargoStageEventIdFromState(state: string | undefined): CargoS
   if (/отправленаваэропорт|загружена/.test(key)) return "loaded";
   if (/улетела/.test(key)) return "sent";
   if (/квручению|прибыла/.test(key)) return "arrived";
-  if (/поставленанадоставку|вместеприбытия/.test(key)) return "delivery_scheduled";
+  if (/запланирован|поставленанадоставку|вместеприбытия/.test(key)) return "delivery_scheduled";
   if (/доставлен|заверш/.test(key)) return "delivered";
-  if (/пути|отправлен/.test(key)) return "sent";
+  if (/пути/.test(key)) return "sent";
+  if (/^отправлен/.test(key)) return "sent";
   if (/полученаотзаказчика|полученанаскладе|получена/.test(key)) return "received_at_warehouse";
   if (/готовквыдаче|квыдаче/.test(key)) return "delivery_scheduled";
   if (/готов|принят|ответ/.test(key)) return "received_at_warehouse";
   return null;
 }
 
+export const RECENT_CARGO_NOTIFY_DAYS = 3;
+
+function parseLooseDate(raw: unknown): Date | null {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const d = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const ru = s.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
+  if (ru) {
+    const d = new Date(Number(ru[3]), Number(ru[2]) - 1, Number(ru[1]));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const parsed = new Date(s);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+/** Дата перевозки для окна «не слать исторический backlog». */
+export function notificationItemDate(item: Record<string, unknown> | null | undefined): Date | null {
+  if (!item) return null;
+  return (
+    parseLooseDate(item.DatePrih) ||
+    parseLooseDate(item.DateVr) ||
+    parseLooseDate(item.DateDoc) ||
+    parseLooseDate(item.Date) ||
+    parseLooseDate(item.date) ||
+    parseLooseDate(item["Дата"])
+  );
+}
+
+export function isRecentNotificationItem(
+  item: Record<string, unknown> | null | undefined,
+  nowMs = Date.now(),
+  days = RECENT_CARGO_NOTIFY_DAYS,
+): boolean {
+  const date = notificationItemDate(item);
+  if (!date) return false;
+  const diff = nowMs - date.getTime();
+  return diff >= 0 && diff <= days * 24 * 60 * 60 * 1000;
+}
+
 export function getCargoStageEventsOnStateChange(
   previousState: string | null | undefined,
   currentState: string | null | undefined,
   isFirstSeen: boolean,
+  options?: { notifyFirstSeen?: boolean },
 ): CargoStageEventId[] {
   const next = getCargoStageEventIdFromState(currentState ?? undefined);
   if (!next) return [];
-  // First sighting only baselines cargo_last_state — no push for historical backlog.
-  if (isFirstSeen) return [];
+  // Исторический backlog не пушим; свежие грузы — текущий этап сразу.
+  if (isFirstSeen) return options?.notifyFirstSeen ? [next] : [];
   const prev = getCargoStageEventIdFromState(previousState ?? undefined);
   if (prev === next) return [];
   return [next];
@@ -77,6 +122,19 @@ const LEGACY_ACCEPTED_STAGES: CargoStageEventId[] = [
 const LEGACY_IN_TRANSIT_STAGES: CargoStageEventId[] = ["loaded", "sent", "arrived"];
 const LEGACY_DELIVERED_STAGES: CargoStageEventId[] = ["delivery_scheduled", "delivered"];
 
+/** Старый coarse-ключ delivered (не granular-этап «Доставлена»). */
+export function isLegacyCoarseDeliveredFlag(prefs: Record<string, boolean> | undefined): boolean {
+  const src = prefs && typeof prefs === "object" ? prefs : {};
+  if (src.delivered !== true) return false;
+  // delivered:true без accepted/in_transit — granular-этап «Доставлена», не legacy.
+  if (src.accepted !== true && src.in_transit !== true) return false;
+  const hasOtherGranularStages = CARGO_STAGE_EVENT_IDS.some(
+    (id) => id !== "delivered" && typeof src[id] === "boolean",
+  );
+  if (hasOtherGranularStages) return false;
+  return true;
+}
+
 /** Учитывает старые ключи accepted / in_transit / delivered в сохранённых настройках. */
 export function isCargoStageNotificationEnabled(
   prefs: Record<string, boolean>,
@@ -86,7 +144,7 @@ export function isCargoStageNotificationEnabled(
   if (prefs[eventId] === false) return false;
   if (LEGACY_ACCEPTED_STAGES.includes(eventId) && prefs.accepted === true) return true;
   if (LEGACY_IN_TRANSIT_STAGES.includes(eventId) && prefs.in_transit === true) return true;
-  if (LEGACY_DELIVERED_STAGES.includes(eventId) && prefs.delivered === true) return true;
+  if (LEGACY_DELIVERED_STAGES.includes(eventId) && isLegacyCoarseDeliveredFlag(prefs)) return true;
   return false;
 }
 

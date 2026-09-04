@@ -4,13 +4,20 @@ import { sendFcmToLogin } from "./_lib/fcmDelivery.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import {
   computeDailySummaryStatsFromCache,
-  formatDailySummaryPlainText,
+  formatDailySummaryPushMessage,
   loadDailySummaryCacheIndex,
   loadDailySummaryPrefsByLogin,
   loadLoginInns,
   loadTelegramChatIds,
   sendDailySummaryEmail,
 } from "../lib/notificationDailySummary.js";
+import { loadPushNotificationTemplates } from "../lib/pushNotificationTemplates.js";
+import {
+  isPushEventAllowedForInn,
+  listLoginsWithFcmTokens,
+  loadPushActivationByLogins,
+} from "../lib/pushControl.js";
+import { normalizeNotificationInn } from "../lib/notificationInnScope.js";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
@@ -87,6 +94,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const prefsByLogin = await loadDailySummaryPrefsByLogin(pool, logins);
     const chatIds = await loadTelegramChatIds(pool, logins);
     const cacheIndex = await loadDailySummaryCacheIndex(pool);
+    const pushTemplates = await loadPushNotificationTemplates(pool);
+    const loginsWithToken = await listLoginsWithFcmTokens(pool, logins);
+    const activationByLogin = await loadPushActivationByLogins(pool, logins);
 
     let sentTelegram = 0;
     let sentPush = 0;
@@ -96,10 +106,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const errors: Array<{ login: string; channel: string; error: string }> = [];
 
     for (const login of logins) {
-      const prefs = prefsByLogin.get(login) || { telegram: true, push: false, email: false };
+      const prefs = prefsByLogin.get(login) || { telegram: true, push: true, email: false };
       const chatId = chatIds.get(login);
+      const inns = loginInns.get(login);
+      if (!inns || inns.size === 0) continue;
+      const primaryInn = normalizeNotificationInn([...inns][0] || "") || [...inns][0] || "";
+      const activation = activationByLogin.get(login)?.get(primaryInn) || null;
+      const pushAllowed = isPushEventAllowedForInn({
+        activation,
+        prefs: { daily_summary: prefs.push !== false },
+        eventId: "daily_summary",
+      });
       const willTelegram = prefs.telegram && !!chatId;
-      const willPush = prefs.push === true;
+      const willPush = pushAllowed && loginsWithToken.has(login);
       const willEmail = prefs.email === true;
 
       if (!prefs.telegram && !prefs.push && !prefs.email) {
@@ -112,13 +131,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         continue;
       }
 
-      const inns = loginInns.get(login);
-      if (!inns || inns.size === 0) continue;
-      const primaryInn = [...inns][0] || "";
-
       const stats = computeDailySummaryStatsFromCache(inns, cacheIndex);
-      const text = formatDailySummaryPlainText(stats);
-      const pushBody = text.length > 220 ? `${text.slice(0, 217).trimEnd()}…` : text;
+      const message = formatDailySummaryPushMessage(stats, pushTemplates);
+      if (message.disabled) {
+        skippedByPrefs += 1;
+        continue;
+      }
+      const text = message.plainText;
+      const pushBody = message.body.length > 220 ? `${message.body.slice(0, 217).trimEnd()}…` : message.body;
 
       if (willTelegram && chatId) {
         const sendRes = await sendTelegramMessage(chatId, text);
@@ -136,10 +156,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (willPush) {
         const sendResult = await sendFcmToLogin(login, {
-          title: "HAULZ: ежедневная сводка",
+          title: message.title,
           body: pushBody,
           url: "/#/notifications",
-          delivery: { event: "daily_summary", body: text, title: "HAULZ: ежедневная сводка" },
+          delivery: {
+            event: "daily_summary",
+            inn: primaryInn,
+            body: message.body,
+            title: message.title,
+          },
         });
         if (sendResult.ok && sendResult.sent > 0) sentPush += 1;
         else errors.push({ login, channel: "push", error: sendResult.error || "no active FCM tokens" });
@@ -171,6 +196,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       duration_ms: Date.now() - started,
       cache_cargo_inns: cacheIndex.cargoByInn.size,
       cache_invoice_inns: cacheIndex.invoicesByInn.size,
+      cache_source: cacheIndex.source,
       errors_count: errors.length,
       errors: errors.slice(0, 30),
       request_id: ctx.requestId,

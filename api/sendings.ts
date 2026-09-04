@@ -8,8 +8,15 @@ import {
 } from "../lib/cacheHistoryDays.js";
 import { respondCorsPreflight } from "./_lib/cors.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
-import { liveInTransitHoursFromMetrics } from "../lib/transitDateTime.js";
 import { readDocumentsFromCacheByPeriod } from "../lib/documentCacheRead.js";
+import { attachSendingsMetrics } from "../lib/sendingsMetrics.js";
+import {
+  getSuperAdminRequestContext,
+  getAdminTokenAuthError,
+  isVerifiedSuperAdmin,
+  readSuperAdminDocumentsFromCache,
+  resolveCredentialsForSuperAdmin,
+} from "../lib/adminDocumentCacheAccess.js";
 
 const BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
@@ -87,71 +94,6 @@ function pickSendingNumber(item: any): string {
     if (value) return value;
   }
   return "";
-}
-
-async function attachMetricsToSendings(
-  pool: { query: (sql: string, params?: any[]) => Promise<{ rows: any[] }> },
-  list: any[]
-): Promise<any[]> {
-  if (!Array.isArray(list) || list.length === 0) return list;
-
-  const keys = list
-    .map((row) => ({
-      customer_inn: normalizeInn(pickInn(row)),
-      sending_number: pickSendingNumber(row),
-    }))
-    .filter((k) => k.sending_number);
-  if (!keys.length) return list;
-
-  const metricsRes = await pool.query(
-    `with src as (
-       select *
-       from jsonb_to_recordset($1::jsonb) as x(customer_inn text, sending_number text)
-     ),
-     s_numbers as (
-       select distinct sending_number from src where sending_number <> ''
-     )
-     select m.customer_inn, m.sending_number, m.in_transit_hours, m.send_start_at, m.first_ready_at
-     from sendings_metrics m
-     join s_numbers n on n.sending_number = m.sending_number`,
-    [JSON.stringify(keys)]
-  );
-
-  const byInnAndSending = new Map<string, (typeof metricsRes.rows)[number]>();
-  const bySendingUnique = new Map<string, (typeof metricsRes.rows)[number]>();
-  const sendingCounts = new Map<string, number>();
-
-  metricsRes.rows.forEach((row) => {
-    const inn = normalizeInn(row.customer_inn);
-    const sending = String(row.sending_number || "").trim();
-    if (!sending) return;
-    byInnAndSending.set(`${inn}|${sending}`, row);
-    sendingCounts.set(sending, (sendingCounts.get(sending) || 0) + 1);
-  });
-  metricsRes.rows.forEach((row) => {
-    const sending = String(row.sending_number || "").trim();
-    if (!sending) return;
-    if ((sendingCounts.get(sending) || 0) === 1) {
-      bySendingUnique.set(sending, row);
-    }
-  });
-
-  return list.map((row) => {
-    const inn = normalizeInn(pickInn(row));
-    const sending = pickSendingNumber(row);
-    const metric = byInnAndSending.get(`${inn}|${sending}`) ?? bySendingUnique.get(sending);
-    if (!metric) return row;
-    return {
-      ...row,
-      in_transit_hours: liveInTransitHoursFromMetrics(
-        metric.send_start_at,
-        metric.first_ready_at,
-        metric.in_transit_hours,
-      ),
-      send_start_at_metric: metric.send_start_at,
-      first_ready_at_metric: metric.first_ready_at,
-    };
-  });
 }
 
 function pickDate(item: any): string {
@@ -272,7 +214,7 @@ export async function readRegisteredSendingsFromCache(
     const filtered = fromNormalized
       ? items
       : await filterRegisteredSendingsList(pool, verified, login, dateFrom, dateTo, inn, serviceMode, items);
-    return attachMetricsToSendings(pool, filtered);
+    return attachSendingsMetrics(pool, filtered, { dateFrom, dateTo });
   } catch {
     return [];
   }
@@ -314,7 +256,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const {
+  let {
     login,
     password,
     dateFrom = "2024-01-01",
@@ -324,19 +266,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     isRegisteredUser,
   } = body || {};
 
-  if (!login || !password) {
-    return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
-  }
-
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
   if (!dateRe.test(dateFrom) || !dateRe.test(dateTo)) {
     return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD required)", request_id: ctx.requestId });
   }
 
-  const filterCachedItems = (list: any[], finalInns: Set<string> | null) =>
-    filterSendingsCachedByInnAndDate(list, finalInns, dateFrom, dateTo);
+  const superAdminCtx = getSuperAdminRequestContext(req, body);
+  if (isVerifiedSuperAdmin(superAdminCtx)) {
+    try {
+      const pool = getPool();
+      const items = await readSuperAdminDocumentsFromCache(pool, "sendings", dateFrom, dateTo);
+      const filtered = items.filter((item) => {
+        const d = pickDate(item);
+        return d >= dateFrom && d <= dateTo;
+      });
+      return res.status(200).json(await attachSendingsMetrics(pool, filtered, { dateFrom, dateTo }));
+    } catch (e) {
+      logError(ctx, "sendings_admin_cache_failed", e);
+      return res.status(500).json({ error: "Ошибка чтения кэша отправок", request_id: ctx.requestId });
+    }
+  }
+
+  const adminTokenError = getAdminTokenAuthError(superAdminCtx);
+  if (adminTokenError === "expired") {
+    return res.status(401).json({ error: "Сессия админки истекла", request_id: ctx.requestId });
+  }
+  if (adminTokenError === "forbidden") {
+    return res.status(403).json({ error: "Доступ только для суперадминистратора", request_id: ctx.requestId });
+  }
+
+  const superAdminCreds = resolveCredentialsForSuperAdmin(superAdminCtx, login, password);
+  if (superAdminCreds) {
+    login = superAdminCreds.login;
+    password = superAdminCreds.password;
+    serviceMode = superAdminCreds.serviceMode;
+  }
+
+  if (!login || !password) {
+    return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
+  }
 
   const useDocumentCache = shouldServeFromDocumentCache(dateFrom, dateTo);
+
+  const filterCachedItems = (list: any[], finalInns: Set<string> | null) =>
+    filterSendingsCachedByInnAndDate(list, finalInns, dateFrom, dateTo);
   let registeredVerified: VerifiedRegisteredUser | null = null;
 
   if (isRegisteredUser) {
@@ -388,7 +361,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       inns: isService ? null : finalInns,
     });
     const filtered = fromNormalized ? items : filterCachedItems(items, finalInns);
-    const withMetrics = await attachMetricsToSendings(pool, filtered);
+    const withMetrics = await attachSendingsMetrics(pool, filtered, { dateFrom, dateTo });
     if (isService || (finalInns && finalInns.size > 0)) {
       return res.status(200).json(withMetrics);
     }
@@ -460,7 +433,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             serviceMode,
             list,
           );
-          list = await attachMetricsToSendings(pool, list);
+          list = await attachSendingsMetrics(pool, list, { dateFrom, dateTo });
         } catch (e) {
           logError(ctx, "sendings_registered_1c_filter_failed", e);
           list = [];

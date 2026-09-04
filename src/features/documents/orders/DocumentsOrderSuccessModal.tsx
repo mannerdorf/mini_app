@@ -22,15 +22,15 @@ export function DocumentsOrderSuccessModal({ nomerZayavki, onClose }: Props) {
         <div className="haulz-calc-map-modal__head">
           <div id="documents-order-success-title" className="haulz-calc-map-modal__title">
             <CheckCircle2 className="w-5 h-5" style={{ marginRight: "0.35rem", color: "#16a34a" }} />
-            Заявка оформлена
+            Заявка сформирована
           </div>
           <button type="button" className="haulz-calc-map-modal__close" aria-label="Закрыть" onClick={onClose}>
             <X className="w-5 h-5" />
           </button>
         </div>
         <p className="haulz-calc-map-modal__hint documents-order-success-modal__text">
-          Ваша заявка № <strong>{nomerZayavki}</strong> оформлена. С вами свяжется менеджер для согласования и
-          подтверждения.
+          Сформирована заявка № <strong>{nomerZayavki}</strong>. Менеджер свяжется с вами для согласования; после
+          подтверждения заявка будет передана в 1С.
         </p>
         <div className="haulz-calc-map-modal__actions">
           <button type="button" className="haulz-calc-btn-primary" onClick={onClose}>

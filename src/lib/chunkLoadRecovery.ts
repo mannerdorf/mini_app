@@ -24,7 +24,7 @@ function showStaleChunkMessage(): void {
   const root = document.getElementById("root");
   if (!root || root.childElementCount > 0) return;
   root.innerHTML =
-    '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f3f4f6;color:#111827;font-family:Inter,system-ui,sans-serif;text-align:center">' +
+    '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f3f4f6;color:#111827;font-family:Manrope,DM Sans,system-ui,sans-serif;text-align:center">' +
     '<div><p style="font-size:18px;font-weight:700;margin:0 0 8px">Обновите страницу</p>' +
     '<p style="font-size:14px;margin:0 0 16px;color:#6b7280">После обновления сайта браузер мог сохранить старую версию.</p>' +
     '<button type="button" onclick="location.reload()" style="border:0;border-radius:12px;background:#2563eb;color:#fff;font-size:14px;font-weight:600;padding:10px 18px;cursor:pointer">Обновить</button></div></div>';

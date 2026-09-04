@@ -19,3 +19,9 @@ export type AndroidReleaseManifest = {
 
 export const ANDROID_RELEASE_MANIFEST_URL = `${ANDROID_RELEASE_ORIGIN}/version.json`;
 export const ANDROID_RELEASE_DOWNLOAD_URL = `${ANDROID_RELEASE_ORIGIN}/latest.apk`;
+
+/** Package name Android-приложения HAULZ (Capacitor). */
+export const ANDROID_APP_ID = "ru.haulz.miniapp";
+
+/** Карточка приложения в RuStore. */
+export const RUSTORE_APP_URL = `https://www.rustore.ru/catalog/app/${ANDROID_APP_ID}`;

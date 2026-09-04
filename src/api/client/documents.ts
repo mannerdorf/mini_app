@@ -3,6 +3,7 @@
  */
 
 import { apiFetchJson } from "../../utils";
+import { toAbsoluteApiUrl } from "../../lib/absoluteApiUrl";
 import { documentsAuthHeaders, documentsFetchJson, type DocumentsAuth } from "./documentsAuth";
 
 export type { DocumentsAuth } from "./documentsAuth";
@@ -229,13 +230,14 @@ export type DownloadDocumentPayload = {
 export async function postDownloadDocument(
   body: Record<string, unknown>
 ): Promise<DownloadDocumentPayload> {
-  const { ok, data } = await documentsFetchJson<DownloadDocumentPayload>("/api/download", {
+  const data = await apiFetchJson<DownloadDocumentPayload>(toAbsoluteApiUrl("/api/download"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!ok) throw new Error(data?.message || data?.error || "Не удалось получить документ");
-  if (!data?.data) throw new Error("Документ не найден");
+  if (!data?.data) {
+    throw new Error(data?.message || data?.error || "Документ не найден");
+  }
   return data;
 }
 

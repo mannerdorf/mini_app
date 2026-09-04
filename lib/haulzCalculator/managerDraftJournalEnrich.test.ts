@@ -65,6 +65,7 @@ describe("enrichDraftWithDocumentsOrderJournal", () => {
     const enriched = await enrichDraftWithDocumentsOrderJournal({ query: async () => ({ rows: [] }) } as never, baseDraft());
     expect(enriched.documentsOrderJournal?.routeLabel).toBe("MSK – KGD");
     expect(enriched.documentsOrderJournal?.customerName).toBe("5 POST");
+    expect(enriched.documentsOrderJournal?.customerRequestNumber).toBe("");
     expect(enriched.documentsOrderJournal?.senderPoint).toContain("Московская");
   });
 

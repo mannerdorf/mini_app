@@ -6,6 +6,7 @@ import {
   normalizeWbPerevozkaHaulzDigits,
   stripToTransportDigits,
 } from "../api/lib/wbPerevozkaDigits.js";
+import { normalizeBase64Payload } from "./base64Document.js";
 
 export const GET_FILE_EXTERNAL_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetFile";
@@ -288,7 +289,7 @@ export async function proxyGetFileDownload(
                 resolve();
                 return;
               }
-              res.status(200).json({ data: dataStr, name: respName });
+              res.status(200).json({ data: normalizeBase64Payload(dataStr), name: respName });
               resolve();
               return;
             }

@@ -49,6 +49,66 @@ export type AdminPushSendResult = {
   failures?: Array<{ login: string; error?: string }>;
 };
 
+export type AdminPushTemplateVariable = {
+  key: string;
+  hint: string;
+};
+
+export type AdminPushTemplateRow = {
+  eventId: string;
+  label: string;
+  titleTemplate: string;
+  bodyTemplate: string;
+  enabled: boolean;
+  isDefault: boolean;
+  updatedAt: string | null;
+  updatedBy: string | null;
+};
+
+export type AdminPushTemplatesResult = {
+  ok: boolean;
+  templates: AdminPushTemplateRow[];
+  variables: AdminPushTemplateVariable[];
+  notice?: string;
+};
+
+export async function fetchAdminPushTemplates(adminToken: string): Promise<AdminPushTemplatesResult> {
+  const res = await fetch("/api/admin-push-templates", {
+    headers: adminAuthHeaders(adminToken),
+  });
+  const data = (await res.json().catch(() => ({}))) as AdminPushTemplatesResult & { error?: string };
+  if (!res.ok) throw new Error(formatAdminPushApiError(data, "Ошибка загрузки шаблонов push"));
+  return {
+    ok: true,
+    templates: Array.isArray(data.templates) ? data.templates : [],
+    variables: Array.isArray(data.variables) ? data.variables : [],
+    notice: data.notice,
+  };
+}
+
+export async function saveAdminPushTemplates(
+  adminToken: string,
+  templates: Array<{
+    eventId: string;
+    titleTemplate: string;
+    bodyTemplate: string;
+    enabled: boolean;
+  }>,
+): Promise<AdminPushTemplatesResult> {
+  const res = await fetch("/api/admin-push-templates", {
+    method: "PUT",
+    headers: adminAuthHeaders(adminToken, { "Content-Type": "application/json" }),
+    body: JSON.stringify({ templates }),
+  });
+  const data = (await res.json().catch(() => ({}))) as AdminPushTemplatesResult & { error?: string };
+  if (!res.ok) throw new Error(formatAdminPushApiError(data, "Ошибка сохранения шаблонов push"));
+  return {
+    ok: true,
+    templates: Array.isArray(data.templates) ? data.templates : [],
+    variables: Array.isArray(data.variables) ? data.variables : [],
+  };
+}
+
 export async function postAdminPushPreview(
   adminToken: string,
   audience: AdminPushAudience,
@@ -63,6 +123,95 @@ export async function postAdminPushPreview(
   return data;
 }
 
+export type AdminPushSubscriberCompany = {
+  inn: string;
+  name: string;
+};
+
+export type AdminPushSubscriber = {
+  login: string;
+  companyName: string;
+  deviceCount: number;
+  lastSeen: string | null;
+  platforms: string[];
+  serviceWide: boolean;
+  boundFromProfile: boolean;
+  pushCompanies: AdminPushSubscriberCompany[];
+  accountCompanies: AdminPushSubscriberCompany[];
+  enabledEvents: string[];
+};
+
+export type AdminPushSubscribersResult = {
+  ok: boolean;
+  users: number;
+  devices: number;
+  companies: number;
+  subscribers: AdminPushSubscriber[];
+};
+
+export async function fetchAdminPushSubscribers(adminToken: string): Promise<AdminPushSubscribersResult> {
+  const res = await fetch("/api/admin-push-subscribers", {
+    headers: adminAuthHeaders(adminToken),
+  });
+  const data = (await res.json().catch(() => ({}))) as AdminPushSubscribersResult & { error?: string };
+  if (!res.ok) throw new Error(formatAdminPushApiError(data, "Ошибка загрузки пользователей с push"));
+  return {
+    ok: true,
+    users: Number(data.users) || 0,
+    devices: Number(data.devices) || 0,
+    companies: Number(data.companies) || 0,
+    subscribers: Array.isArray(data.subscribers)
+      ? data.subscribers.map((row) => ({
+          ...row,
+          enabledEvents: Array.isArray(row.enabledEvents) ? row.enabledEvents : [],
+        }))
+      : [],
+  };
+}
+
+export type AdminPushControlJournalEntry = {
+  id: string | number;
+  login: string;
+  inn: string;
+  action: string;
+  channel: string;
+  eventId: string | null;
+  enabled: boolean | null;
+  deviceTokenSuffix: string | null;
+  platform: string | null;
+  meta: unknown;
+  createdAt: string;
+};
+
+export type AdminPushControlJournalResult = {
+  ok: boolean;
+  count: number;
+  entries: AdminPushControlJournalEntry[];
+  notice?: string;
+};
+
+export async function fetchAdminPushControlJournal(
+  adminToken: string,
+  params?: { login?: string; inn?: string; action?: string; limit?: number },
+): Promise<AdminPushControlJournalResult> {
+  const q = new URLSearchParams();
+  if (params?.login) q.set("login", params.login);
+  if (params?.inn) q.set("inn", params.inn);
+  if (params?.action) q.set("action", params.action);
+  if (params?.limit) q.set("limit", String(params.limit));
+  const res = await fetch(`/api/admin-push-control-journal${q.toString() ? `?${q}` : ""}`, {
+    headers: adminAuthHeaders(adminToken),
+  });
+  const data = (await res.json().catch(() => ({}))) as AdminPushControlJournalResult & { error?: string };
+  if (!res.ok) throw new Error(formatAdminPushApiError(data, "Ошибка загрузки журнала push"));
+  return {
+    ok: true,
+    count: Number(data.count) || 0,
+    entries: Array.isArray(data.entries) ? data.entries : [],
+    notice: data.notice,
+  };
+}
+
 export async function postAdminPushSend(
   adminToken: string,
   payload: {
@@ -72,6 +221,7 @@ export async function postAdminPushSend(
     url?: string;
     dryRun?: boolean;
     limit?: number;
+    event?: "broadcast" | "app_update";
   },
 ): Promise<AdminPushSendResult> {
   const res = await fetch("/api/admin-push-send", {

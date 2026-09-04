@@ -1,3 +1,4 @@
+import { Capacitor } from "@capacitor/core";
 import { WEB_APP_VERSION } from "../constants/appVersion";
 import {
   ANDROID_RELEASE_MANIFEST_URL,
@@ -55,7 +56,7 @@ export function formatClientPlatformLabel(info: ClientPlatformInfo): string {
 }
 
 export async function getInstalledAppInfo(): Promise<AppInstallInfo> {
-  if (isCapacitorAndroidApp()) {
+  if (Capacitor.isNativePlatform()) {
     try {
       const { App } = await import("@capacitor/app");
       const info = await App.getInfo();

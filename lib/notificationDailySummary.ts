@@ -1,10 +1,25 @@
 import type { Pool } from "pg";
 import { getPaymentKey } from "./notificationPoll.js";
 import { buildNotificationEmailPreview } from "./notificationEmailPreview.js";
-import { isEmailNotificationEnabled } from "./notificationEmailPrefs.js";
+import { isEmailNotificationEnabled, shouldSendDailySummaryPush } from "./notificationEmailPrefs.js";
+
+export { shouldSendDailySummaryPush };
 import { hasSummaryEmailSentToday } from "./haulzSummaryEmailDailyLimit.js";
 import { readCacheRow } from "./documentCacheRefreshCore.js";
+import { cacheHistoryDateFrom } from "./cacheHistoryDays.js";
+import { readDocumentsFromCacheByPeriod } from "./documentCacheRead.js";
+import { isNormalizedCacheReady } from "./documentCacheNormalized.js";
+import {
+  perevozkiCustomerInn,
+  perevozkiReceiverInn,
+  perevozkiSenderInn,
+} from "./perevozkiPartyMatch.js";
 import { perevozkiItemInn } from "../api/perevozki.js";
+import { loadEffectivePushLoginScopes, normalizeNotificationInn } from "./notificationInnScope.js";
+import {
+  renderPushTemplateString,
+  type PushNotificationTemplateMap,
+} from "./pushNotificationTemplates.js";
 
 export type DailySummaryStats = {
   activeStatusCounts: Map<string, number>;
@@ -19,15 +34,30 @@ export type DailySummaryChannelPrefs = {
 };
 
 export function normalizeInn(v: unknown): string {
-  return String(v ?? "").trim();
+  return normalizeNotificationInn(v) || String(v ?? "").trim();
 }
 
 function normalizeInnCanon(inn: string): string {
-  return String(inn ?? "").replace(/\D/g, "").trim() || String(inn ?? "").trim();
+  return normalizeNotificationInn(inn) || String(inn ?? "").trim();
 }
 
 export function normalizeStatus(state: unknown): string {
-  const s = String(state ?? "").trim();
+  if (state == null) return "Без статуса";
+  if (typeof state === "string") {
+    const s = state.trim();
+    return s || "Без статуса";
+  }
+  if (typeof state === "object") {
+    const o = state as Record<string, unknown>;
+    for (const k of ["Name", "name", "Value", "value", "State", "state", "Статус"]) {
+      const v = o[k];
+      if (v != null && typeof v !== "object") {
+        const s = String(v).trim();
+        if (s) return s;
+      }
+    }
+  }
+  const s = String(state).trim();
   return s || "Без статуса";
 }
 
@@ -45,20 +75,45 @@ function invoiceItemInn(item: Record<string, unknown>): string {
 export type DailySummaryCacheIndex = {
   cargoByInn: Map<string, Record<string, unknown>[]>;
   invoicesByInn: Map<string, Record<string, unknown>[]>;
+  source: "normalized" | "blob";
 };
 
-export async function loadDailySummaryCacheIndex(pool: Pool): Promise<DailySummaryCacheIndex> {
+function pushIndexedItem(
+  map: Map<string, Record<string, unknown>[]>,
+  inn: string,
+  item: Record<string, unknown>,
+): void {
+  const key = normalizeInnCanon(inn);
+  if (!key) return;
+  if (!map.has(key)) map.set(key, []);
+  map.get(key)!.push(item);
+}
+
+function indexCargoByPartyInns(
+  cargoByInn: Map<string, Record<string, unknown>[]>,
+  item: Record<string, unknown>,
+): void {
+  const inns = new Set<string>();
+  for (const raw of [
+    perevozkiCustomerInn(item),
+    perevozkiSenderInn(item),
+    perevozkiReceiverInn(item),
+    perevozkiItemInn(item),
+  ]) {
+    const inn = normalizeInnCanon(raw);
+    if (inn) inns.add(inn);
+  }
+  for (const inn of inns) pushIndexedItem(cargoByInn, inn, item);
+}
+
+async function loadDailySummaryCacheIndexFromBlob(pool: Pool): Promise<DailySummaryCacheIndex> {
   const cargoByInn = new Map<string, Record<string, unknown>[]>();
   const invoicesByInn = new Map<string, Record<string, unknown>[]>();
 
   const cargoRows = await readCacheRow(pool, "cache_perevozki");
   for (const raw of cargoRows) {
     if (!raw || typeof raw !== "object") continue;
-    const item = raw as Record<string, unknown>;
-    const inn = normalizeInnCanon(perevozkiItemInn(item));
-    if (!inn) continue;
-    if (!cargoByInn.has(inn)) cargoByInn.set(inn, []);
-    cargoByInn.get(inn)!.push(item);
+    indexCargoByPartyInns(cargoByInn, raw as Record<string, unknown>);
   }
 
   const invoiceRows = await readCacheRow(pool, "cache_invoices");
@@ -67,11 +122,58 @@ export async function loadDailySummaryCacheIndex(pool: Pool): Promise<DailySumma
     const item = raw as Record<string, unknown>;
     const inn = invoiceItemInn(item);
     if (!inn) continue;
-    if (!invoicesByInn.has(inn)) invoicesByInn.set(inn, []);
-    invoicesByInn.get(inn)!.push(item);
+    pushIndexedItem(invoicesByInn, inn, item);
   }
 
-  return { cargoByInn, invoicesByInn };
+  return { cargoByInn, invoicesByInn, source: "blob" };
+}
+
+async function loadDailySummaryCacheIndexFromNormalized(pool: Pool): Promise<DailySummaryCacheIndex> {
+  const cargoByInn = new Map<string, Record<string, unknown>[]>();
+  const invoicesByInn = new Map<string, Record<string, unknown>[]>();
+  const dateFrom = cacheHistoryDateFrom();
+  const dateTo = new Date().toISOString().split("T")[0];
+
+  const [cargoReady, invoicesReady] = await Promise.all([
+    isNormalizedCacheReady(pool, "perevozki"),
+    isNormalizedCacheReady(pool, "invoices"),
+  ]);
+
+  if (cargoReady) {
+    const { items } = await readDocumentsFromCacheByPeriod(pool, "perevozki", dateFrom, dateTo);
+    for (const raw of items) {
+      if (!raw || typeof raw !== "object") continue;
+      indexCargoByPartyInns(cargoByInn, raw as Record<string, unknown>);
+    }
+  }
+
+  if (invoicesReady) {
+    const { items } = await readDocumentsFromCacheByPeriod(pool, "invoices", dateFrom, dateTo);
+    for (const raw of items) {
+      if (!raw || typeof raw !== "object") continue;
+      const item = raw as Record<string, unknown>;
+      const inn = invoiceItemInn(item);
+      if (!inn) continue;
+      pushIndexedItem(invoicesByInn, inn, item);
+    }
+  }
+
+  return { cargoByInn, invoicesByInn, source: "normalized" };
+}
+
+export async function loadDailySummaryCacheIndex(pool: Pool): Promise<DailySummaryCacheIndex> {
+  try {
+    const [cargoReady, invoicesReady] = await Promise.all([
+      isNormalizedCacheReady(pool, "perevozki"),
+      isNormalizedCacheReady(pool, "invoices"),
+    ]);
+    if (cargoReady || invoicesReady) {
+      return await loadDailySummaryCacheIndexFromNormalized(pool);
+    }
+  } catch {
+    // fallback to legacy blob tables
+  }
+  return loadDailySummaryCacheIndexFromBlob(pool);
 }
 
 export function computeDailySummaryStatsFromCache(
@@ -153,19 +255,79 @@ export async function computeDailySummaryStats(
   };
 }
 
+export function aggregateDailySummaryCargoCounts(
+  activeStatusCounts: Map<string, number>,
+): { inTransit: number; readyForPickup: number } {
+  let inTransit = 0;
+  let readyForPickup = 0;
+
+  for (const [status, count] of activeStatusCounts) {
+    const lower = status.toLowerCase();
+    if (lower.includes("готов")) {
+      readyForPickup += count;
+      continue;
+    }
+    if (lower.includes("пути") || lower.includes("отправлен")) {
+      inTransit += count;
+    }
+  }
+
+  return { inTransit, readyForPickup };
+}
+
 export function formatDailySummaryPlainText(stats: DailySummaryStats): string {
-  const statuses = Array.from(stats.activeStatusCounts.entries()).sort((a, b) => b[1] - a[1]);
-  const statusLine =
-    statuses.length > 0
-      ? statuses.map(([name, count]) => `${name}: ${count}`).join("; ")
-      : "нет активных перевозок";
+  const { inTransit, readyForPickup } = aggregateDailySummaryCargoCounts(stats.activeStatusCounts);
   const sumFmt = new Intl.NumberFormat("ru-RU").format(Math.round(stats.unpaidSum));
 
   return (
-    `Доброе утро! Ежедневная сводка на 10:00.\n` +
-    `Активные перевозки: ${statusLine}.\n` +
-    `Неоплаченные счета: ${stats.unpaidCount} шт. на сумму ${sumFmt} ₽.`
+    `В пути: ${inTransit}\n` +
+    `Готово к выдаче: ${readyForPickup}\n` +
+    `Неоплаченные счета: ${stats.unpaidCount} шт. на сумму ${sumFmt} ₽`
   );
+}
+
+export function buildDailySummaryTemplateContext(stats: DailySummaryStats): Record<string, string> {
+  const { inTransit, readyForPickup } = aggregateDailySummaryCargoCounts(stats.activeStatusCounts);
+  const unpaidSum = new Intl.NumberFormat("ru-RU").format(Math.round(stats.unpaidSum));
+  const plainText = formatDailySummaryPlainText(stats);
+  return {
+    in_transit: String(inTransit),
+    ready_for_pickup: String(readyForPickup),
+    unpaid_count: String(stats.unpaidCount),
+    unpaid_sum: unpaidSum,
+    summary_body: plainText,
+  };
+}
+
+const DAILY_SUMMARY_DEFAULT_TITLE = "HAULZ: ежедневная сводка";
+
+/** Push/Telegram текст сводки: шаблон из админки или актуальный формат с цифрами. */
+export function formatDailySummaryPushMessage(
+  stats: DailySummaryStats,
+  templates?: PushNotificationTemplateMap | null,
+): { title: string; body: string; plainText: string; disabled: boolean } {
+  const plainText = formatDailySummaryPlainText(stats);
+  const ctx = buildDailySummaryTemplateContext(stats);
+  const custom = templates?.get("daily_summary");
+
+  if (custom && custom.enabled === false) {
+    return { title: DAILY_SUMMARY_DEFAULT_TITLE, body: "", plainText, disabled: true };
+  }
+
+  if (custom && custom.bodyTemplate.trim()) {
+    const title =
+      renderPushTemplateString(custom.titleTemplate || DAILY_SUMMARY_DEFAULT_TITLE, ctx).trim() ||
+      DAILY_SUMMARY_DEFAULT_TITLE;
+    const body = renderPushTemplateString(custom.bodyTemplate, ctx).trim() || plainText;
+    return { title, body, plainText, disabled: false };
+  }
+
+  return {
+    title: DAILY_SUMMARY_DEFAULT_TITLE,
+    body: plainText,
+    plainText,
+    disabled: false,
+  };
 }
 
 export async function loadDailySummaryPrefsByLogin(
@@ -176,8 +338,8 @@ export async function loadDailySummaryPrefsByLogin(
   for (const login of logins) {
     const key = String(login || "").trim().toLowerCase();
     if (!key) continue;
-    // Defaults: telegram on (legacy), push/email opt-in.
-    result.set(key, { telegram: true, push: false, email: false });
+    // Defaults: telegram + push summary on; email opt-in.
+    result.set(key, { telegram: true, push: true, email: false });
   }
   if (logins.length === 0) return result;
 
@@ -198,7 +360,7 @@ export async function loadDailySummaryPrefsByLogin(
       const email = raw.email && typeof raw.email === "object" ? (raw.email as Record<string, boolean>) : {};
       result.set(login, {
         telegram: telegram.daily_summary !== false,
-        push: push.daily_summary === true,
+        push: shouldSendDailySummaryPush(push),
         email: email.daily_summary === true,
       });
       loadedFromState.add(login);
@@ -219,9 +381,9 @@ export async function loadDailySummaryPrefsByLogin(
       for (const row of legacyRes.rows) {
         const login = String(row.login || "").trim().toLowerCase();
         if (!login) continue;
-        const current = result.get(login) || { telegram: true, push: false, email: false };
+        const current = result.get(login) || { telegram: true, push: true, email: false };
         if (row.channel === "telegram") current.telegram = !!row.enabled;
-        if (row.channel === "push") current.push = !!row.enabled;
+        if (row.channel === "push") current.push = row.enabled !== false;
         if (row.channel === "email") current.email = !!row.enabled;
         result.set(login, current);
       }
@@ -235,17 +397,10 @@ export async function loadDailySummaryPrefsByLogin(
 
 export async function loadLoginInns(pool: Pool): Promise<Map<string, Set<string>>> {
   const byLogin = new Map<string, Set<string>>();
-  const { rows } = await pool.query<{ login: string; inn: string }>(
-    `SELECT lower(trim(login)) AS login, inn
-     FROM account_companies
-     WHERE inn IS NOT NULL AND trim(inn) <> ''`,
-  );
-  for (const row of rows) {
-    const login = String(row.login || "").trim().toLowerCase();
-    const inn = normalizeInn(row.inn);
-    if (!login || !inn) continue;
-    if (!byLogin.has(login)) byLogin.set(login, new Set());
-    byLogin.get(login)!.add(inn);
+  const scopes = await loadEffectivePushLoginScopes(pool);
+  for (const scope of scopes.values()) {
+    if (scope.inns.size === 0) continue;
+    byLogin.set(scope.login, new Set(scope.inns));
   }
   return byLogin;
 }

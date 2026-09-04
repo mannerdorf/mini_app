@@ -8,6 +8,9 @@ import { pickHaulzCredentials } from "../_haulzReturns.js";
 import { getClientIp, isRateLimited, HAULZ_CALC_QUOTE_LIMIT } from "../../lib/rateLimit.js";
 import { setDraftStatusByManager } from "../../lib/haulzCalculator/calculatorDraftAgree.js";
 import { parseHaulzCalcDraftStatus } from "../../lib/haulzCalculator/draftStatus.js";
+import { enrichManagerDraftForApi } from "../../lib/haulzCalculator/managerDraftJournalEnrich.js";
+import { submitPendingDocumentsOrderTo1c } from "../../lib/documentsOrderSubmitPending1c.js";
+import { sendSubmitPendingDocumentsOrderTo1cJson } from "../../lib/documentsOrderSubmitPending1cApi.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (haulzCalculatorPreflight(req, res)) return;
@@ -39,6 +42,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const body = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
   const id = Number(body.id ?? req.query.id);
+
+  // Fallback для VPS без маршрута submit-pending-1c: POST { id, action: "submit-1c" }
+  const action = String(body.action ?? "").trim().toLowerCase();
+  if (action === "submit-1c") {
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ error: "Укажите id заявки", request_id: ctx.requestId });
+    }
+    try {
+      const result = await submitPendingDocumentsOrderTo1c(pool, id);
+      sendSubmitPendingDocumentsOrderTo1cJson(res, result, ctx.requestId);
+    } catch (e) {
+      logError(ctx, "haulz_calc_draft_status_submit_1c_failed", e);
+      return res.status(500).json({
+        error: (e as Error)?.message || "Ошибка отправки в 1С",
+        request_id: ctx.requestId,
+      });
+    }
+    return;
+  }
+
   const status = parseHaulzCalcDraftStatus(body.status);
   if (!Number.isFinite(id) || id <= 0) {
     return res.status(400).json({ error: "Укажите id заявки", request_id: ctx.requestId });
@@ -58,7 +81,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         request_id: ctx.requestId,
       });
     }
-    return res.status(200).json({ draft, request_id: ctx.requestId });
+    const enriched = await enrichManagerDraftForApi(pool, draft);
+    return res.status(200).json({ draft: enriched, request_id: ctx.requestId });
   } catch (e) {
     logError(ctx, "haulz_calc_draft_status_failed", e);
     return res.status(500).json({

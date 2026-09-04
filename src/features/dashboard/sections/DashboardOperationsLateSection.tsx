@@ -119,8 +119,8 @@ export function DashboardOperationsLateSection({ page }: Props) {
                             <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                                 Заказчики по статусу: {page.statusFunnel.find((s) => s.key === page.selectedFunnelStatusKey)?.label || page.selectedFunnelStatusKey}. Нажмите на заказчика — перевозки и даты.
                             </Typography.Body>
-                            <div style={{ overflowX: 'auto', maxHeight: 400, overflowY: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                            <div className="dashboard-scroll-table-wrap" style={{ maxHeight: 400, overflowY: 'auto' }}>
+                                <table className="dashboard-scroll-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                                     <thead>
                                         <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-card)' }}>
                                             <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600, width: 24 }}>#</th>
@@ -142,16 +142,17 @@ export function DashboardOperationsLateSection({ page }: Props) {
                                                 <React.Fragment key={row.customer}>
                                                     <tr
                                                         onClick={() => page.setExpandedFunnelCustomer(isExpanded ? null : row.customer)}
+                                                        className="dashboard-scroll-table__data-row"
                                                         style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: isExpanded ? 'var(--color-bg-card)' : undefined }}
                                                         title="Нажмите, чтобы показать перевозки"
                                                     >
-                                                        <td style={{ padding: '0.35rem 0.45rem', color: 'var(--color-text-secondary)' }}>{idx + 1}</td>
-                                                        <td className="customer-col" style={{ padding: '0.35rem 0.45rem' }}>{row.customer}{isExpanded ? ' ▼' : ' ▶'}</td>
-                                                        <td style={{ padding: '0.35rem 0.45rem', textAlign: 'right' }}>{row.count}</td>
-                                                        {page.showSums && <td style={{ padding: '0.35rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>}
+                                                        <td data-label="#" style={{ padding: '0.35rem 0.45rem', color: 'var(--color-text-secondary)' }}>{idx + 1}</td>
+                                                        <td data-label="Заказчик" className="customer-col" style={{ padding: '0.35rem 0.45rem' }}>{row.customer}{isExpanded ? ' ▼' : ' ▶'}</td>
+                                                        <td data-label="Кол-во" style={{ padding: '0.35rem 0.45rem', textAlign: 'right' }}>{row.count}</td>
+                                                        {page.showSums && <td data-label="Сумма" style={{ padding: '0.35rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>}
                                                     </tr>
                                                     {isExpanded && sortedItems.length > 0 && (
-                                                        <tr>
+                                                        <tr className="dashboard-scroll-table__detail-row">
                                                             <td colSpan={page.showSums ? 4 : 3} style={{ padding: '0.35rem 0.45rem', borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)', verticalAlign: 'top' }}>
                                                                 <div style={{ fontSize: '0.72rem', paddingLeft: '0.5rem' }}>
                                                                     <Typography.Body style={{ fontSize: '0.68rem', fontWeight: 600, marginBottom: '0.25rem', color: 'var(--color-text-secondary)' }}>Перевозки и даты</Typography.Body>

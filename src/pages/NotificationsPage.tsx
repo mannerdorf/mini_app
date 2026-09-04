@@ -6,18 +6,27 @@ import {
     fetchNotificationPreferences,
     saveNotificationPreferences,
     saveNotificationPreferencesKeepalive,
+    syncPushSelectedInn,
 } from "../api/client/notifications";
 import {
-    disableAndroidPushNotifications,
-    enableAndroidPushNotifications,
-    isAndroidPushEnvironment,
+    disableNativePushNotifications,
+    enableNativePushNotifications,
+    hasStoredNativeFcmToken,
+    isNativePushEnvironment,
 } from "../lib/androidPushNotifications";
-import { CARGO_NOTIFICATION_STAGES, isCargoStageNotificationEnabled, type CargoStageEventId } from "../../lib/notificationCargoEvents";
+import { resolveAccountActiveInn } from "../lib/accountCustomer";
+import { useAuth } from "../contexts/AuthContext";
+import { CARGO_NOTIFICATION_STAGES, CARGO_STAGE_EVENT_IDS, isCargoStageNotificationEnabled, type CargoStageEventId } from "../../lib/notificationCargoEvents";
+import { buildPushPreferencesSavePayload, isPushNotificationEnabled } from "../../lib/notificationEmailPrefs";
 import { TapSwitch } from "../components/TapSwitch";
 
 const NOTIF_DOCS: { id: string; label: string }[] = [
     { id: "bill_created", label: "Создан счёт" },
     { id: "bill_paid", label: "Счёт оплачен" },
+];
+const NOTIF_EXTRA: { id: string; label: string }[] = [
+    { id: "planned_delivery_date", label: "Плановая дата доставки" },
+    { id: "app_update", label: "Новая версия приложения" },
 ];
 const NOTIF_SUMMARY: { id: string; label: string }[] = [
     { id: "daily_summary", label: "Ежедневная сводка в 10:00" },
@@ -64,14 +73,27 @@ export function NotificationsPage({
     const prefsDirtyRef = useRef(false);
     const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
     const pendingSavesRef = useRef(0);
+    const lastSaveAtRef = useRef(0);
+    const initialFetchStartedAtRef = useRef(0);
 
+    const { auth } = useAuth();
     const login = activeAccount?.login?.trim().toLowerCase() || "";
-    const isNativeAndroid = isAndroidPushEnvironment();
+    const isNativePush = isNativePushEnvironment();
 
     const isCargoPrefEnabled = useCallback(
         (channel: "push" | "email", eventId: CargoStageEventId) =>
             isCargoStageNotificationEnabled(prefs[channel], eventId),
         [prefs],
+    );
+
+    const isPushCargoPrefEnabled = useCallback(
+        (eventId: CargoStageEventId) => isCargoStageNotificationEnabled(prefs.push, eventId),
+        [prefs.push],
+    );
+
+    const isPushPrefEnabled = useCallback(
+        (eventId: string) => isPushNotificationEnabled(prefs.push, eventId),
+        [prefs.push],
     );
 
     useEffect(() => {
@@ -81,6 +103,8 @@ export function NotificationsPage({
             return;
         }
         let cancelled = false;
+        const fetchStartedAt = Date.now();
+        initialFetchStartedAtRef.current = fetchStartedAt;
         const hardStop = setTimeout(() => {
             if (!cancelled) setPrefsLoading(false);
         }, FETCH_TIMEOUT_MS + 2000);
@@ -92,17 +116,25 @@ export function NotificationsPage({
                 ).catch(() => null);
                 if (cancelled) return;
                 if (prefsData) {
-                    setPrefs({
-                        push: prefsData.push || {},
-                        email: prefsData.email || {},
+                    setPrefs((prev) => {
+                        if (prefsDirtyRef.current) return prev;
+                        if (lastSaveAtRef.current >= fetchStartedAt) return prev;
+                        return {
+                            push: prefsData.push || {},
+                            email: prefsData.email || {},
+                        };
                     });
-                } else {
+                } else if (lastSaveAtRef.current < fetchStartedAt) {
                     setPrefs({ push: {}, email: {} });
                 }
-                if (isNativeAndroid) {
+                if (isNativePush) {
                     const { PushNotifications } = await import("@capacitor/push-notifications");
                     const perm = await PushNotifications.checkPermissions();
-                    if (!cancelled) setPushEnabled(perm.receive === "granted");
+                    // OS permission is not a backend registration. Showing "enabled" here
+                    // made people tap Disable, which used to wipe the Android device.
+                    if (!cancelled) {
+                        setPushEnabled(perm.receive === "granted" && hasStoredNativeFcmToken(login));
+                    }
                 }
             } catch {
                 if (!cancelled) setPrefs({ push: {}, email: {} });
@@ -114,15 +146,80 @@ export function NotificationsPage({
             cancelled = true;
             clearTimeout(hardStop);
         };
-    }, [login, isNativeAndroid]);
+    }, [login, isNativePush]);
 
     useEffect(() => {
         prefsRef.current = prefs;
     }, [prefs]);
 
-    const persistPrefs = useCallback(async (nextPrefs: { push: Record<string, boolean>; email: Record<string, boolean> }) => {
+    const persistPushCargoToggle = useCallback(async (eventId: CargoStageEventId, value: boolean) => {
         if (!login) return false;
-        return saveNotificationPreferences(login, nextPrefs);
+        const res = await fetch("/api/push-preference-toggle", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ login, eventId, enabled: value }),
+        });
+        if (!res.ok) return false;
+        try {
+            const data = (await res.json()) as {
+                push?: Record<string, boolean>;
+                enabled?: boolean;
+                eventId?: string;
+            };
+            if (data.push) {
+                setPrefs((prev) => ({
+                    ...prev,
+                    push: { ...data.push, [eventId]: value },
+                }));
+                lastSaveAtRef.current = Date.now();
+                prefsDirtyRef.current = false;
+            }
+        } catch {
+            // keep optimistic local state
+        }
+        return true;
+    }, [login]);
+
+    const persistPrefs = useCallback(async (
+        nextPrefs: { push: Record<string, boolean>; email: Record<string, boolean> },
+        touch?: { channel: "push" | "email"; eventId: string; value: boolean },
+    ) => {
+        if (!login) return false;
+        const payload = {
+            push: touch?.channel === "push"
+                ? buildPushPreferencesSavePayload(nextPrefs.push, { eventId: touch.eventId, value: touch.value })
+                : nextPrefs.push,
+            email: nextPrefs.email,
+        };
+        const res = await fetch("/api/webpush-preferences", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                login,
+                preferences: payload,
+                pushToggle: touch?.channel === "push" ? { eventId: touch.eventId, enabled: touch.value } : undefined,
+            }),
+        });
+        if (!res.ok) return false;
+        try {
+            const data = (await res.json()) as { preferences?: { push?: Record<string, boolean>; email?: Record<string, boolean> } };
+            if (data.preferences?.push || data.preferences?.email) {
+                const serverPush = data.preferences.push || nextPrefs.push;
+                const serverEmail = data.preferences.email || nextPrefs.email;
+                setPrefs({
+                    push:
+                        touch?.channel === "push"
+                            ? { ...serverPush, [touch.eventId]: touch.value }
+                            : serverPush,
+                    email: serverEmail,
+                });
+                lastSaveAtRef.current = Date.now();
+                prefsDirtyRef.current = false;
+            }
+        } catch {
+            // keep optimistic local state
+        }
+        return true;
     }, [login]);
 
     const savePrefs = useCallback(
@@ -143,7 +240,10 @@ export function NotificationsPage({
             saveQueueRef.current = saveQueueRef.current
                 .catch(() => {})
                 .then(async () => {
-                    const ok = await persistPrefs(nextPrefs);
+                    const ok =
+                        channel === "push" && (CARGO_STAGE_EVENT_IDS as readonly string[]).includes(eventId)
+                            ? await persistPushCargoToggle(eventId as CargoStageEventId, value)
+                            : await persistPrefs(prefsRef.current, { channel, eventId, value });
                     if (!ok) throw new Error("save_failed");
                     prefsDirtyRef.current = false;
                 })
@@ -156,7 +256,7 @@ export function NotificationsPage({
                     if (pendingSavesRef.current === 0) setPrefsSaving(false);
                 });
         },
-        [login, persistPrefs],
+        [login, persistPrefs, persistPushCargoToggle],
     );
 
     const enablePush = useCallback(async () => {
@@ -164,7 +264,11 @@ export function NotificationsPage({
         setPushError(null);
         setPushLoading(true);
         try {
-            const result = await enableAndroidPushNotifications(login);
+            const inn = resolveAccountActiveInn(activeAccount, auth);
+            if (inn) {
+                await syncPushSelectedInn({ login, inn });
+            }
+            const result = await enableNativePushNotifications(login, inn || undefined);
             if (!result.ok) throw new Error(result.error || "Не удалось включить push.");
             setPushEnabled(true);
         } catch (e: unknown) {
@@ -172,14 +276,14 @@ export function NotificationsPage({
         } finally {
             setPushLoading(false);
         }
-    }, [login]);
+    }, [login, activeAccount, auth]);
 
     const disablePush = useCallback(async () => {
         if (!login) return;
         setPushError(null);
         setPushLoading(true);
         try {
-            const result = await disableAndroidPushNotifications(login);
+            const result = await disableNativePushNotifications(login);
             if (!result.ok) throw new Error(result.error || "Не удалось отключить push.");
             setPushEnabled(false);
         } catch (e: unknown) {
@@ -190,21 +294,11 @@ export function NotificationsPage({
     }, [login]);
 
     const flushPrefsOnExit = useCallback(() => {
-        if (!login || !prefsDirtyRef.current) return;
-        const payload = JSON.stringify({ login, preferences: prefsRef.current });
-        try {
-            if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
-                const blob = new Blob([payload], { type: "application/json" });
-                const queued = navigator.sendBeacon("/api/webpush-preferences", blob);
-                if (queued) {
-                    prefsDirtyRef.current = false;
-                    return;
-                }
-            }
-        } catch {
-            // fallback below
-        }
-        void saveNotificationPreferencesKeepalive(login, prefsRef.current).then(() => {
+        if (!login || !prefsDirtyRef.current || pendingSavesRef.current > 0) return;
+        void saveNotificationPreferencesKeepalive(login, {
+            push: buildPushPreferencesSavePayload(prefsRef.current.push),
+            email: prefsRef.current.email,
+        }).then(() => {
             prefsDirtyRef.current = false;
         }).catch(() => {});
     }, [login]);
@@ -243,15 +337,17 @@ export function NotificationsPage({
                         Push-уведомления
                     </Typography.Body>
                     <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                        {isNativeAndroid ? (
+                        {isNativePush ? (
                             <>
-                                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-                                    Уведомления о перевозках и документах на телефон через Firebase Cloud Messaging.
-                                </Typography.Body>
                                 {!pushEnabled ? (
-                                    <Button type="button" className="button-primary" disabled={pushLoading} onClick={enablePush}>
-                                        {pushLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Включить push-уведомления"}
-                                    </Button>
+                                    <>
+                                        <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                                            Уведомления о перевозках и документах на телефон.
+                                        </Typography.Body>
+                                        <Button type="button" className="button-primary" disabled={pushLoading} onClick={enablePush}>
+                                            {pushLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Включить push-уведомления"}
+                                        </Button>
+                                    </>
                                 ) : (
                                     <>
                                         <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-success, #22c55e)" }}>
@@ -265,7 +361,7 @@ export function NotificationsPage({
                             </>
                         ) : (
                             <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-                                Доставка push — в Android-приложении HAULZ. Здесь можно выбрать, о каких этапах перевозки присылать уведомления на телефон.
+                                Доставка push — в приложении HAULZ (Android или iOS). Здесь можно выбрать, о каких этапах перевозки присылать уведомления на телефон.
                             </Typography.Body>
                         )}
                         {pushError && (
@@ -280,8 +376,8 @@ export function NotificationsPage({
                             <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
                                 <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
                                 <TapSwitch
-                                    checked={isCargoPrefEnabled("push", ev.id)}
-                                    onToggle={() => savePrefs("push", ev.id, !isCargoPrefEnabled("push", ev.id))}
+                                    checked={isPushCargoPrefEnabled(ev.id)}
+                                    onToggle={() => savePrefs("push", ev.id, !isPushCargoPrefEnabled(ev.id))}
                                     aria-label={`Push: ${ev.label}`}
                                 />
                             </Flex>
@@ -293,8 +389,21 @@ export function NotificationsPage({
                             <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
                                 <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
                                 <TapSwitch
-                                    checked={!!prefs.push[ev.id]}
-                                    onToggle={() => savePrefs("push", ev.id, !prefs.push[ev.id])}
+                                    checked={isPushPrefEnabled(ev.id)}
+                                    onToggle={() => savePrefs("push", ev.id, !isPushPrefEnabled(ev.id))}
+                                    aria-label={`Push: ${ev.label}`}
+                                />
+                            </Flex>
+                        ))}
+                        <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.5rem", marginBottom: "0.25rem" }}>
+                            Прочее
+                        </Typography.Body>
+                        {NOTIF_EXTRA.map((ev) => (
+                            <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                                <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
+                                <TapSwitch
+                                    checked={isPushPrefEnabled(ev.id)}
+                                    onToggle={() => savePrefs("push", ev.id, !isPushPrefEnabled(ev.id))}
                                     aria-label={`Push: ${ev.label}`}
                                 />
                             </Flex>
@@ -306,8 +415,8 @@ export function NotificationsPage({
                             <Flex key={`push-${ev.id}`} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
                                 <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
                                 <TapSwitch
-                                    checked={!!prefs.push[ev.id]}
-                                    onToggle={() => savePrefs("push", ev.id, !prefs.push[ev.id])}
+                                    checked={isPushPrefEnabled(ev.id)}
+                                    onToggle={() => savePrefs("push", ev.id, !isPushPrefEnabled(ev.id))}
                                     aria-label={`Push: ${ev.label}`}
                                 />
                             </Flex>

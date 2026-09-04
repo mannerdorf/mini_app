@@ -40,12 +40,20 @@ function readBottomClearancePx(root: HTMLElement): number {
   return measureCssHeight(raw, root);
 }
 
+export type HaulzCalcSummaryLayoutSyncOptions = {
+  /** Не опускать «Ваш расчёт» ниже низа основной колонки (форма заявки в Документах). */
+  clampBottomToMain?: boolean;
+};
+
 /** Синхронизирует fixed «Ваш расчёт» с первой карточкой формы (top) и колонкой формы (left + gap). */
 export function useHaulzCalcSummaryLayoutSync(
   formRef: RefObject<HTMLElement | null>,
   anchorRef: RefObject<HTMLElement | null>,
   mainRef: RefObject<HTMLElement | null>,
+  options?: HaulzCalcSummaryLayoutSyncOptions,
 ) {
+  const clampBottomToMain = options?.clampBottomToMain === true;
+
   useEffect(() => {
     const root = formRef.current;
     const anchor = anchorRef.current;
@@ -81,9 +89,14 @@ export function useHaulzCalcSummaryLayoutSync(
 
       const bottomClearance = readBottomClearancePx(root);
       const viewportMaxBottom = window.innerHeight - bottomClearance;
-      const mainBottom = main.getBoundingClientRect().bottom;
-      const cappedBottom = Math.min(mainBottom, viewportMaxBottom);
-      const maxHeight = Math.max(160, Math.round(cappedBottom - top));
+      let maxHeight = Math.max(280, Math.round(viewportMaxBottom - top));
+      if (clampBottomToMain) {
+        const mainBottom = main.getBoundingClientRect().bottom;
+        const mainColumnHeight = Math.round(mainBottom - top);
+        if (mainColumnHeight > 0) {
+          maxHeight = Math.max(280, Math.min(maxHeight, mainColumnHeight));
+        }
+      }
       root.style.setProperty("--haulz-docs-summary-sync-max-height", `${maxHeight}px`);
     };
 
@@ -106,5 +119,5 @@ export function useHaulzCalcSummaryLayoutSync(
       mq.removeEventListener("change", update);
       clear();
     };
-  }, [formRef, anchorRef, mainRef]);
+  }, [formRef, anchorRef, mainRef, clampBottomToMain]);
 }

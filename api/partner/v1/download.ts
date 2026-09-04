@@ -64,6 +64,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
           pool,
           auth.verified,
           auth.keyAllowedInnsCanon,
+          auth.login,
           validated.params.metod,
           validated.params.number,
           body.inn,

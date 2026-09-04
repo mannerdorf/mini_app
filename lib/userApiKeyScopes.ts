@@ -4,6 +4,7 @@ export const USER_API_KEY_SCOPES = [
   "invoices:read",
   "acts:read",
   "orders:read",
+  "orders:write",
   "claims:read",
   "contracts:read",
   "sverki:read",

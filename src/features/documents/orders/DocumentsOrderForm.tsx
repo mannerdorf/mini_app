@@ -17,6 +17,7 @@ import {
   type DocumentsAuthScope,
   type DocumentsOrderQuotePayload,
 } from "../../../api/client/documentsOrder";
+import { buildDocumentsOrderZayavkaPayload } from "../../../../lib/documentsOrderZayavkaPayload";
 import { warehouseForCity } from "../../../../lib/haulzCalculator/warehouses";
 import { citiesForDirection } from "../../../../lib/haulzCalculator/direction";
 import { HaulzCalcDirectionCard } from "../../haulzCalculator/HaulzCalcDirectionCard";
@@ -31,7 +32,10 @@ import {
   DocumentsOrderCargoSection,
   type DocumentsOrderCargoState,
 } from "./DocumentsOrderCargoSection";
-import { DocumentsOrderQuoteSummary } from "./DocumentsOrderQuoteSummary";
+import { resolveDocumentsOrderLegParty } from "../../../../lib/documentsOrderLegParty";
+import {
+  DocumentsOrderQuoteSummary,
+} from "./DocumentsOrderQuoteSummary";
 import { DocumentsOrderSuccessModal } from "./DocumentsOrderSuccessModal";
 import { useDocumentsOrderSummaryTopSync } from "./useDocumentsOrderSummaryTopSync";
 import { filterDocumentsOrderPvzByCity, inferPvzCityCode } from "./documentsOrderPvzFilter";
@@ -57,18 +61,7 @@ function resolveLegEndpoint(state: PvzSelectionState) {
 }
 
 function legParty(state: PvzSelectionState): DeliveryParty {
-  const party: DeliveryParty = { mode: state.deliveryMode };
-  if (state.addressKind === "custom" && state.addr?.point) {
-    const inn = state.inn.replace(/\D/g, "");
-    if (inn) party.inn = inn;
-    const companyName = state.companyName.trim();
-    if (companyName) party.companyName = companyName;
-    const phone = state.phone.trim();
-    if (phone) party.phone = phone;
-    const fullName = state.contactName.trim();
-    if (fullName) party.fullName = fullName;
-  }
-  return party;
+  return resolveDocumentsOrderLegParty(state);
 }
 
 type Props = {
@@ -129,13 +122,20 @@ function resetLegStateForCity(prev: PvzSelectionState, city: CityCode): PvzSelec
 }
 
 function defaultPvzState(city: CityCode): PvzSelectionState {
+  const wh = warehouseForCity(city);
   return {
-    deliveryMode: "courier",
+    deliveryMode: "point",
     addressKind: "pvz",
     pvzRef: "",
     pvzItem: null,
-    addr: null,
-    query: "",
+    addr: {
+      label: wh.label,
+      fullAddress: wh.fullAddress,
+      point: wh.point,
+      city,
+      sourceId: wh.code,
+    },
+    query: wh.fullAddress,
     city,
     ...emptyPvzContactFields,
   };
@@ -193,12 +193,12 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
   const { from: suggestCityFrom, to: suggestCityTo } = useMemo(() => citiesForDirection(direction), [direction]);
 
   const fromPvzList = useMemo(
-    () => filterDocumentsOrderPvzByCity(pvzList, suggestCityFrom),
-    [pvzList, suggestCityFrom],
+    () => filterDocumentsOrderPvzByCity(pvzList, suggestCityFrom, activeInn),
+    [pvzList, suggestCityFrom, activeInn],
   );
   const toPvzList = useMemo(
-    () => filterDocumentsOrderPvzByCity(pvzList, suggestCityTo),
-    [pvzList, suggestCityTo],
+    () => filterDocumentsOrderPvzByCity(pvzList, suggestCityTo, activeInn),
+    [pvzList, suggestCityTo, activeInn],
   );
 
   const handleDirectionChange = useCallback((next: Direction) => {
@@ -333,12 +333,42 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
       dataZabora,
   );
 
+  const submitBlockReason = useMemo((): string | null => {
+    if (orderLoading) return null;
+    if (!fromAddr?.point || !toAddr?.point) {
+      return "Укажите адреса отправки и назначения";
+    }
+    if (chargeableHint.ch <= 0) return "Укажите вес или объём груза";
+    if (!dataZabora) return "Укажите дату забора";
+    if (!punktOtpravki || !punktNaznacheniya) return "Укажите пункты отправки и назначения";
+    if (loading) return "Дождитесь окончания расчёта";
+    if (!quote) return "Дождитесь расчёта стоимости";
+    return null;
+  }, [
+    orderLoading,
+    fromAddr?.point,
+    toAddr?.point,
+    chargeableHint.ch,
+    dataZabora,
+    punktOtpravki,
+    punktNaznacheniya,
+    loading,
+    quote,
+  ]);
+
   const toggleExtra = (code: string) => {
     setExtraCodes((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
   };
 
   const submitOrder = useCallback(async () => {
-    if (!canSubmit || !quote || !fromAddr || !toAddr) return;
+    if (submitBlockReason) {
+      setError(submitBlockReason);
+      return;
+    }
+    if (!canSubmit || !quote || !fromAddr || !toAddr) {
+      setError("Нельзя оформить: заполните адреса, груз и дождитесь расчёта.");
+      return;
+    }
     setOrderLoading(true);
     setError(null);
     try {
@@ -357,6 +387,43 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
           base64: await fileToBase64(cargo.fileZayavki),
         });
       }
+
+      const zayavkaPayload = buildDocumentsOrderZayavkaPayload({
+        customerInn: authScope.inn,
+        senderInn: fromParty.inn,
+        receiverInn: toParty.inn,
+        punktOtpravki,
+        punktNaznacheniya,
+        dataZabora,
+        nomerZayavkiKlienta: nomerZayavki.trim() || undefined,
+        declaredValueRub: Number(cargo.declaredValue) || 0,
+        placeCount: places.length,
+        fivepostRows: cargo.fivepostRows.length
+          ? cargo.fivepostRows.map((row) => ({
+              omniBarcode: row.omniBarcode,
+              teBarcode: row.teBarcode,
+              clientOrderNo: row.clientOrderNo,
+              partnerOrderNo: row.partnerOrderNo,
+              itemNameRu: row.itemNameRu,
+              itemName: row.itemName,
+              unitCost: row.unitCost,
+              totalCost: row.totalCost,
+              placesCount: row.placesCount,
+            }))
+          : undefined,
+        tableRows: cargo.tableRows.length
+          ? cargo.tableRows.map((row) => ({
+              posylka: row.posylka,
+              perevozka: row.perevozka,
+              idOtpravleniya: row.idOtpravleniya,
+              items: row.items?.map((item) => ({
+                name: item.name,
+                quantity: item.quantity,
+                price: item.price,
+              })),
+            }))
+          : undefined,
+      });
 
       const result = await submitDocumentsOrder(authScope, {
         from: fromAddr,
@@ -379,9 +446,10 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
         tableRows: cargo.tableRows,
         fivepostBatchId: fivepostCustomer && cargo.fivepostBatchId ? cargo.fivepostBatchId : undefined,
         attachments: attachments.length ? attachments : undefined,
+        zayavkaPayload,
       });
 
-      setSubmittedNomerZayavki(result.nomerZayavki);
+      setSubmittedNomerZayavki(result.nomerZayavki.trim());
     } catch (e) {
       setError((e as Error)?.message || "Ошибка оформления");
     } finally {
@@ -389,6 +457,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     }
   }, [
     canSubmit,
+    submitBlockReason,
     quote,
     fromAddr,
     toAddr,
@@ -405,6 +474,8 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     toParty,
     nomerZayavki,
     dataZabora,
+    fivepostCustomer,
+    extraCodes,
   ]);
 
   const dismissSuccessModal = useCallback(() => {
@@ -529,7 +600,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
           loading={loading}
           error={error}
           canQuote={canQuote}
-          canSubmit={canSubmit}
+          submitBlockReason={submitBlockReason}
           orderLoading={orderLoading}
           dataZabora={dataZabora}
           setDataZabora={setDataZabora}

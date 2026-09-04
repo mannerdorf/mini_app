@@ -6,6 +6,7 @@ import { BILL_STATUS_MAP } from "../../../lib/statusUtils";
 import { routeKeyToCargoLabel, type RouteFilterKey, type SharedBillStatusKey, type TypeFilterKey, formatTypeFilterSetLabel } from "../../../lib/sharedListFilters";
 import { formatDateFilterButtonLabel } from "../../listWorkspace";
 import { FilterDropdownPortal } from "../../../components/ui/FilterDropdownPortal";
+import { ResetAllFiltersButton } from "../../../components/ui/ResetAllFiltersButton";
 import { CARGO_ROLE_FILTER_LABELS, type CargoRoleFilterKey } from "../../../lib/cargoUtils";
 import type { DateFilter } from "../../../types";
 
@@ -91,6 +92,7 @@ export function DashboardFiltersBar({
     return (
         <div className="cargo-page-sticky-header dashboard-sticky-filters">
             <div className="filters-container filters-row-scroll">
+                <ResetAllFiltersButton />
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); closeOtherDropdowns(); }}>

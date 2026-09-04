@@ -24,6 +24,25 @@ export function formatHaulzCalcDraftCustomer(
   return login || "—";
 }
 
+/**
+ * Для журнала: компанию без « · ИНН …» оставляем короткой,
+ * а гостевой «email · телефон» не обрезаем.
+ */
+export function journalCustomerDisplayName(
+  customerLabel: string,
+  preferredName?: string | null,
+): string {
+  const preferred = String(preferredName ?? "").trim();
+  if (preferred) return preferred;
+  const label = String(customerLabel ?? "").trim();
+  if (!label) return "—";
+  const sep = label.indexOf(" · ");
+  if (sep < 0) return label;
+  const right = label.slice(sep + 3).trim();
+  if (/^ИНН(\s|$)/i.test(right)) return label.slice(0, sep).trim() || label;
+  return label;
+}
+
 export async function resolveDocumentsCustomerName(
   pool: import("pg").Pool,
   loginKey: string,

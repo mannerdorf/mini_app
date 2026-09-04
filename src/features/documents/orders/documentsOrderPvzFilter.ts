@@ -1,6 +1,10 @@
 import type { CityCode } from "../../../../lib/haulzCalculator/types";
 import type { PvzItem } from "../../../api/client/documentsOrders";
 
+function normalizeInn(value: unknown): string {
+  return String(value ?? "").replace(/\D/g, "").trim();
+}
+
 function pvzSearchText(p: PvzItem): string {
   return [
     p.Наименование,
@@ -27,6 +31,13 @@ export function filterDocumentsOrderPvzList(list: PvzItem[]): PvzItem[] {
   return list.filter((p) => !isExcludedDocumentsOrderPvz(p));
 }
 
+/** Только пункты владельца — ИНН заказчика из шапки. */
+export function filterDocumentsOrderPvzByOwnerInn(list: PvzItem[], customerInn: string | null | undefined): PvzItem[] {
+  const inn = normalizeInn(customerInn);
+  if (!inn) return [];
+  return filterDocumentsOrderPvzList(list).filter((p) => normalizeInn(p.ВладелецИНН) === inn);
+}
+
 export function inferPvzCityCode(p: PvzItem, fallback?: CityCode): CityCode | null {
   const text = pvzSearchText(p);
   if (text.includes("калининград")) return "kaliningrad";
@@ -35,6 +46,14 @@ export function inferPvzCityCode(p: PvzItem, fallback?: CityCode): CityCode | nu
 }
 
 /** ПВЗ справочника для стороны маршрута: отправка — город отправления, выдача — город назначения. */
-export function filterDocumentsOrderPvzByCity(list: PvzItem[], city: CityCode): PvzItem[] {
-  return filterDocumentsOrderPvzList(list).filter((p) => inferPvzCityCode(p, city) === city);
+export function filterDocumentsOrderPvzByCity(
+  list: PvzItem[],
+  city: CityCode,
+  customerInn?: string | null,
+): PvzItem[] {
+  const scoped =
+    customerInn === undefined
+      ? filterDocumentsOrderPvzList(list)
+      : filterDocumentsOrderPvzByOwnerInn(list, customerInn);
+  return scoped.filter((p) => inferPvzCityCode(p, city) === city);
 }

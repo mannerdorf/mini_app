@@ -38,7 +38,11 @@ function isRoutableRelativePath(relPath: string): boolean {
 
 function fileToRoutePath(relPath: string): { pathname: string; paramNames: string[] } | null {
   const withoutExt = relPath.replace(/\.ts$/, "");
-  const segments = withoutExt.split(/[/\\]/);
+  const segments = withoutExt.split(/[/\\]/).filter(Boolean);
+  // api/foo/index.ts → /api/foo (как на Vercel)
+  if (segments.length > 0 && segments[segments.length - 1] === "index") {
+    segments.pop();
+  }
   const paramNames: string[] = [];
   const urlSegments: string[] = [];
 

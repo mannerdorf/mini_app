@@ -8,6 +8,7 @@ android/keystore.properties
 android/*.jks
 android/*.keystore
 android/app/google-services.json
+ios/App/App/GoogleService-Info.plist
 # macOS
 .DS_Store
 **/.DS_Store

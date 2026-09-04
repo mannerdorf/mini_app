@@ -4,6 +4,7 @@ export const USER_API_KEY_SCOPES_CLIENT = [
   "invoices:read",
   "acts:read",
   "orders:read",
+  "orders:write",
   "claims:read",
   "contracts:read",
   "sverki:read",
@@ -37,6 +38,11 @@ export const USER_API_KEY_SCOPE_INFO_RU: Record<
     title: "Заявки (только чтение)",
     description: "Список заявок из кэша за период и с фильтром по ИНН.",
     apiHint: "POST /api/partner/v1/orders",
+  },
+  "orders:write": {
+    title: "Заявки (создание)",
+    description: "Загрузка заявки в 1С (JSON PostB: ИНН, ПВЗ, посылки, товары).",
+    apiHint: "POST /api/partner/v1/orders/create",
   },
   "claims:read": {
     title: "Претензии (только чтение)",

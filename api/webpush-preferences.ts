@@ -3,15 +3,24 @@ import { getPool } from "./_db.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import {
   DEFAULT_EMAIL_PREFS,
+  DEFAULT_PUSH_PREFS,
   EMAIL_NOTIFICATION_EVENTS,
   PUSH_NOTIFICATION_EVENTS,
+  applyPushPreferenceToggle,
+  buildPushPreferencesSavePayload,
+  loadNotificationPreferencesState,
+  mergePushPreferences,
+  mergePushPreferencesForSave,
   normalizeNotificationPreferencesState,
+  pushPreferencesForClient,
+  serializeNotificationPreferencesState,
 } from "../lib/notificationEmailPrefs.js";
+import { syncPushActivationForLogin, writePushControlJournal } from "../lib/pushControl.js";
 
 const DEFAULT_PREFS = {
   telegram: { daily_summary: true } as Record<string, boolean>,
   webpush: { daily_summary: false } as Record<string, boolean>,
-  push: { daily_summary: false } as Record<string, boolean>,
+  push: { ...DEFAULT_PUSH_PREFS } as Record<string, boolean>,
   email: { ...DEFAULT_EMAIL_PREFS } as Record<string, boolean>,
 };
 
@@ -36,7 +45,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const login = String(req.query?.login || "").trim().toLowerCase();
     if (!login) return res.status(400).json({ error: "login is required", request_id: ctx.requestId });
 
-    const prefs = { ...DEFAULT_PREFS, email: { ...DEFAULT_EMAIL_PREFS } };
+    const prefs = {
+      telegram: { ...DEFAULT_PREFS.telegram },
+      webpush: { ...DEFAULT_PREFS.webpush },
+      push: { ...DEFAULT_PUSH_PREFS },
+      email: { ...DEFAULT_EMAIL_PREFS },
+    };
     try {
       try {
         const stateRes = await pool.query<{ preferences: unknown }>(
@@ -48,7 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(200).json({
             telegram: { ...DEFAULT_PREFS.telegram, ...normalized.telegram },
             webpush: { ...DEFAULT_PREFS.webpush, ...normalized.webpush },
-            push: { ...DEFAULT_PREFS.push, ...normalized.push },
+            push: pushPreferencesForClient(normalized.push),
             email: { ...DEFAULT_EMAIL_PREFS, ...normalized.email },
             request_id: ctx.requestId,
           });
@@ -80,7 +94,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           prefs[ch][r.event_id] = r.enabled;
         }
       }
-      return res.status(200).json({ ...prefs, request_id: ctx.requestId });
+      return res.status(200).json({
+        ...prefs,
+        push: pushPreferencesForClient(prefs.push),
+        request_id: ctx.requestId,
+      });
     } catch (e: unknown) {
       const code = (e as { code?: string })?.code;
       if (code === "42P01") {
@@ -111,13 +129,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const prefObj = preferences as Record<string, unknown>;
   const telegram = prefObj.telegram && typeof prefObj.telegram === "object" ? (prefObj.telegram as Record<string, boolean>) : {};
   const webpush = prefObj.webpush && typeof prefObj.webpush === "object" ? (prefObj.webpush as Record<string, boolean>) : {};
-  const push = prefObj.push && typeof prefObj.push === "object" ? (prefObj.push as Record<string, boolean>) : {};
+  const pushRaw = prefObj.push && typeof prefObj.push === "object" ? (prefObj.push as Record<string, boolean>) : {};
   const email = prefObj.email && typeof prefObj.email === "object" ? (prefObj.email as Record<string, boolean>) : {};
+  const existingState = await loadNotificationPreferencesState(pool, login);
+  const pushToggleRaw = bodyObj.pushToggle;
+  const pushToggle =
+    pushToggleRaw && typeof pushToggleRaw === "object"
+      ? (pushToggleRaw as Record<string, unknown>)
+      : null;
+  const toggleEventId = String(pushToggle?.eventId || "").trim();
+  const toggleEnabled = pushToggle?.enabled === true;
+  const pushSaved =
+    toggleEventId && (PUSH_NOTIFICATION_EVENTS as readonly string[]).includes(toggleEventId)
+      ? applyPushPreferenceToggle(existingState.push, toggleEventId, toggleEnabled)
+      : mergePushPreferencesForSave(
+          existingState.push,
+          buildPushPreferencesSavePayload(pushRaw, {
+            eventId: toggleEventId,
+            value: toggleEnabled,
+          }),
+        );
+  const pushEffective = mergePushPreferences(pushSaved);
   const current = normalizeNotificationPreferencesState({
     telegram: { ...DEFAULT_PREFS.telegram, ...telegram },
     webpush: { ...DEFAULT_PREFS.webpush, ...webpush },
-    push: { ...DEFAULT_PREFS.push, ...push },
+    push: pushSaved,
     email: { ...DEFAULT_EMAIL_PREFS, ...email },
+    push_selected_inn: existingState.pushSelectedInn,
   });
 
   try {
@@ -127,13 +165,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          VALUES ($1, $2::jsonb, now())
          ON CONFLICT (login)
          DO UPDATE SET preferences = excluded.preferences, updated_at = now()`,
-        [login, JSON.stringify(current)]
+        [login, JSON.stringify(serializeNotificationPreferencesState(current))]
       );
     } catch (e: unknown) {
       const code = (e as { code?: string })?.code;
-      if (code !== "42P01") {
-        logError(ctx, "webpush_preferences_post_state_failed", e);
+      if (code === "42P01") {
+        return res.status(503).json({ error: "Run migration 048_notification_preferences_state.sql", request_id: ctx.requestId });
       }
+      logError(ctx, "webpush_preferences_post_state_failed", e);
+      return res.status(500).json({ error: "Failed to save preferences", request_id: ctx.requestId });
     }
 
     for (const eventId of EVENTS) {
@@ -154,11 +194,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           `INSERT INTO notification_preferences (login, channel, event_id, enabled, updated_at)
            VALUES ($1, 'push', $2, $3, now())
            ON CONFLICT (login, channel, event_id) DO UPDATE SET enabled = excluded.enabled, updated_at = now()`,
-          [login, eventId, !!current.push[eventId]]
+          [login, eventId, !!pushEffective[eventId]]
         );
       } catch (e: unknown) {
         const code = (e as { code?: string })?.code;
-        if (code === "23514" || code === "42P01") continue;
+        if (code === "23514") {
+          logError(ctx, "webpush_preferences_event_constraint", e, { eventId, hint: "Run migration 090_notification_cargo_stages.sql" });
+          continue;
+        }
+        if (code === "42P01") continue;
         throw e;
       }
     }
@@ -178,7 +222,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    return res.status(200).json({ ok: true, preferences: current, request_id: ctx.requestId });
+    try {
+      const synced = await syncPushActivationForLogin(pool, login, pushSaved, {
+        source: "prefs_save",
+      });
+      await writePushControlJournal(pool, {
+        login,
+        inn: synced.inns[0] || "",
+        action: toggleEventId ? "push_toggle" : "prefs_save",
+        eventId: toggleEventId || undefined,
+        enabled: toggleEventId ? toggleEnabled : null,
+        meta: {
+          request_id: ctx.requestId,
+          push: pushSaved,
+          push_effective: pushEffective,
+          push_inns: synced.inns,
+          enabled_events: synced.events.filter((e) => e.enabled).map((e) => e.eventId),
+        },
+      });
+    } catch (e: unknown) {
+      logError(ctx, "webpush_preferences_push_control_failed", e);
+    }
+
+    return res.status(200).json({
+      ok: true,
+      preferences: {
+        ...current,
+        push: pushPreferencesForClient(current.push),
+      },
+      request_id: ctx.requestId,
+    });
   } catch (e: unknown) {
     logError(ctx, "webpush_preferences_post_failed", e);
     return res.status(500).json({ error: "Failed to save preferences", request_id: ctx.requestId });

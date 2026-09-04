@@ -1,4 +1,10 @@
 import type { CustomerOption, CompanyRow } from "./types";
+import { decodeBase64Payload, normalizeBase64Payload } from "../lib/base64Document.js";
+import { CapacitorHttp } from "@capacitor/core";
+import { toAbsoluteApiUrl } from "./lib/absoluteApiUrl";
+import { isCapacitorNative } from "./lib/capacitorPlatform";
+
+export { decodeBase64Payload, normalizeBase64Payload };
 
 /** Читает ответ как JSON или текст по content-type */
 export async function readJsonOrText(res: Response): Promise<any> {
@@ -60,6 +66,38 @@ export async function ensureOk(res: Response, fallback?: string): Promise<void> 
     throw new Error(message);
 }
 
+function requestUrl(input: RequestInfo | URL): string {
+    if (typeof input === "string") return input;
+    if (input instanceof URL) return input.toString();
+    return input.url;
+}
+
+function requestHeaders(init?: RequestInit): Record<string, string> {
+    const headers: Record<string, string> = {};
+    const raw = init?.headers;
+    if (!raw) return headers;
+    if (raw instanceof Headers) {
+        raw.forEach((value, key) => {
+            headers[key] = value;
+        });
+        return headers;
+    }
+    if (Array.isArray(raw)) {
+        raw.forEach(([key, value]) => {
+            headers[key] = value;
+        });
+        return headers;
+    }
+    return { ...raw };
+}
+
+function requestBodyString(init?: RequestInit): string {
+    const body = init?.body;
+    if (body == null) return "";
+    if (typeof body === "string") return body;
+    return String(body);
+}
+
 /** Получить сообщение об ошибке из ответа для показа пользователю */
 async function getErrorMessageFromResponse(res: Response, fallback?: string): Promise<string> {
     const payload = await readJsonOrText(res);
@@ -71,11 +109,47 @@ async function getErrorMessageFromResponse(res: Response, fallback?: string): Pr
 /** Таймаут клиентских запросов к API (серверные функции до 300 с). */
 export const API_FETCH_TIMEOUT_MS = 90_000;
 
+const humanizeNetworkError = (error: unknown): Error => {
+    if (!(error instanceof Error)) return new Error("Не удалось выполнить запрос. Проверьте интернет.");
+    const lower = error.message.toLowerCase();
+    if (
+        lower.includes("network connection was lost") ||
+        lower.includes("the internet connection appears to be offline") ||
+        lower.includes("network error") ||
+        lower.includes("load failed") ||
+        lower.includes("failed to fetch")
+    ) {
+        return new Error("Нет связи с сервером. Проверьте интернет и повторите.");
+    }
+    return error;
+};
+
 function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     if (init?.signal) return fetch(input, init);
+    // CapacitorHttp + AbortController на iOS даёт «network connection was lost»
+    if (isCapacitorNative()) return fetch(input, init);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), API_FETCH_TIMEOUT_MS);
     return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
+async function capacitorPostJson<T>(url: string, headers: Record<string, string>, body: string): Promise<T> {
+    const absoluteUrl = toAbsoluteApiUrl(url);
+    try {
+        const res = await CapacitorHttp.post({
+            url: absoluteUrl,
+            headers: { ...headers, "Content-Type": "application/json" },
+            data: body ? JSON.parse(body) : {},
+            connectTimeout: API_FETCH_TIMEOUT_MS,
+            readTimeout: API_FETCH_TIMEOUT_MS,
+        });
+        if (res.status < 200 || res.status >= 300) {
+            throw new Error(extractErrorMessage(res.data) || humanizeStatus(res.status));
+        }
+        return (res.data ?? {}) as T;
+    } catch (e) {
+        throw humanizeNetworkError(e);
+    }
 }
 
 /**
@@ -90,7 +164,7 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
         if (e instanceof Error && e.name === "AbortError") {
             throw new Error("Превышено время ожидания. Повторите попытку.");
         }
-        throw e;
+        throw humanizeNetworkError(e);
     }
     if (!res.ok) {
         const message = await getErrorMessageFromResponse(res);
@@ -104,6 +178,11 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
  * При !res.ok бросает Error с сообщением от сервера для показа пользователю.
  */
 export async function apiFetchJson<T = unknown>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+    const method = String(init?.method || "GET").toUpperCase();
+    if (isCapacitorNative() && method === "POST") {
+        return capacitorPostJson<T>(requestUrl(input), requestHeaders(init), requestBodyString(init));
+    }
+
     let res: Response;
     try {
         res = await fetchWithTimeout(input, init);
@@ -111,7 +190,7 @@ export async function apiFetchJson<T = unknown>(input: RequestInfo | URL, init?:
         if (e instanceof Error && e.name === "AbortError") {
             throw new Error("Превышено время ожидания. Повторите попытку.");
         }
-        throw e;
+        throw humanizeNetworkError(e);
     }
     const contentType = res.headers.get("content-type") || "";
     const isJson = contentType.includes("application/json");
@@ -207,16 +286,14 @@ export async function downloadBase64File(payload: {
     isHtml?: boolean;
     convertHtmlToPdf?: boolean;
 }): Promise<void> {
-    const { data, name = "document", isHtml, convertHtmlToPdf = true } = payload;
+    const { data, name = "document", isHtml, convertHtmlToPdf = !isCapacitorNative() } = payload;
     const isHtmlFile = Boolean(isHtml) || /\.html?$/i.test(String(name));
-    let binary: string;
+    let bytes: Uint8Array;
     try {
-        binary = atob(String(data));
+        bytes = decodeBase64Payload(String(data));
     } catch {
         throw new Error("Не удалось расшифровать документ");
     }
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
 
     if (isHtmlFile && convertHtmlToPdf) {
         const htmlStr = new TextDecoder("utf-8").decode(bytes);
@@ -231,12 +308,8 @@ export async function downloadBase64File(payload: {
 
     const mime = isHtmlFile ? "text/html;charset=utf-8" : "application/pdf";
     const blob = new Blob([bytes], { type: mime });
-    const href = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = href;
-    a.download = String(name);
-    a.click();
-    URL.revokeObjectURL(href);
+    const { saveBlobFile } = await import("./lib/saveBlobFile");
+    await saveBlobFile(blob, String(name));
 }
 
 /** Декодирование base64url в Uint8Array (для Web Push VAPID key) */

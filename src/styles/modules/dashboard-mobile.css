@@ -1,0 +1,255 @@
+/* Главная (дашборд): мобильная адаптация без горизонтального скролла страницы */
+
+@media (max-width: 768px) {
+    .dashboard-page-offset,
+    .dashboard-page--saas-analytics {
+        overflow-x: hidden;
+        max-width: 100%;
+    }
+
+    /* П.4 — не даём .app-main раздувать страницу по X на дашборде */
+    .app-main:has(.dashboard-page-offset),
+    .app-main:has(.dashboard-page--saas-analytics) {
+        overflow-x: hidden;
+    }
+
+    /* П.1 — грузовой поток: 7 дней в 2 колонки */
+    .dashboard-cargo-flow-days-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.4rem;
+        min-width: 0;
+        width: 100%;
+    }
+
+    .dashboard-cargo-flow-days-wrap {
+        overflow-x: hidden;
+    }
+
+    /* П.2 — KPI strip: табы переносятся */
+    .dashboard-strip-tabs {
+        flex-wrap: wrap !important;
+        min-width: 0 !important;
+    }
+
+    .dashboard-strip-tabs-wrap {
+        overflow-x: hidden;
+        overflow-y: visible;
+    }
+
+    /* П.3 — платёжный календарь */
+    .payment-calendar-grid {
+        min-width: 0 !important;
+        width: 100%;
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+        font-size: 0.68rem !important;
+    }
+
+    .payment-calendar-wrap {
+        overflow-x: hidden;
+    }
+
+    /* П.5–8 — таблицы → карточки */
+    .dashboard-scroll-table-wrap {
+        overflow-x: hidden !important;
+        max-width: 100%;
+    }
+
+    .dashboard-scroll-table {
+        min-width: 0 !important;
+        width: 100%;
+    }
+
+    .dashboard-scroll-table thead {
+        display: none;
+    }
+
+    .dashboard-scroll-table tbody tr.dashboard-scroll-table__data-row {
+        display: block;
+        margin-bottom: 0.55rem;
+        padding: 0.45rem 0.55rem;
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        background: var(--color-bg-card);
+    }
+
+    .dashboard-scroll-table tbody tr.dashboard-scroll-table__data-row td {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 0.5rem;
+        padding: 0.2rem 0;
+        border: none;
+        white-space: normal;
+        max-width: none;
+    }
+
+    .dashboard-scroll-table tbody tr.dashboard-scroll-table__data-row td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        font-size: 0.68rem;
+        color: var(--color-text-secondary);
+        flex-shrink: 0;
+        max-width: 42%;
+    }
+
+    .dashboard-scroll-table tbody tr.dashboard-scroll-table__detail-row {
+        display: block;
+        margin-bottom: 0.55rem;
+    }
+
+    .dashboard-scroll-table tbody tr.dashboard-scroll-table__detail-row > td {
+        display: block;
+        padding: 0;
+        border: none;
+    }
+
+    .dashboard-scroll-table tbody tr.dashboard-scroll-table__detail-row > td::before {
+        display: none;
+    }
+
+    .dashboard-scroll-table tbody tr.dashboard-scroll-table__empty-row {
+        display: block;
+    }
+
+    .dashboard-scroll-table tbody tr.dashboard-scroll-table__empty-row td {
+        display: block;
+        padding: 0.5rem;
+    }
+
+    .dashboard-scroll-table tbody tr.dashboard-scroll-table__empty-row td::before {
+        display: none;
+    }
+
+    /* HAULZ dispatch: вложенная таблица деталей */
+    .haulz-dispatch-table-wrap.dashboard-scroll-table-wrap {
+        overflow-x: hidden;
+    }
+
+    /* Перевозки по заказчикам: карточки на всю ширину фрейма (не сжимать вложенные строки). */
+    .haulz-dispatch-table.dashboard-scroll-table,
+    .haulz-dispatch-table.dashboard-scroll-table tbody {
+        display: block;
+        width: 100%;
+        min-width: 0;
+    }
+
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr.dashboard-scroll-table__data-row {
+        width: 100%;
+    }
+
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr.haulz-dispatch-table__group-row {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 0.35rem 0.5rem;
+        margin-bottom: 0.35rem;
+        padding: 0.5rem 0.55rem;
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        background: var(--color-bg-hover);
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr.haulz-dispatch-table__group-row > td {
+        display: block;
+        border: none;
+        padding: 0;
+        white-space: nowrap;
+        min-width: 0;
+    }
+
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr.haulz-dispatch-table__group-row > td.haulz-dispatch-table__group-row__lead {
+        flex-shrink: 0;
+    }
+
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr.haulz-dispatch-table__group-row .haulz-dispatch-table__group-row__lead-inner {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+    }
+
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr.haulz-dispatch-table__group-row .haulz-dispatch-table__group-customer-name {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 600;
+        font-size: 0.78rem;
+    }
+
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr.haulz-dispatch-table__group-row > td.customer-col.haulz-dispatch-table__group-customer-name {
+        flex: 1 1 auto;
+    }
+
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr.haulz-dispatch-table__group-row > td:nth-last-child(2) {
+        flex-shrink: 0;
+        font-size: 0.78rem;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr.haulz-dispatch-table__group-row > td.haulz-dispatch-table__group-row__spacer {
+        display: none;
+    }
+
+    .haulz-dispatch-table.dashboard-scroll-table tbody tr.haulz-dispatch-table__group-row > td:last-child {
+        margin-left: auto;
+        flex-shrink: 0;
+        font-weight: 600;
+        font-size: 0.78rem;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .haulz-dispatch-table__cell--num-nested {
+        padding-left: 0 !important;
+    }
+
+    .haulz-dispatch-table__row--nested .customer-col {
+        display: none !important;
+    }
+
+    .haulz-dispatch-table__row--nested .customer-col::before {
+        display: none !important;
+    }
+
+    /* П.10 — сезонность на мобильном/в приложении в служебном режиме скрыта в React */
+    .app-service-mode .dashboard-seasonality-panel {
+        display: none !important;
+    }
+
+    /* П.10 — сезонность (legacy fallback): heatmap скрыта, карточки — если блок всё же в DOM */
+    .dashboard-seasonality-heatmap {
+        display: none;
+    }
+
+    .dashboard-seasonality-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+    }
+}
+
+@media (min-width: 769px) {
+    .dashboard-cargo-flow-days-grid {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(86px, 1fr));
+        gap: 0.4rem;
+        min-width: 0;
+        width: 100%;
+    }
+
+    .dashboard-seasonality-cards {
+        display: none;
+    }
+}

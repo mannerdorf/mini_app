@@ -55,9 +55,25 @@ if ! java -version 2>&1 | grep -qE 'version "(1[7-9]|[2-9][0-9])'; then
 fi
 
 if [[ -z "${ANDROID_HOME:-}" && -z "${ANDROID_SDK_ROOT:-}" ]]; then
-  echo "Set ANDROID_HOME or ANDROID_SDK_ROOT to your Android SDK path." >&2
+  if [[ -d "$HOME/Library/Android/sdk" ]]; then
+    export ANDROID_HOME="$HOME/Library/Android/sdk"
+    echo "Using ANDROID_HOME=$ANDROID_HOME"
+  else
+    echo "Set ANDROID_HOME or ANDROID_SDK_ROOT to your Android SDK path." >&2
+    echo "Typical Mac path: export ANDROID_HOME=\"\$HOME/Library/Android/sdk\"" >&2
+    exit 1
+  fi
+fi
+
+ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+LOCAL_PROPS="$ANDROID_DIR/local.properties"
+if [[ ! -d "$ANDROID_HOME" ]]; then
+  echo "Android SDK directory not found: $ANDROID_HOME" >&2
+  echo "Install Android Studio SDK or fix ANDROID_HOME / android/local.properties (sdk.dir)." >&2
   exit 1
 fi
+printf 'sdk.dir=%s\n' "$ANDROID_HOME" >"$LOCAL_PROPS"
+echo "Wrote $LOCAL_PROPS → sdk.dir=$ANDROID_HOME"
 
 if [[ ! -f "$KEYSTORE" ]]; then
   STORE_PASS="${HAULZ_ANDROID_STORE_PASSWORD:-haulz-miniapp-store}"
@@ -85,6 +101,9 @@ keyPassword=$KEY_PASS
 EOF
   echo "Wrote android/keystore.properties (local only, not committed)."
 fi
+
+echo "Installing npm dependencies..."
+npm ci
 
 echo "Building web bundle for Capacitor (API: $API_ORIGIN)..."
 VITE_API_ORIGIN="$API_ORIGIN" npm run build

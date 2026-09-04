@@ -1,17 +1,38 @@
 import type { Pool } from "pg";
 import {
   CARGO_STAGE_EVENT_IDS,
-  formatTelegramMessage,
   getCargoStageEventsOnStateChange,
   getPaymentKey,
   hasBillSignal,
+  hasBillNumberForPush,
   isCargoStageNotificationEnabled,
+  isRecentNotificationItem,
   notificationItemInn,
   type CargoStageEventId,
 } from "../../lib/notificationPoll.js";
+import { invertScopesByInn, loadEffectivePushLoginScopes, normalizeNotificationInn } from "../../lib/notificationInnScope.js";
 import { acquireWebPushDedupeKey, sendWebPushToLogin } from "./webpushDelivery.js";
 import { sendFcmToLogin } from "./fcmDelivery.js";
 import { wasSuccessfulNotificationDelivery } from "./notificationDeliveryDedupe.js";
+import {
+  isPushEventAllowedForInn,
+  listLoginsWithFcmTokens,
+  loadPushActivationByLogins,
+} from "../../lib/pushControl.js";
+import {
+  loadCargoCustomerInnByNumbers,
+  resolveNotificationCargoOwnerInn,
+  shouldDeliverNotificationToSubscriber,
+} from "../../lib/notificationCargoOwnerInn.js";
+import {
+  loadCargoPayloadsByNumbers,
+  loadInvoicePayloadsByCargoNumbers,
+  resolveCargoItemForPushTemplate,
+} from "../../lib/notificationCargoPayloadEnrich.js";
+import { getPerevozkiServiceCredentials } from "../../lib/cacheHistoryDays.js";
+import { loadPushNotificationTemplates, formatPushNotificationMessage, shouldDeferLastMilePush } from "../../lib/pushNotificationTemplates.js";
+import { cargoPlannedDeliveryDateFromItem } from "../../lib/cargoDateFilter.js";
+import { dispatchPlannedDeliveryDatePush } from "../../lib/dispatchPlannedDeliveryDatePush.js";
 
 type CargoSnapshotItem = {
   inn?: unknown;
@@ -30,7 +51,7 @@ type CargoSnapshotItem = {
 const NOTIFICATION_EVENTS = [...CARGO_STAGE_EVENT_IDS, "bill_created", "bill_paid"] as const;
 type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
-function isNotificationEventEnabled(prefs: Record<string, boolean>, event: NotificationEvent): boolean {
+function isOptInNotificationEventEnabled(prefs: Record<string, boolean>, event: NotificationEvent): boolean {
   if (event === "bill_created" || event === "bill_paid") return prefs[event] === true;
   return isCargoStageNotificationEnabled(prefs, event as CargoStageEventId);
 }
@@ -52,13 +73,13 @@ function eventUrl(event: NotificationEvent, cargoNumber: string): string {
 function billEventsOnChange(
   isFirstSeen: boolean,
   prevStateBill: string | null | undefined,
-  item: CargoSnapshotItem
+  item: CargoSnapshotItem,
+  notifyFirstSeen: boolean,
 ): NotificationEvent[] {
-  // Historical first sighting: baseline only, no bill pushes.
-  if (isFirstSeen) return [];
   if (!hasBillSignal(item)) return [];
+  if (isFirstSeen && !notifyFirstSeen) return [];
   const payKey = getPaymentKey(String(item.StateBill ?? item.stateBill ?? "").trim() || undefined);
-  const prevPayKey = getPaymentKey(prevStateBill ?? undefined);
+  const prevPayKey = isFirstSeen ? "unknown" : getPaymentKey(prevStateBill ?? undefined);
   const events: NotificationEvent[] = [];
   if (prevPayKey === "unknown") events.push("bill_created");
   if (payKey === "paid" && prevPayKey !== "paid") events.push("bill_paid");
@@ -72,10 +93,12 @@ async function ensureNotificationTables(pool: Pool) {
       cargo_number text not null,
       state text,
       state_bill text,
+      plan_date text,
       updated_at timestamptz not null default now(),
       primary key (inn, cargo_number)
     )`
   );
+  await pool.query(`alter table cargo_last_state add column if not exists plan_date text`);
   await pool.query(
     `create table if not exists notification_deliveries (
       id uuid primary key default gen_random_uuid(),
@@ -85,6 +108,7 @@ async function ensureNotificationTables(pool: Pool) {
       cargo_number text not null,
       event text not null,
       channel text not null default 'web',
+      cargo_inn text,
       sent_at timestamptz not null default now(),
       telegram_chat_id text,
       success boolean not null default true,
@@ -111,17 +135,48 @@ export async function dispatchWebPushCargoEvents(params: {
 }> {
   const { pool, source = "event_dispatch", dedupeTtlSeconds = 300 } = params;
   const input = Array.isArray(params.items) ? params.items : [];
-  const prepared = input
+  const rawPrepared = input
     .map((item) => ({
-      inn: normalizeInn(item),
       cargoNumber: normalizeCargoNumber(item),
       state: String(item.state ?? item.State ?? "").trim() || null,
       stateBill: String(item.stateBill ?? item.StateBill ?? "").trim() || null,
       raw: item,
     }))
-    .filter((x) => x.inn && x.cargoNumber);
-  if (prepared.length === 0) {
+    .filter((x) => x.cargoNumber);
+
+  if (rawPrepared.length === 0) {
     return { ok: true, source, scanned: 0, changed: 0, attempted: 0, delivered: 0, failed: 0, deduped: 0, cleanedSubscriptions: 0 };
+  }
+
+  const { byNumber: ownerInnByCargo, loaded: ownerInnCacheLoaded } = await loadCargoCustomerInnByNumbers(
+    pool,
+    rawPrepared.map((x) => x.cargoNumber),
+  );
+  const prepared = rawPrepared
+    .map((row) => {
+      const cargoInn = resolveNotificationCargoOwnerInn(row.raw as Record<string, unknown>, ownerInnByCargo, {
+        strictCache: ownerInnCacheLoaded,
+      });
+      return { ...row, inn: cargoInn };
+    })
+    .filter((x) => x.inn && x.cargoNumber);
+
+  if (prepared.length === 0) {
+    return { ok: true, source, scanned: rawPrepared.length, changed: 0, attempted: 0, delivered: 0, failed: 0, deduped: 0, cleanedSubscriptions: 0 };
+  }
+
+  if (!ownerInnCacheLoaded) {
+    return {
+      ok: true,
+      source,
+      scanned: rawPrepared.length,
+      changed: 0,
+      attempted: 0,
+      delivered: 0,
+      failed: 0,
+      deduped: 0,
+      cleanedSubscriptions: 0,
+    };
   }
 
   try {
@@ -130,20 +185,26 @@ export async function dispatchWebPushCargoEvents(params: {
     // Continue even if DDL was rejected by permissions.
   }
 
+  const pushTemplates = await loadPushNotificationTemplates(pool);
+
   const inns = Array.from(new Set(prepared.map((x) => x.inn)));
   const cargoNumbers = Array.from(new Set(prepared.map((x) => x.cargoNumber)));
   const subscriberByInn = new Map<string, Map<string, Record<string, boolean>>>();
   const pushSubscriberByInn = new Map<string, Map<string, Record<string, boolean>>>();
-  const accountRows = await pool.query<{ login: string; inn: string }>(
-    `select distinct lower(trim(login)) as login, inn
-     from account_companies
-     where inn = any($1::text[])`,
-    [inns]
-  );
-  const logins = [...new Set(accountRows.rows.map((r) => String(r.login || "").trim().toLowerCase()).filter(Boolean))];
+  const scopes = await loadEffectivePushLoginScopes(pool);
+  const loginsByInn = invertScopesByInn(scopes);
+  const scopedPairs: Array<{ login: string; inn: string }> = [];
+  for (const inn of inns) {
+    for (const login of loginsByInn.get(inn) || []) {
+      scopedPairs.push({ login, inn });
+    }
+  }
+  const logins = [...new Set(scopedPairs.map((r) => r.login))];
   const prefsByLogin = new Map<string, Record<string, boolean>>();
   const pushPrefsByLogin = new Map<string, Record<string, boolean>>();
   const loadedFromState = new Set<string>();
+  const loginsWithToken = await listLoginsWithFcmTokens(pool, logins);
+  const activationByLogin = await loadPushActivationByLogins(pool, logins);
   if (logins.length > 0) {
     try {
       const stateRows = await pool.query<{ login: string; preferences: any }>(
@@ -192,28 +253,26 @@ export async function dispatchWebPushCargoEvents(params: {
       }
     }
   }
-  for (const row of accountRows.rows) {
-    const inn = String(row.inn || "").trim();
+  for (const row of scopedPairs) {
+    const inn = normalizeNotificationInn(row.inn);
     const login = String(row.login || "").trim().toLowerCase();
-    const enabledEvents = prefsByLogin.get(login);
-    const enabledPushEvents = pushPrefsByLogin.get(login);
+    const enabledEvents = prefsByLogin.get(login) || {};
+    const enabledPushEvents = pushPrefsByLogin.get(login) || {};
     if (!inn || !login) continue;
-    if (enabledEvents && Object.keys(enabledEvents).length > 0) {
-      let byLogin = subscriberByInn.get(inn);
-      if (!byLogin) {
-        byLogin = new Map<string, Record<string, boolean>>();
-        subscriberByInn.set(inn, byLogin);
-      }
-      byLogin.set(login, enabledEvents);
+    let byLogin = subscriberByInn.get(inn);
+    if (!byLogin) {
+      byLogin = new Map<string, Record<string, boolean>>();
+      subscriberByInn.set(inn, byLogin);
     }
-    if (enabledPushEvents && Object.keys(enabledPushEvents).length > 0) {
-      let byLogin = pushSubscriberByInn.get(inn);
-      if (!byLogin) {
-        byLogin = new Map<string, Record<string, boolean>>();
-        pushSubscriberByInn.set(inn, byLogin);
-      }
-      byLogin.set(login, enabledPushEvents);
+    byLogin.set(login, enabledEvents);
+    if (!loginsWithToken.has(login)) continue;
+    let pushByLogin = pushSubscriberByInn.get(inn);
+    if (!pushByLogin) {
+      pushByLogin = new Map<string, Record<string, boolean>>();
+      pushSubscriberByInn.set(inn, pushByLogin);
     }
+    // Маркер: наличие prefs; реальная проверка — через activation в цикле отправки.
+    pushByLogin.set(login, enabledPushEvents);
   }
   if (subscriberByInn.size === 0 && pushSubscriberByInn.size === 0) {
     return {
@@ -229,16 +288,27 @@ export async function dispatchWebPushCargoEvents(params: {
     };
   }
 
-  const lastStateRows = await pool.query<{ inn: string; cargo_number: string; state: string | null; state_bill: string | null }>(
-    `select inn, cargo_number, state, state_bill
+  const lastStateRows = await pool.query<{ inn: string; cargo_number: string; state: string | null; state_bill: string | null; plan_date: string | null }>(
+    `select inn, cargo_number, state, state_bill, plan_date
      from cargo_last_state
-     where inn = any($1::text[]) and cargo_number = any($2::text[])`,
+     where cargo_number = any($2::text[])
+       and (
+         inn = any($1::text[])
+         or regexp_replace(coalesce(inn, ''), '\\D', '', 'g') = any($1::text[])
+       )`,
     [inns, cargoNumbers]
   );
-  const lastState = new Map<string, { state: string | null; stateBill: string | null }>();
+  const lastState = new Map<string, { state: string | null; stateBill: string | null; planDate: string | null }>();
   for (const row of lastStateRows.rows) {
-    lastState.set(`${row.inn}::${row.cargo_number}`, { state: row.state, stateBill: row.state_bill });
+    const innKey = normalizeNotificationInn(row.inn) || String(row.inn || "").trim();
+    lastState.set(`${innKey}::${row.cargo_number}`, {
+      state: row.state,
+      stateBill: row.state_bill,
+      planDate: row.plan_date ? String(row.plan_date).trim() : null,
+    });
   }
+
+  const planDateChanges: Array<{ cargoNumber: string; date: string }> = [];
 
   let changed = 0;
   let attempted = 0;
@@ -247,22 +317,79 @@ export async function dispatchWebPushCargoEvents(params: {
   let deduped = 0;
   let cleanedSubscriptions = 0;
   const nowBucket = Math.floor(Date.now() / (1000 * dedupeTtlSeconds));
+  const payloadByNumber = await loadCargoPayloadsByNumbers(pool, cargoNumbers);
+  const cargoNumbersByInn = new Map<string, string[]>();
+  for (const row of prepared) {
+    const list = cargoNumbersByInn.get(row.inn) || [];
+    if (!list.includes(row.cargoNumber)) list.push(row.cargoNumber);
+    cargoNumbersByInn.set(row.inn, list);
+  }
+  const invoiceByInnAndCargo = new Map<string, Map<string, Record<string, unknown>>>();
+  for (const [inn, nums] of cargoNumbersByInn) {
+    invoiceByInnAndCargo.set(inn, await loadInvoicePayloadsByCargoNumbers(pool, inn, nums));
+  }
+  const perevozkaDetailCache = new Map<string, Record<string, unknown> | null>();
+  const invoiceLiveCache = new Map<string, Record<string, unknown> | null>();
+  const perevozkaCreds = getPerevozkiServiceCredentials();
   for (const item of prepared) {
     const key = `${item.inn}::${item.cargoNumber}`;
     const prev = lastState.get(key);
     const isFirstSeen = !prev;
+    const notifyFirstSeen = isRecentNotificationItem(item.raw as Record<string, unknown>);
     const eventsToSend: NotificationEvent[] = [
-      ...getCargoStageEventsOnStateChange(prev?.state, item.state, isFirstSeen),
-      ...billEventsOnChange(isFirstSeen, prev?.stateBill, item.raw),
+      ...getCargoStageEventsOnStateChange(prev?.state, item.state, isFirstSeen, { notifyFirstSeen }),
+      ...billEventsOnChange(isFirstSeen, prev?.stateBill, item.raw, notifyFirstSeen),
     ];
     if (eventsToSend.length > 0) changed += 1;
 
+    const planDate = cargoPlannedDeliveryDateFromItem(item.raw as Record<string, unknown>);
+    const prevPlanDate = prev?.planDate ?? null;
+    const planDateNotifyFirstSeen = isFirstSeen && notifyFirstSeen && planDate;
+    if (
+      planDate &&
+      planDate !== prevPlanDate &&
+      (!isFirstSeen || planDateNotifyFirstSeen)
+    ) {
+      planDateChanges.push({ cargoNumber: item.cargoNumber, date: planDate });
+    }
+
     const subscribers = subscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
     const pushSubscribers = pushSubscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
+    let deferBillStateUpdate = false;
+    let deferCargoStateUpdate = false;
 
     for (const event of eventsToSend) {
+      const templateItem = await resolveCargoItemForPushTemplate({
+        item: item.raw as Record<string, unknown>,
+        event,
+        payloadByNumber,
+        invoiceByCargoNumber: invoiceByInnAndCargo.get(item.inn),
+        customerInn: item.inn,
+        serviceLogin: perevozkaCreds?.login,
+        servicePassword: perevozkaCreds?.password,
+        perevozkaCache: perevozkaDetailCache,
+        invoiceLiveCache,
+      });
+      if (event === "bill_created" && !hasBillNumberForPush(templateItem)) {
+        deferBillStateUpdate = true;
+        continue;
+      }
+      if (shouldDeferLastMilePush(event, templateItem, pushTemplates)) {
+        deferCargoStateUpdate = true;
+        continue;
+      }
+      const message = formatPushNotificationMessage(event, item.cargoNumber, templateItem, pushTemplates);
       for (const [login, eventsEnabled] of subscribers.entries()) {
-        if (!isNotificationEventEnabled(eventsEnabled, event)) continue;
+        if (
+          !shouldDeliverNotificationToSubscriber({
+            subscriberInn: item.inn,
+            cargoInn: item.inn,
+            loginScope: scopes.get(login),
+          })
+        ) {
+          continue;
+        }
+        if (!isOptInNotificationEventEnabled(eventsEnabled, event)) continue;
         if (
           await wasSuccessfulNotificationDelivery(pool, {
             login,
@@ -293,10 +420,9 @@ export async function dispatchWebPushCargoEvents(params: {
           continue;
         }
         attempted += 1;
-        const body = formatTelegramMessage(event, item.cargoNumber, item.raw as any);
         const sendResult = await sendWebPushToLogin(login, {
-          title: "HAULZ",
-          body,
+          title: message.title,
+          body: message.body,
           url: eventUrl(event, item.cargoNumber),
           tag: `${event}:${item.cargoNumber}`,
         });
@@ -306,16 +432,34 @@ export async function dispatchWebPushCargoEvents(params: {
         try {
           await pool.query(
             `insert into notification_deliveries (
-              poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message
-            ) values ($1,$2,$3,$4,$5,'web',null,$6,$7)`,
-            [null, login, item.inn, item.cargoNumber, event, sendResult.ok, sendResult.error || null]
+              poll_run_id, login, inn, cargo_inn, cargo_number, event, channel, telegram_chat_id, success, error_message
+            ) values ($1,$2,$3,$4,$5,$6,'web',null,$7,$8)`,
+            [null, login, item.inn, item.inn, item.cargoNumber, event, sendResult.ok, sendResult.error || null]
           );
         } catch {
           // Delivery log is best-effort.
         }
       }
       for (const [login, eventsEnabled] of pushSubscribers.entries()) {
-        if (!isNotificationEventEnabled(eventsEnabled, event)) continue;
+        if (
+          !shouldDeliverNotificationToSubscriber({
+            subscriberInn: item.inn,
+            cargoInn: item.inn,
+            loginScope: scopes.get(login),
+          })
+        ) {
+          continue;
+        }
+        const activation = activationByLogin.get(login)?.get(item.inn) || null;
+        if (
+          !isPushEventAllowedForInn({
+            activation,
+            prefs: eventsEnabled,
+            eventId: event,
+          })
+        ) {
+          continue;
+        }
         if (
           await wasSuccessfulNotificationDelivery(pool, {
             login,
@@ -346,17 +490,17 @@ export async function dispatchWebPushCargoEvents(params: {
           continue;
         }
         attempted += 1;
-        const body = formatTelegramMessage(event, item.cargoNumber, item.raw as any);
         const sendResult = await sendFcmToLogin(login, {
-          title: "HAULZ",
-          body,
+          title: message.title,
+          body: message.body,
           url: eventUrl(event, item.cargoNumber),
           delivery: {
             event,
             inn: String(item.inn || "").trim(),
+            cargoInn: String(item.inn || "").trim(),
             cargoNumber: item.cargoNumber,
-            title: "HAULZ",
-            body,
+            title: message.title,
+            body: message.body,
           },
         });
         if (sendResult.sent > 0) delivered += 1;
@@ -366,15 +510,34 @@ export async function dispatchWebPushCargoEvents(params: {
     }
 
     try {
+      const stateBillToPersist = deferBillStateUpdate ? (prev?.stateBill ?? null) : item.stateBill;
+      const stateToPersist = deferCargoStateUpdate ? (prev?.state ?? null) : item.state;
       await pool.query(
-        `insert into cargo_last_state (inn, cargo_number, state, state_bill, updated_at)
-         values ($1,$2,$3,$4,now())
+        `insert into cargo_last_state (inn, cargo_number, state, state_bill, plan_date, updated_at)
+         values ($1,$2,$3,$4,$5,now())
          on conflict (inn, cargo_number)
-         do update set state = excluded.state, state_bill = excluded.state_bill, updated_at = now()`,
-        [item.inn, item.cargoNumber, item.state, item.stateBill]
+         do update set state = excluded.state, state_bill = excluded.state_bill,
+           plan_date = excluded.plan_date,
+           updated_at = now()`,
+        [item.inn, item.cargoNumber, stateToPersist, stateBillToPersist, planDate || null]
       );
     } catch {
       // State persistence is best-effort when DB schema differs.
+    }
+  }
+
+  if (planDateChanges.length > 0) {
+    try {
+      const planResult = await dispatchPlannedDeliveryDatePush({
+        pool,
+        plans: planDateChanges,
+      });
+      attempted += planResult.attempted;
+      delivered += planResult.delivered;
+      failed += planResult.failed;
+      deduped += planResult.skipped;
+    } catch {
+      // plan-date push is best-effort
     }
   }
 

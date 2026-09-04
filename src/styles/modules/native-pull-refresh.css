@@ -1,0 +1,31 @@
+.native-pull-refresh-indicator {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    overflow: hidden;
+    pointer-events: none;
+    margin-bottom: -0.25rem;
+    width: 100%;
+    flex-shrink: 0;
+    color: var(--color-primary-blue, #2563eb);
+}
+
+.native-pull-refresh-indicator__inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-bg-elevated, #fff) 92%, transparent);
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+}
+
+.native-pull-refresh-indicator__hint {
+    font-size: 0.72rem;
+    color: var(--color-text-secondary);
+    margin-left: 0.35rem;
+}

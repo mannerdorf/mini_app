@@ -563,6 +563,23 @@
     box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
 }
 
+/* Динамика: график от края до края карточки (компенсируем padding панели). */
+.dashboard-dynamics-panel .dashboard-main-chart-wrap {
+    width: calc(100% + 3rem);
+    max-width: calc(100% + 3rem);
+    margin-left: -1.5rem;
+    margin-right: -1.5rem;
+    min-width: 0;
+}
+
+.dashboard-main-chart,
+.dashboard-main-chart__svg {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
 /* HAULZ KPI-плитки: одна высота в ряду, место под 2 строки метрик */
 .haulz-dispatch-stat-grid {
     display: grid;
@@ -621,9 +638,12 @@
     margin-top: 0.75rem;
 }
 
+/* Перевозки: не выше одной KPI-карточки, длинный список — вертикальный скролл внутри. */
 .haulz-dispatch-table-wrap--scroll {
     max-height: 13.5rem;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
 }
 
 .haulz-dispatch-table-wrap--scroll .haulz-dispatch-table__th {
@@ -634,6 +654,20 @@
     box-shadow: 0 1px 0 var(--color-border);
 }
 
+/* Грузовой поток: 7 дней — фиксированная высота и вертикальный скролл (как «Перевозки»). */
+.dashboard-cargo-flow-days-wrap {
+    min-width: 0;
+    width: 100%;
+}
+
+.dashboard-cargo-flow-days-wrap--scroll {
+    max-height: 13.5rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+}
+
 .haulz-dispatch-table {
     width: 100%;
     border-collapse: collapse;
@@ -641,6 +675,18 @@
     font-weight: 400;
     line-height: 1.35;
     color: var(--color-text-primary);
+}
+
+.haulz-dispatch-table__group-row td {
+    white-space: nowrap;
+}
+
+.haulz-dispatch-table__group-row .haulz-dispatch-table__group-customer-name,
+.haulz-dispatch-table__group-row .customer-col {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 14rem;
 }
 
 .haulz-dispatch-table__head-row {
@@ -686,12 +732,6 @@
 .haulz-dispatch-table__cell--num-value {
     text-align: right;
     font-variant-numeric: tabular-nums;
-}
-
-@media (max-width: 768px) {
-    .haulz-dispatch-table .status-date-col {
-        display: none;
-    }
 }
 
 .haulz-dispatch-table__detail-cell {
@@ -798,6 +838,11 @@
         -webkit-overflow-scrolling: touch;
         max-width: 100%;
         min-width: 0;
+        flex-wrap: nowrap;
+    }
+
+    .dashboard-page--saas-analytics .cargo-page-sticky-header.dashboard-sticky-filters .filter-group {
+        flex-shrink: 0;
     }
 
     .dashboard-page--saas-analytics #haulz-dispatch-dashboard {

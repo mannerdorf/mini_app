@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
-import { Loader2, X, Heart, Share2, Layers, Scale, Weight, List, Download, Info, ClipboardList } from "lucide-react";
+import { Loader2, X, Heart, Share2, Layers, Scale, Weight, List, Info, ClipboardList, Download } from "lucide-react";
 import { fetchPerevozkaDetails } from "../../lib/perevozkaDetails";
 import { ShipmentStatusPanel } from "../ShipmentStatusScreen";
 import { getWebApp, isMaxWebApp } from "../../webApp";
 import { DOCUMENT_METHODS } from "../../documentMethods";
-import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { PLANNED_TERMINAL_ARRIVAL_LABEL } from "../../constants/plannedArrivalLabels";
-import { formatCurrency, stripOoo, cityToCode, transliterateFilename, formatInvoiceNumber } from "../../lib/formatUtils";
+import { formatCurrency, stripOoo, cityToCode, formatInvoiceNumber } from "../../lib/formatUtils";
 import { formatPerevozkaNumberForApi } from "../../lib/perevozkaNumber";
+import { downloadDocumentDirect } from "../../lib/downloadDocumentDirect";
 import { normalizeStatus, getFilterKeyByStatus, getSumColorByPaymentStatus } from "../../lib/statusUtils";
 import { formatDate } from "../../lib/dateUtils";
 import { getPlanDays, getCargoDisplayRoleLabel, getCargoRoleSet, cargoLastMileIsSelfPickup } from "../../lib/cargoUtils";
@@ -51,7 +51,6 @@ export function CargoDetailsModal({
 }: CargoDetailsModalProps) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
-    const [pdfViewer, setPdfViewer] = useState<{ url: string; name: string; docType: string; blob?: Blob; downloadFileName?: string } | null>(null);
     const [perevozkaTimeline, setPerevozkaTimeline] = useState<PerevozkaTimelineStep[] | null>(null);
     const [perevozkaNomenclature, setPerevozkaNomenclature] = useState<Record<string, unknown>[]>([]);
     const [perevozkaMeta, setPerevozkaMeta] = useState<{ autoReg: string; autoType: string; driver: string }>({ autoReg: '', autoType: '', driver: '' });
@@ -97,13 +96,6 @@ export function CargoDetailsModal({
     useEffect(() => {
         if (isOpen) setNomenclatureOpen(false);
     }, [isOpen, item?.Number]);
-
-    useEffect(() => {
-        if (!isOpen && pdfViewer) {
-            URL.revokeObjectURL(pdfViewer.url);
-            setPdfViewer(null);
-        }
-    }, [isOpen, pdfViewer]);
 
     useEffect(() => {
         if (isOpen) {
@@ -168,74 +160,18 @@ export function CargoDetailsModal({
     };
     const plannedDeliveryDate = normalizePlannedDeliveryDate((item as any).DateArrival);
 
-    const downloadFile = (blob: Blob, fileName: string) => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    };
-
     const handleDownload = async (docType: string) => {
         if (!item.Number) return alert("Нет номера перевозки");
         const metod = DOCUMENT_METHODS[docType] ?? docType;
         setDownloading(docType);
         setDownloadError(null);
         try {
-            const res = await fetch(PROXY_API_DOWNLOAD_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    login: auth.login,
-                    password: auth.password,
-                    metod,
-                    number: formatPerevozkaNumberForApi(item.Number),
-                    ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
-                }),
+            await downloadDocumentDirect(auth, {
+                metod,
+                number: formatPerevozkaNumberForApi(item.Number),
             });
-            if (!res.ok) {
-                let message =
-                    res.status === 404
-                        ? "Документ не обнаружен"
-                        : res.status >= 500
-                            ? "Ошибка сервера. Попробуйте позже"
-                            : "Не удалось получить документ";
-                try {
-                    const errData = await res.json();
-                    if (errData?.message && res.status !== 404 && res.status < 500) {
-                        message = String(errData.message);
-                    }
-                } catch {
-                    // ignore
-                }
-                throw new Error(message);
-            }
-            const data = await res.json();
-            if (!data?.data || !data.name) {
-                throw new Error("Документ не обнаружен");
-            }
-            const byteCharacters = atob(data.data);
-            const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], { type: "application/pdf" });
-            const fileName = data.name || `${docType}_${item.Number}.pdf`;
-            const fileNameTranslit = transliterateFilename(fileName);
-            const url = URL.createObjectURL(blob);
-            setPdfViewer({
-                url,
-                name: fileNameTranslit,
-                docType,
-                blob,
-                downloadFileName: fileNameTranslit,
-            });
-            setTimeout(() => {
-                downloadFile(blob, fileNameTranslit);
-            }, 350);
-        } catch (e: any) {
-            setDownloadError(e.message);
+        } catch (e: unknown) {
+            setDownloadError((e as Error)?.message ?? "Ошибка скачивания");
         } finally {
             setDownloading(null);
         }
@@ -697,22 +633,6 @@ export function CargoDetailsModal({
                         </div>
                     );
                 })()}
-                {pdfViewer && (
-                    <div style={{ marginTop: '1rem', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
-                        <div style={{ padding: '0.5rem', background: 'var(--color-bg-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                            <Typography.Label style={{ fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pdfViewer.name}</Typography.Label>
-                            <Flex align="center" gap="0.25rem">
-                                {pdfViewer.blob && (
-                                    <Button size="small" onClick={() => downloadFile(pdfViewer.blob!, pdfViewer.downloadFileName || pdfViewer.name)} title="Скачать"><Download className="w-4 h-4" /></Button>
-                                )}
-                                <Button size="small" onClick={() => { URL.revokeObjectURL(pdfViewer.url); setPdfViewer(null); }}><X size={16} /></Button>
-                            </Flex>
-                        </div>
-                        <object data={pdfViewer.url} type="application/pdf" style={{ width: '100%', height: '500px' }}>
-                            <Typography.Body style={{ padding: '1rem', textAlign: 'center' }}>Ваш браузер не поддерживает просмотр PDF.</Typography.Body>
-                        </object>
-                    </div>
-                )}
             </div>
         </div>
     );

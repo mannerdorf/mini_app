@@ -38,7 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   <title>Скачать документ</title>
   <style>
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: system-ui, sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;

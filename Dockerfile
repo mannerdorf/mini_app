@@ -2,19 +2,25 @@
 #
 # Финал: статика в /usr/share/nginx/html и дубль /app/dist (часть пайплайнов забирает только /app/dist).
 
-FROM node:24-slim AS build
+FROM node:22-bookworm-slim AS build
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm ci
+# node:24 + npm 11+ блокирует postinstall esbuild; pdf.js после iOS release сильно утяжеляет minify.
+# 4096 MB — CMS chunk + pdf/excel; Timeweb часто падает на 2048 при vite build.
+ENV NODE_OPTIONS=--max-old-space-size=4096
+ENV CI=1
+
+COPY package.json package-lock.json .npmrc ./
+RUN npm ci \
+  && node -e "require('esbuild').buildSync({stdin:{contents:'console.log(1)',loader:'js'},write:false})"
 
 COPY . .
 # Веб (Docker/App Platform): VITE_API_ORIGIN не задаём — same-origin /api через nginx.
 # Capacitor: docker build --build-arg VITE_API_ORIGIN=https://api.haulz.space
 ARG VITE_API_ORIGIN=
 ENV VITE_API_ORIGIN=$VITE_API_ORIGIN
-RUN npm run build
+RUN echo "==> vite build (CI)" && npm run build && echo "==> vite build OK"
 
 FROM nginx:1.27-alpine AS production
 

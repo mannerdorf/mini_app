@@ -8,6 +8,7 @@ import {
   shouldServeFromDocumentCache,
 } from "../lib/cacheHistoryDays.js";
 import { handleHaulzSummarySandboxRequest, isHaulzSummarySandboxAction } from "../lib/haulzSummarySandboxApi.js";
+import { getSuperAdminRequestContext, getAdminTokenAuthError, isVerifiedSuperAdmin, readSuperAdminDocumentsFromCache, resolveCredentialsForSuperAdmin } from "../lib/adminDocumentCacheAccess.js";
 import { fetchWithTimeout, upstreamTimeoutMessage } from "../lib/fetchWithTimeout.js";
 import { preferCacheOnlyOnVercel } from "../lib/vercelRuntime.js";
 import { readDocumentsFromCacheByPeriod } from "../lib/documentCacheRead.js";
@@ -191,7 +192,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (handled) return;
   }
 
-  const {
+  let {
     login,
     password,
     dateFrom: rawDateFrom = "2024-01-01",
@@ -211,15 +212,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     includeFiles: body?.includeFiles === true || body?.includeFiles === "true",
   };
 
-  if (!login || !password) {
-    return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
-  }
-
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
   if (!dateRe.test(dateFrom) || !dateRe.test(dateTo)) {
     return res
       .status(400)
       .json({ error: "Invalid date format (YYYY-MM-DD required)", request_id: ctx.requestId });
+  }
+
+  const superAdminCtx = getSuperAdminRequestContext(req, body);
+  if (isVerifiedSuperAdmin(superAdminCtx)) {
+    try {
+      const pool = getPool();
+      const items = await readSuperAdminDocumentsFromCache(pool, "invoices", dateFrom, dateTo);
+      const filtered = items.filter((item) => {
+        const d = invoiceDate(item);
+        return d >= dateFrom && d <= dateTo;
+      });
+      return res.status(200).json(finalizeInvoiceList(filtered, responseOptions));
+    } catch (e) {
+      logError(ctx, "invoices_admin_cache_failed", e);
+      return res.status(500).json({ error: "Ошибка чтения кэша счетов", request_id: ctx.requestId });
+    }
+  }
+
+  const adminTokenError = getAdminTokenAuthError(superAdminCtx);
+  if (adminTokenError === "expired") {
+    return res.status(401).json({ error: "Сессия админки истекла", request_id: ctx.requestId });
+  }
+  if (adminTokenError === "forbidden") {
+    return res.status(403).json({ error: "Доступ только для суперадминистратора", request_id: ctx.requestId });
+  }
+
+  const superAdminCreds = resolveCredentialsForSuperAdmin(superAdminCtx, login, password);
+  if (superAdminCreds) {
+    login = superAdminCreds.login;
+    password = superAdminCreds.password;
+    serviceMode = superAdminCreds.serviceMode;
+  }
+
+  if (!login || !password) {
+    return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
   }
 
   if (serviceMode) {

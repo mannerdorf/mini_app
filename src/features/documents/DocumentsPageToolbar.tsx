@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { Button, Typography } from "@maxhub/max-ui";
 import { ChevronDown, ArrowUp, ArrowDown } from "lucide-react";
 import { FilterDropdownPortal } from "../../components/ui/FilterDropdownPortal";
+import { ResetAllFiltersButton } from "../../components/ui/ResetAllFiltersButton";
 import { CustomPeriodModal } from "../../components/modals/CustomPeriodModal";
 import { stripOoo } from "../../lib/formatUtils";
 import { STATUS_MAP, BILL_STATUS_MAP } from "../../lib/statusUtils";
@@ -223,6 +224,7 @@ export function DocumentsPageToolbar({
             className="filter-group"
             style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexShrink: 0 }}
           >
+            <ResetAllFiltersButton />
             {docSection !== "Тарифы" && docSection !== "Договоры" ? (
               <Button
                 className="filter-button"

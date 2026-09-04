@@ -6,6 +6,11 @@ import type { DocumentsAuthScope, DocumentsFivepostRow } from "../../../api/clie
 import { saveDocumentsFivepostRows, translateDocumentsFivepostBatch } from "../../../api/client/documentsOrder";
 import { parseFivepostShipmentFile } from "../../../../lib/fivepost/parseShipmentXlsx";
 import { parseUpdToTableRows, type OrderTableRow } from "./documentsOrderUpdParse";
+import {
+  formatOrderTableMoney,
+  resolveOrderTableRowDisplay,
+} from "./documentsOrderTableRowDisplay";
+import { allocateDocumentsSendingIds } from "../../../api/client/documentsOrder";
 
 const BOX_PRESETS: { label: string; weightKg: number; volumeM3: number }[] = [
   { label: "XS", weightKg: 1, volumeM3: 0.005 },
@@ -65,13 +70,19 @@ function isExcelFile(file: File): boolean {
 }
 
 function fivepostRowsToTableRows(rows: DocumentsFivepostRow[]): OrderTableRow[] {
-  return rows.map((row, idx) => ({
-    n: idx + 1,
-    posylka: [row.omniBarcode, row.itemNameRu || row.itemName].filter(Boolean).join(" · "),
-    otskanirvano: false,
-    dataSkanirovaniya: "",
-    perevozka: row.clientOrderNo || row.partnerOrderNo || "",
-  }));
+  return rows.map((row, idx) => {
+    const name = row.itemNameRu || row.itemName || row.omniBarcode || `Место ${idx + 1}`;
+    const quantity = row.placesCount && row.placesCount > 0 ? row.placesCount : 1;
+    const price = row.unitCost ?? row.totalCost ?? 0;
+    return {
+      n: idx + 1,
+      posylka: [row.omniBarcode, name].filter(Boolean).join(" · "),
+      items: [{ name, quantity, price }],
+      otskanirvano: false,
+      dataSkanirovaniya: "",
+      perevozka: row.clientOrderNo || row.partnerOrderNo || "",
+    };
+  });
 }
 
 export function DocumentsOrderCargoSection({
@@ -132,7 +143,12 @@ export function DocumentsOrderCargoSection({
     setError(null);
     try {
       const rows = await parseUpdToTableRows(state.fileUpd, count);
-      onChange({ ...state, tableRows: rows, fivepostRows: [], fivepostBatchId: null, fivepostNeedsTranslation: 0 });
+      const ids = await allocateDocumentsSendingIds(authScope, { count: rows.length });
+      const withIds: OrderTableRow[] = rows.map((row, idx) => ({
+        ...row,
+        idOtpravleniya: ids[idx] || row.idOtpravleniya,
+      }));
+      onChange({ ...state, tableRows: withIds, fivepostRows: [], fivepostBatchId: null, fivepostNeedsTranslation: 0 });
     } catch (e) {
       setError((e as Error)?.message || "Ошибка чтения файла УПД");
     } finally {
@@ -471,16 +487,29 @@ export function DocumentsOrderCargoSection({
                 <thead>
                   <tr>
                     <th>N</th>
-                    <th>Посылка</th>
+                    <th>ИД отправления</th>
+                    <th>Наименование</th>
+                    <th>Кол-во, шт</th>
+                    <th>Цена, ₽</th>
+                    <th>Сумма, ₽</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {state.tableRows.map((row) => (
-                    <tr key={row.n}>
-                      <td>{row.n}</td>
-                      <td>{row.posylka || "—"}</td>
-                    </tr>
-                  ))}
+                  {state.tableRows.map((row) => {
+                    const cells = resolveOrderTableRowDisplay(row);
+                    return (
+                      <tr key={row.n}>
+                        <td>{row.n}</td>
+                        <td style={{ fontFamily: "ui-monospace, monospace", whiteSpace: "nowrap" }}>
+                          {row.idOtpravleniya || "—"}
+                        </td>
+                        <td>{cells.name}</td>
+                        <td>{cells.quantity ?? "—"}</td>
+                        <td>{formatOrderTableMoney(cells.price)}</td>
+                        <td>{formatOrderTableMoney(cells.sum)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -6,7 +6,6 @@ import { formatCurrency, parseCargoNumbersFromText } from "../../../lib/formatUt
 import { invoiceBalance, invoiceDocSum, invoiceSumPaid } from "../../../../lib/invoiceAmounts.js";
 import { canShowInvoicePaymentQr } from "../../../../lib/invoicePaymentQr.js";
 import type { AuthData } from "../../../types";
-import { BankBusinessPayButtons } from "./BankBusinessPayButtons";
 type QrResponse = {
   configured?: boolean;
   payload?: string;
@@ -190,8 +189,6 @@ export function InvoicePaymentQrBlock({ invoice, auth, cargoSumPaidByNumber }: P
             <p className="invoice-payment-qr-hint">
               В приложении банка выберите «Платёж», затем «Сканировать QR» или оплатите по реквизитам.
             </p>
-
-            <BankBusinessPayButtons />
           </div>
         </div>
       )}
